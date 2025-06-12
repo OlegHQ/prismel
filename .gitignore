@@ -1,0 +1,27 @@
+# Dune build output
+/_build/
+/_install/
+/dist/
+
+# opam switch (local)
+.opam-switch/
+
+# Dune temporary files
+*.install
+*.merlin
+*.cmt
+*.cmti
+*.cmi
+*.cmo
+*.cmx
+*.o
+*.a
+*.annot
+
+# Editor/OS stuff
+*.swp
+*.swo
+*.bak
+*~
+.DS_Store
+_opam
