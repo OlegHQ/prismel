@@ -1,4 +1,4 @@
 (executable
  (public_name ocaml_graphics_test)
  (name main)
- (libraries ocaml_graphics_test))
+  (libraries ocaml_graphics_test tsdl))
