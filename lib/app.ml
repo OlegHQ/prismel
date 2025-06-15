@@ -24,6 +24,10 @@ let is_running () = !framework_running
 
 (* Initialize SDL and all subsystems *)
 let init_sdl () =
+  (* Set SDL hints for better rendering quality *)
+  ignore (Sdl.set_hint Sdl.Hint.render_scale_quality "1"); (* Linear filtering *)
+  ignore (Sdl.set_hint Sdl.Hint.render_driver ""); (* Let SDL choose best driver *)
+  
   (* Initialize SDL video and audio *)
   match Sdl.init Sdl.Init.(video + audio + events) with
   | Error (`Msg e) -> failwith ("SDL initialization failed: " ^ e)  

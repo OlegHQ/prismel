@@ -21,6 +21,8 @@ val random_range : float -> float -> float
 val random_int : int -> int
 val random_bool : unit -> bool
 val choose : 'a list -> 'a
+val sin : float -> float
+val cos : float -> float
 val sin_deg : float -> float
 val cos_deg : float -> float
 val hypot : float -> float -> float

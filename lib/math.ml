@@ -59,6 +59,8 @@ let choose = function
     List.nth lst (Random.int len)
 
 (* Trigonometry *)
+let sin = Float.sin
+let cos = Float.cos
 let sin_deg theta = Float.sin (deg_to_rad theta)
 let cos_deg theta = Float.cos (deg_to_rad theta)
 

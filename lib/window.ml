@@ -11,6 +11,7 @@ type config = {
   y : int option;
   vsync : bool;
   highdpi : bool;
+  multisampling : int option; (* MSAA samples: None, Some 2, Some 4, Some 8 *)
 }
 
 (* Window state type *)
@@ -33,6 +34,7 @@ let default_config = {
   y = None; (* centered by default *)
   vsync = true;
   highdpi = false;
+  multisampling = Some 4; (* 4x MSAA by default *)
 }
 
 (* Current window reference - only one window supported for now *)
@@ -66,6 +68,13 @@ let create ?(config = default_config) () =
       | Some y -> y  
       | None -> Sdl.Window.pos_centered
     in
+    
+    (* Set multisampling attributes if requested *)
+    (match config.multisampling with
+    | None -> ()
+    | Some samples ->
+      ignore (Sdl.gl_set_attribute Sdl.Gl.multisamplebuffers 1);
+      ignore (Sdl.gl_set_attribute Sdl.Gl.multisamplesamples samples));
     
     (* Create SDL window *)
     let window_flags = get_window_flags config in
