@@ -1,5 +1,4 @@
 (library
  (name tsdl_gfx)
  (libraries tsdl)
- (c_library_flags (-lSDL2_gfx))
- (flags (:standard -w -69)))
+ (c_library_flags (-L/opt/homebrew/lib -lSDL2_gfx)))

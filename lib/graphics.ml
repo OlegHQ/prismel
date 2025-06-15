@@ -75,7 +75,7 @@ let point ~x ~y ?color () =
   let c = get_color ?color () in
   let (r, g, b, a) = color_to_rgba c in
   let (tx, ty) = transform_point (x, y) in
-     ignore (Tsdl_gfx.pixel_rgba (Obj.magic renderer) tx ty r g b a)
+     ignore (Tsdl_gfx.pixel_rgba (Obj.magic renderer) ~x:tx ~y:ty ~r ~g ~b ~a)
 
 (* Draw an antialiased line using tsdl_gfx *)
 let line ~x1 ~y1 ~x2 ~y2 ?color () =

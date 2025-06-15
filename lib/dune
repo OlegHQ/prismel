@@ -1,4 +1,3 @@
 (library
  (name ocaml_graphics_test)
- (libraries tsdl tsdl-image tsdl-ttf tsdl_gfx)
- (flags (:standard -w -32)))
+ (libraries tsdl tsdl-image tsdl-ttf tsdl_gfx))
