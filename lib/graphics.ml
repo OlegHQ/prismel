@@ -75,7 +75,7 @@ let point ~x ~y ?color () =
   let c = get_color ?color () in
   let (r, g, b, a) = color_to_rgba c in
   let (tx, ty) = transform_point (x, y) in
-     ignore (Tsdl_gfx.pixel_rgba (Obj.magic renderer) ~x:tx ~y:ty ~r ~g ~b ~a)
+     ignore (Tsdl_gfx.Gfx.pixel_rgba (Obj.magic renderer) ~x:tx ~y:ty ~r ~g ~b ~a)
 
 (* Draw an antialiased line using tsdl_gfx *)
 let line ~x1 ~y1 ~x2 ~y2 ?color () =
@@ -84,7 +84,7 @@ let line ~x1 ~y1 ~x2 ~y2 ?color () =
   let (r, g, b, a) = color_to_rgba c in
   let (tx1, ty1) = transform_point (x1, y1) in
   let (tx2, ty2) = transform_point (x2, y2) in
-  ignore (Tsdl_gfx.aaline_rgba renderer tx1 ty1 tx2 ty2 r g b a)
+  ignore (Tsdl_gfx.Gfx.aaline_rgba renderer ~x1:tx1 ~y1:ty1 ~x2:tx2 ~y2:ty2 ~r ~g ~b ~a)
 
 (* Draw a rectangle using tsdl_gfx optimized functions *)
 let rect ~pos:(x, y) ~w ~h ?(filled=true) ?color () =
@@ -95,9 +95,9 @@ let rect ~pos:(x, y) ~w ~h ?(filled=true) ?color () =
   let (tx2, ty2) = transform_point (x + w, y + h) in
   
   if filled then
-    ignore (Tsdl_gfx.box_rgba renderer tx ty tx2 ty2 r g b a)
+    ignore (Tsdl_gfx.Gfx.box_rgba renderer ~x1:tx ~y1:ty ~x2:tx2 ~y2:ty2 ~r ~g ~b ~a)
   else
-    ignore (Tsdl_gfx.rectangle_rgba renderer tx ty tx2 ty2 r g b a)
+    ignore (Tsdl_gfx.Gfx.rectangle_rgba renderer ~x1:tx ~y1:ty ~x2:tx2 ~y2:ty2 ~r ~g ~b ~a)
 
 (* Draw an antialiased circle using tsdl_gfx *)
 let circle ~center:(cx, cy) ~radius ?(filled=true) ?color () =
@@ -107,9 +107,9 @@ let circle ~center:(cx, cy) ~radius ?(filled=true) ?color () =
   let (tcx, tcy) = transform_point (cx, cy) in
   
   if filled then
-    ignore (Tsdl_gfx.filled_circle_rgba renderer tcx tcy radius r g b a)
+    ignore (Tsdl_gfx.Gfx.filled_circle_rgba renderer ~x:tcx ~y:tcy ~rad:radius ~r ~g ~b ~a)
   else
-    ignore (Tsdl_gfx.aacircle_rgba renderer tcx tcy radius r g b a)
+    ignore (Tsdl_gfx.Gfx.aacircle_rgba renderer ~x:tcx ~y:tcy ~rad:radius ~r ~g ~b ~a)
 
 (* Draw an antialiased triangle using tsdl_gfx *)
 let triangle ~p1:(x1, y1) ~p2:(x2, y2) ~p3:(x3, y3) ?(filled=true) ?color () =
@@ -121,9 +121,9 @@ let triangle ~p1:(x1, y1) ~p2:(x2, y2) ~p3:(x3, y3) ?(filled=true) ?color () =
   let (tx3, ty3) = transform_point (x3, y3) in
   
   if filled then
-    ignore (Tsdl_gfx.filled_trigon_rgba renderer tx1 ty1 tx2 ty2 tx3 ty3 r g b a)
+    ignore (Tsdl_gfx.Gfx.filled_trigon_rgba renderer ~x1:tx1 ~y1:ty1 ~x2:tx2 ~y2:ty2 ~x3:tx3 ~y3:ty3 ~r ~g ~b ~a)
   else
-    ignore (Tsdl_gfx.aatrigon_rgba renderer tx1 ty1 tx2 ty2 tx3 ty3 r g b a)
+    ignore (Tsdl_gfx.Gfx.aatrigon_rgba renderer ~x1:tx1 ~y1:ty1 ~x2:tx2 ~y2:ty2 ~x3:tx3 ~y3:ty3 ~r ~g ~b ~a)
 
 (* Draw an antialiased polygon using tsdl_gfx *)
 let polygon ~points ?(filled=true) ?color () =
@@ -139,9 +139,9 @@ let polygon ~points ?(filled=true) ?color () =
     let y_coords = Array.of_list (List.map snd transformed_points) in
     
     if filled then
-      ignore (Tsdl_gfx.filled_polygon_rgba renderer x_coords y_coords r g b a)
+        ignore (Tsdl_gfx.Gfx.filled_polygon_rgba renderer ~x_coords ~y_coords ~r ~g ~b ~a)
     else
-      ignore (Tsdl_gfx.aapolygon_rgba renderer x_coords y_coords r g b a)
+      ignore (Tsdl_gfx.Gfx.aapolygon_rgba renderer ~x_coords ~y_coords ~r ~g ~b ~a)
 
 (* Image drawing functions *)
 let draw_image image ~pos:(x, y) =
@@ -229,7 +229,7 @@ let polyline ~points ?color () =
     let rec draw_lines = function
       | [] | [_] -> ()
       | (x1, y1) :: ((x2, y2) :: _ as rest) ->
-        ignore (Tsdl_gfx.aaline_rgba renderer x1 y1 x2 y2 r g b a);
+        ignore (Tsdl_gfx.Gfx.aaline_rgba renderer ~x1 ~y1 ~x2 ~y2 ~r ~g ~b ~a);
         draw_lines rest
     in
     draw_lines transformed_points
@@ -242,9 +242,9 @@ let ellipse ~center:(cx, cy) ~rx ~ry ?(filled=true) ?color () =
   let (tcx, tcy) = transform_point (cx, cy) in
   
   if filled then
-    ignore (Tsdl_gfx.filled_ellipse_rgba renderer tcx tcy rx ry r g b a)
+    ignore (Tsdl_gfx.Gfx.filled_ellipse_rgba renderer ~x:tcx ~y:tcy ~rx ~ry ~r ~g ~b ~a)
   else
-    ignore (Tsdl_gfx.aaellipse_rgba renderer tcx tcy rx ry r g b a)
+    ignore (Tsdl_gfx.Gfx.aaellipse_rgba renderer ~x:tcx ~y:tcy ~rx ~ry ~r ~g ~b ~a)
 
 (* Draw a rounded rectangle using tsdl_gfx *)
 let rounded_rect ~pos:(x, y) ~w ~h ~radius ?(filled=true) ?color () =
@@ -256,9 +256,9 @@ let rounded_rect ~pos:(x, y) ~w ~h ~radius ?(filled=true) ?color () =
   let clamped_radius = min radius (min (w / 2) (h / 2)) in
   
   if filled then
-    ignore (Tsdl_gfx.rounded_box_rgba renderer tx ty tx2 ty2 clamped_radius r g b a)
+    ignore (Tsdl_gfx.Gfx.rounded_box_rgba renderer ~x1:tx ~y1:ty ~x2:tx2 ~y2:ty2 ~rad:clamped_radius ~r ~g ~b ~a)
   else
-    ignore (Tsdl_gfx.rounded_rectangle_rgba renderer tx ty tx2 ty2 clamped_radius r g b a)
+    ignore (Tsdl_gfx.Gfx.rounded_rectangle_rgba renderer ~x1:tx ~y1:ty ~x2:tx2 ~y2:ty2 ~rad:clamped_radius ~r ~g ~b ~a)
 
 (* Additional tsdl_gfx specific functions *)
 
@@ -269,7 +269,7 @@ let thick_line ~x1 ~y1 ~x2 ~y2 ~width ?color () =
   let (r, g, b, a) = color_to_rgba c in
   let (tx1, ty1) = transform_point (x1, y1) in
   let (tx2, ty2) = transform_point (x2, y2) in
-  ignore (Tsdl_gfx.thick_line_rgba renderer tx1 ty1 tx2 ty2 width r g b a)
+  ignore (Tsdl_gfx.Gfx.thick_line_rgba renderer ~x1:tx1 ~y1:ty1 ~x2:tx2 ~y2:ty2 ~width ~r ~g ~b ~a)
 
 (* Draw an arc *)
 let arc ~center:(cx, cy) ~radius ~start_angle ~end_angle ?color () =
@@ -279,7 +279,7 @@ let arc ~center:(cx, cy) ~radius ~start_angle ~end_angle ?color () =
   let (tcx, tcy) = transform_point (cx, cy) in
   let start_deg = int_of_float (start_angle *. 180.0 /. Math.pi) in
   let end_deg = int_of_float (end_angle *. 180.0 /. Math.pi) in
-  ignore (Tsdl_gfx.arc_rgba renderer tcx tcy radius start_deg end_deg r g b a)
+  ignore (Tsdl_gfx.Gfx.arc_rgba renderer ~x:tcx ~y:tcy ~rad:radius ~start:start_deg ~end_:end_deg ~r ~g ~b ~a)
 
 (* Draw a pie slice *)
 let pie ~center:(cx, cy) ~radius ~start_angle ~end_angle ?(filled=true) ?color () =
@@ -291,9 +291,9 @@ let pie ~center:(cx, cy) ~radius ~start_angle ~end_angle ?(filled=true) ?color (
   let end_deg = int_of_float (end_angle *. 180.0 /. Math.pi) in
   
   if filled then
-    ignore (Tsdl_gfx.filled_pie_rgba renderer tcx tcy radius start_deg end_deg r g b a)
+    ignore (Tsdl_gfx.Gfx.filled_pie_rgba renderer ~x:tcx ~y:tcy ~rad:radius ~start:start_deg ~end_:end_deg ~r ~g ~b ~a)
   else
-    ignore (Tsdl_gfx.pie_rgba renderer tcx tcy radius start_deg end_deg r g b a)
+    ignore (Tsdl_gfx.Gfx.pie_rgba renderer ~x:tcx ~y:tcy ~rad:radius ~start:start_deg ~end_:end_deg ~r ~g ~b ~a)
 
 (* Draw a Bezier curve *)
 let bezier ~points ~steps ?color () =
@@ -307,7 +307,7 @@ let bezier ~points ~steps ?color () =
     let transformed_points = List.map transform_point points in
     let x_coords = Array.of_list (List.map fst transformed_points) in
     let y_coords = Array.of_list (List.map snd transformed_points) in
-    ignore (Tsdl_gfx.bezier_rgba renderer x_coords y_coords steps r g b a)
+    ignore (Tsdl_gfx.Gfx.bezier_rgba renderer ~x_coords ~y_coords ~steps ~r ~g ~b ~a)
 
 (* Draw text using built-in font from tsdl_gfx *)
 let draw_gfx_text ~pos:(x, y) ~text ?color () =
@@ -315,8 +315,8 @@ let draw_gfx_text ~pos:(x, y) ~text ?color () =
   let c = get_color ?color () in
   let color32 = color_to_int32 c in
   let (tx, ty) = transform_point (x, y) in
-  ignore (Tsdl_gfx.string_color renderer tx ty text color32)
+  ignore (Tsdl_gfx.Gfx.string_rgba renderer ~x:tx ~y:ty ~s:text ~color32)
 
 (* Set font rotation for gfx text (0=0°, 1=90°, 2=180°, 3=270°) *)
 let set_gfx_font_rotation rotation =
-  Tsdl_gfx.gfx_primitives_set_font_rotation rotation
+  Tsdl_gfx.Gfx.set_font_rotation ~rot:rotation
