@@ -1,3 +1,3 @@
 (library
  (name ocaml_graphics_test)
- (libraries tsdl))
+ (libraries tsdl tsdl-image))
