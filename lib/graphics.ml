@@ -36,16 +36,7 @@ let color_to_rgba color =
   let (r, g, b, a) = Color.to_tuple color in
   (r, g, b, a)
 
-(* Helper function to convert Color.t to 32-bit color *)
-let color_to_int32 color =
-  let (r, g, b, a) = Color.to_tuple color in
-  Int32.logor
-    (Int32.shift_left (Int32.of_int r) 24)
-    (Int32.logor
-      (Int32.shift_left (Int32.of_int g) 16)
-      (Int32.logor
-        (Int32.shift_left (Int32.of_int b) 8)
-        (Int32.of_int a)))
+
 
 (* Apply current transform to a point *)
 let transform_point (x, y) =
@@ -135,13 +126,11 @@ let polygon ~points ?(filled=true) ?color () =
     let (r, g, b, a) = color_to_rgba c in
     
     let transformed_points = List.map transform_point points in
-    let x_coords = Array.of_list (List.map fst transformed_points) in
-    let y_coords = Array.of_list (List.map snd transformed_points) in
     
     if filled then
-        ignore (Tsdl_gfx.Gfx.filled_polygon_rgba renderer ~x_coords ~y_coords ~r ~g ~b ~a)
+        ignore (Tsdl_gfx.Gfx.filled_polygon_rgba renderer ~ps:transformed_points ~r ~g ~b ~a)
     else
-      ignore (Tsdl_gfx.Gfx.aapolygon_rgba renderer ~x_coords ~y_coords ~r ~g ~b ~a)
+      ignore (Tsdl_gfx.Gfx.aapolygon_rgba renderer ~ps:transformed_points ~r ~g ~b ~a)
 
 (* Image drawing functions *)
 let draw_image image ~pos:(x, y) =
@@ -305,17 +294,15 @@ let bezier ~points ~steps ?color () =
     let (r, g, b, a) = color_to_rgba c in
     
     let transformed_points = List.map transform_point points in
-    let x_coords = Array.of_list (List.map fst transformed_points) in
-    let y_coords = Array.of_list (List.map snd transformed_points) in
-    ignore (Tsdl_gfx.Gfx.bezier_rgba renderer ~x_coords ~y_coords ~steps ~r ~g ~b ~a)
+    ignore (Tsdl_gfx.Gfx.bezier_rgba renderer ~ps:transformed_points ~s:steps ~r ~g ~b ~a)
 
 (* Draw text using built-in font from tsdl_gfx *)
 let draw_gfx_text ~pos:(x, y) ~text ?color () =
   let renderer = get_renderer () in
   let c = get_color ?color () in
-  let color32 = color_to_int32 c in
+  let (r, g, b, a) = color_to_rgba c in
   let (tx, ty) = transform_point (x, y) in
-  ignore (Tsdl_gfx.Gfx.string_rgba renderer ~x:tx ~y:ty ~s:text ~color32)
+  ignore (Tsdl_gfx.Gfx.string_rgba renderer ~x:tx ~y:ty ~s:text ~r ~g ~b ~a)
 
 (* Set font rotation for gfx text (0=0°, 1=90°, 2=180°, 3=270°) *)
 let set_gfx_font_rotation rotation =

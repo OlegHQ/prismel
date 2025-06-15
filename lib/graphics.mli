@@ -52,3 +52,34 @@ val rounded_rect :
   pos:int * int ->
   w:int ->
   h:int -> radius:int -> ?filled:bool -> ?color:Color.t -> unit -> unit
+
+(** {1 Advanced SDL2_gfx Drawing Functions} *)
+
+(** [thick_line ~x1 ~y1 ~x2 ~y2 ~width ?color ()] draws a thick antialiased line *)
+val thick_line :
+  x1:int -> y1:int -> x2:int -> y2:int -> width:int -> ?color:Color.t -> unit -> unit
+
+(** [arc ~center ~radius ~start_angle ~end_angle ?color ()] draws an arc *)
+val arc :
+  center:int * int ->
+  radius:int ->
+  start_angle:float ->
+  end_angle:float -> ?color:Color.t -> unit -> unit
+
+(** [pie ~center ~radius ~start_angle ~end_angle ?filled ?color ()] draws a pie slice *)
+val pie :
+  center:int * int ->
+  radius:int ->
+  start_angle:float ->
+  end_angle:float -> ?filled:bool -> ?color:Color.t -> unit -> unit
+
+(** [bezier ~points ~steps ?color ()] draws a smooth Bezier curve *)
+val bezier :
+  points:(int * int) list -> steps:int -> ?color:Color.t -> unit -> unit
+
+(** [draw_gfx_text ~pos ~text ?color ()] draws text using SDL2_gfx built-in font *)
+val draw_gfx_text :
+  pos:int * int -> text:string -> ?color:Color.t -> unit -> unit
+
+(** [set_gfx_font_rotation rotation] sets font rotation (0=0°, 1=90°, 2=180°, 3=270°) *)
+val set_gfx_font_rotation : int -> unit

@@ -207,10 +207,10 @@ open Core
 let draw time =
   Graphics.clear (Color.rgb 0 0 0);
 
-  for i = 0 to 1000 do
+  for i = 0 to 500 do
+    let cy = i * 2 in
     let open Float.O in
-    let cy = i in
-    let i = i |> float_of_int in
+    let i = (i |> float_of_int )* 2. in
     let size = 50. + (40. * Math.sin ((time + (i * 0.00737)) * 1.)) in
 
 
@@ -225,7 +225,8 @@ let draw time =
    in
    let size = size |> int_of_float in
 
-    Graphics.rect ~pos:(cx |> int_of_float, cy) ~w:size ~h:size ~color ()
+    (* Graphics.rect ~pos:(cx |> int_of_float, cy) ~w:size ~h:size ~color () *)
+    Graphics.circle ~center:(cx |> int_of_float, cy ) ~radius:size ~filled:true ~color ()
   done
 
 let handle_event state event =
