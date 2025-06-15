@@ -4,10 +4,10 @@ synopsis: "A short synopsis"
 description: "A longer description"
 maintainer: ["Oleg Pustovit <oleg@nexo.sh>"]
 authors: ["Oleg Pustovit <oleg@nexo.sh>"]
-license: "MIT"
-tags: ["ocaml" "graphics" "sdl"]
+license: "LICENSE"
+tags: ["ocaml" "graphics" "test"]
 homepage: "https://github.com/nexo-tech/ocaml_graphics_test"
-doc: "https://url/to/documentation"
+doc: "https://nexo.sh/ocaml_graphics_test"
 bug-reports: "https://github.com/nexo-tech/ocaml_graphics_test/issues"
 depends: [
   "dune" {>= "3.17"}

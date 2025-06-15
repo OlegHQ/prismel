@@ -5,15 +5,15 @@
 (generate_opam_files true)
 
 (source
- (github username/reponame))
+ (github nexo-tech/ocaml_graphics_test))
 
-(authors "Author Name <author@example.com>")
+(authors "Oleg Pustovit <oleg@nexo.sh>")
 
-(maintainers "Maintainer Name <maintainer@example.com>")
+(maintainers "Oleg Pustovit <oleg@nexo.sh>")
 
 (license LICENSE)
 
-(documentation https://url/to/documentation)
+(documentation https://nexo.sh/ocaml_graphics_test)
 
 (package
  (name ocaml_graphics_test)
@@ -21,6 +21,6 @@
  (description "A longer description")
  (depends ocaml)
  (tags
-  ("add topics" "to describe" your project)))
+  ("ocaml" "graphics" "test")))
 
 ; See the complete stanza docs at https://dune.readthedocs.io/en/stable/reference/dune-project/index.html
