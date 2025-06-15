@@ -1,0 +1,3 @@
+(library
+ (name tsdl_gfx)
+ (libraries tsdl))
