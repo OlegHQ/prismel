@@ -1,4 +1,4 @@
 (executable
- (public_name ocaml_graphics_test)
+ (public_name prismel)
  (name main)
-  (libraries ocaml_graphics_test tsdl core))
+  (libraries prismel tsdl core))

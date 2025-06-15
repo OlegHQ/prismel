@@ -201,7 +201,7 @@ let () =
   | e -> 
     Printf.printf "Unexpected error: %s\n%!" (Printexc.to_string e);
     exit 1 *)
-open Ocaml_graphics_test
+open Prismel
 open Core
 
 let draw time =
