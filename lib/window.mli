@@ -1,0 +1,46 @@
+type config = {
+  width : int;
+  height : int;
+  title : string;
+  resizable : bool;
+  fullscreen : bool;
+  x : int option;
+  y : int option;
+  vsync : bool;
+  highdpi : bool;
+  multisampling : int option;
+}
+type t = {
+  window : Tsdl.Sdl.window;
+  renderer : Tsdl.Sdl.renderer;
+  config : config;
+  mutable current_width : int;
+  mutable current_height : int;
+}
+val default_config : config
+val current_window : t option ref
+val get_window_flags : config -> Tsdl.Sdl.Window.flags list
+val get_renderer_flags : config -> Tsdl.Sdl.Renderer.flags list
+val create : ?config:config -> unit -> t
+val get_current : unit -> t
+val width : unit -> int
+val height : unit -> int
+val size : unit -> int * int
+val title : unit -> string
+val is_resizable : unit -> bool
+val is_fullscreen : unit -> bool
+val set_title : string -> unit
+val set_size : int -> int -> unit
+val set_position : int -> int -> unit
+val center : unit -> unit
+val set_fullscreen : bool -> unit
+val show : unit -> unit
+val hide : unit -> unit
+val minimize : unit -> unit
+val maximize : unit -> unit
+val restore : unit -> unit
+val update_dimensions : int -> int -> unit
+val get_window : unit -> Tsdl.Sdl.window
+val get_renderer : unit -> Tsdl.Sdl.renderer
+val destroy : unit -> unit
+val exists : unit -> bool

@@ -206,17 +206,19 @@ open Core
 
 let draw time =
   Graphics.clear (Color.rgb 0 0 0);
-
-  for i = 0 to 500 do
+  Graphics.push_matrix ();
+  Graphics.scale ~sx:2. ~sy:2.;
+ 
+  (for i = 0 to 250 do
     let cy = i * 2 in
     let open Float.O in
-    let i = (i |> float_of_int )* 2. in
+    let i = (i |> float_of_int )*4. in
     let size = 50. + (40. * Math.sin ((time + (i * 0.00737)) * 1.)) in
 
 
     let offset =  i * 0.01 in
     let st = Math.sin ((time + offset) ) in
-    let cx = 500. + (200. * st) in 
+    let cx = 250. + (200. * st) in 
 
    let color = Color.rgb 
    ((127. + 127. * Math.sin(i * 0.01)) |> int_of_float)
@@ -227,7 +229,10 @@ let draw time =
 
     (* Graphics.rect ~pos:(cx |> int_of_float, cy) ~w:size ~h:size ~color () *)
     Graphics.circle ~center:(cx |> int_of_float, cy ) ~radius:size ~filled:true ~color ()
-  done
+  done);
+
+  Graphics.pop_matrix ()
+
 
 let handle_event state event =
   match event with
@@ -245,7 +250,7 @@ let handle_event state event =
   | _ -> state
 
 let () =
-  let size = 1000 in
+  let size = 500 in
   let conf = { Window.default_config with width = size; height = size } in
   App.Utils.set_frame_rate 60;
   let _ =

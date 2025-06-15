@@ -33,7 +33,7 @@ let default_config = {
   x = None; (* centered by default *)
   y = None; (* centered by default *)
   vsync = true;
-  highdpi = false;
+  highdpi = true;
   multisampling = Some 4; (* 4x MSAA by default *)
 }
 
