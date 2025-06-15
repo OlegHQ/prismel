@@ -1,0 +1,53 @@
+## Project Structure and Module Breakdown
+
+The framework is organized into a collection of modules, each handling a specific subsystem or concern. This modular structure makes it easy to use or even replace one part without affecting others, and helps contributors focus on one area at a time. Below is an overview of the project structure with its major modules:
+
+- **Core (App Engine):** The central module coordinating the main loop and application lifecycle. It ties together the window, event polling, and user-defined callback functions (`init`, `update`, `draw`, etc.). This module manages the creation of the main window and renderer (via Tsdl) and orchestrates per-frame updates. (In code, this could be exposed as a module `Framework` or simply top-level functions like `run` in a main `Creative` module.)
+
+- **Window:** Responsible for window management and properties. Provides functions to create windows (if not implicitly done by Core), adjust window settings (size, title, fullscreen, etc.), and query properties like current width/height. It may also handle high-level window events (close, resize) in tandem with the event system.
+
+- **Graphics:** Provides drawing routines for 2D graphics. This includes basic shapes (lines, rectangles, circles, triangles, etc.), more complex shapes or paths, and possibly text rendering integration. It interfaces with SDL’s rendering API under the hood to draw to the window’s context. The Graphics module also manages the coordinate system and drawing state (e.g. current color or transform, if any – though in a pure API we pass these explicitly). This module aims to be immediately useful for prototyping: a user can call `Graphics.circle ~center:(x,y) ~radius:50 ~color:Color.red` to draw a red circle, without needing to understand low-level rendering details.
+
+- **Color:** Defines a color type and utilities. Colors are used throughout graphics (for shapes, images, backgrounds). The Color module provides ways to create colors (RGB, RGBA, HSL perhaps), predefined color constants (basic palette), and functions to manipulate colors (blend, lighten, etc.). It is separated for clarity, since color handling (and potential color space conversions) can be a self-contained concern.
+
+- **Input:** Handles input devices such as keyboard and mouse (and potentially game controllers in the future). It defines types for key codes, mouse buttons, etc., and functions to query input state or events. This module, together with the Event module, allows the user to react to user inputs. For instance, it might offer `Input.is_key_pressed state key` to check if a key is currently held (if the framework tracks that), or simply rely on events for key presses and releases.
+
+- **Event:** The event handling system abstraction. It defines the `Event.t` type (covering key presses, mouse movements, window events, etc.) and manages the dispatch of events to the user’s code. This module may be tightly integrated with Input (some designs combine them), but conceptually it deals with the _delivery mechanism_: how events are queued and processed each frame. It exposes, for example, `Event.poll()` or an internal function that the Core loop uses to fetch all SDL events and convert them to the framework’s `Event.t` values. It also could offer an event subscription or callback registration interface for advanced use (though in a simple use case, the Core module will just call the user’s provided event handler function).
+
+- **Time:** Provides timekeeping utilities. This includes retrieving the current time, measuring time deltas between frames, and possibly functions to control frame rate or delays. It might wrap SDL’s timing functions or use OCaml’s Unix module for high precision timers. The Time module could include functionality to get the **elapsed time** since the start of the program (`Time.elapsed()` returning a float in seconds, for example) and the delta time between the current frame and the last frame (which can be passed into the user’s update function for physics/animation timing). It may also include simple utilities like `Time.delay ms` to sleep for a number of milliseconds (wrapping `Sdl.delay`) if needed for throttling loops outside the main one.
+
+- **Math:** A collection of math utilities helpful in creative coding. This includes constants (pi, etc.), common functions (e.g. degrees-radians conversion, clamping values, linear interpolation), random number helpers, and possibly noise generation or easing functions for animations. This module might be further subdivided into submodules for structure types like vectors and matrices (see below). The emphasis is on 2D geometry and general math helpers that make coding visuals easier. We plan to keep these functions pure and free of side effects.
+
+- **2D Vector (Vec2) and Matrix (Mat2/Mat3):** Types and operations for geometric math. The framework provides a `Vec2` type (2D vector with `x` and `y` components, likely floats) with associated functions like `Vec2.add`, `Vec2.scale`, `Vec2.length`, `Vec2.normalize`, etc. It also defines a matrix type for 2D transformations – likely a 3x3 homogeneous transformation matrix (`Mat3`) to handle translation, rotation, scaling in 2D (or a simpler record of transform parameters). Functions to create common transformation matrices (translation by x,y, rotation by θ, scaling) and to multiply matrices or apply them to vectors will be included. These are crucial for advanced graphics operations and to support things like rotating an image or setting a global transform for drawing. Keeping them in a separate module (or submodule of Math) allows reuse and possible extension to 3D in the future without cluttering the basic API.
+
+- **Image:** Supports loading, manipulating, and drawing images (bitmap graphics). It introduces an `Image.t` type which holds image data. This type likely contains or wraps an SDL texture or surface internally (using Tsdl_image to load various formats). The Image module provides `Image.load "file.png"` to load an image file into an `Image.t`, and functions like `Image.width`, `Image.height` to query dimensions. It may also allow direct pixel access or manipulation (e.g. `Image.get_pixel img (x,y)`), perhaps by exposing an `Image.pixels` array or Bigarray of pixel data for advanced use. Additionally, functions to draw images on screen might reside here or in the Graphics module (e.g. `Graphics.draw_image img ~pos:(x,y)`). We decide on a clear division: `Image` handles the resource (loading, saving, pixel ops), while `Graphics` handles rendering it to screen (so there would be a Graphics function that takes an Image.t and draws it). The API hides the low-level SDL details (like surfaces and textures) behind the functional interface.
+
+- **Sound:** Provides audio playback functionality. It wraps SDL_mixer (via Tsdl_mixer) to load sound files (WAV, OGG, MP3, etc.) and play them. We define a `Sound.t` type to represent a sound (could be a short sound effect or a longer music track). Key functions include `Sound.load "file.mp3" : (Sound.t, string) result` to load a sound, `Sound.play sound` to play it (possibly with optional parameters for looping or channel control), and functions like `Sound.stop sound`, `Sound.pause sound`, `Sound.set_volume sound volume_level`. The Sound module also handles initializing the audio subsystem (opening the audio device with a default sample rate and format), likely abstracted away in the Core init. It should allow playing multiple sounds concurrently (SDL_mixer handles mixing multiple channels). For advanced use, we might allow the user to control more details (choose specific channels, or use audio callbacks for synthesized sound), but the default API keeps it simple (similar to openFrameworks ofSoundPlayer). Sound errors (like unsupported format) are reported via results. We also consider a distinction between short sound samples and streaming music: SDL_mixer distinguishes chunks vs music, but the framework can abstract this into the same `Sound.t` interface, or provide two types (e.g. `Sound.Music.t` vs `Sound.Sample.t`) if needed.
+
+- **Font/Text (Typography):** _(Note: This was not explicitly in the original list, but typography was mentioned in openFrameworks context.)_ We plan a module (or part of Graphics) to handle text rendering, using Tsdl_ttf (bindings to SDL_ttf) for TrueType font support. This would allow loading fonts and drawing text on screen. The API might include a `Font.t` type with `Font.load "font.ttf" size` and a `Graphics.text ~font ~position ~color "Hello"` to draw text. For simplicity, a default font can be included so that text can be drawn without needing an external font file (perhaps using SDL’s built-in font or a basic bitmap font). This functionality is considered part of graphics in spirit, but implemented via a separate SDL extension. (If included, it will follow the same functional style: no persistent mutable font objects beyond the loaded `Font.t` which is immutable except for internal reference counted data.)
+
+Each of these modules is designed to have a clear interface (`.mli`) and internal implementation (`.ml`) that uses Tsdl or other libraries as needed. Advanced users can choose to use lower-level Tsdl functions in tandem if absolutely required (for example, obtaining the raw `Sdl.renderer` from the window to perform custom drawing), but the framework’s API should cover most needs without dropping down to C-level details.
+
+The project structure in terms of file layout might look like:
+
+```
+src/
+  core.ml, core.mli            (Core/App Engine)
+  window.ml, window.mli        (Window management)
+  graphics.ml, graphics.mli    (Drawing primitives)
+  color.ml, color.mli          (Color type and functions)
+  input.ml, input.mli          (Input devices)
+  event.ml, event.mli          (Event types and handling)
+  time.ml, time.mli            (Time utilities)
+  math.ml, math.mli            (Misc math utilities)
+  vec2.ml, vec2.mli            (2D vector operations)
+  mat3.ml, mat3.mli            (2D transform matrix operations)
+  image.ml, image.mli          (Image loading and pixel ops)
+  sound.ml, sound.mli          (Sound loading and playback)
+  font.ml, font.mli            (Font loading and text rendering, if included)
+examples/
+  ...                         (sample programs demonstrating each subsystem)
+docs/...
+```
+
+This modular breakdown ensures each component is manageable and can be evolved independently. For example, one could replace the Graphics module’s internals to use OpenGL directly instead of SDL’s renderer, and as long as it respects the same functional interface, the rest of the framework and user code remain unchanged.
