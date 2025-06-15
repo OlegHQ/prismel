@@ -126,7 +126,7 @@ let circle ~center:(cx, cy) ~radius ?(filled=true) ?color () =
     done
   else
     (* Draw circle outline using midpoint circle algorithm *)
-    let rec draw_circle_points x y =
+    let  draw_circle_points x y =
       let points = [
         (tcx + x, tcy + y); (tcx - x, tcy + y); (tcx + x, tcy - y); (tcx - x, tcy - y);
         (tcx + y, tcy + x); (tcx - y, tcy + x); (tcx + y, tcy - x); (tcx - y, tcy - x)
@@ -219,14 +219,14 @@ let draw_image image ~pos:(x, y) =
   let w, h = Image.get_size image in
   let (tx, ty) = transform_point (x, y) in
   let dst_rect = Sdl.Rect.create ~x:tx ~y:ty ~w ~h in
-  ignore (Sdl.render_copy renderer (Image.get_texture image) None (Some dst_rect))
+  ignore (Sdl.render_copy ~dst:dst_rect renderer (Image.get_texture image))
 
 let draw_sub_image image ~src_rect:(sx, sy, sw, sh) ~dst_rect:(dx, dy, dw, dh) =
   let renderer = get_renderer () in
   let src = Sdl.Rect.create ~x:sx ~y:sy ~w:sw ~h:sh in
   let (tdx, tdy) = transform_point (dx, dy) in
   let dst = Sdl.Rect.create ~x:tdx ~y:tdy ~w:dw ~h:dh in
-  ignore (Sdl.render_copy renderer (Image.get_texture image) (Some src) (Some dst))
+  ignore (Sdl.render_copy ~src ~dst renderer (Image.get_texture image))
 
 (* Extended image drawing with rotation, scaling, and flipping *)
 let draw_image_ex image ~pos:(x, y) ?scale ?angle ?center ?flip () =
@@ -248,7 +248,7 @@ let draw_image_ex image ~pos:(x, y) ?scale ?angle ?center ?flip () =
   let angle_deg = match angle with Some a -> a | None -> 0.0 in
   let flip_mode = match flip with Some true -> Sdl.Flip.horizontal | _ -> Sdl.Flip.none in
   
-  ignore (Sdl.render_copy_ex renderer (Image.get_texture image) None (Some dst_rect) angle_deg center_point flip_mode)
+  ignore (Sdl.render_copy_ex ~dst:dst_rect renderer (Image.get_texture image) angle_deg center_point flip_mode)
 
 (* Text rendering *)
 let draw_text font ~pos:(x, y) ~text ?color () =
