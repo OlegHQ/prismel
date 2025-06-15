@@ -42,7 +42,7 @@ val create_fps_manager : unit -> fps_manager
 val pixel_color : Tsdl.Sdl.renderer -> int -> int -> int32 -> int
 
 (** [pixel_rgba renderer x y r g b a] draws a pixel with separate RGBA components *)
-val pixel_rgba : Tsdl.Sdl.renderer -> int -> int -> int -> int -> int -> int -> int -> int
+val pixel_rgba : Tsdl.Sdl.renderer -> int -> int -> int -> int -> int -> int ->  int
 
 (** {2 Line operations} *)
 

@@ -27,10 +27,25 @@ let get_renderer () =
   | Some r -> r
   | None -> failwith "Graphics not initialized"
 
-(* Helper function to convert Color.t to SDL color *)
+(* Convert Color.t to SDL RGBA components *)
 let color_to_sdl color =
+  Color.to_tuple color
+
+(* Helper function to convert Color.t to RGBA components *)
+let color_to_rgba color =
   let (r, g, b, a) = Color.to_tuple color in
   (r, g, b, a)
+
+(* Helper function to convert Color.t to 32-bit color *)
+let color_to_int32 color =
+  let (r, g, b, a) = Color.to_tuple color in
+  Int32.logor
+    (Int32.shift_left (Int32.of_int r) 24)
+    (Int32.logor
+      (Int32.shift_left (Int32.of_int g) 16)
+      (Int32.logor
+        (Int32.shift_left (Int32.of_int b) 8)
+        (Int32.of_int a)))
 
 (* Apply current transform to a point *)
 let transform_point (x, y) =
@@ -40,7 +55,7 @@ let transform_point (x, y) =
 (* Clear screen with given color *)
 let clear color =
   let renderer = get_renderer () in
-  let (r, g, b, a) = color_to_sdl color in
+  let (r, g, b, a) = color_to_rgba color in
   ignore (Sdl.set_render_draw_color renderer r g b a);
   ignore (Sdl.render_clear renderer)
 
@@ -54,164 +69,79 @@ let get_color ?color () =
   | Some c -> c
   | None -> !graphics_state.current_color
 
-(* Draw a single point *)
+(* Draw a single point using tsdl_gfx *)
 let point ~x ~y ?color () =
   let renderer = get_renderer () in
   let c = get_color ?color () in
-  let (r, g, b, a) = color_to_sdl c in
+  let (r, g, b, a) = color_to_rgba c in
   let (tx, ty) = transform_point (x, y) in
-  ignore (Sdl.set_render_draw_color renderer r g b a);
-  ignore (Sdl.render_draw_point renderer tx ty)
+     ignore (Tsdl_gfx.pixel_rgba (Obj.magic renderer) tx ty r g b a)
 
-(* Draw a line *)
+(* Draw an antialiased line using tsdl_gfx *)
 let line ~x1 ~y1 ~x2 ~y2 ?color () =
   let renderer = get_renderer () in
   let c = get_color ?color () in
-  let (r, g, b, a) = color_to_sdl c in
+  let (r, g, b, a) = color_to_rgba c in
   let (tx1, ty1) = transform_point (x1, y1) in
   let (tx2, ty2) = transform_point (x2, y2) in
-  ignore (Sdl.set_render_draw_color renderer r g b a);
-  ignore (Sdl.render_draw_line renderer tx1 ty1 tx2 ty2)
+  ignore (Tsdl_gfx.aaline_rgba renderer tx1 ty1 tx2 ty2 r g b a)
 
-(* Draw a rectangle *)
+(* Draw a rectangle using tsdl_gfx optimized functions *)
 let rect ~pos:(x, y) ~w ~h ?(filled=true) ?color () =
   let renderer = get_renderer () in
   let c = get_color ?color () in
-  let (r, g, b, a) = color_to_sdl c in
+  let (r, g, b, a) = color_to_rgba c in
+  let (tx, ty) = transform_point (x, y) in
+  let (tx2, ty2) = transform_point (x + w, y + h) in
   
   if filled then
-    (* For filled rectangles with transforms, draw as multiple lines *)
-    (* let corners = [
-      (x, y); (x + w, y); (x + w, y + h); (x, y + h)
-    ] in
-    let transformed_corners = List.map transform_point corners in *)
-    
-    (* Simple approach: draw filled rect by drawing horizontal lines *)
-    let (tx, ty) = transform_point (x, y) in
-    let (tw, th) = transform_point (x + w, y + h) in
-    let rect = Sdl.Rect.create ~x:tx ~y:ty ~w:(tw - tx) ~h:(th - ty) in
-    ignore (Sdl.set_render_draw_color renderer r g b a);
-    ignore (Sdl.render_fill_rect renderer (Some rect))
+    ignore (Tsdl_gfx.box_rgba renderer tx ty tx2 ty2 r g b a)
   else
-    (* Draw rectangle outline *)
-    ignore (Sdl.set_render_draw_color renderer r g b a);
-    let corners = [
-      (x, y); (x + w, y); (x + w, y + h); (x, y + h); (x, y)
-    ] in
-    let rec draw_lines = function
-      | [] | [_] -> ()
-      | (x1, y1) :: ((x2, y2) :: _ as rest) ->
-        let (tx1, ty1) = transform_point (x1, y1) in
-        let (tx2, ty2) = transform_point (x2, y2) in
-        ignore (Sdl.render_draw_line renderer tx1 ty1 tx2 ty2);
-        draw_lines rest
-    in
-    draw_lines corners
+    ignore (Tsdl_gfx.rectangle_rgba renderer tx ty tx2 ty2 r g b a)
 
-(* Helper function to draw circle using midpoint circle algorithm *)
+(* Draw an antialiased circle using tsdl_gfx *)
 let circle ~center:(cx, cy) ~radius ?(filled=true) ?color () =
   let renderer = get_renderer () in
   let c = get_color ?color () in
-  let (r, g, b, a) = color_to_sdl c in
-  ignore (Sdl.set_render_draw_color renderer r g b a);
+  let (r, g, b, a) = color_to_rgba c in
   let (tcx, tcy) = transform_point (cx, cy) in
   
   if filled then
-    (* Draw filled circle by drawing horizontal lines *)
-    for y = -radius to radius do
-      let x_width = int_of_float (sqrt (float_of_int (radius * radius - y * y))) in
-      for x = -x_width to x_width do
-        ignore (Sdl.render_draw_point renderer (tcx + x) (tcy + y))
-      done
-    done
+    ignore (Tsdl_gfx.filled_circle_rgba renderer tcx tcy radius r g b a)
   else
-    (* Draw circle outline using midpoint circle algorithm *)
-    let  draw_circle_points x y =
-      let points = [
-        (tcx + x, tcy + y); (tcx - x, tcy + y); (tcx + x, tcy - y); (tcx - x, tcy - y);
-        (tcx + y, tcy + x); (tcx - y, tcy + x); (tcx + y, tcy - x); (tcx - y, tcy - x)
-      ] in
-      List.iter (fun (px, py) -> ignore (Sdl.render_draw_point renderer px py)) points
-    in
-    
-    let rec midpoint_circle x y p =
-      if x <= y then begin
-        draw_circle_points x y;
-        if p < 0 then
-          midpoint_circle (x + 1) y (p + 2 * x + 3)
-        else
-          midpoint_circle (x + 1) (y - 1) (p + 2 * (x - y) + 5)
-      end
-    in
-    midpoint_circle 0 radius (1 - radius)
+    ignore (Tsdl_gfx.aacircle_rgba renderer tcx tcy radius r g b a)
 
-(* Draw a triangle *)
+(* Draw an antialiased triangle using tsdl_gfx *)
 let triangle ~p1:(x1, y1) ~p2:(x2, y2) ~p3:(x3, y3) ?(filled=true) ?color () =
   let renderer = get_renderer () in
   let c = get_color ?color () in
-  let (r, g, b, a) = color_to_sdl c in
-  ignore (Sdl.set_render_draw_color renderer r g b a);
+  let (r, g, b, a) = color_to_rgba c in
   let (tx1, ty1) = transform_point (x1, y1) in
   let (tx2, ty2) = transform_point (x2, y2) in
   let (tx3, ty3) = transform_point (x3, y3) in
   
   if filled then
-    (* Simple triangle fill - draw lines between vertices *)
-    (* This is a simplified approach, could be improved with proper scanline fill *)
-    (ignore (Sdl.render_draw_line renderer tx1 ty1 tx2 ty2);
-    ignore (Sdl.render_draw_line renderer tx2 ty2 tx3 ty3);
-    ignore (Sdl.render_draw_line renderer tx3 ty3 tx1 ty1))
+    ignore (Tsdl_gfx.filled_trigon_rgba renderer tx1 ty1 tx2 ty2 tx3 ty3 r g b a)
   else
-    (* Draw triangle outline *)
-    ignore (Sdl.render_draw_line renderer tx1 ty1 tx2 ty2);
-    ignore (Sdl.render_draw_line renderer tx2 ty2 tx3 ty3);
-    ignore (Sdl.render_draw_line renderer tx3 ty3 tx1 ty1)
+    ignore (Tsdl_gfx.aatrigon_rgba renderer tx1 ty1 tx2 ty2 tx3 ty3 r g b a)
 
-(* Draw a polygon *)
+(* Draw an antialiased polygon using tsdl_gfx *)
 let polygon ~points ?(filled=true) ?color () =
   match points with
   | [] | [_] -> () (* Need at least 2 points *)
   | _ ->
     let renderer = get_renderer () in
     let c = get_color ?color () in
-    let (r, g, b, a) = color_to_sdl c in
-    ignore (Sdl.set_render_draw_color renderer r g b a);
+    let (r, g, b, a) = color_to_rgba c in
     
     let transformed_points = List.map transform_point points in
+    let x_coords = Array.of_list (List.map fst transformed_points) in
+    let y_coords = Array.of_list (List.map snd transformed_points) in
     
     if filled then
-      (* Simple polygon fill - just draw outline for now *)
-      (* Proper polygon filling would require triangulation *)
-      let rec draw_edges = function
-        | [] | [_] -> ()
-        | (x1, y1) :: ((x2, y2) :: _ as rest) ->
-          ignore (Sdl.render_draw_line renderer x1 y1 x2 y2);
-          draw_edges rest
-      in
-      draw_edges transformed_points;
-      (* Close the polygon *)
-      match transformed_points with
-      | first :: _ ->
-        let last = List.fold_left (fun _ p -> p) first transformed_points in
-        let (x1, y1) = last and (x2, y2) = first in
-        ignore (Sdl.render_draw_line renderer x1 y1 x2 y2)
-      | [] -> ()
+      ignore (Tsdl_gfx.filled_polygon_rgba renderer x_coords y_coords r g b a)
     else
-      (* Draw polygon outline *)
-      let rec draw_edges = function
-        | [] | [_] -> ()
-        | (x1, y1) :: ((x2, y2) :: _ as rest) ->
-          ignore (Sdl.render_draw_line renderer x1 y1 x2 y2);
-          draw_edges rest
-      in
-      draw_edges transformed_points;
-      (* Close the polygon *)
-      match transformed_points with
-      | first :: _ ->
-        let last = List.fold_left (fun _ p -> p) first transformed_points in
-        let (x1, y1) = last and (x2, y2) = first in
-        ignore (Sdl.render_draw_line renderer x1 y1 x2 y2)
-      | [] -> ()
+      ignore (Tsdl_gfx.aapolygon_rgba renderer x_coords y_coords r g b a)
 
 (* Image drawing functions *)
 let draw_image image ~pos:(x, y) =
@@ -286,91 +216,107 @@ let reset_transform () =
 
 (* Advanced drawing functions *)
 
-(* Draw a polyline (connected lines) *)
+(* Draw an antialiased polyline using tsdl_gfx *)
 let polyline ~points ?color () =
   match points with
   | [] | [_] -> () (* Need at least 2 points *)
   | _ ->
     let renderer = get_renderer () in
     let c = get_color ?color () in
-    let (r, g, b, a) = color_to_sdl c in
-    ignore (Sdl.set_render_draw_color renderer r g b a);
+    let (r, g, b, a) = color_to_rgba c in
     
     let transformed_points = List.map transform_point points in
     let rec draw_lines = function
       | [] | [_] -> ()
       | (x1, y1) :: ((x2, y2) :: _ as rest) ->
-        ignore (Sdl.render_draw_line renderer x1 y1 x2 y2);
+        ignore (Tsdl_gfx.aaline_rgba renderer x1 y1 x2 y2 r g b a);
         draw_lines rest
     in
     draw_lines transformed_points
 
-(* Draw an ellipse (approximated using lines) *)
+(* Draw an antialiased ellipse using tsdl_gfx *)
 let ellipse ~center:(cx, cy) ~rx ~ry ?(filled=true) ?color () =
   let renderer = get_renderer () in
   let c = get_color ?color () in
-  let (r, g, b, a) = color_to_sdl c in
-  ignore (Sdl.set_render_draw_color renderer r g b a);
-  
+  let (r, g, b, a) = color_to_rgba c in
   let (tcx, tcy) = transform_point (cx, cy) in
-  let segments = max 16 (rx + ry) in (* More segments for larger ellipses *)
   
   if filled then
-    (* Draw filled ellipse by drawing horizontal lines *)
-    for y = -ry to ry do
-      let x_width = int_of_float (float_of_int rx *. sqrt (1.0 -. (float_of_int y /. float_of_int ry) ** 2.0)) in
-      for x = -x_width to x_width do
-        ignore (Sdl.render_draw_point renderer (tcx + x) (tcy + y))
-      done
-    done
+    ignore (Tsdl_gfx.filled_ellipse_rgba renderer tcx tcy rx ry r g b a)
   else
-    (* Draw ellipse outline using parametric equations *)
-    let points = ref [] in
-    for i = 0 to segments do
-      let angle = 2.0 *. Math.pi *. float_of_int i /. float_of_int segments in
-      let x = tcx + int_of_float (float_of_int rx *. cos angle) in
-      let y = tcy + int_of_float (float_of_int ry *. sin angle) in
-      points := (x, y) :: !points
-    done;
-    let points = List.rev !points in
-    let rec draw_lines = function
-      | [] | [_] -> ()
-      | (x1, y1) :: ((x2, y2) :: _ as rest) ->
-        ignore (Sdl.render_draw_line renderer x1 y1 x2 y2);
-        draw_lines rest
-    in
-    draw_lines points
+    ignore (Tsdl_gfx.aaellipse_rgba renderer tcx tcy rx ry r g b a)
 
-(* Draw a rounded rectangle *)
+(* Draw a rounded rectangle using tsdl_gfx *)
 let rounded_rect ~pos:(x, y) ~w ~h ~radius ?(filled=true) ?color () =
   let renderer = get_renderer () in
   let c = get_color ?color () in
-  let (r, g, b, a) = color_to_sdl c in
-  ignore (Sdl.set_render_draw_color renderer r g b a);
-  
+  let (r, g, b, a) = color_to_rgba c in
+  let (tx, ty) = transform_point (x, y) in
+  let (tx2, ty2) = transform_point (x + w, y + h) in
   let clamped_radius = min radius (min (w / 2) (h / 2)) in
   
   if filled then
-    ((* Draw filled rounded rectangle *)
-    (* Main rectangle *)
-    rect ~pos:(x, y + clamped_radius) ~w ~h:(h - 2 * clamped_radius) ~filled:true ~color:c ();
-    rect ~pos:(x + clamped_radius, y) ~w:(w - 2 * clamped_radius) ~h ~filled:true ~color:c ();
-    
-    (* Corner circles *)
-    circle ~center:(x + clamped_radius, y + clamped_radius) ~radius:clamped_radius ~filled:true ~color:c ();
-    circle ~center:(x + w - clamped_radius, y + clamped_radius) ~radius:clamped_radius ~filled:true ~color:c ();
-    circle ~center:(x + clamped_radius, y + h - clamped_radius) ~radius:clamped_radius ~filled:true ~color:c ();
-    circle ~center:(x + w - clamped_radius, y + h - clamped_radius) ~radius:clamped_radius ~filled:true ~color:c ())
+    ignore (Tsdl_gfx.rounded_box_rgba renderer tx ty tx2 ty2 clamped_radius r g b a)
   else
-    (* Draw rounded rectangle outline *)
-    (* Straight lines *)
-    line ~x1:(x + clamped_radius) ~y1:y ~x2:(x + w - clamped_radius) ~y2:y ~color:c ();
-    line ~x1:(x + w) ~y1:(y + clamped_radius) ~x2:(x + w) ~y2:(y + h - clamped_radius) ~color:c ();
-    line ~x1:(x + w - clamped_radius) ~y1:(y + h) ~x2:(x + clamped_radius) ~y2:(y + h) ~color:c ();
-    line ~x1:x ~y1:(y + h - clamped_radius) ~x2:x ~y2:(y + clamped_radius) ~color:c ();
+    ignore (Tsdl_gfx.rounded_rectangle_rgba renderer tx ty tx2 ty2 clamped_radius r g b a)
+
+(* Additional tsdl_gfx specific functions *)
+
+(* Draw a thick antialiased line *)
+let thick_line ~x1 ~y1 ~x2 ~y2 ~width ?color () =
+  let renderer = get_renderer () in
+  let c = get_color ?color () in
+  let (r, g, b, a) = color_to_rgba c in
+  let (tx1, ty1) = transform_point (x1, y1) in
+  let (tx2, ty2) = transform_point (x2, y2) in
+  ignore (Tsdl_gfx.thick_line_rgba renderer tx1 ty1 tx2 ty2 width r g b a)
+
+(* Draw an arc *)
+let arc ~center:(cx, cy) ~radius ~start_angle ~end_angle ?color () =
+  let renderer = get_renderer () in
+  let c = get_color ?color () in
+  let (r, g, b, a) = color_to_rgba c in
+  let (tcx, tcy) = transform_point (cx, cy) in
+  let start_deg = int_of_float (start_angle *. 180.0 /. Math.pi) in
+  let end_deg = int_of_float (end_angle *. 180.0 /. Math.pi) in
+  ignore (Tsdl_gfx.arc_rgba renderer tcx tcy radius start_deg end_deg r g b a)
+
+(* Draw a pie slice *)
+let pie ~center:(cx, cy) ~radius ~start_angle ~end_angle ?(filled=true) ?color () =
+  let renderer = get_renderer () in
+  let c = get_color ?color () in
+  let (r, g, b, a) = color_to_rgba c in
+  let (tcx, tcy) = transform_point (cx, cy) in
+  let start_deg = int_of_float (start_angle *. 180.0 /. Math.pi) in
+  let end_deg = int_of_float (end_angle *. 180.0 /. Math.pi) in
+  
+  if filled then
+    ignore (Tsdl_gfx.filled_pie_rgba renderer tcx tcy radius start_deg end_deg r g b a)
+  else
+    ignore (Tsdl_gfx.pie_rgba renderer tcx tcy radius start_deg end_deg r g b a)
+
+(* Draw a Bezier curve *)
+let bezier ~points ~steps ?color () =
+  match points with
+  | [] -> ()
+  | _ ->
+    let renderer = get_renderer () in
+    let c = get_color ?color () in
+    let (r, g, b, a) = color_to_rgba c in
     
-    (* Corner circles *)
-    circle ~center:(x + clamped_radius, y + clamped_radius) ~radius:clamped_radius ~filled:false ~color:c ();
-    circle ~center:(x + w - clamped_radius, y + clamped_radius) ~radius:clamped_radius ~filled:false ~color:c ();
-    circle ~center:(x + clamped_radius, y + h - clamped_radius) ~radius:clamped_radius ~filled:false ~color:c ();
-    circle ~center:(x + w - clamped_radius, y + h - clamped_radius) ~radius:clamped_radius ~filled:false ~color:c ()
+    let transformed_points = List.map transform_point points in
+    let x_coords = Array.of_list (List.map fst transformed_points) in
+    let y_coords = Array.of_list (List.map snd transformed_points) in
+    ignore (Tsdl_gfx.bezier_rgba renderer x_coords y_coords steps r g b a)
+
+(* Draw text using built-in font from tsdl_gfx *)
+let draw_gfx_text ~pos:(x, y) ~text ?color () =
+  let renderer = get_renderer () in
+  let c = get_color ?color () in
+  let color32 = color_to_int32 c in
+  let (tx, ty) = transform_point (x, y) in
+  ignore (Tsdl_gfx.string_color renderer tx ty text color32)
+
+(* Set font rotation for gfx text (0=0°, 1=90°, 2=180°, 3=270°) *)
+let set_gfx_font_rotation rotation =
+  Tsdl_gfx.gfx_primitives_set_font_rotation rotation

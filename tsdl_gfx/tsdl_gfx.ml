@@ -1,10 +1,7 @@
 (** OCaml bindings for SDL2_gfx library *)
 
-(* For now, we'll define minimal SDL types until proper Tsdl integration *)
-module Sdl = struct
-  type renderer
-  type surface
-end
+(* Use Tsdl types directly *)
+open Tsdl
 
 (** {1 Version information} *)
 
@@ -65,9 +62,9 @@ external sdl_hline_color : Sdl.renderer -> int -> int -> int -> int32 -> int = "
 external sdl_hline_rgba : Sdl.renderer -> int -> int -> int -> int -> int -> int -> int -> int = "caml_hlineRGBA_byte" "caml_hlineRGBA"
 external sdl_vline_color : Sdl.renderer -> int -> int -> int -> int32 -> int = "caml_vlineColor"
 external sdl_vline_rgba : Sdl.renderer -> int -> int -> int -> int -> int -> int -> int -> int = "caml_vlineRGBA_byte" "caml_vlineRGBA"
-external sdl_line_color : Sdl.renderer -> int -> int -> int -> int -> int32 -> int = "caml_lineColor"
+external sdl_line_color : Sdl.renderer -> int -> int -> int -> int -> int32 -> int = "caml_lineColor_bytecode" "caml_lineColor"
 external sdl_line_rgba : Sdl.renderer -> int -> int -> int -> int -> int -> int -> int -> int -> int = "caml_lineRGBA_byte" "caml_lineRGBA"
-external sdl_aaline_color : Sdl.renderer -> int -> int -> int -> int -> int32 -> int = "caml_aalineColor"
+external sdl_aaline_color : Sdl.renderer -> int -> int -> int -> int -> int32 -> int = "caml_aalineColor_bytecode" "caml_aalineColor"
 external sdl_aaline_rgba : Sdl.renderer -> int -> int -> int -> int -> int -> int -> int -> int -> int = "caml_aalineRGBA_byte" "caml_aalineRGBA"
 external sdl_thick_line_color : Sdl.renderer -> int -> int -> int -> int -> int -> int32 -> int = "caml_thickLineColor_byte" "caml_thickLineColor"
 external sdl_thick_line_rgba : Sdl.renderer -> int -> int -> int -> int -> int -> int -> int -> int -> int -> int = "caml_thickLineRGBA_byte" "caml_thickLineRGBA"
@@ -129,11 +126,11 @@ let arc_rgba renderer x y rad start end_ r g b a = sdl_arc_rgba renderer x y rad
 
 (** {2 Ellipse operations} *)
 
-external sdl_ellipse_color : Sdl.renderer -> int -> int -> int -> int -> int32 -> int = "caml_ellipseColor"
+external sdl_ellipse_color : Sdl.renderer -> int -> int -> int -> int -> int32 -> int = "caml_ellipseColor_bytecode" "caml_ellipseColor"
 external sdl_ellipse_rgba : Sdl.renderer -> int -> int -> int -> int -> int -> int -> int -> int -> int = "caml_ellipseRGBA_byte" "caml_ellipseRGBA"
-external sdl_aaellipse_color : Sdl.renderer -> int -> int -> int -> int -> int32 -> int = "caml_aaellipseColor"
+external sdl_aaellipse_color : Sdl.renderer -> int -> int -> int -> int -> int32 -> int = "caml_aaellipseColor_bytecode" "caml_aaellipseColor"
 external sdl_aaellipse_rgba : Sdl.renderer -> int -> int -> int -> int -> int -> int -> int -> int -> int = "caml_aaellipseRGBA_byte" "caml_aaellipseRGBA"
-external sdl_filled_ellipse_color : Sdl.renderer -> int -> int -> int -> int -> int32 -> int = "caml_filledEllipseColor"
+external sdl_filled_ellipse_color : Sdl.renderer -> int -> int -> int -> int -> int32 -> int = "caml_filledEllipseColor_bytecode" "caml_filledEllipseColor"
 external sdl_filled_ellipse_rgba : Sdl.renderer -> int -> int -> int -> int -> int -> int -> int -> int -> int = "caml_filledEllipseRGBA_byte" "caml_filledEllipseRGBA"
 
 let ellipse_color renderer x y rx ry color = sdl_ellipse_color renderer x y rx ry color

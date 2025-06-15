@@ -1,3 +1,5 @@
 (library
  (name tsdl_gfx)
- (libraries tsdl))
+ (libraries tsdl)
+ (c_library_flags (-lSDL2_gfx))
+ (flags (:standard -w -69)))
