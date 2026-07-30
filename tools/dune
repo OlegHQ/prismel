@@ -1,0 +1,3 @@
+(executable
+ (name new_example)
+ (libraries unix))

@@ -1,4 +1,15 @@
+(executable
+ (name discover)
+ (modules discover)
+ (libraries dune-configurator))
+
+(rule
+ (targets c_library_flags.sexp)
+ (action (run ./discover.exe)))
+
 (library
  (name tsdl_gfx)
- (libraries tsdl)
- (c_library_flags (-L/opt/homebrew/lib -lSDL2_gfx)))
+ (public_name prismel.tsdl_gfx)
+ (modules tsdl_gfx)
+ (libraries ctypes ctypes.foreign tsdl)
+ (c_library_flags (:include c_library_flags.sexp)))

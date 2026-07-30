@@ -8,25 +8,34 @@ Event handling is a crucial piece of the framework, connecting the low-level inp
 type Event.t =
   | KeyPressed of Input.key
   | KeyReleased of Input.key
-  | MouseMoved of (int * int)            (* new mouse position *)
-  | MousePressed of Input.mouse_button * (int * int)  (* button and position *)
+  | MouseMoved of (int * int)            (* logical mouse position *)
+  | MousePressed of Input.mouse_button * (int * int)
   | MouseReleased of Input.mouse_button * (int * int)
-  | MouseScrolled of (int * int)         (* scroll delta x,y *)
-  | WindowResized of (int * int)         (* new width and height *)
-  | WindowClosed                         (* user attempted to close the window *)
-  (* possibly more: e.g., JoyButtonPressed of int * int, TextInput of string, etc., if extended *)
+  | MouseScrolled of (int * int)
+  | TextInput of string
+  | TextEditing of { text : string; start : int; length : int }
+  | FileDropped of string
+  | WindowResized of (int * int)         (* new logical width and height *)
+  | WindowFocusLost
+  | WindowClosed
 ```
 
 This covers the basics:
 
 - Key press/release events carry our `Input.key`.
-- Mouse move gives new coordinates (we may also later include relative motion or which window if multi-window).
+- Mouse move gives logical coordinates in the same space as `Scene` and
+  `Frame.mouse`. SDL's renderer mapping performs high-DPI conversion.
 - Mouse press/release includes which button and where it happened. (One could infer position from a prior MouseMoved, but including it is often useful for immediate context – e.g. on MouseReleased, knowing where the click was released).
 - MouseScrolled gives scroll wheel motion; SDL typically provides an amount in “ticks” for horizontal and vertical scroll (e.g., (0,1) for one notch up). We wrap that.
-- WindowResized provides the new size when the user resizes the window (if resizable).
-- WindowClosed indicates the user clicked the window close button or pressed Alt-F4/Cmd-Q. We will interpret this event as a signal to terminate the main loop unless the user overrides it (the user could intercept `WindowClosed` in `on_event` and decide to not quit, but generally we’ll handle it by setting a quit flag).
-
-We do not include events like `KeyTyped` or text composition in this list for now. If needed, a `TextInput of string` event could be added to deliver actual text (for example, on input of 'A' key with shift on a French keyboard yields "A" or something), but for simplicity, we'll leave text input to either the key events or specialized usage.
+- `TextInput` carries committed UTF-8 and `TextEditing` carries in-progress IME
+  composition.
+- `FileDropped` owns a copied path after the SDL allocation is released.
+- `WindowResized` provides the new logical size after Prismel synchronizes the
+  renderer.
+- `WindowFocusLost` tells stateful consumers to cancel transient interaction;
+  the Input module also clears held keys and buttons.
+- `WindowClosed` indicates the user clicked the close button or requested an
+  application quit. It is delivered in order, then the current loop stops.
 
 **Event Polling Loop:** Each iteration of the main loop (in Core) will:
 
@@ -35,11 +44,18 @@ We do not include events like `KeyTyped` or text composition in this list for no
 
    - SDL_KEYDOWN -> if it’s not a repeat (we likely ignore repeats), produce `Event.KeyPressed key`.
    - SDL_KEYUP -> `Event.KeyReleased key`.
-   - SDL_MOUSEMOTION -> `Event.MouseMoved (x,y)` (using the provided coordinates).
+   - SDL_MOUSEMOTION -> `Event.MouseMoved (x,y)`. Because the renderer has a
+     logical size, SDL supplies logical positions even on Retina displays.
    - SDL_MOUSEBUTTONDOWN -> `Event.MousePressed (button, (x,y))`.
    - SDL_MOUSEBUTTONUP -> `Event.MouseReleased (button, (x,y))`.
    - SDL_MOUSEWHEEL -> interpret and produce `Event.MouseScrolled (dx, dy)`.
-   - SDL_WINDOWEVENT -> if event == SDL_WINDOWEVENT_SIZE_CHANGED or RESIZED, produce `Event.WindowResized (new_w, new_h)`. If event == SDL_WINDOWEVENT_CLOSE (or a SDL_QUIT event which is global), produce `Event.WindowClosed`.
+   - SDL_WINDOWEVENT_SIZE_CHANGED -> update the window and renderer logical
+     dimensions, then produce `Event.WindowResized (new_w, new_h)`.
+     `SDL_WINDOWEVENT_RESIZED` is ignored because SDL may emit it alongside the
+     authoritative size-changed event.
+   - SDL_WINDOWEVENT_FOCUS_LOST -> clear held Input state and produce
+     `Event.WindowFocusLost`.
+   - SDL_WINDOWEVENT_CLOSE or SDL_QUIT -> `Event.WindowClosed`.
    - (If we had joystick or others, handle them similarly.)
 
 3. As we translate, we also update Input module’s state accordingly (e.g., on KeyPressed, mark key down, etc.).
@@ -72,8 +88,12 @@ Alternatively, one could do events after update, but that tends to add a frame o
 
 **Default Handling:** Some events might be handled by the framework by default:
 
-- `WindowClosed` by default will set a flag to break out of the main loop (i.e., quit the application). The user can override this by catching the event and, say, deciding not to quit (maybe if they want to prompt "Are you sure?"). Our run loop will check a `running` boolean each frame; on WindowClosed, we set it false unless the user’s event handler already did something (we could allow their handler to set state.continue = false as well).
-- `WindowResized` should update an internal record of window size (so Window\.width/height return the new values). It also could be forwarded to the user, e.g., to rearrange UI or adjust a camera.
+- `WindowClosed` is delivered to the user handler and then ends the loop
+  cleanly. `Sketch.quit` is the programmatic equivalent.
+- `WindowResized` has already updated `Window.width`/`height` and the renderer
+  logical size before user code sees it.
+- `WindowFocusLost` clears held Input state. PXUI additionally cancels pointer
+  capture, text focus, and IME composition when it consumes this event.
 - Mouse events don’t have default actions (other than updating Input state).
 - Key events: we might decide that pressing Escape triggers WindowClosed by default for convenience (some frameworks do that), but it’s better to leave it to user.
 

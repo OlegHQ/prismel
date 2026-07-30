@@ -1,2 +1,10 @@
 (test
- (name test_prismel))
+ (name test_prismel)
+ (libraries prismel pxui))
+
+(test
+ (name headless_smoke)
+ (libraries prismel pxui tsdl)
+ (action
+  (setenv HEADLESS 1
+   (run %{test}))))

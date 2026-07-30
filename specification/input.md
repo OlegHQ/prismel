@@ -3,6 +3,23 @@
 
 The Input module deals with capturing and representing the state of input devices, primarily the keyboard and mouse. It defines types to represent keys and buttons in a way that is convenient for OCaml pattern matching, and provides functions to query input states outside of event handlers.
 
+### Coordinate and frame semantics
+
+Mouse positions are logical window points. They use exactly the same
+top-left-origin coordinate space as `Frame.size`, `Scene`, and PXUI. SDL maps
+native pointer coordinates through the renderer logical size, so `Input`,
+`Event`, and UI code must not apply `Frame.pixel_scale` a second time.
+
+At the start of each application frame, `Input.begin_frame` resets the motion
+accumulator. Every mouse motion, press, and release updates the current logical
+position and adds its displacement. `Input.mouse_delta` and
+`Frame.mouse_delta` therefore report the aggregate displacement across all
+pointer events polled in that frame. They report `(0, 0)` on a later frame with
+no motion instead of repeating a stale delta.
+
+`Event.WindowFocusLost` clears all held keys and mouse buttons. This prevents a
+release delivered outside the application from leaving a key or button stuck.
+
 **Keyboard Input:**
 
 - We define a variant type `Input.key` to represent keyboard keys. This includes all alphanumeric keys and special keys. For example:
@@ -29,7 +46,8 @@ The Input module deals with capturing and representing the state of input device
 - **Mouse Input:**
 
   - We define `Input.mouse_button` as a variant: `LeftButton | RightButton | MiddleButton | MouseX1 | MouseX2` (the extra X1, X2 buttons some mice have on the side).
-  - We capture mouse position as a pair of integers (x,y in window coordinates).
+  - We capture mouse position as a pair of integers `(x, y)` in logical window
+    points.
   - If needed, we also have `Input.mouse_wheel` event data (like (dx, dy) for scroll wheel motions), but that’s more an event than a state (we can’t “query” wheel position, only events).
 
 - **Event Integration:** The Input module itself doesn’t generate events; the Event module will produce events like `Event.KeyPressed of Input.key` and `Event.KeyReleased of Input.key` when keys go down/up, and `Event.MouseMoved of (x,y)` when the mouse moves, etc. Input and Event are complementary: Event is push-based (tells you when something happens), Input is pull-based (lets you check current status of input at any time).
@@ -49,11 +67,14 @@ The Input module deals with capturing and representing the state of input device
   - `Input.is_key_up : Input.key -> bool` – simply the negation (or just use `not (is_key_down ...)`).
   - `Input.keys_down : unit -> Input.key list` – returns a list of all keys currently pressed. (This could be useful if one wanted to snapshot all pressed keys for debugging or combination inputs.)
   - `Input.mouse_pos : unit -> (int * int)` – returns the current mouse cursor position within the window.
-  - `Input.mouse_delta : unit -> (int * int)` – if we track how far the mouse moved since last frame (some frameworks do, though one can compute it by storing last position in user code as well).
+  - `Input.mouse_delta : unit -> (int * int)` – returns the sum of logical
+    pointer displacement received in the current application frame.
   - `Input.is_mouse_button_down : Input.mouse_button -> bool` – analogous to key, for mouse buttons.
   - Possibly `Input.mouse_buttons_down : unit -> mouse_button list`.
 
-- **Text Input:** Sometimes, one wants to get actual text input (with proper characters, respecting keyboard layout, etc.) for typing (like entering a name). SDL has text input events (where it gives you a UTF-8 character string for keys pressed). We could integrate this by having an event `Event.TextInput of string` when text is entered (and you enable text input mode). The Input module itself might not need a function for this (it’s event-based), but it’s a consideration for completeness. For this spec, we focus on key presses which are fine for controls.
+- **Text Input:** SDL text input is exposed as `Event.TextInput` for committed
+  UTF-8 and `Event.TextEditing` for in-progress IME composition. It remains
+  event-based rather than persistent `Input` state.
 
 - **Usage Patterns:** There are two ways to use the Input info:
 
@@ -74,7 +95,9 @@ The Input module deals with capturing and representing the state of input device
 - **Edge Cases:**
 
   - If multiple keys are pressed at once, all will be reported in `keys_down`. The user can check combinations by checking multiple is_key_downs. We might later add a convenience like `Input.any_key_down [K1; K2]` but it’s trivial to do with `||`.
-  - If the window loses focus, SDL will emit key-up events for all keys (to avoid stuck keys). Our system would then mark them up. If it regains focus, no keys are considered down until pressed again (this is typical).
+  - If the window loses focus, `WindowFocusLost` explicitly clears the tracked
+    key and mouse-button sets. If it regains focus, no input is considered held
+    until a new press arrives.
   - For mouse, if the cursor leaves the window, we might consider the buttons up (SDL gives a WindowLeave event; we could treat that as releasing all buttons, or at least updating that we don’t know position outside).
   - We should handle repeated key events. By default, SDL can generate multiple KeyPressed events if a key is held (key repeat). We might disable key repeat at SDL level, and treat a hold as one KeyPressed until release. That is usually what games do (so you don’t get spurious multiple events for one long press). If key repeat is needed for text input (like holding a letter to type multiple), that would be handled in text input mode rather than raw key events.
 
@@ -86,7 +109,8 @@ The Input module deals with capturing and representing the state of input device
 - `Input.is_key_down k` then just checks membership in that set.
 - The Input module might hide this state behind its functions; Core/Event will be the one calling Input’s internal update functions as events come in. (Alternatively, Core might manage the set itself and Input.is_key_down is just reading a global reference).
 - We must be careful with performance: sets or lists of keys are at most maybe a few keys at once, so performance is trivial. We can use an array\[256] of bool for keys by scancode or something for O(1) checks, but clarity is more important here given the small scale. A simple `bool array` indexed by SDL scancode could be easiest (size 512 for all possible scancodes).
-- Mouse position is updated on `MouseMotion` events: store the latest x,y.
+- Mouse position is updated by motion, press, and release events. Each update
+  contributes to the current frame's aggregate logical delta.
 - Mouse button pressed events update a bitmask or set of pressed buttons.
 
 **Example of usage in user code:**

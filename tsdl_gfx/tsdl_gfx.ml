@@ -1,7 +1,29 @@
 open Ctypes
-open Foreign
 open Tsdl
 open Result
+
+let gfx_library =
+  let candidates =
+    [
+      "libSDL2_gfx.dylib";
+      "/opt/homebrew/lib/libSDL2_gfx.dylib";
+      "/usr/local/lib/libSDL2_gfx.dylib";
+      "libSDL2_gfx.so";
+      "libSDL2_gfx-1.0.so.0";
+      "SDL2_gfx.dll";
+    ]
+  in
+  let rec load errors = function
+    | [] ->
+        failwith ("Unable to load SDL2_gfx: " ^ String.concat "; " (List.rev errors))
+    | filename :: rest ->
+        (try Dl.dlopen ~filename ~flags:[Dl.RTLD_NOW; Dl.RTLD_GLOBAL]
+         with Dl.DL_error message -> load (message :: errors) rest)
+  in
+  load [] candidates
+
+let foreign name signature =
+  Foreign.foreign ~from:gfx_library name signature
 
 module Gfx = struct
 

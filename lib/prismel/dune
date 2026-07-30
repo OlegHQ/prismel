@@ -1,0 +1,5 @@
+(library
+ (name prismel)
+ (public_name prismel)
+ (private_modules App Backend Graphics Window)
+ (libraries unix domainslib tsdl tsdl-image tsdl-ttf tsdl-mixer tsdl_gfx))

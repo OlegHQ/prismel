@@ -11,7 +11,7 @@
 
 (maintainers "Oleg Pustovit <oleg@nexo.sh>")
 
-(license LICENSE)
+(license MIT)
 
 (documentation https://nexo.sh/prismel)
 
@@ -19,7 +19,23 @@
  (name prismel)
  (synopsis "A modern, functional graphics framework for OCaml")
  (description "A clean, type-safe API for creating interactive graphics applications, games, and generative art in OCaml")
- (depends ocaml)
+ (depends
+  (ocaml (>= 5.2))
+  (dune (>= 3.17))
+  tsdl
+  tsdl-image
+  tsdl-ttf
+  tsdl-mixer
+  ctypes
+  ctypes-foreign
+  dune-configurator
+  (odoc :with-doc)
+  (utop :with-test)
+  domainslib
+  conf-sdl2
+  conf-sdl2-image
+  conf-sdl2-ttf
+  conf-sdl2-mixer)
  (tags
   ("ocaml" "graphics" "framework" "creative-coding" "gamedev")))
 

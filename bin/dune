@@ -1,4 +1,0 @@
-(executable
- (public_name prismel)
- (name main)
-  (libraries prismel tsdl core))

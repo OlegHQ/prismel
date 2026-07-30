@@ -1,0 +1,4 @@
+(library
+ (name pxui)
+ (public_name prismel.pxui)
+ (libraries prismel))

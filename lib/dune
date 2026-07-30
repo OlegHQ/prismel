@@ -1,3 +1,0 @@
-(library
- (name prismel)
- (libraries tsdl tsdl-image tsdl-ttf tsdl_gfx))

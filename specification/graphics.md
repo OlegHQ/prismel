@@ -10,13 +10,13 @@ The Graphics module is responsible for all on-screen drawing of shapes, images, 
 
 - **Points and Lines:**
 
-  - `Graphics.point : x:int -> y:int -> ?color:Color.t -> unit` – Draw a single pixel at (x, y). If no color is given, uses the current draw color (default white if never set). Points are rarely used except for low-level pixel plotting or debugging.
-  - `Graphics.line : x1:int -> y1:int -> x2:int -> y2:int -> ?color:Color.t -> unit` – Draw a line segment from (x1, y1) to (x2, y2) in the given color. The line is one pixel thick by default. (SDL2’s renderer draws Bresenham lines which may have small gaps at steep angles; this is an SDL detail the user typically won’t worry about.)
+  - `Graphics.point : x:int -> y:int -> ?color:Color.t -> unit` – Draw a point at logical `(x, y)`. If no color is given, uses the current draw color (default white if never set). Points are rarely used except for low-level plotting or debugging.
+  - `Graphics.line : x1:int -> y1:int -> x2:int -> y2:int -> ?color:Color.t -> unit` – Draw a line segment from `(x1, y1)` to `(x2, y2)` in the given color. The line is one logical unit thick by default. SDL scales its raster coverage to the backing framebuffer.
   - If needed, we might also have `Graphics.polyline : points:(int*int) list -> ?color:Color.t -> unit` to draw a series of connected lines, but the user can also just call line in a loop for that.
 
 - **Rectangles and Squares:**
 
-  - `Graphics.rect : pos:(int*int) -> w:int -> h:int -> ?color:Color.t -> ?filled:bool -> unit` – Draw a rectangle with top-left corner at `pos` and width `w`, height `h`. By default, `filled:true` (so it draws a filled rectangle). If `filled:false`, it draws only the outline (border) of the rectangle. The outline is 1-pixel thick. This is useful for drawing boxes, UI elements, etc.
+  - `Graphics.rect : pos:(int*int) -> w:int -> h:int -> ?color:Color.t -> ?filled:bool -> unit` – Draw a rectangle with top-left corner at `pos` and logical width `w`, height `h`. By default, `filled:true` (so it draws a filled rectangle). If `filled:false`, it draws only the one-logical-unit outline.
   - For a square specifically, user can just pass equal w and h or we might provide an alias `Graphics.square` for clarity, but that’s not strictly necessary.
 
 - **Circles and Ellipses:**
@@ -31,9 +31,25 @@ The Graphics module is responsible for all on-screen drawing of shapes, images, 
 
 All these functions take an optional `?color`. If provided, that color is used just for that call. If not provided, the current drawing color (set by `Graphics.set_color`) is used. For clarity and functional style, we encourage always providing the color, so you don’t depend on any hidden state. In examples and documentation, we will typically show the `color:` parameter being used.
 
-**Coordinate System:** Coordinates are given in **pixels**, with the origin (0,0) at the **top-left** of the window by default. X increases to the right, Y increases downward. This corresponds to SDL’s default coordinate space (and typical screen coordinate usage in many 2D frameworks). If the window is `w x h` pixels, the drawable coordinates range roughly from `0` to `w-1` in X and `0` to `h-1` in Y (though drawing functions will clip shapes partially outside the window). Negative coordinates or coordinates beyond width/height will simply draw outside the view (i.e., will be clipped, not an error).
+**Coordinate System:** Coordinates are integer **logical points**, with the
+origin `(0, 0)` at the top-left of the logical window. X increases to the right
+and Y increases downward. If the configured window is `w × h`, its normal
+drawing and pointer coordinates range from `0` to `w - 1` and `0` to `h - 1`
+regardless of native display density. Negative or out-of-bounds geometry is
+clipped rather than rejected.
 
-We might allow switching to a different coordinate system (for example, an origin at bottom-left, which some prefer for mathematical reasoning) by applying a coordinate transform (see below about transformations). But out of the box, top-left origin is assumed, as it matches how images and framebuffers are addressed (and how the mouse events will be delivered, e.g., you get (0,0) for top-left click).
+The SDL renderer logical size always matches the window's logical size. SDL
+scales rendered output to the current native framebuffer and filters pointer
+events back through that same mapping. As a result, `Scene`, `Graphics`,
+`Frame.mouse`, `Input.mouse_pos`, event positions, and PXUI hit testing remain
+aligned on both 1× and Retina displays. Application code must not multiply
+positions by `Frame.pixel_scale`.
+
+`Frame.drawable_size` exposes the physical renderer output when a pixel-level
+algorithm needs it, and `Frame.pixel_scale` is the ratio of native pixels to
+logical points on each axis. These values can change when a window moves
+between displays. Transformations build on the logical top-left coordinate
+system.
 
 **Drawing Images:** The Graphics module works with the Image module to draw images (bitmaps) onto the screen:
 
@@ -43,9 +59,18 @@ We might allow switching to a different coordinate system (for example, an origi
 
   - `Graphics.draw_image_ex : Image.t -> pos:(int*int) -> ?scale:float -> ?angle:float -> ?center:(int*int) -> ?flip:bool -> unit`. This could wrap SDL_RenderCopyEx, allowing rotation by `angle` (in degrees, about a `center` point, default center is the image center) and flipping horizontally/vertically if needed. This is an advanced usage, so we might include it for completeness but basic usage might not require it.
 
-**Text Rendering:** If the Font module is available, Graphics will include:
+**Text Rendering:** `Scene.text ?size` is the default high-level text
+constructor. It resolves an installed platform UI font (or the path selected by
+`PRISMEL_UI_FONT`) and measures `size` in logical points. `Scene.debug_text`
+selects the fixed 8×8 SDL2_gfx diagnostic face explicitly.
 
-- `Graphics.draw_text : Font.t -> pos:(int*int) -> text:string -> ?color:Color.t -> unit` – Draws the given text string at the position using the specified font and color. This function will use the Font module to either render the text to a texture behind the scenes or use a cached texture if the text is static. We keep it simple: each call draws the given string. For dynamic text (like a score that updates), the user would call `draw_text` each frame with the updated string. The cost is mostly in rendering the text to a texture; we would likely optimize by caching the last rendered string to avoid re-rendering if it hasn’t changed.
+`Graphics.draw_text` and `Scene.font_text` use a `Font.t`. A font lazily opens a
+native raster-size handle for the active renderer density and caches textures
+by renderer, content, font state, layout, and raster size. Texture dimensions
+are converted back to logical points before drawing. Text therefore keeps the
+same layout at 1× and 2× while retaining sharp native-resolution glyphs. Each
+renderer keeps at most 256 recently used text textures; empty text is accepted
+and draws nothing.
 
 **Transformations (Advanced):** The Graphics module can support changing the coordinate system via transformations:
 

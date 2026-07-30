@@ -2,6 +2,22 @@
 
 The Windowing system and main application loop are the backbone of the framework, setting up the environment for everything else to run. This section describes how the framework initializes the window, enters the event-update-draw loop, and handles system events like closing or resizing the window. It also covers how the user configures the window and how the loop is managed (timing and termination).
 
+### Current coordinate contract
+
+Prismel creates high-DPI-capable SDL windows by default. Window configuration,
+`Window.size`, `Frame.size`, scene geometry, and pointer events are expressed in
+logical points. Immediately after creating the renderer, Prismel sets its
+logical size to the actual SDL window size. On a Retina display, an `800 × 600`
+logical window may therefore have a `1600 × 1200` renderer output without
+changing application layout.
+
+`Window.drawable_size` and `Frame.drawable_size` expose the physical renderer
+output. `Window.pixel_scale` and `Frame.pixel_scale` expose the physical-pixel
+to logical-point ratio per axis. These are query results, not constants; a
+window can acquire a different backing density after moving between displays.
+Rendering, input, and UI code should remain logical unless it is deliberately
+reading native framebuffer pixels.
+
 **Window Initialization:**
 When the user calls `Framework.run` (or a similar entry point) to start their app, the framework will:
 
@@ -30,7 +46,9 @@ When the user calls `Framework.run` (or a similar entry point) to start their ap
 
    - We might set a window icon if provided (like if user gave an icon file path in config, we can load a surface and call `Sdl.set_window_icon`).
    - Possibly set `Sdl.show_window window` if it was hidden.
-   - If logical size needed (we can set logical size equal to window size for consistency with high-DPI? Actually, SDL can create high-DPI windows where window size is in points and renderer has a different pixel size; maybe we call `Sdl.gl_set_attribute` or `Sdl.set_hint` for scaling quality as mentioned).
+   - Set the SDL renderer logical size to the window's current logical width and
+     height. SDL then scales rendering to the native output and maps pointer
+     events back to logical coordinates.
    - If config.x, config.y positions are given (or default centered), that can be passed to create_window or set afterward.
 
 5. **Initialize Input/Events Systems**:
@@ -66,10 +84,11 @@ while running do
 done
 ```
 
-- We maintain a `running` boolean (start true). If at any point a quit condition is triggered (WindowClosed event and not prevented), or user sets a flag in state that we interpret as quit, we break the loop.
+- We maintain a `running` boolean. `Event.WindowClosed` or `Sketch.quit ()`
+  requests an orderly stop.
 - **Event Polling:** (Using our Event module as described) gather all SDL events available. If none, fine. For each event:
 
-  - If it's a Window close request (or SDL_Quit event), we can either handle it as immediate break or queue an `Event.WindowClosed`. We decide to queue `WindowClosed` for user to possibly override.
+  - A window close request or SDL quit is queued as `Event.WindowClosed`.
   - Translate events to `Event.t` and update Input state.
   - If user provided `on_event`, fold it over state (let new_state = on_event(old_state, ev) for each).
   - After events, we have a possibly updated state reflecting immediate reactions.
@@ -96,58 +115,50 @@ done
 
 **Handling Quit/Close:**
 
-- If user clicks the window’s close button, SDL sends an `SDL_QUIT` event. We convert to `Event.WindowClosed`.
-
-  - If user’s on_event sets some state (or explicitly decides to ignore it), we need to decide if we still quit.
-  - Perhaps the contract: If on_event handles WindowClosed (maybe by setting state.quit = false or something), we won’t close. But how do we know? We can add an explicit mechanism: If user’s on_event returns a state with a special flag (like `state.should_close = false`) after a WindowClosed event, then we override quitting. Otherwise, we default to quit.
-  - Simpler: after processing events, we check if any WindowClosed event occurred and not overridden, then `running <- false`.
-  - Possibly we keep a `window_closed_requested` bool that we set true on WindowClosed event poll. If after user event handling, it’s still true (meaning user didn’t set something to cancel), we break.
-  - It's perhaps too much to expect user to cancel it. Alternatively, if they want to intercept, they can e.g. not call run to completion (like show a dialog then decide).
-  - For our framework, we might not implement a cancellation feature explicitly. We might assume WindowClosed always terminates the app. If a user wants a confirm dialog, they could pop it up in on_event and then call some OS-level function to ignore the close? This is complicated. Possibly we provide something like:
-
-    - In on_event if they catch WindowClosed and set state.exit_confirmation = true (meaning they want to stop immediate quit), we then not break the loop but instead hide or something.
-    - This is advanced scenario; our spec might note it but not fully flesh out.
-
-- The user can also programmatically stop the app by calling something like `Framework.request_close ()` or setting a field in state that the framework checks. For example, if user wants to end app when ESC pressed, they can handle KeyPressed Escape and set state.quit = true. We then check `if state.quit then running <- false`.
-
-- We should decide on a convention for programmatic quit: either the framework doesn't check state for a certain field (keeping it general), or we incorporate into the state type some known field. But we treat state as user-defined, so better not.
-
-- Instead, maybe provide a function `Framework.quit ()` that user can call in their on_event or update to signal loop termination. That could just set a flag internally. For example:
-
-  ```ocaml
-  | Event.KeyPressed Escape -> (Framework.request_close (); state)
-  ```
-
-  Then our loop sees request_close was called and breaks. We can implement `request_close` as setting an internal ref or capturing via raising a special exception to unwind loop (less elegant).
-  Or user can just call `exit 0` (but that won’t run our cleanup code).
-  It might be nice to allow graceful shutdown code (like free resources).
-
-Given complexity, a simpler design:
-
-- If user wants to quit, they call `exit 0` or similar in their code (and accept abrupt termination). Or we instruct them to call `Framework.quit` which internally sets running false.
-- We'll include `Framework.quit` in spec for completeness.
+- A close button or SDL quit becomes `Event.WindowClosed`. User event handlers
+  receive it in order, then the application loop stops. Close cancellation is
+  not part of the current contract.
+- User code calls `Sketch.quit ()` for a programmatic graceful stop. The loop
+  still runs registered cleanup while SDL resources are valid; user code should
+  not call `exit`.
 
 **Resizing:**
 
-- If window is resizable, the user may resize it. SDL sends events `SDL_WINDOWEVENT_RESIZED` with new size. We handle that by:
-
-  - Updating some `Window.width` and `Window.height` variables (or query the window).
-  - Emitting `Event.WindowResized (w,h)` for user to respond (e.g., reposition UI, etc.).
-  - The SDL renderer automatically adjusts rendering viewport by default to new size (unless we used logical size). So drawing commands are now relative to new size. If using `Graphics.clear`, it always clears entire new viewport anyway.
-  - If the user doesn't handle it, it's fine, we still continue.
+- SDL can emit both `SDL_WINDOWEVENT_RESIZED` and
+  `SDL_WINDOWEVENT_SIZE_CHANGED` for one operation. Prismel treats
+  `SIZE_CHANGED` as authoritative and ignores the duplicate `RESIZED`
+  notification.
+- The event boundary updates `Window.width`/`height`, resets the renderer
+  logical size to the new logical dimensions, and emits exactly one
+  `Event.WindowResized (w, h)`.
+- The current event, subsequent pointer events, and the next `Frame.t` all use
+  that same logical size. The native `drawable_size` is queried separately.
+- `Window.set_size` performs the same logical-size synchronization for a
+  programmatic resize.
 
 **FullScreen:**
 
 - If fullscreen toggled (by user pressing ALT+Enter usually or by code):
 
-  - We might allow `Window.set_fullscreen true` in code to do `Sdl.set_window_fullscreen window Sdl.Window.fullscreen` flag. If user calls it, we handle in that function (maybe adjusting renderer logical size if needed).
+  - `Window.set_fullscreen true` delegates to SDL's desktop-fullscreen mode.
+    Any resulting authoritative size-change event resynchronizes logical
+    dimensions and the renderer.
   - If user has an event to toggle fullscreen, they'd call that function.
   - If the window is resized as part of fullscreen, SDL will send a resize event which we handle as above.
 
 **High-DPI considerations:**
 
-- On mac Retina or similar, window pixels vs logical points differ. SDL can give high-dpi windows where actual renderer resolution is higher than window coordinate system. We might call `Sdl.create_window ~highdpi:true` if we want a high-dpi context. If so, `Window.width` might return logical pixels while the renderer has double resolution, meaning our drawing might appear scaled. To avoid confusion, we might just not use highdpi (so OS might scale our app or it might appear pixelated on Retina).
-- If supporting highdpi: `Sdl.gl_get_drawable_size` (for GL) or `SDL_GetRendererOutputSize` for renderer can give actual pixel count. We could incorporate that into how we interpret coordinates. This is detail; maybe skip in initial spec, or mention not specifically handling high-DPI yet.
+- `Window.allow_highdpi` is enabled by default. Prismel queries
+  `SDL_GetRendererOutputSize`, not a reported monitor DPI, because the actual
+  drawable-to-window ratio is authoritative.
+- `SDL_RenderSetLogicalSize` owns both output scaling and absolute pointer-event
+  mapping. Do not apply an additional scale in `Event`, `Input`, PXUI, or user
+  sketches.
+- TTF fonts lazily rasterize at the renderer's current native density but draw
+  with logical dimensions. This avoids blurred 1× glyph textures on a 2×
+  framebuffer.
+- `Canvas.capture` and `Canvas.save_screen_png` read the full native renderer
+  output. A Retina capture is intentionally larger than `Window.size`.
 
 **Closing the app:**
 After breaking out of loop:
