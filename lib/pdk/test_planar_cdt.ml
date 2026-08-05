@@ -7,11 +7,11 @@ let get_string = function Ok value -> value | Error message -> fail "%s" message
 
 let triangulate x y = Delaunay2.build ~seed:17L ~x ~y () |> get_string
 
-let cdt ?(flood = false) ?winding ?(remove_outside_polygons = false)
+let cdt ?workspace ?(flood = false) ?winding ?(remove_outside_polygons = false)
     x y constraints =
   let seed = triangulate x y in
   let view = Delaunay2.Private.view seed in
-  Planar_cdt.build ~point_count:(Array.length x)
+  Planar_cdt.build ?workspace ~point_count:(Array.length x)
     ~orient:(fun a b c -> Predicates.orient2d_packed ~x ~y a b c)
     ~incircle:(fun a b c d -> Predicates.incircle_packed ~x ~y a b c d)
     ~bounds_overlap:(fun a b u v ->
@@ -89,6 +89,47 @@ let test_long_recovery_and_domains () =
   check (signature one = signature four) "domain count changed constrained topology";
   check (edge_present one 0 1) "long constraint was not recovered";
   validate x y one
+
+let test_workspace_reuse_and_result_ownership () =
+  let workspace = Planar_cdt.Private.create_workspace ~triangle_capacity:1 in
+  let square_x = [|0.;1.;1.;0.|] and square_y = [|0.;0.;1.;1.|] in
+  let first = cdt ~workspace square_x square_y [|0;2|] |> get_string
+  and reference = cdt square_x square_y [|0;2|] |> get_string in
+  check (signature first = signature reference)
+    "workspace changed the initial constrained topology";
+  let retained = signature first in
+  let count = 257 in
+  let x = Array.init count (fun point ->
+      if point = 0 then -1000. else if point = 1 then 1000.
+      else float_of_int (((point * 7919) mod 1901) - 950))
+  and y = Array.init count (fun point ->
+      if point < 2 then 0.
+      else let value = ((point * 3571) mod 997) + 1 in
+        if point land 1 = 0 then float_of_int value else -.float_of_int value) in
+  let grown = cdt ~workspace x y [|0;1|] |> get_string
+  and grown_reference = cdt x y [|0;1|] |> get_string in
+  check (signature grown = signature grown_reference)
+    "grown workspace changed constrained topology";
+  check (signature first = retained)
+    "workspace reuse mutated an earlier independently owned result";
+  let seed = triangulate square_x square_y |> Delaunay2.Private.view in
+  let malformed = Planar_cdt.build ~workspace ~point_count:4
+      ~orient:(fun a b c ->
+        Predicates.orient2d_packed ~x:square_x ~y:square_y a b c)
+      ~incircle:(fun a b c d ->
+        Predicates.incircle_packed ~x:square_x ~y:square_y a b c d)
+      ~triangle_points:[|0;1;2;0;1;2;0;1;2|] ~constraint_points:[||] () in
+  (match malformed with Error _ -> ()
+   | Ok _ -> fail "malformed workspace build unexpectedly succeeded");
+  let recovered = Planar_cdt.build ~workspace ~point_count:4
+      ~orient:(fun a b c ->
+        Predicates.orient2d_packed ~x:square_x ~y:square_y a b c)
+      ~incircle:(fun a b c d ->
+        Predicates.incircle_packed ~x:square_x ~y:square_y a b c d)
+      ~triangle_points:seed.triangle_points ~constraint_points:[|0;2|] ()
+      |> get_string in
+  check (signature recovered = signature reference)
+    "workspace did not recover after a failed build"
 
 let test_crossing_rejected () =
   let x = [|0.;1.;1.;0.|] and y = [|0.;0.;1.;1.|] in
@@ -259,19 +300,26 @@ let test_validation_and_cancellation () =
   let x = [|0.;1.;0.|] and y = [|0.;0.;1.|] in
   let seed = triangulate x y in
   let view = Delaunay2.Private.view seed in
-  let run ?cancel constraints = Planar_cdt.build ?cancel ~point_count:3
+  let run ?cancel ?workspace constraints = Planar_cdt.build ?cancel ?workspace
+      ~point_count:3
       ~orient:(fun a b c -> Predicates.orient2d_packed ~x ~y a b c)
       ~incircle:(fun a b c d -> Predicates.incircle_packed ~x ~y a b c d)
       ~triangle_points:view.triangle_points ~constraint_points:constraints () in
   (match run [|0;0|] with Error _ -> () | Ok _ -> fail "self constraint succeeded");
   (match run [|0;9|] with Error _ -> () | Ok _ -> fail "invalid endpoint succeeded");
+  let workspace = Planar_cdt.Private.create_workspace ~triangle_capacity:1 in
   let cancel = Cancel.create () in Cancel.cancel cancel;
-  match run ~cancel [|0;1|] with
-  | Error _ -> () | Ok _ -> fail "cancelled CDT succeeded"
+  (match run ~cancel ~workspace [|0;1|] with
+   | Error _ -> () | Ok _ -> fail "cancelled CDT succeeded");
+  let recovered = run ~workspace [|0;1|] |> get_string
+  and reference = run [|0;1|] |> get_string in
+  check (signature recovered = signature reference)
+    "workspace did not recover after cancellation"
 
 let () =
   test_forced_square_diagonal ();
   test_long_recovery_and_domains ();
+  test_workspace_reuse_and_result_ownership ();
   test_crossing_rejected ();
   test_inserted_points ();
   test_hull_boundary_flood ();

@@ -2356,6 +2356,16 @@ its nearest endpoint. A generated-point group makes this policy inspectable.
 Authored points that split a constraint retain their existing identity and are
 not reported as generated.
 
+Sequential CDT rebuilds may borrow an exclusively owned private workspace.
+The workspace geometrically grows and then reuses its three mutable triangle
+planes and open-addressed edge table; resetting it clears only scratch state,
+and every returned public value owns a separate packed triangle array. A
+failed or cancelled build therefore cannot mutate an earlier result and the
+same workspace remains reusable. Final canonical ordering writes one packed
+array and applies the sorted permutation in place by disjoint permutation
+cycles instead of allocating a second packed triangle array. Standalone calls
+retain the same result ownership and ordering without requiring a workspace.
+
 Optional quality refinement operates on that already clipped constrained-
 Delaunay mesh rather than reconstructing the original convex hull. Each stable
 generation classifies bad triangles by minimum angle, maximum area, or target
@@ -2382,8 +2392,12 @@ representative. Split-point and refinement-point output groups remain
 distinct.
 
 Triangle classification and candidate construction fill disjoint arrays in
-parallel, but CDT recovery is dependency-ordered and serial. For one
-generation, classification is O(T), CDT update has the documented
+parallel; the classification predicate returns one immediate boolean rather
+than allocating a float tuple per triangle. Refinement and regularization
+share one private CDT workspace across their sequential generations. CDT
+recovery remains dependency-ordered and serial, and each generation still
+rebuilds incidence from its canonical packed snapshot. For one generation,
+classification is O(T), CDT update has the documented
 `Planar_cdt` expected cost, and a shared packed bounds index makes constraint
 encroachment and re-atomization expected O(S log S + (Q+B) log S + I), for Q
 quality candidates, B accepted points, S atomic constraints, and I conservative
@@ -2536,13 +2550,19 @@ baseline, not a global Remove Unused Points measurement.
 
 The bounded quality-refinement benchmark starts from a unit square and targets
 an edge length of `1.8 / sqrt(100000)`. It emits 66,049 points in a three-run
-median of 1.510 seconds on one domain and 1.561 seconds on four domains, with
-identical hash `3660410599853783093`. Calling-domain allocation is 1.143 GB and
-818.73 MB respectively; promoted and major allocation are approximately
-92.4 MB and 248.6 MB in both modes. The lack of multicore speedup is recorded
-honestly: serial incremental CDT recovery dominates this workload, and worker-
-domain minor allocation is excluded from the four-domain calling-domain
-figure. This is a regression and allocation baseline, not a production claim.
+median of 1.464 seconds on one domain; repeated four-domain process medians
+range from 1.514 to 1.536 seconds, with identical hash
+`3660410599853783093`. Calling-domain allocation is 1.068 GB on one domain and
+ranges from 747.97 to 758.19 MB on four; promoted allocation is approximately
+92.4 MB and major allocation is 204.3 MB in both modes. Against the immediately
+preceding one-domain implementation on the same command, reusable CDT
+scratch, in-place canonicalization, and allocation-free classification reduced
+wall time by 3.9%, calling-domain allocation by 7.0%, and major allocation by
+20.7%. The
+lack of multicore speedup is recorded honestly: serial CDT recovery dominates
+this workload, and worker-domain minor allocation is excluded from the four-
+domain calling-domain figure. This remains a regression baseline, not a
+production claim.
 
 A constrained refinement scale case uses a 10,000-edge closed boundary and a
 256-point budget. The former candidate-by-constraint scan took 2.778 seconds
@@ -2553,9 +2573,9 @@ the same process configuration, a 10.3x wall-time and 35.5x allocation
 improvement. Reproduce the scale with `PRISMEL_REFINEMENT_CONSTRAINTS=10000`.
 
 The regularization benchmark refines the unit square to 8,321 points, then runs
-two relaxation steps. The zero-step seed takes a 0.157-second median and
-143.33 MB calling-domain allocation; the two-step cook takes 0.298 seconds and
-235.70 MB on one domain. Four domains take 0.169 and 0.312 seconds respectively,
+two relaxation steps. The zero-step seed takes a 0.153-second median and
+132.74 MB calling-domain allocation; the two-step cook takes 0.285 seconds and
+212.03 MB on one domain. Four domains take 0.160 and 0.299 seconds respectively,
 so the current serial packed-edge sort and CDT repair dominate at this size and
 no speedup is claimed. One and four domains produce exact hashes
 `4415231494534350957` before movement and `192142334138055436` after two steps.
@@ -3200,7 +3220,7 @@ storage.
 | Graph Color, connected 1,000,000-quad primitive edge graph | 90.34 ms | 90.56 ms | 49.00 MB | 3023817910443667473 |
 | Graph Color, connected 1,000,000-quad primitive point graph | 113.44 ms | 113.90 ms | 49.00 MB | 2608693175212566257 |
 | Delaunay2, 100,000 deterministic planar points (199,918 triangles) | 928.28 ms | dependency-ordered topology build | 65.67 MB | 2710672592452761305 |
-| Planar CDT, one long constraint over 199,918 triangles | 227.60 ms | dependency-ordered recovery | 81.88 MB | 4607585910187537252 |
+| Planar CDT, one long constraint over 199,918 triangles | 232.34 ms | dependency-ordered recovery | 72.28 MB | 4607585910187537252 |
 | Planar CDT, unblocked hull flood over 199,918 triangles | 214.33 ms | dependency-ordered adjacency flood | 72.48 MB | 17 |
 | Planar CDT, empty polygon-winding classification over 199,918 triangles | 227.58 ms | dependency-ordered winding flood | 82.08 MB | 17 |
 | Planar constraints, 100,000 disjoint segments | 91.80 ms | exact arrangement is dependency ordered | 92.50 MB | 521543672821096657 |

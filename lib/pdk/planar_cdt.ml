@@ -25,17 +25,6 @@ let constraint_second value constraint_index =
     invalid_arg "Planar_cdt.constraint_second: constraint is out of range";
   value.constraint_points.((constraint_index * 2) + 1)
 
-module Private = struct
-  type view = {
-    triangle_points : int array;
-    constraint_points : int array;
-  }
-  let view (value : result_t) = {
-    triangle_points = value.triangle_points;
-    constraint_points = value.constraint_points;
-  }
-end
-
 let edge_key point_count first second =
   let first,second = if first < second then first,second else second,first in
   if first < 0 || second < 0 || second >= point_count then
@@ -79,6 +68,11 @@ module Edge_table = struct
       second_opposites = Array.make capacity (-1);
       constrained = Bytes.make capacity '\000';
       edge_count = 0; tombstone_count = 0 }
+
+  let reset table =
+    Array.fill table.keys 0 (Array.length table.keys) empty;
+    table.edge_count <- 0;
+    table.tombstone_count <- 0
 
   let[@inline always] hash key =
     let value = key lxor (key lsr 16) in
@@ -204,6 +198,55 @@ module Edge_table = struct
     Bytes.unsafe_set table.constrained slot '\001'
 end
 
+type workspace = {
+  mutable triangle_a : int array;
+  mutable triangle_b : int array;
+  mutable triangle_c : int array;
+  edge_table : Edge_table.t;
+}
+
+let checked_edge_capacity triangle_capacity =
+  if triangle_capacity < 0 || triangle_capacity > (max_int - 3) / 2 then
+    invalid_arg "Planar CDT triangle cardinality exceeds edge-table limits";
+  max 1 ((triangle_capacity * 2) + 3)
+
+let create_workspace ~triangle_capacity =
+  if triangle_capacity < 0 || triangle_capacity > Sys.max_array_length then
+    invalid_arg "Planar CDT workspace triangle capacity exceeds array limits";
+  let capacity = max 1 triangle_capacity in
+  { triangle_a = Array.make capacity 0;
+    triangle_b = Array.make capacity 0;
+    triangle_c = Array.make capacity 0;
+    edge_table = Edge_table.create (checked_edge_capacity capacity) }
+
+let ensure_workspace workspace required =
+  if required > Array.length workspace.triangle_a then begin
+    let capacity = ref (Array.length workspace.triangle_a) in
+    while !capacity < required do
+      if !capacity > Sys.max_array_length / 2 then capacity := required
+      else capacity := min Sys.max_array_length (!capacity * 2)
+    done;
+    workspace.triangle_a <- Array.make !capacity 0;
+    workspace.triangle_b <- Array.make !capacity 0;
+    workspace.triangle_c <- Array.make !capacity 0
+  end
+
+module Private = struct
+  type view = {
+    triangle_points : int array;
+    constraint_points : int array;
+  }
+
+  type nonrec workspace = workspace
+
+  let view (value : result_t) = {
+    triangle_points = value.triangle_points;
+    constraint_points = value.constraint_points;
+  }
+
+  let create_workspace = create_workspace
+end
+
 module Key_heap = struct
   type t = { mutable values : int array; mutable count : int }
   let create capacity = { values = Array.make (max 16 capacity) 0; count = 0 }
@@ -250,8 +293,7 @@ let opposite_sign left right = match left,right with
 let squared_limit count =
   if count <= 0 then 0 else if count > max_int / count then max_int else count * count
 
-let canonicalize triangle_a triangle_b triangle_c =
-  let count = Array.length triangle_a in
+let canonicalize ~count triangle_a triangle_b triangle_c =
   let packed = Array.make (count * 3) 0 in
   let write triangle a b c =
     let at = triangle * 3 in
@@ -268,10 +310,32 @@ let canonicalize triangle_a triangle_b triangle_c =
       if compared <> 0 then compared else
       let compared = Int.compare packed.(l+1) packed.(r+1) in
       if compared <> 0 then compared else Int.compare packed.(l+2) packed.(r+2)) order;
-  let output = Array.make (count * 3) 0 in
-  Array.iteri (fun target source ->
-      Array.blit packed (source * 3) output (target * 3) 3) order;
-  output
+  for target = 0 to count - 1 do
+    if order.(target) >= 0 then begin
+      let at = target * 3 in
+      let saved_a = packed.(at) and saved_b = packed.(at + 1)
+      and saved_c = packed.(at + 2) in
+      let current = ref target and complete = ref false in
+      while not !complete do
+        let source = order.(!current) in
+        order.(!current) <- -1;
+        if source = target then begin
+          let destination = !current * 3 in
+          packed.(destination) <- saved_a;
+          packed.(destination + 1) <- saved_b;
+          packed.(destination + 2) <- saved_c;
+          complete := true
+        end else begin
+          let destination = !current * 3 and source_at = source * 3 in
+          packed.(destination) <- packed.(source_at);
+          packed.(destination + 1) <- packed.(source_at + 1);
+          packed.(destination + 2) <- packed.(source_at + 2);
+          current := source
+        end
+      done
+    end
+  done;
+  packed
 
 let canonical_constraints point_count constraints winding =
   if Array.length constraints mod 2 <> 0 then
@@ -319,7 +383,7 @@ let canonical_constraints point_count constraints winding =
   done;
   output,Array.sub unique_weights 0 !unique
 
-let build ?cancel ~point_count ~orient ~incircle
+let build ?cancel ?workspace ~point_count ~orient ~incircle
     ?(bounds_overlap = fun _ _ _ _ -> true) ~triangle_points
     ?(insert_points = [||]) ?(flood_from_hull_boundary = false)
     ~constraint_points ?constraint_winding
@@ -334,9 +398,12 @@ let build ?cancel ~point_count ~orient ~incircle
     then invalid_arg "Planar CDT inserted-point cardinality exceeds array limits";
     let triangle_capacity = initial_triangle_count + (2 * Array.length insert_points) in
     let triangle_count = ref initial_triangle_count in
-    let triangle_a = Array.make triangle_capacity 0
-    and triangle_b = Array.make triangle_capacity 0
-    and triangle_c = Array.make triangle_capacity 0 in
+    let triangle_a,triangle_b,triangle_c = match workspace with
+      | None -> Array.make triangle_capacity 0,Array.make triangle_capacity 0,
+          Array.make triangle_capacity 0
+      | Some workspace ->
+          ensure_workspace workspace triangle_capacity;
+          workspace.triangle_a,workspace.triangle_b,workspace.triangle_c in
     let referenced = Bytes.make point_count '\000' in
     for triangle = 0 to initial_triangle_count - 1 do
       let a = triangle_points.(triangle * 3)
@@ -379,10 +446,12 @@ let build ?cancel ~point_count ~orient ~incircle
     let constraint_weight key =
       let index = constraint_index key in
       if index < 0 then 0 else constraint_winding.(index) in
-    let edge_capacity = if triangle_capacity > (max_int - 3) / 2 then
-        invalid_arg "Planar CDT triangle cardinality exceeds edge-table limits"
-      else max 1 ((triangle_capacity * 2) + 3) in
-    let table = Edge_table.create edge_capacity in
+    let edge_capacity = checked_edge_capacity triangle_capacity in
+    let table = match workspace with
+      | None -> Edge_table.create edge_capacity
+      | Some workspace ->
+          Edge_table.reset workspace.edge_table;
+          workspace.edge_table in
     let add_triangle triangle =
       let a = triangle_a.(triangle) and b = triangle_b.(triangle)
       and c = triangle_c.(triangle) in
@@ -864,12 +933,10 @@ let build ?cancel ~point_count ~orient ~incircle
             end
           end
     done;
-    let triangle_a,triangle_b,triangle_c,constraints =
+    let triangle_a,triangle_b,triangle_c,output_triangle_count,constraints =
       if not flood_from_hull_boundary
           && not remove_outside_constraint_polygons then
-        Array.sub triangle_a 0 !triangle_count,
-        Array.sub triangle_b 0 !triangle_count,
-        Array.sub triangle_c 0 !triangle_count,constraints
+        triangle_a,triangle_b,triangle_c,!triangle_count,constraints
       else begin
         let outside = if flood_from_hull_boundary then
             Bytes.make !triangle_count '\000' else Bytes.empty
@@ -1017,10 +1084,11 @@ let build ?cancel ~point_count ~orient ~incircle
             incr kept_constraint_count
           end
         done;
-        output_a,output_b,output_c,
+        output_a,output_b,output_c,kept,
         Array.sub kept_constraints 0 (!kept_constraint_count * 2)
       end in
-    Ok { triangle_points = canonicalize triangle_a triangle_b triangle_c;
+    Ok { triangle_points = canonicalize ~count:output_triangle_count
+        triangle_a triangle_b triangle_c;
       constraint_points = constraints }
   with
   | Cancel.Cancelled -> Error "Planar CDT was cancelled"

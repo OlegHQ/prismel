@@ -77,7 +77,21 @@ let stable_length ax ay bx by =
   else let dx = dx /. scale and dy = dy /. scale in
     scale *. sqrt ((dx *. dx) +. (dy *. dy))
 
-let triangle_metrics x y a b c =
+let stable_angle x y opposite first second =
+  let ux = x.(first) -. x.(opposite)
+  and uy = y.(first) -. y.(opposite)
+  and vx = x.(second) -. x.(opposite)
+  and vy = y.(second) -. y.(opposite) in
+  let scale = max (abs_float ux)
+      (max (abs_float uy) (max (abs_float vx) (abs_float vy))) in
+  if scale = 0. || not (Float.is_finite scale) then 0.
+  else let ux = ux /. scale and uy = uy /. scale
+    and vx = vx /. scale and vy = vy /. scale in
+    atan2 (abs_float ((ux *. vy) -. (uy *. vx)))
+      ((ux *. vx) +. (uy *. vy))
+
+let triangle_requested x y a b c ~minimum_angle ~maximum_area
+    ~target_edge_length ~minimum_edge_length =
   let ab = stable_length x.(a) y.(a) x.(b) y.(b)
   and bc = stable_length x.(b) y.(b) x.(c) y.(c)
   and ca = stable_length x.(c) y.(c) x.(a) y.(a) in
@@ -92,20 +106,15 @@ let triangle_metrics x y a b c =
       and acx = (x.(c) -. x.(a)) /. scale
       and acy = (y.(c) -. y.(a)) /. scale in
       abs_float ((abx *. acy) -. (aby *. acx)) *. scale *. scale in
-  let angle opposite first second =
-    let ux = x.(first) -. x.(opposite)
-    and uy = y.(first) -. y.(opposite)
-    and vx = x.(second) -. x.(opposite)
-    and vy = y.(second) -. y.(opposite) in
-    let scale = max (abs_float ux)
-        (max (abs_float uy) (max (abs_float vx) (abs_float vy))) in
-    if scale = 0. || not (Float.is_finite scale) then 0.
-    else let ux = ux /. scale and uy = uy /. scale
-      and vx = vx /. scale and vy = vy /. scale in
-      atan2 (abs_float ((ux *. vy) -. (uy *. vx)))
-        ((ux *. vx) +. (uy *. vy)) in
-  let minimum_angle = min (angle a b c) (min (angle b c a) (angle c a b)) in
-  longest,0.5 *. twice_area,minimum_angle
+  let smallest_angle = min (stable_angle x y a b c)
+      (min (stable_angle x y b c a) (stable_angle x y c a b)) in
+  let area = 0.5 *. twice_area in
+  let requested =
+    (match minimum_angle with Some limit -> smallest_angle < limit | None -> false)
+    || (match maximum_area with Some limit -> area > limit | None -> false)
+    || (match target_edge_length with
+        | Some limit -> longest > limit | None -> false) in
+  requested && longest >= minimum_edge_length
 
 let inside_triangle points a b c point =
   let orient u v = Implicit_point.orient2d_xy points.(u) points.(v) point in
@@ -157,18 +166,18 @@ let rounded_centroid points x y a b c =
   Implicit_point.rounded ~reference:points.(a)
     ~x:(coordinate x) ~y:(coordinate y) ~z:0. |> Result.get_ok
 
-let rounded_circumcenter points x y a b c =
+let rounded_circumcenter ~fallback points x y a b c =
   let ax = x.(a) and ay = y.(a) in
   let bax = x.(b) -. ax and bay = y.(b) -. ay
   and cax = x.(c) -. ax and cay = y.(c) -. ay in
   let scale = max (abs_float bax)
       (max (abs_float bay) (max (abs_float cax) (abs_float cay))) in
-  if scale = 0. || not (Float.is_finite scale) then None
+  if scale = 0. || not (Float.is_finite scale) then fallback
   else begin
     let bx = bax /. scale and by = bay /. scale
     and cx = cax /. scale and cy = cay /. scale in
     let denominator = 2. *. ((bx *. cy) -. (by *. cx)) in
-    if denominator = 0. || not (Float.is_finite denominator) then None
+    if denominator = 0. || not (Float.is_finite denominator) then fallback
     else begin
       let blift = (bx *. bx) +. (by *. by)
       and clift = (cx *. cx) +. (cy *. cy) in
@@ -177,8 +186,8 @@ let rounded_circumcenter points x y a b c =
       let px = ax +. (scale *. ux) and py = ay +. (scale *. uy) in
       if Float.is_finite px && Float.is_finite py then
         match Implicit_point.rounded ~reference:points.(a) ~x:px ~y:py ~z:0. with
-        | Ok point -> Some point | Error _ -> None
-      else None
+        | Ok point -> point | Error _ -> fallback
+      else fallback
     end
   end
 
@@ -443,6 +452,8 @@ let build ?cancel ~grain ~initial_points ~initial_triangle_points
       else Array.copy constraint_winding)
     and triangles = ref (Array.copy initial_triangle_points)
     and generation = ref 0 and reached_limit = ref false in
+    let cdt_workspace = Planar_cdt.Private.create_workspace
+        ~triangle_capacity:(max 1 (Array.length initial_triangle_points / 3)) in
     let buckets = Hashtbl.create (max 16 (Array.length initial_points * 2)) in
     let add_bucket point =
       let key = canonical_bits x.(point),canonical_bits y.(point) in
@@ -464,13 +475,8 @@ let build ?cancel ~grain ~initial_points ~initial_triangle_points
         let a = (!triangles).(triangle * 3)
         and b = (!triangles).((triangle * 3) + 1)
         and c = (!triangles).((triangle * 3) + 2) in
-        let longest,area,angle = triangle_metrics x y a b c in
-        let requested =
-          (match minimum_angle with Some limit -> angle < limit | None -> false)
-          || (match maximum_area with Some limit -> area > limit | None -> false)
-          || (match target_edge_length with
-              | Some limit -> longest > limit | None -> false) in
-        if requested && longest >= minimum_edge_length then
+        if triangle_requested x y a b c ~minimum_angle ~maximum_area
+            ~target_edge_length ~minimum_edge_length then
           Bytes.unsafe_set bad triangle '\001' in
       if triangle_count > grain then Parallel.for_ ~chunk_size:grain ~start:0
           ~finish:(triangle_count - 1) classify
@@ -506,9 +512,10 @@ let build ?cancel ~grain ~initial_points ~initial_triangle_points
           let a = candidate_a.(candidate) and b = candidate_b.(candidate)
           and c = candidate_c.(candidate) in
           let centroid = rounded_centroid points x y a b c in
-          let center = match rounded_circumcenter points x y a b c with
-            | Some center when inside_triangle points a b c center -> center
-            | Some _ | None -> centroid in
+          let circumcenter = rounded_circumcenter ~fallback:centroid
+              points x y a b c in
+          let center = if inside_triangle points a b c circumcenter
+            then circumcenter else centroid in
           let encroached = ref (-1) in
           (match constraint_tree with
            | None -> ()
@@ -630,7 +637,8 @@ let build ?cancel ~grain ~initial_points ~initial_triangle_points
               points.(a) points.(b) points.(c)
           and incircle a b c d = Implicit_point.incircle_xy
               points.(a) points.(b) points.(c) points.(d) in
-          let rebuilt = Planar_cdt.build ?cancel ~point_count:!point_count
+          let rebuilt = Planar_cdt.build ?cancel ~workspace:cdt_workspace
+              ~point_count:!point_count
               ~orient ~incircle ~triangle_points:!triangles ~insert_points
               ~constraint_points:!constraints ~constraint_winding:!winding
               () in
@@ -766,7 +774,8 @@ let build ?cancel ~grain ~initial_points ~initial_triangle_points
                 points.(a) points.(b) points.(c)
             and incircle a b c d = Implicit_point.incircle_xy
                 points.(a) points.(b) points.(c) points.(d) in
-            let rebuilt = Planar_cdt.build ?cancel ~point_count:!point_count
+            let rebuilt = Planar_cdt.build ?cancel ~workspace:cdt_workspace
+                ~point_count:!point_count
                 ~orient ~incircle ~triangle_points:!triangles
                 ~constraint_points:!constraints ~constraint_winding:!winding () in
             (match rebuilt with

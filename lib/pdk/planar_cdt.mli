@@ -2,8 +2,23 @@
 
 type t
 
+module Private : sig
+  type view = {
+    triangle_points : int array;
+    constraint_points : int array;
+  }
+
+  type workspace
+
+  val view : t -> view
+  val create_workspace : triangle_capacity:int -> workspace
+  (** Create reusable, exclusively owned scratch storage. A workspace is not
+      safe for overlapping builds. Returned [t] values never borrow it. *)
+end
+
 val build :
   ?cancel:Cancel.t ->
+  ?workspace:Private.workspace ->
   point_count:int ->
   orient:(int -> int -> int -> Predicates.sign) ->
   incircle:(int -> int -> int -> int -> Predicates.sign) ->
@@ -28,18 +43,12 @@ val build :
     without crossing a constrained edge. [constraint_winding] supplies signed
     directed polygon-boundary multiplicity per input segment;
     [remove_outside_constraint_polygons] retains triangles with non-zero
-    propagated winding. *)
+    propagated winding. [workspace] amortizes topology planes and the edge
+    table across sequential builds while keeping each result independently
+    owned. *)
 
 val triangle_count : t -> int
 val triangle_point : t -> int -> int -> int
 val constraint_count : t -> int
 val constraint_first : t -> int -> int
 val constraint_second : t -> int -> int
-
-module Private : sig
-  type view = {
-    triangle_points : int array;
-    constraint_points : int array;
-  }
-  val view : t -> view
-end
