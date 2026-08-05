@@ -2285,6 +2285,69 @@ affinity/cardinality, names, grain, cancellation, empty geometry, connectivity
 conflicts, sorted payload ancestry, SOP cache identity, million-element scale,
 and headless framebuffer equality are covered directly.
 
+### Measure Curvature
+
+`Ops.measure_curvature` estimates point curvature on consistently wound,
+polygon-only two-manifold topology without changing topology or positions. The
+shared `Topology_index.Private.polygon_manifold_boundary_points` validator
+checks edge incidence, winding, boundary degree, and disconnected point fans,
+so curvature, repair, and future PolyDoctor-style operations do not grow
+competing incidence kernels.
+
+The metric kernel first uniformly normalizes all finite coordinates, then
+triangulates each polygon through the stable concave-safe
+`Polygon_triangulation` path. A triangle/local-order CSR supplies each point's
+incident triangles. Mixed Voronoi areas and cotangent Laplace vectors estimate
+signed mean curvature; angle defect estimates Gaussian curvature. The mean sign
+uses the consistently wound area normal. Principal values are
+`H +/- sqrt(max(0, H^2 - K))`; curvedness and shape index are derived only when
+requested. Global normalization is reversed analytically, which keeps extreme
+finite scales and large translations from overflowing intermediate products.
+
+Boundary points either receive zero curvature or a one-sided `pi` angle defect.
+Optional synchronous neighbor smoothing operates on the fundamental mean and
+Gaussian fields with pinned zero-policy boundaries. A named point group limits
+which output slots are replaced while estimation remains topology-complete;
+existing point-float values outside the group remain bit-identical. Output
+names are distinct and optional, so a mean-only cook avoids Gaussian and
+derived-field arithmetic. Malformed topology, non-finite positions, field
+collisions, cancellation, and invalid policies fail atomically.
+
+Construction is O(points + vertices + primitives + internal triangles) time
+and auxiliary storage. Each smoothing step is O(edges); requested fields add
+O(points) storage. Exact-sized triangle/CSR/field planes and stable index ranges
+allow the reusable Domainslib pool to write disjoint slots. Direct PDK and SOP
+tests compare every requested float plane exactly between one and four domains;
+the headless regression also compares byte-identical PNGs. Analytic sphere,
+saddle, flat-boundary, winding, scaling through `1e-150` and `1e150`, large
+translation, selection-preservation, smoothing, malformed-fan, and cancellation
+cases cover the numerical contract.
+
+The release benchmark command is:
+
+```sh
+dune build --profile release tools/bench_curvature.exe
+PRISMEL_BENCH_DOMAINS=1 PRISMEL_CURVATURE_POINTS=1000000 \
+  PRISMEL_CURVATURE_REPEATS=3 _build/default/tools/bench_curvature.exe
+PRISMEL_BENCH_DOMAINS=4 PRISMEL_CURVATURE_POINTS=1000000 \
+  PRISMEL_CURVATURE_REPEATS=3 _build/default/tools/bench_curvature.exe
+```
+
+On the repository benchmark host with OCaml 5.3.0 release profile, a torus with
+1,000,000 points, 1,000,000 quads, and 2,000,000 internal triangles produced:
+
+| Workload | 1 domain | 4 domains | Wall reduction | Exact hash |
+| --- | ---: | ---: | ---: | ---: |
+| Mean only | 0.471 s | 0.300 s | 36.3% | `-5046078577941067272` |
+| Six fields, two smoothing steps | 0.643 s | 0.354 s | 45.0% | `8793907604084536345` |
+
+Median calling-domain allocations were respectively 681/434 MB and 897/548
+MB; that counter excludes worker-domain minor allocations. Measured major
+allocation was about 329 MB for mean and 401 MB for the smoothed six-field
+case. A cold one-repeat four-domain process running both workloads peaked at
+896,228 KiB RSS. These are baselines for further scratch/CSR compaction, not a
+claim of zero allocation.
+
 ### Triangulate 2D
 
 `Ops.triangulate_2d` is the first public adapter over the shared packed
@@ -4480,6 +4543,12 @@ The design was checked through 2026-08-04 against SideFX's primary documentation
   scale, and transformed-edge group output;
 - [Graph Color](https://www.sidefx.com/docs/houdini/nodes/sop/graphcolor.html)
   for point/primitive connectivity, optional color sorting, and workset fields;
+- [Labs Measure Curvature](https://www.sidefx.com/docs/houdini/nodes/sop/labs--measure_curvature-3.0.html)
+  for the exposed curvature families, smoothing, visualization, and modeling
+  uses;
+- [Meyer, Desbrun, Schroder, and Barr, Discrete Differential-Geometry Operators for Triangulated 2-Manifolds](https://authors.library.caltech.edu/records/0rsjd-50h08)
+  for mixed Voronoi areas, cotangent Laplace-Beltrami mean curvature, and angle
+  defect Gaussian curvature;
 - [Point Generate](https://www.sidefx.com/docs/houdini/nodes/sop/pointgenerate.html)
   for origin and input-point emission, count scaling versus probability,
   original-point retention, attribute-copy patterns, generated grouping, and

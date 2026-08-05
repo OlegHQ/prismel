@@ -84,6 +84,13 @@ Its cache identity includes every control, and missing groups become traced
 diagnostics before the kernel is called. Procedural does not compute or cache a
 second set of normals.
 
+`Sop.measure_curvature` wraps the single packed PDK surface-curvature kernel.
+Its stable node identity includes boundary policy, smoothing controls, point
+group, and every optional output name. Point-group resolution and structured
+manifold diagnostics remain graph-boundary concerns; triangulation, incidence,
+metric estimation, smoothing, and output preservation are not reimplemented in
+the cook closure. The operation is static and topology-preserving.
+
 ## Context, parameters, and determinism
 
 The target-neutral context contains finite time, frame number, immutable seed,
@@ -853,6 +860,9 @@ The design was checked through 2026-08-04 against SideFX's primary documentation
   for input-group cloud replication, count scaling, local shapes, standard
   copy transforms, stable IDs/rest noise, velocity controls, payload,
   provenance, custom-shape ancestry, and generated groups;
+- [Labs Measure Curvature](https://www.sidefx.com/docs/houdini/nodes/sop/labs--measure_curvature-3.0.html)
+  for the artist-facing mean/Gaussian/principal curvature intent, smoothing,
+  visualization, and downstream scatter/reduction use;
 - [Garland and Heckbert's QEM paper](https://www.cs.cmu.edu/~garland/Papers/quadrics.pdf)
   for compact ten-coefficient face-plane quadrics and iterative contraction,
   and [Papageorgiou et al.](https://doi.org/10.1371/journal.pone.0255832)

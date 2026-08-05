@@ -1,0 +1,81 @@
+open Prismel
+open Pdk
+
+let integer_env name default = match Sys.getenv_opt name with
+  | None -> default | Some value -> max 1 (int_of_string value)
+
+let elements = integer_env "PRISMEL_CURVATURE_POINTS" 250_000
+let repeats = integer_env "PRISMEL_CURVATURE_REPEATS" 3
+let domains = integer_env "PRISMEL_BENCH_DOMAINS"
+    (Parallel.recommended_domains ())
+let grain = integer_env "PRISMEL_CURVATURE_GRAIN" 16_384
+
+let get = function Ok value -> value | Error error ->
+  failwith (Error.to_string error)
+
+let median values =
+  let values = Array.copy values in
+  Array.sort Float.compare values;
+  values.(Array.length values / 2)
+
+let input () =
+  let side = max 3 (int_of_float (sqrt (float_of_int elements))) in
+  Ops.torus ~connectivity:Ops.Torus_quads
+    ~rows:side ~columns:side ~major_radius:(float_of_int side *. 0.2)
+    ~minor_radius:7. () |> get
+
+let attribute name geometry =
+  match Geometry.find_attribute ~owner:Attribute.Point name geometry with
+  | Some attribute ->
+      (match Attribute.Private.storage attribute with
+       | Attribute.Float values -> values
+       | _ -> failwith (name ^ " has wrong storage"))
+  | None -> failwith (name ^ " is missing")
+
+let hash_float hash value =
+  Int64.mul (Int64.logxor hash (Int64.bits_of_float value))
+    0x100000001b3L
+
+let output_hash names geometry =
+  List.fold_left (fun hash name ->
+    Array.fold_left hash_float hash (attribute name geometry))
+    0xcbf29ce484222325L names
+
+let measure name outputs smoothing_iterations input =
+  let times = Array.make repeats 0. and allocated = Array.make repeats 0.
+  and promoted = Array.make repeats 0. and major = Array.make repeats 0.
+  and hash = ref 0L in
+  Parallel.run ~domains (fun () ->
+    for repeat = 0 to repeats - 1 do
+      Gc.full_major ();
+      let before = Gc.quick_stat () and bytes_before = Gc.allocated_bytes ()
+      and started = Unix.gettimeofday () in
+      let output = Ops.measure_curvature ~grain ~smoothing_iterations
+          ~smoothing_strength:0.2 ~outputs input |> get in
+      times.(repeat) <- Unix.gettimeofday () -. started;
+      allocated.(repeat) <- Gc.allocated_bytes () -. bytes_before;
+      let after = Gc.quick_stat () in
+      promoted.(repeat) <- (after.promoted_words -. before.promoted_words) *. 8.;
+      major.(repeat) <- (after.major_words -. before.major_words) *. 8.;
+      let names = [outputs.Ops.mean;outputs.gaussian;outputs.minimum;
+          outputs.maximum;outputs.curvedness;outputs.shape_index]
+          |> List.filter_map Fun.id in
+      let current = output_hash names output in
+      if repeat > 0 && current <> !hash then
+        failwith (name ^ ": nondeterministic output");
+      hash := current
+    done);
+  Printf.printf "%s,%d,%d,%d,%d,%d,%.6f,%.0f,%.0f,%.0f,%Ld\n%!"
+    name (Geometry.point_count input) (Geometry.primitive_count input)
+    domains grain repeats (median times) (median allocated)
+    (median promoted) (median major) !hash
+
+let () =
+  let input = input () in
+  Printf.printf "case,points,primitives,domains,grain,repeats,seconds,current_domain_allocated_bytes,promoted_bytes,major_bytes,hash\n";
+  measure "mean" Ops.default_curvature_outputs 0 input;
+  measure "all_fields_smoothed" {
+    Ops.mean=Some "mean"; gaussian=Some "gaussian";
+    minimum=Some "minimum"; maximum=Some "maximum";
+    curvedness=Some "curvedness"; shape_index=Some "shape";
+  } 2 input

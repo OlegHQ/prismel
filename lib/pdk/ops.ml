@@ -276,6 +276,18 @@ type normal_weighting = Normal_ops.weighting =
   | Vertex_angle
   | Each_vertex
   | Face_area
+type curvature_boundary = Curvature.boundary =
+  | Curvature_boundary_zero
+  | Curvature_boundary_one_sided
+type curvature_outputs = Curvature.outputs = {
+  mean : string option;
+  gaussian : string option;
+  minimum : string option;
+  maximum : string option;
+  curvedness : string option;
+  shape_index : string option;
+}
+let default_curvature_outputs = Curvature.default_outputs
 type polyframe_style = Polyframe.style =
   | First_edge
   | Two_edges
@@ -5251,6 +5263,11 @@ let normals ?cancel ?(grain = 16_384) ?selection ?owner ?weighting ?cusp_angle
     ?keep_original_zero ?reverse ?attribute geometry =
   Normal_ops.run ?cancel ~grain ?selection ?owner ?weighting ?cusp_angle
     ?keep_original_zero ?reverse ?attribute geometry
+
+let measure_curvature ?cancel ?grain ?points ?boundary ?smoothing_iterations
+    ?smoothing_strength ?outputs geometry =
+  Curvature.run ?cancel ?grain ?points ?boundary ?smoothing_iterations
+    ?smoothing_strength ?outputs geometry
 
 let polyframe ?cancel ?grain ?selection ?orthogonal ?left_handed ?normal_attribute
     ?tangent_attribute ?bitangent_attribute style geometry =
@@ -11942,6 +11959,13 @@ let normals ?cancel ?grain ?selection ?owner ?weighting ?cusp_angle
   protected "normals" "invalid_topology"
     (fun () -> normals_raw ?cancel ?grain ?selection ?owner ?weighting
       ?cusp_angle ?keep_original_zero ?reverse ?attribute geometry)
+
+let measure_curvature_raw = measure_curvature
+let measure_curvature ?cancel ?grain ?points ?boundary ?smoothing_iterations
+    ?smoothing_strength ?outputs geometry =
+  protected "measure_curvature" "invalid_curvature" (fun () ->
+    measure_curvature_raw ?cancel ?grain ?points ?boundary
+      ?smoothing_iterations ?smoothing_strength ?outputs geometry)
 
 let polyframe_raw = polyframe
 let polyframe ?cancel ?grain ?selection ?orthogonal ?left_handed ?normal_attribute

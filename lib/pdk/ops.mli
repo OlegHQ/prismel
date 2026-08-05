@@ -90,6 +90,21 @@ type normal_weighting =
     triangulation changes, [Each_vertex] is the fastest equal-corner average,
     and [Face_area] gives larger polygons proportionally more influence. *)
 
+type curvature_boundary =
+  | Curvature_boundary_zero
+  | Curvature_boundary_one_sided
+
+type curvature_outputs = {
+  mean : string option;
+  gaussian : string option;
+  minimum : string option;
+  maximum : string option;
+  curvedness : string option;
+  shape_index : string option;
+}
+
+val default_curvature_outputs : curvature_outputs
+
 type polyframe_style =
   | First_edge
   | Two_edges
@@ -2637,6 +2652,44 @@ val normals :
     vertices + primitives). Cusped vertex mode is O(vertices + sum point
     incidence squared). Packed face/output planes are linear; face and output
     ranges run in deterministic disjoint parallel blocks. *)
+
+val measure_curvature :
+  ?cancel:Cancel.t ->
+  ?grain:int ->
+  ?points:Group.t ->
+  ?boundary:curvature_boundary ->
+  ?smoothing_iterations:int ->
+  ?smoothing_strength:float ->
+  ?outputs:curvature_outputs ->
+  Geometry.t ->
+  (Geometry.t, Error.t) result
+(** Estimate point surface curvature with the mixed Voronoi-area and cotangent
+    operators of Meyer et al. Mean curvature is signed by the consistently
+    wound area-weighted point normal; Gaussian curvature uses angle defect.
+    Principal minimum/maximum values, curvedness, and shape index derive from
+    the requested mean/Gaussian field pair. Output names are independently
+    optional through [curvature_outputs]; [default_curvature_outputs] writes
+    signed mean curvature to [curvature]. Existing point-float values outside
+    [points] remain exact.
+
+    [Curvature_boundary_zero] pins open-surface boundary values to zero.
+    [Curvature_boundary_one_sided] uses the one-sided [pi - angle_sum] defect.
+    Optional synchronous uniform-neighbor smoothing applies to the fundamental
+    mean and Gaussian fields before derived values and remains deterministic
+    across domain counts.
+
+    Input must be a finite, consistently wound polygon-only 2-manifold with
+    representable non-degenerate triangulation. Repeated corners, non-manifold
+    edges or points, disconnected point fans, inconsistent winding, malformed
+    selections/outputs, and non-finite results fail atomically. Polygon faces
+    are triangulated in stable concave-safe order without changing topology.
+
+    Time is O(points + vertices + primitives + triangles + smoothing_steps *
+    edges + output_fields * points); auxiliary storage is O(points + triangles
+    + triangle incidences). Polygon triangulation, triangle metrics, point
+    reductions, smoothing, and output fills use deterministic disjoint ranges.
+    Stable point-to-triangle CSR reduction order makes one- and multi-domain
+    results bit-identical. *)
 
 val polyframe :
   ?cancel:Cancel.t -> ?grain:int -> ?selection:deform_selection ->

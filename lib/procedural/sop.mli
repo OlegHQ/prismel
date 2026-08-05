@@ -1169,6 +1169,19 @@ val normals :
   ?reverse:bool ->
   ?attribute:string ->
   Node.t -> Node.t
+
+val measure_curvature :
+  ?label:string ->
+  ?point_group:string ->
+  ?boundary:Pdk.Ops.curvature_boundary ->
+  ?smoothing_iterations:int ->
+  ?smoothing_strength:float ->
+  ?outputs:Pdk.Ops.curvature_outputs ->
+  Node.t -> Node.t
+(* Estimate signed mean, Gaussian, principal, curvedness, and shape-index
+   point fields through the shared packed PDK curvature kernel. The default
+   writes signed mean curvature to [curvature]. A point group limits output
+   replacement while metric estimation remains topology-complete. *)
 val polyframe :
   ?label:string -> ?selection:element_group -> ?orthogonal:bool ->
   ?left_handed:bool -> ?normal_attribute:string ->

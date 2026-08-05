@@ -637,6 +637,13 @@ remain deterministic packed PDK operations; cusped vertex normals use the
 shared lightweight point-incidence cache rather than paying for unused edge
 topology.
 
+`Sop.measure_curvature` estimates signed mean and Gaussian curvature on a
+consistently wound polygon manifold, with optional principal-curvature,
+curvedness, and shape-index fields. The scale-normalized mixed-area/cotangent
+kernel supports explicit boundary policy, synchronous smoothing, point-group
+output restriction, and exact one-/multi-domain results without changing mesh
+topology.
+
 For iterative creative coding, keep feedback in `Sketch.run_state`: wrap the
 previous immutable geometry with `Sop.snapshot`, build/cook the next acyclic
 step from ordinary SOPs or `Sop.custom`, then replace the model snapshot. A
@@ -1203,6 +1210,8 @@ visible markers to the resulting disconnected points. The
 3D loops with their packed least-squares fitted circles. The
 [Graph Color example](./examples/graph_color) contrasts conflict-free primitive
 schedules for shared-edge and shared-point adjacency. The
+[Measure Curvature example](./examples/measure_curvature) visualizes signed mean
+and Gaussian curvature over the parameter domain of the same packed torus. The
 [Triangulate 2D example](./examples/triangulate_2d) projects a tilted point
 cloud to its PCA best-fit plane, exactly splits two crossing constraints, and
 displays the resulting constrained-Delaunay triangles

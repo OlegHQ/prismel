@@ -3223,6 +3223,74 @@ let normals ?label ?selection ?(owner = Pdk.Attribute.Point)
           | Ok geometry -> cooked geometry
           | Error error -> structured_pdk_error error)
 
+let curvature_boundary_key = function
+  | Pdk.Ops.Curvature_boundary_zero -> "zero"
+  | Pdk.Ops.Curvature_boundary_one_sided -> "one_sided"
+
+let curvature_outputs_key outputs = String.concat "," [
+  "mean=" ^ option_string_key outputs.Pdk.Ops.mean;
+  "gaussian=" ^ option_string_key outputs.gaussian;
+  "minimum=" ^ option_string_key outputs.minimum;
+  "maximum=" ^ option_string_key outputs.maximum;
+  "curvedness=" ^ option_string_key outputs.curvedness;
+  "shape_index=" ^ option_string_key outputs.shape_index;
+]
+
+let measure_curvature ?label ?point_group
+    ?(boundary = Pdk.Ops.Curvature_boundary_zero)
+    ?(smoothing_iterations = 0) ?(smoothing_strength = 0.5)
+    ?(outputs = Pdk.Ops.default_curvature_outputs) input =
+  Option.iter (fun name -> if String.trim name = "" then
+    invalid_arg "Sop.measure_curvature: empty point group name") point_group;
+  if smoothing_iterations < 0 then
+    invalid_arg "Sop.measure_curvature: smoothing iterations must be non-negative";
+  if not (finite smoothing_strength && smoothing_strength >= 0.
+      && smoothing_strength <= 1.) then
+    invalid_arg
+      "Sop.measure_curvature: smoothing strength must be between zero and one";
+  let names = [outputs.mean;outputs.gaussian;outputs.minimum;outputs.maximum;
+    outputs.curvedness;outputs.shape_index] |> List.filter_map Fun.id in
+  if names = [] then
+    invalid_arg "Sop.measure_curvature: at least one output must be enabled";
+  List.iter (fun name ->
+    if String.trim name = "" || String.equal name "P" then
+      invalid_arg
+        "Sop.measure_curvature: output names must be non-empty and not P") names;
+  let sorted_names = Array.of_list names in
+  Array.sort String.compare sorted_names;
+  for index = 1 to Array.length sorted_names - 1 do
+    if String.equal sorted_names.(index - 1) sorted_names.(index) then
+      invalid_arg "Sop.measure_curvature: output names must be distinct"
+  done;
+  Node.Private.make ?label ~operation:"measure_curvature" ~version:1
+    ~parameters:(String.concat ";" [
+      "point_group=" ^ option_string_key point_group;
+      "boundary=" ^ curvature_boundary_key boundary;
+      "smoothing_iterations=" ^ string_of_int smoothing_iterations;
+      "smoothing_strength=" ^ float_key smoothing_strength;
+      "outputs=" ^ curvature_outputs_key outputs;
+    ]) ~cook_mode:(Node.Duplicate_input 0)
+    ~dependencies:Context.Dependencies.static ~inputs:[|input|]
+    (fun ~node_id:_ context inputs ->
+      let geometry = inputs.(0) in
+      let points = match point_group with
+        | None -> Ok None
+        | Some name ->
+            (match Pdk.Geometry.find_group ~owner:Pdk.Group.Point name geometry with
+             | Some group -> Ok (Some group)
+             | None -> Error (Diagnostic.error ~code:"missing_group"
+                 (Printf.sprintf
+                    "measure_curvature could not find point group %S" name))) in
+      match points with
+      | Error error -> Error error
+      | Ok points ->
+          match Pdk.Ops.measure_curvature
+              ~cancel:(Context.cancel_token context)
+              ~grain:(Context.grain context) ?points ~boundary
+              ~smoothing_iterations ~smoothing_strength ~outputs geometry with
+          | Ok geometry -> cooked geometry
+          | Error error -> structured_pdk_error error)
+
 let polyframe_style_key = function
   | Pdk.Ops.First_edge -> "first_edge"
   | Pdk.Ops.Two_edges -> "two_edges"

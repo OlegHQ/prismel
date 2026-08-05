@@ -87,6 +87,10 @@
  (libraries prismel pdk unix))
 
 (executable
+ (name bench_curvature)
+ (libraries prismel pdk unix))
+
+(executable
  (name bench_delaunay2)
  (libraries prismel pdk unix))
 
