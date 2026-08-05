@@ -507,6 +507,61 @@ use locally owned mutation and packed storage without exposing mutable aliases.
   python3 tools/houdini/compare_dense_boolean.py \
     /tmp/prismel-dense-boolean --reuse-existing
   ```
+- The subdivided noisy-plane shatter reference uses identical ordinary OBJ
+  operands in Houdini Apprentice 22.0.368 and `tools/boolean_stress.exe`: a
+  2.6-unit cube, 50 quaternion-oriented 4.8-unit grids, two segments per axis,
+  deterministic 0.45 center jitter, frequency 0.27, and factor 0.35. Houdini
+  Boolean 2.0 (`Shatter`, `Pieces of A`, solid/surface, resolve B, no
+  detriangulation) emits 15,360 closed connected pieces, 149,177 points, and
+  236,912 triangles with no boundary, odd-incidence, or non-manifold edges. Its
+  one-sample fresh-node cook is 3.505992 s. Prismel's one-domain release
+  Difference solid/surface cook on those exact OBJ files takes 11.166792 s,
+  allocates 4,364,346,248 current-domain bytes, and emits 237,040 shared-seam
+  triangles. Thus this fixture is an open topology-parity and 3.19x performance
+  gate, not a parity claim. Factor 0.65 is deliberately not the sketch default:
+  Houdini's corresponding 14,415-piece result contains one non-manifold edge,
+  while Prismel's closed-cell materialization refuses that setting. Reproduce
+  the clean reference with the commands below. As a focused segments-control
+  fixture, both engines exactly emit 26 pieces, 956 points, and 1,808 triangles
+  for five planes, four segments per axis, frequency 0.27, and factor 0.35. A
+  higher-curvature interactive fixture with 14 planes, ten segments per axis,
+  frequency 0.993, and factor 0.631 also matches Houdini exactly at 463 closed
+  connected pieces, 16,876 points, and 31,900 triangles, with no boundary,
+  odd-incidence, or non-manifold edges. Its fresh Houdini cook is 0.193572 s on
+  the recorded reference machine. PDK's one-domain release median over three
+  cooks of the exact Houdini-authored OBJ operands is 1.021848 s with
+  448,566,912 current-domain allocated bytes, a measured 5.28x time gap. The
+  raw shared-seam PDK result has 4,520 points and the sketch's packed-shard
+  split expands it to the matching 16,876 points without recooking the
+  Boolean. The sketch assigns every cutter primitive a stable integer ID
+  before the Boolean and consumes the kernel's exact primitive ancestry when
+  assembling packed shards. It then
+  edge-component-splits equal side signatures because curved surfaces can
+  produce disconnected regions with the same signature. A floating
+  point-to-surface proximity test is not an acceptable ancestry substitute.
+
+  ```sh
+  "$PRISMEL_HYTHON" tools/houdini/shattered_cube_reference.py \
+    /tmp/prismel-wavy-shatter-reference-50-f035 --planes 50 \
+    --grid-segments 2 --offset-jitter 0.45 \
+    --noise-frequency 0.27 --noise-factor 0.35 --repeats 1
+  dune exec --profile release tools/boolean_stress.exe -- \
+    --case wavy50_f035 \
+    --left-obj /tmp/prismel-wavy-shatter-reference-50-f035/shattered_cube_left.obj \
+    --right-obj /tmp/prismel-wavy-shatter-reference-50-f035/shattered_cube_right.obj \
+    --operation difference --right-surface \
+    --resolve-right-self-intersections --domains 1 --repeats 1 --grain 2
+  "$PRISMEL_HYTHON" tools/houdini/shattered_cube_reference.py \
+    /tmp/prismel-wavy-shatter-reference-14-s10 --planes 14 \
+    --grid-segments 10 --offset-jitter 0.45 \
+    --noise-frequency 0.993 --noise-factor 0.631 --repeats 1
+  dune exec --profile release tools/boolean_stress.exe -- \
+    --case wavy14_s10 \
+    --left-obj /tmp/prismel-wavy-shatter-reference-14-s10/shattered_cube_left.obj \
+    --right-obj /tmp/prismel-wavy-shatter-reference-14-s10/shattered_cube_right.obj \
+    --operation difference --right-surface \
+    --resolve-right-self-intersections --domains 1 --repeats 3 --grain 2
+  ```
 - The Boolean stability runner's standard-density campaign additionally covers
   mandatory binary64 representability repair on an explicitly self-resolved
   seven-torus cutter bank. All 24 products are exact between one and four
@@ -1434,6 +1489,27 @@ Switching renderers or sizes destroys the previous texture, and application or
 canvas teardown releases a matching cached texture before its renderer. This
 keeps the cache bounded while avoiding a native texture allocation on every
 animation frame.
+
+Native untextured fixed-pipeline `Scene3` rendering bypasses that CPU
+framebuffer/upload path. One compatibility OpenGL context owns hardware
+transform, depth/stencil, lighting, culling, blending, primitive rasterization,
+and the window's configured MSAA; SDL's OpenGL renderer remains the 2D/PXUI
+compositor. Flat/smooth packed mesh caches use weak keys and retain at most the
+current and previous procedural mesh per shading mode. On the Apple M1/macOS
+26.2 development machine, the 1024×720 shattered-cube sketch's default 50
+noise-deformed two-by-two grids produce 15,361 closed cells and a 237,012-
+triangle render mesh. Fresh native processes take 19.43 s for one frame and
+32.81 s for 1,001 frames, including the same initial Boolean cook. Subtracting
+the one-frame process gives 13.38 s for the following 1,000 frames, or about
+74.7 frames/s; this is a workflow
+measurement rather than a portable threshold. Reproduce with:
+
+```sh
+PRISMEL_RENDER_TARGET=native PRISMEL_SHATTER_FRAMES=1 \
+  /usr/bin/time -p dune exec sketches/shattered_cube/main.exe
+PRISMEL_RENDER_TARGET=native PRISMEL_SHATTER_FRAMES=1001 \
+  /usr/bin/time -p dune exec sketches/shattered_cube/main.exe
+```
 
 The web target performs framebuffer readback only while a browser is connected
 and caps presentation independently with `PRISMEL_WEB_MAX_FPS` (60 by default).

@@ -56,6 +56,7 @@ C++/runtime-GLSL spelling.
 | Off-axis portal, V-flip, frustum drawing | complete | `Camera.off_axis_portal`, `with_v_flip`, and `frustum_mesh`; projection tests |
 | Mouse-controlled easy camera | complete | Remappable button/key interactions, control area, capture, inertia/drag, sensitivities, up/relative-Y behavior, auto-distance, scroll, double-click reset, focus-loss cancellation |
 | Per-pixel depth test | complete | CPU Z-buffer; headless overlap test |
+| Native fixed-pipeline GPU rendering | partial | OpenGL vertex transforms, depth/stencil, lighting, culling, blending, primitives, and window MSAA for untextured fixed-pipeline scenes; textures, typed shaders, shadows, fog, and separate specular still use an explicit software fallback |
 | Homogeneous frustum clipping | complete | Triangles clip against all six clip planes before rasterization |
 | Front/back/disabled face culling | complete | `Scene3.cull` |
 | Line width and point size | complete | Scoped `Scene3.raster_state`; headless coverage verifies widened line/point rasterization |

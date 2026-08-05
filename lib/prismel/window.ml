@@ -18,6 +18,7 @@ type config = {
 type t = {
   window : Sdl.window;
   renderer : Sdl.renderer;
+  renderer_context : Sdl.gl_context option;
   config : config;
   mutable current_width : int;
   mutable current_height : int;
@@ -43,6 +44,8 @@ let current_window : t option ref = ref None
 (* Get window flags based on configuration *)
 let get_window_flags config =
   let flags = if Backend.is_displayless () then [Sdl.Window.hidden] else [] in
+  let flags = if Backend.is_displayless () then flags
+      else Sdl.Window.opengl :: flags in
   let flags = if config.resizable then Sdl.Window.resizable :: flags else flags in
   let flags = if config.fullscreen then Sdl.Window.fullscreen_desktop :: flags else flags in
   let flags = if config.highdpi then Sdl.Window.allow_highdpi :: flags else flags in
@@ -82,6 +85,14 @@ let create ?(config = default_config) () =
       | None -> Sdl.Window.pos_centered
     in
     
+    if not (Backend.is_displayless ()) then begin
+      ignore (Sdl.set_hint Sdl.Hint.render_driver "opengl");
+      ignore (Sdl.gl_set_attribute Sdl.Gl.context_major_version 2);
+      ignore (Sdl.gl_set_attribute Sdl.Gl.context_minor_version 1);
+      ignore (Sdl.gl_set_attribute Sdl.Gl.doublebuffer 1);
+      ignore (Sdl.gl_set_attribute Sdl.Gl.depth_size 24);
+      ignore (Sdl.gl_set_attribute Sdl.Gl.stencil_size 8)
+    end;
     (* Set multisampling attributes if requested *)
     (match config.multisampling, Backend.is_displayless () with
     | _, true -> ()
@@ -125,6 +136,10 @@ let create ?(config = default_config) () =
         Sdl.destroy_window window;
         failwith ("Failed to create renderer: " ^ e)
       | Ok renderer ->
+        let renderer_context = if Backend.is_displayless () then None
+          else match Sdl.gl_get_current_context () with
+            | Ok context -> Some context
+            | Error _ -> None in
         let logical_width, logical_height =
           if Backend.is_web () then config.width, config.height
           else Sdl.get_window_size window in
@@ -136,6 +151,7 @@ let create ?(config = default_config) () =
         let window_state = {
           window;
           renderer;
+          renderer_context;
           config;
           current_width = logical_width;
           current_height = logical_height;
@@ -268,6 +284,16 @@ let get_window () =
 let get_renderer () =
   let w = get_current () in
   w.renderer
+
+let with_gpu_context operation =
+  let w = get_current () in
+  match w.renderer_context with
+  | None -> Error "native GPU context is unavailable"
+  | Some context ->
+      (match Sdl.gl_make_current w.window context with
+       | Error (`Msg message) -> Error message
+       | Ok () ->
+           Ok (operation ()))
 
 (* Window cleanup *)
 let destroy () =

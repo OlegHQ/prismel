@@ -180,6 +180,18 @@ representation-neutral preparation, or call `pdk` directly for packed SOPs.
 - Use SDL's dummy video driver and software renderer in headless mode.
 - Do not silently turn drawing calls into no-ops: rendering should target the
   software framebuffer so programs exercise the same drawing paths.
+- Native fixed-pipeline `Scene3` meshes render through the GPU with hardware
+  transforms, depth/stencil, lighting, culling, blending, and window MSAA.
+  Keep the deterministic software rasterizer authoritative for headless/web
+  and offscreen readback. A native software fallback is transitional and must
+  remain explicit while textures, typed `Shader3`, shadows, fog, and separate
+  specular are promoted to GPU parity; do not describe texture upload of a CPU
+  framebuffer as GPU 3D rendering.
+- Native GPU access and packed mesh caches belong to `prismel`, stay on the
+  initial domain, draw through SDL's own OpenGL renderer context before later
+  2D/PXUI commands, and remain strictly bounded under changing procedural
+  meshes. Isolate every raw OpenGL pass from SDL's persistent shader, texture,
+  and streaming-buffer bindings; verify more than the first presented frame.
 - Keep target selection in `runtime` rather than scattering
   environment checks through application code.
 - Any automated application-loop test must arrange its own termination.

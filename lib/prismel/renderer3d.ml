@@ -1902,6 +1902,7 @@ type streaming_texture = {
 let streaming_texture_cache : streaming_texture option ref = ref None
 
 let release_renderer renderer =
+  Renderer3d_gpu.release ();
   match !streaming_texture_cache with
   | Some cached when cached.renderer == renderer ->
       Sdl.destroy_texture cached.texture;
@@ -1983,7 +1984,7 @@ let rasterize ?(attachments = true) ~width ~height ~camera scene =
     pixels;
   }
 
-let render ?viewport ~camera scene =
+let render_software ?viewport ~camera scene =
   let renderer = Graphics.get_renderer () in
   let renderer_width, renderer_height = renderer_size renderer in
   let viewport =
@@ -2014,3 +2015,20 @@ let render ?viewport ~camera scene =
       | Ok () -> ()
       | Error (`Msg message) ->
           failwith ("3D texture draw failed: " ^ message)
+
+let warned_gpu_fallback = ref false
+
+let render ?viewport ~camera scene =
+  if Backend.is_displayless () then render_software ?viewport ~camera scene
+  else match Renderer3d_gpu.render ?viewport ~camera scene with
+    | Ok () -> ()
+    | Error message ->
+        if not !warned_gpu_fallback then begin
+          warned_gpu_fallback := true;
+          Printf.eprintf
+            "Prismel native GPU fallback: %s; using the software Scene3 reference for this unsupported scene\n%!"
+            message
+        end;
+        render_software ?viewport ~camera scene
+
+let present_gpu_if_pending = Renderer3d_gpu.present_if_pending

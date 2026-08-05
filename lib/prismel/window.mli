@@ -13,6 +13,7 @@ type config = {
 type t = {
   window : Tsdl.Sdl.window;
   renderer : Tsdl.Sdl.renderer;
+  renderer_context : Tsdl.Sdl.gl_context option;
   config : config;
   mutable current_width : int;
   mutable current_height : int;
@@ -51,5 +52,8 @@ val restore : unit -> unit
 val update_dimensions : int -> int -> unit
 val get_window : unit -> Tsdl.Sdl.window
 val get_renderer : unit -> Tsdl.Sdl.renderer
+(* Run with SDL's native OpenGL renderer context current. The caller must flush
+   pending SDL render commands before issuing direct OpenGL work. *)
+val with_gpu_context : (unit -> 'a) -> ('a, string) result
 val destroy : unit -> unit
 val exists : unit -> bool

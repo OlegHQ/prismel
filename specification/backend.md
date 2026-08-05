@@ -43,7 +43,7 @@ web-specific procedural renderer and no geometry protocol in Wap.
 
 | Value | Behavior |
 |---|---|
-| `native`, `desktop`, `sdl`, `opengl` | visible SDL window and SDL-selected accelerated renderer |
+| `native`, `desktop`, `sdl`, `opengl` | visible OpenGL-backed SDL window, native GPU Scene3, accelerated SDL 2D |
 | `headless`, `software` | hidden SDL dummy window, software renderer, dummy audio |
 | `web`, `browser`, `webgl` | hidden SDL software renderer plus browser server |
 
@@ -71,11 +71,27 @@ SDL_ttf. Prismel initializes SDL_mixer after Runtime starts and shuts it down
 before Runtime stops. Window, renderer, event, texture, font, and audio work
 remains on the initial OCaml domain.
 
-Native mode asks SDL for acceleration; SDL chooses the platform renderer
-(OpenGL, Metal, Direct3D, or another supported driver). Headless and web modes
-set SDL's dummy video/audio drivers before initialization and require the
-software renderer. Neither mode needs a display server, monitor, GPU, or
-OpenGL context, and neither turns drawing into no-ops.
+Native mode creates a compatibility OpenGL context for fixed-pipeline `Scene3`
+and an OpenGL-backed accelerated SDL renderer for composable 2D/PXUI drawing.
+The native 3D path performs vertex transforms, clipping, depth/stencil,
+lighting, culling, blending, primitive rasterization, and configured window
+MSAA on the GPU. It flushes queued SDL work before issuing direct OpenGL draws
+through SDL's own renderer context; later 2D nodes then compose PXUI/text into
+that same presented backbuffer. Each raw pass saves SDL's server/client state,
+binds the fixed-pipeline program and client-memory buffers explicitly, disables
+inherited 2D texturing, and restores SDL's shader/VBO bindings before 2D drawing
+resumes. Packed flat/smooth mesh views are bounded to
+the current and previous procedural mesh so slider-driven topology replacement
+cannot retain an unbounded trail.
+
+The first accelerated tranche accepts untextured fixed-pipeline scenes.
+Textures, typed `Shader3`, shadows, fog, and separate-specular scenes currently
+emit one explicit diagnostic and use the software reference. Removing that
+transitional native fallback requires a typed GPU representation for those
+features; it must not be achieved by silently changing public shader semantics.
+Headless and web modes set SDL's dummy video/audio drivers before initialization
+and require the software renderer. Neither mode needs a display server,
+monitor, GPU, or OpenGL context, and neither turns drawing into no-ops.
 
 Runtime performs presentation after `Scene.render`. It synchronizes `Time`'s
 vsync knowledge with the renderer configuration, so fixed-FPS sketches do not

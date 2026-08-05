@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Clean-room Houdini reference for a cube shattered by oriented planes.
+"""Clean-room Houdini reference for a cube shattered by oriented grids.
 
 The script authors both operands as ordinary OBJ, feeds those exact files to
 Houdini's public Boolean SOP, and emits a machine-readable result summary. The
-same OBJ pair is suitable for Prismel's external Boolean stress runner.
+same OBJ pair is suitable for Prismel's external Boolean stress runner. Grid
+vertices use a documented analytic height fixture so frequency, amplitude, and
+segment-count behavior can be compared without copying an engine noise kernel.
 """
 
 import argparse
@@ -88,7 +90,24 @@ def write_obj(path, points, faces):
             stream.write("f {}\n".format(" ".join(str(index + 1) for index in face)))
 
 
-def operands(plane_count, seed, cube_size, plane_size, offset_jitter):
+def plane_height(index, x, z, frequency, factor):
+    """Deterministic public fixture shared with the Prismel sketch."""
+    phase = float(index)
+    return factor * math.sin(x * frequency + phase * 0.731) * math.cos(
+        z * frequency - phase * 0.413
+    )
+
+
+def operands(
+    plane_count,
+    seed,
+    cube_size,
+    plane_size,
+    offset_jitter,
+    grid_segments,
+    noise_frequency,
+    noise_factor,
+):
     half = cube_size * 0.5
     cube_points = [
         (-half, -half, -half),
@@ -109,12 +128,7 @@ def operands(plane_count, seed, cube_size, plane_size, offset_jitter):
         (1, 2, 6, 5),
     ]
     plane_half = plane_size * 0.5
-    source = [
-        (-plane_half, 0.0, -plane_half),
-        (plane_half, 0.0, -plane_half),
-        (plane_half, 0.0, plane_half),
-        (-plane_half, 0.0, plane_half),
-    ]
+    step = plane_size / grid_segments
     plane_points = []
     plane_faces = []
     for index in range(plane_count):
@@ -125,11 +139,30 @@ def operands(plane_count, seed, cube_size, plane_size, offset_jitter):
             (2.0 * rand_float_at(seed, OFFSET_STREAM_START + index) - 1.0)
             * offset_jitter
         )
-        plane_points.extend(
-            tuple(rotated[axis] + normal[axis] * offset for axis in range(3))
-            for rotated in (rotate(orientation, point) for point in source)
-        )
-        plane_faces.append((first, first + 1, first + 2, first + 3))
+        for row in range(grid_segments + 1):
+            z = -plane_half + row * step
+            for column in range(grid_segments + 1):
+                x = -plane_half + column * step
+                point = (
+                    x,
+                    plane_height(
+                        index, x, z, noise_frequency, noise_factor
+                    ),
+                    z,
+                )
+                rotated = rotate(orientation, point)
+                plane_points.append(
+                    tuple(rotated[axis] + normal[axis] * offset for axis in range(3))
+                )
+        stride = grid_segments + 1
+        for row in range(grid_segments):
+            for column in range(grid_segments):
+                a = first + row * stride + column
+                b = a + 1
+                d = a + stride
+                c = d + 1
+                plane_faces.append((a, b, c))
+                plane_faces.append((a, c, d))
     return cube_points, cube_faces, plane_points, plane_faces
 
 
@@ -146,6 +179,35 @@ def edge_metrics(geometry):
         "nonmanifold_edges": sum(value > 2 for value in incidence.values()),
         "odd_incidence_edges": sum(value % 2 != 0 for value in incidence.values()),
     }
+
+
+def connected_components(geometry):
+    primitive_count = geometry.primCount()
+    parents = list(range(primitive_count))
+
+    def find(value):
+        while parents[value] != value:
+            parents[value] = parents[parents[value]]
+            value = parents[value]
+        return value
+
+    def union(left, right):
+        left = find(left)
+        right = find(right)
+        if left != right:
+            parents[right] = left
+
+    first_primitive = {}
+    for primitive in geometry.iterPrims():
+        number = primitive.number()
+        for point in primitive.points():
+            point_number = point.number()
+            previous = first_primitive.get(point_number)
+            if previous is None:
+                first_primitive[point_number] = number
+            else:
+                union(number, previous)
+    return len({find(primitive) for primitive in range(primitive_count)})
 
 
 def mesh_signature(geometry):
@@ -176,14 +238,23 @@ def main():
     parser.add_argument("--cube-size", type=float, default=2.6)
     parser.add_argument("--plane-size", type=float, default=4.8)
     parser.add_argument("--offset-jitter", type=float, default=0.0)
+    parser.add_argument("--grid-segments", type=int, default=1)
+    parser.add_argument("--noise-frequency", type=float, default=0.27)
+    parser.add_argument("--noise-factor", type=float, default=0.0)
     parser.add_argument("--repeats", type=int, default=3)
     args = parser.parse_args()
     if not 1 <= args.planes <= 400:
         parser.error("--planes must be between 1 and 400")
+    if not 1 <= args.grid_segments <= 12:
+        parser.error("--grid-segments must be between 1 and 12")
     if args.repeats < 1:
         parser.error("--repeats must be positive")
     if not math.isfinite(args.offset_jitter) or args.offset_jitter < 0.0:
         parser.error("--offset-jitter must be finite and non-negative")
+    if not math.isfinite(args.noise_frequency) or args.noise_frequency <= 0.0:
+        parser.error("--noise-frequency must be finite and positive")
+    if not math.isfinite(args.noise_factor) or args.noise_factor < 0.0:
+        parser.error("--noise-factor must be finite and non-negative")
 
     output_dir = os.path.abspath(args.output_dir)
     os.makedirs(output_dir, exist_ok=True)
@@ -192,7 +263,14 @@ def main():
     output_path = os.path.join(output_dir, "shattered_cube_houdini.obj")
     result_path = os.path.join(output_dir, "shattered_cube_houdini.json")
     left_points, left_faces, right_points, right_faces = operands(
-        args.planes, args.seed, args.cube_size, args.plane_size, args.offset_jitter
+        args.planes,
+        args.seed,
+        args.cube_size,
+        args.plane_size,
+        args.offset_jitter,
+        args.grid_segments,
+        args.noise_frequency,
+        args.noise_factor,
     )
     write_obj(left_path, left_points, left_faces)
     write_obj(right_path, right_points, right_faces)
@@ -265,6 +343,10 @@ def main():
         "cube_size": args.cube_size,
         "plane_size": args.plane_size,
         "offset_jitter": args.offset_jitter,
+        "grid_segments": args.grid_segments,
+        "noise_frequency": args.noise_frequency,
+        "noise_factor": args.noise_factor,
+        "noise_fixture": "sin(x*f+phase*0.731)*cos(z*f-phase*0.413)",
         "offset_random_stream_start": OFFSET_STREAM_START,
         "cold_boolean_seconds": cold_seconds,
         "fresh_boolean_seconds": fresh_seconds,
@@ -275,6 +357,7 @@ def main():
         "sha256": mesh_signature(geometry),
         "points": geometry.pointCount(),
         "primitives": geometry.primCount(),
+        "connected_pieces": connected_components(geometry),
         "errors": errors,
         "warnings": warnings,
     }

@@ -79,7 +79,12 @@ let process_frame window user_state update_fn draw_fn after_draw_fn event_fn =
     
     (* Present through the selected native, headless, or web target. *)
     let logical_width, logical_height = Window.size () in
-    (match Backend.present renderer ~logical_width ~logical_height with
+    (match Renderer3d.present_gpu_if_pending () with
+     | Error message ->
+         Printf.eprintf "Prismel GPU presentation warning: %s\n%!" message
+     | Ok true -> ()
+     | Ok false ->
+       match Backend.present renderer ~logical_width ~logical_height with
      | Ok () -> ()
      | Error message ->
          Printf.eprintf "Prismel presentation warning: %s\n%!" message);
