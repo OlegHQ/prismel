@@ -249,6 +249,27 @@ let run_benchmarks () =
       |> function Ok value -> value
         | Error message -> failwith (Error.to_string message))
     Geometry.primitive_count hash_geometry;
+  let keep_source =
+    let vertex_payload = Attribute.create_owned ~owner:Attribute.Vertex
+        ~name:"vertex_payload"
+        (Attribute.Float (Array.init (Geometry.vertex_count silhouette_source)
+          float_of_int))
+        |> function Ok value -> value | Error message -> failwith message
+    and primitive_payload = Attribute.create_owned ~owner:Attribute.Primitive
+        ~name:"primitive_payload"
+        (Attribute.Int (Array.init (Geometry.primitive_count silhouette_source)
+          Fun.id))
+        |> function Ok value -> value | Error message -> failwith message in
+    silhouette_source |> Geometry.with_attribute vertex_payload
+      |> function Error message -> failwith message | Ok value -> value
+      |> Geometry.with_attribute primitive_payload
+      |> function Error message -> failwith message | Ok value -> value in
+  measure "keep_primitives_adapter"
+    (fun () -> Ops.triangulate_2d ~projection:Ops.Triangulate_2d_xy
+      ~keep_primitives:true keep_source
+      |> function Ok value -> value
+        | Error message -> failwith (Error.to_string message))
+    Geometry.primitive_count hash_geometry;
   let disjoint_x = Array.init (constraint_segments * 2) (fun point ->
       if point land 1 = 0 then 0. else 0.5)
   and disjoint_y = Array.init (constraint_segments * 2) (fun point ->

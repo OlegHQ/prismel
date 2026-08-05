@@ -1012,6 +1012,7 @@ val triangulate_2d :
   ?regularization_steps:int ->
   ?allow_movement_of_interior_input_points:bool ->
   ?preserve_point_payload:bool ->
+  ?keep_primitives:bool ->
   ?remove_unused_points:bool ->
   ?recompute_point_normals:bool ->
   ?split_point_group:string ->

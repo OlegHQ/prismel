@@ -9,6 +9,11 @@ let topology_signature geometry =
   let topology = Topology.Private.view (Geometry.topology geometry) in
   Array.copy topology.vertex_points,Array.copy topology.primitive_offsets
 
+let attribute_storage ~owner name geometry =
+  match Geometry.find_attribute ~owner name geometry with
+  | Some attribute -> Attribute.Private.storage attribute
+  | None -> fail ("missing attribute " ^ name)
+
 let test_xy_payload_and_group () =
   let input = Ops.points [|0.,0.,3.; 1.,0.,4.; 1.,1.,5.; 0.,1.,6.|]
       in
@@ -59,6 +64,201 @@ let test_attribute_and_selection () =
   let topology = Topology.Private.view (Geometry.topology output) in
   check (Array.for_all (fun point -> point < 4) topology.vertex_points)
     "unselected point entered triangulation"
+
+let test_keep_primitives_payload_groups_and_edges () =
+  let positions = Packed.Float3.Private.of_owned_exn
+      ~x:[|0.;2.;2.;0.;0.5;1.5|] ~y:[|0.;0.;2.;2.;0.5;1.5|]
+      ~z:[|0.;1.;2.;3.;4.;5.|] in
+  let topology = Topology.create_owned ~point_count:6
+      ~vertex_points:[|0;1;2;3; 0;2; 4;5|]
+      ~primitive_offsets:[|0;4;6;8|]
+      ~primitive_kinds:[|Topology.Polygon;Topology.Open_polyline;
+        Topology.Open_polyline|] |> Result.get_ok in
+  let vertex_weight = Attribute.create_owned ~owner:Attribute.Vertex
+      ~name:"vertex_weight" (Attribute.Float
+        [|10.;11.;12.;13.;14.;15.;16.;17.|]) |> Result.get_ok
+  and vertex_id = Attribute.create_owned ~owner:Attribute.Vertex
+      ~name:"vertex_id" (Attribute.Int [|10;11;12;13;14;15;16;17|])
+      |> Result.get_ok
+  and vertex_rows = Attribute.create_owned ~owner:Attribute.Vertex
+      ~name:"vertex_rows" (Attribute.Int_array
+        (Packed.Int_array.create_owned
+          ~offsets:[|0;1;3;3;4;5;7;8;10|]
+          ~values:[|0;10;11;30;40;50;51;60;70;71|] |> Result.get_ok))
+      |> Result.get_ok
+  and vertex_float_rows = Attribute.create_owned ~owner:Attribute.Vertex
+      ~name:"vertex_float_rows" (Attribute.Float_array
+        (Packed.Float_array.create_owned
+          ~offsets:[|0;1;3;3;4;5;7;8;10|]
+          ~values:[|0.;10.;11.;30.;40.;50.;51.;60.;70.;71.|]
+          |> Result.get_ok)) |> Result.get_ok
+  and vertex_uv = Attribute.create_owned ~owner:Attribute.Vertex
+      ~name:"vertex_uv" (Attribute.Float2 (Packed.Float2.of_owned
+        ~x:[|0.;1.;2.;3.;4.;5.;6.;7.|]
+        ~y:[|10.;11.;12.;13.;14.;15.;16.;17.|] |> Result.get_ok))
+      |> Result.get_ok
+  and vertex_vector = Attribute.create_owned ~owner:Attribute.Vertex
+      ~name:"vertex_vector" (Attribute.Float3
+        (Packed.Float3.Private.of_owned_exn
+          ~x:[|0.;1.;2.;3.;4.;5.;6.;7.|]
+          ~y:[|10.;11.;12.;13.;14.;15.;16.;17.|]
+          ~z:[|20.;21.;22.;23.;24.;25.;26.;27.|])) |> Result.get_ok
+  and vertex_color = Attribute.create_owned ~owner:Attribute.Vertex
+      ~name:"vertex_color" (Attribute.Float4 (Packed.Float4.of_owned
+        ~x:[|0.;1.;2.;3.;4.;5.;6.;7.|]
+        ~y:[|10.;11.;12.;13.;14.;15.;16.;17.|]
+        ~z:[|20.;21.;22.;23.;24.;25.;26.;27.|]
+        ~w:[|30.;31.;32.;33.;34.;35.;36.;37.|] |> Result.get_ok))
+      |> Result.get_ok
+  and primitive_label = Attribute.create_owned ~owner:Attribute.Primitive
+      ~name:"primitive_label" (Attribute.Text
+        [|"surface";"constraint";"guide"|]) |> Result.get_ok
+  and detail_id = Attribute.create_owned ~owner:Attribute.Detail ~name:"detail_id"
+      (Attribute.Int [|73|]) |> Result.get_ok in
+  let constraints = Group.init ~owner:Group.Primitive ~name:"constraints" 3
+      (fun primitive -> primitive = 1)
+  and vertex_order = Group.ordered ~owner:Group.Vertex ~name:"vertex_order"
+      ~length:8 [|7;4;2;0|] |> Result.get_ok
+  and primitive_order = Group.ordered ~owner:Group.Primitive
+      ~name:"primitive_order" ~length:3 [|2;1;0|] |> Result.get_ok
+  and old_triangles = Group.init ~owner:Group.Primitive ~name:"triangles" 3
+      (fun primitive -> primitive = 0) in
+  let source_index = Topology_index.create topology in
+  let retained_edge = Topology_index.find_edge_index source_index ~a:0 ~b:1 in
+  let boundary = Edge_group.init ~topology ~index:source_index ~name:"boundary"
+      (fun edge -> edge = retained_edge)
+  and old_recovered = Edge_group.init ~topology ~index:source_index
+      ~name:"recovered" (fun edge -> edge = retained_edge) in
+  let input = Geometry.create ~positions ~topology
+      ~attributes:[vertex_weight;vertex_id;vertex_rows;vertex_float_rows;
+        vertex_uv;vertex_vector;vertex_color;primitive_label;detail_id]
+      ~groups:[constraints;vertex_order;primitive_order;old_triangles]
+      ~edge_groups:[boundary;old_recovered] () |> Result.get_ok in
+  let run domains = Parallel.run ~domains (fun () ->
+      Ops.triangulate_2d ~grain:1 ~projection:Ops.Triangulate_2d_xy
+        ~constraint_primitives:constraints ~keep_primitives:true
+        ~triangle_group:"triangles" ~constraint_group:"recovered" input |> get) in
+  let output = run 1 and parallel = run 4 in
+  check (topology_signature output = topology_signature parallel)
+    "Keep Primitives topology differs across domains";
+  let output_topology = Geometry.topology output in
+  let view = Topology.Private.view output_topology in
+  check (Geometry.primitive_count output > 2
+      && Topology.primitive_kind output_topology 0 = Topology.Polygon
+      && Topology.primitive_kind output_topology 1 = Topology.Open_polyline
+      && Array.sub view.vertex_points 0 6 = [|0;1;2;3;4;5|]
+      && Array.sub view.primitive_offsets 0 3 = [|0;4;6|])
+    "Keep Primitives did not preserve the non-constraint primitive prefix";
+  (match attribute_storage ~owner:Attribute.Vertex "vertex_weight" output with
+   | Attribute.Float values ->
+       check (Array.sub values 0 6 = [|10.;11.;12.;13.;16.;17.|]
+           && Array.for_all ((=) 0.) (Array.sub values 6 (Array.length values - 6)))
+         "Keep Primitives vertex fixed payload/defaults"
+   | _ -> fail "Keep Primitives vertex storage changed");
+  (match attribute_storage ~owner:Attribute.Vertex "vertex_rows" output with
+   | Attribute.Int_array values ->
+       check (Packed.Int_array.get values 0 = [|0|]
+           && Packed.Int_array.get values 1 = [|10;11|]
+           && Packed.Int_array.get values 4 = [|60|]
+           && Packed.Int_array.get values 5 = [|70;71|]
+           && Packed.Int_array.get values 6 = [||])
+         "Keep Primitives vertex ragged payload/defaults"
+   | _ -> fail "Keep Primitives vertex ragged storage changed");
+  (match attribute_storage ~owner:Attribute.Vertex "vertex_id" output with
+   | Attribute.Int values -> check (Array.sub values 0 6 = [|10;11;12;13;16;17|]
+       && values.(6) = 0) "Keep Primitives vertex integer payload/defaults"
+   | _ -> fail "Keep Primitives vertex integer storage changed");
+  (match attribute_storage ~owner:Attribute.Vertex "vertex_float_rows" output with
+   | Attribute.Float_array values ->
+       check (Packed.Float_array.get values 5 = [|70.;71.|])
+         "Keep Primitives vertex float-row payload";
+       let generated = Packed.Float_array.get values 6 in
+       check (Array.length generated = 0)
+         "Keep Primitives vertex float-row defaults"
+   | _ -> fail "Keep Primitives vertex float-row storage changed");
+  (match attribute_storage ~owner:Attribute.Vertex "vertex_uv" output with
+   | Attribute.Float2 values ->
+       let values = Packed.Float2.Private.view values in
+       check (values.x.(4) = 6. && values.y.(5) = 17.
+           && values.x.(6) = 0. && values.y.(6) = 0.)
+         "Keep Primitives vertex float2 payload/defaults"
+   | _ -> fail "Keep Primitives vertex float2 storage changed");
+  (match attribute_storage ~owner:Attribute.Vertex "vertex_vector" output with
+   | Attribute.Float3 values ->
+       let values = Packed.Float3.Private.view values in
+       check (values.x.(4) = 6. && values.z.(5) = 27.
+           && values.x.(6) = 0. && values.y.(6) = 0. && values.z.(6) = 0.)
+         "Keep Primitives vertex float3 payload/defaults"
+   | _ -> fail "Keep Primitives vertex float3 storage changed");
+  (match attribute_storage ~owner:Attribute.Vertex "vertex_color" output with
+   | Attribute.Float4 values ->
+       let values = Packed.Float4.Private.view values in
+       check (values.x.(4) = 6. && values.w.(5) = 37.
+           && values.x.(6) = 0. && values.w.(6) = 0.)
+         "Keep Primitives vertex float4 payload/defaults"
+   | _ -> fail "Keep Primitives vertex float4 storage changed");
+  (match attribute_storage ~owner:Attribute.Primitive "primitive_label" output with
+   | Attribute.Text values ->
+       check (values.(0) = "surface" && values.(1) = "guide"
+           && Array.for_all ((=) "")
+             (Array.sub values 2 (Array.length values - 2)))
+         "Keep Primitives primitive payload/defaults"
+   | _ -> fail "Keep Primitives primitive storage changed");
+  (match attribute_storage ~owner:Attribute.Detail "detail_id" output with
+   | Attribute.Int values -> check (values = [|73|])
+       "Keep Primitives detail payload"
+   | _ -> fail "Keep Primitives detail storage changed");
+  (match Geometry.find_group ~owner:Group.Vertex "vertex_order" output with
+   | Some group -> check (Group.ordered_elements group = Some [|5;2;0|])
+       "Keep Primitives ordered vertex-group ancestry"
+   | None -> fail "Keep Primitives vertex group missing");
+  (match Geometry.find_group ~owner:Group.Primitive "primitive_order" output with
+   | Some group -> check (Group.ordered_elements group = Some [|1;0|])
+       "Keep Primitives ordered primitive-group ancestry"
+   | None -> fail "Keep Primitives primitive group missing");
+  (match Geometry.find_group ~owner:Group.Primitive "constraints" output with
+   | Some group -> check (Group.cardinality group = 0)
+       "Keep Primitives retained constraint primitive membership"
+   | None -> fail "Keep Primitives constraint source group missing");
+  (match Geometry.find_group ~owner:Group.Primitive "triangles" output with
+   | Some group -> check (Group.cardinality group = Geometry.primitive_count output - 2
+       && not (Group.mem 0 group) && not (Group.mem 1 group))
+       "Keep Primitives triangle output group"
+   | None -> fail "Keep Primitives triangle group missing");
+  let output_index = Topology_index.create output_topology in
+  let output_edge = Topology_index.find_edge_index output_index ~a:0 ~b:1 in
+  (match Geometry.find_edge_group "boundary" output with
+   | Some group -> check (output_edge >= 0 && Edge_group.mem output_edge group)
+       "Keep Primitives native-edge ancestry"
+   | None -> fail "Keep Primitives native edge group missing");
+  (match Geometry.find_edge_group "recovered" output with
+   | Some group -> check (Edge_group.cardinality group = 3
+       && not (Edge_group.mem output_edge group))
+       "Keep Primitives constraint group did not replace a colliding source name"
+   | None -> fail "Keep Primitives recovered constraint group missing");
+  let parallel_weights = match attribute_storage ~owner:Attribute.Vertex
+      "vertex_weight" parallel with Attribute.Float values -> values
+    | _ -> fail "parallel Keep Primitives vertex storage changed" in
+  check (match attribute_storage ~owner:Attribute.Vertex "vertex_weight" output with
+      | Attribute.Float values -> values = parallel_weights | _ -> false)
+    "Keep Primitives payload differs across domains";
+  let duplicate_positions = Packed.Float3.Private.of_owned_exn
+      ~x:[|0.;1.;1.;0.;0.|] ~y:[|0.;0.;1.;1.;0.|]
+      ~z:[|0.;0.;0.;0.;9.|] in
+  let duplicate_topology = Topology.polygons_owned ~point_count:5
+      ~vertex_points:[|4;1;2|] ~primitive_offsets:[|0;3|]
+      |> Result.get_ok in
+  let duplicate_input = Geometry.create ~positions:duplicate_positions
+      ~topology:duplicate_topology () |> Result.get_ok in
+  let deduplicated = Ops.triangulate_2d ~grain:1
+      ~projection:Ops.Triangulate_2d_xy ~keep_primitives:true
+      ~remove_duplicate_points:true duplicate_input |> get in
+  let deduplicated_topology = Topology.Private.view
+      (Geometry.topology deduplicated) in
+  check (Geometry.point_count deduplicated = 4
+      && Geometry.primitive_count deduplicated = 3
+      && Array.sub deduplicated_topology.vertex_points 0 3 = [|0;1;2|])
+    "Keep Primitives duplicate compaction deleted rather than rewired a retained face"
 
 let constrained_square () =
   let positions = Packed.Float3.Private.of_owned_exn
@@ -669,6 +869,7 @@ let () =
   test_xy_payload_and_group ();
   test_best_fit_and_explicit_plane ();
   test_attribute_and_selection ();
+  test_keep_primitives_payload_groups_and_edges ();
   test_constraints ();
   test_crossing_constraints_and_payload ();
   test_hull_boundary_flood ();

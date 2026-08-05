@@ -603,6 +603,196 @@ let interpolate_point_attribute ?cancel ~grain plan attribute =
   Attribute.create_owned ~name:(Attribute.name attribute) ~owner:Attribute.Point storage
   |> Result.get_ok
 
+let checked_add label first second =
+  if first < 0 || second < 0 || first > max_int - second then
+    invalid_arg (operation ^ ": " ^ label ^ " exceeds integer range");
+  first + second
+
+let mapped_array ?cancel ~grain ~default mapping source =
+  let count = Array.length mapping in
+  let output = Array.make count default in
+  let fill target =
+    if target land 4095 = 0 then Cancel.check_opt cancel;
+    let source_index = mapping.(target) in
+    if source_index >= 0 then output.(target) <- source.(source_index) in
+  if count > grain then Parallel.for_ ~chunk_size:grain ~start:0
+      ~finish:(count - 1) fill
+  else for target = 0 to count - 1 do fill target done;
+  output
+
+let defaulted_attribute ?cancel ~grain mapping attribute =
+  let storage = match Attribute.Private.storage attribute with
+    | Attribute.Float values ->
+        Attribute.Float (mapped_array ?cancel ~grain ~default:0. mapping values)
+    | Attribute.Int values ->
+        Attribute.Int (mapped_array ?cancel ~grain ~default:0 mapping values)
+    | Attribute.Text values ->
+        Attribute.Text (mapped_array ?cancel ~grain ~default:"" mapping values)
+    | Attribute.Int_array values ->
+        Attribute.Int_array (Ragged_ops.remap_int ?cancel ~grain mapping values)
+    | Attribute.Float_array values ->
+        Attribute.Float_array (Ragged_ops.remap_float ?cancel ~grain mapping values)
+    | Attribute.Float2 values ->
+        let values = Packed.Float2.Private.view values in
+        Attribute.Float2 (Packed.Float2.of_owned
+          ~x:(mapped_array ?cancel ~grain ~default:0. mapping values.x)
+          ~y:(mapped_array ?cancel ~grain ~default:0. mapping values.y)
+          |> Result.get_ok)
+    | Attribute.Float3 values ->
+        let values = Packed.Float3.Private.view values in
+        Attribute.Float3 (Packed.Float3.Private.of_owned_exn
+          ~x:(mapped_array ?cancel ~grain ~default:0. mapping values.x)
+          ~y:(mapped_array ?cancel ~grain ~default:0. mapping values.y)
+          ~z:(mapped_array ?cancel ~grain ~default:0. mapping values.z))
+    | Attribute.Float4 values ->
+        let values = Packed.Float4.Private.view values in
+        Attribute.Float4 (Packed.Float4.of_owned
+          ~x:(mapped_array ?cancel ~grain ~default:0. mapping values.x)
+          ~y:(mapped_array ?cancel ~grain ~default:0. mapping values.y)
+          ~z:(mapped_array ?cancel ~grain ~default:0. mapping values.z)
+          ~w:(mapped_array ?cancel ~grain ~default:0. mapping values.w)
+          |> Result.get_ok) in
+  Attribute.create_owned ~name:(Attribute.name attribute)
+    ~owner:(Attribute.owner attribute) storage |> Result.get_ok
+
+let defaulted_group ?cancel ~grain mapping group =
+  let output = Group.init ~grain ~owner:(Group.owner group)
+      ~name:(Group.name group) (Array.length mapping) (fun target ->
+        if target land 4095 = 0 then Cancel.check_opt cancel;
+        let source = mapping.(target) in source >= 0 && Group.mem source group) in
+  Group.Private.remap_order ~source:group ~source_of_target:mapping output
+
+type output_topology_plan = {
+  topology : Topology.t;
+  vertex_source : int array;
+  primitive_source : int array;
+  kept_primitive_count : int;
+}
+
+let output_topology ?cancel ~grain ~keep_primitives ~constraint_primitives
+    ~source_point_output ~output_point_count ~local_to_output ~triangle_points
+    geometry =
+  let triangle_count = Array.length triangle_points / 3 in
+  if not keep_primitives then begin
+    let vertex_count = Array.length triangle_points in
+    let vertex_points = Array.make vertex_count 0 in
+    let fill vertex =
+      if vertex land 4095 = 0 then Cancel.check_opt cancel;
+      vertex_points.(vertex) <- local_to_output triangle_points.(vertex) in
+    if vertex_count > grain then Parallel.for_ ~chunk_size:grain ~start:0
+        ~finish:(vertex_count - 1) fill
+    else for vertex = 0 to vertex_count - 1 do fill vertex done;
+    let primitive_offsets = Array.init (triangle_count + 1)
+        (fun primitive -> primitive * 3) in
+    { topology = Topology.polygons_owned ~point_count:output_point_count
+          ~vertex_points ~primitive_offsets |> Result.get_ok;
+      vertex_source = [||]; primitive_source = [||];
+      kept_primitive_count = 0 }
+  end else begin
+    let source_topology_value = Geometry.topology geometry in
+    let source = Topology.Private.view source_topology_value in
+    let source_primitive_count = Geometry.primitive_count geometry in
+    Option.iter (fun group ->
+      if Group.owner group <> Group.Primitive
+          || Group.length group <> source_primitive_count then
+        invalid_arg (operation ^
+          ": constraint primitive group is incompatible with input topology"))
+      constraint_primitives;
+    let kept_vertex_offsets = Array.make (source_primitive_count + 1) 0
+    and source_to_output = Array.make source_primitive_count (-1) in
+    let kept_primitive_count = ref 0 in
+    for primitive = 0 to source_primitive_count - 1 do
+      if primitive land 4095 = 0 then Cancel.check_opt cancel;
+      let retained = match constraint_primitives with
+        | None -> true | Some group -> not (Group.mem primitive group) in
+      kept_vertex_offsets.(primitive + 1) <- kept_vertex_offsets.(primitive);
+      if retained then begin
+        source_to_output.(primitive) <- !kept_primitive_count;
+        incr kept_primitive_count;
+        kept_vertex_offsets.(primitive + 1) <- checked_add "kept vertex count"
+            kept_vertex_offsets.(primitive)
+            (source.primitive_offsets.(primitive + 1)
+             - source.primitive_offsets.(primitive))
+      end
+    done;
+    let kept_vertex_count = kept_vertex_offsets.(source_primitive_count) in
+    let output_primitive_count = checked_add "output primitive count"
+        !kept_primitive_count triangle_count
+    and output_vertex_count = checked_add "output vertex count"
+        kept_vertex_count (Array.length triangle_points) in
+    let vertex_points = Array.make output_vertex_count 0
+    and vertex_source = Array.make output_vertex_count (-1)
+    and primitive_offsets = Array.make (output_primitive_count + 1) 0
+    and primitive_kinds = Bytes.make output_primitive_count '\000'
+    and primitive_source = Array.make output_primitive_count (-1) in
+    let output_point_of_source = if Array.length source_point_output = 0 then
+        Fun.id else fun point -> source_point_output.(point) in
+    let fill_source primitive =
+      if primitive land 1023 = 0 then Cancel.check_opt cancel;
+      let output = source_to_output.(primitive) in
+      if output >= 0 then begin
+        let source_first = source.primitive_offsets.(primitive)
+        and source_last = source.primitive_offsets.(primitive + 1)
+        and target_first = kept_vertex_offsets.(primitive) in
+        primitive_offsets.(output) <- target_first;
+        Bytes.unsafe_set primitive_kinds output
+          (Bytes.unsafe_get source.primitive_kinds primitive);
+        primitive_source.(output) <- primitive;
+        for local = 0 to source_last - source_first - 1 do
+          let source_vertex = source_first + local
+          and target_vertex = target_first + local in
+          vertex_points.(target_vertex) <-
+            output_point_of_source (source.vertex_points.(source_vertex));
+          vertex_source.(target_vertex) <- source_vertex
+        done
+      end in
+    if source_primitive_count > grain then
+      Parallel.for_ ~chunk_size:grain ~start:0
+        ~finish:(source_primitive_count - 1) fill_source
+    else for primitive = 0 to source_primitive_count - 1 do
+      fill_source primitive
+    done;
+    let fill_triangle triangle =
+      if triangle land 4095 = 0 then Cancel.check_opt cancel;
+      let primitive = !kept_primitive_count + triangle
+      and vertex = kept_vertex_count + (triangle * 3) in
+      primitive_offsets.(primitive) <- vertex;
+      vertex_points.(vertex) <- local_to_output triangle_points.(triangle * 3);
+      vertex_points.(vertex + 1) <-
+        local_to_output triangle_points.((triangle * 3) + 1);
+      vertex_points.(vertex + 2) <-
+        local_to_output triangle_points.((triangle * 3) + 2) in
+    if triangle_count > grain then Parallel.for_ ~chunk_size:grain ~start:0
+        ~finish:(triangle_count - 1) fill_triangle
+    else for triangle = 0 to triangle_count - 1 do fill_triangle triangle done;
+    primitive_offsets.(output_primitive_count) <- output_vertex_count;
+    { topology = Topology.Private.create_validated_owned
+          ~point_count:output_point_count ~vertex_points ~primitive_offsets
+          ~primitive_kinds;
+      vertex_source; primitive_source;
+      kept_primitive_count = !kept_primitive_count }
+  end
+
+let replace_group group groups =
+  group :: List.filter (fun existing ->
+    Group.owner existing <> Group.owner group
+    || not (String.equal (Group.name existing) (Group.name group))) groups
+
+let remap_source_edge_groups ?cancel ~point_map ~target_topology ~target_index
+    geometry =
+  match Geometry.edge_groups geometry with
+  | [] -> []
+  | groups ->
+      let source_topology = Geometry.topology geometry in
+      let source_index = Topology_index.create ?cancel source_topology in
+      let point_map = if Array.length point_map = 0 then
+          Array.init (Geometry.point_count geometry) Fun.id else point_map in
+      List.map (fun group ->
+        match Edge_group.remap ?cancel ~source_index ~target_topology
+            ~target_index ~point_map group with
+        | Ok group -> group
+        | Error message -> invalid_arg (operation ^ ": " ^ message)) groups
+
 let constraint_only_seed ?cancel ~grain ~seed ~points ~x ~y ~constraints
     ~constraint_winding () =
   let count = Array.length points in
@@ -667,7 +857,7 @@ let run ?cancel ?(grain = 16_384) ?selection ?constraint_edges
     ?(minimum_edge_length = 0.) ?(maximum_new_points = 100_000)
     ?(regularization_steps = 0)
     ?(allow_movement_of_interior_input_points = false)
-    ?(preserve_point_payload = true)
+    ?(preserve_point_payload = true) ?(keep_primitives = false)
     ?split_point_group ?refinement_point_group ?triangle_group
     ?constraint_group geometry =
   try
@@ -798,20 +988,19 @@ let run ?cancel ?(grain = 16_384) ?selection ?constraint_edges
           let split_count = materialization.split_count
           and refinement_count = materialization.refinement_count in
           let triangle_count = Array.length triangle_points / 3 in
-          let vertex_count = triangle_count * 3 in
-          let vertex_points = Array.make vertex_count 0
-          and primitive_offsets = Array.init (triangle_count + 1)
-              (fun primitive -> primitive * 3) in
-          let fill vertex =
-            if vertex land 4095 = 0 then Cancel.check_opt cancel;
-            let local = triangle_points.(vertex) in
-            vertex_points.(vertex) <- local_to_output local in
-          if vertex_count > grain then Parallel.for_ ~chunk_size:grain ~start:0
-              ~finish:(vertex_count - 1) fill
-          else for vertex = 0 to vertex_count - 1 do fill vertex done;
-          let topology = Topology.polygons_owned
-              ~point_count:output_point_count ~vertex_points
-              ~primitive_offsets |> Result.get_ok in
+          let source_point_output = if keep_primitives && remove_duplicate_points then
+              Array.init (Geometry.point_count geometry) Fun.id else [||] in
+          if keep_primitives && remove_duplicate_points then
+            for local = 0 to Array.length points - 1 do
+              if local land 4095 = 0 then Cancel.check_opt cancel;
+              let representative = Delaunay2.unique_source triangulation
+                  (Delaunay2.source_unique triangulation local) in
+              source_point_output.(points.(local)) <- points.(representative)
+            done;
+          let topology_plan = output_topology ?cancel ~grain ~keep_primitives
+              ~constraint_primitives ~source_point_output ~output_point_count
+              ~local_to_output ~triangle_points geometry in
+          let topology = topology_plan.topology in
           let attributes = List.filter_map (fun attribute ->
               match Attribute.owner attribute with
               | Attribute.Detail -> Some attribute
@@ -821,34 +1010,59 @@ let run ?cancel ?(grain = 16_384) ?selection ?constraint_edges
                   else if split_count + refinement_count = 0 then Some attribute
                   else Some (interpolate_point_attribute ?cancel ~grain
                     materialization attribute)
-              | Attribute.Vertex | Attribute.Primitive -> None)
+              | Attribute.Vertex ->
+                  if not keep_primitives || Attribute.name attribute = "N" then None
+                  else Some (defaulted_attribute ?cancel ~grain
+                    topology_plan.vertex_source attribute)
+              | Attribute.Primitive ->
+                  if not keep_primitives then None
+                  else Some (defaulted_attribute ?cancel ~grain
+                    topology_plan.primitive_source attribute))
               (Geometry.attributes geometry) in
-          let groups = if not preserve_point_payload then [] else
-              List.filter_map (fun group -> match Group.owner group with
-                | Group.Point -> Some (if split_count + refinement_count = 0
-                    then group else Topology_remap.group ?cancel ~grain
-                      materialization.representative group)
-                | Group.Vertex | Group.Primitive -> None)
-                (Geometry.groups geometry) in
+          let groups = List.filter_map (fun group -> match Group.owner group with
+              | Group.Point ->
+                  if not preserve_point_payload then None
+                  else Some (if split_count + refinement_count = 0
+                      then group else Topology_remap.group ?cancel ~grain
+                        materialization.representative group)
+              | Group.Vertex ->
+                  if not keep_primitives then None
+                  else Some (defaulted_group ?cancel ~grain
+                    topology_plan.vertex_source group)
+              | Group.Primitive ->
+                  if not keep_primitives then None
+                  else Some (defaulted_group ?cancel ~grain
+                    topology_plan.primitive_source group))
+              (Geometry.groups geometry) in
           let groups = match split_point_group with
             | None -> groups
-            | Some name -> Group.init ~grain ~owner:Group.Point ~name
-                output_point_count
+            | Some name -> replace_group (Group.init ~grain ~owner:Group.Point
+                ~name output_point_count
                 (fun point -> point >= Geometry.point_count geometry
-                  && point < Geometry.point_count geometry + split_count) :: groups in
+                  && point < Geometry.point_count geometry + split_count)) groups in
           let groups = match refinement_point_group with
             | None -> groups
-            | Some name -> Group.init ~grain ~owner:Group.Point ~name
-                output_point_count
-                (fun point -> point >= output_point_count - refinement_count) :: groups in
+            | Some name -> replace_group (Group.init ~grain ~owner:Group.Point
+                ~name output_point_count
+                (fun point -> point >= output_point_count - refinement_count)) groups in
           let groups = match triangle_group with
             | None -> groups
-            | Some name -> Group.init ~grain ~owner:Group.Primitive ~name
-                triangle_count (fun _ -> true) :: groups in
+            | Some name -> replace_group (Group.init ~grain
+                ~owner:Group.Primitive ~name
+                (topology_plan.kept_primitive_count + triangle_count)
+                (fun primitive ->
+                  primitive >= topology_plan.kept_primitive_count)) groups in
+          let target_index = lazy (Topology_index.create ?cancel topology) in
+          let source_edge_groups = if keep_primitives
+                && Geometry.edge_groups geometry <> [] then
+              remap_source_edge_groups ?cancel ~point_map:source_point_output
+                ~target_topology:topology ~target_index:(Lazy.force target_index)
+                geometry
+            else [] in
           let edge_groups = match constraint_group with
-            | None -> []
+            | None -> source_edge_groups
             | Some name ->
-                let index = Topology_index.create ?cancel topology in
+                let index = Lazy.force target_index in
                 let builder = Edge_group.Builder.create ~topology ~index ~name in
                 for constraint_index = 0 to Array.length constraint_points / 2 - 1 do
                   let a = local_to_output constraint_points.(constraint_index * 2)
@@ -859,7 +1073,9 @@ let run ?cancel ?(grain = 16_384) ?selection ?constraint_edges
                     invalid_arg (operation ^ ": recovered constraint is absent from output topology");
                   Edge_group.Builder.set builder edge true
                 done;
-                [Edge_group.Builder.freeze builder] in
+                let constraints = Edge_group.Builder.freeze builder in
+                constraints :: List.filter (fun group ->
+                  not (String.equal (Edge_group.name group) name)) source_edge_groups in
           Result.bind (Geometry.create ~positions ~topology
               ~attributes ~groups ~edge_groups ()) (fun output ->
             if not remove_duplicate_points then Ok output

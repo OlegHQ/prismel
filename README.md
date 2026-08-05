@@ -910,6 +910,11 @@ exclude non-constraint points from topology while preserving their source
 payload as isolated points; optional stable compaction removes them afterward,
 exact projected-duplicate removal preserves unrelated unused points, and
 existing point normals can be recomputed through the shared Normals kernel.
+`keep_primitives:true` retains every source polygon or curve except explicitly
+selected constraint primitives before the generated triangle suffix. Retained
+vertex/primitive attributes, ordinary and ordered groups, and native edge
+groups keep exact source ancestry; triangle entries receive typed zero/empty
+defaults and the requested triangle group selects only that suffix.
 `edge_equalize` moves selected endpoints to the initial average, longest, or
 shortest selected length. Independent edges take a direct parallel path;
 connected selections use a bounded deterministic projection with an explicit

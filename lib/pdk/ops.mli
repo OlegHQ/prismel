@@ -1733,6 +1733,7 @@ val triangulate_2d :
   ?regularization_steps:int ->
   ?allow_movement_of_interior_input_points:bool ->
   ?preserve_point_payload:bool ->
+  ?keep_primitives:bool ->
   ?remove_unused_points:bool ->
   ?recompute_point_normals:bool ->
   ?split_point_group:string ->
@@ -1768,6 +1769,10 @@ val triangulate_2d :
     [regularization_steps] relaxes generated interior points after refinement;
     [allow_movement_of_interior_input_points] additionally moves original
     projected interior points while constraint and hull points remain fixed.
+    [keep_primitives] retains every input primitive except members of
+    [constraint_primitives], followed by the generated triangles. Retained
+    vertex/primitive payload and groups keep exact ancestry; generated entries
+    receive zero/empty defaults.
     [remove_unused_points] applies stable packed compaction after topology is
     finalized. [recompute_point_normals] rebuilds point [N] only when the input
     already had point [N].

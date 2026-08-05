@@ -2416,6 +2416,25 @@ generated points per requested step. Centroid, construction, containment, and
 orientation ranges are parallel; stable index construction, acceptance, DAG
 commit, and CDT repair remain serial.
 
+Optional Keep Primitives constructs one cardinality-first output topology with
+all input primitives except members of the explicit constraint-primitive group
+as a stable prefix and all generated triangles as a suffix. Source curves and
+polygons retain their kind, corner order, and point identities. Fixed-width and
+ragged vertex/primitive attributes copy exact retained ancestry; generated
+triangle entries receive the storage-kind default (numeric zero, empty text, or
+empty CSR row). Ordinary and ordered groups preserve retained ancestry, while
+the triangle output group selects only the suffix. Source native-edge groups
+remap once by unchanged point endpoints; an explicitly named constrained-edge
+output replaces a colliding source name, reusing the same target edge index.
+Point/detail payload continues to use
+the interpolation policy above. When duplicate removal is also enabled,
+retained corners and native edges are first rewired to the stable projected-
+coordinate representative, so compacting an otherwise referenced duplicate
+cannot destroy a kept primitive. Planning and packed fills are O(source
+primitives + source vertices + output triangles + retained payload), with
+O(source primitives + output topology + retained payload) auxiliary/output
+storage; primitive and corner fills write disjoint stable ranges in parallel.
+
 Optional hull-boundary outside removal seeds every triangle incident to an
 unconstrained convex-hull edge and performs one packed breadth-first flood
 through unconstrained adjacency. Constrained edges are exact barriers. The
@@ -2451,9 +2470,18 @@ and the four-core Linux 6.8/aarch64 runner used by the surrounding PDK table,
 median with 65.7 MB current-domain allocation and 1,648 promoted bytes (three
 repetitions, one domain).
 That allocation figure is the current optimization baseline, not a production
-claim. Source-primitive retention and the exact undocumented SideFX numerical
-regularization profile remain explicit parity gates before this node can
-move out of Partial status.
+claim. Restore Original Point Positions off and the exact undocumented SideFX
+numerical regularization profile remain explicit parity gates before this node
+can move out of Partial status.
+
+On the same 100,000-point source whose existing 199,918 triangles carry one
+vertex float and one primitive integer field, Keep Primitives produced a stable
+399,836-face result in a 1.014-second median with 130.86 MB current-domain
+allocation, 3,096 promoted bytes, 88.38 MB major allocation, and topology hash
+`2887283567451037009` on one domain. Four domains produced the identical hash
+in 0.997 seconds with 121.31 MB current-domain allocation; dependency-ordered
+Delaunay construction dominates this adapter workload, so no multicore speedup
+is claimed.
 
 On the same 100,000-point seed, recovering one legal long constraint and
 repairing 199,918 triangles takes a 0.234-second median with 81.88 MB allocated,

@@ -341,6 +341,10 @@ The first coherent set includes:
   provenance-DAG interpolation across repeated relaxation,
   optional shared-kernel unused-point compaction and conditional existing-point
   normal recomputation,
+  optional retention of every non-constraint input polygon/curve as a stable
+  prefix with exact fixed/ragged vertex and primitive payload, ordered-group,
+  and native-edge ancestry plus typed defaults for the generated triangle
+  suffix,
   PCA/principal/explicit/attribute projection, deterministic insertion seed,
   original-position restoration, deterministic split-point payload policy, and
   output triangle and constrained-edge groups,

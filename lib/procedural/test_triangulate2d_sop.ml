@@ -33,7 +33,7 @@ let () =
   let node = Sop.triangulate_2d ~label:"planar"
       ~point_group:"square" ~projection:Pdk.Ops.Triangulate_2d_best_fit
       ~seed:37L ~triangle_group:"triangles" source in
-  check (Node.operation node = "triangulate_2d" && Node.version node = 10
+  check (Node.operation node = "triangulate_2d" && Node.version node = 11
       && contains (Node.parameters node) "point_group=square"
       && contains (Node.parameters node) "constraint_edge_group="
       && contains (Node.parameters node) "constraint_primitive_group="
@@ -57,6 +57,7 @@ let () =
       && contains (Node.parameters node) "regularization_steps=0"
       && contains (Node.parameters node)
         "allow_movement_of_interior_input_points=false"
+      && contains (Node.parameters node) "keep_primitives=false"
       && contains (Node.parameters node) "remove_unused_points=false"
       && contains (Node.parameters node) "recompute_point_normals=false"
       && contains (Node.parameters node) "split_point_group="
@@ -67,6 +68,27 @@ let () =
   check (signature one = signature four) "Triangulate 2D domain result differs";
   check (Pdk.Geometry.primitive_count one = 2)
     "Triangulate 2D point selection cardinality";
+  let kept_source =
+    let positions = Pdk.Packed.Float3.Private.of_owned_exn
+        ~x:[|0.;2.;2.;0.|] ~y:[|0.;0.;2.;2.|] ~z:[|0.;0.;0.;0.|] in
+    let topology = Pdk.Topology.polygons_owned ~point_count:4
+        ~vertex_points:[|0;1;2;3|] ~primitive_offsets:[|0;4|]
+        |> Result.get_ok in
+    Pdk.Geometry.create ~positions ~topology () |> Result.get_ok in
+  let kept_node = Sop.snapshot kept_source |> Sop.triangulate_2d
+      ~projection:Pdk.Ops.Triangulate_2d_xy ~keep_primitives:true
+      ~triangle_group:"generated" in
+  check (contains (Node.parameters kept_node) "keep_primitives=true")
+    "Triangulate 2D Keep Primitives is absent from identity";
+  let kept = cook 4 kept_node in
+  check (Pdk.Geometry.primitive_count kept = 3
+      && Pdk.Topology.primitive_size (Pdk.Geometry.topology kept) 0 = 4)
+    "Triangulate 2D SOP Keep Primitives topology";
+  (match Pdk.Geometry.find_group ~owner:Pdk.Group.Primitive "generated" kept with
+   | Some group -> check (Pdk.Group.cardinality group = 2
+       && not (Pdk.Group.mem 0 group))
+       "Triangulate 2D SOP Keep Primitives output group"
+   | None -> fail "Triangulate 2D SOP Keep Primitives output group is missing");
   let refinement_node = Pdk.Ops.points
       [|0.,0.,0.;2.,0.,0.;2.,2.,0.;0.,2.,0.|]
       |> Sop.snapshot |> Sop.triangulate_2d

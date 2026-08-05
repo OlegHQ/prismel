@@ -11534,7 +11534,7 @@ let triangulate_2d ?cancel ?grain ?selection ?constraint_edges
     ?refine ?allow_constraint_splitting ?minimum_angle ?maximum_area
     ?target_edge_length ?minimum_edge_length ?maximum_new_points
     ?regularization_steps ?allow_movement_of_interior_input_points
-    ?preserve_point_payload ?(remove_unused_points = false)
+    ?preserve_point_payload ?keep_primitives ?(remove_unused_points = false)
     ?(recompute_point_normals = false) ?split_point_group
     ?refinement_point_group ?triangle_group ?constraint_group geometry =
   let selection = Option.map (function
@@ -11561,7 +11561,7 @@ let triangulate_2d ?cancel ?grain ?selection ?constraint_edges
       ?refine ?allow_constraint_splitting ?minimum_angle ?maximum_area
       ?target_edge_length ?minimum_edge_length ?maximum_new_points
       ?regularization_steps ?allow_movement_of_interior_input_points
-      ?preserve_point_payload ?split_point_group ?triangle_group
+      ?preserve_point_payload ?keep_primitives ?split_point_group ?triangle_group
       ?refinement_point_group ?constraint_group geometry) (fun output ->
       Result.bind (if remove_unused_points then compact_points ?cancel
           ?grain output else Ok output) (fun output ->

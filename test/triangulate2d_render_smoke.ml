@@ -16,14 +16,15 @@ let source () =
         | 2 -> 300.,200.,0. | _ -> 20.,200.,0.) in
   let positions = Pdk.Geometry.positions (Pdk.Ops.points points) in
   let topology = Pdk.Topology.create_owned ~point_count
-      ~vertex_points:[|96;97;98;99; 96;98; 97;99|]
-      ~primitive_offsets:[|0;4;6;8|]
+      ~vertex_points:[|96;97;98;99; 96;98; 97;99; 96;97;99|]
+      ~primitive_offsets:[|0;4;6;8;11|]
       ~primitive_kinds:[|Pdk.Topology.Polygon;
-        Pdk.Topology.Open_polyline;Pdk.Topology.Open_polyline|]
+        Pdk.Topology.Open_polyline;Pdk.Topology.Open_polyline;
+        Pdk.Topology.Polygon|]
       |> Result.get_ok in
   let geometry = Pdk.Geometry.create ~positions ~topology () |> Result.get_ok in
   let constraints = Pdk.Group.init ~owner:Pdk.Group.Primitive
-      ~name:"constraints" 3 (fun _ -> true) in
+      ~name:"constraints" 4 (fun primitive -> primitive < 3) in
   let geometry = Pdk.Geometry.with_group constraints geometry |> Result.get_ok in
   Sop.snapshot geometry
   |> Sop.triangulate_2d ~projection:Pdk.Ops.Triangulate_2d_xy
@@ -34,6 +35,7 @@ let source () =
       ~ignore_non_constraint_points:true ~remove_unused_points:true
       ~refine:true ~minimum_angle:(Float.pi /. 18.) ~maximum_area:1_500.
       ~maximum_new_points:96 ~regularization_steps:2
+      ~keep_primitives:true
       ~split_point_group:"crossings"
       ~refinement_point_group:"refined"
 

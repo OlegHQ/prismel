@@ -33,6 +33,7 @@ val run :
   ?regularization_steps:int ->
   ?allow_movement_of_interior_input_points:bool ->
   ?preserve_point_payload:bool ->
+  ?keep_primitives:bool ->
   ?split_point_group:string ->
   ?refinement_point_group:string ->
   ?triangle_group:string ->
