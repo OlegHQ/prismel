@@ -11,9 +11,15 @@ module Private : sig
   type workspace
 
   val view : t -> view
-  val create_workspace : triangle_capacity:int -> workspace
+  val create_workspace :
+    ?point_capacity:int -> triangle_capacity:int -> unit -> workspace
   (** Create reusable, exclusively owned scratch storage. A workspace is not
-      safe for overlapping builds. Returned [t] values never borrow it. *)
+      safe for overlapping builds. [point_capacity] reserves a stable edge-key
+      stride that permits incremental continuation while the point count stays
+      within the bound. Returned [t] values never borrow it. *)
+
+  val build_counts : workspace -> int * int
+  (** Successful full and incremental build counts, for audited diagnostics. *)
 end
 
 val build :
@@ -45,7 +51,9 @@ val build :
     [remove_outside_constraint_polygons] retains triangles with non-zero
     propagated winding. [workspace] amortizes topology planes and the edge
     table across sequential builds while keeping each result independently
-    owned. *)
+    owned. Passing the immediately preceding result by physical identity plus
+    a contiguous suffix of inserted points continues its live incidence
+    incrementally; every other input takes the full rebuild path. *)
 
 val triangle_count : t -> int
 val triangle_point : t -> int -> int -> int

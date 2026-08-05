@@ -105,6 +105,26 @@ let run_benchmarks () =
   let seed = match Delaunay2.build ~seed:0L ~x ~y () with
     | Ok value -> value | Error message -> failwith message in
   let seed_view = Delaunay2.Private.view seed in
+  let repair ?workspace triangle_points =
+    Planar_cdt.build ?workspace ~point_count:points
+      ~orient:(fun a b c -> Predicates.orient2d_packed ~x ~y a b c)
+      ~incircle:(fun a b c d -> Predicates.incircle_packed ~x ~y a b c d)
+      ~triangle_points ~constraint_points:[||] ()
+    |> function Ok value -> value | Error message -> failwith message in
+  measure "cdt_repair_rebuild"
+    (fun () -> repair seed_view.triangle_points)
+    Planar_cdt.triangle_count hash_cdt;
+  let repair_workspace = Planar_cdt.Private.create_workspace
+      ~point_capacity:points ~triangle_capacity:(Delaunay2.triangle_count seed) () in
+  let repair_snapshot = ref (repair ~workspace:repair_workspace
+      seed_view.triangle_points) in
+  measure "cdt_repair_incremental"
+    (fun () ->
+      let value = repair ~workspace:repair_workspace
+          (Planar_cdt.Private.view !repair_snapshot).triangle_points in
+      repair_snapshot := value;
+      value)
+    Planar_cdt.triangle_count hash_cdt;
   let first_constraint = 0 and second_constraint = 1 in
   let times = Array.make repeats 0. and allocated = Array.make repeats 0.
   and promoted = Array.make repeats 0. and major = Array.make repeats 0.

@@ -25,13 +25,13 @@ let constraint_second value constraint_index =
     invalid_arg "Planar_cdt.constraint_second: constraint is out of range";
   value.constraint_points.((constraint_index * 2) + 1)
 
-let edge_key point_count first second =
+let edge_key ~point_count ~key_stride first second =
   let first,second = if first < second then first,second else second,first in
   if first < 0 || second < 0 || second >= point_count then
     invalid_arg "Planar CDT edge endpoint is out of range";
-  if first > (max_int - second) / point_count then
+  if first > (max_int - second) / key_stride then
     invalid_arg "Planar CDT edge key exceeds integer range";
-  (first * point_count) + second
+  (first * key_stride) + second
 
 module Edge_table = struct
   let empty = -1
@@ -73,6 +73,9 @@ module Edge_table = struct
     Array.fill table.keys 0 (Array.length table.keys) empty;
     table.edge_count <- 0;
     table.tombstone_count <- 0
+
+  let clear_constraints table =
+    Bytes.fill table.constrained 0 (Bytes.length table.constrained) '\000'
 
   let[@inline always] hash key =
     let value = key lxor (key lsr 16) in
@@ -202,6 +205,14 @@ type workspace = {
   mutable triangle_a : int array;
   mutable triangle_b : int array;
   mutable triangle_c : int array;
+  mutable point_triangle : int array;
+  mutable key_stride : int;
+  mutable point_count : int;
+  mutable triangle_count : int;
+  mutable last_output : int array option;
+  mutable valid : bool;
+  mutable full_build_count : int;
+  mutable incremental_build_count : int;
   edge_table : Edge_table.t;
 }
 
@@ -210,13 +221,25 @@ let checked_edge_capacity triangle_capacity =
     invalid_arg "Planar CDT triangle cardinality exceeds edge-table limits";
   max 1 ((triangle_capacity * 2) + 3)
 
-let create_workspace ~triangle_capacity =
+let create_workspace ?point_capacity ~triangle_capacity () =
   if triangle_capacity < 0 || triangle_capacity > Sys.max_array_length then
     invalid_arg "Planar CDT workspace triangle capacity exceeds array limits";
+  let point_capacity = Option.value point_capacity
+      ~default:(max 1 (triangle_capacity + 2)) in
+  if point_capacity <= 0 || point_capacity > Sys.max_array_length then
+    invalid_arg "Planar CDT workspace point capacity exceeds array limits";
   let capacity = max 1 triangle_capacity in
   { triangle_a = Array.make capacity 0;
     triangle_b = Array.make capacity 0;
     triangle_c = Array.make capacity 0;
+    point_triangle = Array.make point_capacity (-1);
+    key_stride = point_capacity;
+    point_count = 0;
+    triangle_count = 0;
+    last_output = None;
+    valid = false;
+    full_build_count = 0;
+    incremental_build_count = 0;
     edge_table = Edge_table.create (checked_edge_capacity capacity) }
 
 let ensure_workspace workspace required =
@@ -226,9 +249,24 @@ let ensure_workspace workspace required =
       if !capacity > Sys.max_array_length / 2 then capacity := required
       else capacity := min Sys.max_array_length (!capacity * 2)
     done;
-    workspace.triangle_a <- Array.make !capacity 0;
-    workspace.triangle_b <- Array.make !capacity 0;
-    workspace.triangle_c <- Array.make !capacity 0
+    let grow source =
+      let output = Array.make !capacity 0 in
+      Array.blit source 0 output 0 (Array.length source);
+      output in
+    workspace.triangle_a <- grow workspace.triangle_a;
+    workspace.triangle_b <- grow workspace.triangle_b;
+    workspace.triangle_c <- grow workspace.triangle_c
+  end
+
+let prepare_workspace_points workspace required =
+  if required > workspace.key_stride then begin
+    let capacity = ref workspace.key_stride in
+    while !capacity < required do
+      if !capacity > Sys.max_array_length / 2 then capacity := required
+      else capacity := min Sys.max_array_length (!capacity * 2)
+    done;
+    workspace.point_triangle <- Array.make !capacity (-1);
+    workspace.key_stride <- !capacity
   end
 
 module Private = struct
@@ -245,6 +283,8 @@ module Private = struct
   }
 
   let create_workspace = create_workspace
+  let build_counts workspace =
+    workspace.full_build_count,workspace.incremental_build_count
 end
 
 module Key_heap = struct
@@ -337,7 +377,7 @@ let canonicalize ~count triangle_a triangle_b triangle_c =
   done;
   packed
 
-let canonical_constraints point_count constraints winding =
+let canonical_constraints ~point_count ~key_stride constraints winding =
   if Array.length constraints mod 2 <> 0 then
     invalid_arg "Planar CDT constraint endpoint array must contain pairs";
   let count = Array.length constraints / 2 in
@@ -351,7 +391,7 @@ let canonical_constraints point_count constraints winding =
     let first = constraints.(constraint_index * 2)
     and second = constraints.((constraint_index * 2) + 1) in
     if first = second then invalid_arg "Planar CDT constraint has equal endpoints";
-    pairs.(constraint_index) <- edge_key point_count first second;
+    pairs.(constraint_index) <- edge_key ~point_count ~key_stride first second;
     let weight = winding.(constraint_index) in
     weights.(constraint_index) <- if first < second then weight
       else if weight = min_int then
@@ -378,8 +418,8 @@ let canonical_constraints point_count constraints winding =
   done;
   let output = Array.make (!unique * 2) 0 in
   for index = 0 to !unique - 1 do
-    output.(index * 2) <- unique_pairs.(index) / point_count;
-    output.((index * 2) + 1) <- unique_pairs.(index) mod point_count
+    output.(index * 2) <- unique_pairs.(index) / key_stride;
+    output.((index * 2) + 1) <- unique_pairs.(index) mod key_stride
   done;
   output,Array.sub unique_weights 0 !unique
 
@@ -396,51 +436,92 @@ let build ?cancel ?workspace ~point_count ~orient ~incircle
     let initial_triangle_count = Array.length triangle_points / 3 in
     if Array.length insert_points > (Sys.max_array_length - initial_triangle_count) / 2
     then invalid_arg "Planar CDT inserted-point cardinality exceeds array limits";
+    let incremental = match workspace with
+      | Some workspace when workspace.valid
+          && not flood_from_hull_boundary
+          && not remove_outside_constraint_polygons
+          && workspace.key_stride >= point_count
+          && workspace.point_count + Array.length insert_points = point_count
+          && workspace.triangle_count = initial_triangle_count
+          && (match workspace.last_output with
+              | Some previous -> previous == triangle_points | None -> false) ->
+          let contiguous = ref true in
+          for index = 0 to Array.length insert_points - 1 do
+            if insert_points.(index) <> workspace.point_count + index then
+              contiguous := false
+          done;
+          !contiguous
+      | Some _ | None -> false in
     let triangle_capacity = initial_triangle_count + (2 * Array.length insert_points) in
-    let triangle_count = ref initial_triangle_count in
+    let triangle_count = ref (match workspace with
+      | Some workspace when incremental -> workspace.triangle_count
+      | Some _ | None -> initial_triangle_count) in
     let triangle_a,triangle_b,triangle_c = match workspace with
       | None -> Array.make triangle_capacity 0,Array.make triangle_capacity 0,
           Array.make triangle_capacity 0
       | Some workspace ->
+          if not incremental then prepare_workspace_points workspace point_count;
           ensure_workspace workspace triangle_capacity;
           workspace.triangle_a,workspace.triangle_b,workspace.triangle_c in
-    let referenced = Bytes.make point_count '\000' in
-    for triangle = 0 to initial_triangle_count - 1 do
-      let a = triangle_points.(triangle * 3)
-      and b = triangle_points.((triangle * 3) + 1)
-      and c = triangle_points.((triangle * 3) + 2) in
-      if a < 0 || a >= point_count || b < 0 || b >= point_count
-          || c < 0 || c >= point_count then
-        invalid_arg "Planar CDT triangle point is out of range";
-      (match orient a b c with
-       | Predicates.Positive ->
-           triangle_a.(triangle) <- a; triangle_b.(triangle) <- b;
-           triangle_c.(triangle) <- c
-       | Predicates.Negative ->
-           triangle_a.(triangle) <- a; triangle_b.(triangle) <- c;
-           triangle_c.(triangle) <- b
-       | Predicates.Zero -> invalid_arg "Planar CDT input contains a degenerate triangle")
-      ; Bytes.unsafe_set referenced a '\001'; Bytes.unsafe_set referenced b '\001';
-      Bytes.unsafe_set referenced c '\001'
-    done;
-    Array.iter (fun point ->
-      if point < 0 || point >= point_count then
-        invalid_arg "Planar CDT inserted point is out of range";
-      if Bytes.unsafe_get referenced point <> '\000' then
-        invalid_arg "Planar CDT inserted point is duplicated or already referenced";
-      Bytes.unsafe_set referenced point '\001') insert_points;
-    let constraints,constraint_winding = canonical_constraints point_count
-        constraint_points constraint_winding in
+    let key_stride = match workspace with
+      | None -> point_count | Some workspace -> workspace.key_stride in
+    let edge_key = edge_key ~point_count ~key_stride in
+    Option.iter (fun workspace ->
+      workspace.valid <- false;
+      workspace.last_output <- None) workspace;
+    if not incremental then begin
+      let referenced = Bytes.make point_count '\000' in
+      for triangle = 0 to initial_triangle_count - 1 do
+        let a = triangle_points.(triangle * 3)
+        and b = triangle_points.((triangle * 3) + 1)
+        and c = triangle_points.((triangle * 3) + 2) in
+        if a < 0 || a >= point_count || b < 0 || b >= point_count
+            || c < 0 || c >= point_count then
+          invalid_arg "Planar CDT triangle point is out of range";
+        (match orient a b c with
+         | Predicates.Positive ->
+             triangle_a.(triangle) <- a; triangle_b.(triangle) <- b;
+             triangle_c.(triangle) <- c
+         | Predicates.Negative ->
+             triangle_a.(triangle) <- a; triangle_b.(triangle) <- c;
+             triangle_c.(triangle) <- b
+         | Predicates.Zero ->
+             invalid_arg "Planar CDT input contains a degenerate triangle");
+        Bytes.unsafe_set referenced a '\001';
+        Bytes.unsafe_set referenced b '\001';
+        Bytes.unsafe_set referenced c '\001'
+      done;
+      Array.iter (fun point ->
+        if point < 0 || point >= point_count then
+          invalid_arg "Planar CDT inserted point is out of range";
+        if Bytes.unsafe_get referenced point <> '\000' then
+          invalid_arg "Planar CDT inserted point is duplicated or already referenced";
+        Bytes.unsafe_set referenced point '\001') insert_points
+    end else begin
+      for triangle = 0 to initial_triangle_count - 1 do
+        let a = triangle_a.(triangle) and b = triangle_b.(triangle)
+        and c = triangle_c.(triangle) in
+        match orient a b c with
+        | Predicates.Positive -> ()
+        | Predicates.Negative ->
+            triangle_b.(triangle) <- c;
+            triangle_c.(triangle) <- b
+        | Predicates.Zero ->
+            invalid_arg "Planar CDT input contains a degenerate triangle"
+      done
+    end;
+    let constraints,constraint_winding = canonical_constraints ~point_count
+        ~key_stride constraint_points constraint_winding in
     let constraint_index key =
       let first = ref 0 and last = ref (Array.length constraints / 2) in
       while !first < !last do
         let middle = !first + ((!last - !first) / 2) in
-        let present = edge_key point_count constraints.(middle * 2)
+        let present = edge_key constraints.(middle * 2)
             constraints.((middle * 2) + 1) in
         if present < key then first := middle + 1 else last := middle
       done;
       if !first < Array.length constraints / 2
-          && edge_key point_count constraints.(!first * 2)
+          && edge_key constraints.(!first * 2)
             constraints.((!first * 2) + 1) = key then !first else -1 in
     let constraint_key key = constraint_index key >= 0 in
     let constraint_weight key =
@@ -449,28 +530,38 @@ let build ?cancel ?workspace ~point_count ~orient ~incircle
     let edge_capacity = checked_edge_capacity triangle_capacity in
     let table = match workspace with
       | None -> Edge_table.create edge_capacity
+      | Some workspace when incremental -> workspace.edge_table
       | Some workspace ->
           Edge_table.reset workspace.edge_table;
           workspace.edge_table in
     let add_triangle triangle =
       let a = triangle_a.(triangle) and b = triangle_b.(triangle)
       and c = triangle_c.(triangle) in
-      Edge_table.add table (edge_key point_count a b) triangle c;
-      Edge_table.add table (edge_key point_count b c) triangle a;
-      Edge_table.add table (edge_key point_count c a) triangle b in
+      Edge_table.add table (edge_key a b) triangle c;
+      Edge_table.add table (edge_key b c) triangle a;
+      Edge_table.add table (edge_key c a) triangle b in
     let remove_triangle triangle =
       let a = triangle_a.(triangle) and b = triangle_b.(triangle)
       and c = triangle_c.(triangle) in
-      Edge_table.remove table (edge_key point_count a b) triangle;
-      Edge_table.remove table (edge_key point_count b c) triangle;
-      Edge_table.remove table (edge_key point_count c a) triangle in
-    for triangle = 0 to initial_triangle_count - 1 do add_triangle triangle done;
-    let point_triangle = Array.make point_count (-1) in
+      Edge_table.remove table (edge_key a b) triangle;
+      Edge_table.remove table (edge_key b c) triangle;
+      Edge_table.remove table (edge_key c a) triangle in
+    if not incremental then
+      for triangle = 0 to initial_triangle_count - 1 do add_triangle triangle done;
+    let point_triangle = match workspace with
+      | None -> Array.make point_count (-1)
+      | Some workspace ->
+          if incremental then
+            Array.fill workspace.point_triangle workspace.point_count
+              (point_count - workspace.point_count) (-1)
+          else Array.fill workspace.point_triangle 0 point_count (-1);
+          workspace.point_triangle in
     let seed_triangle triangle =
       point_triangle.(triangle_a.(triangle)) <- triangle;
       point_triangle.(triangle_b.(triangle)) <- triangle;
       point_triangle.(triangle_c.(triangle)) <- triangle in
-    for triangle = 0 to initial_triangle_count - 1 do seed_triangle triangle done;
+    if not incremental then
+      for triangle = 0 to initial_triangle_count - 1 do seed_triangle triangle done;
     let set_triangle triangle a b c =
       match orient a b c with
       | Predicates.Positive ->
@@ -493,7 +584,7 @@ let build ?cancel ?workspace ~point_count ~orient ~incircle
       set_triangle triangle a b c;
       triangle in
     let adjacent_across triangle first second =
-      let slot = Edge_table.find table (edge_key point_count first second) in
+      let slot = Edge_table.find table (edge_key first second) in
       if slot < 0 then -1 else
       let left = table.Edge_table.first_triangles.(slot)
       and right = table.Edge_table.second_triangles.(slot) in
@@ -522,7 +613,7 @@ let build ?cancel ?workspace ~point_count ~orient ~incircle
                 let edge = ref None in
                 let choose first second opposite sign =
                   if sign = Predicates.Zero then
-                    let key = edge_key point_count first second in
+                    let key = edge_key first second in
                     match !edge with
                     | None -> edge := Some (key,first,second,opposite)
                     | Some (present,_,_,_) when key < present ->
@@ -552,7 +643,7 @@ let build ?cancel ?workspace ~point_count ~orient ~incircle
               let edge = ref None in
               let choose first second opposite sign =
                 if sign = Predicates.Zero then
-                  let key = edge_key point_count first second in
+                  let key = edge_key first second in
                   match !edge with
                   | None -> edge := Some (key,first,second,opposite)
                   | Some (present,_,_,_) when key < present ->
@@ -579,7 +670,7 @@ let build ?cancel ?workspace ~point_count ~orient ~incircle
            add_triangle containing; add_triangle second; add_triangle third;
            seed_triangle containing; seed_triangle second; seed_triangle third
        | Some (_,u,v,opposite) ->
-           let slot = Edge_table.find table (edge_key point_count u v) in
+           let slot = Edge_table.find table (edge_key u v) in
            if slot < 0 then invalid_arg "Planar CDT lost an inserted-point split edge";
            let left = table.Edge_table.first_triangles.(slot)
            and right = table.Edge_table.second_triangles.(slot) in
@@ -609,14 +700,14 @@ let build ?cancel ?workspace ~point_count ~orient ~incircle
     let crossing_key a b triangle entry =
       let found = ref (-1) in
       let consider u v =
-        let key = edge_key point_count u v in
+        let key = edge_key u v in
         if key <> entry && properly_crosses a b u v
             && (!found < 0 || key < !found) then found := key in
       consider triangle_a.(triangle) triangle_b.(triangle);
       consider triangle_b.(triangle) triangle_c.(triangle);
       consider triangle_c.(triangle) triangle_a.(triangle); !found in
     let adjacent triangle u v =
-      let slot = Edge_table.find table (edge_key point_count u v) in
+      let slot = Edge_table.find table (edge_key u v) in
       if slot < 0 then -1 else
       let first = table.Edge_table.first_triangles.(slot)
       and second = table.Edge_table.second_triangles.(slot) in
@@ -685,7 +776,7 @@ let build ?cancel ?workspace ~point_count ~orient ~incircle
       and boundary_v = Array.make ((!strip_count * 3) + 1) 0
       and boundary_count = ref 0 in
       let consider triangle first second =
-        let slot = Edge_table.find table (edge_key point_count first second) in
+        let slot = Edge_table.find table (edge_key first second) in
         if slot < 0 then invalid_arg "Planar CDT strip lost a boundary edge";
         let left = table.Edge_table.first_triangles.(slot)
         and right = table.Edge_table.second_triangles.(slot) in
@@ -882,11 +973,12 @@ let build ?cancel ?workspace ~point_count ~orient ~incircle
         add_triangle strip.(index); seed_triangle strip.(index);
         Bytes.unsafe_set strip_marks strip.(index) '\000'
       done in
+    Edge_table.clear_constraints table;
     for constraint_index = 0 to Array.length constraints / 2 - 1 do
       if constraint_index land 255 = 0 then Cancel.check_opt cancel;
       let a = constraints.(constraint_index * 2)
       and b = constraints.((constraint_index * 2) + 1) in
-      let key = edge_key point_count a b in
+      let key = edge_key a b in
       if Edge_table.find table key < 0 then recover_constraint a b;
       if Edge_table.find table key < 0 then
         invalid_arg "Planar CDT cavity retriangulation did not recover its constraint";
@@ -911,12 +1003,12 @@ let build ?cancel ?workspace ~point_count ~orient ~incircle
             and right = table.Edge_table.second_triangles.(slot)
             and lo = table.Edge_table.first_opposites.(slot)
             and ro = table.Edge_table.second_opposites.(slot)
-            and ea = key / point_count and eb = key mod point_count in
+            and ea = key / key_stride and eb = key mod key_stride in
             let circle = incircle ea eb lo ro and orientation = orient ea eb lo in
             let illegal = match orientation,circle with
               | Predicates.Positive,Predicates.Positive
               | Predicates.Negative,Predicates.Negative -> true
-              | _,Predicates.Zero -> edge_key point_count lo ro < key
+              | _,Predicates.Zero -> edge_key lo ro < key
               | _ -> false in
             if illegal && opposite_sign (orient lo ro ea) (orient lo ro eb) then begin
               incr flips;
@@ -926,9 +1018,9 @@ let build ?cancel ?workspace ~point_count ~orient ~incircle
               let enqueue triangle =
                 let a = triangle_a.(triangle) and b = triangle_b.(triangle)
                 and c = triangle_c.(triangle) in
-                Key_heap.push queue (edge_key point_count a b);
-                Key_heap.push queue (edge_key point_count b c);
-                Key_heap.push queue (edge_key point_count c a) in
+                Key_heap.push queue (edge_key a b);
+                Key_heap.push queue (edge_key b c);
+                Key_heap.push queue (edge_key c a) in
               enqueue left; enqueue right
             end
           end
@@ -959,7 +1051,7 @@ let build ?cancel ?workspace ~point_count ~orient ~incircle
             if !read land 4095 = 0 then Cancel.check_opt cancel;
             let triangle = queue.(!read) in incr read;
             let visit a b =
-              let slot = Edge_table.find table (edge_key point_count a b) in
+              let slot = Edge_table.find table (edge_key a b) in
               if slot < 0 then invalid_arg "Planar CDT outside flood lost an edge";
               if Bytes.unsafe_get table.Edge_table.constrained slot = '\000' then begin
                 let first = table.Edge_table.first_triangles.(slot)
@@ -1003,7 +1095,7 @@ let build ?cancel ?workspace ~point_count ~orient ~incircle
             if key >= 0 && table.Edge_table.second_triangles.(slot) < 0 then begin
               let triangle = table.Edge_table.first_triangles.(slot)
               and opposite = table.Edge_table.first_opposites.(slot)
-              and u = key / point_count and v = key mod point_count
+              and u = key / key_stride and v = key mod key_stride
               and weight = constraint_weight key in
               let value = if weight = 0 then 0 else
                 match orient u v opposite with
@@ -1019,7 +1111,7 @@ let build ?cancel ?workspace ~point_count ~orient ~incircle
             let triangle = winding_queue.(!winding_read) in
             incr winding_read;
             let visit u v opposite =
-              let key = edge_key point_count u v in
+              let key = edge_key u v in
               let slot = Edge_table.find table key in
               if slot < 0 then
                 invalid_arg "Planar CDT winding propagation lost an edge";
@@ -1027,8 +1119,8 @@ let build ?cancel ?workspace ~point_count ~orient ~incircle
               and second = table.Edge_table.second_triangles.(slot) in
               let neighbor = if first = triangle then second else first in
               if neighbor >= 0 then begin
-                let canonical_u = key / point_count
-                and canonical_v = key mod point_count
+                let canonical_u = key / key_stride
+                and canonical_v = key mod key_stride
                 and weight = constraint_weight key in
                 let delta = if weight = 0 then 0 else
                   match orient canonical_u canonical_v opposite with
@@ -1072,7 +1164,7 @@ let build ?cancel ?workspace ~point_count ~orient ~incircle
         for constraint_index = 0 to Array.length constraints / 2 - 1 do
           let a = constraints.(constraint_index * 2)
           and b = constraints.((constraint_index * 2) + 1) in
-          let slot = Edge_table.find table (edge_key point_count a b) in
+          let slot = Edge_table.find table (edge_key a b) in
           if slot < 0 then
             invalid_arg "Planar CDT outside flood lost a constrained edge";
           let first = table.Edge_table.first_triangles.(slot)
@@ -1087,9 +1179,21 @@ let build ?cancel ?workspace ~point_count ~orient ~incircle
         output_a,output_b,output_c,kept,
         Array.sub kept_constraints 0 (!kept_constraint_count * 2)
       end in
-    Ok { triangle_points = canonicalize ~count:output_triangle_count
-        triangle_a triangle_b triangle_c;
-      constraint_points = constraints }
+    let triangle_points = canonicalize ~count:output_triangle_count
+        triangle_a triangle_b triangle_c in
+    let result = { triangle_points; constraint_points = constraints } in
+    Option.iter (fun workspace ->
+      if not flood_from_hull_boundary
+          && not remove_outside_constraint_polygons then begin
+        workspace.point_count <- point_count;
+        workspace.triangle_count <- output_triangle_count;
+        workspace.last_output <- Some triangle_points;
+        workspace.valid <- true
+      end;
+      if incremental then
+        workspace.incremental_build_count <- workspace.incremental_build_count + 1
+      else workspace.full_build_count <- workspace.full_build_count + 1) workspace;
+    Ok result
   with
   | Cancel.Cancelled -> Error "Planar CDT was cancelled"
   | Invalid_argument message -> Error message

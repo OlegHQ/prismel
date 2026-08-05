@@ -453,7 +453,8 @@ let build ?cancel ~grain ~initial_points ~initial_triangle_points
     and triangles = ref (Array.copy initial_triangle_points)
     and generation = ref 0 and reached_limit = ref false in
     let cdt_workspace = Planar_cdt.Private.create_workspace
-        ~triangle_capacity:(max 1 (Array.length initial_triangle_points / 3)) in
+        ~point_capacity:capacity
+        ~triangle_capacity:(max 1 (Array.length initial_triangle_points / 3)) () in
     let buckets = Hashtbl.create (max 16 (Array.length initial_points * 2)) in
     let add_bucket point =
       let key = canonical_bits x.(point),canonical_bits y.(point) in

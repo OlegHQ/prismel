@@ -91,7 +91,7 @@ let test_long_recovery_and_domains () =
   validate x y one
 
 let test_workspace_reuse_and_result_ownership () =
-  let workspace = Planar_cdt.Private.create_workspace ~triangle_capacity:1 in
+  let workspace = Planar_cdt.Private.create_workspace ~triangle_capacity:1 () in
   let square_x = [|0.;1.;1.;0.|] and square_y = [|0.;0.;1.;1.|] in
   let first = cdt ~workspace square_x square_y [|0;2|] |> get_string
   and reference = cdt square_x square_y [|0;2|] |> get_string in
@@ -130,6 +130,115 @@ let test_workspace_reuse_and_result_ownership () =
       |> get_string in
   check (signature recovered = signature reference)
     "workspace did not recover after a failed build"
+
+let test_incremental_workspace_continuation () =
+  let x = [|0.;2.;0.;1.|] and y = [|0.;0.;2.;0.|] in
+  let seed = Delaunay2.build ~x:(Array.sub x 0 3) ~y:(Array.sub y 0 3) ()
+      |> get_string |> Delaunay2.Private.view in
+  let workspace = Planar_cdt.Private.create_workspace ~point_capacity:4
+      ~triangle_capacity:1 () in
+  let run ?workspace ~point_count ~triangle_points ?(insert_points = [||])
+      constraints =
+    Planar_cdt.build ?workspace ~point_count
+      ~orient:(fun a b c -> Predicates.orient2d_packed ~x ~y a b c)
+      ~incircle:(fun a b c d -> Predicates.incircle_packed ~x ~y a b c d)
+      ~triangle_points ~insert_points ~constraint_points:constraints ()
+      |> get_string in
+  let first = run ~workspace ~point_count:3
+      ~triangle_points:seed.triangle_points [||] in
+  let first_triangles = (Planar_cdt.Private.view first).triangle_points in
+  let continued = run ~workspace ~point_count:4
+      ~triangle_points:first_triangles ~insert_points:[|3|] [|0;3;3;1|] in
+  let reference = run ~point_count:4 ~triangle_points:first_triangles
+      ~insert_points:[|3|] [|0;3;3;1|] in
+  check (signature continued = signature reference)
+    "incremental point insertion differs from a full CDT rebuild";
+  let continued_triangles = (Planar_cdt.Private.view continued).triangle_points in
+  let repaired = run ~workspace ~point_count:4
+      ~triangle_points:continued_triangles [|0;3;3;1|] in
+  check (signature repaired = signature continued)
+    "incremental coordinate-repair continuation changed stable topology";
+  check (Planar_cdt.Private.build_counts workspace = (1,2))
+    "workspace did not take the expected full/incremental paths";
+  let copied = Array.copy (Planar_cdt.Private.view repaired).triangle_points in
+  ignore (run ~workspace ~point_count:4 ~triangle_points:copied [|0;3;3;1|]);
+  check (Planar_cdt.Private.build_counts workspace = (2,2))
+    "structurally copied input did not take the safe full-rebuild fallback"
+
+let test_incremental_workspace_batches () =
+  let count = 68 in
+  let x = Array.make count 0. and y = Array.make count 0. in
+  x.(0) <- 0.; y.(0) <- 0.; x.(1) <- 1.; y.(1) <- 0.;
+  x.(2) <- 1.; y.(2) <- 1.; x.(3) <- 0.; y.(3) <- 1.;
+  for point = 4 to count - 1 do
+    let state = Prismel.Rand.seed ((point * 7919) + 17) in
+    let px,state = Prismel.Rand.float state in
+    let py,_ = Prismel.Rand.float state in
+    x.(point) <- 0.05 +. (0.9 *. px);
+    y.(point) <- 0.05 +. (0.9 *. py)
+  done;
+  let seed = Delaunay2.build ~x:(Array.sub x 0 4) ~y:(Array.sub y 0 4) ()
+      |> get_string |> Delaunay2.Private.view in
+  let constraints = [|0;1;1;2;2;3;3;0|] in
+  let workspace = Planar_cdt.Private.create_workspace ~point_capacity:count
+      ~triangle_capacity:2 () in
+  let run ?workspace ~point_count ~triangle_points ?(insert_points = [||]) () =
+    Planar_cdt.build ?workspace ~point_count
+      ~orient:(fun a b c -> Predicates.orient2d_packed ~x ~y a b c)
+      ~incircle:(fun a b c d -> Predicates.incircle_packed ~x ~y a b c d)
+      ~triangle_points ~insert_points ~constraint_points:constraints ()
+      |> get_string in
+  let incremental = ref (run ~workspace ~point_count:4
+      ~triangle_points:seed.triangle_points ())
+  and reference = ref (run ~point_count:4
+      ~triangle_points:seed.triangle_points ())
+  and first = ref 4 and batch_count = ref 0 in
+  while !first < count do
+    let last = min count (!first + 9) in
+    let insert_points = Array.init (last - !first) (fun index -> !first + index) in
+    incremental := run ~workspace ~point_count:last
+        ~triangle_points:(Planar_cdt.Private.view !incremental).triangle_points
+        ~insert_points ();
+    reference := run ~point_count:last
+        ~triangle_points:(Planar_cdt.Private.view !reference).triangle_points
+        ~insert_points ();
+    check (signature !incremental = signature !reference)
+      "incremental batch ending at point %d differs from full rebuild" last;
+    first := last;
+    incr batch_count
+  done;
+  check (Planar_cdt.Private.build_counts workspace = (1,!batch_count))
+    "multi-generation workspace did not remain incremental"
+
+let test_incremental_coordinate_validation () =
+  let x = [|0.;1.;0.|] and y = [|0.;0.;1.|] in
+  let seed = triangulate x y |> Delaunay2.Private.view in
+  let workspace = Planar_cdt.Private.create_workspace ~point_capacity:3
+      ~triangle_capacity:1 () in
+  let run ?workspace triangle_points =
+    Planar_cdt.build ?workspace ~point_count:3
+      ~orient:(fun a b c -> Predicates.orient2d_packed ~x ~y a b c)
+      ~incircle:(fun a b c d -> Predicates.incircle_packed ~x ~y a b c d)
+      ~triangle_points ~constraint_points:[||] () in
+  let first = run ~workspace seed.triangle_points |> get_string in
+  y.(2) <- -1.;
+  let input = (Planar_cdt.Private.view first).triangle_points in
+  let inverted = run ~workspace input |> get_string
+  and reference = run input |> get_string in
+  check (signature inverted = signature reference)
+    "incremental coordinate repair did not normalize inverted orientation";
+  y.(2) <- 0.;
+  let degenerate_input = (Planar_cdt.Private.view inverted).triangle_points in
+  (match run ~workspace degenerate_input with
+   | Error _ -> ()
+   | Ok _ -> fail "incremental degenerate coordinate repair succeeded");
+  y.(2) <- 1.;
+  let recovered = run ~workspace degenerate_input |> get_string
+  and recovered_reference = run degenerate_input |> get_string in
+  check (signature recovered = signature recovered_reference)
+    "workspace did not rebuild after failed coordinate continuation";
+  check (Planar_cdt.Private.build_counts workspace = (2,1))
+    "coordinate continuation diagnostics are incorrect"
 
 let test_crossing_rejected () =
   let x = [|0.;1.;1.;0.|] and y = [|0.;0.;1.;1.|] in
@@ -307,7 +416,13 @@ let test_validation_and_cancellation () =
       ~triangle_points:view.triangle_points ~constraint_points:constraints () in
   (match run [|0;0|] with Error _ -> () | Ok _ -> fail "self constraint succeeded");
   (match run [|0;9|] with Error _ -> () | Ok _ -> fail "invalid endpoint succeeded");
-  let workspace = Planar_cdt.Private.create_workspace ~triangle_capacity:1 in
+  check (try
+      ignore (Planar_cdt.Private.create_workspace ~point_capacity:0
+        ~triangle_capacity:1 ());
+      false
+    with Invalid_argument _ -> true)
+    "zero point-capacity workspace succeeded";
+  let workspace = Planar_cdt.Private.create_workspace ~triangle_capacity:1 () in
   let cancel = Cancel.create () in Cancel.cancel cancel;
   (match run ~cancel ~workspace [|0;1|] with
    | Error _ -> () | Ok _ -> fail "cancelled CDT succeeded");
@@ -320,6 +435,9 @@ let () =
   test_forced_square_diagonal ();
   test_long_recovery_and_domains ();
   test_workspace_reuse_and_result_ownership ();
+  test_incremental_workspace_continuation ();
+  test_incremental_workspace_batches ();
+  test_incremental_coordinate_validation ();
   test_crossing_rejected ();
   test_inserted_points ();
   test_hull_boundary_flood ();
