@@ -59,6 +59,9 @@ module Private = struct
     if point < 0 || point >= Array.length value.points then
       invalid_arg "Planar_refinement: point is out of range";
     value.points.(point)
+
+  let approximate_x value = value.x
+  let approximate_y value = value.y
 end
 
 let finite_positive label = function

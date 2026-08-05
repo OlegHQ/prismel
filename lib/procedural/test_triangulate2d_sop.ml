@@ -33,7 +33,7 @@ let () =
   let node = Sop.triangulate_2d ~label:"planar"
       ~point_group:"square" ~projection:Pdk.Ops.Triangulate_2d_best_fit
       ~seed:37L ~triangle_group:"triangles" source in
-  check (Node.operation node = "triangulate_2d" && Node.version node = 11
+  check (Node.operation node = "triangulate_2d" && Node.version node = 12
       && contains (Node.parameters node) "point_group=square"
       && contains (Node.parameters node) "constraint_edge_group="
       && contains (Node.parameters node) "constraint_primitive_group="
@@ -57,6 +57,8 @@ let () =
       && contains (Node.parameters node) "regularization_steps=0"
       && contains (Node.parameters node)
         "allow_movement_of_interior_input_points=false"
+      && contains (Node.parameters node)
+        "restore_original_point_positions=true"
       && contains (Node.parameters node) "keep_primitives=false"
       && contains (Node.parameters node) "remove_unused_points=false"
       && contains (Node.parameters node) "recompute_point_normals=false"
@@ -89,6 +91,18 @@ let () =
        && not (Pdk.Group.mem 0 group))
        "Triangulate 2D SOP Keep Primitives output group"
    | None -> fail "Triangulate 2D SOP Keep Primitives output group is missing");
+  let projected_node = Sop.snapshot (input ()) |> Sop.triangulate_2d
+      ~point_group:"square" ~projection:Pdk.Ops.Triangulate_2d_xy
+      ~restore_original_point_positions:false in
+  check (contains (Node.parameters projected_node)
+      "restore_original_point_positions=false")
+    "Triangulate 2D projected-position policy is absent from identity";
+  let projected = cook 4 projected_node in
+  let projected_positions = Pdk.Packed.Float3.Private.view
+      (Pdk.Geometry.positions projected) in
+  check (Array.sub projected_positions.z 0 4 = [|0.;0.;0.;0.|]
+      && projected_positions.z.(4) = 12.)
+    "Triangulate 2D SOP projected-position output";
   let refinement_node = Pdk.Ops.points
       [|0.,0.,0.;2.,0.,0.;2.,2.,0.;0.,2.,0.|]
       |> Sop.snapshot |> Sop.triangulate_2d

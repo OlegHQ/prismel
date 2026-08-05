@@ -2653,7 +2653,8 @@ let triangulate_2d ?label ?point_group ?constraint_edge_group
     ?(minimum_edge_length = 0.) ?(maximum_new_points = 100_000)
     ?(regularization_steps = 0)
     ?(allow_movement_of_interior_input_points = false)
-    ?(preserve_point_payload = true) ?(keep_primitives = false)
+    ?(preserve_point_payload = true)
+    ?(restore_original_point_positions = true) ?(keep_primitives = false)
     ?(remove_unused_points = false) ?(recompute_point_normals = false)
     ?split_point_group ?refinement_point_group ?triangle_group
     ?constraint_group input =
@@ -2669,7 +2670,7 @@ let triangulate_2d ?label ?point_group ?constraint_edge_group
    | Pdk.Ops.Triangulate_2d_point_attribute name when String.trim name = "" ->
        invalid_arg "Sop.triangulate_2d: empty point attribute name"
    | _ -> ());
-  Node.Private.make ?label ~operation:"triangulate_2d" ~version:11
+  Node.Private.make ?label ~operation:"triangulate_2d" ~version:12
     ~parameters:(String.concat ";" [
       "point_group=" ^ option_string_key point_group;
       "constraint_edge_group=" ^ option_string_key constraint_edge_group;
@@ -2695,6 +2696,8 @@ let triangulate_2d ?label ?point_group ?constraint_edge_group
       "allow_movement_of_interior_input_points=" ^
         string_of_bool allow_movement_of_interior_input_points;
       "preserve_point_payload=" ^ string_of_bool preserve_point_payload;
+      "restore_original_point_positions=" ^
+        string_of_bool restore_original_point_positions;
       "keep_primitives=" ^ string_of_bool keep_primitives;
       "remove_unused_points=" ^ string_of_bool remove_unused_points;
       "recompute_point_normals=" ^ string_of_bool recompute_point_normals;
@@ -2744,7 +2747,8 @@ let triangulate_2d ?label ?point_group ?constraint_edge_group
               ~refine ~allow_constraint_splitting ~minimum_angle ?maximum_area
               ?target_edge_length ~minimum_edge_length ~maximum_new_points
               ~regularization_steps ~allow_movement_of_interior_input_points
-              ~preserve_point_payload ~keep_primitives
+              ~preserve_point_payload ~restore_original_point_positions
+              ~keep_primitives
               ~remove_unused_points ~recompute_point_normals
               ?split_point_group ?refinement_point_group ?triangle_group
               ?constraint_group geometry with

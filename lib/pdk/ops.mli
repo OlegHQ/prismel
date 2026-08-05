@@ -1733,6 +1733,7 @@ val triangulate_2d :
   ?regularization_steps:int ->
   ?allow_movement_of_interior_input_points:bool ->
   ?preserve_point_payload:bool ->
+  ?restore_original_point_positions:bool ->
   ?keep_primitives:bool ->
   ?remove_unused_points:bool ->
   ?recompute_point_normals:bool ->
@@ -1769,6 +1770,9 @@ val triangulate_2d :
     [regularization_steps] relaxes generated interior points after refinement;
     [allow_movement_of_interior_input_points] additionally moves original
     projected interior points while constraint and hull points remain fixed.
+    [restore_original_point_positions=false] places participating source and
+    generated points on the selected world projection plane (or XY for a point
+    attribute); unselected isolated source points retain their authored [P].
     [keep_primitives] retains every input primitive except members of
     [constraint_primitives], followed by the generated triangles. Retained
     vertex/primitive payload and groups keep exact ancestry; generated entries
@@ -1777,21 +1781,24 @@ val triangulate_2d :
     finalized. [recompute_point_normals] rebuilds point [N] only when the input
     already had point [N].
     Projection supports a PCA best-fit plane, principal planes,
-    an explicit origin/normal plane, or point float2/float3 coordinates.
+    an explicit origin/normal plane, or the first two finite components of a
+    point float2/float3 coordinate attribute.
     Exact projected-coordinate duplicates use their lowest selected source
-    point; original 3D positions are retained. New crossing positions and
-    numeric point attributes interpolate along the deterministically lower
-    indexed source constraint; integer, text, ragged, and point-group payload
-    uses its nearest endpoint. [split_point_group] identifies generated points.
+    point; original 3D positions are retained when restoration is enabled. New
+    crossing positions and numeric point attributes interpolate along the
+    deterministically lower indexed source constraint; integer, text, ragged,
+    and point-group payload uses its nearest endpoint. [split_point_group]
+    identifies generated points.
 
     The topology kernel uses packed triangle adjacency, walking point location,
     local Bowyer-Watson cavities, and an exact projective supertriangle at
     binary64 extremes. Point/detail payload and point groups are structurally
-    shared by default; vertex/primitive payload, edge groups, and stale normals
-    are removed. Optional primitive and native-edge output groups record generated
-    triangles and recovered constraints. Projection and materialization use deterministic disjoint
-    ranges. Expected work is O(n log n), worst-case O(n^2), with O(n) live
-    topology and work storage. *)
+    shared by default. Vertex/primitive payload and edge groups are removed
+    unless primitive retention requires their ancestry; stale normals are
+    removed. Optional primitive and native-edge output groups record generated
+    triangles and recovered constraints. Projection and materialization use
+    deterministic disjoint ranges. Expected work is O(n log n), worst-case
+    O(n^2), with O(n) live topology and work storage. *)
 
 val remesh :
   ?cancel:Cancel.t ->

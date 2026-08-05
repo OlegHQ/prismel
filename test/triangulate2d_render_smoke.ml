@@ -35,6 +35,7 @@ let source () =
       ~ignore_non_constraint_points:true ~remove_unused_points:true
       ~refine:true ~minimum_angle:(Float.pi /. 18.) ~maximum_area:1_500.
       ~maximum_new_points:96 ~regularization_steps:2
+      ~restore_original_point_positions:false
       ~keep_primitives:true
       ~split_point_group:"crossings"
       ~refinement_point_group:"refined"

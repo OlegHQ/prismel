@@ -2407,14 +2407,29 @@ CDT repair restores constrained-Delaunay topology after the accepted step.
 Repeated movement appends to a compact topologically ordered provenance DAG.
 Generated 3D positions and numeric point payload evaluate this DAG once;
 discrete, ragged, and group payload follow its stable greatest-weight source
-representative. Original input positions are still restored by the adapter,
-matching the current Restore Original Point Positions behavior while their
-relaxed projections may affect connectivity. One step costs O(T log T + E + P)
-for its packed index and relaxation work plus CDT repair; live relaxation
-scratch is O(T + E + P), and provenance grows only with explicitly moved
-generated points per requested step. Centroid, construction, containment, and
-orientation ranges are parallel; stable index construction, acceptance, DAG
+representative. With the default restoration policy, original input positions
+remain authored while their relaxed projections may affect connectivity; the
+disabled policy below materializes those relaxed coordinates. One step costs
+O(T log T + E + P) for its packed index and relaxation work plus CDT repair;
+live relaxation scratch is O(T + E + P), and provenance grows only with
+explicitly moved generated points per requested step. Centroid, construction,
+containment, and orientation ranges are parallel; stable index construction, acceptance, DAG
 commit, and CDT repair remain serial.
+
+Restore Original Point Positions defaults on and evaluates the same provenance
+DAG against authored 3D `P`. When disabled, the adapter instead materializes
+the final relaxed 2D coordinates on the selected projection plane. XY, YZ, and
+ZX projection set the dropped world component to zero; an explicit plane uses
+its authored origin and normal; PCA best fit uses its scale-normalized fitted
+world plane. A point float2 or float3 coordinate attribute uses exactly its
+first two finite components and emits `(x, y, 0)`; later float3 components are
+irrelevant to both topology and output position. Participating source points,
+constraint intersections, and refinement points are embedded, while isolated
+source points excluded from the triangulation retain authored `P`. Every
+embedded binary64 result must remain finite. The output allocates three exact-
+cardinality position planes and fills disjoint local-point ranges in parallel,
+so this mode adds O(output points) time and output storage without changing
+topology decisions or point-payload interpolation.
 
 Optional Keep Primitives constructs one cardinality-first output topology with
 all input primitives except members of the explicit constraint-primitive group
@@ -2470,18 +2485,25 @@ and the four-core Linux 6.8/aarch64 runner used by the surrounding PDK table,
 median with 65.7 MB current-domain allocation and 1,648 promoted bytes (three
 repetitions, one domain).
 That allocation figure is the current optimization baseline, not a production
-claim. Restore Original Point Positions off and the exact undocumented SideFX
-numerical regularization profile remain explicit parity gates before this node
-can move out of Partial status.
+claim. The exact undocumented SideFX numerical regularization profile remains
+an explicit parity gate before this node can move out of Partial status.
 
 On the same 100,000-point source whose existing 199,918 triangles carry one
 vertex float and one primitive integer field, Keep Primitives produced a stable
-399,836-face result in a 1.014-second median with 130.86 MB current-domain
+399,836-face result in a 1.008-second median with 130.86 MB current-domain
 allocation, 3,096 promoted bytes, 88.38 MB major allocation, and topology hash
 `2887283567451037009` on one domain. Four domains produced the identical hash
-in 0.997 seconds with 121.31 MB current-domain allocation; dependency-ordered
+in 0.995 seconds with 121.32 MB current-domain allocation; dependency-ordered
 Delaunay construction dominates this adapter workload, so no multicore speedup
 is claimed.
+
+On the same 100,000-point seed, disabling original-position restoration
+materialized all projected `P` planes and 199,918 triangles in a 0.997-second
+median with 94.68 MB current-domain allocation, 3,008 promoted bytes, and
+55.20 MB major allocation on one domain. Four domains produced the identical
+topology hash `2710672592452761305` in 0.990 seconds with 88.40 MB current-
+domain allocation. Delaunay construction remains serial and dominates, so the
+parallel materialization does not justify a multicore speedup claim.
 
 On the same 100,000-point seed, recovering one legal long constraint and
 repairing 199,918 triangles takes a 0.234-second median with 81.88 MB allocated,

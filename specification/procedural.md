@@ -345,9 +345,12 @@ The first coherent set includes:
   prefix with exact fixed/ragged vertex and primitive payload, ordered-group,
   and native-edge ancestry plus typed defaults for the generated triangle
   suffix,
+  explicit original-position restoration policy, including projected world-
+  plane output for PCA/principal/explicit planes and XY output from the first
+  two components of a point coordinate attribute,
   PCA/principal/explicit/attribute projection, deterministic insertion seed,
-  original-position restoration, deterministic split-point payload policy, and
-  output triangle and constrained-edge groups,
+  deterministic split-point payload policy, and output triangle and
+  constrained-edge groups,
   Edge Equalize with average/longest/shortest initial targets, a direct
   independent-edge path, bounded deterministic connected projection, and
   explicit convergence diagnostics,

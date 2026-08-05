@@ -9,6 +9,10 @@ let topology_signature geometry =
   let topology = Topology.Private.view (Geometry.topology geometry) in
   Array.copy topology.vertex_points,Array.copy topology.primitive_offsets
 
+let position_signature geometry =
+  let positions = Packed.Float3.Private.view (Geometry.positions geometry) in
+  Array.copy positions.x,Array.copy positions.y,Array.copy positions.z
+
 let attribute_storage ~owner name geometry =
   match Geometry.find_attribute ~owner name geometry with
   | Some attribute -> Attribute.Private.storage attribute
@@ -46,6 +50,84 @@ let test_best_fit_and_explicit_plane () =
         origin = Vec3.zero; normal = Vec3.create (-1.) (-2.) 1. }) input |> get in
   check (Geometry.primitive_count explicit = 4)
     "explicit tilted plane cardinality"
+
+let test_projected_output_positions () =
+  let selected = Group.ordered ~owner:Group.Point ~name:"selected" ~length:5
+      [|0;1;2;3|] |> Result.get_ok in
+  let xy = Ops.points
+      [|0.,0.,10.;2.,0.,20.;2.,2.,30.;0.,2.,40.;9.,9.,9.|]
+      |> Geometry.with_group selected |> Result.get_ok in
+  let xy = Ops.triangulate_2d ~grain:1
+      ~selection:(Ops.Selected_points selected)
+      ~projection:Ops.Triangulate_2d_xy
+      ~restore_original_point_positions:false xy |> get in
+  let x,y,z = position_signature xy in
+  check (x = [|0.;2.;2.;0.;9.|] && y = [|0.;0.;2.;2.;9.|]
+      && z = [|0.;0.;0.;0.;9.|])
+    "XY projected output or unselected-point policy";
+  let yz = Ops.points
+      [|10.,0.,0.;11.,1.,0.;12.,1.,1.;13.,0.,1.|]
+      |> Ops.triangulate_2d ~grain:1 ~projection:Ops.Triangulate_2d_yz
+          ~restore_original_point_positions:false |> get in
+  let x,y,z = position_signature yz in
+  check (x = [|0.;0.;0.;0.|] && y = [|0.;1.;1.;0.|]
+      && z = [|0.;0.;1.;1.|]) "YZ projected output";
+  let zx = Ops.points
+      [|0.,10.,0.;0.,11.,1.;1.,12.,1.;1.,13.,0.|]
+      |> Ops.triangulate_2d ~grain:1 ~projection:Ops.Triangulate_2d_zx
+          ~restore_original_point_positions:false |> get in
+  let x,y,z = position_signature zx in
+  check (x = [|0.;0.;1.;1.|] && y = [|0.;0.;0.;0.|]
+      && z = [|0.;1.;1.;0.|]) "ZX projected output";
+  let explicit_source = Ops.points
+      [|0.,0.,-5.;2.,0.,20.;2.,2.,-10.;0.,2.,30.|] in
+  let explicit = Ops.triangulate_2d ~grain:1
+      ~projection:(Ops.Triangulate_2d_plane {
+        origin=Vec3.create 0. 0. 10.; normal=Vec3.create 0. 0. 1. })
+      ~restore_original_point_positions:false explicit_source |> get in
+  let x,y,z = position_signature explicit in
+  check (x = [|0.;2.;2.;0.|] && y = [|0.;0.;2.;2.|]
+      && z = [|10.;10.;10.;10.|]) "explicit-plane projected output";
+  let best_source = Ops.points
+      [|0.,0.,3.;2.,0.,5.;2.,2.,9.;0.,2.,7.;1.,1.,6.|] in
+  let best = Ops.triangulate_2d ~grain:1
+      ~restore_original_point_positions:false best_source |> get in
+  check (Geometry.positions best != Geometry.positions best_source)
+    "best-fit projected output retained source P identity";
+  let bx,by,bz = position_signature best in
+  for point = 0 to Array.length bx - 1 do
+    check (abs_float (bz.(point) -. bx.(point) -. (2. *. by.(point)) -. 3.)
+        < 1e-10) "best-fit output left its fitted plane"
+  done;
+  let attribute_source = Ops.points
+      [|9.,9.,9.;8.,8.,8.;7.,7.,7.;6.,6.,6.|] in
+  let coordinates = Attribute.create_owned ~owner:Attribute.Point
+      ~name:"planar3" (Attribute.Float3
+        (Packed.Float3.Private.of_owned_exn ~x:[|0.;2.;2.;0.|]
+          ~y:[|0.;0.;2.;2.|] ~z:[|nan;100.;-200.;infinity|]))
+      |> Result.get_ok in
+  let attribute_source = Geometry.with_attribute coordinates attribute_source
+      |> Result.get_ok in
+  let attribute_output = Ops.triangulate_2d ~grain:1
+      ~projection:(Ops.Triangulate_2d_point_attribute "planar3")
+      ~restore_original_point_positions:false attribute_source |> get in
+  let x,y,z = position_signature attribute_output in
+  check (x = [|0.;2.;2.;0.|] && y = [|0.;0.;2.;2.|]
+      && z = [|0.;0.;0.;0.|])
+    "float3 projection did not use exactly its first two components";
+  let refined_source = Ops.points
+      [|0.,0.,10.;2.,0.,20.;2.,2.,30.;0.,2.,40.|] in
+  let run domains = Parallel.run ~domains (fun () ->
+      Ops.triangulate_2d ~grain:1 ~projection:Ops.Triangulate_2d_xy
+        ~restore_original_point_positions:false ~refine:true ~maximum_area:0.2
+        ~maximum_new_points:64 ~regularization_steps:2 refined_source |> get) in
+  let refined = run 1 and parallel = run 4 in
+  check (topology_signature refined = topology_signature parallel
+      && position_signature refined = position_signature parallel)
+    "projected refinement differs across domains";
+  let _,_,z = position_signature refined in
+  check (Geometry.point_count refined > 4 && Array.for_all ((=) 0.) z)
+    "generated/refined points were not embedded on the output plane"
 
 let test_attribute_and_selection () =
   let input = Ops.points [|0.,0.,0.; 1.,0.,0.; 2.,0.,0.; 3.,0.,0.; 4.,0.,0.|]
@@ -394,6 +476,13 @@ let test_crossing_constraints_and_payload () =
    | Some group -> check (Edge_group.cardinality group = 4)
        "split constraint edge cardinality"
    | None -> fail "split constraint output group is missing");
+  let projected = Ops.triangulate_2d ~grain:1
+      ~projection:Ops.Triangulate_2d_xy
+      ~constraint_primitives:constraints ~split_crossing_constraints:true
+      ~restore_original_point_positions:false input |> get in
+  let _,_,projected_z = position_signature projected in
+  check (Array.for_all ((=) 0.) projected_z)
+    "crossing split point was not embedded on the projected output plane";
   let authored_positions = Packed.Float3.Private.of_owned_exn
       ~x:[|0.;2.;2.;0.;1.|] ~y:[|0.;0.;2.;2.;1.|]
       ~z:[|0.;0.;0.;0.;7.|] in
@@ -853,6 +942,16 @@ let test_errors () =
         origin = Vec3.zero; normal = Vec3.zero }) input);
   expect (Ops.triangulate_2d
       ~projection:(Ops.Triangulate_2d_point_attribute "missing") input);
+  let nonfinite = Ops.points [|0.,0.,0.;1.,0.,0.;0.,1.,0.|] in
+  let bad_coordinates = Attribute.create_owned ~owner:Attribute.Point
+      ~name:"bad_coordinates" (Attribute.Float2 (Packed.Float2.of_owned
+        ~x:[|0.;nan;0.|] ~y:[|0.;0.;1.|] |> Result.get_ok))
+      |> Result.get_ok in
+  let nonfinite = Geometry.with_attribute bad_coordinates nonfinite
+      |> Result.get_ok in
+  expect (Ops.triangulate_2d
+      ~projection:(Ops.Triangulate_2d_point_attribute "bad_coordinates")
+      nonfinite);
   expect (Ops.triangulate_2d ~refine:true ~minimum_angle:(Float.pi /. 3.) input);
   expect (Ops.triangulate_2d ~refine:true ~maximum_area:0. input);
   expect (Ops.triangulate_2d ~refine:true ~target_edge_length:nan input);
@@ -868,6 +967,7 @@ let test_errors () =
 let () =
   test_xy_payload_and_group ();
   test_best_fit_and_explicit_plane ();
+  test_projected_output_positions ();
   test_attribute_and_selection ();
   test_keep_primitives_payload_groups_and_edges ();
   test_constraints ();

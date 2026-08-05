@@ -58,4 +58,7 @@ val limit_reached : t -> bool
 
 module Private : sig
   val point : t -> int -> Implicit_point.t
+  val approximate_x : t -> float array
+  val approximate_y : t -> float array
+  (** Borrowed final projected-coordinate planes for audited adapters. *)
 end

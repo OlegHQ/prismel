@@ -304,6 +304,12 @@ let constraint_segments ?cancel ~grain ~polygon_winding ~silhouette
   end;
   Array.sub !source 0 !length,Array.sub !winding 0 (!length / 2)
 
+type projected_points = {
+  x : float array;
+  y : float array;
+  embed : float -> float -> float * float * float;
+}
+
 let planes_from_positions ?cancel ~grain positions points =
   let source = Packed.Float3.Private.view positions and count = Array.length points in
   if count = 0 then invalid_arg (operation ^ ": selection contains no points");
@@ -350,7 +356,12 @@ let planes_from_positions ?cancel ~grain positions points =
   if count > grain then Parallel.for_ ~chunk_size:grain ~start:0
       ~finish:(count - 1) project
   else for index = 0 to count - 1 do project index done;
-  output_x,output_y
+  let cx = !mx *. scale and cy = !my *. scale and cz = !mz *. scale in
+  let embed x y =
+    cx +. (scale *. ((x *. ux) +. (y *. vx))),
+    cy +. (scale *. ((x *. uy) +. (y *. vy))),
+    cz +. (scale *. ((x *. uz) +. (y *. vz))) in
+  { x = output_x; y = output_y; embed }
 
 let project ?cancel ~grain projection geometry points =
   let positions = Packed.Float3.Private.view (Geometry.positions geometry)
@@ -360,18 +371,28 @@ let project ?cancel ~grain projection geometry points =
     let one index =
       if index land 4095 = 0 then Cancel.check_opt cancel;
       let point = points.(index) in
-      x.(index) <- coordinate_x point; y.(index) <- coordinate_y point in
+      let px = coordinate_x point and py = coordinate_y point in
+      if not (Float.is_finite px && Float.is_finite py) then
+        invalid_arg (Printf.sprintf
+          "%s: point %d has a non-finite projected position" operation point);
+      x.(index) <- px; y.(index) <- py in
     if count > grain then Parallel.for_ ~chunk_size:grain ~start:0
         ~finish:(count - 1) one
     else for index = 0 to count - 1 do one index done;
     x,y in
   match projection with
-  | Plane_xy -> fill (fun point -> positions.x.(point))
-      (fun point -> positions.y.(point))
-  | Plane_yz -> fill (fun point -> positions.y.(point))
-      (fun point -> positions.z.(point))
-  | Plane_zx -> fill (fun point -> positions.z.(point))
-      (fun point -> positions.x.(point))
+  | Plane_xy ->
+      let x,y = fill (fun point -> positions.x.(point))
+          (fun point -> positions.y.(point)) in
+      { x; y; embed = (fun x y -> x,y,0.) }
+  | Plane_yz ->
+      let x,y = fill (fun point -> positions.y.(point))
+          (fun point -> positions.z.(point)) in
+      { x; y; embed = (fun y z -> 0.,y,z) }
+  | Plane_zx ->
+      let x,y = fill (fun point -> positions.z.(point))
+          (fun point -> positions.x.(point)) in
+      { x; y; embed = (fun z x -> x,0.,z) }
   | Best_fit -> planes_from_positions ?cancel ~grain
       (Geometry.positions geometry) points
   | Plane { origin; normal } ->
@@ -379,14 +400,18 @@ let project ?cancel ~grain projection geometry points =
       if not (finite3 ox oy oz) then
         invalid_arg (operation ^ ": plane origin must be finite");
       let (ux,uy,uz),(vx,vy,vz) = frame_of_normal normal in
-      fill (fun point ->
+      let x,y = fill (fun point ->
           let x = positions.x.(point) -. ox and y = positions.y.(point) -. oy
           and z = positions.z.(point) -. oz in
           (x *. ux) +. (y *. uy) +. (z *. uz))
         (fun point ->
           let x = positions.x.(point) -. ox and y = positions.y.(point) -. oy
           and z = positions.z.(point) -. oz in
-          (x *. vx) +. (y *. vy) +. (z *. vz))
+          (x *. vx) +. (y *. vy) +. (z *. vz)) in
+      { x; y; embed = (fun x y ->
+          ox +. (x *. ux) +. (y *. vx),
+          oy +. (x *. uy) +. (y *. vy),
+          oz +. (x *. uz) +. (y *. vz)) }
   | Point_attribute name ->
       if String.trim name = "" then
         invalid_arg (operation ^ ": point position attribute name is empty");
@@ -397,9 +422,14 @@ let project ?cancel ~grain projection geometry points =
           (match Attribute.Private.storage attribute with
            | Attribute.Float2 values ->
                let values = Packed.Float2.Private.view values in
-               fill (fun point -> values.x.(point)) (fun point -> values.y.(point))
+               let x,y = fill (fun point -> values.x.(point))
+                   (fun point -> values.y.(point)) in
+               { x; y; embed = (fun x y -> x,y,0.) }
            | Attribute.Float3 values ->
-               planes_from_positions ?cancel ~grain values points
+               let values = Packed.Float3.Private.view values in
+               let x,y = fill (fun point -> values.x.(point))
+                   (fun point -> values.y.(point)) in
+               { x; y; embed = (fun x y -> x,y,0.) }
            | _ -> invalid_arg (Printf.sprintf
                "%s: point attribute %S must be float2 or float3" operation name))
 
@@ -429,7 +459,8 @@ let weighted_value source first second third wa wb wc =
       +. ((c /. scale) *. wc))
   else (a *. wa) +. (b *. wb) +. (c *. wc)
 
-let materialization ?cancel ~grain:_grain ~points ~arrangement ~refinement geometry =
+let materialization ?cancel ~grain ~restore_original_point_positions
+    ~projected_x ~projected_y ~embed ~points ~arrangement ~refinement geometry =
   let source_point_count = Geometry.point_count geometry
   and selected_count = Array.length points
   and split_count = match arrangement with None -> 0
@@ -526,9 +557,37 @@ let materialization ?cancel ~grain:_grain ~points ~arrangement ~refinement geome
       values.(output) <- values.(roots.(output))
     done;
     Array.sub values 0 output_point_count in
-  let positions = if split_count + refinement_count = 0 then
-      Geometry.positions geometry
-    else begin
+  let positions = if not restore_original_point_positions then begin
+    let source = Packed.Float3.Private.view (Geometry.positions geometry) in
+    let x = Array.make output_point_count 0. and y = Array.make output_point_count 0.
+    and z = Array.make output_point_count 0. in
+    Array.blit source.x 0 x 0 source_point_count;
+    Array.blit source.y 0 y 0 source_point_count;
+    Array.blit source.z 0 z 0 source_point_count;
+    let local_x,local_y = match refinement,arrangement with
+      | Some refinement,_ -> Planar_refinement.Private.approximate_x refinement,
+          Planar_refinement.Private.approximate_y refinement
+      | None,Some arrangement ->
+          let view = Planar_constraints.Private.view arrangement in view.x,view.y
+      | None,None -> projected_x,projected_y in
+    let local_count = initial_local_count + refinement_count in
+    if Array.length local_x <> local_count || Array.length local_y <> local_count then
+      invalid_arg (operation ^ ": projected point materialization is malformed");
+    let fill local =
+      if local land 4095 = 0 then Cancel.check_opt cancel;
+      let output = local_to_output local in
+      let px,py,pz = embed local_x.(local) local_y.(local) in
+      if not (finite3 px py pz) then
+        invalid_arg (Printf.sprintf
+          "%s: projected output point %d is non-finite" operation output);
+      x.(output) <- px; y.(output) <- py; z.(output) <- pz in
+    if local_count > grain then Parallel.for_ ~chunk_size:grain ~start:0
+        ~finish:(local_count - 1) fill
+    else for local = 0 to local_count - 1 do fill local done;
+    Packed.Float3.Private.of_owned_exn ~x ~y ~z
+  end else if split_count + refinement_count = 0 then
+    Geometry.positions geometry
+  else begin
     let source = Packed.Float3.Private.view (Geometry.positions geometry) in
     let x = evaluate source.x and y = evaluate source.y and z = evaluate source.z in
     for output = source_point_count to output_point_count - 1 do
@@ -857,7 +916,8 @@ let run ?cancel ?(grain = 16_384) ?selection ?constraint_edges
     ?(minimum_edge_length = 0.) ?(maximum_new_points = 100_000)
     ?(regularization_steps = 0)
     ?(allow_movement_of_interior_input_points = false)
-    ?(preserve_point_payload = true) ?(keep_primitives = false)
+    ?(preserve_point_payload = true)
+    ?(restore_original_point_positions = true) ?(keep_primitives = false)
     ?split_point_group ?refinement_point_group ?triangle_group
     ?constraint_group geometry =
   try
@@ -884,7 +944,8 @@ let run ?cancel ?(grain = 16_384) ?selection ?constraint_edges
             constraint_endpoint_selection ?cancel ~points ?constraint_edges
               ?constraint_primitives geometry
           else points in
-        let x,y = project ?cancel ~grain projection geometry points in
+        let projected = project ?cancel ~grain projection geometry points in
+        let x = projected.x and y = projected.y in
         Result.bind (Delaunay2.build ?cancel ~seed ~x ~y ()) (fun triangulation ->
           let local_of_point = Array.make (Geometry.point_count geometry) (-1) in
           Array.iteri (fun local point -> local_of_point.(point) <- local) points;
@@ -980,8 +1041,9 @@ let run ?cancel ?(grain = 16_384) ?selection ?constraint_edges
                   ~allow_movement_of_interior_input_points ())
             end in
           Result.bind refined (fun (triangle_points,constraint_points,refinement) ->
-          let materialization = materialization ?cancel ~grain ~points
-              ~arrangement ~refinement geometry in
+          let materialization = materialization ?cancel ~grain
+              ~restore_original_point_positions ~projected_x:x ~projected_y:y
+              ~embed:projected.embed ~points ~arrangement ~refinement geometry in
           let positions = materialization.positions
           and local_to_output = materialization.local_to_output in
           let output_point_count = Packed.Float3.length positions in

@@ -183,6 +183,16 @@ let run_benchmarks () =
           | Error message -> failwith (Error.to_string message))
       Geometry.point_count hash_geometry
   end;
+  let projected_positions_source = Geometry.create ~positions:source_positions
+      ~topology:(Topology.empty ~point_count:points) ()
+      |> function Ok value -> value | Error message -> failwith message in
+  measure "projected_positions_adapter"
+    (fun () -> Ops.triangulate_2d ~projection:Ops.Triangulate_2d_xy
+        ~restore_original_point_positions:false
+        projected_positions_source
+      |> function Ok value -> value
+        | Error message -> failwith (Error.to_string message))
+    Geometry.point_count hash_geometry;
   let refinement_source = Ops.points
       [|0.,0.,0.; 1.,0.,0.; 1.,1.,0.; 0.,1.,0.|] in
   let target_edge_length = 1.8 /. sqrt (float_of_int refinement_points) in

@@ -1012,6 +1012,7 @@ val triangulate_2d :
   ?regularization_steps:int ->
   ?allow_movement_of_interior_input_points:bool ->
   ?preserve_point_payload:bool ->
+  ?restore_original_point_positions:bool ->
   ?keep_primitives:bool ->
   ?remove_unused_points:bool ->
   ?recompute_point_normals:bool ->
@@ -1023,8 +1024,9 @@ val triangulate_2d :
 (* Delaunay-triangulate point geometry through the shared exact-predicate PDK
     kernel. The named point group is promoted nowhere: it selects exactly its
     members. Crossing-constraint splitting, bounded quality refinement,
-    regularization, projection, seed, payload policy, and output groups
-    participate in immutable node identity. Angles are radians. *)
+    regularization, projection, original-position restoration, primitive
+    retention, seed, payload policy, and output groups participate in immutable
+    node identity. Angles are radians. *)
 val remesh :
   ?label:string ->
   ?iterations:int ->

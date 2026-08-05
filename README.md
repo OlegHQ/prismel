@@ -889,8 +889,12 @@ stable sorting places equal-color worksets contiguously and emits detail begin/
 length arrays, while unselected elements retain `-1`.
 `triangulate_2d` connects a point cloud with the shared packed Delaunay kernel.
 It supports best-fit, principal, explicit-plane, and point-attribute projection,
-then emits triangles referencing the original 3D points. Exact predicates own
-topology decisions across ordinary, subnormal, and maximum finite coordinates;
+then emits triangles referencing the original 3D points by default. Disabling
+original-position restoration places participating points and every generated
+point on the selected world projection plane; point float2/float3 coordinates
+instead map to `(x, y, 0)` and ignore components beyond the first two. Exact
+predicates own topology decisions across ordinary, subnormal, and maximum
+finite coordinates;
 native edge and primitive groups use a packed-BVH exact arrangement, opt-in
 line-line crossing construction, exact inserted-point splitting, authored
 point-on-constraint atomization, and the shared strip-cavity recovery kernel.
