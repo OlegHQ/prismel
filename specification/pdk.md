@@ -2362,7 +2362,9 @@ geometrically growing triangle planes, point-to-triangle seeds, and open-
 addressed edge table. Passing that exact packed result back by physical
 identity with a contiguous suffix of inserted point numbers continues the live
 incidence directly; an empty suffix reuses it for coordinate-only Delaunay
-repair. Current constraints are cleared and re-marked on the retained table,
+repair. Canonical previous/current constraint arrays are merge-differenced in
+linear time. Removed edges are unmarked, added edges alone are recovered and
+marked, and triangle replacement reaffirms any unchanged current constraint,
 so split or removed constraints cannot leave stale affinity. A copied,
 discontinuous, over-capacity, clipped, or winding-filtered snapshot takes the
 audited full-rebuild path.
@@ -2408,8 +2410,8 @@ share one private CDT workspace across their sequential generations. CDT
 recovery remains dependency-ordered and serial. Contiguous generations retain
 triangle incidence and insert only their new point suffix; coordinate-only
 regularization retains the same incidence. Every generation still scans the
-complete edge table to seed Delaunay legalization, replays the current
-constraint set, and emits a globally sorted canonical snapshot. For one
+complete edge table to seed Delaunay legalization and emits a globally sorted
+canonical snapshot; only the constraint delta is replayed. For one
 generation, classification is O(T), CDT update has the documented
 `Planar_cdt` expected cost, and a shared packed bounds index makes constraint
 encroachment and re-atomization expected O(S log S + (Q+B) log S + I), for Q
@@ -2563,13 +2565,13 @@ baseline, not a global Remove Unused Points measurement.
 
 The bounded quality-refinement benchmark starts from a unit square and targets
 an edge length of `1.8 / sqrt(100000)`. It emits 66,049 points in a three-run
-median of 1.473 seconds on one domain and 1.549 seconds on four domains, with
+median of 1.483 seconds on one domain and 1.549 seconds on four domains, with
 identical hash `3660410599853783093`. Calling-domain allocation is 1.067 GB and
 757.08 MB respectively; promoted allocation is approximately 92.4 MB and major
 allocation is 203.9 MB in both modes. Against the pre-workspace one-domain
 implementation on the same command, reusable/incremental CDT state, in-place
 canonicalization, and allocation-free classification reduced wall time by
-3.3%, calling-domain allocation by 7.1%, and major allocation by 20.9%. The lack
+2.6%, calling-domain allocation by 7.1%, and major allocation by 20.9%. The lack
 of multicore speedup is recorded honestly: serial CDT recovery dominates
 this workload, and worker-domain minor allocation is excluded from the four-
 domain calling-domain figure. This remains a regression baseline, not a
@@ -2578,9 +2580,9 @@ production claim.
 A constrained refinement scale case uses a 10,000-edge closed boundary and a
 256-point budget. The former candidate-by-constraint scan took 2.778 seconds
 and allocated 7.108 GB on the calling domain; the shared packed bounds index
-produces the identical 10,256-point result and hash `5576516039082866` in
-0.269 seconds with 200.07 MB allocated. These are one-repeat measurements on
-the same process configuration, a 10.3x wall-time and 35.5x allocation
+produces the identical 10,256-point result and hash `5576516039082866` in a
+three-run 0.256-second median with 192.87 MB allocated. These use the same
+process configuration, a 10.8x wall-time and 36.9x allocation
 improvement. Reproduce the scale with `PRISMEL_REFINEMENT_CONSTRAINTS=10000`.
 
 The regularization benchmark refines the unit square to 8,321 points, then runs

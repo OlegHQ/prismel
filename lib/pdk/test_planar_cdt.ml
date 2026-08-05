@@ -160,10 +160,52 @@ let test_incremental_workspace_continuation () =
     "incremental coordinate-repair continuation changed stable topology";
   check (Planar_cdt.Private.build_counts workspace = (1,2))
     "workspace did not take the expected full/incremental paths";
-  let copied = Array.copy (Planar_cdt.Private.view repaired).triangle_points in
+  let repaired_triangles = (Planar_cdt.Private.view repaired).triangle_points in
+  let unconstrained = run ~workspace ~point_count:4
+      ~triangle_points:repaired_triangles [||]
+  and unconstrained_reference = run ~point_count:4
+      ~triangle_points:repaired_triangles [||] in
+  check (signature unconstrained = signature unconstrained_reference)
+    "incremental constraint removal differs from full rebuild";
+  check (Planar_cdt.Private.build_counts workspace = (1,3))
+    "constraint removal did not remain incremental";
+  let copied = Array.copy
+      (Planar_cdt.Private.view unconstrained).triangle_points in
   ignore (run ~workspace ~point_count:4 ~triangle_points:copied [|0;3;3;1|]);
-  check (Planar_cdt.Private.build_counts workspace = (2,2))
+  check (Planar_cdt.Private.build_counts workspace = (2,3))
     "structurally copied input did not take the safe full-rebuild fallback"
+
+let test_incremental_constraint_replacement () =
+  let x = [|0.;1.;1.;0.|] and y = [|0.;0.;1.;1.|] in
+  let seed = triangulate x y |> Delaunay2.Private.view in
+  let seed_value = Planar_cdt.build ~point_count:4
+      ~orient:(fun a b c -> Predicates.orient2d_packed ~x ~y a b c)
+      ~incircle:(fun a b c d -> Predicates.incircle_packed ~x ~y a b c d)
+      ~triangle_points:seed.triangle_points ~constraint_points:[||] ()
+      |> get_string in
+  let first,replacement =
+    if edge_present seed_value 0 2 then [|0;2|],[|1;3|]
+    else [|1;3|],[|0;2|] in
+  let workspace = Planar_cdt.Private.create_workspace ~point_capacity:4
+      ~triangle_capacity:2 () in
+  let run ?workspace triangle_points constraints =
+    Planar_cdt.build ?workspace ~point_count:4
+      ~orient:(fun a b c -> Predicates.orient2d_packed ~x ~y a b c)
+      ~incircle:(fun a b c d -> Predicates.incircle_packed ~x ~y a b c d)
+      ~triangle_points ~constraint_points:constraints () |> get_string in
+  let constrained = run ~workspace seed.triangle_points first in
+  let constrained_triangles =
+    (Planar_cdt.Private.view constrained).triangle_points in
+  let replaced = run ~workspace constrained_triangles replacement
+  and reference = run constrained_triangles replacement in
+  check (signature replaced = signature reference)
+    "incremental constraint replacement differs from full rebuild";
+  check (edge_present replaced replacement.(0) replacement.(1))
+    "incremental constraint replacement did not recover the added diagonal";
+  check (not (edge_present replaced first.(0) first.(1)))
+    "incremental constraint replacement retained the removed diagonal";
+  check (Planar_cdt.Private.build_counts workspace = (1,1))
+    "constraint replacement did not remain incremental"
 
 let test_incremental_workspace_batches () =
   let count = 68 in
@@ -436,6 +478,7 @@ let () =
   test_long_recovery_and_domains ();
   test_workspace_reuse_and_result_ownership ();
   test_incremental_workspace_continuation ();
+  test_incremental_constraint_replacement ();
   test_incremental_workspace_batches ();
   test_incremental_coordinate_validation ();
   test_crossing_rejected ();

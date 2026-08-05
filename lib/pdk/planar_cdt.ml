@@ -199,6 +199,11 @@ module Edge_table = struct
     let slot = find table key in
     if slot < 0 then invalid_arg "Planar CDT cannot mark a missing edge";
     Bytes.unsafe_set table.constrained slot '\001'
+
+  let unconstrain table key =
+    let slot = find table key in
+    if slot >= 0 then Bytes.unsafe_set table.constrained slot '\000';
+    slot
 end
 
 type workspace = {
@@ -210,6 +215,7 @@ type workspace = {
   mutable point_count : int;
   mutable triangle_count : int;
   mutable last_output : int array option;
+  mutable constraints : int array;
   mutable valid : bool;
   mutable full_build_count : int;
   mutable incremental_build_count : int;
@@ -237,6 +243,7 @@ let create_workspace ?point_capacity ~triangle_capacity () =
     point_count = 0;
     triangle_count = 0;
     last_output = None;
+    constraints = [||];
     valid = false;
     full_build_count = 0;
     incremental_build_count = 0;
@@ -423,6 +430,57 @@ let canonical_constraints ~point_count ~key_stride constraints winding =
   done;
   output,Array.sub unique_weights 0 !unique
 
+let constraint_delta previous current =
+  let previous_count = Array.length previous / 2
+  and current_count = Array.length current / 2 in
+  let compare previous_index current_index =
+    let compared = Int.compare previous.(previous_index * 2)
+        current.(current_index * 2) in
+    if compared <> 0 then compared else
+      Int.compare previous.((previous_index * 2) + 1)
+        current.((current_index * 2) + 1) in
+  let removed_count = ref 0 and added_count = ref 0
+  and previous_index = ref 0 and current_index = ref 0 in
+  while !previous_index < previous_count || !current_index < current_count do
+    if !previous_index = previous_count then begin
+      incr added_count; incr current_index
+    end else if !current_index = current_count then begin
+      incr removed_count; incr previous_index
+    end else begin
+      let compared = compare !previous_index !current_index in
+      if compared = 0 then begin incr previous_index; incr current_index end
+      else if compared < 0 then begin incr removed_count; incr previous_index end
+      else begin incr added_count; incr current_index end
+    end
+  done;
+  let removed = Array.make (!removed_count * 2) 0
+  and added = Array.make (!added_count * 2) 0 in
+  previous_index := 0; current_index := 0;
+  let removed_index = ref 0 and added_index = ref 0 in
+  let copy source source_index output output_index =
+    output.(output_index * 2) <- source.(source_index * 2);
+    output.((output_index * 2) + 1) <- source.((source_index * 2) + 1) in
+  while !previous_index < previous_count || !current_index < current_count do
+    if !previous_index = previous_count then begin
+      copy current !current_index added !added_index;
+      incr added_index; incr current_index
+    end else if !current_index = current_count then begin
+      copy previous !previous_index removed !removed_index;
+      incr removed_index; incr previous_index
+    end else begin
+      let compared = compare !previous_index !current_index in
+      if compared = 0 then begin incr previous_index; incr current_index end
+      else if compared < 0 then begin
+        copy previous !previous_index removed !removed_index;
+        incr removed_index; incr previous_index
+      end else begin
+        copy current !current_index added !added_index;
+        incr added_index; incr current_index
+      end
+    end
+  done;
+  removed,added
+
 let build ?cancel ?workspace ~point_count ~orient ~incircle
     ?(bounds_overlap = fun _ _ _ _ -> true) ~triangle_points
     ?(insert_points = [||]) ?(flood_from_hull_boundary = false)
@@ -512,6 +570,10 @@ let build ?cancel ?workspace ~point_count ~orient ~incircle
     end;
     let constraints,constraint_winding = canonical_constraints ~point_count
         ~key_stride constraint_points constraint_winding in
+    let removed_constraints,added_constraints = match workspace with
+      | Some workspace when incremental ->
+          constraint_delta workspace.constraints constraints
+      | Some _ | None -> [||],[||] in
     let constraint_index key =
       let first = ref 0 and last = ref (Array.length constraints / 2) in
       while !first < !last do
@@ -534,12 +596,17 @@ let build ?cancel ?workspace ~point_count ~orient ~incircle
       | Some workspace ->
           Edge_table.reset workspace.edge_table;
           workspace.edge_table in
+    let has_constraints = Array.length constraints > 0 in
+    let add_edge key triangle opposite =
+      Edge_table.add table key triangle opposite;
+      if incremental && has_constraints && constraint_key key then
+        Edge_table.constrain table key in
     let add_triangle triangle =
       let a = triangle_a.(triangle) and b = triangle_b.(triangle)
       and c = triangle_c.(triangle) in
-      Edge_table.add table (edge_key a b) triangle c;
-      Edge_table.add table (edge_key b c) triangle a;
-      Edge_table.add table (edge_key c a) triangle b in
+      add_edge (edge_key a b) triangle c;
+      add_edge (edge_key b c) triangle a;
+      add_edge (edge_key c a) triangle b in
     let remove_triangle triangle =
       let a = triangle_a.(triangle) and b = triangle_b.(triangle)
       and c = triangle_c.(triangle) in
@@ -562,6 +629,12 @@ let build ?cancel ?workspace ~point_count ~orient ~incircle
       point_triangle.(triangle_c.(triangle)) <- triangle in
     if not incremental then
       for triangle = 0 to initial_triangle_count - 1 do seed_triangle triangle done;
+    if incremental then
+      for constraint_index = 0 to Array.length removed_constraints / 2 - 1 do
+        let key = edge_key removed_constraints.(constraint_index * 2)
+            removed_constraints.((constraint_index * 2) + 1) in
+        ignore (Edge_table.unconstrain table key)
+      done;
     let set_triangle triangle a b c =
       match orient a b c with
       | Predicates.Positive ->
@@ -973,17 +1046,23 @@ let build ?cancel ?workspace ~point_count ~orient ~incircle
         add_triangle strip.(index); seed_triangle strip.(index);
         Bytes.unsafe_set strip_marks strip.(index) '\000'
       done in
-    Edge_table.clear_constraints table;
-    for constraint_index = 0 to Array.length constraints / 2 - 1 do
-      if constraint_index land 255 = 0 then Cancel.check_opt cancel;
-      let a = constraints.(constraint_index * 2)
-      and b = constraints.((constraint_index * 2) + 1) in
-      let key = edge_key a b in
-      if Edge_table.find table key < 0 then recover_constraint a b;
-      if Edge_table.find table key < 0 then
-        invalid_arg "Planar CDT cavity retriangulation did not recover its constraint";
-      Edge_table.constrain table key
-    done;
+    let recover_constraints values =
+      for constraint_index = 0 to Array.length values / 2 - 1 do
+        if constraint_index land 255 = 0 then Cancel.check_opt cancel;
+        let a = values.(constraint_index * 2)
+        and b = values.((constraint_index * 2) + 1) in
+        let key = edge_key a b in
+        if Edge_table.find table key < 0 then recover_constraint a b;
+        if Edge_table.find table key < 0 then
+          invalid_arg
+            "Planar CDT cavity retriangulation did not recover its constraint";
+        Edge_table.constrain table key
+      done in
+    if incremental then recover_constraints added_constraints
+    else begin
+      Edge_table.clear_constraints table;
+      recover_constraints constraints
+    end;
     let queue = Key_heap.create table.Edge_table.edge_count in
     for slot = 0 to Array.length table.Edge_table.keys - 1 do
       if table.Edge_table.keys.(slot) >= 0
@@ -1188,6 +1267,7 @@ let build ?cancel ?workspace ~point_count ~orient ~incircle
         workspace.point_count <- point_count;
         workspace.triangle_count <- output_triangle_count;
         workspace.last_output <- Some triangle_points;
+        workspace.constraints <- constraints;
         workspace.valid <- true
       end;
       if incremental then
