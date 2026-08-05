@@ -80,6 +80,11 @@
  (libraries procedural prismel pdk))
 
 (test
+ (name test_attribute_laplacian_sop)
+ (modules test_attribute_laplacian_sop)
+ (libraries procedural prismel pdk))
+
+(test
  (name test_triangulate2d_sop)
  (modules test_triangulate2d_sop)
  (libraries procedural prismel pdk))

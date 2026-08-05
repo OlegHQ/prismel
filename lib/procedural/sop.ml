@@ -3291,6 +3291,51 @@ let measure_curvature ?label ?point_group
           | Ok geometry -> cooked geometry
           | Error error -> structured_pdk_error error)
 
+let laplacian_weighting_key = function
+  | Pdk.Ops.Laplacian_cotan -> "cotan"
+  | Pdk.Ops.Laplacian_positive_cotan -> "positive_cotan"
+  | Pdk.Ops.Laplacian_uniform -> "uniform"
+
+let attribute_laplacian ?label ?point_group
+    ?(weighting = Pdk.Ops.Laplacian_cotan) ?(normalize = true) ~source
+    ?output input =
+  Option.iter (fun name -> if String.trim name = "" then
+    invalid_arg "Sop.attribute_laplacian: empty point group name") point_group;
+  if String.trim source = "" then
+    invalid_arg "Sop.attribute_laplacian: empty source name";
+  Option.iter (fun name ->
+    if String.trim name = "" || String.equal name "P" then
+      invalid_arg "Sop.attribute_laplacian: output must be non-empty and not P")
+    output;
+  Node.Private.make ?label ~operation:"attribute_laplacian" ~version:1
+    ~parameters:(String.concat ";" [
+      "point_group=" ^ option_string_key point_group;
+      "weighting=" ^ laplacian_weighting_key weighting;
+      "normalize=" ^ string_of_bool normalize;
+      "source=" ^ String.escaped source;
+      "output=" ^ option_string_key output;
+    ]) ~cook_mode:(Node.Duplicate_input 0)
+    ~dependencies:Context.Dependencies.static ~inputs:[|input|]
+    (fun ~node_id:_ context inputs ->
+      let geometry = inputs.(0) in
+      let points = match point_group with
+        | None -> Ok None
+        | Some name ->
+            (match Pdk.Geometry.find_group ~owner:Pdk.Group.Point name geometry with
+             | Some group -> Ok (Some group)
+             | None -> Error (Diagnostic.error ~code:"missing_group"
+                 (Printf.sprintf
+                    "attribute_laplacian could not find point group %S" name))) in
+      match points with
+      | Error error -> Error error
+      | Ok points ->
+          match Pdk.Ops.attribute_laplacian
+              ~cancel:(Context.cancel_token context)
+              ~grain:(Context.grain context) ?points ~weighting ~normalize
+              ~source ?output geometry with
+          | Ok geometry -> cooked geometry
+          | Error error -> structured_pdk_error error)
+
 let polyframe_style_key = function
   | Pdk.Ops.First_edge -> "first_edge"
   | Pdk.Ops.Two_edges -> "two_edges"

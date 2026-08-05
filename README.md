@@ -644,6 +644,12 @@ kernel supports explicit boundary policy, synchronous smoothing, point-group
 output restriction, and exact one-/multi-domain results without changing mesh
 topology.
 
+`Sop.attribute_laplacian` applies signed cotangent, non-negative cotangent, or
+uniform topology weights to point scalar and fixed-width vector fields, with
+canonical `P` available as a read-only source. It exposes pointwise or
+integrated output under the smoothing-friendly neighbor-minus-center sign
+convention and preserves existing values outside an optional point group.
+
 For iterative creative coding, keep feedback in `Sketch.run_state`: wrap the
 previous immutable geometry with `Sop.snapshot`, build/cook the next acyclic
 step from ordinary SOPs or `Sop.custom`, then replace the model snapshot. A
@@ -1212,6 +1218,8 @@ visible markers to the resulting disconnected points. The
 schedules for shared-edge and shared-point adjacency. The
 [Measure Curvature example](./examples/measure_curvature) visualizes signed mean
 and Gaussian curvature over the parameter domain of the same packed torus. The
+[Attribute Laplacian example](./examples/attribute_laplacian) compares
+pointwise cotangent and uniform position-field responses on a torus. The
 [Triangulate 2D example](./examples/triangulate_2d) projects a tilted point
 cloud to its PCA best-fit plane, exactly splits two crossing constraints, and
 displays the resulting constrained-Delaunay triangles

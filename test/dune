@@ -169,6 +169,14 @@
    (run %{test}))))
 
 (test
+ (name attribute_laplacian_render_smoke)
+ (modules attribute_laplacian_render_smoke)
+ (libraries prismel procedural unix)
+ (action
+  (setenv PRISMEL_RENDER_TARGET headless
+   (run %{test}))))
+
+(test
  (name triangulate2d_render_smoke)
  (modules triangulate2d_render_smoke)
  (libraries prismel procedural unix)

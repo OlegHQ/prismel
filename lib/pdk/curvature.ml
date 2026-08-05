@@ -23,9 +23,6 @@ let default_outputs = {
 exception Curvature_error of string
 let fail message = raise (Curvature_error message)
 
-let ceiling_div value divisor =
-  (value / divisor) + if value mod divisor = 0 then 0 else 1
-
 let finite = Float.is_finite
 
 let validate_outputs outputs =
@@ -53,51 +50,6 @@ let validate_outputs outputs =
       fail (Printf.sprintf "curvature output name %S is used more than once"
           sorted.(index))
   done
-
-let triangulate ?cancel ~grain ~positions ~topology () =
-  let primitive_count = Bytes.length topology.Topology.Private.primitive_kinds in
-  let offsets = Array.make (primitive_count + 1) 0 in
-  for primitive = 0 to primitive_count - 1 do
-    if primitive land 4095 = 0 then Cancel.check_opt cancel;
-    let size = topology.primitive_offsets.(primitive + 1)
-        - topology.primitive_offsets.(primitive) in
-    if size - 2 > Sys.max_array_length - offsets.(primitive) then
-      fail "triangulated curvature surface exceeds array limits";
-    offsets.(primitive + 1) <- offsets.(primitive) + size - 2
-  done;
-  let triangle_count = offsets.(primitive_count) in
-  if triangle_count > Sys.max_array_length / 3 then
-    fail "curvature triangle incidence exceeds array limits";
-  let triangle_a = Array.make triangle_count 0
-  and triangle_b = Array.make triangle_count 0
-  and triangle_c = Array.make triangle_count 0 in
-  let average = if primitive_count = 0 then 1
-    else max 1 (ceiling_div triangle_count primitive_count) in
-  let primitive_chunk = max 1 (grain / average) in
-  let range_count = ceiling_div primitive_count primitive_chunk in
-  let errors = Array.make range_count None in
-  if range_count > 0 then
-    Parallel.for_ ~chunk_size:1 ~start:0 ~finish:(range_count - 1) (fun range ->
-      let first = range * primitive_chunk
-      and last = min primitive_count ((range + 1) * primitive_chunk) in
-      let scratch = Polygon_triangulation.create_scratch () in
-      for primitive = first to last - 1 do
-        if primitive land 4095 = 0 then Cancel.check_opt cancel;
-        if errors.(range) = None then begin
-          let output = offsets.(primitive) in
-          let emit local a b c =
-            let triangle = output + local in
-            triangle_a.(triangle) <- topology.vertex_points.(a);
-            triangle_b.(triangle) <- topology.vertex_points.(b);
-            triangle_c.(triangle) <- topology.vertex_points.(c) in
-          match Polygon_triangulation.primitive ?cancel ~positions ~topology
-              ~scratch primitive ~emit with
-          | Ok () -> ()
-          | Error message -> errors.(range) <- Some message
-        end
-      done);
-  Array.iter (function None -> () | Some message -> fail message) errors;
-  triangle_a, triangle_b, triangle_c
 
 let existing_float name point_count geometry =
   match Geometry.find_attribute ~owner:Attribute.Point name geometry with
@@ -136,110 +88,19 @@ let run ?cancel ?(grain = 16_384) ?points
      | Some group when Group.length group <> point_count ->
          fail "point selection length does not match geometry"
      | None | Some _ -> ());
-    let topology_value = Geometry.topology geometry in
-    let topology = Topology.Private.view topology_value in
-    let index_value = Topology_index.create ?cancel topology_value in
-    let index = Topology_index.Private.view index_value in
-    let boundary_points = match
-        Topology_index.Private.polygon_manifold_boundary_points ?cancel
-          ~topology:topology_value index_value with
-      | Ok boundary -> boundary
+    let metric = match Surface_metric.create ?cancel ~grain geometry with
+      | Ok metric -> metric
       | Error message -> fail message in
-    let positions = Packed.Float3.Private.view (Geometry.positions geometry) in
-    let coordinate_scale = [|0.|] in
-    for point = 0 to point_count - 1 do
-      if point land 16_383 = 0 then Cancel.check_opt cancel;
-      let x = positions.x.(point) and y = positions.y.(point)
-      and z = positions.z.(point) in
-      if not (finite x && finite y && finite z) then
-        fail "surface positions must be finite";
-      let x = abs_float x and y = abs_float y and z = abs_float z in
-      if x > coordinate_scale.(0) then coordinate_scale.(0) <- x;
-      if y > coordinate_scale.(0) then coordinate_scale.(0) <- y;
-      if z > coordinate_scale.(0) then coordinate_scale.(0) <- z
-    done;
-    let triangle_a,triangle_b,triangle_c =
-      triangulate ?cancel ~grain ~positions ~topology () in
-    let triangle_count = Array.length triangle_a in
-    if triangle_count > 0 && coordinate_scale.(0) = 0. then
-      fail "surface triangles are metrically degenerate";
-    let scale = if coordinate_scale.(0) = 0. then 1. else coordinate_scale.(0) in
-    let scaled_x = Array.make point_count 0.
-    and scaled_y = Array.make point_count 0.
-    and scaled_z = Array.make point_count 0. in
-    if point_count > 0 then
-      Parallel.for_ ~chunk_size:grain ~start:0 ~finish:(point_count - 1)
-        (fun point ->
-          if point land 16_383 = 0 then Cancel.check_opt cancel;
-          scaled_x.(point) <- positions.x.(point) /. scale;
-          scaled_y.(point) <- positions.y.(point) /. scale;
-          scaled_z.(point) <- positions.z.(point) /. scale);
-    let double_area = Array.make triangle_count 0.
-    and cotangent_a = Array.make triangle_count 0.
-    and cotangent_b = Array.make triangle_count 0.
-    and cotangent_c = Array.make triangle_count 0. in
-    let invalid_triangle = Atomic.make false in
-    if triangle_count > 0 then
-      Parallel.for_ ~chunk_size:grain ~start:0 ~finish:(triangle_count - 1)
-        (fun triangle ->
-          if triangle land 16_383 = 0 then Cancel.check_opt cancel;
-          let a = triangle_a.(triangle) and b = triangle_b.(triangle)
-          and c = triangle_c.(triangle) in
-          let ux = scaled_x.(b) -. scaled_x.(a)
-          and uy = scaled_y.(b) -. scaled_y.(a)
-          and uz = scaled_z.(b) -. scaled_z.(a)
-          and vx = scaled_x.(c) -. scaled_x.(a)
-          and vy = scaled_y.(c) -. scaled_y.(a)
-          and vz = scaled_z.(c) -. scaled_z.(a) in
-          let cx = (uy *. vz) -. (uz *. vy)
-          and cy = (uz *. vx) -. (ux *. vz)
-          and cz = (ux *. vy) -. (uy *. vx) in
-          let area = Float.hypot cx (Float.hypot cy cz)
-          and uv = (ux *. vx) +. (uy *. vy) +. (uz *. vz)
-          and uu = (ux *. ux) +. (uy *. uy) +. (uz *. uz)
-          and vv = (vx *. vx) +. (vy *. vy) +. (vz *. vz) in
-          if not (finite area && area > 0. && finite uv
-              && finite uu && finite vv) then Atomic.set invalid_triangle true
-          else begin
-            let ca = uv /. area
-            and cb = (uu -. uv) /. area
-            and cc = (vv -. uv) /. area in
-            if not (finite ca && finite cb && finite cc) then
-              Atomic.set invalid_triangle true
-            else begin
-              double_area.(triangle) <- area;
-              cotangent_a.(triangle) <- ca;
-              cotangent_b.(triangle) <- cb;
-              cotangent_c.(triangle) <- cc
-            end
-          end);
-    if Atomic.get invalid_triangle then
-      fail "surface contains a degenerate or numerically unrepresentable triangle";
-    let incidence_count = triangle_count * 3 in
-    let point_offsets = Array.make (point_count + 1) 0 in
-    for triangle = 0 to triangle_count - 1 do
-      point_offsets.(triangle_a.(triangle) + 1) <-
-        point_offsets.(triangle_a.(triangle) + 1) + 1;
-      point_offsets.(triangle_b.(triangle) + 1) <-
-        point_offsets.(triangle_b.(triangle) + 1) + 1;
-      point_offsets.(triangle_c.(triangle) + 1) <-
-        point_offsets.(triangle_c.(triangle) + 1) + 1
-    done;
-    for point = 0 to point_count - 1 do
-      point_offsets.(point + 1) <- point_offsets.(point + 1)
-          + point_offsets.(point)
-    done;
-    let incidence = Array.make incidence_count 0
-    and cursor = Array.copy point_offsets in
-    let add point encoded =
-      let output = cursor.(point) in
-      incidence.(output) <- encoded;
-      cursor.(point) <- output + 1 in
-    for triangle = 0 to triangle_count - 1 do
-      add triangle_a.(triangle) (triangle * 3);
-      add triangle_b.(triangle) ((triangle * 3) + 1);
-      add triangle_c.(triangle) ((triangle * 3) + 2)
-    done;
+    let scale = metric.scale and scaled_x = metric.scaled_x
+    and scaled_y = metric.scaled_y and scaled_z = metric.scaled_z
+    and triangle_a = metric.triangle_a and triangle_b = metric.triangle_b
+    and triangle_c = metric.triangle_c and double_area = metric.double_area
+    and cotangent_a = metric.cotangent_a
+    and cotangent_b = metric.cotangent_b
+    and cotangent_c = metric.cotangent_c
+    and point_offsets = metric.point_offsets and incidence = metric.incidence
+    and boundary_points = metric.boundary_points
+    and index = metric.topology_index in
     let mean = if need_mean then Array.make point_count 0. else [||]
     and gaussian = if need_gaussian then Array.make point_count 0. else [||]
     and area_sum = Array.make point_count 0.
@@ -280,13 +141,14 @@ let run ?cancel ?(grain = 16_384) ?points
           and dbz = scaled_z.(neighbor_b) -. scaled_z.(point) in
           let length_a_squared = (dax *. dax) +. (day *. day) +. (daz *. daz)
           and length_b_squared = (dbx *. dbx) +. (dby *. dby) +. (dbz *. dbz) in
-          let triangle_area = double_area.(triangle) in
-          let mixed_area =
-            if cotangent_a.(triangle) < 0. || cotangent_b.(triangle) < 0.
-                || cotangent_c.(triangle) < 0. then
-              triangle_area /. (if cotangent < 0. then 4. else 8.)
-            else ((length_a_squared *. cotangent_neighbor_b)
-                +. (length_b_squared *. cotangent_neighbor_a)) /. 8. in
+          let mixed_area = Surface_metric.mixed_area_contribution
+              ~double_area:double_area.(triangle)
+              ~cotangent_a:cotangent_a.(triangle)
+              ~cotangent_b:cotangent_b.(triangle)
+              ~cotangent_c:cotangent_c.(triangle)
+              ~corner_cotangent:cotangent ~edge_a_squared:length_a_squared
+              ~edge_b_squared:length_b_squared ~cotangent_neighbor_a
+              ~cotangent_neighbor_b in
           area_sum.(point) <- area_sum.(point) +. mixed_area;
           if need_gaussian then
             angle_sum.(point) <- angle_sum.(point) +. atan2 1. cotangent;

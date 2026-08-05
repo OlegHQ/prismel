@@ -2348,6 +2348,78 @@ case. A cold one-repeat four-domain process running both workloads peaked at
 896,228 KiB RSS. These are baselines for further scratch/CSR compaction, not a
 claim of zero allocation.
 
+### Attribute Laplacian
+
+`Ops.attribute_laplacian` applies a discrete surface Laplacian to point-owned
+float, integer, float2, float3, or float4 fields; canonical `P` is a read-only
+float3 source. It writes a same-width floating field and never changes topology,
+positions, or unrelated payload. A point group restricts output replacement,
+while source values needed by selected one-rings remain visible. Compatible
+existing values outside the group are copied exactly.
+
+Signed cotangent mode uses the stable polygon triangulation, triangle/local
+incidence CSR, cotangents, and Meyer mixed areas from the same packed
+`Surface_metric` core as Measure Curvature. Positive-cotangent mode clamps each
+negative triangle contribution before reduction. This gives non-negative
+neighbor influence but deliberately trades away signed cotangent linear
+precision on obtuse meshes, reflecting the known incompatible properties of
+discrete Laplace operators rather than hiding the policy behind a tolerance.
+Uniform mode traverses unique topology edges directly through
+`Topology_index` and does not pay for metric triangulation.
+
+The sign convention is `neighbor - center`, so adding a sufficiently small
+positive multiple smooths the source and subtraction sharpens it. Pointwise
+cotangent output divides the half-weighted sum by world-space mixed area;
+integrated output retains the weighted sum. Uniform pointwise output is the
+neighbor average difference, while integrated output is the unnormalized
+valence sum. Empty/isolated points produce zero. All modes require a polygon-
+only consistently wound two-manifold; metric modes additionally reject
+non-finite positions and degenerate or unrepresentable stable triangulations.
+Source/output storage, cardinality, names, selection affinity, cancellation,
+and every computed value are validated before the immutable output is exposed.
+
+Time is O(points + vertices + primitives + internal triangles + source-width *
+incidence) and auxiliary storage is linear. The component traversal computes
+each edge/triangle weight once per point instead of rescanning incidence for
+each tuple component. All point, metric, validation, and output ranges are
+disjoint and deterministic; exact one/four-domain PDK/SOP fields and
+byte-identical headless framebuffers cover signed, positive, and uniform modes.
+Constant null-space, planar linear precision, the octahedron
+`delta P = -2 H n` identity from scales `1e-150` through `1e150`,
+scalar/tuple/integer storage, point groups,
+malformed topology, and cancellation are direct regressions. Extracting the
+shared metric retained the previous curvature hashes and improved the measured
+million-point curvature medians, so reuse introduced no fidelity or performance
+regression.
+
+The release benchmark command is:
+
+```sh
+dune build --profile release tools/bench_laplacian.exe
+PRISMEL_BENCH_DOMAINS=1 PRISMEL_LAPLACIAN_POINTS=1000000 \
+  PRISMEL_LAPLACIAN_REPEATS=3 _build/default/tools/bench_laplacian.exe
+PRISMEL_BENCH_DOMAINS=4 PRISMEL_LAPLACIAN_POINTS=1000000 \
+  PRISMEL_LAPLACIAN_REPEATS=3 _build/default/tools/bench_laplacian.exe
+```
+
+On the same OCaml 5.3.0 release-profile host, a 1,000,000-point,
+1,000,000-quad torus with a float3 `P` source produced:
+
+| Workload | 1 domain | 4 domains | Wall reduction | Exact hash |
+| --- | ---: | ---: | ---: | ---: |
+| Pointwise signed cotangent | 0.471 s | 0.280 s | 40.6% | `-8996758845128957858` |
+| Pointwise positive cotangent | 0.475 s | 0.281 s | 40.8% | `7819334971099552542` |
+| Uniform neighbor average | 0.165 s | 0.132 s | 19.8% | `6174720405700189381` |
+
+Median calling-domain allocation was 625/391 MB for signed and positive
+cotangent, and 73/73 MB for uniform one/four-domain
+runs; worker-domain minor allocation is not included in that counter. Major
+allocation was about 289 MB for metric modes and 73 MB for uniform. A cold
+four-domain process running all three cases once peaked at 826,196 KiB RSS.
+Replacing polymorphic float `max` in the positive-cotangent incidence loop
+removed 48 MB of measured allocation at 250,000 points without changing its
+hash.
+
 ### Triangulate 2D
 
 `Ops.triangulate_2d` is the first public adapter over the shared packed
@@ -4546,9 +4618,18 @@ The design was checked through 2026-08-04 against SideFX's primary documentation
 - [Labs Measure Curvature](https://www.sidefx.com/docs/houdini/nodes/sop/labs--measure_curvature-3.0.html)
   for the exposed curvature families, smoothing, visualization, and modeling
   uses;
+- [Measure 2.0](https://www.sidefx.com/docs/houdini/nodes/sop/measure.html)
+  for attribute Laplacian, integrated/area-divided output, and its smoothing
+  and sharpening interpretation;
+- [Laplacian](https://www.sidefx.com/docs/houdini/nodes/sop/laplacian.html)
+  for cotangent and Tutte weight policy, mass separation, and the distinct
+  sparse-matrix output use case;
 - [Meyer, Desbrun, Schroder, and Barr, Discrete Differential-Geometry Operators for Triangulated 2-Manifolds](https://authors.library.caltech.edu/records/0rsjd-50h08)
   for mixed Voronoi areas, cotangent Laplace-Beltrami mean curvature, and angle
   defect Gaussian curvature;
+- [Wardetzky et al., Discrete Laplace Operators: No Free Lunch](https://diglib.eg.org/items/43d99127-69ae-464d-aa71-497b72b41a0b)
+  for the incompatible symmetry, locality, linear-precision, positivity, and
+  convergence properties that motivate explicit signed/positive/uniform modes;
 - [Point Generate](https://www.sidefx.com/docs/houdini/nodes/sop/pointgenerate.html)
   for origin and input-point emission, count scaling versus probability,
   original-point retention, attribute-copy patterns, generated grouping, and

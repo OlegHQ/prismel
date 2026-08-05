@@ -1182,6 +1182,18 @@ val measure_curvature :
    point fields through the shared packed PDK curvature kernel. The default
    writes signed mean curvature to [curvature]. A point group limits output
    replacement while metric estimation remains topology-complete. *)
+
+val attribute_laplacian :
+  ?label:string ->
+  ?point_group:string ->
+  ?weighting:Pdk.Ops.laplacian_weighting ->
+  ?normalize:bool ->
+  source:string ->
+  ?output:string ->
+  Node.t -> Node.t
+(* Apply the shared packed surface Laplacian to a point numeric field or [P].
+   Cotangent, non-negative cotangent, and uniform graph weights are available;
+   normalization selects pointwise versus integrated output. *)
 val polyframe :
   ?label:string -> ?selection:element_group -> ?orthogonal:bool ->
   ?left_handed:bool -> ?normal_attribute:string ->

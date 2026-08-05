@@ -105,6 +105,11 @@ type curvature_outputs = {
 
 val default_curvature_outputs : curvature_outputs
 
+type laplacian_weighting =
+  | Laplacian_cotan
+  | Laplacian_positive_cotan
+  | Laplacian_uniform
+
 type polyframe_style =
   | First_edge
   | Two_edges
@@ -2690,6 +2695,38 @@ val measure_curvature :
     reductions, smoothing, and output fills use deterministic disjoint ranges.
     Stable point-to-triangle CSR reduction order makes one- and multi-domain
     results bit-identical. *)
+
+val attribute_laplacian :
+  ?cancel:Cancel.t ->
+  ?grain:int ->
+  ?points:Group.t ->
+  ?weighting:laplacian_weighting ->
+  ?normalize:bool ->
+  source:string ->
+  ?output:string ->
+  Geometry.t ->
+  (Geometry.t, Error.t) result
+(** Apply a discrete surface Laplacian to a point-owned scalar, integer,
+    float2, float3, or float4 field. Canonical [P] is also accepted as a
+    read-only float3 source. The default output is [<source>_laplacian], or
+    [laplacian] for [P]. Existing compatible output values outside [points]
+    remain bit-identical.
+
+    [Laplacian_cotan] uses signed cotangent weights and is the default.
+    [Laplacian_positive_cotan] clamps negative per-triangle contributions to
+    enforce non-negative neighbor influence at the cost of linear precision.
+    [Laplacian_uniform] uses the topology-edge graph. With [normalize=true],
+    cotangent output is divided by Meyer mixed area in world units and uniform
+    output is divided by valence; with [false], both return their integrated
+    weighted sums. The sign convention is neighbor minus center, suitable for
+    adding a small positive multiple to smooth a field.
+
+    The input must be a consistently wound polygon-only 2-manifold. Cotangent
+    modes additionally require finite positions and representable non-degenerate
+    stable polygon triangulation. Time and auxiliary storage are linear in
+    points, corners, primitives, internal triangles, source width, and topology
+    edges. Metric preparation and point/component output use deterministic
+    disjoint ranges; stable incidence order makes domain count irrelevant. *)
 
 val polyframe :
   ?cancel:Cancel.t -> ?grain:int -> ?selection:deform_selection ->

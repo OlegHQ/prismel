@@ -91,6 +91,14 @@ manifold diagnostics remain graph-boundary concerns; triangulation, incidence,
 metric estimation, smoothing, and output preservation are not reimplemented in
 the cook closure. The operation is static and topology-preserving.
 
+`Sop.attribute_laplacian` uses the same PDK-owned surface metric and topology
+index as curvature. Its identity contains the point group, weighting,
+normalization, source, and output names. The cook closure resolves only the
+named point group and delegates numeric storage conversion, manifold checks,
+stable polygon triangulation, mixed-area normalization, incidence reduction,
+and immutable output replacement to PDK. It is static and topology-preserving;
+no matrix or solver state is hidden in the procedural session.
+
 ## Context, parameters, and determinism
 
 The target-neutral context contains finite time, frame number, immutable seed,
@@ -863,6 +871,12 @@ The design was checked through 2026-08-04 against SideFX's primary documentation
 - [Labs Measure Curvature](https://www.sidefx.com/docs/houdini/nodes/sop/labs--measure_curvature-3.0.html)
   for the artist-facing mean/Gaussian/principal curvature intent, smoothing,
   visualization, and downstream scatter/reduction use;
+- [Measure 2.0](https://www.sidefx.com/docs/houdini/nodes/sop/measure.html)
+  for scalar/vector attribute Laplacian intent, integrated versus area-divided
+  output, and smoothing/sharpening use;
+- [Laplacian](https://www.sidefx.com/docs/houdini/nodes/sop/laplacian.html)
+  for cotangent and uniform/Tutte weighting distinctions and the explicitly
+  separate sparse-matrix/linear-solver boundary;
 - [Garland and Heckbert's QEM paper](https://www.cs.cmu.edu/~garland/Papers/quadrics.pdf)
   for compact ten-coefficient face-plane quadrics and iterative contraction,
   and [Papageorgiou et al.](https://doi.org/10.1371/journal.pone.0255832)

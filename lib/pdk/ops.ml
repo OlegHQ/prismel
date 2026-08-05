@@ -288,6 +288,10 @@ type curvature_outputs = Curvature.outputs = {
   shape_index : string option;
 }
 let default_curvature_outputs = Curvature.default_outputs
+type laplacian_weighting = Laplacian.weighting =
+  | Laplacian_cotan
+  | Laplacian_positive_cotan
+  | Laplacian_uniform
 type polyframe_style = Polyframe.style =
   | First_edge
   | Two_edges
@@ -5268,6 +5272,11 @@ let measure_curvature ?cancel ?grain ?points ?boundary ?smoothing_iterations
     ?smoothing_strength ?outputs geometry =
   Curvature.run ?cancel ?grain ?points ?boundary ?smoothing_iterations
     ?smoothing_strength ?outputs geometry
+
+let attribute_laplacian ?cancel ?grain ?points ?weighting ?normalize ~source
+    ?output geometry =
+  Laplacian.run ?cancel ?grain ?points ?weighting ?normalize ~source ?output
+    geometry
 
 let polyframe ?cancel ?grain ?selection ?orthogonal ?left_handed ?normal_attribute
     ?tangent_attribute ?bitangent_attribute style geometry =
@@ -11966,6 +11975,13 @@ let measure_curvature ?cancel ?grain ?points ?boundary ?smoothing_iterations
   protected "measure_curvature" "invalid_curvature" (fun () ->
     measure_curvature_raw ?cancel ?grain ?points ?boundary
       ?smoothing_iterations ?smoothing_strength ?outputs geometry)
+
+let attribute_laplacian_raw = attribute_laplacian
+let attribute_laplacian ?cancel ?grain ?points ?weighting ?normalize ~source
+    ?output geometry =
+  protected "attribute_laplacian" "invalid_laplacian" (fun () ->
+    attribute_laplacian_raw ?cancel ?grain ?points ?weighting ?normalize
+      ~source ?output geometry)
 
 let polyframe_raw = polyframe
 let polyframe ?cancel ?grain ?selection ?orthogonal ?left_handed ?normal_attribute
