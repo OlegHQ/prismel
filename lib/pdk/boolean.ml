@@ -12,6 +12,16 @@ let bind result next = match result with
   | Ok value -> next value
   | Error _ as failure -> failure
 
+let has_corner_payload geometry =
+  Array.exists (fun attribute -> match Attribute.owner attribute with
+    | Attribute.Point | Attribute.Vertex -> true
+    | Attribute.Primitive | Attribute.Detail -> false)
+    (Geometry.Private.attributes geometry)
+  || List.exists (fun group -> match Group.owner group with
+    | Group.Point | Group.Vertex -> true
+    | Group.Primitive -> false) (Geometry.groups geometry)
+  || Geometry.edge_groups geometry <> []
+
 let run ?cancel ?(grain = 16_384) ?(operation = Union)
     ?(left_treatment = Solid) ?(right_treatment = Solid)
     ?(resolve_left_self_intersections = false)
@@ -59,7 +69,8 @@ let run ?cancel ?(grain = 16_384) ?(operation = Union)
       | Xor -> Boolean_solid.Xor
       | Shatter -> invalid_arg "Shatter has no single product expression" in
     let left_kind = treatment left_treatment
-    and right_kind = treatment right_treatment in
+    and right_kind = treatment right_treatment
+    and corner_payload = has_corner_payload left || has_corner_payload right in
     let require_closed = match require_closed with
       | Some value -> value
       | None -> left_kind = Boolean_solid.Solid
@@ -80,7 +91,8 @@ let run ?cancel ?(grain = 16_384) ?(operation = Union)
       (fun prepared ->
         let extracted = if operation = Shatter then
             bind (Boolean_solid.shatter_with_ancestry ?cancel
-                ~require_closed:false ~defer_rounded_slivers:true prepared) (fun pieces ->
+                ~require_closed:false ~defer_rounded_slivers:true
+                ~corner_payload prepared) (fun pieces ->
               bind (Boolean_extract.Private.concatenate_ancestries ?cancel pieces)
                 (fun ancestry ->
                   let counts = Array.map (fun piece -> Geometry.primitive_count
@@ -88,6 +100,7 @@ let run ?cancel ?(grain = 16_384) ?(operation = Union)
                   Ok (ancestry, Some counts)))
           else bind (Boolean_solid.extract_product_with_ancestry ?cancel
               ~require_closed:false ~defer_rounded_slivers:true
+              ~corner_payload
               ~operation:(product operation) prepared)
               (fun ancestry -> Ok (ancestry, None)) in
         bind extracted (fun (ancestry, shatter_counts) ->
@@ -96,70 +109,75 @@ let run ?cancel ?(grain = 16_384) ?(operation = Union)
                 let point_conflict = match point_conflict with
                   | Reject -> Boolean_payload.Reject
                   | Promote_to_vertex -> Boolean_payload.Promote_to_vertex in
-                bind (Boolean_payload.copy_points_and_vertices ?cancel ~grain
-                    ~point_conflict ~point_tolerance ancestry primitive_payload)
+                bind (if corner_payload then
+                    Boolean_payload.copy_points_and_vertices ?cancel ~grain
+                      ~point_conflict ~point_tolerance ancestry primitive_payload
+                  else Ok primitive_payload)
                   (fun payload ->
-                    bind (Boolean_solid.seams ?cancel ~grain prepared)
-                      (fun seams ->
+                    let finalize source geometry = match shatter_counts with
+                      | None -> Ok geometry
+                      | Some counts ->
+                          let first_overlap = counts.(0)
+                          and first_right = counts.(0) + counts.(1) in
+                          let add name predicate geometry = match name with
+                            | None -> Ok geometry
+                            | Some name ->
+                                let group = Group.init ~grain
+                                    ~owner:Group.Primitive ~name
+                                    (Geometry.primitive_count geometry)
+                                    (fun primitive -> predicate (source primitive)) in
+                                Geometry.with_group group geometry
+                                |> Result.map_error (fun message ->
+                                  Error.make ~operation:"boolean"
+                                    ~code:"invalid_output" message) in
+                          bind (add left_piece_group
+                              (fun value -> value < first_overlap) geometry)
+                            (fun geometry ->
+                              bind (add overlap_piece_group
+                                  (fun value -> value >= first_overlap
+                                    && value < first_right) geometry)
+                                (fun geometry -> add right_piece_group
+                                  (fun value -> value >= first_right) geometry)) in
+                    let finish_cleanup cleanup =
+                      let detriangulated = match detriangulation with
+                        | Triangles -> Ok cleanup
+                        | Unchanged_polygons ->
+                            Boolean_materialization.detriangulate ?cancel
+                              ~grain ~assume_flat
+                              ~mode:Boolean_materialization.Unchanged_polygons
+                              ancestry cleanup
+                        | All_polygons ->
+                            Boolean_materialization.detriangulate ?cancel
+                              ~grain ~assume_flat
+                              ~mode:Boolean_materialization.All_polygons
+                              ancestry cleanup in
+                      bind detriangulated (fun cleanup ->
+                        let split = match seam_points with
+                          | Shared_seam_points -> Ok cleanup
+                          | Split_seam_points ->
+                              Boolean_materialization.split_seam_points
+                                ?cancel ~grain cleanup in
+                        bind split (fun cleanup ->
+                          finalize
+                            (Boolean_materialization.cleanup_primitive_source cleanup)
+                            (Boolean_materialization.cleanup_geometry cleanup))) in
+                    let cleanup () =
+                      bind (Boolean_solid.seams ?cancel ~grain ~materialize:false
+                          prepared) (fun seams ->
                         bind (Boolean_materialization.collapse_tiny_seams
                             ?cancel ~grain ~threshold:tiny_seam_threshold
                             ~require_closed ~allow_opposite_duplicates
                             ~max_batches:cleanup_max_batches
                             ~strict:strict_cleanup ancestry seams payload)
-                          (fun cleanup ->
-                            let detriangulated = match detriangulation with
-                              | Triangles -> Ok cleanup
-                              | Unchanged_polygons ->
-                                  Boolean_materialization.detriangulate ?cancel
-                                    ~grain ~assume_flat
-                                    ~mode:Boolean_materialization.Unchanged_polygons
-                                    ancestry cleanup
-                              | All_polygons ->
-                                  Boolean_materialization.detriangulate ?cancel
-                                    ~grain ~assume_flat
-                                    ~mode:Boolean_materialization.All_polygons
-                                    ancestry cleanup in
-                            bind detriangulated (fun cleanup ->
-                              let split = match seam_points with
-                                | Shared_seam_points -> Ok cleanup
-                                | Split_seam_points ->
-                                    Boolean_materialization.split_seam_points
-                                      ?cancel ~grain cleanup in
-                              match split with
-                              | Error _ as failure -> failure
-                              | Ok cleanup ->
-                                  let geometry =
-                                    Boolean_materialization.cleanup_geometry cleanup in
-                                  match shatter_counts with
-                                  | None -> Ok geometry
-                                  | Some counts ->
-                                      let first_overlap = counts.(0)
-                                      and first_right = counts.(0) + counts.(1) in
-                                      let add name predicate geometry = match name with
-                                        | None -> Ok geometry
-                                        | Some name ->
-                                            let group = Group.init ~grain
-                                                ~owner:Group.Primitive ~name
-                                                (Geometry.primitive_count geometry)
-                                                (fun primitive ->
-                                                  let source =
-                                                    Boolean_materialization.cleanup_primitive_source
-                                                      cleanup primitive in
-                                                  predicate source) in
-                                            Geometry.with_group group geometry
-                                            |> Result.map_error (fun message ->
-                                              Error.make ~operation:"boolean"
-                                                ~code:"invalid_output" message) in
-                                      bind (add left_piece_group
-                                          (fun source -> source < first_overlap)
-                                          geometry) (fun geometry ->
-                                        bind (add overlap_piece_group
-                                            (fun source -> source >= first_overlap
-                                              && source < first_right) geometry)
-                                          (fun geometry ->
-                                            add right_piece_group
-                                              (fun source -> source >= first_right)
-                                              geometry)))))))))
+                          finish_cleanup) in
+                    if tiny_seam_threshold = 0.
+                        && detriangulation = Triangles
+                        && seam_points = Shared_seam_points then
+                      bind (Boolean_materialization.verify_unchanged_extraction
+                          ?cancel ~grain ~require_closed ~allow_opposite_duplicates
+                          ancestry payload) (fun accepted ->
+                        if accepted then finalize Fun.id payload else cleanup ())
+                    else cleanup ()))))
     end
   end
 

@@ -6,6 +6,7 @@ type kind = Left_self | Between | Right_self
 
 type t = {
   complex : Boolean_complex.t;
+  curves_materialized : bool;
   curves : Geometry.t;
   coincident : Geometry.t;
   edge_kinds : bytes;
@@ -128,6 +129,9 @@ let geometry ~x ~y ~z topology =
       ~positions:(Packed.Float3.Private.of_owned_exn ~x ~y ~z) ~topology () with
   | Ok geometry -> geometry
   | Error message -> invalid_arg message
+
+let empty_geometry () =
+  geometry ~x:[||] ~y:[||] ~z:[||] (Topology.empty ~point_count:0)
 
 let verify_curves_raw ?cancel ~grain curves =
   if grain <= 0 then error "invalid_parameter" "grain must be positive"
@@ -388,7 +392,8 @@ let materialize_curves ?cancel complex edge_kinds =
   geometry ~x ~y ~z topology, curve_kinds, curve_edge_offsets, curve_edges,
   !materialized_selected
 
-let build ?cancel ?(grain = 16_384) ?(parallel_cutoff = 200_000) complex =
+let build ?cancel ?(grain = 16_384) ?(parallel_cutoff = 200_000)
+    ?(materialize = true) complex =
   if grain <= 0 then error "invalid_parameter" "grain must be positive"
   else if parallel_cutoff <= 0 then
     error "invalid_parameter" "parallel_cutoff must be positive"
@@ -457,15 +462,20 @@ let build ?cancel ?(grain = 16_384) ?(parallel_cutoff = 200_000) complex =
             range_selected.(range) <- classify_range first_edge last_edge);
         ignore (Array.fold_left ( + ) 0 range_selected)
       end;
-    let curves, curve_kinds, curve_edge_offsets, curve_edges, materialized_selected =
-      materialize_curves ?cancel complex edge_kinds in
-    validate_curve_ancestry ?cancel edge_count materialized_selected curves curve_kinds
-      curve_edge_offsets curve_edges;
-    (match verify_curves ?cancel ~grain curves with
-     | Ok () -> () | Error failure -> raise (Materialization_error failure));
-    let coincident = materialize_coincident ?cancel complex facet_masks in
+    let curves, curve_kinds, curve_edge_offsets, curve_edges, coincident =
+      if materialize then begin
+        let curves, curve_kinds, curve_edge_offsets, curve_edges,
+            materialized_selected = materialize_curves ?cancel complex edge_kinds in
+        validate_curve_ancestry ?cancel edge_count materialized_selected curves
+          curve_kinds curve_edge_offsets curve_edges;
+        (match verify_curves ?cancel ~grain curves with
+         | Ok () -> () | Error failure -> raise (Materialization_error failure));
+        curves, curve_kinds, curve_edge_offsets, curve_edges,
+          materialize_coincident ?cancel complex facet_masks
+      end else
+        empty_geometry (), Bytes.empty, [|0|], [||], empty_geometry () in
     Ok {
-      complex; curves; coincident; edge_kinds;
+      complex; curves_materialized = materialize; curves; coincident; edge_kinds;
       curve_kinds; curve_edge_offsets; curve_edges;
     }
   with
@@ -475,6 +485,7 @@ let build ?cancel ?(grain = 16_384) ?(parallel_cutoff = 200_000) complex =
 
 module Private = struct
   let complex value = value.complex
+  let curves_materialized value = value.curves_materialized
   let is_seam_edge value edge =
     if edge < 0 || edge >= Bytes.length value.edge_kinds then
       invalid_arg "Boolean seam edge is out of bounds";

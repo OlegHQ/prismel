@@ -209,21 +209,33 @@ let make source construction homogeneous =
     }
   else Error Non_finite_approximation
 
+let make_deferred_explicit source construction x y z = {
+  source;
+  construction;
+  homogeneous = Atomic.make None;
+  approximate_x = x;
+  approximate_y = y;
+  approximate_z = z;
+  x_lower = x;
+  x_upper = x;
+  y_lower = y;
+  y_upper = y;
+  z_lower = z;
+  z_upper = z;
+  x_error = 0.;
+  y_error = 0.;
+  z_error = 0.;
+}
+
 let explicit source index =
   if not (valid_index source index) then Error (Index_out_of_bounds index)
-  else begin
-    let hx, hy, hz = exact_at source index in
-    make source (Explicit index)
-      { hx; hy; hz; hw = Exact.of_float 1. }
-  end
+  else Ok (make_deferred_explicit source (Explicit index)
+      source.x.(index) source.y.(index) source.z.(index))
 
 let rounded ~reference ~x ~y ~z =
   if not (Float.is_finite x && Float.is_finite y && Float.is_finite z) then
     Error Non_finite_approximation
-  else make reference.source (Rounded { x; y; z }) {
-    hx = Exact.of_float x; hy = Exact.of_float y; hz = Exact.of_float z;
-    hw = Exact.of_float 1.;
-  }
+  else Ok (make_deferred_explicit reference.source (Rounded { x; y; z }) x y z)
 
 let first_invalid source indices =
   let invalid = ref None and index = ref 0 in

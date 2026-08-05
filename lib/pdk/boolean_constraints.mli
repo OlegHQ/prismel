@@ -8,13 +8,16 @@ val build :
   ?cancel:Cancel.t ->
   ?resolve_left_self_intersections:bool ->
   ?resolve_right_self_intersections:bool ->
+  ?ignore_opposite_duplicate_self_pairs:bool ->
+  ?ignore_shared_point_self_pairs:bool ->
   grain:int -> left:Geometry.t -> right:Geometry.t ->
   unit -> (t, Error.t) result
 (** Build a deterministic exact non-coplanar arrangement plan. Broad-phase
     AABBs are followed by exact predicates; ordinary classification is
     parallel over stable candidate ranges. Self-intersection resolution is an
     explicit per-input policy and defaults to [false], preserving the
-    allocation-minimal clean-input path. *)
+    allocation-minimal clean-input path. Shared-point omission is reserved for
+    callers that separately certify the omitted local vertex fans. *)
 
 val point_count : t -> int
 val approximate_point : t -> int -> float * float * float
@@ -44,6 +47,7 @@ val coplanar_second_triangle : t -> int -> int
 val coplanar_left_triangle : t -> int -> int
 val coplanar_right_triangle : t -> int -> int
 val degenerate_pair_count : t -> int
+val candidate_pair_count : t -> int
 
 module Private : sig
   val left_geometry : t -> Geometry.t
@@ -54,6 +58,8 @@ module Private : sig
   val right_surface : t -> Surface_index.t
   val point : t -> int -> Implicit_point.t
   val source : t -> Implicit_point.source
+  val source_point_count : t -> int
+  val source_point : t -> int -> Implicit_point.t
   val left_triangle_point : t -> int -> int -> int
   val right_triangle_point : t -> int -> int -> int
   val triangle_point : t -> side -> int -> int -> int

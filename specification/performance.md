@@ -473,6 +473,40 @@ use locally owned mutation and packed storage without exposing mutable aliases.
       tools/bench_boolean_product.exe
   # Repeat with PRISMEL_BENCH_DOMAINS=4; hashes must match.
   ```
+- The Hython clean-room scale harness also compares the full release product
+  against Houdini 22.0.368 on the same triangulated operands. On an Apple M1
+  (8 cores, 16 GiB), macOS 26.2, OCaml 5.3.0, and Dune 3.24.1, the 50-plane
+  centered shattered cube takes 0.346 s in Prismel versus a 0.355 s Houdini
+  median fresh-node cook. The jittered 50-plane case, which produces about
+  176,000 triangles, takes 2.702 s versus 3.006 s. The dense VDB-remeshed
+  pig-head/rubber-toy difference remains the open performance gate: at about
+  87,000 input triangles Prismel takes 0.308 s versus 0.222 s, and at about
+  244,000 input triangles it takes 0.922 s versus 0.443 s. The 244,000-input
+  result is closed, exactly identical between one and eight domains, has the
+  same 93,721-point/187,446-triangle cardinality as Houdini, and differs by at
+  most 2.98e-8 in the canonical triangle-coordinate comparison. Prismel's
+  measured 87,000-to-244,000 time exponent is 1.064 and allocation exponent is
+  0.954, so the remaining issue is constant work rather than evidence of
+  superlinear growth over that interval.
+
+  The next optimization pass must first split
+  `verify_unchanged_extraction` into measured materialized-value, closed
+  incidence, exact orientation, duplicate-facet, verification-index,
+  candidate-traversal, and exact narrow-phase costs. The leading hypothesis is
+  redundant construction and traversal of a general whole-output
+  `Surface_index` after extraction. Test a verification-specific packed index,
+  reuse of extraction ancestry/index data, or safe overlap with independent
+  payload work; retain all exact post-rounding orientation, duplicate,
+  incidence, and non-adjacent-contact guarantees. Do not accept a faster path
+  until output hashes, one/eight-domain identity, closure, canonical surface
+  error, and the six-level exponent gate remain unchanged.
+
+  ```sh
+  python3 tools/houdini/compare_dense_boolean.py \
+    /tmp/prismel-dense-boolean
+  python3 tools/houdini/compare_dense_boolean.py \
+    /tmp/prismel-dense-boolean --reuse-existing
+  ```
 - The Boolean stability runner's standard-density campaign additionally covers
   mandatory binary64 representability repair on an explicitly self-resolved
   seven-torus cutter bank. All 24 products are exact between one and four

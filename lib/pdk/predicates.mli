@@ -167,4 +167,12 @@ module Private : sig
       The output needs length four. Returns [-2] for a degenerate triangle,
       [-1] for coplanar triangles, or the event count [0..2]. The encoding is
       private and allocation-free on the certified predicate path. *)
+
+  val coplanar_triangles_contact_packed :
+    x:float array -> y:float array -> z:float array ->
+    left_a:int -> left_b:int -> left_c:int ->
+    right_a:int -> right_b:int -> right_c:int -> bool
+  (** Exact closed contact between two certified nondegenerate coplanar
+      triangles. This is the allocation-bounded verifier path after
+      [triangle_triangle_features_into] returns [-1]. *)
 end

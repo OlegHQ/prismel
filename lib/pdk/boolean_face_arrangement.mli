@@ -36,4 +36,5 @@ val segment_second : t -> int -> int
 
 module Private : sig
   val point : t -> int -> Implicit_point.t
+  val point_handle : t -> int -> int
 end

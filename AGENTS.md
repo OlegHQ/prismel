@@ -22,6 +22,10 @@ and deterministic headless execution.
 - `lib/procedural/` owns immutable SOP graphs and consumes `pdk` operations.
 - `examples/<project>/` contains self-contained example executables. Give every
   example its own `dune` file and keep shared framework code out of examples.
+- `sketches/<project>/` contains experimental creative-coding executables.
+  Give every sketch its own `dune` file, keep experiments out of the public
+  library surface, and prefer `Sketch`, `Scene`, and immutable SOP graphs.
+  Sketches must remain finite under the headless render target.
 - `test/` contains automated tests, including headless integration tests.
 - `specification/` contains design notes. Update it when behavior or architecture
   changes materially.
@@ -355,6 +359,100 @@ cleanup step.
   before/after evidence. Do not claim “zero allocation”, “linear”, “parallel”,
   or “production-ready” without measurement or code-level proof.
 
+## Houdini reference workflow
+
+Use SideFX Houdini through `hython` as a black-box behavioral and performance
+reference for in-scope polygon/curve SOP work. This is a clean-room workflow:
+observe documented controls and externally visible results, write an independent
+behavioral specification and fixtures, then implement that specification in
+Prismel's PDK core without consulting or reproducing Houdini implementation
+details.
+
+- Houdini may be used to generate input/output fixtures, geometry summaries,
+  attribute and group results, error cases, timings, and screenshots for
+  comparison. Public SideFX documentation may clarify user-visible semantics.
+- Never decompile, disassemble, trace private implementation internals, extract
+  proprietary code or assets, or translate Houdini binaries/scripts into the
+  repository. Do not claim knowledge of Houdini's internal algorithm from
+  black-box observations.
+- Record the exact Houdini build, license category, node type/version, complete
+  parameter set, input fixture, frame, seed, and relevant environment settings
+  for every comparison. Houdini Apprentice output is non-commercial reference
+  material; do not commit `.hipnc` files or other license-restricted artifacts
+  unless their redistribution terms have been explicitly reviewed.
+- Prefer small deterministic fixtures serialized through an independently
+  readable format or summarized as stable JSON/text: point positions, topology,
+  primitive kinds and ordering, attributes, groups, bounds, volume, and error
+  classification. Normalize only fields explicitly documented as unstable.
+- Keep reference capture separate from implementation. A parity test should be
+  understandable from its behavioral fixture without requiring Houdini at test
+  time. Never make ordinary builds or CI depend on a Houdini installation.
+- Test ordinary, boundary, malformed, empty, one-domain, multi-domain, and
+  adversarial degeneracy cases. A matching screenshot alone is not exact SOP
+  parity; compare topology and payload where the reference exposes them.
+- Performance comparisons must use equivalent geometry, parameters, output
+  materialization, warm-up, and machine conditions. Report Houdini and Prismel
+  timings separately with sample count and dispersion. Houdini UI time, node
+  creation, file I/O, and cook time must not be mixed silently. Do not claim an
+  algorithmic match or performance parity from timing similarity.
+
+The currently installed macOS reference is Houdini Apprentice 22.0.368. Its
+`hython` is not assumed to be on `PATH`; invoke it explicitly:
+
+```sh
+PRISMEL_HYTHON='/Applications/Houdini/Houdini22.0.368/Frameworks/Houdini.framework/Versions/22.0/Resources/bin/hython'
+"$PRISMEL_HYTHON" -c 'import hou; print(hou.applicationVersionString()); print(hou.licenseCategory().name())'
+"$PRISMEL_HYTHON" tools/houdini/<script>.py -- <arguments>
+```
+
+For an interactive shell that needs the complete Houdini environment, source
+the matching setup script in a disposable shell rather than adding a
+version-specific directory permanently to the repository environment:
+
+```sh
+source '/Applications/Houdini/Houdini22.0.368/Frameworks/Houdini.framework/Versions/22.0/Resources/houdini_setup'
+hython
+```
+
+Reference scripts belong under `tools/houdini/`. They must run headlessly,
+create their own temporary scene, set every relevant parameter explicitly,
+print or write deterministic machine-readable results, destroy temporary state
+when practical, and exit nonzero on capture or validation failure. Keep any
+machine-local output under ignored temporary/artifact directories, not beside
+source fixtures.
+
+Dense Boolean work must run the pig-head/rubber-toy VDB-remesh scale gate in
+addition to small degeneracy fixtures. Generate or reuse machine-local operands
+and run the complete comparison with:
+
+```sh
+python3 tools/houdini/compare_dense_boolean.py /tmp/prismel-dense-boolean
+python3 tools/houdini/compare_dense_boolean.py /tmp/prismel-dense-boolean --reuse-existing
+```
+
+The default voxel sweep reaches 0.015 and roughly a quarter-million input
+triangles on Houdini 22's built-in pig-head/rubber-toy sources. Do not shorten
+it to a small-only sweep when making production scaling claims; use `--voxels`
+explicitly only for focused iteration and report that reduced range. The
+comparison defaults Prismel to Dune's `release` profile and records the profile
+in its JSON report; use `--profile dev` only for diagnostic iteration and never
+mix profiles in a before/after series.
+
+The reference triangulates both VDB-remeshed operands before serialization and
+before either Boolean. Do not compare the engines on slightly non-planar VDB
+quads: engine-specific diagonal selection changes the represented surface and
+invalidates geometry/parity conclusions. The harness must retain separate
+Houdini first-process-cook, median fresh-node, and cached warm-recook timings,
+plus Prismel fresh-cook timing, candidate counts, one-domain/multi-domain
+exactness, closed two-manifold checks, output cardinality, canonical
+triangle-coordinate agreement, volume agreement, and allocated bytes. Compare
+Prismel timing to Houdini's median fresh-node cook; never present cached
+recooks as an equivalent algorithm execution. A linear-scale claim requires at
+least three distinct increasing triangle-count levels and reported log-log
+time, candidate, and allocation exponents. The default gate rejects a Prismel
+time, candidate, or allocation exponent above 1.2, or a corresponding
+surface-coordinate error above 1e-6.
+
 ## Development workflow
 
 Bootstrap a checkout with a repository-local OCaml 5 switch:
@@ -435,3 +533,13 @@ Use the repository scaffold for the standard shape:
 ```sh
 dune exec tools/new_example.exe -- <name>
 ```
+
+## Adding a sketch
+
+Create `sketches/<name>/dune` and `sketches/<name>/main.ml`. Sketches are the
+repository's workspace for visual and procedural experiments: they may be more
+exploratory than examples, but must respect library dependency direction and
+must not hide reusable framework code in the sketch directory. Prefer SOP
+graphs for procedural geometry, deterministic seeds for generative work, an
+`Easy_camera` for interactive 3D views, and explicit termination when running
+headless.

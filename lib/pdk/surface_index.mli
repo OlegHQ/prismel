@@ -64,6 +64,13 @@ module Private : sig
     | Sample_shortest
     | Sample_longest
 
+  val create_validated_triangles :
+    ?cancel:Cancel.t -> grain:int -> Geometry.t -> (t, Error.t) result
+  (** Build directly from geometry already certified finite, nondegenerate,
+      polygon-triangle-only, and three-corners-per-primitive by the caller.
+      This is a narrow internal ownership boundary, not a validation bypass
+      for arbitrary inputs. *)
+
   val closest_many_into :
     ?cancel:Cancel.t -> ?selection:Group.t -> ?position_indices:int array ->
     grain:int -> t ->
@@ -109,6 +116,23 @@ module Private : sig
   (** Return each unordered pair of bounds-overlapping internal triangles once,
       excluding pairs generated from the same source primitive. This removes
       triangulation diagonals before self-intersection narrow-phase testing. *)
+
+  val overlapping_triangle_pairs_exact_candidates :
+    ?cancel:Cancel.t -> grain:int -> tolerance:float -> t -> t ->
+    int array * int array
+  val overlapping_self_triangle_pairs_exact_candidates :
+    ?cancel:Cancel.t -> grain:int -> tolerance:float -> t ->
+    int array * int array
+  (** As above, with an additional filtered-exact triangle/plane rejection.
+      A pair is removed only when one triangle's vertices are all provably on
+      one strict side of the other's supporting plane. *)
+
+  val overlapping_self_triangle_pairs_disjoint_topology :
+    ?cancel:Cancel.t -> grain:int -> tolerance:float -> t ->
+    int array * int array
+  (** Return AABB/K-DOP candidates that do not share a topology point. BVH
+      nodes whose complete subtree shares one query point are pruned before
+      descent. The caller must validate the omitted local vertex fans. *)
 
   val raycast_many_into :
     ?cancel:Cancel.t -> ?selection:Group.t -> grain:int -> t ->

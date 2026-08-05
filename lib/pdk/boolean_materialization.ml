@@ -320,6 +320,287 @@ let opposite_duplicate topology first second =
     || (a = y && b = x && c = z)
     || (a = z && b = y && c = x)
 
+let triangle_point_key topology primitive =
+  let first = topology.Topology.Private.primitive_offsets.(primitive) in
+  let a = topology.vertex_points.(first)
+  and b = topology.vertex_points.(first + 1)
+  and c = topology.vertex_points.(first + 2) in
+  if a <= b then
+    if b <= c then a, b, c
+    else if a <= c then a, c, b else c, a, b
+  else if a <= c then b, a, c
+  else if b <= c then b, c, a else c, b, a
+
+let stable_counting_pass ~key_count keys values scratch counts =
+  Array.fill counts 0 key_count 0;
+  for slot = 0 to Array.length values - 1 do
+    let key = keys.(values.(slot)) in
+    if key < 0 || key >= key_count then
+      invalid_arg "Boolean duplicate-facet point key is out of range";
+    counts.(key) <- counts.(key) + 1
+  done;
+  let total = ref 0 in
+  for key = 0 to key_count - 1 do
+    let count = counts.(key) in
+    counts.(key) <- !total;
+    total := !total + count
+  done;
+  for slot = 0 to Array.length values - 1 do
+    let primitive = values.(slot) and key = keys.(values.(slot)) in
+    scratch.(counts.(key)) <- primitive;
+    counts.(key) <- counts.(key) + 1
+  done;
+  Array.blit scratch 0 values 0 (Array.length values)
+
+let verify_duplicate_triangles ~allow_opposite_duplicates topology =
+  let primitives = Bytes.length topology.Topology.Private.primitive_kinds in
+  let key_a = Array.make primitives 0 and key_b = Array.make primitives 0
+  and key_c = Array.make primitives 0 in
+  for primitive = 0 to primitives - 1 do
+    let a, b, c = triangle_point_key topology primitive in
+    key_a.(primitive) <- a; key_b.(primitive) <- b; key_c.(primitive) <- c
+  done;
+  let ordered = Array.init primitives Fun.id
+  and scratch = Array.make primitives 0
+  and counts = Array.make topology.point_count 0 in
+  stable_counting_pass ~key_count:topology.point_count key_c ordered scratch counts;
+  stable_counting_pass ~key_count:topology.point_count key_b ordered scratch counts;
+  stable_counting_pass ~key_count:topology.point_count key_a ordered scratch counts;
+  let same first second =
+    key_a.(first) = key_a.(second)
+    && key_b.(first) = key_b.(second)
+    && key_c.(first) = key_c.(second) in
+  let failure = ref None and first = ref 0 in
+  while Option.is_none !failure && !first < primitives do
+    let last = ref (!first + 1) in
+    while !last < primitives && same ordered.(!first) ordered.(!last) do
+      incr last
+    done;
+    let count = !last - !first in
+    if count > 1 then begin
+      let a = ordered.(!first) and b = ordered.(!first + 1) in
+      if count <> 2 || not allow_opposite_duplicates
+          || not (opposite_duplicate topology a b) then
+        failure := Some (a, b)
+    end;
+    first := !last
+  done;
+  match !failure with
+  | None -> Ok ()
+  | Some (first, second) -> error "surface_self_intersection" (Printf.sprintf
+      "rounded Boolean triangles %d and %d duplicate a surface facet"
+      first second)
+
+let verify_extracted_contacts ?cancel ~grain positions topology geometry =
+  match Surface_index.Private.create_validated_triangles ?cancel ~grain geometry with
+  | Error _ as failure -> failure
+  | Ok surface ->
+      let first_candidates, second_candidates =
+        Surface_index.Private.overlapping_self_triangle_pairs_disjoint_topology
+          ?cancel ~grain ~tolerance:0. surface in
+      let candidate_count = Array.length first_candidates in
+      let ranges = (candidate_count + grain - 1) / grain in
+      let failures = Array.make ranges (-1) and failure_kinds = Bytes.make ranges '\000' in
+      if ranges > 0 then Prismel.Parallel.for_ ~chunk_size:1 ~start:0
+          ~finish:(ranges - 1) (fun range ->
+        let scratch = Array.make 4 0 in
+        let first = range * grain
+        and last = min candidate_count ((range + 1) * grain) in
+        let candidate = ref first in
+        while failures.(range) < 0 && !candidate < last do
+          if !candidate land 4095 = 0 then Cancel.check_opt cancel;
+          let left = first_candidates.(!candidate)
+          and right = second_candidates.(!candidate) in
+          let left_a = Surface_index.Private.triangle_point surface left 0
+          and left_b = Surface_index.Private.triangle_point surface left 1
+          and left_c = Surface_index.Private.triangle_point surface left 2
+          and right_a = Surface_index.Private.triangle_point surface right 0
+          and right_b = Surface_index.Private.triangle_point surface right 1
+          and right_c = Surface_index.Private.triangle_point surface right 2 in
+          let count = Predicates.Private.triangle_triangle_features_into
+              ~x:positions.Packed.Float3.Private.x ~y:positions.y ~z:positions.z
+              ~left_a ~left_b ~left_c ~right_a ~right_b ~right_c scratch in
+          if count = -2 then begin
+            failures.(range) <- !candidate;
+            Bytes.unsafe_set failure_kinds range '\001'
+          end else if count > 0 then begin
+            failures.(range) <- !candidate;
+            Bytes.unsafe_set failure_kinds range '\002'
+          end else if count = -1
+              && Predicates.Private.coplanar_triangles_contact_packed
+                   ~x:positions.x ~y:positions.y ~z:positions.z
+                   ~left_a ~left_b ~left_c ~right_a ~right_b ~right_c then begin
+            failures.(range) <- !candidate;
+            Bytes.unsafe_set failure_kinds range '\003'
+          end;
+          incr candidate
+        done) ;
+      let failure_range = ref (-1) and range = ref 0 in
+      while !failure_range < 0 && !range < ranges do
+        if failures.(!range) >= 0 then failure_range := !range;
+        incr range
+      done;
+      if !failure_range < 0 then Ok ()
+      else begin
+        let candidate = failures.(!failure_range) in
+        let first_triangle = first_candidates.(candidate)
+        and second_triangle = second_candidates.(candidate) in
+        let first = Surface_index.Private.triangle_primitive surface first_triangle
+        and second = Surface_index.Private.triangle_primitive surface second_triangle in
+        match Bytes.unsafe_get failure_kinds !failure_range with
+        | '\001' -> error "rounding_degenerate"
+            "rounded Boolean surface contains a degenerate triangle pair"
+        | '\002' ->
+            let first_min = primitive_min_edge_length positions topology first
+            and second_min = primitive_min_edge_length positions topology second in
+            error "surface_self_intersection" (Printf.sprintf
+              "rounded Boolean triangles %d and %d intersect away from ordinary shared topology (minimum edge lengths %.17g and %.17g)"
+              first second first_min second_min)
+        | _ -> error "surface_self_intersection" (Printf.sprintf
+            "rounded Boolean triangles %d and %d have non-adjacent coplanar contact"
+            first second)
+      end
+
+let verify_constraint_contacts ?cancel ~grain ~allow_opposite_duplicates
+    positions topology constraints =
+  if Boolean_constraints.degenerate_pair_count constraints > 0 then
+    error "rounding_degenerate"
+      "rounded Boolean surface contains a degenerate triangle pair"
+  else if Boolean_constraints.constraint_count constraints > 0 then
+    let first = Boolean_constraints.constraint_first_triangle constraints 0
+    and second = Boolean_constraints.constraint_second_triangle constraints 0 in
+    let first_min = primitive_min_edge_length positions topology first
+    and second_min = primitive_min_edge_length positions topology second in
+    error "surface_self_intersection" (Printf.sprintf
+      "rounded Boolean triangles %d and %d intersect away from ordinary shared topology (minimum edge lengths %.17g and %.17g)"
+      first second first_min second_min)
+  else if Boolean_constraints.coplanar_pair_count constraints = 0 then Ok ()
+  else
+    match Boolean_coplanar.build ?cancel ~grain constraints with
+    | Error _ as failure -> failure
+    | Ok coplanar ->
+        let contact = ref (-1) and pair = ref 0 in
+        while !contact < 0 && !pair < Boolean_coplanar.pair_count coplanar do
+          if Boolean_coplanar.kind coplanar !pair <> Boolean_coplanar.Empty then begin
+            let first = Boolean_coplanar.first_triangle coplanar !pair
+            and second = Boolean_coplanar.second_triangle coplanar !pair in
+            if not (allow_opposite_duplicates
+                && opposite_duplicate topology first second) then
+              contact := !pair
+          end;
+          incr pair
+        done;
+        if !contact < 0 then Ok ()
+        else
+          let first = Boolean_coplanar.first_triangle coplanar !contact
+          and second = Boolean_coplanar.second_triangle coplanar !contact in
+          error "surface_self_intersection" (Printf.sprintf
+            "rounded Boolean triangles %d and %d have non-adjacent coplanar contact"
+            first second)
+
+let verify_extracted_orientations ?cancel ~grain ancestry geometry =
+  let positions = Packed.Float3.Private.view (Geometry.positions geometry)
+  and topology = Topology.Private.view (Geometry.topology geometry)
+  and view = Boolean_extract.Private.ancestry_view ancestry
+  and complex = Boolean_extract.Private.complex ancestry in
+  let primitives = Geometry.primitive_count geometry in
+  if Array.length view.corner_complex_vertices <> primitives * 3
+      || Bytes.length view.primitive_sides <> primitives
+      || Array.length view.primitive_triangles <> primitives then
+    error "geometry_mismatch"
+      "Boolean extraction corner ancestry has the wrong cardinality"
+  else begin
+    let constraints = Boolean_complex.Private.constraints complex in
+    let source = Boolean_constraints.Private.source constraints in
+    let ranges = (primitives + grain - 1) / grain in
+    let failures = Array.make ranges (-1) in
+    if ranges > 0 then Prismel.Parallel.for_ ~chunk_size:1 ~start:0
+        ~finish:(ranges - 1)
+        (fun range ->
+      let first = range * grain and last = min primitives ((range + 1) * grain) in
+      let primitive = ref first in
+      while failures.(range) < 0 && !primitive < last do
+        if !primitive land 4095 = 0 then Cancel.check_opt cancel;
+        let offset = !primitive * 3 in
+        let a = topology.vertex_points.(offset)
+        and b = topology.vertex_points.(offset + 1)
+        and c = topology.vertex_points.(offset + 2)
+        and ea = Boolean_complex.Private.vertex complex
+            view.corner_complex_vertices.(offset)
+        and eb = Boolean_complex.Private.vertex complex
+            view.corner_complex_vertices.(offset + 1)
+        and ec = Boolean_complex.Private.vertex complex
+            view.corner_complex_vertices.(offset + 2) in
+        let triangle = view.primitive_triangles.(!primitive) in
+        let triangle_point =
+          if Bytes.unsafe_get view.primitive_sides !primitive = '\000'
+          then Boolean_constraints.Private.left_triangle_point
+          else Boolean_constraints.Private.right_triangle_point in
+        let sa = triangle_point constraints triangle 0
+        and sb = triangle_point constraints triangle 1
+        and sc = triangle_point constraints triangle 2 in
+        let exact, rounded = match
+            Implicit_point.source_triangle_projection source sa sb sc with
+          | Implicit_point.XY ->
+              Implicit_point.orient2d_xy ea eb ec,
+              Predicates.orient2d_packed ~x:positions.x ~y:positions.y a b c
+          | Implicit_point.YZ ->
+              Implicit_point.orient2d_yz ea eb ec,
+              Predicates.orient2d_packed ~x:positions.y ~y:positions.z a b c
+          | Implicit_point.ZX ->
+              Implicit_point.orient2d_zx ea eb ec,
+              Predicates.orient2d_packed ~x:positions.z ~y:positions.x a b c in
+        if exact = Predicates.Zero || exact <> rounded then
+          failures.(range) <- !primitive;
+        incr primitive
+      done);
+    let failure = ref (-1) in
+    for range = 0 to ranges - 1 do
+      if !failure < 0 && failures.(range) >= 0 then failure := failures.(range)
+    done;
+    if !failure < 0 then Ok ()
+    else error "rounding_orientation" (Printf.sprintf
+        "rounded Boolean triangle %d changed its exact extraction orientation"
+        !failure)
+  end
+
+let verify_extracted_surface ?cancel ~grain ~require_closed
+    ~allow_opposite_duplicates ancestry geometry =
+  let extracted = Boolean_extract.geometry ancestry in
+  if Geometry.positions geometry != Geometry.positions extracted
+      || Geometry.topology geometry != Geometry.topology extracted then
+    error "geometry_mismatch"
+      "fast Boolean verification requires unchanged extraction geometry"
+  else try
+    Cancel.check_opt cancel;
+    let positions = Packed.Float3.Private.view (Geometry.positions geometry)
+    and topology_value = Geometry.topology geometry in
+    let topology = Topology.Private.view topology_value in
+    match Boolean_extract.Private.validate_materialized
+        ~x:positions.x ~y:positions.y ~z:positions.z
+        ~vertex_points:topology.vertex_points () with
+    | Error failure -> error (Error.code failure)
+        ("rounded surface verification failed: " ^ Error.to_string failure)
+    | Ok () ->
+        (match if require_closed
+            then Boolean_extract.Private.validate_closed_topology topology_value
+            else Ok () with
+         | Error _ as failure -> failure
+         | Ok () ->
+             (match verify_extracted_orientations ?cancel ~grain ancestry geometry with
+              | Error _ as failure -> failure
+              | Ok () ->
+                  (match verify_duplicate_triangles ~allow_opposite_duplicates
+                      topology with
+                   | Error _ as failure -> failure
+                   | Ok () ->
+                       verify_extracted_contacts ?cancel ~grain positions topology
+                         geometry)))
+  with
+  | Cancel.Cancelled -> error "cancelled"
+      "Boolean materialization verification was cancelled"
+  | Invalid_argument message -> error "invalid_output" message
+
 let verify_surface ?cancel ~grain ~require_closed
     ?(allow_opposite_duplicates = false) geometry =
   if grain <= 0 then error "invalid_parameter" "grain must be positive"
@@ -341,52 +622,12 @@ let verify_surface ?cancel ~grain ~require_closed
           | Ok () ->
               match Boolean_constraints.build ?cancel
                   ~resolve_left_self_intersections:true ~grain
+                  ~ignore_opposite_duplicate_self_pairs:allow_opposite_duplicates
                   ~left:geometry ~right:(empty_geometry ()) () with
               | Error _ as failure -> failure
               | Ok constraints ->
-                  if Boolean_constraints.degenerate_pair_count constraints > 0 then
-                    error "rounding_degenerate"
-                      "rounded Boolean surface contains a degenerate triangle pair"
-                  else if Boolean_constraints.constraint_count constraints > 0 then
-                    let first = Boolean_constraints.constraint_first_triangle
-                        constraints 0
-                    and second = Boolean_constraints.constraint_second_triangle
-                        constraints 0 in
-                    let first_min = primitive_min_edge_length positions view first
-                    and second_min = primitive_min_edge_length positions view second in
-                    error "surface_self_intersection" (Printf.sprintf
-                      "rounded Boolean triangles %d and %d intersect away from ordinary shared topology (minimum edge lengths %.17g and %.17g)"
-                      first second first_min second_min)
-                  else if Boolean_constraints.coplanar_pair_count constraints = 0 then
-                    Ok ()
-                  else
-                    match Boolean_coplanar.build ?cancel ~grain constraints with
-                    | Error _ as failure -> failure
-                    | Ok coplanar ->
-                        let contact = ref (-1) and pair = ref 0 in
-                        while !contact < 0
-                            && !pair < Boolean_coplanar.pair_count coplanar do
-                          if Boolean_coplanar.kind coplanar !pair
-                              <> Boolean_coplanar.Empty then begin
-                            let first = Boolean_coplanar.first_triangle
-                                coplanar !pair
-                            and second = Boolean_coplanar.second_triangle
-                                coplanar !pair in
-                            if not (allow_opposite_duplicates
-                                && opposite_duplicate view first second) then
-                              contact := !pair
-                          end;
-                          incr pair
-                        done;
-                        if !contact < 0 then Ok ()
-                        else
-                          let first = Boolean_coplanar.first_triangle
-                              coplanar !contact
-                          and second = Boolean_coplanar.second_triangle
-                              coplanar !contact in
-                          error "surface_self_intersection" (Printf.sprintf
-                            "rounded Boolean triangles %d and %d have non-adjacent coplanar contact"
-                            first second)))
+                  verify_constraint_contacts ?cancel ~grain
+                    ~allow_opposite_duplicates positions view constraints))
   with
   | Cancel.Cancelled -> error "cancelled"
       "Boolean materialization verification was cancelled"
@@ -415,6 +656,11 @@ let cleanup_point_source value point = value.cleanup_point_sources.(point)
 let cleanup_vertex_source value vertex = value.cleanup_vertex_sources.(vertex)
 let cleanup_primitive_source value primitive = value.cleanup_primitive_sources.(primitive)
 let cleanup_seam_edges value = value.cleanup_seam_edges
+
+let verify_materialized_seam_curves ?cancel ~grain seam =
+  if Boolean_seam.Private.curves_materialized seam then
+    Boolean_seam.Private.verify_curves ?cancel ~grain (Boolean_seam.curves seam)
+  else Ok ()
 
 let fresh_attribute_name geometry base =
   let used name =
@@ -504,6 +750,18 @@ let rounded_sliver_edges ?cancel ~grain geometry =
   with
   | Cancel.Cancelled -> error "cancelled" "Boolean rounded-sliver scan was cancelled"
   | Invalid_argument message -> error "invalid_output" message
+
+let verify_unchanged_extraction ?cancel ~grain ~require_closed
+    ~allow_opposite_duplicates ancestry geometry =
+  if grain <= 0 then error "invalid_parameter" "grain must be positive"
+  else
+    match verify_extracted_surface ?cancel ~grain ~require_closed
+        ~allow_opposite_duplicates ancestry geometry with
+    | Ok () -> Ok true
+    | Error failure when Error.code failure = "cancelled"
+        || Error.code failure = "geometry_mismatch"
+        || Error.code failure = "invalid_parameter" -> Error failure
+    | Error _ -> Ok false
 
 let coordinate_ulp value =
   if not (Float.is_finite value) then infinity
@@ -769,11 +1027,19 @@ let repair_rounded_slivers ?cancel ~grain ~require_closed
         match rounded_sliver_edges ?cancel ~grain cleanup.cleanup_geometry with
         | Error _ as failure -> failure
         | Ok (0, _) ->
-            (match verify_surface ?cancel ~grain ~require_closed
-                ~allow_opposite_duplicates cleanup.cleanup_geometry with
+            let geometry = cleanup.cleanup_geometry in
+            let extracted = Boolean_extract.geometry ancestry in
+            let verified =
+              if Geometry.positions geometry == Geometry.positions extracted
+                  && Geometry.topology geometry == Geometry.topology extracted then
+                verify_extracted_surface ?cancel ~grain ~require_closed
+                  ~allow_opposite_duplicates ancestry geometry
+              else
+                verify_surface ?cancel ~grain ~require_closed
+                  ~allow_opposite_duplicates geometry in
+            (match verified with
              | Ok () ->
-                 (match Boolean_seam.Private.verify_curves ?cancel ~grain
-                     (Boolean_seam.curves seam) with
+                 (match verify_materialized_seam_curves ?cancel ~grain seam with
                   | Error _ as failure -> failure
                   | Ok () -> Ok cleanup)
              | Error initial when Error.code initial <> "surface_self_intersection" ->
@@ -991,8 +1257,7 @@ let collapse_tiny_seam_batch ?cancel ~grain ~threshold ~require_closed
              | Error _ as failure -> failure
              | Ok (output, point_sources, vertex_sources, primitive_sources,
                  output_seams) ->
-                 match Boolean_seam.Private.verify_curves ?cancel ~grain
-                     (Boolean_seam.curves seam) with
+                 match verify_materialized_seam_curves ?cancel ~grain seam with
                  | Error _ as failure -> failure
                  | Ok () ->
                      match verify_surface ?cancel ~grain ~require_closed
@@ -1088,8 +1353,7 @@ let collapse_cleanup_batch ?cancel ~grain ~require_closed
             source.(current)) mapping in
         let output = remove_source_ids source_name output
             |> Geometry.without_edge_group seam_name in
-        (match Boolean_seam.Private.verify_curves ?cancel ~grain
-            (Boolean_seam.curves seam) with
+        (match verify_materialized_seam_curves ?cancel ~grain seam with
          | Error _ as failure -> failure
          | Ok () ->
              match verify_surface ?cancel ~grain ~require_closed

@@ -29,6 +29,14 @@ val verify_surface :
   ?allow_opposite_duplicates:bool -> Geometry.t ->
   (unit, Error.t) result
 
+val verify_unchanged_extraction :
+  ?cancel:Cancel.t -> grain:int -> require_closed:bool ->
+  allow_opposite_duplicates:bool -> Boolean_extract.ancestry -> Geometry.t ->
+  (bool, Error.t) result
+(** Fast exact verification for geometry that still physically shares its
+    extraction positions and topology. [false] requests the ordinary bounded
+    rounding-repair path; no weakened result is published. *)
+
 type cleanup
 val cleanup_geometry : cleanup -> Geometry.t
 val cleanup_candidate_count : cleanup -> int

@@ -14,6 +14,7 @@ type t = {
   left_surface : Surface_index.t;
   right_surface : Surface_index.t;
   source : Implicit_point.source;
+  source_points : Implicit_point.t array;
   left_triangle_points : int array;
   right_triangle_points : int array;
   points : Implicit_point.t array;
@@ -32,6 +33,7 @@ type t = {
   coplanar_first_triangles : int array;
   coplanar_second_sides : bytes;
   coplanar_second_triangles : int array;
+  candidate_pairs : int;
   degenerate_pairs : int;
 }
 
@@ -85,6 +87,7 @@ let coplanar_right_triangle value pair =
   else if coplanar_second_side value pair = Right then coplanar_second_triangle value pair
   else -1
 let degenerate_pair_count value = value.degenerate_pairs
+let candidate_pair_count value = value.candidate_pairs
 
 module Private = struct
   let left_geometry value = value.left_geometry
@@ -95,6 +98,8 @@ module Private = struct
   let right_surface value = value.right_surface
   let point value point = value.points.(point)
   let source value = value.source
+  let source_point_count value = Array.length value.source_points
+  let source_point value point = value.source_points.(point)
   let left_triangle_point value triangle local =
     value.left_triangle_points.((triangle * 3) + local)
   let right_triangle_point value triangle local =
@@ -139,13 +144,13 @@ let edge_constant_components source triangle edge =
   let first, second = local_edge triangle edge in
   Implicit_point.constant_components source first second
 
-let construct_event source left_triangle right_triangle left_feature right_feature =
+let construct_event source source_points left_triangle right_triangle
+    left_feature right_feature =
   let left_vertex = Predicates.Private.triangle_feature_vertex_local left_feature
   and right_vertex = Predicates.Private.triangle_feature_vertex_local right_feature in
-  if left_vertex >= 0 then Implicit_point.explicit source
-      (local_vertex left_triangle left_vertex)
-  else if right_vertex >= 0 then Implicit_point.explicit source
-      (local_vertex right_triangle right_vertex)
+  if left_vertex >= 0 then Ok source_points.(local_vertex left_triangle left_vertex)
+  else if right_vertex >= 0 then
+    Ok source_points.(local_vertex right_triangle right_vertex)
   else
       let construct triangle edge plane =
         let line_start, line_end = local_edge triangle edge in
@@ -295,15 +300,28 @@ let ordinary_shared_edge_only ~x ~y ~z first_triangle second_triangle =
          | _ -> false)
   end
 
+let opposite_duplicate first_triangle second_triangle =
+  let a = first_triangle.(0) and b = first_triangle.(1)
+  and c = first_triangle.(2) and x = second_triangle.(0)
+  and y = second_triangle.(1) and z = second_triangle.(2) in
+  (a = x && b = z && c = y)
+  || (a = y && b = x && c = z)
+  || (a = z && b = y && c = x)
+
 let build ?cancel ?(resolve_left_self_intersections = false)
-    ?(resolve_right_self_intersections = false) ~grain ~left ~right () =
+    ?(resolve_right_self_intersections = false)
+    ?(ignore_opposite_duplicate_self_pairs = false)
+    ?(ignore_shared_point_self_pairs = false) ~grain ~left ~right () =
   try
     if grain <= 0 then error "invalid_parameter" "grain must be positive"
     else
-      match Surface_index.create ?cancel ~grain left with
+      let left_surface, right_surface = Parallel.both
+          (fun () -> Surface_index.create ?cancel ~grain left)
+          (fun () -> Surface_index.create ?cancel ~grain right) in
+      match left_surface with
       | Error failure -> Error failure
       | Ok left_surface ->
-          match Surface_index.create ?cancel ~grain right with
+          match right_surface with
           | Error failure -> Error failure
           | Ok right_surface ->
               let cross_first, cross_second =
@@ -311,13 +329,23 @@ let build ?cancel ?(resolve_left_self_intersections = false)
                   ~tolerance:0. left_surface right_surface in
               let left_self_first, left_self_second =
                 if resolve_left_self_intersections then
-                  Surface_index.Private.overlapping_self_triangle_pairs ?cancel ~grain
-                    ~tolerance:0. left_surface
+                  (if ignore_shared_point_self_pairs then
+                     Surface_index.Private
+                       .overlapping_self_triangle_pairs_disjoint_topology
+                       ?cancel ~grain ~tolerance:0. left_surface
+                   else
+                     Surface_index.Private.overlapping_self_triangle_pairs
+                       ?cancel ~grain ~tolerance:0. left_surface)
                 else [||], [||] in
               let right_self_first, right_self_second =
                 if resolve_right_self_intersections then
-                  Surface_index.Private.overlapping_self_triangle_pairs ?cancel ~grain
-                    ~tolerance:0. right_surface
+                  (if ignore_shared_point_self_pairs then
+                     Surface_index.Private
+                       .overlapping_self_triangle_pairs_disjoint_topology
+                       ?cancel ~grain ~tolerance:0. right_surface
+                   else
+                     Surface_index.Private.overlapping_self_triangle_pairs
+                       ?cancel ~grain ~tolerance:0. right_surface)
                 else [||], [||] in
               let cross_count = Array.length cross_first
               and left_self_count = Array.length left_self_first
@@ -353,6 +381,8 @@ let build ?cancel ?(resolve_left_self_intersections = false)
               let source = match Implicit_point.source ~x ~y ~z with
                 | Ok source -> source
                 | Error _ -> invalid_arg "Boolean constraint source is invalid" in
+              let source_points = Array.init (Array.length x) (fun point ->
+                  Implicit_point.explicit source point |> Result.get_ok) in
               let left_topology = Topology.Private.view (Geometry.topology left)
               and right_topology = Topology.Private.view (Geometry.topology right) in
               let left_triangle_points =
@@ -386,8 +416,12 @@ let build ?cancel ?(resolve_left_self_intersections = false)
                     (second_candidates.(candidate) * 3) right_triangle 0 3;
                   let self = Bytes.unsafe_get first_candidate_sides candidate
                       = Bytes.unsafe_get second_candidate_sides candidate in
-                  let count = if self && ordinary_shared_edge_only ~x ~y ~z
-                      left_triangle right_triangle then 0 else
+                  let count = if self
+                      && ((ignore_opposite_duplicate_self_pairs
+                            && opposite_duplicate left_triangle right_triangle)
+                          || ordinary_shared_edge_only ~x ~y ~z
+                            left_triangle right_triangle)
+                    then 0 else
                     Predicates.Private.triangle_triangle_features_into
                       ~x ~y ~z
                       ~left_a:left_triangle.(0) ~left_b:left_triangle.(1)
@@ -446,7 +480,8 @@ let build ?cancel ?(resolve_left_self_intersections = false)
                         feature0.(candidate), feature1.(candidate)
                       else feature2.(candidate), feature3.(candidate) in
                     let output = event_offsets.(candidate) + event in
-                    match construct_event source left_triangle right_triangle
+                    match construct_event source source_points
+                        left_triangle right_triangle
                         left_feature right_feature with
                     | Ok point -> event_points.(output) <- Some point
                     | Error failure when Option.is_none !first_error ->
@@ -530,14 +565,15 @@ let build ?cancel ?(resolve_left_self_intersections = false)
                   Ok { left_geometry = left; right_geometry = right;
                        resolve_left_self_intersections;
                        resolve_right_self_intersections;
-                       left_surface; right_surface; source;
+                       left_surface; right_surface; source; source_points;
                        left_triangle_points; right_triangle_points;
                        points; kinds; first; second; constraint_first_sides;
                        constraint_first_triangles; constraint_second_sides;
                        constraint_second_triangles; left_offsets; left_constraints;
                        right_offsets; right_constraints; coplanar_first_sides;
                        coplanar_first_triangles; coplanar_second_sides;
-                       coplanar_second_triangles; degenerate_pairs = !degenerate_pairs }
+                       coplanar_second_triangles; candidate_pairs = candidate_count;
+                       degenerate_pairs = !degenerate_pairs }
   with
   | Cancel.Cancelled -> error "cancelled" "Boolean constraint planning was cancelled"
   | Invalid_argument message -> error "invalid_geometry" message

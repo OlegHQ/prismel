@@ -25,6 +25,7 @@ val extract :
 
 val extract_with_ancestry :
   ?cancel:Cancel.t -> ?require_closed:bool -> ?defer_rounded_slivers:bool ->
+  ?corner_payload:bool ->
   expression:Boolean_extract.expression -> t ->
   (Boolean_extract.ancestry, Error.t) result
 
@@ -33,6 +34,7 @@ val extract_product :
   (Geometry.t, Error.t) result
 val extract_product_with_ancestry :
   ?cancel:Cancel.t -> ?require_closed:bool -> ?defer_rounded_slivers:bool ->
+  ?corner_payload:bool ->
   operation:operation -> t ->
   (Boolean_extract.ancestry, Error.t) result
 (** Treatment-aware solid/surface product extraction. Sheet facets remain
@@ -40,13 +42,14 @@ val extract_product_with_ancestry :
     paired opposite-facing walls for a solid-minus-surface cut. *)
 
 val seams :
-  ?cancel:Cancel.t -> ?grain:int -> ?parallel_cutoff:int ->
+  ?cancel:Cancel.t -> ?grain:int -> ?parallel_cutoff:int -> ?materialize:bool ->
   t -> (Boolean_seam.t, Error.t) result
 (** Materialize deterministic self/intersection curves and coincident facets
     from the already prepared exact complex without repeating arrangement. *)
 
 val shatter_with_ancestry :
-  ?cancel:Cancel.t -> ?require_closed:bool -> ?defer_rounded_slivers:bool -> t ->
+  ?cancel:Cancel.t -> ?require_closed:bool -> ?defer_rounded_slivers:bool ->
+  ?corner_payload:bool -> t ->
   (Boolean_extract.ancestry array, Error.t) result
 (** Extract stable A-only, overlap, and B-only closed region boundaries from
     one prepared arrangement. Shared walls are intentionally duplicated

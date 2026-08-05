@@ -729,10 +729,57 @@ let build ?cancel ?workspace ~point_count ~orient ~incircle
           done;
           match !found with Some value -> value | None ->
             invalid_arg "Planar CDT inserted point lies outside seed triangulation" in
+    let insertion_queue = Key_heap.create 32 in
+    let legalize_inserted point triangles =
+      insertion_queue.Key_heap.count <- 0;
+      let enqueue_opposite triangle =
+        let a = triangle_a.(triangle) and b = triangle_b.(triangle)
+        and c = triangle_c.(triangle) in
+        if a = point then Key_heap.push insertion_queue (edge_key b c)
+        else if b = point then Key_heap.push insertion_queue (edge_key c a)
+        else if c = point then Key_heap.push insertion_queue (edge_key a b) in
+      Array.iter enqueue_opposite triangles;
+      let flips = ref 0 and running = ref true in
+      while !running do
+        match Key_heap.pop insertion_queue with
+        | None -> running := false
+        | Some key ->
+            let slot = Edge_table.find table key in
+            if slot >= 0 && table.Edge_table.second_triangles.(slot) >= 0 then begin
+              let first = table.Edge_table.first_triangles.(slot)
+              and second = table.Edge_table.second_triangles.(slot)
+              and first_opposite = table.Edge_table.first_opposites.(slot)
+              and second_opposite = table.Edge_table.second_opposites.(slot)
+              and edge_a = key / key_stride and edge_b = key mod key_stride in
+              if first_opposite = point || second_opposite = point then begin
+                let inserted,opposite,left,right = if first_opposite = point then
+                    first_opposite,second_opposite,first,second
+                  else second_opposite,first_opposite,second,first in
+                let circle = incircle edge_a edge_b inserted opposite
+                and orientation = orient edge_a edge_b inserted in
+                let illegal = match orientation,circle with
+                  | Predicates.Positive,Predicates.Positive
+                  | Predicates.Negative,Predicates.Negative -> true
+                  | _,Predicates.Zero -> edge_key inserted opposite < key
+                  | _ -> false in
+                if illegal && opposite_sign
+                    (orient inserted opposite edge_a)
+                    (orient inserted opposite edge_b) then begin
+                  incr flips;
+                  if !flips > squared_limit !triangle_count then
+                    invalid_arg
+                      "Planar CDT inserted-point legalization did not converge";
+                  flip left right inserted opposite edge_a edge_b;
+                  enqueue_opposite left;
+                  enqueue_opposite right
+                end
+              end
+            end
+      done in
     Array.iteri (fun insertion point ->
       if insertion land 255 = 0 then Cancel.check_opt cancel;
       let containing,edge = locate point in
-      (match edge with
+      let inserted_triangles = match edge with
        | None ->
            let a = triangle_a.(containing) and b = triangle_b.(containing)
            and c = triangle_c.(containing) in
@@ -741,7 +788,8 @@ let build ?cancel ?workspace ~point_count ~orient ~incircle
            let second = append_triangle b c point
            and third = append_triangle c a point in
            add_triangle containing; add_triangle second; add_triangle third;
-           seed_triangle containing; seed_triangle second; seed_triangle third
+           seed_triangle containing; seed_triangle second; seed_triangle third;
+           [|containing;second;third|]
        | Some (_,u,v,opposite) ->
            let slot = Edge_table.find table (edge_key u v) in
            if slot < 0 then invalid_arg "Planar CDT lost an inserted-point split edge";
@@ -761,8 +809,11 @@ let build ?cancel ?workspace ~point_count ~orient ~incircle
              set_triangle adjacent v point adjacent_opposite;
              let adjacent_second = append_triangle point u adjacent_opposite in
              add_triangle adjacent; add_triangle adjacent_second;
-             seed_triangle adjacent; seed_triangle adjacent_second
-           end);
+             seed_triangle adjacent; seed_triangle adjacent_second;
+             [|containing;containing_second;adjacent;adjacent_second|]
+           end else [|containing;containing_second|]
+      in
+      legalize_inserted point inserted_triangles;
       walk_start := containing) insert_points;
     let properly_crosses a b u v =
       u <> a && u <> b && v <> a && v <> b && bounds_overlap a b u v
@@ -813,7 +864,6 @@ let build ?cancel ?workspace ~point_count ~orient ~incircle
         let found = search first in if found >= 0 then found else search second
       end in
     let strip_marks = Bytes.make triangle_capacity '\000'
-    and boundary_next = Array.make point_count (-1)
     and boundary_stamps = Array.make point_count 0
     and boundary_generation = ref 0 in
     let recover_constraint a b =
@@ -847,6 +897,7 @@ let build ?cancel ?workspace ~point_count ~orient ~incircle
         invalid_arg "Planar CDT constraint trace failed; an open constraint segment contains an unsplit point";
       let boundary_u = Array.make ((!strip_count * 3) + 1) 0
       and boundary_v = Array.make ((!strip_count * 3) + 1) 0
+      and boundary_triangle = Array.make ((!strip_count * 3) + 1) 0
       and boundary_count = ref 0 in
       let consider triangle first second =
         let slot = Edge_table.find table (edge_key first second) in
@@ -859,6 +910,7 @@ let build ?cancel ?workspace ~point_count ~orient ~incircle
         if outside < 0 || Bytes.unsafe_get strip_marks outside = '\000' then begin
           boundary_u.(!boundary_count) <- first;
           boundary_v.(!boundary_count) <- second;
+          boundary_triangle.(!boundary_count) <- triangle;
           incr boundary_count
         end in
       for index = 0 to !strip_count - 1 do
@@ -872,30 +924,144 @@ let build ?cancel ?workspace ~point_count ~orient ~incircle
         Array.fill boundary_stamps 0 point_count 0; boundary_generation := 1
       end;
       for edge = 0 to !boundary_count - 1 do
-        let first = boundary_u.(edge) in
-        if boundary_stamps.(first) = !boundary_generation then
-          invalid_arg "Planar CDT constraint strip boundary is not simple";
-        boundary_stamps.(first) <- !boundary_generation;
-        boundary_next.(first) <- boundary_v.(edge)
+        boundary_stamps.(boundary_u.(edge)) <- !boundary_generation;
+        boundary_stamps.(boundary_v.(edge)) <- !boundary_generation
       done;
       if boundary_stamps.(a) <> !boundary_generation
           || boundary_stamps.(b) <> !boundary_generation then
         invalid_arg "Planar CDT constraint endpoints are absent from the strip boundary";
-      let cycle = Array.make !boundary_count 0 and point = ref a in
-      for index = 0 to !boundary_count - 1 do
-        cycle.(index) <- !point;
-        if boundary_stamps.(!point) <> !boundary_generation then
-          invalid_arg "Planar CDT constraint strip boundary is open";
-        point := boundary_next.(!point)
+      let directed_key first second = (first * point_count) + second in
+      let boundary_edges = Hashtbl.create (max 4 (!boundary_count * 2)) in
+      for edge = 0 to !boundary_count - 1 do
+        Hashtbl.replace boundary_edges
+          (directed_key boundary_u.(edge) boundary_v.(edge)) edge
       done;
-      if !point <> a then
-        invalid_arg "Planar CDT constraint strip has multiple boundary cycles";
-      let b_index = ref (-1) in
-      for index = 1 to !boundary_count - 1 do
-        if cycle.(index) = b then b_index := index
+      let next_boundary edge =
+        let current_triangle = ref boundary_triangle.(edge)
+        and first = ref boundary_u.(edge) and second = boundary_v.(edge)
+        and next = ref (-1) and steps = ref 0 in
+        while !next < 0 && !steps <= !strip_count do
+          let ta = triangle_a.(!current_triangle)
+          and tb = triangle_b.(!current_triangle)
+          and tc = triangle_c.(!current_triangle) in
+          let third = if ta = !first && tb = second then tc
+            else if tb = !first && tc = second then ta
+            else if tc = !first && ta = second then tb
+            else invalid_arg "Planar CDT boundary walk lost its directed triangle edge" in
+          let slot = Edge_table.find table (edge_key second third) in
+          if slot < 0 then invalid_arg "Planar CDT boundary walk lost an edge";
+          let left = table.Edge_table.first_triangles.(slot)
+          and right = table.Edge_table.second_triangles.(slot) in
+          let adjacent = if left = !current_triangle then right
+            else if right = !current_triangle then left else
+              invalid_arg "Planar CDT boundary walk found inconsistent incidence" in
+          if adjacent < 0 || Bytes.unsafe_get strip_marks adjacent = '\000' then
+            next := (match Hashtbl.find_opt boundary_edges
+                (directed_key second third) with
+              | Some value -> value
+              | None -> invalid_arg "Planar CDT boundary walk did not find its next edge")
+          else begin
+            current_triangle := adjacent;
+            first := third
+          end;
+          incr steps
+        done;
+        if !next < 0 then invalid_arg "Planar CDT boundary walk did not terminate";
+        !next in
+      let visited_boundary = Bytes.make !boundary_count '\000'
+      and cycles = ref [] in
+      for start = 0 to !boundary_count - 1 do
+        if Bytes.unsafe_get visited_boundary start = '\000' then begin
+          let values = Array.make !boundary_count 0 and count = ref 0
+          and current = ref start in
+          while Bytes.unsafe_get visited_boundary !current = '\000' do
+            Bytes.unsafe_set visited_boundary !current '\001';
+            values.(!count) <- boundary_u.(!current); incr count;
+            current := next_boundary !current
+          done;
+          if !current <> start then
+            invalid_arg "Planar CDT strip boundary cycles merge";
+          cycles := Array.sub values 0 !count :: !cycles
+        end
       done;
-      if !b_index < 0 then
-        invalid_arg "Planar CDT constraint strip did not reach its endpoint";
+      let cycles = List.rev !cycles in
+      let contains point cycle = Array.exists (( = ) point) cycle in
+      let main_cycles = List.filter (fun cycle -> contains a cycle && contains b cycle)
+          cycles in
+      let initial_main_cycle = match main_cycles with
+        | [cycle] -> cycle
+        | [] -> invalid_arg "Planar CDT constraint strip did not reach its endpoint"
+        | _ -> invalid_arg "Planar CDT constraint belongs to multiple strip cycles" in
+      let point_index point cycle =
+        let found = ref (-1) in
+        Array.iteri (fun index value -> if value = point && !found < 0 then
+          found := index) cycle;
+        !found in
+      let bridge_cycle outer hole =
+        let target = Bytes.make point_count '\000' in
+        Array.iter (fun point -> Bytes.unsafe_set target point '\001') hole;
+        let parent = Array.make point_count (-2)
+        and queue = Array.make point_count 0 and first = ref 0 and last = ref 0 in
+        Array.iter (fun point ->
+          if parent.(point) = -2 then begin
+            parent.(point) <- -1; queue.(!last) <- point; incr last
+          end) outer;
+        let reached = ref (-1) in
+        while !reached < 0 && !first < !last do
+          let point = queue.(!first) in incr first;
+          if Bytes.unsafe_get target point <> '\000' then reached := point
+          else begin
+            let consider neighbor =
+              if parent.(neighbor) = -2
+                  && not (properly_crosses a b point neighbor) then begin
+                parent.(neighbor) <- point;
+                queue.(!last) <- neighbor; incr last
+              end in
+            for index = 0 to !strip_count - 1 do
+              let triangle = strip.(index) in
+              let ta = triangle_a.(triangle) and tb = triangle_b.(triangle)
+              and tc = triangle_c.(triangle) in
+              if ta = point then begin consider tb; consider tc end
+              else if tb = point then begin consider ta; consider tc end
+              else if tc = point then begin consider ta; consider tb end
+            done
+          end
+        done;
+        if !reached < 0 then
+          invalid_arg "Planar CDT could not bridge a constraint-strip hole";
+        let reverse_path = Array.make point_count 0 and count = ref 0
+        and point = ref !reached in
+        while !point >= 0 do
+          reverse_path.(!count) <- !point; incr count;
+          point := parent.(!point)
+        done;
+        let path = Array.init !count (fun index -> reverse_path.(!count - 1 - index)) in
+        Array.iter (fun point -> boundary_stamps.(point) <- !boundary_generation) path;
+        let outer_index = point_index path.(0) outer
+        and hole_index = point_index path.(Array.length path - 1) hole in
+        if outer_index < 0 || hole_index < 0 then
+          invalid_arg "Planar CDT hole bridge endpoints are not on their cycles";
+        let outer_count = Array.length outer and hole_count = Array.length hole
+        and path_count = Array.length path in
+        let output_count = outer_count + hole_count + (2 * (path_count - 1)) in
+        let output = Array.make output_count 0 and cursor = ref 0 in
+        let append point = output.(!cursor) <- point; incr cursor in
+        append outer.(outer_index);
+        for index = 1 to path_count - 1 do append path.(index) done;
+        for offset = 1 to hole_count - 1 do
+          append hole.((hole_index + offset) mod hole_count)
+        done;
+        append hole.(hole_index);
+        for index = path_count - 2 downto 0 do append path.(index) done;
+        for offset = 1 to outer_count - 1 do
+          append outer.((outer_index + offset) mod outer_count)
+        done;
+        if !cursor <> output_count then
+          invalid_arg "Planar CDT hole bridge cardinality is inconsistent";
+        output in
+      let holes = List.filter (fun cycle -> cycle != initial_main_cycle) cycles in
+      let main_cycle = List.fold_left bridge_cycle initial_main_cycle holes in
+      let cycles = [main_cycle] in
       let emitted = Array.make (!strip_count * 3) 0 and emitted_count = ref 0 in
       let write_emitted triangle a b c =
         let at = triangle * 3 in
@@ -931,7 +1097,8 @@ let build ?cancel ?workspace ~point_count ~orient ~incircle
                   if candidate <> previous && candidate <> current
                       && candidate <> next then begin
                     let p = path.(candidate) in
-                    blocked := orient pa pb p <> Predicates.Negative
+                    blocked := p <> pa && p <> pb && p <> pc
+                        && orient pa pb p <> Predicates.Negative
                         && orient pb pc p <> Predicates.Negative
                         && orient pc pa p <> Predicates.Negative
                   end;
@@ -943,7 +1110,10 @@ let build ?cancel ?workspace ~point_count ~orient ~incircle
               end
             done;
             if !best_slot < 0 then
-              invalid_arg "Planar CDT constraint cavity is non-simple or degenerate";
+              invalid_arg (Printf.sprintf
+                "Planar CDT constraint cavity is non-simple or degenerate (constraint=%d,%d path=%s)"
+                a b (String.concat ":" (Array.to_list path
+                  |> List.map string_of_int)));
             let previous = remaining.((!best_slot + !active - 1) mod !active)
             and current = remaining.(!best_slot)
             and next = remaining.((!best_slot + 1) mod !active) in
@@ -954,10 +1124,18 @@ let build ?cancel ?workspace ~point_count ~orient ~incircle
           done;
           emit path.(remaining.(0)) path.(remaining.(1)) path.(remaining.(2))
         end in
-      let first_path = Array.sub cycle 0 (!b_index + 1)
-      and second_path = Array.init (!boundary_count - !b_index + 1)
-          (fun index -> cycle.((!b_index + index) mod !boundary_count)) in
-      ear_clip first_path; ear_clip second_path;
+      let cyclic_path cycle first last =
+        let size = Array.length cycle in
+        let count = ((last - first + size) mod size) + 1 in
+        Array.init count (fun index -> cycle.((first + index) mod size)) in
+      List.iter (fun cycle ->
+        if cycle == main_cycle then begin
+          let a_index = point_index a cycle and b_index = point_index b cycle in
+          if a_index < 0 || b_index < 0 then
+            invalid_arg "Planar CDT constraint endpoints are absent from main strip cycle";
+          ear_clip (cyclic_path cycle a_index b_index);
+          ear_clip (cyclic_path cycle b_index a_index)
+        end else ear_clip cycle) cycles;
       let interior = Array.make (!strip_count * 3) 0
       and interior_count = ref 0
       and interior_seen = Bytes.make point_count '\000' in
@@ -1035,8 +1213,9 @@ let build ?cancel ?workspace ~point_count ~orient ~incircle
         end) interior;
       if !emitted_count <> !strip_count then
         invalid_arg (Printf.sprintf
-            "Planar CDT constraint cavity changed triangle cardinality (%d strip triangles, %d boundary edges, %d emitted)"
-            !strip_count !boundary_count !emitted_count);
+            "Planar CDT constraint cavity changed triangle cardinality (%d strip triangles, %d boundary edges, %d cycles, %d interior points, %d emitted)"
+            !strip_count !boundary_count (List.length cycles) !interior_count
+            !emitted_count);
       for index = 0 to !strip_count - 1 do remove_triangle strip.(index) done;
       for index = 0 to !strip_count - 1 do
         let at = index * 3 and triangle = strip.(index) in
@@ -1067,7 +1246,7 @@ let build ?cancel ?workspace ~point_count ~orient ~incircle
     for slot = 0 to Array.length table.Edge_table.keys - 1 do
       if table.Edge_table.keys.(slot) >= 0
           && table.Edge_table.second_triangles.(slot) >= 0
-          && not (constraint_key table.Edge_table.keys.(slot)) then
+          && Bytes.unsafe_get table.Edge_table.constrained slot = '\000' then
         Key_heap.push queue table.Edge_table.keys.(slot)
     done;
     let flips = ref 0 and continue = ref true in
@@ -1077,7 +1256,7 @@ let build ?cancel ?workspace ~point_count ~orient ~incircle
           if !flips land 255 = 0 then Cancel.check_opt cancel;
           let slot = Edge_table.find table key in
           if slot >= 0 && table.Edge_table.second_triangles.(slot) >= 0
-              && not (constraint_key key) then begin
+              && Bytes.unsafe_get table.Edge_table.constrained slot = '\000' then begin
             let left = table.Edge_table.first_triangles.(slot)
             and right = table.Edge_table.second_triangles.(slot)
             and lo = table.Edge_table.first_opposites.(slot)

@@ -3,6 +3,7 @@ type broad_phase = Sweep | Stable_bvh | Exact_oracle
 
 type t = {
   points : Implicit_point.t array;
+  point_handles : int array;
   segment_first : int array;
   segment_second : int array;
 }
@@ -18,6 +19,7 @@ let segment_second value segment = value.segment_second.(segment)
 
 module Private = struct
   let point value point = value.points.(point)
+  let point_handle value point = value.point_handles.(point)
 end
 
 let face_constraint_range constraints side triangle = match side with
@@ -78,6 +80,98 @@ let orient projection = match projection with
   | 0 -> Implicit_point.orient2d_xy
   | 1 -> Implicit_point.orient2d_yz
   | _ -> Implicit_point.orient2d_zx
+
+module Orientation_cache = struct
+  type t = {
+    mutable key_a : int array;
+    mutable key_b : int array;
+    mutable key_c : int array;
+    mutable signs : bytes;
+    mutable count : int;
+  }
+
+  let create point_count =
+    let capacity = ref 16 and needed = max 16 (point_count * 8) in
+    while !capacity < needed do capacity := !capacity * 2 done;
+    { key_a = Array.make !capacity (-1); key_b = Array.make !capacity (-1);
+      key_c = Array.make !capacity (-1); signs = Bytes.make !capacity '\000';
+      count = 0 }
+
+  let[@inline] hash a b c =
+    let value = (a * 0x1e35a7bd) lxor (b * 0x17a1465b)
+        lxor (c * 0x45d9f3b) in
+    (value * 0x45d9f3b) land max_int
+
+  let find_slot key_a key_b key_c a b c =
+    let mask = Array.length key_a - 1 in
+    let slot = ref (hash a b c land mask) in
+    while key_a.(!slot) >= 0
+        && (key_a.(!slot) <> a || key_b.(!slot) <> b || key_c.(!slot) <> c) do
+      slot := (!slot + 1) land mask
+    done;
+    !slot
+
+  let grow cache =
+    let previous_a = cache.key_a and previous_b = cache.key_b
+    and previous_c = cache.key_c and previous_signs = cache.signs in
+    cache.key_a <- Array.make (Array.length previous_a * 2) (-1);
+    cache.key_b <- Array.make (Array.length cache.key_a) (-1);
+    cache.key_c <- Array.make (Array.length cache.key_a) (-1);
+    cache.signs <- Bytes.make (Array.length cache.key_a) '\000';
+    for slot = 0 to Array.length previous_a - 1 do
+      let a = previous_a.(slot) in
+      if a >= 0 then begin
+        let b = previous_b.(slot) and c = previous_c.(slot) in
+        let target = find_slot cache.key_a cache.key_b cache.key_c a b c in
+        cache.key_a.(target) <- a;
+        cache.key_b.(target) <- b;
+        cache.key_c.(target) <- c;
+        Bytes.unsafe_set cache.signs target (Bytes.unsafe_get previous_signs slot)
+      end
+    done
+
+  let encode = function
+    | Predicates.Negative -> '\000'
+    | Predicates.Zero -> '\001'
+    | Predicates.Positive -> '\002'
+
+  let decode value = match value with
+    | '\000' -> Predicates.Negative
+    | '\001' -> Predicates.Zero
+    | _ -> Predicates.Positive
+
+  let reverse = function
+    | Predicates.Negative -> Predicates.Positive
+    | Predicates.Positive -> Predicates.Negative
+    | Predicates.Zero -> Predicates.Zero
+
+  let get cache exact a b c =
+    if a = b || b = c || c = a then Predicates.Zero
+    else begin
+      let inversions = (if a > b then 1 else 0) + (if a > c then 1 else 0)
+          + (if b > c then 1 else 0) in
+      let a, b, c =
+        if a <= b then
+          if b <= c then a, b, c
+          else if a <= c then a, c, b else c, a, b
+        else if a <= c then b, a, c
+        else if b <= c then b, c, a else c, b, a in
+      if cache.count * 3 >= Array.length cache.key_a * 2 then grow cache;
+      let slot = find_slot cache.key_a cache.key_b cache.key_c a b c in
+      let sign = if cache.key_a.(slot) = a then
+          decode (Bytes.unsafe_get cache.signs slot)
+        else begin
+          let sign = exact a b c in
+          cache.key_a.(slot) <- a;
+          cache.key_b.(slot) <- b;
+          cache.key_c.(slot) <- c;
+          Bytes.unsafe_set cache.signs slot (encode sign);
+          cache.count <- cache.count + 1;
+          sign
+        end in
+      if inversions land 1 = 0 then sign else reverse sign
+    end
+end
 
 let compare_axis axis = match axis with
   | 0 -> Implicit_point.compare_x
@@ -688,7 +782,8 @@ let build ?cancel ?coplanar ?(broad_phase = Sweep) constraints ~side ~triangle =
       | None -> 0, 0
       | Some coplanar -> face_coplanar_range coplanar side triangle in
     if face_constraint_count = 0 && first_pair = last_pair then
-      Ok { points = [||]; segment_first = [||]; segment_second = [||] }
+      Ok { points = [||]; point_handles = [||];
+           segment_first = [||]; segment_second = [||] }
     else begin
       let raw_segment_capacity = ref 0 and point_capacity = ref 0 in
       for slot = first_slot to last_slot - 1 do
@@ -712,10 +807,13 @@ let build ?cancel ?coplanar ?(broad_phase = Sweep) constraints ~side ~triangle =
       let fallback = Implicit_point.explicit source
           (face_triangle_point constraints side triangle 0) |> Result.get_ok in
       let points = ref (Array.make (max 4 !point_capacity) fallback)
+      and point_handles = ref (Array.make (max 4 !point_capacity) (-1))
       and point_count = ref 0 in
-      let append_point point =
+      let append_point ?(handle = -1) point =
         points := grow_points !points (!point_count + 1) fallback;
+        point_handles := grow_int !point_handles (!point_count + 1);
         (!points).(!point_count) <- point;
+        (!point_handles).(!point_count) <- handle;
         let result = !point_count in incr point_count; result in
       let segment_first = Array.make !raw_segment_capacity 0
       and segment_second = Array.make !raw_segment_capacity 0
@@ -741,10 +839,10 @@ let build ?cancel ?coplanar ?(broad_phase = Sweep) constraints ~side ~triangle =
             constraints constraint_index
         and second_handle = Boolean_constraints.constraint_second
             constraints constraint_index in
-        let first = append_point
+        let first = append_point ~handle:first_handle
             (Boolean_constraints.Private.point constraints first_handle) in
         if first_handle <> second_handle then begin
-          let second = append_point
+          let second = append_point ~handle:second_handle
               (Boolean_constraints.Private.point constraints second_handle) in
           append_segment first second constraint_index (-1) (-1)
         end
@@ -766,22 +864,40 @@ let build ?cancel ?coplanar ?(broad_phase = Sweep) constraints ~side ~triangle =
                  coplanar pair boundary)
           done
         done) coplanar;
-      let canonical, point_map = canonicalize_points !points !point_count in
+      let raw_point_count = !point_count in
+      let canonical, point_map = canonicalize_points !points raw_point_count in
+      let canonical_handles = Array.make (Array.length canonical) (-1) in
+      for point = 0 to raw_point_count - 1 do
+        let handle = (!point_handles).(point) in
+        if handle >= 0 then begin
+          let target = point_map.(point) in
+          let present = canonical_handles.(target) in
+          if present < 0 || handle < present then canonical_handles.(target) <- handle
+        end
+      done;
       points := canonical;
+      point_handles := canonical_handles;
       point_count := Array.length canonical;
       for segment = 0 to !raw_segment_count - 1 do
         segment_first.(segment) <- point_map.(segment_first.(segment));
         segment_second.(segment) <- point_map.(segment_second.(segment))
       done;
       if !point_count = 0 then
-        Ok { points = [||]; segment_first = [||]; segment_second = [||] }
+        Ok { points = [||]; point_handles = [||];
+             segment_first = [||]; segment_second = [||] }
       else begin
       let face_points = Array.init 3 (fun local ->
         Implicit_point.explicit source
           (face_triangle_point constraints side triangle local)
         |> Result.get_ok) in
       let projection_axis = projection face_points in
-      let orient = orient projection_axis in
+      let orient_points = orient projection_axis in
+      let orientation_cache = Orientation_cache.create !point_count in
+      let orient_ids first second third =
+        Orientation_cache.get orientation_cache
+          (fun first second third ->
+            orient_points (!points).(first) (!points).(second) (!points).(third))
+          first second third in
       let point_index = Exact_point_index.create !point_count in
       Exact_point_index.build point_index !points !point_count;
       let intern_point point =
@@ -838,7 +954,8 @@ let build ?cancel ?coplanar ?(broad_phase = Sweep) constraints ~side ~triangle =
               let point_id = (!split_points).(!split) in
               if point_id <> target_first_id && point_id <> target_second_id then begin
                 let point = (!points).(point_id) in
-                if orient target_first target_second point = Predicates.Zero
+                if orient_ids target_first_id target_second_id point_id
+                    = Predicates.Zero
                     && between target_first point target_second then
                   found := point_id
               end;
@@ -855,10 +972,10 @@ let build ?cancel ?coplanar ?(broad_phase = Sweep) constraints ~side ~triangle =
         let a_id = segment_first.(left) and b_id = segment_second.(left)
         and c_id = segment_first.(right) and d_id = segment_second.(right) in
         if a_id <> c_id && a_id <> d_id && b_id <> c_id && b_id <> d_id then begin
-          let a = (!points).(a_id) and b = (!points).(b_id)
-          and c = (!points).(c_id) and d = (!points).(d_id) in
-          let o1 = orient a b c and o2 = orient a b d
-          and o3 = orient c d a and o4 = orient c d b in
+          let o1 = orient_ids a_id b_id c_id
+          and o2 = orient_ids a_id b_id d_id
+          and o3 = orient_ids c_id d_id a_id
+          and o4 = orient_ids c_id d_id b_id in
           if sign_opposite o1 o2 && sign_opposite o3 o4 then begin
             let existing = existing_crossing left right in
             if existing >= 0 then begin
@@ -912,13 +1029,15 @@ let build ?cancel ?coplanar ?(broad_phase = Sweep) constraints ~side ~triangle =
                  add_split left point; add_split right point)
             end
           end else begin
-            let add_if_on point_id point first second segment =
-              if orient first second point = Predicates.Zero
-                  && between first point second then add_split segment point_id in
-            add_if_on c_id c a b left;
-            add_if_on d_id d a b left;
-            add_if_on a_id a c d right;
-            add_if_on b_id b c d right
+            let add_if_on point_id first_id second_id segment =
+              if orient_ids first_id second_id point_id = Predicates.Zero
+                  && between (!points).(first_id) (!points).(point_id)
+                    (!points).(second_id)
+              then add_split segment point_id in
+            add_if_on c_id a_id b_id left;
+            add_if_on d_id a_id b_id left;
+            add_if_on a_id c_id d_id right;
+            add_if_on b_id c_id d_id right
           end
         end in
       let scan_segment_pairs () =
@@ -970,7 +1089,7 @@ let build ?cancel ?coplanar ?(broad_phase = Sweep) constraints ~side ~triangle =
         if point_id <> first_id && point_id <> second_id then begin
           let first = (!points).(first_id) and second = (!points).(second_id)
           and point = (!points).(point_id) in
-          if orient first second point = Predicates.Zero
+          if orient_ids first_id second_id point_id = Predicates.Zero
               && between first point second then add_split segment point_id
         end in
       let scan_point_segments () =
@@ -1096,6 +1215,7 @@ let build ?cancel ?coplanar ?(broad_phase = Sweep) constraints ~side ~triangle =
         end) order;
       Ok {
         points = Array.sub !points 0 !point_count;
+        point_handles = Array.sub !point_handles 0 !point_count;
         segment_first = unique_first;
         segment_second = unique_second;
       }

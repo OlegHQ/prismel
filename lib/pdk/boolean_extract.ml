@@ -300,9 +300,59 @@ let explicit_source_edge first_id second_id edge0 b_id c_id edge1 c_id' a_id
     else -1
   else -1
 
+type barycentric_cache = {
+  triangle_keys : int array;
+  point_keys : int array;
+  weight_a : float array;
+  weight_b : float array;
+  weight_c : float array;
+  mask : int;
+}
+
+let barycentric_cache capacity =
+  let needed = max 2 (capacity * 2) and size = ref 2 in
+  while !size < needed do
+    if !size > Sys.max_array_length / 2 then
+      invalid_arg "Boolean barycentric cache exceeds array limits";
+    size := !size * 2
+  done;
+  {
+    triangle_keys = Array.make !size (-1);
+    point_keys = Array.make !size (-1);
+    weight_a = Array.make !size 0.;
+    weight_b = Array.make !size 0.;
+    weight_c = Array.make !size 0.;
+    mask = !size - 1;
+  }
+
+let cached_barycentric cache source ~triangle ~point ~a ~b ~c implicit =
+  let value = (triangle * 0x1e35a7bd) lxor (point * 0x17a1465b) in
+  let slot = ref ((value lxor (value lsr 16)) land cache.mask)
+  and searching = ref true and result = ref (0., 0., 0.) in
+  while !searching do
+    let stored_triangle = cache.triangle_keys.(!slot) in
+    if stored_triangle < 0 then begin
+      let wa, wb, wc = Implicit_point.barycentric_source_triangle source
+          ~a ~b ~c implicit in
+      cache.triangle_keys.(!slot) <- triangle;
+      cache.point_keys.(!slot) <- point;
+      cache.weight_a.(!slot) <- wa;
+      cache.weight_b.(!slot) <- wb;
+      cache.weight_c.(!slot) <- wc;
+      result := wa, wb, wc;
+      searching := false
+    end else if stored_triangle = triangle && cache.point_keys.(!slot) = point then begin
+      result := cache.weight_a.(!slot), cache.weight_b.(!slot),
+        cache.weight_c.(!slot);
+      searching := false
+    end else slot := (!slot + 1) land cache.mask
+  done;
+  !result
+
 let build_internal ?cancel ?(require_closed = true)
     ?(defer_rounded_slivers = false) ?facet_selection
-    ?preferred_side ~with_ancestry ~expression complex weiler cells =
+    ?preferred_side ?barycentric_cache:shared_barycentrics
+    ~with_ancestry ~with_corner_payload ~expression complex weiler cells =
   try
     Cancel.check_opt cancel;
     if Boolean_weiler.Private.complex weiler != complex then
@@ -404,12 +454,12 @@ let build_internal ?cancel ?(require_closed = true)
     let left_geometry = Boolean_constraints.Private.left_geometry constraints
     and right_geometry = Boolean_constraints.Private.right_geometry constraints in
     let left_edge_index =
-      if with_ancestry && Geometry.edge_groups left_geometry <> [] then
+      if with_corner_payload && Geometry.edge_groups left_geometry <> [] then
         Some (Topology_index.create ?cancel (Geometry.topology left_geometry)
           |> Topology_index.Private.view)
       else None
     and right_edge_index =
-      if with_ancestry && Geometry.edge_groups right_geometry <> [] then
+      if with_corner_payload && Geometry.edge_groups right_geometry <> [] then
         Some (Topology_index.create ?cancel (Geometry.topology right_geometry)
           |> Topology_index.Private.view)
       else None in
@@ -460,6 +510,10 @@ let build_internal ?cancel ?(require_closed = true)
     and edge_source_scratch = Array.make (!maximum_facet_members * 3) (-1)
     and edge_side_scratch = Bytes.make !maximum_facet_members '\000'
     and output = ref 0 in
+    let barycentrics = match shared_barycentrics with
+      | Some cache -> cache
+      | None -> barycentric_cache
+          (if with_corner_payload then !selected_count * 3 else 0) in
     for facet = 0 to facets - 1 do
       if facet land 4095 = 0 then Cancel.check_opt cancel;
       if Bytes.unsafe_get selected facet <> '\000' then begin
@@ -536,23 +590,31 @@ let build_internal ?cancel ?(require_closed = true)
         let source_a = triangle_point constraints source_triangle 0
         and source_b = triangle_point constraints source_triangle 1
         and source_c = triangle_point constraints source_triangle 2 in
-        for local = 0 to 2 do
-          primitive_source_points.((!output * 3) + local) <-
-            Surface_index.Private.triangle_point surface source_triangle local;
-          primitive_source_vertices.((!output * 3) + local) <-
-            Surface_index.Private.triangle_vertex surface source_triangle local
-        done;
-        for local = 0 to 2 do
-          let facet_local = if local = 0 || desired > 0 then local else 3 - local in
-          let point = Boolean_complex.Private.vertex complex
-              (Boolean_complex.facet_vertex complex facet facet_local) in
-          let wa, wb, wc = Implicit_point.barycentric_source_triangle source
-              ~a:source_a ~b:source_b ~c:source_c point in
-          let corner = (!output * 3) + local in
-          barycentric_a.(corner) <- wa;
-          barycentric_b.(corner) <- wb;
-          barycentric_c.(corner) <- wc
-        done;
+        let triangle_key = source_triangle +
+          (match Boolean_complex.member_side complex member with
+           | Boolean_complex.Left -> 0
+           | Boolean_complex.Right ->
+               Boolean_constraints.left_triangle_count constraints) in
+        if with_corner_payload then begin
+          for local = 0 to 2 do
+            primitive_source_points.((!output * 3) + local) <-
+              Surface_index.Private.triangle_point surface source_triangle local;
+            primitive_source_vertices.((!output * 3) + local) <-
+              Surface_index.Private.triangle_vertex surface source_triangle local
+          done;
+          for local = 0 to 2 do
+            let facet_local = if local = 0 || desired > 0 then local else 3 - local in
+            let complex_vertex = Boolean_complex.facet_vertex complex facet facet_local in
+            let point = Boolean_complex.Private.vertex complex complex_vertex in
+            let wa, wb, wc = cached_barycentric barycentrics source
+                ~triangle:triangle_key ~point:complex_vertex
+                ~a:source_a ~b:source_b ~c:source_c point in
+            let corner = (!output * 3) + local in
+            barycentric_a.(corner) <- wa;
+            barycentric_b.(corner) <- wb;
+            barycentric_c.(corner) <- wc
+          done
+        end;
         if edge_source_capacity > 0 then begin
           let facet_local value =
             if value = 0 || desired > 0 then value else 3 - value in
@@ -699,22 +761,105 @@ let build_internal ?cancel ?(require_closed = true)
   | Invalid_argument message -> error "invalid_output" message
 
 let build_with_ancestry ?cancel ?require_closed ?defer_rounded_slivers
+    ?(corner_payload = true)
     ~expression complex weiler cells =
-  build_internal ?cancel ?require_closed ?defer_rounded_slivers ~with_ancestry:true
+  build_internal ?cancel ?require_closed ?defer_rounded_slivers
+    ~with_ancestry:true ~with_corner_payload:corner_payload
     ~expression complex weiler cells
 
 let build ?cancel ?require_closed ~expression complex weiler cells =
   match build_internal ?cancel ?require_closed ~with_ancestry:false
+      ~with_corner_payload:false
       ~expression complex weiler cells with
   | Ok value -> Ok value.geometry
   | Error _ as error -> error
 
 let build_selected_with_ancestry ?cancel ?(require_closed = false)
-    ?defer_rounded_slivers ~selection ~side complex weiler cells =
-  build_internal ?cancel ~require_closed ?defer_rounded_slivers
+    ?defer_rounded_slivers ?barycentric_cache ?(corner_payload = true)
+    ~selection ~side complex weiler cells =
+  build_internal ?cancel ~require_closed ?defer_rounded_slivers ?barycentric_cache
     ~facet_selection:selection
-    ~preferred_side:side ~with_ancestry:true ~expression:Left
+    ~preferred_side:side ~with_ancestry:true ~with_corner_payload:corner_payload
+    ~expression:Left
     complex weiler cells
+
+let reverse_ancestry ?cancel value =
+  try
+    Cancel.check_opt cancel;
+    let primitives = Geometry.primitive_count value.geometry in
+    let corners = primitives * 3 in
+    let source_topology = Topology.Private.view (Geometry.topology value.geometry) in
+    if Array.length source_topology.vertex_points <> corners then
+      invalid_arg "Boolean ancestry reversal requires triangular topology";
+    let vertex_points = Array.make corners 0
+    and corner_complex_vertices = Array.make corners 0
+    and primitive_windings = Bytes.copy value.primitive_windings
+    and barycentric_a = Array.make corners 0.
+    and barycentric_b = Array.make corners 0.
+    and barycentric_c = Array.make corners 0.
+    and edge_source_offsets = Array.make (corners + 1) 0 in
+    let edge_source_count = value.edge_source_offsets.(corners) in
+    let edge_source_sides = Bytes.make edge_source_count '\000'
+    and edge_source_edges = Array.make edge_source_count 0
+    and next_edge_source = ref 0 in
+    let old_local = function 0 -> 2 | 1 -> 1 | _ -> 0 in
+    for primitive = 0 to primitives - 1 do
+      if primitive land 4095 = 0 then Cancel.check_opt cancel;
+      let offset = primitive * 3 in
+      vertex_points.(offset) <- source_topology.vertex_points.(offset);
+      vertex_points.(offset + 1) <- source_topology.vertex_points.(offset + 2);
+      vertex_points.(offset + 2) <- source_topology.vertex_points.(offset + 1);
+      corner_complex_vertices.(offset) <- value.corner_complex_vertices.(offset);
+      corner_complex_vertices.(offset + 1) <-
+        value.corner_complex_vertices.(offset + 2);
+      corner_complex_vertices.(offset + 2) <-
+        value.corner_complex_vertices.(offset + 1);
+      barycentric_a.(offset) <- value.barycentric_a.(offset);
+      barycentric_a.(offset + 1) <- value.barycentric_a.(offset + 2);
+      barycentric_a.(offset + 2) <- value.barycentric_a.(offset + 1);
+      barycentric_b.(offset) <- value.barycentric_b.(offset);
+      barycentric_b.(offset + 1) <- value.barycentric_b.(offset + 2);
+      barycentric_b.(offset + 2) <- value.barycentric_b.(offset + 1);
+      barycentric_c.(offset) <- value.barycentric_c.(offset);
+      barycentric_c.(offset + 1) <- value.barycentric_c.(offset + 2);
+      barycentric_c.(offset + 2) <- value.barycentric_c.(offset + 1);
+      Bytes.unsafe_set primitive_windings primitive
+        (if Bytes.unsafe_get primitive_windings primitive = '\000'
+         then '\001' else '\000');
+      for local = 0 to 2 do
+        let target = offset + local in
+        edge_source_offsets.(target) <- !next_edge_source;
+        let source = offset + old_local local in
+        let first = value.edge_source_offsets.(source)
+        and last = value.edge_source_offsets.(source + 1) in
+        let count = last - first in
+        Bytes.blit value.edge_source_sides first edge_source_sides
+          !next_edge_source count;
+        Array.blit value.edge_source_edges first edge_source_edges
+          !next_edge_source count;
+        next_edge_source := !next_edge_source + count
+      done
+    done;
+    edge_source_offsets.(corners) <- !next_edge_source;
+    if !next_edge_source <> edge_source_count then
+      invalid_arg "Boolean reversed edge ancestry changed cardinality";
+    match Topology.polygons_owned ~point_count:(Geometry.point_count value.geometry)
+        ~vertex_points
+        ~primitive_offsets:(Array.init (primitives + 1) (fun primitive -> primitive * 3))
+    with
+    | Error message -> error "invalid_output" message
+    | Ok topology ->
+        (match Geometry.create ~positions:(Geometry.positions value.geometry)
+            ~topology () with
+         | Error message -> error "invalid_output" message
+         | Ok geometry -> Ok {
+             value with geometry; corner_complex_vertices; primitive_windings;
+             barycentric_a; barycentric_b; barycentric_c;
+             edge_source_offsets; edge_source_sides; edge_source_edges;
+           })
+  with
+  | Cancel.Cancelled -> error "cancelled" "Boolean ancestry reversal was cancelled"
+  | Invalid_argument message -> error "invalid_output" message
 
 let concatenate_ancestries ?cancel values =
   try
@@ -854,10 +999,13 @@ let concatenate_ancestries ?cancel values =
   | Invalid_argument message -> error "invalid_output" message
 
 module Private = struct
+  type nonrec barycentric_cache = barycentric_cache
   type ancestry_view = {
     point_complex_vertices : int array;
+    corner_complex_vertices : int array;
     primitive_complex_facets : int array;
     primitive_sides : bytes;
+    primitive_triangles : int array;
     primitive_source_points : int array;
     primitive_source_vertices : int array;
     barycentric_a : float array;
@@ -869,8 +1017,10 @@ module Private = struct
   }
   let ancestry_view (value : ancestry) = {
     point_complex_vertices = value.point_complex_vertices;
+    corner_complex_vertices = value.corner_complex_vertices;
     primitive_complex_facets = value.primitive_complex_facets;
     primitive_sides = value.primitive_sides;
+    primitive_triangles = value.primitive_triangles;
     primitive_source_points = value.primitive_source_points;
     primitive_source_vertices = value.primitive_source_vertices;
     barycentric_a = value.barycentric_a;
@@ -884,6 +1034,7 @@ module Private = struct
   let validate_materialized = validate_materialized
   let coalesce_positions = coalesce_positions
   let validate_closed_topology = validate_closed_topology
+  let barycentric_cache ~capacity = barycentric_cache capacity
   let complex value = value.complex
   let point_complex_vertex (value : ancestry) point =
     value.point_complex_vertices.(point)
@@ -894,5 +1045,6 @@ module Private = struct
   let left_geometry value = value.left_geometry
   let right_geometry value = value.right_geometry
   let build_selected_with_ancestry = build_selected_with_ancestry
+  let reverse_ancestry = reverse_ancestry
   let concatenate_ancestries = concatenate_ancestries
 end

@@ -4,7 +4,7 @@ type kind = Left_self | Between | Right_self
 type t
 
 val build :
-  ?cancel:Cancel.t -> ?grain:int -> ?parallel_cutoff:int ->
+  ?cancel:Cancel.t -> ?grain:int -> ?parallel_cutoff:int -> ?materialize:bool ->
   Boolean_complex.t -> (t, Error.t) result
 (** O(V + E + F + I) time and O(V + E + F) auxiliary/output storage, where
     [I] is complex edge/facet incidence. Classification uses stable disjoint
@@ -24,6 +24,7 @@ val curve_edge : t -> int -> int
 
 module Private : sig
   val complex : t -> Boolean_complex.t
+  val curves_materialized : t -> bool
   val is_seam_edge : t -> int -> bool
   val verify_curves :
     ?cancel:Cancel.t -> grain:int -> Geometry.t -> (unit, Error.t) result

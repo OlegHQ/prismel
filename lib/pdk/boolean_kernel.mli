@@ -153,6 +153,8 @@ module Constraints : sig
     ?cancel:Cancel.t ->
     ?resolve_left_self_intersections:bool ->
     ?resolve_right_self_intersections:bool ->
+    ?ignore_opposite_duplicate_self_pairs:bool ->
+    ?ignore_shared_point_self_pairs:bool ->
     grain:int -> left:Geometry.t -> right:Geometry.t ->
     unit -> (t, Error.t) result
   val point_count : t -> int
@@ -181,6 +183,7 @@ module Constraints : sig
   val coplanar_left_triangle : t -> int -> int
   val coplanar_right_triangle : t -> int -> int
   val degenerate_pair_count : t -> int
+  val candidate_pair_count : t -> int
 end
 
 module Coplanar : sig
@@ -223,8 +226,10 @@ module Triangulation : sig
   type t
   type point_location = Walk | Exact_scan
   type constraint_recovery = Trace | Edge_scan
+  type workspace
+  val create_workspace : unit -> workspace
   val build :
-    ?cancel:Cancel.t -> ?point_location:point_location ->
+    ?cancel:Cancel.t -> ?workspace:workspace -> ?point_location:point_location ->
     ?constraint_recovery:constraint_recovery ->
     Constraints.t -> Arrangement.t ->
     side:Arrangement.side -> triangle:int -> (t, Error.t) result
@@ -348,12 +353,14 @@ module Extract : sig
   val corner_barycentric : ancestry -> int -> int -> float * float * float
   val build_with_ancestry :
     ?cancel:Cancel.t -> ?require_closed:bool -> ?defer_rounded_slivers:bool ->
+    ?corner_payload:bool ->
     expression:expression ->
     Complex.t -> Weiler.t -> Cells.t -> (ancestry, Error.t) result
   val build :
     ?cancel:Cancel.t -> ?require_closed:bool -> expression:expression ->
     Complex.t -> Weiler.t -> Cells.t -> (Geometry.t, Error.t) result
   module Private : sig
+    type barycentric_cache
     val complex : ancestry -> Complex.t
     val point_complex_vertex : ancestry -> int -> int
     val primitive_complex_facet : ancestry -> int -> int
@@ -371,11 +378,16 @@ module Extract : sig
       x:float array -> y:float array -> z:float array ->
       float array * float array * float array * int array * int array
     val validate_closed_topology : Topology.t -> (unit, Error.t) result
+    val barycentric_cache : capacity:int -> barycentric_cache
     val build_selected_with_ancestry :
       ?cancel:Cancel.t -> ?require_closed:bool -> ?defer_rounded_slivers:bool ->
+      ?barycentric_cache:barycentric_cache ->
+      ?corner_payload:bool ->
       selection:bytes ->
       side:Complex.side -> Complex.t -> Weiler.t -> Cells.t ->
       (ancestry, Error.t) result
+    val reverse_ancestry :
+      ?cancel:Cancel.t -> ancestry -> (ancestry, Error.t) result
     val concatenate_ancestries :
       ?cancel:Cancel.t -> ancestry array -> (ancestry, Error.t) result
   end
@@ -385,7 +397,7 @@ module Seam : sig
   type kind = Left_self | Between | Right_self
   type t
   val build :
-    ?cancel:Cancel.t -> ?grain:int -> ?parallel_cutoff:int ->
+    ?cancel:Cancel.t -> ?grain:int -> ?parallel_cutoff:int -> ?materialize:bool ->
     Complex.t -> (t, Error.t) result
   val curves : t -> Geometry.t
   val coincident : t -> Geometry.t
@@ -394,6 +406,7 @@ module Seam : sig
   val curve_edge : t -> int -> int
   module Private : sig
     val complex : t -> Complex.t
+    val curves_materialized : t -> bool
     val is_seam_edge : t -> int -> bool
     val verify_curves :
       ?cancel:Cancel.t -> grain:int -> Geometry.t -> (unit, Error.t) result
@@ -420,6 +433,10 @@ module Materialization : sig
     ?cancel:Cancel.t -> grain:int -> require_closed:bool ->
     ?allow_opposite_duplicates:bool -> Geometry.t ->
     (unit, Error.t) result
+  val verify_unchanged_extraction :
+    ?cancel:Cancel.t -> grain:int -> require_closed:bool ->
+    allow_opposite_duplicates:bool -> Extract.ancestry -> Geometry.t ->
+    (bool, Error.t) result
   type cleanup
   val cleanup_geometry : cleanup -> Geometry.t
   val cleanup_candidate_count : cleanup -> int
@@ -464,19 +481,22 @@ module Solid : sig
     expression:Extract.expression -> t -> (Geometry.t, Error.t) result
   val extract_with_ancestry :
     ?cancel:Cancel.t -> ?require_closed:bool -> ?defer_rounded_slivers:bool ->
+    ?corner_payload:bool ->
     expression:Extract.expression -> t -> (Extract.ancestry, Error.t) result
   val extract_product :
     ?cancel:Cancel.t -> ?require_closed:bool -> operation:operation -> t ->
     (Geometry.t, Error.t) result
   val extract_product_with_ancestry :
     ?cancel:Cancel.t -> ?require_closed:bool -> ?defer_rounded_slivers:bool ->
+    ?corner_payload:bool ->
     operation:operation -> t ->
     (Extract.ancestry, Error.t) result
   val seams :
-    ?cancel:Cancel.t -> ?grain:int -> ?parallel_cutoff:int ->
+    ?cancel:Cancel.t -> ?grain:int -> ?parallel_cutoff:int -> ?materialize:bool ->
     t -> (Seam.t, Error.t) result
   val shatter_with_ancestry :
-    ?cancel:Cancel.t -> ?require_closed:bool -> ?defer_rounded_slivers:bool -> t ->
+    ?cancel:Cancel.t -> ?require_closed:bool -> ?defer_rounded_slivers:bool ->
+    ?corner_payload:bool -> t ->
     (Extract.ancestry array, Error.t) result
   val vertex_count : t -> int
   val facet_count : t -> int

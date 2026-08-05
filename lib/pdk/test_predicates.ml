@@ -232,6 +232,22 @@ let () =
   check (count = 0) "triangle/triangle disjoint result";
   let count, _ = triangle_event_count tx ty tz 0 1 2 0 1 2 in
   check (count = -1) "triangle/triangle coplanar result";
+  let coplanar_contact la lb lc ra rb rc =
+    Predicates.Private.coplanar_triangles_contact_packed ~x:tx ~y:ty ~z:tz
+      ~left_a:la ~left_b:lb ~left_c:lc ~right_a:ra ~right_b:rb ~right_c:rc in
+  check (coplanar_contact 0 1 2 0 1 2)
+    "identical coplanar triangles do not contact";
+  check (not (coplanar_contact 0 1 2 6 7 8))
+    "disjoint coplanar triangles contact";
+  let cx = [|0.;4.;0.; 1.;2.;1.; 4.;5.;4.; 4.;5.;4.|]
+  and cy = [|0.;0.;4.; 1.;1.;2.; 0.;0.;1.; 0.;0.;-1.|]
+  and cz = Array.make 12 0. in
+  let contact la lb lc ra rb rc =
+    Predicates.Private.coplanar_triangles_contact_packed ~x:cx ~y:cy ~z:cz
+      ~left_a:la ~left_b:lb ~left_c:lc ~right_a:ra ~right_b:rb ~right_c:rc in
+  check (contact 0 1 2 3 4 5) "contained coplanar triangle does not contact";
+  check (contact 0 1 2 6 7 8) "edge-touching coplanar triangle does not contact";
+  check (contact 0 1 2 9 10 11) "vertex-touching coplanar triangle does not contact";
   let count, _ = triangle_event_count tx ty tz 0 9 10 3 4 5 in
   check (count = -2) "triangle/triangle degenerate result";
 

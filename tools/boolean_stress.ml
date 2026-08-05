@@ -7,6 +7,9 @@ type recipe = {
   name : string;
   left : Geometry.t;
   right : Geometry.t;
+  left_treatment : Boolean.treatment;
+  right_treatment : Boolean.treatment;
+  seam_points : Boolean.seam_points;
   resolve_left : bool;
   resolve_right : bool;
 }
@@ -237,12 +240,16 @@ let recipes level =
           ~size:(2., 2., 2.) ~divisions;
       right = box ~center:(1. -. epsilon, 0.17, -0.11) ~rotation:(0., 0., 0.)
           ~size:(2., 1.7, 1.8) ~divisions;
+      left_treatment = Boolean.Solid; right_treatment = Boolean.Solid;
+      seam_points = Boolean.Shared_seam_points;
       resolve_left = false; resolve_right = false };
     { name = "rotated_ellipsoids";
       left = sphere ~latitude ~longitude ~center:(0., 0., 0.)
           ~rotation:(0.17, 0.31, -0.11) ~radius:(1.7, 1.05, 1.3);
       right = sphere ~latitude ~longitude ~center:(0.83, 0.12, -0.19)
           ~rotation:(-0.23, 0.14, 0.37) ~radius:(1.25, 1.4, 0.9);
+      left_treatment = Boolean.Solid; right_treatment = Boolean.Solid;
+      seam_points = Boolean.Shared_seam_points;
       resolve_left = false; resolve_right = false };
     { name = "torus_star";
       left = torus ~major_segments ~minor_segments ~center:(0., 0., 0.)
@@ -250,6 +257,8 @@ let recipes level =
       right = star_prism ~teeth:(match level with Quick -> 7 | Standard -> 17 | Full -> 31)
           ~center:(0.25, 0., 0.12) ~rotation:(0.41, 0.16, -0.22)
           ~inner:0.64 ~outer:1.55 ~depth:1.25;
+      left_treatment = Boolean.Solid; right_treatment = Boolean.Solid;
+      seam_points = Boolean.Shared_seam_points;
       resolve_left = false; resolve_right = false };
     { name = "disconnected_drill_bank";
       left = box ~center:(0., 0., 0.) ~rotation:(0.08, -0.13, 0.04)
@@ -260,6 +269,8 @@ let recipes level =
             let x = -2.2 +. (4.4 *. float_of_int i /. float_of_int (count - 1)) in
             torus ~major_segments ~minor_segments ~center:(x, 0., 0.)
               ~rotation:(Float.pi *. 0.5, 0., 0.) ~major:0.42 ~minor:0.16));
+      left_treatment = Boolean.Solid; right_treatment = Boolean.Solid;
+      seam_points = Boolean.Shared_seam_points;
       resolve_left = false; resolve_right = true }
   |]
 
@@ -427,6 +438,9 @@ let write_case_manifest path recipes =
 
 let run_once ~domains ~grain operation recipe = Parallel.run ~domains (fun () ->
     Boolean.run ~grain ~operation
+      ~left_treatment:recipe.left_treatment
+      ~right_treatment:recipe.right_treatment
+      ~seam_points:recipe.seam_points
       ~resolve_left_self_intersections:recipe.resolve_left
       ~resolve_right_self_intersections:recipe.resolve_right
       ~right:recipe.right recipe.left |> get)
@@ -442,7 +456,7 @@ let csv value =
   else value
 
 let run_product ~domains ~grain ~repeats ~left_volume ~right_volume
-    ~intersection_volume recipe operation =
+    ~intersection_volume ~output_obj recipe operation =
   let label = recipe.name ^ "/" ^ operation_name operation in
   try
     let baseline = run_once ~domains:1 ~grain operation recipe in
@@ -452,8 +466,17 @@ let run_product ~domains ~grain ~repeats ~left_volume ~right_volume
          validate_shatter_groups label baseline;
          validate_closed_even_incidence label baseline
      | Boolean.Xor -> validate_closed_even_incidence label baseline
-     | Boolean.Union | Boolean.Intersection | Boolean.Difference
+     | Boolean.Difference
+       when recipe.left_treatment = Boolean.Solid
+         && recipe.right_treatment = Boolean.Surface ->
+         validate_closed_even_incidence label baseline
+     | Boolean.Reverse_difference
+       when recipe.left_treatment = Boolean.Surface
+         && recipe.right_treatment = Boolean.Solid ->
+         validate_closed_even_incidence label baseline
+    | Boolean.Union | Boolean.Intersection | Boolean.Difference
      | Boolean.Reverse_difference -> validate_closed_manifold label baseline);
+    Option.iter (fun path -> write_obj path baseline) output_obj;
     Option.iter (fun intersection_volume ->
       validate_volume label
         (expected_volume operation ~left:left_volume ~right:right_volume
@@ -486,7 +509,10 @@ let parse () =
   and repeats = ref 2 and grain = ref 128 and export_dir = ref None
   and operation = ref None and case_name = ref None
   and left_obj = ref None and right_obj = ref None
-  and resolve_left = ref false and resolve_right = ref false in
+  and output_obj = ref None
+  and resolve_left = ref false and resolve_right = ref false
+  and left_surface = ref false and right_surface = ref false
+  and split_seams = ref false in
   let specs = [
     "--level", Arg.String (fun value -> level := level_of_string value),
       "quick|standard|full generated corpus density";
@@ -503,10 +529,18 @@ let parse () =
       "left closed polygon OBJ for a real-model run";
     "--right-obj", Arg.String (fun value -> right_obj := Some value),
       "right closed polygon OBJ for a real-model run";
+    "--output-obj", Arg.String (fun value -> output_obj := Some value),
+      "write the one-domain Boolean result as OBJ";
     "--resolve-left-self-intersections", Arg.Set resolve_left,
       "enable exact left-input self-intersection resolution";
     "--resolve-right-self-intersections", Arg.Set resolve_right,
-      "enable exact right-input self-intersection resolution" ] in
+      "enable exact right-input self-intersection resolution";
+    "--left-surface", Arg.Set left_surface,
+      "treat an external left OBJ as a zero-volume surface";
+    "--right-surface", Arg.Set right_surface,
+      "treat an external right OBJ as a zero-volume surface";
+    "--split-seam-points", Arg.Set split_seams,
+      "duplicate Boolean seam points per incident primitive component" ] in
   Arg.parse specs (fun value -> fail "unexpected argument %s" value)
     "boolean_stress [options]";
   if !domains < 1 || !repeats < 1 || !grain < 1 then
@@ -516,12 +550,18 @@ let parse () =
     | Some name, Some left, Some right ->
         if String.trim name = "" then fail "external OBJ case name must not be empty";
         Some { name; left = load_obj left; right = load_obj right;
+          left_treatment = if !left_surface then Boolean.Surface else Boolean.Solid;
+          right_treatment = if !right_surface then Boolean.Surface else Boolean.Solid;
+          seam_points = if !split_seams then Boolean.Split_seam_points
+            else Boolean.Shared_seam_points;
           resolve_left = !resolve_left; resolve_right = !resolve_right }
     | _ -> fail "--case, --left-obj, and --right-obj must be supplied together" in
-  !level, !domains, !repeats, !grain, !export_dir, !operation, external_recipe
+  !level, !domains, !repeats, !grain, !export_dir, !operation, !output_obj,
+  external_recipe
 
 let () =
-  let level, domains, repeats, grain, export_dir, selected, external_recipe = parse () in
+  let level, domains, repeats, grain, export_dir, selected, output_obj,
+      external_recipe = parse () in
   let recipes = match external_recipe with
     | Some recipe -> [|recipe|] | None -> recipes level in
   Option.iter (fun directory ->
@@ -535,14 +575,23 @@ let () =
     | Some operation -> [|operation|]
     | None -> [|Boolean.Union; Boolean.Intersection; Boolean.Difference;
         Boolean.Reverse_difference; Boolean.Xor; Boolean.Shatter|] in
+  if Option.is_some output_obj
+      && (Array.length recipes <> 1 || Array.length operations <> 1) then
+    fail "--output-obj requires exactly one case and one operation";
   Printf.printf
     "case,operation,status,domains,points,primitives,median_seconds,median_current_domain_allocated_bytes,absolute_signed_volume,error\n%!";
   let failures = ref 0 in
   Array.iter (fun recipe ->
-      validate_closed_manifold (recipe.name ^ "/left") recipe.left;
-      validate_closed_manifold (recipe.name ^ "/right") recipe.right;
+      (match recipe.left_treatment with
+       | Boolean.Solid -> validate_closed_manifold (recipe.name ^ "/left") recipe.left
+       | Boolean.Surface -> validate_finite (recipe.name ^ "/left") recipe.left);
+      (match recipe.right_treatment with
+       | Boolean.Solid -> validate_closed_manifold (recipe.name ^ "/right") recipe.right
+       | Boolean.Surface -> validate_finite (recipe.name ^ "/right") recipe.right);
       let left_volume = volume recipe.left and right_volume = volume recipe.right in
       let intersection_volume = if recipe.resolve_left || recipe.resolve_right
+          || recipe.left_treatment = Boolean.Surface
+          || recipe.right_treatment = Boolean.Surface
         then None else
         try
           let intersection = run_once ~domains:1 ~grain Boolean.Intersection recipe in
@@ -551,5 +600,6 @@ let () =
         with Failure _ -> None in
       Array.iter (fun operation ->
         if not (run_product ~domains ~grain ~repeats ~left_volume ~right_volume
-            ~intersection_volume recipe operation) then incr failures) operations) recipes;
+            ~intersection_volume ~output_obj recipe operation) then incr failures)
+        operations) recipes;
   if !failures <> 0 then exit 1

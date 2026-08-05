@@ -3,9 +3,13 @@
 type t
 type point_location = Walk | Exact_scan
 type constraint_recovery = Trace | Edge_scan
+type workspace
+
+val create_workspace : unit -> workspace
+(** Exclusively owned scratch reused across sequential face refinements. *)
 
 val build :
-  ?cancel:Cancel.t -> ?point_location:point_location ->
+  ?cancel:Cancel.t -> ?workspace:workspace -> ?point_location:point_location ->
   ?constraint_recovery:constraint_recovery ->
   Boolean_constraints.t ->
   Boolean_face_arrangement.t ->
@@ -37,5 +41,6 @@ val constraint_second : t -> int -> int
 
 module Private : sig
   val point : t -> int -> Implicit_point.t
+  val global_point_token : t -> int -> int
   val source_winding : t -> int
 end

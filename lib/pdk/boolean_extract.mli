@@ -41,6 +41,7 @@ val corner_barycentric : ancestry -> int -> int -> float * float * float
 
 val build_with_ancestry :
   ?cancel:Cancel.t -> ?require_closed:bool -> ?defer_rounded_slivers:bool ->
+  ?corner_payload:bool ->
   expression:expression ->
   Boolean_complex.t -> Boolean_weiler.t -> Boolean_cells.t ->
   (ancestry, Error.t) result
@@ -54,10 +55,13 @@ val build :
     packed PDK geometry. *)
 
 module Private : sig
+  type barycentric_cache
   type ancestry_view = {
     point_complex_vertices : int array;
+    corner_complex_vertices : int array;
     primitive_complex_facets : int array;
     primitive_sides : bytes;
+    primitive_triangles : int array;
     primitive_source_points : int array;
     primitive_source_vertices : int array;
     barycentric_a : float array;
@@ -87,14 +91,19 @@ module Private : sig
     complex_vertices:int array -> x:float array -> y:float array -> z:float array ->
     float array * float array * float array * int array * int array
   val validate_closed_topology : Topology.t -> (unit, Error.t) result
+  val barycentric_cache : capacity:int -> barycentric_cache
   (* Materialize the exact facets selected by packed orientation bytes:
       zero omits, one keeps canonical orientation, and two reverses it. The
       requested side supplies deterministic payload ancestry. *)
   val build_selected_with_ancestry :
     ?cancel:Cancel.t -> ?require_closed:bool -> ?defer_rounded_slivers:bool ->
+    ?barycentric_cache:barycentric_cache ->
+    ?corner_payload:bool ->
     selection:bytes ->
     side:Boolean_complex.side -> Boolean_complex.t -> Boolean_weiler.t ->
     Boolean_cells.t -> (ancestry, Error.t) result
+  val reverse_ancestry :
+    ?cancel:Cancel.t -> ancestry -> (ancestry, Error.t) result
   (* Concatenate products from one exact complex while sharing equal exact
       complex vertices and preserving every packed ancestry plane. *)
   val concatenate_ancestries :

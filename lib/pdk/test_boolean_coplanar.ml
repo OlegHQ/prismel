@@ -103,11 +103,11 @@ let test_lower_dimensional_contacts () =
 let test_aabb_overlap_without_triangle_overlap () =
   let left = triangle [|0.,0.,0.; 2.,0.,0.; 0.,2.,0.|]
   and right = triangle [|1.5,1.5,0.; 3.,1.5,0.; 1.5,3.,0.|] in
-  let result = arrange left right in
-  check (Coplanar.kind result 0 = Coplanar.Empty
-      && Coplanar.point_count result 0 = 0
-      && Coplanar.boundary_count result 0 = 0)
-    "disjoint coplanar candidates produced an overlap"
+  let constraints = Constraints.build ~grain:1 ~left ~right () |> get in
+  let result = Coplanar.build ~grain:1 constraints |> get in
+  check (Constraints.candidate_pair_count constraints = 0
+      && Coplanar.pair_count result = 0)
+    "diagonally separated coplanar triangles survived K-DOP broad phase"
 
 let test_same_operand_coplanar_and_topology_suppression () =
   let left = geometry

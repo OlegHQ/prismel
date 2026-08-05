@@ -569,6 +569,81 @@ let triangle_triangle_packed ~x ~y ~z ~left_a ~left_b ~left_c
       ((triangle_feature_of_code output.(0), triangle_feature_of_code output.(1)),
        (triangle_feature_of_code output.(2), triangle_feature_of_code output.(3)))
 
+let[@inline always] projected_orient projection x y z a b c =
+  if projection = 0 then orient2d_packed ~x ~y a b c
+  else if projection = 1 then orient2d_packed ~x:y ~y:z a b c
+  else orient2d_packed ~x:z ~y:x a b c
+
+let[@inline always] projected_u projection x y z point =
+  if projection = 0 then x.(point)
+  else if projection = 1 then y.(point)
+  else z.(point)
+
+let[@inline always] projected_v projection x y z point =
+  if projection = 0 then y.(point)
+  else if projection = 1 then z.(point)
+  else x.(point)
+
+let[@inline always] opposite_sign first second =
+  (first = Positive && second = Negative)
+  || (first = Negative && second = Positive)
+
+let[@inline always] projected_on_segment projection x y z a b point =
+  let au = projected_u projection x y z a
+  and av = projected_v projection x y z a
+  and bu = projected_u projection x y z b
+  and bv = projected_v projection x y z b
+  and pu = projected_u projection x y z point
+  and pv = projected_v projection x y z point in
+  pu >= min au bu && pu <= max au bu && pv >= min av bv && pv <= max av bv
+
+let projected_segments_contact projection x y z a b c d =
+  let abc = projected_orient projection x y z a b c
+  and abd = projected_orient projection x y z a b d
+  and cda = projected_orient projection x y z c d a
+  and cdb = projected_orient projection x y z c d b in
+  (opposite_sign abc abd && opposite_sign cda cdb)
+  || (abc = Zero && projected_on_segment projection x y z a b c)
+  || (abd = Zero && projected_on_segment projection x y z a b d)
+  || (cda = Zero && projected_on_segment projection x y z c d a)
+  || (cdb = Zero && projected_on_segment projection x y z c d b)
+
+let projected_point_in_triangle projection x y z a b c point =
+  let ab = projected_orient projection x y z a b point
+  and bc = projected_orient projection x y z b c point
+  and ca = projected_orient projection x y z c a point in
+  (ab <> Negative && bc <> Negative && ca <> Negative)
+  || (ab <> Positive && bc <> Positive && ca <> Positive)
+
+let coplanar_triangles_contact_packed ~x ~y ~z ~left_a ~left_b ~left_c
+    ~right_a ~right_b ~right_c =
+  let xy = orient2d_packed ~x ~y left_a left_b left_c in
+  let projection = if xy <> Zero then 0
+    else if orient2d_packed ~x:y ~y:z left_a left_b left_c <> Zero then 1
+    else if orient2d_packed ~x:z ~y:x left_a left_b left_c <> Zero then 2
+    else -1 in
+  if projection < 0 then false
+  else begin
+    let contact = ref false and first_edge = ref 0 in
+    while not !contact && !first_edge < 3 do
+      let second_edge = ref 0 in
+      while not !contact && !second_edge < 3 do
+        contact := projected_segments_contact projection x y z
+            (triangle_vertex left_a left_b left_c !first_edge)
+            (triangle_vertex left_a left_b left_c ((!first_edge + 1) mod 3))
+            (triangle_vertex right_a right_b right_c !second_edge)
+            (triangle_vertex right_a right_b right_c ((!second_edge + 1) mod 3));
+        incr second_edge
+      done;
+      incr first_edge
+    done;
+    !contact
+    || projected_point_in_triangle projection x y z
+         left_a left_b left_c right_a
+    || projected_point_in_triangle projection x y z
+         right_a right_b right_c left_a
+  end
+
 module Private = struct
   let triangle_feature_vertex_local feature =
     if feature >= 0 && feature <= 2
@@ -580,6 +655,7 @@ module Private = struct
 
   let segment_triangle_code_packed = segment_triangle_code_packed
   let triangle_triangle_features_into = triangle_triangle_features_into
+  let coplanar_triangles_contact_packed = coplanar_triangles_contact_packed
   let exact_orient2d_arena = exact_orient2d
   let exact_orient3d_arena = exact_orient3d
   let exact_orient2d_reference = exact_orient2d_reference

@@ -11,6 +11,11 @@
  (libraries pdk prismel))
 
 (test
+ (name test_surface_index)
+ (modules test_surface_index)
+ (libraries pdk prismel))
+
+(test
  (name test_extract_centroid)
  (modules test_extract_centroid)
  (libraries pdk prismel))

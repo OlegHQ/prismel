@@ -25,22 +25,32 @@ end
 let build_side ?cancel ?coplanar ~grain constraints side face_count range
     coplanar_range =
   let output = Array.make face_count None and errors = Array.make face_count None in
-  if face_count > 0 then Parallel.for_ ~chunk_size:grain ~start:0
-      ~finish:(face_count - 1) (fun face ->
-    if face land 255 = 0 then Cancel.check_opt cancel;
-    let first, last = range constraints face in
-    let coplanar_first, coplanar_last = match coplanar with
-      | None -> 0, 0
-      | Some value -> coplanar_range value face in
-    if first < last || coplanar_first < coplanar_last then
-      match Boolean_face_arrangement.build ?cancel ?coplanar constraints
-          ~side ~triangle:face with
-      | Error failure -> errors.(face) <- Some failure
-      | Ok arrangement ->
-          (match Boolean_face_cdt.build ?cancel constraints arrangement
-              ~side ~triangle:face with
-           | Ok triangulation -> output.(face) <- Some triangulation
-           | Error failure -> errors.(face) <- Some failure));
+  (* Keep enough sequential faces per exclusively owned CDT workspace to
+     amortize its edge/topology planes while retaining many coarse tasks on
+     the small, high-intersection fracture inputs that use grain one or two. *)
+  let range_size = max 8 grain in
+  let range_count = (face_count + range_size - 1) / range_size in
+  if range_count > 0 then Parallel.for_ ~chunk_size:1 ~start:0
+      ~finish:(range_count - 1) (fun work_range ->
+    let workspace = Boolean_face_cdt.create_workspace () in
+    let first_face = work_range * range_size
+    and last_face = min face_count ((work_range + 1) * range_size) in
+    for face = first_face to last_face - 1 do
+      if face land 255 = 0 then Cancel.check_opt cancel;
+      let first, last = range constraints face in
+      let coplanar_first, coplanar_last = match coplanar with
+        | None -> 0, 0
+        | Some value -> coplanar_range value face in
+      if first < last || coplanar_first < coplanar_last then
+        match Boolean_face_arrangement.build ?cancel ?coplanar constraints
+            ~side ~triangle:face with
+        | Error failure -> errors.(face) <- Some failure
+        | Ok arrangement ->
+            (match Boolean_face_cdt.build ?cancel ~workspace constraints arrangement
+                ~side ~triangle:face with
+             | Ok triangulation -> output.(face) <- Some triangulation
+             | Error failure -> errors.(face) <- Some failure)
+    done);
   let first_error = ref None and face = ref 0 and refined = ref 0 in
   while Option.is_none !first_error && !face < face_count do
     (match errors.(!face) with

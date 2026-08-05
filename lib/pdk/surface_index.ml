@@ -1,6 +1,7 @@
 open Prismel
 
 type t = {
+  geometry : Geometry.t;
   positions : Packed.Float3.Private.view;
   topology : Topology.Private.view;
   primitives : int array;
@@ -8,16 +9,29 @@ type t = {
   vertex_b : int array;
   vertex_c : int array;
   order : int array;
+  triangle_min_x : float array;
+  triangle_min_y : float array;
+  triangle_min_z : float array;
+  triangle_max_x : float array;
+  triangle_max_y : float array;
+  triangle_max_z : float array;
+  triangle_min_d : float array array;
+  triangle_max_d : float array array;
   min_x : float array;
   min_y : float array;
   min_z : float array;
   max_x : float array;
   max_y : float array;
   max_z : float array;
+  min_d : float array array;
+  max_d : float array array;
   left : int array;
   right : int array;
   first : int array;
   count : int array;
+  common_a : int array;
+  common_b : int array;
+  common_c : int array;
   node_count : int;
 }
 
@@ -40,11 +54,61 @@ type ray_surface_hit = Ray_first_surface | Ray_last_surface
 exception Surface_error of string
 exception Group_error of string
 
+type pair_builder = {
+  mutable pair_first : int array;
+  mutable pair_second : int array;
+  mutable pair_length : int;
+}
+
+let pair_builder () = {
+  pair_first = [||];
+  pair_second = [||];
+  pair_length = 0;
+}
+
+let pair_builder_add builder first second =
+  if builder.pair_length = Array.length builder.pair_first then begin
+    let capacity = Array.length builder.pair_first in
+    if capacity > Sys.max_array_length / 2 then
+      invalid_arg "Surface_index candidate cardinality exceeds array limits";
+    let next = if capacity = 0 then 16 else capacity * 2 in
+    let first_values = Array.make next 0 and second_values = Array.make next 0 in
+    Array.blit builder.pair_first 0 first_values 0 capacity;
+    Array.blit builder.pair_second 0 second_values 0 capacity;
+    builder.pair_first <- first_values;
+    builder.pair_second <- second_values
+  end;
+  builder.pair_first.(builder.pair_length) <- first;
+  builder.pair_second.(builder.pair_length) <- second;
+  builder.pair_length <- builder.pair_length + 1
+
 let finite = Float.is_finite
 let fail message = raise (Surface_error message)
 let leaf_size = 8
 let ceiling_div value divisor =
   (value / divisor) + if value mod divisor = 0 then 0 else 1
+
+let diagonal_count = 4
+
+let[@inline always] diagonal_value axis x y z = match axis with
+  | 0 -> (x +. y) +. z
+  | 1 -> (x +. y) -. z
+  | 2 -> (x -. y) +. z
+  | _ -> ((-.x) +. y) +. z
+
+let[@inline always] diagonal_error x y z =
+  (8. *. Float.epsilon *. (abs_float x +. abs_float y +. abs_float z))
+  +. Int64.float_of_bits 1L
+
+let[@inline always] diagonal_lower axis x y z =
+  let value = diagonal_value axis x y z in
+  if Float.is_finite value then value -. diagonal_error x y z
+  else Float.neg_infinity
+
+let[@inline always] diagonal_upper axis x y z =
+  let value = diagonal_value axis x y z in
+  if Float.is_finite value then value +. diagonal_error x y z
+  else Float.infinity
 
 let[@inline] selected bits index =
   Char.code (Bytes.unsafe_get bits (index lsr 3))
@@ -58,7 +122,9 @@ let[@inline] compare_centroid axis x y z left right =
 
 let swap values left right =
   if left <> right then begin
-    let value = values.(left) in values.(left) <- values.(right); values.(right) <- value
+    let value = values.(left) in
+    values.(left) <- values.(right);
+    values.(right) <- value
   end
 
 let[@inline] median_pivot axis x y z order first middle last =
@@ -79,17 +145,25 @@ let select axis x y z order first last selected =
       while compare_centroid axis x y z order.(!left) pivot < 0 do incr left done;
       while compare_centroid axis x y z order.(!right) pivot > 0 do decr right done;
       if !left <= !right then begin
-        swap order !left !right; incr left; decr right
+        swap order !left !right;
+        incr left;
+        decr right
       end
     done;
     if selected <= !right then upper := !right
     else if selected >= !left then lower := !left
-    else begin lower := selected; upper := selected end
+    else begin
+      lower := selected;
+      upper := selected
+    end
   done
 
 let create_raw ?cancel ?(grain = 16_384) ?primitives:selection ?vertices
-    ?(vertex_selection = All_triangle_vertices) geometry =
+    ?(vertex_selection = All_triangle_vertices) ?(validated_triangles = false)
+    geometry =
   if grain <= 0 then invalid_arg "Surface_index: grain must be positive";
+  if validated_triangles && (Option.is_some selection || Option.is_some vertices) then
+    invalid_arg "Surface_index: validated triangle construction cannot select elements";
   Cancel.check_opt cancel;
   let positions = Packed.Float3.Private.view (Geometry.positions geometry)
   and topology = Topology.Private.view (Geometry.topology geometry) in
@@ -160,33 +234,44 @@ let create_raw ?cancel ?(grain = 16_384) ?primitives:selection ?vertices
               done);
         output in
   let selected_count = Array.length selected_primitives in
-  let triangle_offsets = Array.make (selected_count + 1) 0 in
-  for selected = 0 to selected_count - 1 do
-    let primitive = selected_primitives.(selected) in
-    if primitive land 4095 = 0 then Cancel.check_opt cancel;
-    if Bytes.get topology.primitive_kinds primitive <> '\000' then
-      fail (Printf.sprintf "primitive %d is a curve, not a polygon" primitive);
-    let size = topology.primitive_offsets.(primitive + 1)
-        - topology.primitive_offsets.(primitive) in
-    if size < 3 then fail (Printf.sprintf
-        "primitive %d has fewer than three corners" primitive);
-    if size - 2 > Sys.max_array_length - triangle_offsets.(selected) then
-      fail "triangulated surface exceeds array limits";
-    triangle_offsets.(selected + 1) <- triangle_offsets.(selected) + size - 2
-  done;
+  let triangle_offsets =
+    if validated_triangles then Array.init (selected_count + 1) Fun.id
+    else begin
+      let offsets = Array.make (selected_count + 1) 0 in
+      for selected = 0 to selected_count - 1 do
+        let primitive = selected_primitives.(selected) in
+        if primitive land 4095 = 0 then Cancel.check_opt cancel;
+        if Bytes.get topology.primitive_kinds primitive <> '\000' then
+          fail (Printf.sprintf "primitive %d is a curve, not a polygon" primitive);
+        let size = topology.primitive_offsets.(primitive + 1)
+            - topology.primitive_offsets.(primitive) in
+        if size < 3 then fail (Printf.sprintf
+            "primitive %d has fewer than three corners" primitive);
+        if size - 2 > Sys.max_array_length - offsets.(selected) then
+          fail "triangulated surface exceeds array limits";
+        offsets.(selected + 1) <- offsets.(selected) + size - 2
+      done;
+      offsets
+    end in
   let triangles = triangle_offsets.(selected_count) in
   if triangles >= Sys.max_array_length then
     fail "triangulated surface exceeds workspace array limits";
-  let primitives = Array.make triangles 0
-  and vertex_a = Array.make triangles 0
-  and vertex_b = Array.make triangles 0
-  and vertex_c = Array.make triangles 0 in
+  let primitives, vertex_a, vertex_b, vertex_c =
+    if validated_triangles then
+      Array.init triangles Fun.id,
+      Array.init triangles (fun triangle -> topology.primitive_offsets.(triangle)),
+      Array.init triangles (fun triangle -> topology.primitive_offsets.(triangle) + 1),
+      Array.init triangles (fun triangle -> topology.primitive_offsets.(triangle) + 2)
+    else
+      Array.make triangles 0, Array.make triangles 0,
+      Array.make triangles 0, Array.make triangles 0 in
   let average_triangles = if selected_count = 0 then 1
     else max 1 (ceiling_div triangles selected_count) in
   let primitive_chunk = max 1 (grain / average_triangles) in
   let primitive_ranges = ceiling_div selected_count primitive_chunk in
   let triangulation_errors = Array.make primitive_ranges None in
-  if primitive_ranges > 0 then Parallel.for_ ~chunk_size:1 ~start:0
+  if not validated_triangles && primitive_ranges > 0 then
+    Parallel.for_ ~chunk_size:1 ~start:0
       ~finish:(primitive_ranges - 1) (fun range ->
         let first_selected = range * primitive_chunk
         and last_selected = min selected_count ((range + 1) * primitive_chunk) in
@@ -272,7 +357,9 @@ let create_raw ?cancel ?(grain = 16_384) ?primitives:selection ?vertices
   and triangle_min_z = Array.make triangles 0.
   and triangle_max_x = Array.make triangles 0.
   and triangle_max_y = Array.make triangles 0.
-  and triangle_max_z = Array.make triangles 0. in
+  and triangle_max_z = Array.make triangles 0.
+  and triangle_min_d = Array.init diagonal_count (fun _ -> Array.make triangles 0.)
+  and triangle_max_d = Array.init diagonal_count (fun _ -> Array.make triangles 0.) in
   let triangle_ranges = ceiling_div triangles grain in
   let triangle_errors = Array.make triangle_ranges None in
   if triangle_ranges > 0 then Parallel.for_ ~chunk_size:1 ~start:0
@@ -288,15 +375,17 @@ let create_raw ?cancel ?(grain = 16_384) ?primitives:selection ?vertices
     let ax = positions.x.(a) and ay = positions.y.(a) and az = positions.z.(a)
     and bx = positions.x.(b) and by = positions.y.(b) and bz = positions.z.(b)
     and cx = positions.x.(c) and cy = positions.y.(c) and cz = positions.z.(c) in
-    if not (finite ax && finite ay && finite az && finite bx && finite by
+    if not validated_triangles && not (finite ax && finite ay && finite az && finite bx && finite by
         && finite bz && finite cx && finite cy && finite cz) then
       triangle_errors.(range) <- Some
         (Printf.sprintf "primitive %d has a non-finite position" primitive)
     else begin
-    let xy = Predicates.orient2d_packed ~x:positions.x ~y:positions.y a b c
-    and yz = Predicates.orient2d_packed ~x:positions.y ~y:positions.z a b c
-    and zx = Predicates.orient2d_packed ~x:positions.z ~y:positions.x a b c in
-    if xy = Predicates.Zero && yz = Predicates.Zero && zx = Predicates.Zero then
+    let degenerate = if validated_triangles then false else
+      let xy = Predicates.orient2d_packed ~x:positions.x ~y:positions.y a b c
+      and yz = Predicates.orient2d_packed ~x:positions.y ~y:positions.z a b c
+      and zx = Predicates.orient2d_packed ~x:positions.z ~y:positions.x a b c in
+      xy = Predicates.Zero && yz = Predicates.Zero && zx = Predicates.Zero in
+    if degenerate then
       triangle_errors.(range) <- Some
         (Printf.sprintf "primitive %d is degenerate" primitive)
     else begin
@@ -308,7 +397,17 @@ let create_raw ?cancel ?(grain = 16_384) ?primitives:selection ?vertices
       triangle_min_z.(slot) <- Float.min az (Float.min bz cz);
       triangle_max_x.(slot) <- Float.max ax (Float.max bx cx);
       triangle_max_y.(slot) <- Float.max ay (Float.max by cy);
-      triangle_max_z.(slot) <- Float.max az (Float.max bz cz)
+      triangle_max_z.(slot) <- Float.max az (Float.max bz cz);
+      for axis = 0 to diagonal_count - 1 do
+        triangle_min_d.(axis).(slot) <- Float.min
+          (diagonal_lower axis ax ay az)
+          (Float.min (diagonal_lower axis bx by bz)
+            (diagonal_lower axis cx cy cz));
+        triangle_max_d.(axis).(slot) <- Float.max
+          (diagonal_upper axis ax ay az)
+          (Float.max (diagonal_upper axis bx by bz)
+            (diagonal_upper axis cx cy cz))
+      done
     end
     end
     end
@@ -329,9 +428,15 @@ let create_raw ?cancel ?(grain = 16_384) ?primitives:selection ?vertices
   let min_x = Array.make capacity 0. and min_y = Array.make capacity 0.
   and min_z = Array.make capacity 0. and max_x = Array.make capacity 0.
   and max_y = Array.make capacity 0. and max_z = Array.make capacity 0.
+  and min_d = Array.init diagonal_count (fun _ -> Array.make capacity 0.)
+  and max_d = Array.init diagonal_count (fun _ -> Array.make capacity 0.)
   and left = Array.make capacity (-1) and right = Array.make capacity (-1)
   and first = Array.make capacity 0 and count = Array.make capacity 0
+  and common_a = Array.make capacity (-1)
+  and common_b = Array.make capacity (-1)
+  and common_c = Array.make capacity (-1)
   and order = Array.init triangles Fun.id in
+  let build_parallel_cutoff = max 4_096 grain in
   let rec build node range_first range_last =
     Cancel.check_opt cancel;
     min_x.(node) <- Float.infinity;
@@ -340,37 +445,63 @@ let create_raw ?cancel ?(grain = 16_384) ?primitives:selection ?vertices
     max_x.(node) <- Float.neg_infinity;
     max_y.(node) <- Float.neg_infinity;
     max_z.(node) <- Float.neg_infinity;
-    for at = range_first to range_last do
-      let primitive = order.(at) in
-      if triangle_min_x.(primitive) < min_x.(node) then
-        min_x.(node) <- triangle_min_x.(primitive);
-      if triangle_min_y.(primitive) < min_y.(node) then
-        min_y.(node) <- triangle_min_y.(primitive);
-      if triangle_min_z.(primitive) < min_z.(node) then
-        min_z.(node) <- triangle_min_z.(primitive);
-      if triangle_max_x.(primitive) > max_x.(node) then
-        max_x.(node) <- triangle_max_x.(primitive);
-      if triangle_max_y.(primitive) > max_y.(node) then
-        max_y.(node) <- triangle_max_y.(primitive);
-      if triangle_max_z.(primitive) > max_z.(node) then
-        max_z.(node) <- triangle_max_z.(primitive)
+    for axis = 0 to diagonal_count - 1 do
+      min_d.(axis).(node) <- Float.infinity;
+      max_d.(axis).(node) <- Float.neg_infinity
     done;
+    let first_triangle = order.(range_first) in
+    let common0 = ref topology.vertex_points.(vertex_a.(first_triangle))
+    and common1 = ref topology.vertex_points.(vertex_b.(first_triangle))
+    and common2 = ref topology.vertex_points.(vertex_c.(first_triangle)) in
+    for at = range_first to range_last do
+      let triangle = order.(at) in
+      let a = topology.vertex_points.(vertex_a.(triangle))
+      and b = topology.vertex_points.(vertex_b.(triangle))
+      and c = topology.vertex_points.(vertex_c.(triangle)) in
+      let retain point = point < 0 || point = a || point = b || point = c in
+      if not (retain !common0) then common0 := -1;
+      if not (retain !common1) then common1 := -1;
+      if not (retain !common2) then common2 := -1;
+      if triangle_min_x.(triangle) < min_x.(node) then
+        min_x.(node) <- triangle_min_x.(triangle);
+      if triangle_min_y.(triangle) < min_y.(node) then
+        min_y.(node) <- triangle_min_y.(triangle);
+      if triangle_min_z.(triangle) < min_z.(node) then
+        min_z.(node) <- triangle_min_z.(triangle);
+      if triangle_max_x.(triangle) > max_x.(node) then
+        max_x.(node) <- triangle_max_x.(triangle);
+      if triangle_max_y.(triangle) > max_y.(node) then
+        max_y.(node) <- triangle_max_y.(triangle);
+      if triangle_max_z.(triangle) > max_z.(node) then
+        max_z.(node) <- triangle_max_z.(triangle);
+      for axis = 0 to diagonal_count - 1 do
+        if triangle_min_d.(axis).(triangle) < min_d.(axis).(node) then
+          min_d.(axis).(node) <- triangle_min_d.(axis).(triangle);
+        if triangle_max_d.(axis).(triangle) > max_d.(axis).(node) then
+          max_d.(axis).(node) <- triangle_max_d.(axis).(triangle)
+      done
+    done;
+    common_a.(node) <- !common0;
+    common_b.(node) <- !common1;
+    common_c.(node) <- !common2;
     let range_count = range_last - range_first + 1 in
     if range_count <= leaf_size then begin
-      first.(node) <- range_first; count.(node) <- range_count
+      first.(node) <- range_first;
+      count.(node) <- range_count
     end else begin
       let ex = max_x.(node) -. min_x.(node)
       and ey = max_y.(node) -. min_y.(node)
       and ez = max_z.(node) -. min_z.(node) in
       let axis = if ex >= ey && ex >= ez then 0 else if ey >= ez then 1 else 2 in
       let middle = range_first + (range_count / 2) in
-      select axis centroid_x centroid_y centroid_z order range_first range_last middle;
+      select axis centroid_x centroid_y centroid_z order
+        range_first range_last middle;
       let left_count = middle - range_first in
       let left_node = node + 1
       and right_node = node + 1 + subtree_nodes.(left_count) in
       left.(node) <- left_node;
       right.(node) <- right_node;
-      if range_count / 2 >= grain then
+      if range_count / 2 >= build_parallel_cutoff then
         ignore (Parallel.both
           (fun () -> build left_node range_first (middle - 1))
           (fun () -> build right_node middle range_last))
@@ -380,13 +511,28 @@ let create_raw ?cancel ?(grain = 16_384) ?primitives:selection ?vertices
       end
     end in
   if triangles > 0 then build 0 0 (triangles - 1);
-  { positions; topology; primitives; vertex_a; vertex_b; vertex_c; order; min_x;
-    min_y; min_z; max_x; max_y; max_z; left; right; first; count;
+  { geometry; positions; topology; primitives; vertex_a; vertex_b; vertex_c; order;
+    triangle_min_x; triangle_min_y; triangle_min_z;
+    triangle_max_x; triangle_max_y; triangle_max_z;
+    triangle_min_d; triangle_max_d;
+    min_x; min_y; min_z; max_x; max_y; max_z; min_d; max_d;
+    left; right; first; count; common_a; common_b; common_c;
     node_count = capacity }
 
 let create ?cancel ?grain ?primitives ?vertices ?vertex_selection geometry =
   try Ok (create_raw ?cancel ?grain ?primitives ?vertices ?vertex_selection
       geometry) with
+  | Cancel.Cancelled -> Error (Error.make ~operation:"surface_index"
+      ~code:"cancelled" "surface-index construction was cancelled")
+  | Surface_error message -> Error (Error.make ~operation:"surface_index"
+      ~code:"invalid_surface" message)
+  | Group_error message -> Error (Error.make ~operation:"surface_index"
+      ~code:"invalid_group" message)
+  | Invalid_argument message -> Error (Error.make ~operation:"surface_index"
+      ~code:"invalid_parameter" message)
+
+let create_validated_triangles ?cancel ~grain geometry =
+  try Ok (create_raw ?cancel ~grain ~validated_triangles:true geometry) with
   | Cancel.Cancelled -> Error (Error.make ~operation:"surface_index"
       ~code:"cancelled" "surface-index construction was cancelled")
   | Surface_error message -> Error (Error.make ~operation:"surface_index"
@@ -405,41 +551,121 @@ let payload_bytes value =
       + Array.length value.order) * word)
   + ((Array.length value.min_x + Array.length value.min_y + Array.length value.min_z
       + Array.length value.max_x + Array.length value.max_y
-      + Array.length value.max_z) * 8)
+      + Array.length value.max_z + Array.length value.triangle_min_x
+      + Array.length value.triangle_min_y + Array.length value.triangle_min_z
+      + Array.length value.triangle_max_x + Array.length value.triangle_max_y
+      + Array.length value.triangle_max_z
+      + Array.fold_left (fun count values -> count + Array.length values) 0 value.min_d
+      + Array.fold_left (fun count values -> count + Array.length values) 0 value.max_d
+      + Array.fold_left (fun count values -> count + Array.length values) 0
+          value.triangle_min_d
+      + Array.fold_left (fun count values -> count + Array.length values) 0
+          value.triangle_max_d) * 8)
   + ((Array.length value.left + Array.length value.right + Array.length value.first
-      + Array.length value.count) * word)
+      + Array.length value.count + Array.length value.common_a
+      + Array.length value.common_b + Array.length value.common_c) * word)
 
 let triangle_bounds_into value triangle output =
-  let points = value.topology.Topology.Private.vertex_points in
-  let a = points.(value.vertex_a.(triangle))
-  and b = points.(value.vertex_b.(triangle))
-  and c = points.(value.vertex_c.(triangle)) in
-  let x = value.positions.Packed.Float3.Private.x
-  and y = value.positions.y and z = value.positions.z in
-  let ax = x.(a) and bx = x.(b) and cx = x.(c)
-  and ay = y.(a) and by = y.(b) and cy = y.(c)
-  and az = z.(a) and bz = z.(b) and cz = z.(c) in
-  output.(0) <- if ax < bx then (if ax < cx then ax else cx)
-    else if bx < cx then bx else cx;
-  output.(1) <- if ay < by then (if ay < cy then ay else cy)
-    else if by < cy then by else cy;
-  output.(2) <- if az < bz then (if az < cz then az else cz)
-    else if bz < cz then bz else cz;
-  output.(3) <- if ax > bx then (if ax > cx then ax else cx)
-    else if bx > cx then bx else cx;
-  output.(4) <- if ay > by then (if ay > cy then ay else cy)
-    else if by > cy then by else cy;
-  output.(5) <- if az > bz then (if az > cz then az else cz)
-    else if bz > cz then bz else cz
+  output.(0) <- value.triangle_min_x.(triangle);
+  output.(1) <- value.triangle_min_y.(triangle);
+  output.(2) <- value.triangle_min_z.(triangle);
+  output.(3) <- value.triangle_max_x.(triangle);
+  output.(4) <- value.triangle_max_y.(triangle);
+  output.(5) <- value.triangle_max_z.(triangle);
+  for axis = 0 to diagonal_count - 1 do
+    output.(7 + axis) <- value.triangle_min_d.(axis).(triangle);
+    output.(11 + axis) <- value.triangle_max_d.(axis).(triangle)
+  done
 
-let[@inline always] bounds_overlap left right =
-  let tolerance = left.(6) in
-  left.(0) <= right.(3) +. tolerance && left.(3) >= right.(0) -. tolerance
-  && left.(1) <= right.(4) +. tolerance && left.(4) >= right.(1) -. tolerance
-  && left.(2) <= right.(5) +. tolerance && left.(5) >= right.(2) -. tolerance
+let[@inline always] node_bounds_overlap query surface node =
+  let tolerance = query.(6) in
+  query.(0) <= surface.max_x.(node) +. tolerance
+  && query.(3) >= surface.min_x.(node) -. tolerance
+  && query.(1) <= surface.max_y.(node) +. tolerance
+  && query.(4) >= surface.min_y.(node) -. tolerance
+  && query.(2) <= surface.max_z.(node) +. tolerance
+  && query.(5) >= surface.min_z.(node) -. tolerance
+  && query.(7) <= surface.max_d.(0).(node) +. tolerance
+  && query.(11) >= surface.min_d.(0).(node) -. tolerance
+  && query.(8) <= surface.max_d.(1).(node) +. tolerance
+  && query.(12) >= surface.min_d.(1).(node) -. tolerance
+  && query.(9) <= surface.max_d.(2).(node) +. tolerance
+  && query.(13) >= surface.min_d.(2).(node) -. tolerance
+  && query.(10) <= surface.max_d.(3).(node) +. tolerance
+  && query.(14) >= surface.min_d.(3).(node) -. tolerance
 
-let overlapping_triangle_pairs_raw ?cancel ~self ~grain ~tolerance left_surface
-    right_surface =
+let[@inline always] triangle_bounds_overlap query surface triangle =
+  let tolerance = query.(6) in
+  query.(0) <= surface.triangle_max_x.(triangle) +. tolerance
+  && query.(3) >= surface.triangle_min_x.(triangle) -. tolerance
+  && query.(1) <= surface.triangle_max_y.(triangle) +. tolerance
+  && query.(4) >= surface.triangle_min_y.(triangle) -. tolerance
+  && query.(2) <= surface.triangle_max_z.(triangle) +. tolerance
+  && query.(5) >= surface.triangle_min_z.(triangle) -. tolerance
+  && query.(7) <= surface.triangle_max_d.(0).(triangle) +. tolerance
+  && query.(11) >= surface.triangle_min_d.(0).(triangle) -. tolerance
+  && query.(8) <= surface.triangle_max_d.(1).(triangle) +. tolerance
+  && query.(12) >= surface.triangle_min_d.(1).(triangle) -. tolerance
+  && query.(9) <= surface.triangle_max_d.(2).(triangle) +. tolerance
+  && query.(13) >= surface.triangle_min_d.(2).(triangle) -. tolerance
+  && query.(10) <= surface.triangle_max_d.(3).(triangle) +. tolerance
+  && query.(14) >= surface.triangle_min_d.(3).(triangle) -. tolerance
+
+let triangle_strictly_on_one_side plane_surface plane triangle_surface triangle =
+  let point surface triangle local =
+    let vertex = match local with
+      | 0 -> surface.vertex_a.(triangle)
+      | 1 -> surface.vertex_b.(triangle)
+      | _ -> surface.vertex_c.(triangle) in
+    surface.topology.vertex_points.(vertex) in
+  let a = point plane_surface plane 0 and b = point plane_surface plane 1
+  and c = point plane_surface plane 2 in
+  let sign local =
+    let d = point triangle_surface triangle local in
+    if plane_surface == triangle_surface then
+      Predicates.orient3d_packed
+        ~x:plane_surface.positions.x ~y:plane_surface.positions.y
+        ~z:plane_surface.positions.z a b c d
+    else
+      Predicates.orient3d
+        ~ax:plane_surface.positions.x.(a) ~ay:plane_surface.positions.y.(a)
+        ~az:plane_surface.positions.z.(a)
+        ~bx:plane_surface.positions.x.(b) ~by:plane_surface.positions.y.(b)
+        ~bz:plane_surface.positions.z.(b)
+        ~cx:plane_surface.positions.x.(c) ~cy:plane_surface.positions.y.(c)
+        ~cz:plane_surface.positions.z.(c)
+        ~dx:triangle_surface.positions.x.(d) ~dy:triangle_surface.positions.y.(d)
+        ~dz:triangle_surface.positions.z.(d) in
+  match sign 0 with
+  | Predicates.Zero -> false
+  | (Predicates.Positive | Predicates.Negative) as first ->
+      sign 1 = first && sign 2 = first
+
+let exact_plane_overlap left_surface left_triangle right_surface right_triangle =
+  not (triangle_strictly_on_one_side left_surface left_triangle
+      right_surface right_triangle
+    || triangle_strictly_on_one_side right_surface right_triangle
+      left_surface left_triangle)
+
+let triangle_has_point surface triangle point =
+  if point < 0 then false else
+  let points = surface.topology.Topology.Private.vertex_points in
+  point = points.(surface.vertex_a.(triangle))
+  || point = points.(surface.vertex_b.(triangle))
+  || point = points.(surface.vertex_c.(triangle))
+
+let triangles_share_point left_surface left_triangle right_surface right_triangle =
+  let points = left_surface.topology.Topology.Private.vertex_points in
+  triangle_has_point right_surface right_triangle
+    points.(left_surface.vertex_a.(left_triangle))
+  || triangle_has_point right_surface right_triangle
+    points.(left_surface.vertex_b.(left_triangle))
+  || triangle_has_point right_surface right_triangle
+    points.(left_surface.vertex_c.(left_triangle))
+
+let overlapping_triangle_pairs_raw ?cancel ?(single_pass = false)
+    ~self ~exact_plane_filter
+    ~skip_shared_points ~grain ~tolerance left_surface right_surface =
   if grain <= 0 then invalid_arg
       "Surface_index.overlapping_triangle_pairs: grain must be positive";
   if not (finite tolerance) || tolerance < 0. then invalid_arg
@@ -447,11 +673,17 @@ let overlapping_triangle_pairs_raw ?cancel ~self ~grain ~tolerance left_surface
   let left_count = Array.length left_surface.primitives in
   if left_count = 0 || Array.length right_surface.primitives = 0 then [||], [||]
   else begin
-    let range_size = max 1 grain in
+    let shared_topology =
+      left_surface.topology.Topology.Private.vertex_points
+      == right_surface.topology.Topology.Private.vertex_points in
+    (* One-pass collection owns a builder per stable range. A lower bound keeps
+       empty/disjoint workloads O(F / 128) in builder metadata even when the
+       caller requests grain one; output order remains triangle-major and is
+       therefore independent of this scheduling subdivision. *)
+    let range_size = if single_pass then max 128 grain else max 1 grain in
     let range_count = ceiling_div left_count range_size in
-    let counts = Array.make left_count 0 in
-    let scan node_stack left_bounds right_bounds left_triangle output_left
-        output_right output_at =
+    let scan node_stack left_bounds left_triangle output_left
+        output_right output_at builder =
       triangle_bounds_into left_surface left_triangle left_bounds;
       left_bounds.(6) <- tolerance;
       let top = ref 1 and found = ref 0 in
@@ -459,27 +691,35 @@ let overlapping_triangle_pairs_raw ?cancel ~self ~grain ~tolerance left_surface
       while !top > 0 do
         decr top;
         let node = node_stack.(!top) in
-        right_bounds.(0) <- right_surface.min_x.(node);
-        right_bounds.(1) <- right_surface.min_y.(node);
-        right_bounds.(2) <- right_surface.min_z.(node);
-        right_bounds.(3) <- right_surface.max_x.(node);
-        right_bounds.(4) <- right_surface.max_y.(node);
-        right_bounds.(5) <- right_surface.max_z.(node);
-        if bounds_overlap left_bounds right_bounds then
+        let shared_node = skip_shared_points && shared_topology
+            && (triangle_has_point left_surface left_triangle
+                  right_surface.common_a.(node)
+              || triangle_has_point left_surface left_triangle
+                  right_surface.common_b.(node)
+              || triangle_has_point left_surface left_triangle
+                  right_surface.common_c.(node)) in
+        if not shared_node && node_bounds_overlap left_bounds right_surface node then
           if right_surface.count.(node) > 0 then begin
             let last = right_surface.first.(node) + right_surface.count.(node) in
             for slot = right_surface.first.(node) to last - 1 do
               let right_triangle = right_surface.order.(slot) in
-              triangle_bounds_into right_surface right_triangle right_bounds;
               if (not self || (right_triangle > left_triangle
                   && right_surface.primitives.(right_triangle)
                      <> left_surface.primitives.(left_triangle)))
-                  && bounds_overlap left_bounds right_bounds then begin
-                (match output_left, output_right with
-                 | Some left_output, Some right_output ->
+                  && (not (skip_shared_points && shared_topology)
+                    || not (triangles_share_point left_surface left_triangle
+                      right_surface right_triangle))
+                  && triangle_bounds_overlap left_bounds right_surface right_triangle
+                  && (not exact_plane_filter || exact_plane_overlap
+                    left_surface left_triangle right_surface right_triangle)
+                then begin
+                (match builder, output_left, output_right with
+                 | Some output, _, _ ->
+                     pair_builder_add output left_triangle right_triangle
+                 | None, Some left_output, Some right_output ->
                      left_output.(output_at + !found) <- left_triangle;
                      right_output.(output_at + !found) <- right_triangle
-                 | None, None -> ()
+                 | None, None, None -> ()
                  | _ -> assert false);
                 incr found
               end
@@ -491,16 +731,46 @@ let overlapping_triangle_pairs_raw ?cancel ~self ~grain ~tolerance left_surface
           end
       done;
       !found in
+    if single_pass then begin
+      let builders = Array.init range_count (fun _ -> pair_builder ()) in
+      Parallel.for_ ~chunk_size:1 ~start:0 ~finish:(range_count - 1)
+        (fun range ->
+          let node_stack = Array.make 65 0
+          and left_bounds = Array.make 15 0.
+          and output = builders.(range) in
+          let first = range * range_size
+          and last = min left_count ((range + 1) * range_size) in
+          for triangle = first to last - 1 do
+            if triangle land 4095 = 0 then Cancel.check_opt cancel;
+            ignore (scan node_stack left_bounds triangle None None 0 (Some output))
+          done);
+      let offsets = Array.make (range_count + 1) 0 in
+      for range = 0 to range_count - 1 do
+        if builders.(range).pair_length > Sys.max_array_length - offsets.(range) then
+          invalid_arg "Surface_index candidate cardinality exceeds array limits";
+        offsets.(range + 1) <- offsets.(range) + builders.(range).pair_length
+      done;
+      let pair_count = offsets.(range_count) in
+      let first_output = Array.make pair_count 0
+      and second_output = Array.make pair_count 0 in
+      for range = 0 to range_count - 1 do
+        let output = builders.(range) and at = offsets.(range) in
+        Array.blit output.pair_first 0 first_output at output.pair_length;
+        Array.blit output.pair_second 0 second_output at output.pair_length
+      done;
+      first_output, second_output
+    end else begin
+    let counts = Array.make left_count 0 in
     Parallel.for_ ~chunk_size:1 ~start:0 ~finish:(range_count - 1)
       (fun range ->
         let node_stack = Array.make 65 0 in
-        let left_bounds = Array.make 7 0. and right_bounds = Array.make 6 0. in
+        let left_bounds = Array.make 15 0. in
         let first = range * range_size
         and last = min left_count ((range + 1) * range_size) in
         for triangle = first to last - 1 do
           if triangle land 4095 = 0 then Cancel.check_opt cancel;
-          counts.(triangle) <- scan node_stack left_bounds right_bounds
-              triangle None None 0
+          counts.(triangle) <- scan node_stack left_bounds
+              triangle None None 0 None
         done);
     let offsets = Array.make (left_count + 1) 0 in
     for triangle = 0 to left_count - 1 do
@@ -514,27 +784,146 @@ let overlapping_triangle_pairs_raw ?cancel ~self ~grain ~tolerance left_surface
     Parallel.for_ ~chunk_size:1 ~start:0 ~finish:(range_count - 1)
       (fun range ->
         let node_stack = Array.make 65 0 in
-        let left_bounds = Array.make 7 0. and right_bounds = Array.make 6 0. in
+        let left_bounds = Array.make 15 0. in
         let first = range * range_size
         and last = min left_count ((range + 1) * range_size) in
         for triangle = first to last - 1 do
           if triangle land 4095 = 0 then Cancel.check_opt cancel;
-          let written = scan node_stack left_bounds right_bounds triangle
-              (Some left_output) (Some right_output) offsets.(triangle) in
+          let written = scan node_stack left_bounds triangle
+              (Some left_output) (Some right_output) offsets.(triangle) None in
           if written <> counts.(triangle) then invalid_arg
               "Surface_index.overlapping_triangle_pairs: count/fill drift"
         done);
     left_output, right_output
+    end
   end
 
 let overlapping_triangle_pairs ?cancel ~grain ~tolerance left_surface
     right_surface =
-  overlapping_triangle_pairs_raw ?cancel ~self:false ~grain ~tolerance
+  overlapping_triangle_pairs_raw ?cancel ~self:false ~exact_plane_filter:false
+    ~skip_shared_points:false ~grain ~tolerance
     left_surface right_surface
 
 let overlapping_self_triangle_pairs ?cancel ~grain ~tolerance surface =
-  overlapping_triangle_pairs_raw ?cancel ~self:true ~grain ~tolerance
-    surface surface
+  overlapping_triangle_pairs_raw ?cancel ~self:true ~exact_plane_filter:false
+    ~skip_shared_points:false ~grain ~tolerance surface surface
+
+let overlapping_triangle_pairs_exact_candidates ?cancel ~grain ~tolerance
+    left_surface right_surface =
+  overlapping_triangle_pairs_raw ?cancel ~self:false ~exact_plane_filter:true
+    ~skip_shared_points:false ~grain ~tolerance left_surface right_surface
+
+let overlapping_self_triangle_pairs_exact_candidates ?cancel ~grain ~tolerance
+    surface =
+  overlapping_triangle_pairs_raw ?cancel ~self:true ~exact_plane_filter:true
+    ~skip_shared_points:false ~grain ~tolerance surface surface
+
+let overlapping_self_triangle_pairs_disjoint_topology ?cancel ~grain ~tolerance
+    surface =
+  let triangles = Array.length surface.primitives
+  and primitive_count = Bytes.length surface.topology.primitive_kinds in
+  let original_by_primitive = Array.make primitive_count (-1)
+  and eligible = ref (triangles = primitive_count) in
+  for triangle = 0 to triangles - 1 do
+    let primitive = surface.primitives.(triangle) in
+    if primitive < 0 || primitive >= primitive_count
+        || surface.topology.primitive_offsets.(primitive + 1)
+           - surface.topology.primitive_offsets.(primitive) <> 3
+        || original_by_primitive.(primitive) >= 0 then
+      eligible := false
+    else original_by_primitive.(primitive) <- triangle
+  done;
+  let map_pairs indexed first second =
+    let count = Array.length first in
+    let mapped_first = Array.make count 0 and mapped_second = Array.make count 0 in
+    for pair = 0 to count - 1 do
+      let a = original_by_primitive.(indexed.primitives.(first.(pair)))
+      and b = original_by_primitive.(indexed.primitives.(second.(pair))) in
+      if a < 0 || b < 0 then invalid_arg
+          "Surface_index disjoint-topology primitive map is incomplete";
+      if a < b then begin
+        mapped_first.(pair) <- a; mapped_second.(pair) <- b
+      end else begin
+        mapped_first.(pair) <- b; mapped_second.(pair) <- a
+      end
+    done;
+    mapped_first, mapped_second in
+  let concatenate (af, as_) (bf, bs) =
+    let ac = Array.length af and bc = Array.length bf in
+    if ac > Sys.max_array_length - bc then invalid_arg
+        "Surface_index disjoint-topology candidate cardinality exceeds array limits";
+    let first = Array.make (ac + bc) 0 and second = Array.make (ac + bc) 0 in
+    Array.blit af 0 first 0 ac; Array.blit as_ 0 second 0 ac;
+    Array.blit bf 0 first ac bc; Array.blit bs 0 second ac bc;
+    first, second in
+  let subset indexed point incident =
+    let bits = Bytes.make ((primitive_count + 7) / 8) '\000' in
+    for triangle = 0 to Array.length indexed.primitives - 1 do
+      if triangle_has_point indexed triangle point = incident then begin
+        let primitive = indexed.primitives.(triangle) in
+        let slot = primitive lsr 3 and mask = 1 lsl (primitive land 7) in
+        Bytes.unsafe_set bits slot
+          (Char.chr (Char.code (Bytes.unsafe_get bits slot) lor mask))
+      end
+    done;
+    let group = Group.Private.of_owned_bits ~owner:Group.Primitive
+        ~name:"__pdk_surface_disjoint_partition" ~length:primitive_count bits in
+    create_raw ?cancel ~grain ~primitives:group indexed.geometry in
+  let rec gather indexed =
+    Cancel.check_opt cancel;
+    let count = Array.length indexed.primitives in
+    if count < 2 then [||], [||]
+    else begin
+      let incidences = Array.make (Array.length indexed.positions.x) 0 in
+      for triangle = 0 to count - 1 do
+        let points = indexed.topology.vertex_points in
+        let a = points.(indexed.vertex_a.(triangle))
+        and b = points.(indexed.vertex_b.(triangle))
+        and c = points.(indexed.vertex_c.(triangle)) in
+        incidences.(a) <- incidences.(a) + 1;
+        incidences.(b) <- incidences.(b) + 1;
+        incidences.(c) <- incidences.(c) + 1
+      done;
+      let point = ref 0 in
+      for candidate = 1 to Array.length incidences - 1 do
+        if incidences.(candidate) > incidences.(!point) then point := candidate
+      done;
+      let incidence = incidences.(!point) in
+      if incidence >= 32 && incidence * 4 >= count then begin
+        let incident = subset indexed !point true
+        and remainder = subset indexed !point false in
+        let cross =
+          if Array.length remainder.primitives = 0 then [||], [||]
+          else
+            let first, second = overlapping_triangle_pairs_raw ?cancel ~self:false
+                ~single_pass:true ~exact_plane_filter:false
+                ~skip_shared_points:true ~grain ~tolerance
+                incident remainder in
+            let count = Array.length first in
+            let mapped_first = Array.make count 0
+            and mapped_second = Array.make count 0 in
+            for pair = 0 to count - 1 do
+              let a = original_by_primitive.(incident.primitives.(first.(pair)))
+              and b = original_by_primitive.(remainder.primitives.(second.(pair))) in
+              if a < b then begin
+                mapped_first.(pair) <- a; mapped_second.(pair) <- b
+              end else begin
+                mapped_first.(pair) <- b; mapped_second.(pair) <- a
+              end
+            done;
+            mapped_first, mapped_second in
+        concatenate cross (gather remainder)
+      end else
+        let first, second = overlapping_triangle_pairs_raw ?cancel ~self:true
+            ~single_pass:true ~exact_plane_filter:false
+            ~skip_shared_points:true ~grain ~tolerance
+            indexed indexed in
+        map_pairs indexed first second
+    end in
+  if !eligible then gather surface
+  else overlapping_triangle_pairs_raw ?cancel ~self:true ~single_pass:true
+      ~exact_plane_filter:false ~skip_shared_points:true ~grain ~tolerance
+      surface surface
 
 let[@inline] aabb_distance_squared value node qx qy qz =
   let dx = if qx < value.min_x.(node) then value.min_x.(node) -. qx
@@ -1445,6 +1834,7 @@ module Private = struct
     | Sample_longest
 
   let closest_many_into = closest_many_into
+  let create_validated_triangles = create_validated_triangles
   let closest_distances_many_into = closest_distances_many_into
   let raycast_many_into = raycast_many_into
   let raycast_samples_into = raycast_samples_into
@@ -1458,4 +1848,10 @@ module Private = struct
   let[@inline] triangle_primitive value triangle = value.primitives.(triangle)
   let overlapping_triangle_pairs = overlapping_triangle_pairs
   let overlapping_self_triangle_pairs = overlapping_self_triangle_pairs
+  let overlapping_triangle_pairs_exact_candidates =
+    overlapping_triangle_pairs_exact_candidates
+  let overlapping_self_triangle_pairs_exact_candidates =
+    overlapping_self_triangle_pairs_exact_candidates
+  let overlapping_self_triangle_pairs_disjoint_topology =
+    overlapping_self_triangle_pairs_disjoint_topology
 end

@@ -134,14 +134,17 @@ let build_components ?cancel constraints side =
     let left = find left and right = find right in
     if left <> right then
       if left < right then parent.(right) <- left else parent.(left) <- right in
-  let first_triangle = Hashtbl.create (max 16 triangle_count) in
+  let first_triangle = Array.make
+      (Boolean_constraints.Private.source_point_count constraints) (-1) in
   for triangle = 0 to triangle_count - 1 do
     if triangle land 4095 = 0 then Cancel.check_opt cancel;
     for local = 0 to 2 do
       let point = triangle_point constraints triangle local in
-      match Hashtbl.find_opt first_triangle point with
-      | None -> Hashtbl.add first_triangle point triangle
-      | Some other -> unite triangle other
+      if point < 0 || point >= Array.length first_triangle then
+        invalid_arg "Boolean component source point is out of range";
+      let other = first_triangle.(point) in
+      if other < 0 then first_triangle.(point) <- triangle
+      else unite triangle other
     done
   done;
   for triangle = 0 to triangle_count - 1 do
@@ -360,10 +363,11 @@ let build ?cancel ?(axis_fast_path = true) ?(component_index = true)
     let constraints = Boolean_complex.Private.constraints complex
     and shells = Boolean_weiler.shell_count weiler
     and facets = Boolean_complex.facet_count complex in
-    let left_components = if track_left then
-        Some (build_components ?cancel constraints Boolean_complex.Left) else None
-    and right_components = if track_right then
-        Some (build_components ?cancel constraints Boolean_complex.Right) else None in
+    let left_components, right_components = Prismel.Parallel.both
+        (fun () -> if track_left then
+          Some (build_components ?cancel constraints Boolean_complex.Left) else None)
+        (fun () -> if track_right then
+          Some (build_components ?cancel constraints Boolean_complex.Right) else None) in
     let unknown = min_int and left = Array.make shells min_int
     and right = Array.make shells min_int and symbolic_seeds = ref 0 in
     let counts = Array.make shells 0 in

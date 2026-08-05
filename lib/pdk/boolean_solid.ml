@@ -66,9 +66,10 @@ let extract ?cancel ?require_closed ~expression value =
     value.complex value.weiler value.cells
 
 let extract_with_ancestry ?cancel ?require_closed ?defer_rounded_slivers
+    ?corner_payload
     ~expression value =
   Boolean_extract.build_with_ancestry ?cancel ?require_closed
-    ?defer_rounded_slivers ~expression
+    ?defer_rounded_slivers ?corner_payload ~expression
     value.complex value.weiler value.cells
 
 let operation_expression = function
@@ -116,15 +117,22 @@ let relative_location cells weiler facet side =
   else if negative_winding <> 0 && positive_winding <> 0 then Inside
   else Boundary
 
-let reverse_selection selection =
-  Bytes.map (function '\001' -> '\002' | '\002' -> '\001' | value -> value)
-    selection
-
-let extract_selection ?cancel ?defer_rounded_slivers value side selection =
+let extract_selection ?cancel ?defer_rounded_slivers ?barycentric_cache
+    ?corner_payload
+    value side selection =
   Boolean_extract.Private.build_selected_with_ancestry ?cancel
-    ?defer_rounded_slivers ~selection ~side value.complex value.weiler value.cells
+    ?defer_rounded_slivers ?barycentric_cache ?corner_payload ~selection ~side
+    value.complex value.weiler value.cells
 
-let extract_mixed_with_ancestry ?cancel ?defer_rounded_slivers ~operation
+let selected_count selection =
+  let count = ref 0 in
+  for facet = 0 to Bytes.length selection - 1 do
+    if Bytes.unsafe_get selection facet <> '\000' then incr count
+  done;
+  !count
+
+let extract_mixed_with_ancestry ?cancel ?defer_rounded_slivers
+    ?(corner_payload = true) ~operation
     ~solid_side ~surface_side value =
   let surface_location facet =
     relative_location value.cells value.weiler facet solid_side in
@@ -169,22 +177,27 @@ let extract_mixed_with_ancestry ?cancel ?defer_rounded_slivers ~operation
       keep_surface
   and double_selection = source_oriented_selection value.complex surface_side
       double_surface in
-  bind (extract_selection ?cancel ?defer_rounded_slivers value solid_side
+  let barycentric_cache = Boolean_extract.Private.barycentric_cache
+      ~capacity:(if corner_payload then 3 * (selected_count volume_selection
+        + selected_count surface_selection + selected_count double_selection) else 0) in
+  bind (extract_selection ?cancel ?defer_rounded_slivers ~barycentric_cache
+      ~corner_payload value solid_side
       volume_selection) (fun volume ->
-    bind (extract_selection ?cancel ?defer_rounded_slivers value surface_side
+    bind (extract_selection ?cancel ?defer_rounded_slivers ~barycentric_cache
+        ~corner_payload value surface_side
         surface_selection)
       (fun surface ->
-        bind (extract_selection ?cancel ?defer_rounded_slivers value surface_side
+        bind (extract_selection ?cancel ?defer_rounded_slivers ~barycentric_cache
+            ~corner_payload value surface_side
             double_selection)
           (fun wall ->
-            bind (extract_selection ?cancel ?defer_rounded_slivers value surface_side
-                (reverse_selection double_selection))
+            bind (Boolean_extract.Private.reverse_ancestry ?cancel wall)
               (fun reverse_wall ->
                 Boolean_extract.Private.concatenate_ancestries ?cancel
                   [|volume; surface; wall; reverse_wall|]))))
 
 let extract_surface_pair_with_ancestry ?cancel ?defer_rounded_slivers
-    ~operation value =
+    ?(corner_payload = true) ~operation value =
   let has facet side = first_member_on_side value.complex facet side >= 0 in
   let choose_left facet = match operation with
     | Union -> has facet Boolean_complex.Left
@@ -201,26 +214,33 @@ let extract_surface_pair_with_ancestry ?cancel ?defer_rounded_slivers
     | Xor -> not (has facet Boolean_complex.Left) && has facet Boolean_complex.Right in
   let left = source_oriented_selection value.complex Boolean_complex.Left choose_left
   and right = source_oriented_selection value.complex Boolean_complex.Right choose_right in
-  bind (extract_selection ?cancel ?defer_rounded_slivers value
+  let barycentric_cache = Boolean_extract.Private.barycentric_cache
+      ~capacity:(if corner_payload then
+        3 * (selected_count left + selected_count right) else 0) in
+  bind (extract_selection ?cancel ?defer_rounded_slivers ~barycentric_cache
+      ~corner_payload value
       Boolean_complex.Left left) (fun left ->
-    bind (extract_selection ?cancel ?defer_rounded_slivers value
-        Boolean_complex.Right right) (fun right ->
+    bind (extract_selection ?cancel ?defer_rounded_slivers ~barycentric_cache
+        ~corner_payload value Boolean_complex.Right right) (fun right ->
       Boolean_extract.Private.concatenate_ancestries ?cancel [|left; right|]))
 
 let extract_product_with_ancestry ?cancel ?require_closed ?defer_rounded_slivers
-    ~operation value =
+    ?(corner_payload = true) ~operation value =
   let result = match value.left_treatment, value.right_treatment with
     | Solid, Solid -> extract_with_ancestry ?cancel ?require_closed
         ?defer_rounded_slivers
+        ~corner_payload
         ~expression:(operation_expression operation) value
     | Solid, Surface ->
-        extract_mixed_with_ancestry ?cancel ?defer_rounded_slivers ~operation
+        extract_mixed_with_ancestry ?cancel ?defer_rounded_slivers
+          ~corner_payload ~operation
           ~solid_side:Boolean_complex.Left ~surface_side:Boolean_complex.Right value
     | Surface, Solid ->
-        extract_mixed_with_ancestry ?cancel ?defer_rounded_slivers ~operation
+        extract_mixed_with_ancestry ?cancel ?defer_rounded_slivers
+          ~corner_payload ~operation
           ~solid_side:Boolean_complex.Right ~surface_side:Boolean_complex.Left value
     | Surface, Surface -> extract_surface_pair_with_ancestry ?cancel
-        ?defer_rounded_slivers ~operation value in
+        ?defer_rounded_slivers ~corner_payload ~operation value in
   match result, require_closed, value.left_treatment, value.right_treatment with
   | (Ok ancestry, Some true, Surface, _
     | Ok ancestry, Some true, _, Surface) ->
@@ -235,12 +255,13 @@ let extract_product ?cancel ?require_closed ~operation value =
   | Ok ancestry -> Ok (Boolean_extract.geometry ancestry)
   | Error _ as failure -> failure
 
-let seams ?cancel ?grain ?parallel_cutoff value =
-  Boolean_seam.build ?cancel ?grain ?parallel_cutoff value.complex
+let seams ?cancel ?grain ?parallel_cutoff ?materialize value =
+  Boolean_seam.build ?cancel ?grain ?parallel_cutoff ?materialize value.complex
 
-let shatter_with_ancestry ?cancel ?require_closed ?defer_rounded_slivers value =
+let shatter_with_ancestry ?cancel ?require_closed ?defer_rounded_slivers
+    ?corner_payload value =
   let extract expression = extract_with_ancestry ?cancel ?require_closed
-      ?defer_rounded_slivers
+      ?defer_rounded_slivers ?corner_payload
       ~expression value in
   match extract Boolean_extract.difference with
   | Error _ as failure -> failure
