@@ -33,6 +33,8 @@ val to_image : t -> (Image.t, string) result
     owns the returned image and should call [Image.destroy]. *)
 
 val save_png : t -> string -> (unit, string) result
-(* Save the active native-pixel framebuffer. *)
+(* Save the active native-pixel framebuffer. Native and headless targets
+    write [filename] to the filesystem; the web target downloads a PNG from
+    the browser canvas using the basename of [filename]. *)
 val save_screen_png : string -> (unit, string) result
 val destroy : t -> unit

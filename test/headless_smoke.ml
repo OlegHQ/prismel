@@ -234,7 +234,547 @@ let init (frame : Frame.t) =
    | Some wide, Some outside
      when Color.equal wide Color.cyan && Color.equal outside Color.black -> ()
    | _ -> failwith "scaled circle did not transform into an ellipse");
+  Canvas.render transformed Scene.[
+    clear Color.black;
+    circle ~at:(8, 8) ~radius:5 ~fill:Color.white ();
+  ];
+  if not
+       (Array.exists
+          (fun color -> color.Color.r > 0 && color.r < 255)
+          (Canvas.pixels transformed))
+  then failwith "filled 2D primitive produced only binary edge coverage";
   Canvas.destroy transformed;
+  let depth_canvas = Canvas.create_exn ~width:64 ~height:64 in
+  let triangle_mesh z =
+    Mesh.create_exn
+      [ Vec3.create (-1.5) (-1.5) z;
+        Vec3.create 1.5 (-1.5) z;
+        Vec3.create 0. 1.5 z ]
+  in
+  let camera =
+    Camera.perspective ~at:(Vec3.create 0. 0. 5.) ~target:Vec3.zero ()
+  in
+  let scene3 =
+    Scene3.create
+      [ Scene3.mesh ~cull:Scene3.Cull_none
+          ~material:(Material.unlit Color.red) (triangle_mesh 1.);
+        Scene3.mesh ~cull:Scene3.Cull_none
+          ~material:(Material.unlit Color.blue) (triangle_mesh 0.);
+      ]
+  in
+  Canvas.render depth_canvas Scene.[
+    clear Color.black;
+    view3d ~camera scene3;
+  ];
+  (match Canvas.pixel depth_canvas ~x:32 ~y:32 with
+   | Some color when Color.equal color Color.red -> ()
+   | Some color ->
+       failwith
+         ("3D depth buffer did not preserve the nearer triangle: "
+          ^ Color.to_string color)
+   | None -> failwith "3D depth test sampled outside its canvas");
+  let blend_depth =
+    Scene3.depth_state ~comparison:Scene3.Always ~write:false ()
+  in
+  Canvas.render depth_canvas Scene.[
+    clear Color.black;
+    view3d ~camera
+      (Scene3.create [
+         Scene3.mesh ~cull:Scene3.Cull_none
+           ~material:(Material.unlit (Color.rgb 10 20 30))
+           (triangle_mesh 0.);
+         Scene3.with_depth blend_depth [
+           Scene3.with_blend Scene3.Add [
+             Scene3.mesh ~cull:Scene3.Cull_none
+               ~material:(Material.unlit (Color.rgba 100 0 0 128))
+               (triangle_mesh 0.);
+           ];
+         ];
+       ]);
+  ];
+  (match Canvas.pixel depth_canvas ~x:32 ~y:32 with
+   | Some { Color.r = 60; g = 20; b = 30; _ } -> ()
+   | Some color ->
+       failwith
+         ("Scene3 additive blending produced " ^ Color.to_string color)
+   | None -> failwith "Scene3 blend test sampled outside its canvas");
+  let checker =
+    Texture.init ~width:64 ~height:64 (fun ~x ~y ->
+      if (x + y) mod 2 = 0 then Color.white else Color.black)
+    |> Texture.generate_mipmaps
+  in
+  Canvas.render depth_canvas Scene.[
+    clear Color.black;
+    view3d ~camera
+      (Scene3.create [
+         Scene3.plane ~cull:Scene3.Cull_none
+           ~material:(Material.unlit Color.white)
+           ~texture:(Scene3.textured ~filter:Texture.Trilinear checker)
+           ~width:0.2 ~height:0.2 ();
+       ]);
+  ];
+  (match Canvas.pixel depth_canvas ~x:32 ~y:32 with
+   | Some { Color.r; g; b; _ }
+     when r >= 120 && r <= 136 && g = r && b = r -> ()
+   | Some color ->
+       failwith
+         ("automatic 3D mip LOD did not minify to gray: "
+          ^ Color.to_string color)
+   | None -> failwith "3D mip test sampled outside its canvas");
+  let no_depth_write =
+    Scene3.depth_state ~comparison:Scene3.Always ~write:false ()
+  in
+  let depth_override_scene =
+    Scene3.create [
+      Scene3.with_depth no_depth_write [
+        Scene3.mesh ~cull:Scene3.Cull_none
+          ~material:(Material.unlit Color.red) (triangle_mesh 1.);
+      ];
+      Scene3.mesh ~cull:Scene3.Cull_none
+        ~material:(Material.unlit Color.blue) (triangle_mesh 0.);
+    ]
+  in
+  let depth_override =
+    Framebuffer3.render ~width:64 ~height:64 ~camera depth_override_scene
+  in
+  (match Framebuffer3.color_pixel depth_override ~x:32 ~y:32 with
+   | Some color when Color.equal color Color.blue -> ()
+   | _ ->
+       failwith
+         "disabled depth writes prevented a later farther surface from drawing");
+  let fog_target =
+    Framebuffer3.render ~width:64 ~height:64 ~camera
+      (Scene3.create
+         ~fog:(Fog3.linear ~color:Color.magenta ~start:0. ~end_:1.)
+         [
+           Scene3.mesh ~cull:Scene3.Cull_none
+             ~material:(Material.unlit Color.red) (triangle_mesh 0.);
+         ])
+  in
+  (match Framebuffer3.color_pixel fog_target ~x:32 ~y:32 with
+   | Some color when Color.equal color Color.magenta -> ()
+   | _ -> failwith "scene-wide per-fragment fog was not applied");
+  let stencil_write =
+    Scene3.stencil_state ~reference:1 ~write_mask:0xff
+      ~on_pass:Scene3.Replace ()
+  and stencil_test =
+    Scene3.stencil_state ~comparison:Scene3.Equal ~reference:1
+      ~write_mask:0 ()
+  in
+  let stencil_scene =
+    Scene3.create ~ambient:Color.black [
+      Scene3.with_depth no_depth_write [
+        Scene3.with_stencil stencil_write [
+          Scene3.mesh ~cull:Scene3.Cull_none
+            ~material:(Material.unlit Color.transparent)
+            (triangle_mesh 1.);
+        ];
+      ];
+      Scene3.with_stencil stencil_test [
+        Scene3.plane ~cull:Scene3.Cull_none
+          ~material:(Material.unlit Color.green)
+          ~width:4. ~height:4. ();
+      ];
+    ]
+  in
+  let stencil_target =
+    Framebuffer3.render ~width:64 ~height:64 ~camera stencil_scene
+  in
+  (match
+     Framebuffer3.color_pixel stencil_target ~x:32 ~y:32,
+     Framebuffer3.color_pixel stencil_target ~x:15 ~y:32,
+     Framebuffer3.stencil stencil_target ~x:32 ~y:32,
+     Framebuffer3.stencil stencil_target ~x:15 ~y:32,
+     Framebuffer3.depth stencil_target ~x:32 ~y:32,
+     Framebuffer3.depth stencil_target ~x:2 ~y:2
+   with
+   | Some inside, Some outside, Some 1, Some 0,
+     Some inside_depth, Some outside_depth
+     when Color.equal inside Color.green
+          && Color.equal outside Color.transparent
+          && inside_depth < 1. && outside_depth = 1. -> ()
+   | _ ->
+       failwith
+         "offscreen color/depth/stencil attachments did not preserve masking");
+  let stencil_target_again =
+    Framebuffer3.render ~width:64 ~height:64 ~camera stencil_scene
+  in
+  if Framebuffer3.depths stencil_target <> Framebuffer3.depths stencil_target_again
+     || Framebuffer3.stencils stencil_target
+        <> Framebuffer3.stencils stencil_target_again
+     || Texture.pixels (Framebuffer3.color stencil_target)
+        <> Texture.pixels (Framebuffer3.color stencil_target_again)
+  then failwith "offscreen 3D attachments were not deterministic";
+  let stencil_canvas =
+    match Framebuffer3.to_canvas stencil_target with
+    | Ok canvas -> canvas
+    | Error message -> failwith message
+  in
+  (match Canvas.pixel stencil_canvas ~x:32 ~y:32 with
+   | Some color when Color.equal color Color.green -> ()
+   | _ -> failwith "Framebuffer3 color attachment did not compose as a Canvas");
+  Canvas.destroy stencil_canvas;
+  let post_source =
+    Framebuffer3.render ~width:64 ~height:64 ~camera
+      (Scene3.create [
+         Scene3.plane ~cull:Scene3.Cull_none
+           ~material:(Material.unlit Color.red)
+           ~width:4. ~height:4. ();
+       ])
+  in
+  let invert_shader =
+    Shader3.create ~vertex:Shader3.default_vertex
+      ~fragment:(fun (input : Shader3.fragment_input) ->
+        let red, green, blue, alpha = Color.to_floats input.color in
+        Shader3.output
+          (Color.of_floats (1. -. red) (1. -. green) (1. -. blue) alpha))
+      ()
+  in
+  let postprocessed =
+    Framebuffer3.render ~width:64 ~height:64 ~camera
+      (Scene3.create [
+         Scene3.plane ~cull:Scene3.Cull_none ~shader:invert_shader
+           ~texture:(Scene3.textured (Framebuffer3.color post_source))
+           ~material:(Material.unlit Color.white)
+           ~width:4. ~height:4. ();
+       ])
+  in
+  (match Framebuffer3.color_pixel postprocessed ~x:32 ~y:32 with
+   | Some color when Color.equal color Color.cyan -> ()
+   | _ ->
+       failwith
+         "Framebuffer3 color attachment was not usable for post-processing");
+  let shadow_light =
+    Light.directional ~diffuse:Color.white ~ambient:Color.black
+      ~specular:Color.black
+      ~direction:(Vec3.create 0. 0. (-1.)) ()
+  and shadow_camera =
+    Camera.orthographic ~near:0.1 ~far:10. ~height:4.
+      ~at:(Vec3.create 0. 0. 5.) ~target:Vec3.zero ()
+  in
+  let receiver =
+    Scene3.plane ~cull:Scene3.Cull_none
+      ~material:(Material.unlit Color.white)
+      ~width:4. ~height:4. ()
+  and occluder =
+    Scene3.translate (Vec3.create 0. 0. 1.) [
+      Scene3.plane ~cull:Scene3.Cull_none
+        ~material:(Material.unlit Color.white)
+        ~width:1. ~height:1. ();
+    ]
+  in
+  let shadow_depth =
+    Framebuffer3.render ~width:64 ~height:64 ~camera:shadow_camera
+      (Scene3.create [receiver; occluder])
+  in
+  let shadow =
+    Framebuffer3.shadow ~filter:Shadow3.Hard
+      ~bias:0.0001 ~normal_bias:0.
+      ~light:shadow_light ~camera:shadow_camera shadow_depth
+  in
+  let shadowed_receiver =
+    Framebuffer3.render ~width:64 ~height:64 ~camera
+      (Scene3.create ~ambient:Color.black
+         ~lights:[shadow_light] ~shadows:[shadow] [
+         Scene3.plane ~cull:Scene3.Cull_none
+           ~material:
+             (Material.create ~diffuse:Color.white ~ambient:Color.black
+                ~specular:Color.black ())
+           ~width:4. ~height:4. ();
+       ])
+  in
+  (match
+     Framebuffer3.color_pixel shadowed_receiver ~x:32 ~y:32,
+     Framebuffer3.color_pixel shadowed_receiver ~x:16 ~y:32
+   with
+   | Some shadowed, Some lit
+     when shadowed.r < 5 && shadowed.g < 5 && shadowed.b < 5
+          && lit.r > 245 && lit.g > 245 && lit.b > 245 -> ()
+   | _ -> failwith "captured shadow map did not shade its receiver");
+  let clipping_camera =
+    Camera.perspective ~near:1. ~far:10.
+      ~at:Vec3.zero ~target:(Vec3.create 0. 0. (-1.)) ()
+  in
+  let crossing =
+    Mesh.create_exn
+      [ Vec3.create (-1.) (-1.) (-2.);
+        Vec3.create 1. (-1.) (-2.);
+        Vec3.create 0. 1. 0.5 ]
+  in
+  Canvas.render depth_canvas Scene.[
+    clear Color.black;
+    view3d ~camera:clipping_camera
+      (Scene3.create [
+         Scene3.mesh ~cull:Scene3.Cull_none
+           ~material:(Material.unlit Color.green) crossing;
+       ]);
+  ];
+  (match Canvas.pixel depth_canvas ~x:32 ~y:52 with
+   | Some color when Color.equal color Color.green -> ()
+   | _ -> failwith "3D triangle crossing the near plane was not clipped");
+  let checker =
+    Texture.create_exn ~width:2 ~height:2
+      [Color.red; Color.green; Color.blue; Color.yellow]
+  in
+  let textured_plane =
+    Scene3.plane
+      ~material:(Material.unlit Color.white)
+      ~texture:(Scene3.textured ~filter:Texture.Nearest checker)
+      ~width:2. ~height:2. ()
+  in
+  Canvas.render depth_canvas Scene.[
+    clear Color.black;
+    view3d
+      ~camera:(Camera.perspective
+        ~at:(Vec3.create 0. 0. 3.) ~target:Vec3.zero ())
+      (Scene3.create [textured_plane]);
+  ];
+  (match
+     Canvas.pixel depth_canvas ~x:22 ~y:22,
+     Canvas.pixel depth_canvas ~x:42 ~y:42
+   with
+   | Some upper_left, Some lower_right
+     when Color.equal upper_left Color.red
+          && Color.equal lower_right Color.yellow -> ()
+   | _ ->
+       failwith
+         "3D mesh texture coordinates were not sampled in perspective");
+  let black_texture =
+    Texture.create_exn ~width:1 ~height:1 [Color.black]
+    |> Scene3.textured ~filter:Texture.Nearest
+  in
+  let specular_material =
+    Material.create ~diffuse:Color.black ~ambient:Color.black
+      ~specular:Color.white ~shininess:32. ()
+  and specular_light =
+    Light.directional ~diffuse:Color.black ~ambient:Color.black
+      ~specular:Color.white
+      ~direction:(Vec3.create 0. 0. (-1.)) ()
+  in
+  let render_specular separate_specular =
+    Canvas.render depth_canvas Scene.[
+      clear Color.black;
+      view3d ~camera
+        (Scene3.create ~ambient:Color.black ~lights:[specular_light]
+           ~separate_specular [
+           Scene3.mesh ~cull:Scene3.Cull_none
+             ~material:specular_material ~texture:black_texture
+             (triangle_mesh 0.);
+         ]);
+    ];
+    match Canvas.pixel depth_canvas ~x:32 ~y:32 with
+    | Some color -> color
+    | None -> failwith "separate-specular sample was outside its canvas"
+  in
+  let combined = render_specular false
+  and separate = render_specular true in
+  if combined.r > 2 || combined.g > 2 || combined.b > 2
+     || separate.r < 100 || separate.g < 100 || separate.b < 100
+  then
+    failwith
+      ("separate specular did not bypass texture modulation: "
+       ^ Color.to_string combined ^ " / " ^ Color.to_string separate);
+  let transparent_triangle color z =
+    Scene3.mesh ~cull:Scene3.Cull_none
+      ~material:(Material.unlit color) (triangle_mesh z)
+  in
+  let red = transparent_triangle (Color.rgba 255 0 0 128) 1.
+  and blue = transparent_triangle (Color.rgba 0 0 255 128) 0. in
+  let render_order nodes =
+    Canvas.render depth_canvas Scene.[
+      clear Color.black;
+      view3d ~camera (Scene3.create nodes);
+    ];
+    match Canvas.pixel depth_canvas ~x:32 ~y:32 with
+    | Some color -> color
+    | None -> failwith "transparent 3D sample was outside the canvas"
+  in
+  let front_first = render_order [red; blue]
+  and back_first = render_order [blue; red] in
+  if not (Color.equal front_first back_first)
+     || front_first.r < 115 || front_first.r > 140
+     || front_first.b < 50 || front_first.b > 75
+  then
+    failwith
+      ("transparent 3D surfaces were not sorted back-to-front: "
+       ^ Color.to_string front_first ^ " / " ^ Color.to_string back_first);
+  Canvas.render depth_canvas Scene.[
+    clear Color.black;
+    view3d ~camera
+      (Scene3.create ~samples:4 [
+         Scene3.mesh ~cull:Scene3.Cull_none
+           ~material:(Material.unlit Color.red) (triangle_mesh 1.);
+       ]);
+  ];
+  if not
+       (Array.exists
+          (fun color -> color.Color.r > 0 && color.r < 255)
+          (Canvas.pixels depth_canvas))
+  then failwith "3D multisample antialiasing produced only binary coverage";
+  let split_shader =
+    Shader3.create ~varying_count:1
+      ~vertex:(fun (input : Shader3.vertex_input) ->
+        let output = Shader3.default_vertex input in
+        { output with varyings = [input.position.x] })
+      ~fragment:(fun (input : Shader3.fragment_input) ->
+        match input.varyings with
+        | [horizontal] ->
+            Shader3.output
+              (if horizontal < 0. then Color.red else Color.blue)
+        | _ -> failwith "shader varying count changed during rasterization")
+      ()
+  in
+  Canvas.render depth_canvas Scene.[
+    clear Color.black;
+    view3d ~camera
+      (Scene3.create [
+         Scene3.mesh ~cull:Scene3.Cull_none ~shader:split_shader
+           ~material:(Material.unlit Color.white) (triangle_mesh 1.);
+       ]);
+  ];
+  (match
+     Canvas.pixel depth_canvas ~x:25 ~y:36,
+     Canvas.pixel depth_canvas ~x:39 ~y:36
+   with
+   | Some left, Some right
+     when Color.equal left Color.red && Color.equal right Color.blue -> ()
+   | _ ->
+       failwith
+         "programmable vertex varyings or fragment colors were not rendered");
+  let discard_shader =
+    Shader3.create
+      ~vertex:Shader3.default_vertex
+      ~fragment:(fun _ -> Shader3.discard)
+      ()
+  in
+  Canvas.render depth_canvas Scene.[
+    clear Color.black;
+    view3d ~camera
+      (Scene3.create [
+         Scene3.mesh ~cull:Scene3.Cull_none ~shader:discard_shader
+           ~material:(Material.unlit Color.red) (triangle_mesh 1.);
+         Scene3.mesh ~cull:Scene3.Cull_none
+           ~material:(Material.unlit Color.blue) (triangle_mesh 0.);
+       ]);
+  ];
+  (match Canvas.pixel depth_canvas ~x:32 ~y:32 with
+   | Some color when Color.equal color Color.blue -> ()
+   | _ -> failwith "discarded shader fragments still updated color or depth");
+  let far_depth_shader =
+    Shader3.create
+      ~vertex:Shader3.default_vertex
+      ~fragment:(fun input -> Shader3.output ~depth:0.999 input.color)
+      ()
+  in
+  Canvas.render depth_canvas Scene.[
+    clear Color.black;
+    view3d ~camera
+      (Scene3.create [
+         Scene3.mesh ~cull:Scene3.Cull_none ~shader:far_depth_shader
+           ~material:(Material.unlit Color.red) (triangle_mesh 1.);
+         Scene3.mesh ~cull:Scene3.Cull_none
+           ~material:(Material.unlit Color.blue) (triangle_mesh 0.);
+       ]);
+  ];
+  (match Canvas.pixel depth_canvas ~x:32 ~y:32 with
+   | Some color when Color.equal color Color.blue -> ()
+   | _ -> failwith "fragment shader depth output did not affect depth testing");
+  let geometry_shader =
+    Shader3.create
+      ~vertex:Shader3.default_vertex
+      ~geometry:(fun (input : Shader3.geometry_input) ->
+        match input.primitive with
+        | Shader3.Point center ->
+            let x, y, z, w = center.clip_position in
+            let at dx dy =
+              {
+                center with
+                clip_position = x +. (dx *. w), y +. (dy *. w), z, w;
+              }
+            in
+            [
+              Shader3.Triangle
+                (at (-0.35) (-0.35), at 0.35 (-0.35), at 0. 0.35);
+            ]
+        | _ -> [])
+      ~fragment:(fun _ -> Shader3.output Color.green)
+      ()
+  in
+  let point_mesh = Mesh.create_exn ~mode:Mesh.Points [Vec3.zero] in
+  Canvas.render depth_canvas Scene.[
+    clear Color.black;
+    view3d ~camera
+      (Scene3.create [
+         Scene3.mesh ~cull:Scene3.Cull_none ~shader:geometry_shader
+           ~material:(Material.unlit Color.white) point_mesh;
+       ]);
+  ];
+  let geometry_pixels =
+    Canvas.pixels depth_canvas
+    |> Array.fold_left
+         (fun count color ->
+           if Color.equal color Color.green then count + 1 else count)
+         0
+  in
+  (match Canvas.pixel depth_canvas ~x:32 ~y:32 with
+   | Some center
+     when Color.equal center Color.green && geometry_pixels > 100 -> ()
+   | _ ->
+       failwith
+         "geometry shader did not expand a point into a rasterized triangle");
+  Canvas.render depth_canvas Scene.[
+    clear Color.black;
+    view3d ~camera
+      (Scene3.create ~samples:9 [
+         Scene3.with_raster (Scene3.raster_state ~point_size:7. ()) [
+           Scene3.mesh ~material:(Material.unlit Color.white) point_mesh;
+         ];
+       ]);
+  ];
+  let point_pixels = Canvas.pixels depth_canvas in
+  let point_coverage =
+    point_pixels
+    |> Array.fold_left
+         (fun coverage color ->
+           coverage +. (float_of_int color.Color.r /. 255.))
+         0.
+  in
+  let point_has_partial =
+    Array.exists
+      (fun color -> color.Color.r > 0 && color.r < 255)
+      point_pixels
+  in
+  if abs_float (point_coverage -. 49.) > 1. || not point_has_partial then
+    failwith
+      (Printf.sprintf
+         "Scene3 point size or antialiased coverage changed: %.3f/%b"
+         point_coverage point_has_partial);
+  let line_mesh =
+    Mesh.create_exn ~mode:Mesh.Lines
+      [Vec3.create (-1.) 0. 0.; Vec3.create 1. 0. 0.]
+  in
+  Canvas.render depth_canvas Scene.[
+    clear Color.black;
+    view3d ~camera
+      (Scene3.create ~samples:9 [
+         Scene3.with_raster (Scene3.raster_state ~line_width:5. ()) [
+           Scene3.mesh ~material:(Material.unlit Color.white) line_mesh;
+         ];
+       ]);
+  ];
+  let covered_rows =
+    List.init 64 Fun.id
+    |> List.fold_left
+         (fun coverage y ->
+           match Canvas.pixel depth_canvas ~x:32 ~y with
+           | Some color ->
+               coverage +. (float_of_int color.Color.r /. 255.)
+           | None -> coverage)
+         0.
+  in
+  if covered_rows < 4.5 then
+    failwith "Scene3 line width did not widen rasterized line coverage";
+  Canvas.destroy depth_canvas;
   let filename = Filename.temp_file "prismel-canvas-" ".png" in
   Fun.protect
     ~finally:(fun () -> if Sys.file_exists filename then Sys.remove filename)
@@ -480,9 +1020,20 @@ let () =
   Fun.protect
     ~finally:(fun () -> cleanup first_dir; cleanup second_dir)
     (fun () ->
-      let render directory =
+      let render directory domains =
+        let visual_mesh =
+          Parallel.run ~domains (fun () ->
+            Mesh.sphere ~segments:24 ~rings:12 ~radius:0.85 ())
+        in
+        let visual_camera =
+          Camera.perspective ~at:(Vec3.create 0. 0. 3.) ~target:Vec3.zero ()
+        in
         Sketch.export
-          ~config:{ Sketch.default_config with width = 16; height = 16 }
+          ~config:{ Sketch.default_config with
+            width = 16;
+            height = 16;
+            domains = Some domains;
+          }
           ~fps:10 ~prefix:"shot" ~directory ~frames:3
           (fun frame ->
             if frame.dt <> 0.1
@@ -490,12 +1041,17 @@ let () =
             then failwith "export did not use deterministic fixed timing";
             Scene.[
               clear Color.black;
+              view3d ~camera:visual_camera
+                (Scene3.create [
+                   Scene3.mesh ~cull:Scene3.Cull_none
+                     ~material:(Material.unlit Color.cyan) visual_mesh;
+                 ]);
               square ~at:(frame.count, 2) ~size:4 ~fill:Color.white ();
               text ~at:(1, 8) ~size:6 "R";
             ])
       in
-      render first_dir;
-      render second_dir;
+      render first_dir 1;
+      render second_dir 4;
       List.iter
         (fun name ->
           let first = Filename.concat first_dir name in
@@ -503,7 +1059,8 @@ let () =
           if not (Sys.file_exists first) || (Unix.stat first).st_size = 0 then
             failwith "frame export did not create a non-empty PNG";
           if Digest.file first <> Digest.file second then
-            failwith "repeated deterministic exports produced different PNGs")
+            failwith
+              "one-domain and multi-domain visual exports produced different PNGs")
         filenames);
   Preview.show Scene.[
     clear Color.black;

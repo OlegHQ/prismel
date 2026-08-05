@@ -2,6 +2,8 @@ type clock =
   | Realtime
   | Fixed of float
 
+type render_target = Native | Headless | Web
+
 type config = {
   width : int;
   height : int;
@@ -75,7 +77,7 @@ let window_config config =
 
 let run_state_internal ?(config = default_config) ~init ~update ~view
     ?after_draw ?on_stop () =
-  Option.iter Time.set_frame_rate config.fps;
+  Time.set_frame_rate (Option.value config.fps ~default:0);
   let init_runtime () =
     let frame = snapshot ~clock:config.clock ~count:0 ~events:[] in
     { model = init frame; frame; pending_events_rev = [] }
@@ -156,6 +158,12 @@ let run_assets ?config ?root ?(watch = false) ~init ~update ~view () =
 
 let quit = App.request_quit
 let is_headless = Backend.is_headless
+let is_web = Backend.is_web
+let render_target () =
+  match Runtime.selected_target () with
+  | Runtime.Native -> Native
+  | Headless -> Headless
+  | Web -> Web
 
 let rec ensure_directory path =
   if path = "" || path = "." || Sys.file_exists path then ()

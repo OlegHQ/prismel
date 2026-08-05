@@ -1,0 +1,611 @@
+(library
+ (name pdk)
+ (public_name prismel.pdk)
+ (libraries prismel)
+ (private_modules data_id exact_dyadic bounds2_index triangulate2d implicit_point planar_refinement boolean_constraints boolean_coplanar boolean_face_arrangement boolean_face_cdt boolean_refinement boolean_coincident boolean_complex boolean_radial boolean_weiler boolean_cells boolean_extract boolean_seam boolean_materialization boolean_solid boolean_corner_payload boolean_payload ragged_ops topology_remap topology_edge_lookup polygon_triangulation contour_triangulation proximity_index point_clusters point_snap fuse_rules fuse_target_rules fuse_reduce fuse_cleanup group_path plane_clip curve_subdivide subdivide deletion blast_by_attribute crease attribute_fade poly_cut separate_pieces blend_shapes attribute_composite attribute_mirror rewire_vertices remesh linear_piece_index triangle_intersection curve_intersection boolean_detect intersection_analysis ordering face_normals point_index element_selection normal_ops dissolve poly_loft poly_bridge poly_reduce poly_bevel point_split edge_constraints edge_relax edge_transport edge_ops circle_from_edges graph_color group_ops curve_ops poly_path poly_extrude poly_fill polyframe facet uv_parameterize uv_ops attribute_generate attribute_lifecycle attribute_copy attribute_combine attribute_interpolate deform scatter smooth ray spiral sweep polywire point_jitter point_generate point_replicate duplicate convex_hull extract_centroid extract_point_curve)
+ (modules data_id exact_dyadic bounds2_index delaunay2 planar_constraints planar_cdt planar_refinement triangulate2d error cancel packed topology point_index topology_index topology_edge_lookup spatial_index attribute attribute_pattern group edge_group geometry kernel predicates implicit_point ragged_ops topology_remap analysis polygon_triangulation contour_triangulation surface_index proximity_index point_clusters point_snap fuse_rules fuse_target_rules fuse_reduce fuse_cleanup group_path attribute_generate attribute_lifecycle attribute_copy attribute_combine attribute_interpolate attribute_ops plane_clip curve_subdivide subdivide deletion blast_by_attribute crease attribute_fade poly_cut separate_pieces blend_shapes attribute_composite attribute_mirror rewire_vertices ordering face_normals element_selection normal_ops motion dissolve poly_loft poly_bridge poly_reduce poly_bevel point_split edge_constraints edge_relax edge_transport edge_ops circle_from_edges graph_color group_ops curve_ops poly_path poly_extrude poly_fill polyframe facet uv_parameterize uv_ops deform scatter smooth ray spiral sweep polywire point_jitter point_generate point_replicate duplicate convex_hull extract_centroid extract_point_curve remesh linear_piece_index triangle_intersection curve_intersection boolean_detect intersection_analysis boolean_constraints boolean_coplanar boolean_face_arrangement boolean_face_cdt boolean_refinement boolean_coincident boolean_complex boolean_radial boolean_weiler boolean_cells boolean_extract boolean_seam boolean_materialization boolean_solid boolean_corner_payload boolean_payload boolean_kernel ops boolean prismel_mesh))
+
+(test
+ (name test_pdk)
+ (modules test_pdk)
+ (libraries pdk prismel))
+
+(test
+ (name test_extract_centroid)
+ (modules test_extract_centroid)
+ (libraries pdk prismel))
+
+(test
+ (name test_extract_point_curve)
+ (modules test_extract_point_curve)
+ (libraries pdk prismel))
+
+(test
+ (name test_predicates)
+ (modules test_predicates)
+ (libraries pdk prismel))
+
+(test
+ (name test_delaunay2)
+ (modules test_delaunay2)
+ (libraries pdk prismel))
+
+(test
+ (name test_planar_cdt)
+ (modules test_planar_cdt)
+ (libraries pdk prismel))
+
+(test
+ (name test_planar_constraints)
+ (modules test_planar_constraints)
+ (libraries pdk prismel))
+
+(test
+ (name test_triangulate2d)
+ (modules test_triangulate2d)
+ (libraries pdk prismel))
+
+(test
+ (name test_implicit_point)
+ (modules test_implicit_point)
+ (libraries pdk prismel))
+
+(test
+ (name test_boolean_constraints)
+ (modules test_boolean_constraints)
+ (libraries pdk prismel))
+
+(test
+ (name test_boolean_coplanar)
+ (modules test_boolean_coplanar)
+ (libraries pdk prismel))
+
+(test
+ (name test_boolean_face_arrangement)
+ (modules test_boolean_face_arrangement)
+ (libraries pdk prismel))
+
+(test
+ (name test_boolean_face_cdt)
+ (modules test_boolean_face_cdt)
+ (libraries pdk prismel))
+
+(test
+ (name test_boolean_refinement)
+ (modules test_boolean_refinement)
+ (libraries pdk prismel))
+
+(test
+ (name test_boolean_coincident)
+ (modules test_boolean_coincident)
+ (libraries pdk prismel))
+
+(test
+ (name test_boolean_complex)
+ (modules test_boolean_complex)
+ (libraries pdk prismel))
+
+(test
+ (name test_boolean_radial)
+ (modules test_boolean_radial)
+ (libraries pdk prismel))
+
+(test
+ (name test_boolean_weiler)
+ (modules test_boolean_weiler)
+ (libraries pdk prismel))
+
+(test
+ (name test_boolean_cells)
+ (modules test_boolean_cells)
+ (libraries pdk prismel))
+
+(test
+ (name test_boolean_extract)
+ (modules test_boolean_extract)
+ (libraries pdk prismel))
+
+(test
+ (name test_boolean_seam)
+ (modules test_boolean_seam)
+ (libraries pdk prismel))
+
+(test
+ (name test_boolean_solid)
+ (modules test_boolean_solid)
+ (libraries pdk prismel))
+
+(test
+ (name test_boolean_payload)
+ (modules test_boolean_payload)
+ (libraries pdk prismel))
+
+(test
+ (name test_boolean)
+ (modules test_boolean)
+ (libraries pdk prismel))
+
+(test
+ (name test_attribute_generate)
+ (modules test_attribute_generate)
+ (libraries pdk prismel))
+
+(test
+ (name test_blend_shapes)
+ (modules test_blend_shapes)
+ (libraries pdk prismel))
+
+(test
+ (name test_attribute_composite)
+ (modules test_attribute_composite)
+ (libraries pdk prismel))
+
+(test
+ (name test_attribute_mirror)
+ (modules test_attribute_mirror)
+ (libraries pdk prismel))
+
+(test
+ (name test_rewire_vertices)
+ (modules test_rewire_vertices)
+ (libraries pdk prismel))
+
+(test
+ (name test_enumerate)
+ (modules test_enumerate)
+ (libraries pdk prismel))
+
+(test
+ (name test_motion)
+ (modules test_motion)
+ (libraries pdk prismel))
+
+(test
+ (name test_dissolve)
+ (modules test_dissolve)
+ (libraries pdk prismel))
+
+(test
+ (name test_poly_loft)
+ (modules test_poly_loft)
+ (libraries pdk prismel))
+
+(test
+ (name test_skin)
+ (modules test_skin)
+ (libraries pdk prismel))
+
+(test
+ (name test_poly_bridge)
+ (modules test_poly_bridge)
+ (libraries pdk prismel))
+
+(test
+ (name test_poly_reduce)
+ (modules test_poly_reduce)
+ (libraries pdk prismel))
+
+(test
+ (name test_remesh)
+ (modules test_remesh)
+ (libraries pdk prismel))
+
+(test
+ (name test_boolean_detect)
+ (modules test_boolean_detect)
+ (libraries pdk prismel))
+
+(test
+ (name test_intersection_analysis)
+ (modules test_intersection_analysis)
+ (libraries pdk prismel))
+
+(test
+ (name test_poly_bevel)
+ (modules test_poly_bevel)
+ (libraries pdk prismel))
+
+(test
+ (name test_point_split)
+ (modules test_point_split)
+ (libraries pdk prismel))
+
+(test
+ (name test_point_generate)
+ (modules test_point_generate)
+ (libraries pdk prismel))
+
+(test
+ (name test_point_replicate)
+ (modules test_point_replicate)
+ (libraries pdk prismel))
+
+(test
+ (name test_ends)
+ (modules test_ends)
+ (libraries pdk prismel))
+
+(test
+ (name test_duplicate)
+ (modules test_duplicate)
+ (libraries pdk prismel))
+
+(test
+ (name test_transform)
+ (modules test_transform)
+ (libraries pdk prismel))
+
+(test
+ (name test_soft_transform)
+ (modules test_soft_transform)
+ (libraries pdk prismel))
+
+(test
+ (name test_distance_along_geometry)
+ (modules test_distance_along_geometry)
+ (libraries pdk prismel))
+
+(test
+ (name test_distance_from_geometry)
+ (modules test_distance_from_geometry)
+ (libraries pdk prismel))
+
+(test
+ (name test_distance_from_target)
+ (modules test_distance_from_target)
+ (libraries pdk prismel))
+
+(test
+ (name test_sort_extended)
+ (modules test_sort_extended)
+ (libraries pdk prismel))
+
+(test
+ (name test_blast_by_attribute)
+ (modules test_blast_by_attribute)
+ (libraries pdk prismel))
+
+(test
+ (name test_crease)
+ (modules test_crease)
+ (libraries pdk prismel))
+
+(test
+ (name test_attribute_fade)
+ (modules test_attribute_fade)
+ (libraries pdk prismel))
+
+(test
+ (name test_poly_cut)
+ (modules test_poly_cut)
+ (libraries pdk prismel))
+
+(test
+ (name test_separate_pieces)
+ (modules test_separate_pieces)
+ (libraries pdk prismel))
+
+(test
+ (name test_deform)
+ (modules test_deform)
+ (libraries pdk prismel))
+
+(test
+ (name test_point_jitter)
+ (modules test_point_jitter)
+ (libraries pdk prismel))
+
+(test
+ (name test_scatter)
+ (modules test_scatter)
+ (libraries pdk prismel))
+
+(test
+ (name test_smooth)
+ (modules test_smooth)
+ (libraries pdk prismel))
+
+(test
+ (name test_ray)
+ (modules test_ray)
+ (libraries pdk prismel))
+
+(test
+ (name test_fuse)
+ (modules test_fuse)
+ (libraries pdk prismel))
+
+(test
+ (name test_bound)
+ (modules test_bound)
+ (libraries pdk prismel))
+
+(test
+ (name test_convex_hull)
+ (modules test_convex_hull)
+ (libraries pdk prismel))
+
+(test
+ (name test_match_size)
+ (modules test_match_size)
+ (libraries pdk prismel))
+
+(test
+ (name test_grid)
+ (modules test_grid)
+ (libraries pdk prismel))
+
+(test
+ (name test_circle)
+ (modules test_circle)
+ (libraries pdk prismel))
+
+(test
+ (name test_clip)
+ (modules test_clip)
+ (libraries pdk prismel))
+
+(test
+ (name test_box)
+ (modules test_box)
+ (libraries pdk prismel))
+
+(test
+ (name test_uv_sphere)
+ (modules test_uv_sphere)
+ (libraries pdk prismel))
+
+(test
+ (name test_torus)
+ (modules test_torus)
+ (libraries pdk prismel))
+
+(test
+ (name test_tube)
+ (modules test_tube)
+ (libraries pdk prismel))
+
+(test
+ (name test_platonic)
+ (modules test_platonic)
+ (libraries pdk prismel))
+
+(test
+ (name test_spiral)
+ (modules test_spiral)
+ (libraries pdk prismel))
+
+(test
+ (name test_polywire)
+ (modules test_polywire)
+ (libraries pdk prismel))
+
+(test
+ (name test_revolve)
+ (modules test_revolve)
+ (libraries pdk prismel))
+
+(test
+ (name test_sweep)
+ (modules test_sweep)
+ (libraries pdk prismel))
+
+(test
+ (name test_resample)
+ (modules test_resample)
+ (libraries pdk prismel))
+
+(test
+ (name test_polyframe)
+ (modules test_polyframe)
+ (libraries pdk prismel))
+
+(test
+ (name test_facet)
+ (modules test_facet)
+ (libraries pdk prismel))
+
+(test
+ (name test_subdivide)
+ (modules test_subdivide)
+ (libraries pdk prismel))
+
+(test
+ (name test_edge_divide)
+ (modules test_edge_divide)
+ (libraries pdk prismel))
+
+(test
+ (name test_edge_collapse)
+ (modules test_edge_collapse)
+ (libraries pdk prismel))
+
+(test
+ (name test_edge_flip)
+ (modules test_edge_flip)
+ (libraries pdk prismel))
+
+(test
+ (name test_edge_cusp)
+ (modules test_edge_cusp)
+ (libraries pdk prismel))
+
+(test
+ (name test_edge_straighten)
+ (modules test_edge_straighten)
+ (libraries pdk prismel))
+
+(test
+ (name test_circle_from_edges)
+ (modules test_circle_from_edges)
+ (libraries pdk prismel))
+
+(test
+ (name test_graph_color)
+ (modules test_graph_color)
+ (libraries pdk prismel))
+
+(test
+ (name test_edge_equalize)
+ (modules test_edge_equalize)
+ (libraries pdk prismel))
+
+(test
+ (name test_edge_relax)
+ (modules test_edge_relax)
+ (libraries pdk prismel))
+
+(test
+ (name test_edge_transport)
+ (modules test_edge_transport)
+ (libraries pdk prismel))
+
+(test
+ (name test_reverse)
+ (modules test_reverse)
+ (libraries pdk prismel))
+
+(test
+ (name test_triangulate)
+ (modules test_triangulate)
+ (libraries pdk prismel))
+
+(test
+ (name test_normals)
+ (modules test_normals)
+ (libraries pdk prismel))
+
+(test
+ (name test_group_ops)
+ (modules test_group_ops)
+ (libraries pdk prismel))
+
+(test
+ (name test_group_catalog)
+ (modules test_group_catalog)
+ (libraries pdk prismel))
+
+(test
+ (name test_connectivity)
+ (modules test_connectivity)
+ (libraries pdk prismel))
+
+(test
+ (name test_group_find_path)
+ (modules test_group_find_path)
+ (libraries pdk prismel))
+
+(test
+ (name test_group_boundary)
+ (modules test_group_boundary)
+ (libraries pdk prismel))
+
+(test
+ (name test_groups_from_name)
+ (modules test_groups_from_name)
+ (libraries pdk prismel))
+
+(test
+ (name test_group_random)
+ (modules test_group_random)
+ (libraries pdk prismel))
+
+(test
+ (name test_group_bounds)
+ (modules test_group_bounds)
+ (libraries pdk prismel))
+
+(test
+ (name test_group_normal)
+ (modules test_group_normal)
+ (libraries pdk prismel))
+
+(test
+ (name test_group_non_planar)
+ (modules test_group_non_planar)
+ (libraries pdk prismel))
+
+(test
+ (name test_group_backface)
+ (modules test_group_backface)
+ (libraries pdk prismel))
+
+(test
+ (name test_group_edge_angle)
+ (modules test_group_edge_angle)
+ (libraries pdk prismel))
+
+(test
+ (name test_group_edge_depth)
+ (modules test_group_edge_depth)
+ (libraries pdk prismel))
+
+(test
+ (name test_group_unshared)
+ (modules test_group_unshared)
+ (libraries pdk prismel))
+
+(test
+ (name test_group_range_connectivity)
+ (modules test_group_range_connectivity)
+ (libraries pdk prismel))
+
+(test
+ (name test_group_promote_boundary)
+ (modules test_group_promote_boundary)
+ (libraries pdk prismel))
+
+(test
+ (name test_attribute_lifecycle)
+ (modules test_attribute_lifecycle)
+ (libraries pdk prismel))
+
+(test
+ (name test_poly_extrude)
+ (modules test_poly_extrude)
+ (libraries pdk prismel))
+
+(test
+ (name test_poly_fill)
+ (modules test_poly_fill)
+ (libraries pdk prismel))
+
+(test
+ (name test_poly_path)
+ (modules test_poly_path)
+ (libraries pdk prismel))
+
+(test
+ (name test_clean)
+ (modules test_clean)
+ (libraries pdk prismel))
+
+(test
+ (name test_instances)
+ (modules test_instances)
+ (libraries pdk prismel))
+
+(test
+ (name test_attribute_transfer)
+ (modules test_attribute_transfer)
+ (libraries pdk prismel))
+
+(test
+ (name test_attribute_copy)
+ (modules test_attribute_copy)
+ (libraries pdk prismel))
+
+(test
+ (name test_attribute_combine)
+ (modules test_attribute_combine)
+ (libraries pdk prismel))
+
+(test
+ (name test_attribute_interpolate)
+ (modules test_attribute_interpolate)
+ (libraries pdk prismel))
+
+(executable
+ (name bench_pdk)
+ (modules bench_pdk)
+ (libraries pdk prismel unix))

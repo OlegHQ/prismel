@@ -7,6 +7,7 @@ type t =
   | MouseMoved of (int * int)                                (* new mouse position *)
   | MousePressed of Input.mouse_button * (int * int)        (* button and position *)
   | MouseReleased of Input.mouse_button * (int * int)       (* button and position *)
+  | PointerCancelled of Input.mouse_button                  (* browser/OS cancelled pointer *)
   | MouseScrolled of (int * int)                             (* scroll delta x,y *)
   | TextInput of string
   | TextEditing of { text : string; start : int; length : int }

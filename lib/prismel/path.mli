@@ -2,6 +2,12 @@
 
 type t
 type fill_rule = Even_odd | Non_zero
+type command =
+  | Move_to of float * float
+  | Line_to of float * float
+  | Quadratic_to of (float * float) * (float * float)
+  | Cubic_to of (float * float) * (float * float) * (float * float)
+  | Close
 
 val empty : t
 val move_to : float -> float -> t -> t
@@ -14,6 +20,8 @@ val cubic_to :
   to_:float * float ->
   t -> t
 val close : t -> t
+val commands : t -> command list
+(** Return commands in drawing order. *)
 
 val points : ?steps:int -> t -> (int * int) list
 (* Flatten curves into raster points. *)

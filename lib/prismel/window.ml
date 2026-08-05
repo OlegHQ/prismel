@@ -42,7 +42,7 @@ let current_window : t option ref = ref None
 
 (* Get window flags based on configuration *)
 let get_window_flags config =
-  let flags = if Backend.is_headless () then [Sdl.Window.hidden] else [] in
+  let flags = if Backend.is_displayless () then [Sdl.Window.hidden] else [] in
   let flags = if config.resizable then Sdl.Window.resizable :: flags else flags in
   let flags = if config.fullscreen then Sdl.Window.fullscreen_desktop :: flags else flags in
   let flags = if config.highdpi then Sdl.Window.allow_highdpi :: flags else flags in
@@ -50,7 +50,7 @@ let get_window_flags config =
 
 (* Get renderer flags based on configuration *)
 let get_renderer_flags config =
-  if Backend.is_headless () then
+  if Backend.is_displayless () then
     [Sdl.Renderer.software]
   else
     let flags = [Sdl.Renderer.accelerated] in
@@ -69,6 +69,9 @@ let create ?(config = default_config) () =
   match !current_window with
   | Some _ -> failwith "Window already created. Only one window is supported."
   | None ->
+    let config =
+      if Backend.is_web () then { config with resizable = true } else config
+    in
     (* Determine window position *)
     let x = match config.x with
       | Some x -> x
@@ -80,7 +83,7 @@ let create ?(config = default_config) () =
     in
     
     (* Set multisampling attributes if requested *)
-    (match config.multisampling, Backend.is_headless () with
+    (match config.multisampling, Backend.is_displayless () with
     | _, true -> ()
     | None, false -> ()
     | Some samples, false ->
@@ -90,10 +93,16 @@ let create ?(config = default_config) () =
     (* Create SDL window *)
     let window_flags = get_window_flags config in
     let window_flags= List.fold_left (fun acc flag -> Sdl.Window.(+) acc flag) Sdl.Window.windowed window_flags in
+    let window_width, window_height =
+      if Backend.is_web () then
+        Backend.web_drawable_size
+          ~logical_width:config.width ~logical_height:config.height
+      else config.width, config.height
+    in
     let window_result = Sdl.create_window config.title
       ~x ~y
-      ~w:config.width 
-      ~h:config.height 
+      ~w:window_width
+      ~h:window_height
       window_flags 
     in
     
@@ -105,7 +114,7 @@ let create ?(config = default_config) () =
       let renderer_flags =
         List.fold_left
           (fun acc flag -> Sdl.Renderer.(+) acc flag)
-          (if Backend.is_headless () then Sdl.Renderer.software
+          (if Backend.is_displayless () then Sdl.Renderer.software
            else Sdl.Renderer.accelerated)
           renderer_flags
       in
@@ -116,7 +125,9 @@ let create ?(config = default_config) () =
         Sdl.destroy_window window;
         failwith ("Failed to create renderer: " ^ e)
       | Ok renderer ->
-        let logical_width, logical_height = Sdl.get_window_size window in
+        let logical_width, logical_height =
+          if Backend.is_web () then config.width, config.height
+          else Sdl.get_window_size window in
         (try set_renderer_logical_size renderer logical_width logical_height
          with error ->
            Sdl.destroy_renderer renderer;
@@ -189,6 +200,18 @@ let set_size new_width new_height =
   w.current_width <- new_width;
   w.current_height <- new_height;
   set_renderer_logical_size w.renderer new_width new_height
+
+let set_web_size logical_width logical_height =
+  if logical_width <= 0 || logical_height <= 0 then
+    invalid_arg "Window.set_web_size: dimensions must be positive";
+  let drawable_width, drawable_height =
+    Backend.web_drawable_size ~logical_width ~logical_height
+  in
+  let w = get_current () in
+  Sdl.set_window_size w.window ~w:drawable_width ~h:drawable_height;
+  w.current_width <- logical_width;
+  w.current_height <- logical_height;
+  set_renderer_logical_size w.renderer logical_width logical_height
 
 let set_position x y =
   let w = get_current () in

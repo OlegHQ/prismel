@@ -1,3 +1,122 @@
 (executable
  (name new_example)
  (libraries unix))
+
+(executable
+ (name bench_geom)
+ (libraries prismel prismel.geom unix))
+
+(executable
+ (name bench_render)
+ (libraries prismel prismel.geom unix))
+
+(executable
+ (name bench_instances)
+ (libraries prismel unix))
+
+(test
+ (name compare_floor)
+ (libraries prismel unix))
+
+(executable
+ (name bench_iso_stream)
+ (libraries prismel prismel.geom unix))
+
+(executable
+ (name bench_scene2d)
+ (libraries prismel unix))
+
+(executable
+ (name bench_pxui)
+ (libraries prismel pxui unix))
+
+(executable
+ (name bench_wap)
+ (libraries wap unix))
+
+(executable
+ (name bench_pdk_ops)
+ (libraries prismel pdk procedural unix))
+
+(executable
+ (name bench_predicates)
+ (libraries pdk unix))
+
+(executable
+ (name bench_boolean_constraints)
+ (libraries prismel pdk unix))
+
+(executable
+ (name bench_boolean_coplanar)
+ (libraries prismel pdk unix))
+
+(executable
+ (name bench_boolean_complex)
+ (libraries prismel pdk unix))
+
+(executable
+ (name bench_boolean_pipeline)
+ (libraries prismel pdk unix))
+
+(executable
+ (name bench_boolean_materialization)
+ (libraries prismel pdk unix))
+
+(executable
+ (name bench_boolean_product)
+ (libraries prismel pdk unix))
+
+(executable
+ (name bench_convex_hull)
+ (libraries prismel pdk unix))
+
+(executable
+ (name bench_extract_centroid)
+ (libraries prismel pdk unix))
+
+(executable
+ (name bench_extract_point_curve)
+ (libraries prismel pdk unix))
+
+(executable
+ (name bench_circle_from_edges)
+ (libraries prismel pdk unix))
+
+(executable
+ (name bench_graph_color)
+ (libraries prismel pdk unix))
+
+(executable
+ (name bench_delaunay2)
+ (libraries prismel pdk unix))
+
+(executable
+ (name bench_boolean_seam)
+ (libraries prismel pdk unix))
+
+(executable
+ (name bench_boolean_refinement)
+ (libraries prismel pdk unix))
+
+(executable
+ (name bench_boolean_arrangement)
+ (libraries prismel pdk unix))
+
+(executable
+ (name bench_boolean_cdt)
+ (libraries prismel pdk unix))
+
+(executable
+ (name bench_boolean_payload)
+ (libraries prismel pdk unix))
+
+(executable
+ (name boolean_stress)
+ (libraries prismel pdk unix))
+
+(rule
+ (alias runtest)
+ (deps test_compare_boolean_stability.py compare_boolean_stability.py)
+ (action
+  (run python3 %{dep:test_compare_boolean_stability.py}
+   %{dep:compare_boolean_stability.py})))

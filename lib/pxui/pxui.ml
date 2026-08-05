@@ -79,7 +79,10 @@ type t = {
   theme : theme;
   font : Prismel.Font.t option;
   font_size : int;
+  mutable widget_count : int;
+  (* Reverse display order keeps both functional and compatibility builders O(1). *)
   mutable widgets : widget list;
+  mutable ordered_cache : widget array option;
   mutable focus : string option;
   mutable composition : string;
   mutable pointer : (int * int) option;
@@ -104,7 +107,9 @@ let create ?(x = 12) ?(y = 12) ?(width = 280) ?(row_height = 32)
     theme;
     font;
     font_size;
+    widget_count = 0;
     widgets = [];
+    ordered_cache = None;
     focus = None;
     composition = "";
     pointer = None;
@@ -113,10 +118,30 @@ let create ?(x = 12) ?(y = 12) ?(width = 280) ?(row_height = 32)
   }
 
 let append canvas widget =
-  canvas.widgets <- canvas.widgets @ [widget]
+  canvas.widgets <- widget :: canvas.widgets;
+  canvas.widget_count <- canvas.widget_count + 1;
+  canvas.ordered_cache <- None
 
 let with_widget canvas widget =
-  { canvas with widgets = canvas.widgets @ [widget] }
+  { canvas with
+    widget_count = canvas.widget_count + 1;
+    widgets = widget :: canvas.widgets;
+    ordered_cache = None;
+  }
+
+let ordered_widget_array canvas =
+  match canvas.ordered_cache with
+  | Some widgets -> widgets
+  | None ->
+      let widgets = Array.of_list (List.rev canvas.widgets) in
+      canvas.ordered_cache <- Some widgets;
+      widgets
+
+let ordered_widgets canvas = Array.to_list (ordered_widget_array canvas)
+
+let widget_at canvas index =
+  if index < 0 || index >= canvas.widget_count then None
+  else Some (ordered_widget_array canvas).(index)
 
 let label ~text canvas = with_widget canvas (Label text)
 let button ~name ~label canvas = with_widget canvas (Button { name; label })
@@ -211,9 +236,6 @@ let layout (canvas : t) index widget =
           h = Stdlib.max 1 (canvas.row_height - 6) }
   in
   { index; row; control }
-
-let layouts (canvas : t) =
-  List.mapi (fun index widget -> layout canvas index widget) canvas.widgets
 
 let text_node (canvas : t) ?color ?size x y text =
   let color = Option.value ~default:canvas.theme.foreground color in
@@ -412,11 +434,23 @@ let widget_scene (canvas : t) layout widget =
 
 let scene (canvas : t) =
   let height =
-    (List.length canvas.widgets * canvas.row_height) + (2 * canvas.padding)
+    (canvas.widget_count * canvas.row_height) + (2 * canvas.padding)
   in
   let open Prismel in
   let border = Color.with_alpha canvas.theme.foreground 34 in
   let glow = Color.with_alpha canvas.theme.accent 56 in
+  let widgets = ordered_widget_array canvas in
+  let input_regions =
+    Array.to_list
+      (Array.mapi (fun index -> function
+        | Text_field field ->
+            let bounds = (layout canvas index (Text_field field)).control in
+            Some (Scene.text_input_region ~at:(bounds.x, bounds.y)
+              ~w:bounds.w ~h:bounds.h
+              ~focused:(canvas.focus = Some field.name) ())
+        | _ -> None) widgets)
+    |> List.filter_map Fun.id
+  in
   Scene.[
     rounded_rect ~at:(canvas.x + 4, canvas.y + 5)
       ~w:canvas.width ~h:height ~radius:8
@@ -428,28 +462,40 @@ let scene (canvas : t) =
       ~to_:(canvas.x + canvas.width - 12, canvas.y + 1)
       ~color:glow ();
   ]
-  @ List.concat
-      (List.map2 (widget_scene canvas) (layouts canvas) canvas.widgets)
+  @ input_regions
+  @ (Array.to_list
+       (Array.mapi
+          (fun index widget ->
+            widget_scene canvas (layout canvas index widget) widget)
+          widgets)
+     |> List.concat)
 
 let draw canvas = Prismel.Scene.render (scene canvas)
 
 let hit_index (canvas : t) point =
-  List.find_map
-    (fun layout ->
-      match List.nth_opt canvas.widgets layout.index with
-      | Some (Label _) | None -> None
-      | Some _ when contains layout.control point -> Some layout.index
-      | Some _ -> None)
-    (layouts canvas)
+  let _, y = point in
+  let first_y = canvas.y + canvas.padding in
+  if y < first_y then None
+  else
+    let index = (y - first_y) / canvas.row_height in
+    match widget_at canvas index with
+    | Some (Label _) | None -> None
+    | Some widget ->
+        if contains (layout canvas index widget).control point then Some index
+        else None
 
 let layout_at (canvas : t) index =
-  match List.nth_opt (layouts canvas) index with
-  | Some layout -> layout
+  match widget_at canvas index with
+  | Some widget -> layout canvas index widget
   | None -> invalid_arg "PXUI widget index outside layout"
 
-let update_at index transform widgets =
+let replace_widgets canvas widgets =
+  { canvas with widgets; ordered_cache = None }
+
+let update_at index transform count widgets =
+  let stored_index = count - index - 1 in
   List.mapi (fun current widget ->
-    if current = index then transform widget else widget) widgets
+    if current = stored_index then transform widget else widget) widgets
 
 let slider_at (canvas : t) index x =
   let layout = layout_at canvas index in
@@ -467,9 +513,9 @@ let slider_at (canvas : t) index x =
             if value <> slider.value then change := Some (Slid (slider.name, value));
             Slider { slider with value }
         | widget -> widget)
-      canvas.widgets
+      canvas.widget_count canvas.widgets
   in
-  { canvas with widgets }, Option.to_list !change
+  replace_widgets canvas widgets, Option.to_list !change
 
 let range_at (canvas : t) index handle x =
   let layout = layout_at canvas index in
@@ -493,9 +539,9 @@ let range_at (canvas : t) index handle x =
               change := Some (Ranged (range.name, low, high));
             Range { range with low; high }
         | widget -> widget)
-      canvas.widgets
+      canvas.widget_count canvas.widgets
   in
-  { canvas with widgets }, Option.to_list !change
+  replace_widgets canvas widgets, Option.to_list !change
 
 let xy_at (canvas : t) index x y =
   let layout = layout_at canvas index in
@@ -520,18 +566,17 @@ let xy_at (canvas : t) index x y =
               change := Some (Moved2 (point.name, px, py));
             Xy { point with x = px; y = py }
         | widget -> widget)
-      canvas.widgets
+      canvas.widget_count canvas.widgets
   in
-  { canvas with widgets }, Option.to_list !change
+  replace_widgets canvas widgets, Option.to_list !change
 
 let focused_text_field canvas x y =
-  List.find_map
-    (fun (layout, widget) ->
-      match widget with
-      | Text_field field when contains layout.control (x, y) ->
-          Some field.name
-      | _ -> None)
-    (List.combine (layouts canvas) canvas.widgets)
+  match hit_index canvas (x, y) with
+  | Some index ->
+      (match widget_at canvas index with
+       | Some (Text_field field) -> Some field.name
+       | _ -> None)
+  | None -> None
 
 let map_focused canvas transform =
   match canvas.focus with
@@ -548,7 +593,7 @@ let map_focused canvas transform =
             | widget -> widget)
           canvas.widgets
       in
-      { canvas with widgets }, Option.to_list !change
+      replace_widgets canvas widgets, Option.to_list !change
 
 let drop_last_utf8 text =
   let rec find index =
@@ -561,7 +606,7 @@ let drop_last_utf8 text =
 
 let range_handle_at canvas index x =
   let layout = layout_at canvas index in
-  match List.nth_opt canvas.widgets index with
+  match widget_at canvas index with
   | Some (Range range) ->
       let low_x =
         position layout.control
@@ -587,7 +632,7 @@ let press canvas (x, y) =
   match index with
   | None -> base, []
   | Some index ->
-      (match List.nth_opt canvas.widgets index with
+      (match widget_at canvas index with
        | Some (Button _ | Toggle _ | Choice _) ->
            { base with active = Some (Armed index) }, []
        | Some (Slider _) ->
@@ -640,9 +685,9 @@ let release_armed canvas index (x, y) =
                 (choice.name, choice.options.(selected)));
               Choice { choice with selected }
           | widget -> widget)
-        canvas.widgets
+        canvas.widget_count canvas.widgets
     in
-    { canvas with widgets }, Option.to_list !change
+    replace_widgets canvas widgets, Option.to_list !change
 
 let release canvas (x, y) =
   let canvas = {
@@ -668,6 +713,8 @@ let update_one canvas event =
       move canvas (x, y)
   | Prismel.Event.MouseReleased (Prismel.Input.LeftButton, (x, y)) ->
       release canvas (x, y)
+  | Prismel.Event.PointerCancelled Prismel.Input.LeftButton ->
+      { canvas with active = None }, []
   | Prismel.Event.TextInput text ->
       let canvas, changes = map_focused canvas (fun value -> value ^ text) in
       { canvas with composition = "" }, changes
@@ -685,16 +732,19 @@ let update_one canvas event =
   | _ -> canvas, []
 
 let update canvas events =
-  List.fold_left
-    (fun (canvas, changes) event ->
+  let canvas, changes = List.fold_left
+    (fun (canvas, reversed_changes) event ->
       let canvas, next = update_one canvas event in
-      canvas, changes @ next)
+      canvas, List.rev_append next reversed_changes)
     (canvas, []) events
+  in
+  canvas, List.rev changes
 
 let handle_event canvas = function
   | event ->
       let updated, changes = update_one canvas event in
       canvas.widgets <- updated.widgets;
+      canvas.ordered_cache <- None;
       canvas.focus <- updated.focus;
       canvas.composition <- updated.composition;
       canvas.pointer <- updated.pointer;
@@ -703,7 +753,13 @@ let handle_event canvas = function
       changes
 
 let find_map name extract canvas =
-  List.find_map (extract name) canvas.widgets
+  let widgets = ordered_widget_array canvas in
+  let index = ref 0 and result = ref None in
+  while !index < Array.length widgets && Option.is_none !result do
+    result := extract name widgets.(!index);
+    incr index
+  done;
+  !result
 
 let toggle_value canvas name =
   find_map name
@@ -802,7 +858,7 @@ let encode canvas =
     | Label _ | Button _ -> None
   in
   "PXUI1\n"
-  ^ String.concat "\n" (List.filter_map line canvas.widgets)
+  ^ String.concat "\n" (List.filter_map line (ordered_widgets canvas))
   ^ "\n"
 
 type saved =
@@ -920,7 +976,9 @@ let decode canvas encoded =
         in
         match !error with
         | Some message -> Error message
-        | None -> Ok { canvas with widgets; composition = "" })
+        | None -> Ok {
+            canvas with widgets; ordered_cache = None; composition = "";
+          })
   | _ -> Error "PXUI settings: unsupported or missing PXUI1 header"
 
 let save canvas filename =

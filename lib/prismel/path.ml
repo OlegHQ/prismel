@@ -16,6 +16,7 @@ let quadratic_to ~control ~to_ = add (Quadratic_to (control, to_))
 let cubic_to ~control1 ~control2 ~to_ =
   add (Cubic_to (control1, control2, to_))
 let close = add Close
+let commands path = List.rev path
 
 let is_closed path =
   match path with Close :: _ -> true | _ -> false

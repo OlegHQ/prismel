@@ -17,8 +17,6 @@ let start ?(width = 800) ?(height = 600) ?(title = "Prismel preview") () =
     invalid_arg "Preview.start: a Sketch/App loop is already running";
   if not !open_ then
     try
-      App.init_sdl ();
-      Time.init ();
       let config = {
         Window.default_config with
         width;
@@ -27,8 +25,11 @@ let start ?(width = 800) ?(height = 600) ?(title = "Prismel preview") () =
         resizable = true;
         vsync = true;
       } in
+      App.init_sdl ~config ();
+      Time.init ();
+      Time.set_vsync config.vsync;
       ignore (Window.create ~config ());
-      if not (Backend.is_headless ()) then Window.show ();
+      if not (Backend.is_displayless ()) then Window.show ();
       let _, mouse = Sdl.get_mouse_state () in
       Input.reset ~mouse;
       let renderer = Window.get_renderer () in
@@ -57,7 +58,10 @@ let step scene =
      | Error (`Msg message) ->
          failwith ("Preview clear failed: " ^ message));
     Scene.render scene;
-    Sdl.render_present renderer
+    let logical_width, logical_height = Window.size () in
+    (match Backend.present renderer ~logical_width ~logical_height with
+     | Ok () -> ()
+     | Error message -> failwith message)
   end;
   events
 

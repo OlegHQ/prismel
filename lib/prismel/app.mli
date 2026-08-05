@@ -8,7 +8,7 @@ val framework_running : bool ref
 val quit_requested : bool ref
 val request_quit : unit -> unit
 val is_running : unit -> bool
-val init_sdl : unit -> unit
+val init_sdl : ?config:Window.config -> unit -> unit
 val cleanup_sdl : unit -> unit
 val cleanup_graphics : unit -> unit
 val process_frame :

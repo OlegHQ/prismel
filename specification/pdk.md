@@ -1,0 +1,4404 @@
+# Packed Development Kit
+
+Status: first production-oriented vertical slice implemented.
+
+## Purpose and boundary
+
+`prismel.pdk` is Prismel's native OCaml compute-geometry layer. It is inspired
+by the data-oriented parts of Houdini's HDK, not a source-compatible HDK or an
+interpreted VEX clone. Its public values are immutable and target-independent;
+builders and kernels use locally owned mutation over packed storage.
+
+```text
+procedural / geom / examples ──> pdk ──> prismel ──> runtime ──> wap
+```
+
+PDK must not import Geom, Procedural, Runtime, Wap, SDL, or browser code. The
+only renderer boundary is conversion to `Prismel.Mesh.t`. Native, headless,
+and web therefore render identical geometry through the existing renderer.
+
+## Geometry model
+
+A geometry detail has four attribute owners: detail, point, vertex, and
+primitive. Vertices are primitive corners and reference shared points. Forward
+topology is stored as packed integer arrays:
+
+- `vertex_point[vertex]` identifies the referenced point;
+- `primitive_offsets[primitive..primitive+1]` selects the primitive's vertices;
+- a compact primitive-kind byte plane distinguishes open/closed polylines and
+  polygons. A point cloud has points and no primitives.
+
+This representation preserves hard normals and UV seams without duplicating
+point positions. Render-oriented triangle expansion happens only at the mesh
+bridge. Topology validation is linear in points + vertices + primitives and
+requires every point reference and primitive span to be in bounds.
+
+`Topology_index` is the shared reverse-topology layer for modeling kernels. It
+builds primitive/corner adjacency, next/previous corners, manifold opposites,
+undirected edge incidence, and point-to-corner CSR planes with a specialized
+open-addressed integer table. It uses expected O(vertices + edges) time and
+O(points + vertices + edges) memory without tuple/list allocation in its edge
+insertion loop. Boundary and non-manifold edges remain explicit rather than
+being forced into a two-sided manifold representation.
+
+Native edge groups are deliberately separate from point/vertex/primitive
+bitset groups, matching the topology-affine nature of HDK edge groups. An
+`Edge_group.t` indexes the unique undirected edges of one immutable
+`Topology_index.t`; cross-topology installation is rejected instead of
+silently reinterpreting bits. The reverse topology is held in a thread-safe
+weak cache keyed by physical immutable topology identity, so consecutive SOPs
+share it without retaining dead geometry. `Topology_index.create_uncached`
+keeps cold construction measurable and explicit.
+`Edge_group.remap` maps canonical source endpoints through an explicit
+source-to-target point plane, drops deleted/collapsed edges, and unions
+many-to-one results. Point/primitive Sort, Triangulate, Reverse, Delete with
+optional compaction, direct point compaction, Merge, Fuse, and Mirror use this
+boundary or its exact equivalent. Duplicate and Copy to Points validate their
+copy-major topology and replicate edge ordinals directly, avoiding a large
+target reverse index. Subdivide derives its child-edge ordinals directly from
+the deterministic quad/triangle refinement plan, so propagated and resulting
+crease groups do not retain a full target reverse index;
+Clip maps only fragments whose endpoint provenance lies on that source edge;
+Poly Extrude maps bottom and every selected-component layer copy; curve
+Resample maps intervals;
+Edge Divide maps each selected source edge to every resulting child segment;
+and Sweep maps source edges to longitudinal edges. Newly generated diagonals,
+cuts, caps, verticals, and rings are not mistaken for selected source edges.
+
+Copy-to-Points piece matching accepts a target point integer/text attribute and
+prefers a same-named source primitive attribute, then a source point attribute.
+Absent source attributes permit only integer primitive-number selection.
+Primitive pieces compact referenced points; point pieces retain every matching
+point, including free points, and include only primitives whose corners all
+reference that same piece. Dense piece IDs, primitive/vertex maps, and target
+partitions are planned in shared passes. Unique piece batches reuse the uniform
+copy kernel, then one packed point and primitive permutation restores stable
+target-major order. Attribute/group payload, ordered memberships, detail facts,
+and native edge groups follow the same maps. For source size S, target size T,
+and expanded output O, expected work is O(S log S + T + O) in the current
+partition implementation; auxiliary storage is O(S + T + O), excluding the
+immutable result. Fixed piece count and already coherent point pieces reduce
+planning to linear work. Unmatched targets contribute no output, cancellation
+is atomic, output cardinalities are checked before batch cooking, and domain
+scheduling cannot affect element order.
+
+Poly Extrude retains its exact allocation-tight individual-face compatibility
+path. Its general planner accepts a primitive group, splits connected regions
+at topology-affine edge groups, assigns stable component IDs in source-
+primitive order, and creates one `(component, point)` association per shared
+front point. Selected-face normals are accumulated in stable corner order and
+normalized once per association; straight division layers are then filled into
+exact-sized packed position/topology arrays. Only selected-region boundary
+corners create side quads. Unselected polygons and curves pass through, while
+selecting a curve or touching a non-manifold edge in connected mode fails
+atomically. Point, vertex, primitive, and detail attributes and ordinary groups
+remap by stable ancestry; stale point/vertex `N` is removed. Source native edge
+groups map to the retained bottom and every generated layer, and optional
+front/back boundary groups are native edges. The edge-output path constructs a
+specialized endpoint table in target edge-number order instead of retaining a
+complete target reverse-topology index.
+
+For fixed division count, the planner is expected O(points + vertices +
+primitives + edges + output payload) time and O(selected topology + output)
+auxiliary memory. Division work is linear in the generated side rows and front
+points. Face normals, positions, topology spans, attributes, groups, and edge
+table preparation use disjoint stable ranges where profitable; component union
+and association numbering remain sequential so one-domain and multi-domain
+outputs have identical point/primitive ordering.
+
+Poly Fill discovers one-sided polygon boundary components through the shared
+topology index. With no explicit edge group every valid hole participates; a
+native edge group may name one edge or several edges in a hole and the planner
+auto-completes the entire component. Components are ordered by their smallest
+stable source edge. Every selected component must have exactly one incoming
+and one outgoing boundary half-edge at each point, so branches, open chains,
+point-touching loops, and inconsistent source winding fail before output is
+allocated. A supplied non-boundary or curve edge is also an error rather than
+an implicit topology guess.
+
+Single Polygon emits one reversed-boundary N-gon. Triangles use deterministic
+dominant-plane ear clipping and preserve concave contours. Triangle Fan adds
+one scale-safe arithmetic-mean center and one triangle per edge. Patches oppose
+the source boundary half-edges by default, producing a consistently oriented
+two-sided manifold; explicit reversal is a deliberate modeling control.
+Boundary points remain shared unless unique patch points are requested.
+Existing topology is a byte-exact prefix. Generated boundary points and
+corners copy stable point/vertex ancestry, numeric fan-center attributes use a
+scale-safe mean, discrete/array centers select the first stable boundary
+ancestor, and patch primitive fields select an adjacent source primitive.
+Existing ordinary primitive/vertex groups do not acquire generated elements;
+duplicated boundary points retain point-group ancestry, an optional patch
+primitive group marks the new faces, and source native edge groups remain on
+their source edges.
+
+The edge-group path does not construct an unrelated target point/corner CSR.
+Because source topology is an unchanged prefix, every source edge ordinal is
+also a target prefix ordinal. Single shared patches add no edge; fan spokes and
+all unique-point edges have cardinality known directly; shared triangulation
+checks only its stable ear diagonals against the source endpoint table. The
+resulting exact target edge count is enough to extend source packed bits.
+Boundary planning plus N-gon/fan output is O(points + vertices + primitives +
+edges + output payload); ear clipping is O(sum(loop_size squared)). Auxiliary
+storage is linear. Candidate classification, loop validation/triangulation,
+center computation, topology fills, attribute interpolation, and packed group
+passes use deterministic disjoint ranges where profitable.
+
+Ordinary `Group.t` values retain packed membership and may additionally carry
+an explicit element-order plane. `Group.iter` deliberately keeps its legacy
+increasing-index contract; `Group.iter_ordered` observes the explicit sequence
+when present. Ordered construction rejects duplicate or out-of-range elements
+and public order access returns a defensive copy. Union and xor retain the
+left sequence followed by unseen right members, intersection follows the left
+explicit sequence (or the right when only it is ordered), and difference
+filters the left sequence. Complement becomes unordered because newly selected
+elements have no source sequence. Sort, deletion, duplication, curve topology
+edits, subdivision, clipping, and the shared ancestry remappers preserve order
+without changing packed membership behavior; newly derived elements with no
+single ancestor append in stable target order.
+
+`Spatial_index` is the shared balanced point-query layer. It stores one
+deterministic median-partitioned source-index plane, orders equal distances by
+source index, and supports allocation-free bulk nearest/k-nearest traversal
+into fixed-width disjoint result slices. Attribute Transfer builds this plan
+once and reuses its source IDs/distances for every selected typed attribute;
+it never repeats an all-pairs search per attribute. Optional packed point
+groups restrict indexed sources and queried targets while preserving original
+source IDs and untouched destination values. Construction ranks globally
+non-flat axes by span, omits flat dimensions from its split cycle, and builds
+disjoint subtrees through the reusable domain pool above a tunable grain. This
+avoids pathological planar-grid traversal through constant coordinates while
+preserving exact query-result ordering.
+
+Point and primitive-barycenter Attribute Transfer may use nearest,
+inverse-distance, or compact Links, RenderMan, and Hart source weighting. The
+three compact formulas match the exact expressions published by SideFX; a
+finite non-negative radius is independent of the destination distance
+threshold, and the positive maximum sample count bounds k-nearest query
+storage. A zero radius or a row with no supported candidates falls back to the
+stable closest source. Numeric fields share one normalized coefficient table;
+the query distance table is rewritten in place only after blend-band influence
+has consumed its closest distance, avoiding another O(targets * samples)
+plane. Discrete fields retain the stable closest source.
+
+`Surface_index` is the corresponding packed polygon-query layer. It validates
+finite non-degenerate simple polygon contours, deterministically ear-clips
+N-gons into an internal triangle plane without materializing replacement
+geometry, and retains every original primitive and corner identity. Optional
+primitive and vertex bitsets intersect the eligible surface. Vertex selection
+uses an explicit all-corners or any-corner rule on each emitted triangle;
+primitives with no selected corner are skipped before validation, and an empty
+eligible surface is a valid index whose queries all miss. A packed
+median-split AABB hierarchy emits closest primitive/triangle IDs, squared
+distances, and barycentric coordinates into disjoint fixed-size planes.
+Triangulation, validation/bounds preparation, hierarchy subtrees, and query
+ranges parallelize at explicit grains. Equal-distance ties select the lower
+original primitive and then the lower stable internal triangle. Ear clipping
+is O(sum(c squared)) over polygon corner counts; BVH construction is O(t log t)
+time/O(t) storage and ordinary queries are expected O(log t), while overlapping
+bounds retain the documented O(t) worst case.
+
+Every immutable snapshot carries a process-local geometry identity, a topology
+data ID, and data IDs for changed attributes and groups. These IDs are cache
+invalidation facts, not serialized content hashes. Published buffers must not
+be mutated or aliased by callers.
+
+Clean is an explicit ordered composition over the same packed geometry core,
+not an alternate repair representation. Optional NaN-point removal precedes
+point consolidation so the Fuse spatial index never receives an invalid
+coordinate. Consolidation precedes degeneracy classification because welding
+may collapse faces or curves. Overlap deletion and winding reversal operate on
+the surviving topology, followed by optional point compaction and atomic
+attribute/group metadata cleanup. Every intermediate value is immutable; a
+later validation or cancellation failure cannot expose a partially cleaned
+snapshot.
+
+Polygon degeneracy compares vector area against the square of the user's
+edge-length tolerance. The common triangle path computes directly in packed
+ranges; finite arithmetic overflow falls back to coordinate-normalized cross
+products, preserving decisions through extreme finite magnitudes. General
+polygons use the same signed vector-area rule, and polygon curves compare
+robust accumulated edge length directly. Point-identical polygon overlaps are
+canonical under cyclic rotation and reversed winding. Triangles use a sorted
+three-index signature; N-gons use linear-time minimal cyclic rotations and a
+specialized open-address table. Stable source order selects the retained
+representative. Expected time is O(points + vertices + primitives + output)
+for bounded primitive degree, with O(points + primitives + output) temporary
+storage. Classification/signature preparation is parallel; stable overlap
+insertion and deletion planning remain sequential so domain count cannot alter
+ancestry or diagnostics.
+
+## Attributes and groups
+
+Attributes are resolved by name, owner, storage, tuple width, and semantic role
+before a hot loop. Numeric data uses packed component arrays; a point is not an
+allocated OCaml record. `Attribute_pattern` compiles whitespace-separated
+full-name globs once. Blank/`*`, leading-exclusion defaults, left-to-right
+include/exclude overrides, `*`, `?`, byte classes/ranges, negated classes, and
+backslash escapes have structured validation. Matching is allocation-free and
+plural operators retain the geometry's stable attribute order. The initial
+storage types cover integers, floats, and
+two/three/four-component float tuples. Standard semantics include `P`
+(position), `N` (normal), `Cd` (color), `uv`, `v`, `id`, `pscale`, `scale`,
+`orient`, and `up`.
+
+Attribute lifecycle has exact-name compatibility operations and atomic batch
+operations. `Attribute_ops.delete` accepts independent point, vertex,
+primitive, and detail patterns, a delete-non-selected keep mode, and optional
+reference geometry whose owner-matched names act as leading inclusions before
+the explicit pattern. `Attribute_ops.rename` applies ordered owner-specific or
+all-owner wildcard-capture rules; earlier outputs may match later rules and
+destination conflicts explicitly skip, error, or overwrite.
+`Attribute_ops.swap` applies ordered owner-specific Copy, Move, and Swap pairs
+with aligned wildcard captures across every packed storage kind. Missing-side
+Swap copies the side that exists. Canonical point `P` participates as float3:
+moving `P` is Copy, while moving another float3 into `P` consumes its source.
+All three operations rebuild attribute metadata no more than once, share
+packed payloads, retain exact geometry identity on a no-op, and fail or cancel
+without publishing partial metadata. Delete is O(attributes + reference
+attributes) for a fixed pattern; rename and swap are O(attributes × rules),
+with O(attributes + generated attributes) auxiliary metadata.
+
+Attribute Copy is the topology-correspondence path for source and destination
+geometry that do not require a spatial search. A point, vertex, or primitive
+group supplies ordered source/destination element pairs; cyclic matching wraps
+the shorter source selection, integer/text value matching selects the highest
+matching source element, and destination integer indices provide explicit
+source references. Attribute ownership is independent of group ownership, so a
+single correspondence projects deterministically through incident points,
+corners, and primitives and is reused by all copied fields of that owner.
+Compiled include/exclude patterns and one-glob rewrites select all packed
+storage kinds; canonical `P` is explicit opt-in. Identity, ungrouped,
+same-cardinality plans structurally share source planes in O(attributes)
+metadata work. General plans take O(group elements + projected incidence +
+copied payload) time and one destination-sized integer map per selected owner;
+conflict-free projections and payload planes fill disjoint ranges in parallel.
+
+Attribute Combine resolves an ordered stack of numeric layers before entering
+its hot loop. Every point, vertex, primitive, or detail element independently
+reads sources and blend masks from the primary or additional geometry inputs,
+using direct element numbers or a cached integer/text correspondence. Duplicate
+match values select the highest source element; unmatched sources are zero and
+unmatched blend elements have zero influence. Copy, add, subtract, multiply,
+zero-safe divide, minimum, and maximum share source scale/add and
+reciprocal/clamp/complement/threshold preprocessing. Scalar destinations read
+tuple length, scalar sources replicate into tuples, and tuple sources truncate
+or zero-extend. Existing destination kind is retained, checked integer
+conversion preserves unselected full-width values exactly, and canonical point
+`P` participates as float3.
+
+The complete layer stack, clamped per-element blending, overall scale,
+component threshold, and component clamps run in one fused traversal over the
+typed selection. Output storage is allocated once; no layer-sized temporary is
+materialized. Missing-destination inference, scalar creation, missing-attribute
+policy, and primary-input source cleanup publish atomically with stable
+metadata order. For [n] output elements, [l] layers, and tuple width [w <= 4],
+work is O(n*l*w). Auxiliary storage is O(n*w), plus one O(n) output mapping and
+one bounded-load packed open-address table per referenced matched input.
+Selected elements write disjoint output slots, so one- and multi-domain values
+and ordering are exact.
+
+Attribute Interpolate supports both persistent primitive coordinates and
+explicit weighted element rows. In primitive mode, destination point, vertex,
+primitive, or detail elements carry an integer source primitive number and
+float3 source UVW; one fused cook samples explicit mixed-owner point, vertex,
+primitive, and detail fields. Triangle barycentrics, Houdini's
+bilinear quad orientation, the implicit n-gon center fan, and open polygon-curve
+parameterization follow SideFX primitive space. PDK closed polygon curves wrap
+the same piecewise-linear boundary parameter. Numeric point/vertex fields use
+the corner weights, primitive/detail fields are constant over the referenced
+primitive, and integer/text fields choose the greatest-weight corner with
+stable local-corner ties. Canonical point `P` and standard float3 `N` are
+handled explicitly; `N` is normalized after a nonzero destination blend.
+
+The alternative drivers are immutable CSR integer-number and float-weight
+attributes with identical row offsets. Point-number rows accept point/detail
+fields, vertex-number rows resolve point/vertex/primitive/detail fields, and
+primitive-number rows accept primitive/detail fields. Numeric fields use the
+weighted sum; detail numeric values are therefore multiplied by the row sum.
+Integer/text fields choose the greatest coefficient with stable row-order
+ties. Integer-array and float-array fields use the same stable greatest-
+coefficient rule to copy one whole opaque CSR row. PDK does not perform
+element-wise arithmetic across variable-length rows: destination blend below
+one half retains the existing row, blend at or above one half selects the new
+row, and the keep/default miss policy retains/clears it. Array output plans one
+source/existing row choice per destination, computes exact packed cardinality,
+and copies disjoint value spans in parallel. Optional normalization divides a
+nonzero row by its signed sum and uses
+the pre-normalization magnitude with the positive threshold to ramp existing
+versus interpolated influence. A negative total is divided by that signed
+total, yielding a positive unit sum without discarding algebraic coefficient
+signs. A signed sum whose magnitude is at most `1e-20` has zero new influence:
+existing numeric, discrete, and group values are preserved. Pre-scale is
+applied before normalization.
+Empty rows use the explicit keep/default miss policy; malformed layouts,
+non-finite weights, and out-of-range source numbers fail before publication.
+
+Primitive mode may atomically emit equivalent point- or vertex-number/weight
+CSR attributes. Selected valid destinations receive one row per primitive
+corner, selected misses follow the miss policy, and unselected/existing rows
+are preserved as pairs. The computed rows can immediately drive the matching
+weighted mode with exact numeric and discrete results.
+
+Fields may be listed explicitly or expanded from independent compiled
+point/vertex/primitive/detail include/exclude patterns in stable source metadata
+order. Point patterns can include canonical `P`; duplicate destinations across
+explicit and expanded fields fail before cooking.
+With group matching enabled, the same point/vertex/primitive patterns select
+ordinary source groups. Membership is evaluated as a weighted 0/1 field,
+blended with existing destination membership, and thresholded inclusively at
+one half after the destination blend. Same-name groups from different source
+owners are rejected because
+they would collide in the single destination-owner namespace. Output remains
+packed: workers own complete destination bytes, so no domain performs a racing
+read-modify-write and no byte-per-element boolean plane is allocated.
+
+All selected fields share one topology traversal. Jobs are resolved once into
+point/vertex/primitive/detail and numeric/discrete planes, primitive kind is
+loaded once per destination, packed output planes are allocated exactly once,
+and disjoint destination elements fill in parallel. Invalid primitive numbers
+have an explicit keep/default policy. Non-finite coordinates, wrong driver
+storage, incompatible destinations, duplicate outputs, and cancellation fail
+without publishing a partial snapshot. Positions and ordinary metadata commit
+atomically. For `d` destinations, `a` fields, `c` referenced corners or
+weighted elements, and `r` copied array values, work is O(d*c*a + r), field
+output is O(d*a + r), and auxiliary job metadata is O(a) plus one O(d)
+row-choice plane per array field. Computed CSR output adds O(d + total
+referenced corners) storage. Structural geometry operations preserve, remap,
+concatenate, or select CSR rows directly; numeric operations without a defined
+array policy reject them instead of silently dropping data.
+
+Groups use packed bitsets and deterministic increasing-index iteration. Union,
+intersection, difference, and symmetric difference are linear in the bitset
+word count. Selections and ranges must remain packed interval/bitset values;
+hot traversal must not materialize lists or per-element options.
+
+Group Promote resolves one named source before entering its hot loop and uses
+the shared reverse topology to convert all point, corner, primitive, and native
+edge owner pairs. Touching, complete-containment, and primitive shared-edge
+tests scan packed incidence directly without allocating closures per element.
+Output bytes are disjoint parallel ranges; same-owner promotion shares the
+immutable source bits. Ordinary outputs may instead be emitted directly as one
+exact owner-sized 0/1 integer attribute; native edges reject attributes. Group
+Promotions compiles include/exclude group-name patterns and aligned wildcard
+capture substitutions once per ordered rule. Every rule snapshots its matching
+source entries before publishing output, so an output that overwrites another
+pending source name cannot change that source's promotion. Later rules observe
+earlier groups and may re-promote them. Ordinary and boundary rules share one
+cook-local group store and publish group metadata once; integer attributes are
+merged once after the group commit. Blank patterns are disabled, unmatched
+patterns preserve physical geometry identity, and output count/generated
+payload are preflight-bounded before each allocation. Rule order is semantic
+and serial, while every matched topology and packed-output pass retains the
+reusable parallel kernel.
+
+Group Promote Boundary is the typed boundary-only composition: it borrows the packed
+source membership as a virtual integer plane, unions selection discontinuities
+with optional point/vertex/primitive attribute seams and requested
+polygon/curve unshared edges, promotes those boundary edges, then intersects
+with ordinary conversion so elements on the opposite side cannot leak into the
+result. It supports every source/destination owner pair, ordinary integer-mask
+output, and optional primitive expansion to selected faces sharing any boundary
+point. Group Expand uses the same adjacency planes. Fixed
+signed steps alternate two packed bitsets and stop when membership stabilizes;
+flood fill uses one exact-size integer queue, marking elements as they enter it,
+so each element is queued at most once. Empty, full, and zero-step selections
+share their existing immutable membership storage. Optional step output is one
+exact owner-sized integer plane: base/unreached elements are zero, fixed-step
+changes record their first positive iteration, and flood traversal records the
+minimum multi-source BFS distance. Native edges reject step output because PDK
+does not invent an edge-attribute owner. The constrained point and
+edge-connected-primitive paths compile point/vertex/primitive attribute
+discontinuities through the same typed boundary kernel used by Group Promote
+Boundary and Group Range. Collision groups are independently typed, converted
+once to native seam bits, and optionally promoted once to a containment mask
+and boundary mask. Growth checks candidate policy and seam crossing before
+publishing membership; shrinking treats compiled seams as forced first-step
+boundaries. Normal-limited growth compares adjacent target-owner unit vectors.
+Geometric normals come from the shared normal kernel; custom point, vertex, or
+primitive float3 values map to the target through normalized incident-corner
+means. The three mapped normal planes double as disjoint per-target
+accumulators, avoiding per-element heap boxes. Zero or non-finite input is
+handled explicitly: non-finite values fail atomically and zero mapped vectors
+cannot cross a normal-constrained transition. Constraint compilation and
+validation are O(elements + incidence + selected attribute payload), fixed
+steps are O(abs(steps) * incidence), and flood remains O(elements + incidence).
+Vertex/edge constrained targets and seam-constrained shared-point primitive
+growth are rejected until a precise topology-boundary contract is available.
+
+Named-group catalog operations share one cook-local mutable name table and
+publish one immutable geometry snapshot. Group Range classifies directly into
+packed bytes over absolute, relative, length, or balanced-partition bounds;
+base patterns are resolved once and periodic filtering performs only integer
+arithmetic in the element loop. Its optional connected point/primitive mode
+reuses the single connectivity classifier, assigns stable local indices in
+ascending element order, and evaluates both range and periodic phase
+independently inside every component. Compiled same-owner attribute patterns
+reuse Group from Attribute Boundary's zero-copy numeric/discrete planes and
+finite float-tolerance checks. Independently typed collision group patterns
+become native seam bits: native edges are borrowed directly, while ordinary
+point/vertex/primitive membership discontinuities are classified once.
+Attribute and collision seams are unioned before the flood. With a non-empty
+seam plane, point components omit seam edges and primitive components use
+shared non-seam edge incidence; the no-seam path retains shared-point primitive
+compatibility. Collision-boundary elements can be excluded from local indexing
+through one packed promoted include mask or retained explicitly.
+
+A stable component ID can restrict the pattern to one region. Remove Other
+Regions clears every other component; disabling it passes only their existing
+base membership through unchanged. The legacy [Range_disconnected] constructor
+retains its strict remove-other behavior. The global path retains only its
+packed output; connected mode retains component/local-index planes, two
+component-bound planes, and configured packed boundary/include masks until the
+output is published. The classifier reuses its union-find parent and rank
+storage as the stable class output rather than allocating separate root and
+class maps.
+`group_ranges` exposes Houdini's Number of Ranges multiparm as ordered typed
+rules. Blank output names are disabled slots. Later rules deliberately observe
+groups published by earlier rules, enabling base, collision, and same-name
+merge chains. The functional boundary is atomic to its caller: failure or
+cancellation returns no intermediate snapshot, while an empty/all-disabled
+batch preserves physical input identity. Rule-level execution stays ordered;
+each rule retains the same packed parallel validation, boundary, and output
+passes as `group_range`.
+Group Combine and Invert operate on bitset bytes rather than materializing
+member indices. Group Rename and Delete change only metadata and preserve exact
+geometry identity when no rule changes it.
+
+Group Copy builds one target-to-source map per owner rule, then reuses it for
+every selected source group. Index matching needs no dense map for points,
+primitives, or edges. Default vertex matching uses primitive/local-corner
+coordinates. Integer/text attribute matching uses a compact open-addressed
+table whose slots store source indices only; the key remains in the borrowed
+source attribute plane. Duplicate keys retain the first source index. Output
+groups are exact packed target-sized bitsets, group-name conflicts are resolved
+before their fill, and target metadata is rebuilt once.
+
+## Construction and execution
+
+Known topology is cardinality-first: allocate exact arrays once, then fill by
+index. A builder is single-domain owned. Parallel work may fill only
+preallocated disjoint ranges and may not grow topology or mutate the attribute
+schema concurrently.
+
+`Pdk.Kernel` is the expert VEX-like surface. Bindings are validated once, then
+the same native OCaml loop runs through stable chunks using the process-wide
+`Prismel.Parallel` pool. It never creates a pool per operation, task, or frame.
+Topology mutation is not permitted inside an element kernel. Reductions use a
+deterministic two-phase design and combine partial values in stable chunk order.
+
+The convenience API may expose callbacks returning tuples. Such callbacks are
+not described as allocation-free unless benchmark evidence proves it. The fast
+path exposes packed arrays and chunk bounds so inner loops allocate neither
+element objects nor vector tuples.
+
+## Prismel mesh bridge
+
+The bridge owns polygon triangulation and conventional attribute mapping. When
+the topology and packed attribute layout already match Prismel's triangle mesh
+layout, immutable shared construction through
+`Mesh.Private.create_packed_shared` avoids repacking. Otherwise the bridge
+computes the exact output cardinality, allocates once, and expands
+point/vertex attributes in deterministic primitive order.
+
+The bridge returns structured errors for invalid topology, missing or
+incompatible attributes, unsupported primitives, numeric failures, and
+cancellation. It does not render, load SDL resources, or inspect the selected
+render target.
+
+Public PDK operations use `Pdk.Error.t` with a stable operation, code, message,
+and optional corrective hints. Long-running operators accept `Pdk.Cancel.t`; polling is
+outside arithmetic inner loops or amortized over fixed blocks. Procedural cook
+contexts share this token directly, so cancellation cannot publish a partial
+snapshot.
+
+## Implemented operator surface
+
+The eager layer includes packed point/line/polyline/circle/grid/box/sphere sources;
+raw-matrix and typed selected Transform, whole-geometry Match Axis, stable point/primitive Sort,
+attribute-driven point/primitive blast, merge,
+reverse, triangulate, normals, clean, primitive deletion,
+noise displacement, height color, surface scatter, copy to points with the
+standard quaternion, normal/velocity-up, post-rotation, pivot, translation,
+and scale stack plus packed affine transform overrides and typed source/target
+restriction, with last-match-wins packed target-attribute broadcast,
+`Nothing` overrides, and target-group boolean algebra,
+arbitrary-transform instance materialization, materialized
+cumulative/non-cumulative Duplicate, individual-face poly
+extrusion, arc-length curve resampling, and circular sweep.
+
+Reverse applies either a winding reversal or a signed cyclic corner shift to
+all polygon/curve primitives or a typed primitive group. The same permutation
+is applied to fixed-width and ragged vertex attributes, ordinary and ordered
+vertex groups, and native edge groups. Point, primitive, and detail planes are
+shared. Winding reversal removes stale point/vertex `N`; a cyclic shift
+preserves and remaps vertex `N` because it does not change the surface. Empty
+selections and shifts that wrap every selected primitive to its original
+corner order preserve geometry identity. The kernel validates before commit,
+supports cancellation, and fills topology and fixed-width vertex payload in
+stable disjoint ranges. Work and owned output are O(vertices + vertex payload),
+with no reverse-incidence index required. Houdini's separate U/V hull and
+surface controls do not apply to PDK's polygon/curve primitive model.
+
+Transform composes six explicit scale/shear, Euler-rotation, and translation
+orders and all six radian Euler orders into one affine matrix. A translated and
+rotated pivot frame wraps that matrix, and inverse mode rejects singular
+output before cooking. Point, vertex, primitive, and topology-affine edge
+selections reuse `Element_selection` promotion to one packed point mask;
+positions and attached point/vertex `N` planes then fill disjoint ranges.
+Normals use the inverse transpose and may normalize, preserve their original
+length, or be rebuilt for every pre-existing normal owner. Singular arbitrary
+matrices remove normal planes rather than publishing invalid directions.
+Identity and empty selections preserve the immutable geometry object.
+Validation/promotion is O(points + selected incidence), while position and
+normal work is O(points + affected normal elements) with three exact output
+planes per changed float3 field and no per-element heap allocation.
+
+Soft Transform reuses the same selected-point promotion and matrix convention,
+then blends each point between its original and fully transformed position.
+The Radius metric builds the shared packed point index only over source points
+and performs allocation-free parallel nearest queries. Edge distance performs
+an exact multi-source Dijkstra traversal over `Topology_index` using geometric
+edge lengths. Its fixed point-sized indexed decrease-key heap queues each point
+at most once, gives stable point-number ties, and avoids duplicate relaxation
+entries. Attribute mode consumes a finite point-float plane either as raw
+distance or as a direct extrapolating weight. Linear, quadratic, and cubic
+rolloff plus an optional exact output weight plane are common to all modes.
+Complete geometric selections bypass distance construction with a constant-one
+plane. Position/falloff fills are parallel; edge queue order is deliberately
+serial and deterministic. Radius work is expected O(selected log selected +
+points log selected); edge work is O((points + edges) log points), bounded by
+the radius, with O(points) distance/heap storage. Existing normals are rebuilt
+by default or invalidated explicitly.
+
+Distance Along Geometry promotes independent typed start and affected
+selections through the same `Element_selection` boundary and publishes the
+edge-path kernel as reusable point-float data. Raw distance uses `-1` for a
+point unreachable from every start. Existing output values outside the
+affected group survive exactly; a missing distance or mask plane starts with
+`-1` or zero respectively. Masks use linear, quadratic, or cubic falloff over
+either a finite positive fixed radius or the maximum finite distance among
+affected reachable points. A zero maximum maps reachable zero-distance starts
+to one and disconnected points to zero.
+
+When raw distance or maximum normalization is requested, stable Dijkstra visits
+the complete reachable component. A fixed-radius mask-only cook passes that
+radius into the queue and never visits farther points. Start-complete and empty
+start sets bypass topology-index construction. The queue is serial and stable;
+affected maximum reduction is deterministic, while output planes fill in
+parallel disjoint ranges and commit together. Complexity is O((visited points
++ visited edges) log points) time and O(points) scratch, plus exactly one
+point-sized array per enabled output. Surface and heat geodesics require
+separate robust metric kernels and are not approximated by edge distance.
+
+Distance From Geometry uses the same output and falloff policy across two
+reference feature families. Point mode promotes the optional reference
+selection to points and queries `Spatial_index`; primitive mode promotes it to
+primitives and queries the triangulated polygon `Surface_index`. The affected
+selection is independently promoted on the source input. Empty reference sets
+produce raw `-1` and mask zero. Existing output values outside the affected
+set survive, and both output planes commit atomically.
+
+Each index now exposes a distance-only packed batch query. It writes one
+squared-distance plane in stable parallel ranges and retains infinity for
+bounded misses, without allocating point IDs, counts, primitive IDs, triangle
+IDs, or barycentric planes. Fixed-radius mask-only cooks bound traversal before
+the square-root/materialization pass; raw distance and maximum-radius masks
+query the complete index. Point-index construction is expected O(r log r) and
+queries O(q log r); polygon BVH construction is O(t log t) and ordinary queries
+are expected O(q log t), with O(r + q) or O(t + q) owned storage. Degenerate
+overlapping BVH bounds can degrade surface queries to O(q*t). Signed
+inside/outside distance is deliberately absent until PDK has a robust closed-
+solid classification contract; it is not inferred from polygon winding alone.
+
+Distance From Target is the analytic member of the same field family. It
+measures each affected point from an origin, an infinite axis, or an infinite
+plane. Cylindrical and planar directions must be finite and non-zero and are
+normalized once per operation. Planar raw values may be signed, positive along
+the supplied normal; spherical and cylindrical signed requests are rejected
+rather than given an ambiguous convention. Masks always consume magnitude.
+
+The kernel validates every parameter and source position before publishing an
+attribute, preserves pre-existing values outside the affected selection, and
+commits raw and mask planes together. Fixed-radius mask-only cooks write the
+mask directly without a distance scratch plane. Maximum-radius mask-only cooks
+use one point-sized temporary plane; if raw distance is enabled that output
+plane doubles as reduction input. Work is O(points), auxiliary storage is
+O(points) only for maximum mask-only cooking, and all fills use deterministic
+disjoint Parallel ranges.
+
+Triangulate deterministically ear-clips selected simple polygons after a robust
+dominant-axis projection. A typed primitive group can restrict the operation;
+unselected polygons and curves keep exact topology and payload, while selecting
+a curve is a structured error. Point data stays shared. Stable source maps
+replicate/remap every fixed-width or ragged vertex/primitive field, ordinary or
+ordered group, and native source edge without marking generated diagonals.
+Empty and already-triangular selections preserve geometry identity. Planning
+computes exact output cardinality before allocation; independent primitive
+blocks own their clipping scratch and fill disjoint output ranges. Complexity
+is O(primitives + sum selected corner_count² + output payload) time and
+O(primitives + output vertices) auxiliary/output storage. Constrained Delaunay
+point-set triangulation is a separate future operator, not an alternate hidden
+mode of this topology-preserving kernel.
+
+Normals uses one packed kernel for modeling operations, deformation
+recomputation, and the public SOP. It emits point, vertex, primitive, or detail
+float3 fields using face-area, equal-corner, or vertex-angle weighting. Vertex
+output supports a radian cusp angle; the fully smooth case accumulates once per
+point and copies to corners, while cusped output precomputes each corner angle
+once and evaluates stable incident fans in parallel. Typed point, vertex,
+primitive, and native-edge selections are promoted to the requested owner.
+Existing output fields remain exact outside the selection; missing vertex
+fields receive Houdini-style smooth initialization, while missing fields on
+other owners compute over the full relevant owner. Zero results can preserve
+an existing value, and computed values can be reversed.
+
+Point-incidence CSR is cached independently from edge incidence so normals do
+not construct unused edge hash/half-edge planes. `Topology_index` reuses those
+same point arrays when a later edge operation needs the full reverse topology;
+there is no second authoritative incidence representation. Point, primitive,
+detail, and fully smooth vertex modes are topology-linear. Cusped vertex mode
+is O(vertices + sum point_degree²), uses O(points + vertices + primitives)
+packed storage, and writes each output corner independently.
+
+The Line source
+robustly normalizes a finite direction and fills exact evenly-spaced polygon-
+curve or free-point output in parallel. Convert Line emits one canonical
+two-point curve per selected unique topology edge, optionally computes
+primitive length, compacts unused points, and preserves native edge provenance
+while intentionally discarding source corner/face payloads. Its Connect Path
+mode invokes the packed PolyPath graph directly—without first materializing
+two-corner edge primitives—and exposes finite endpoint distance, endpoint-only,
+and isolated-loop closure controls. Length in this mode is the robust total
+arc length of each final path.
+PolyPath instead cleans the complete unique-edge graph directly: it removes
+self/duplicate edges, traces maximal paths through degree-two points, stops at
+endpoints and branches, and optionally rewires transitive nearby endpoint
+components onto the lowest point number before tracing. Isolated loops are
+open curves with a repeated endpoint by default or closed polygon surfaces
+explicitly. Point/detail data
+retains identity, vertex data follows a stable source corner, primitive fields
+reduce to the lowest contributing primitive, and primitive/native-edge groups
+use union ancestry. The normal no-rewire path borrows the cached topology
+index's unique endpoint planes; it does not allocate or hash a second graph.
+Curve Carve extracts normalized arc-length or uniform-edge intervals from an
+optional primitive group with packed payload interpolation and exact
+source-edge provenance. Unselected polygons and curves preserve their point
+sharing, kinds, and payload. Keep Outside emits two parameter-ordered pieces
+for open curves but one seam-crossing complement for closed curves; keeping
+inside and outside emits all cut pieces with duplicated cut endpoints and
+complete primitive/group ancestry. Away from breakpoint mode, a positive Cut
+division count partitions the retained inside interval into equal,
+parameter-ordered open pieces in one cardinality-planned cook; the default one
+preserves the unsplit result. Primitive float attributes can replace or
+scale First/Second U independently; only selected values are required to be
+finite and ordered. Polygon breakpoint mode moves the interval inward to source
+vertices and either retains the two outer breakpoints or cuts/extracts every
+vertex within the interval. Its exact-copy path preserves payload and native
+edge ancestry without interpolation scratch. Point-extraction mode otherwise
+emits an exact number of free points over an inclusive parameter interval,
+optionally retaining the selected source curves; point fields and groups follow
+the same interpolation policy while removed vertex/primitive payload becomes
+correctly empty. Ends changes U closure for selected polygon faces and polygon
+curves. Open drops the closing segment; straight close emits a polygon face and
+removes a repeated shared terminal corner on round-trip. Shared-seam unroll
+repeats the first point reference, while new-seam unroll duplicates the first
+position and every fixed/ragged point payload and ordered-group row. Vertex
+payload follows exact corner ancestry. Primitive/detail data remains shared,
+original closing edges retain native-edge membership, and authored straight
+closing edges remain unselected. Unique-corner topology uses primitive-local
+edge numbering; shared topology uses one lightweight target endpoint table and
+the cached authoritative source reverse index. The curve-only `curve_ends`
+entry point delegates to the same kernel. Curve
+Join builds either stable input-ordered chains or a globally greedy nearest-end
+sequence anchored at the first selected curve, with closest-end orientation,
+finite endpoint welding, connected-only partitioning, wrapping, and explicit
+generated-edge semantics. A positive subgroup size starts a new result after
+each N selected curves. Keep Originals retains source primitives in stable
+order and appends joined chains that share the immutable source point plane;
+the general topology-index path preserves native-edge ancestry even where a
+welded joined corner substitutes a coincident source point. Global ordering
+uses a removable balanced endpoint
+k-d tree with widest-extent splitting and stable primitive/end ties rather than
+an all-pairs scan. Its dependent greedy walk is sequential; endpoint
+preparation and topology/payload materialization retain disjoint parallel
+ranges.
+
+PolyLoft consumes selected polygon curves or polygon faces as an authored
+sequence of cross-sections and constructs triangles without creating or
+duplicating points. Each neighboring pair advances one side of a deterministic
+zipper according to either the next cross-edge distance or a three-edge
+triangle-perimeter objective. Open sections may reverse onto their closest
+endpoint pair. Closed sections choose a closest seam through a direct search
+for small products or a packed spatial index for large products, then choose
+the destination orientation from the adjacent distances. An equal-point-count
+rest snapshot can own those geometric pairing decisions while the current
+positions remain the rendered output. U wrap closes authored open sections;
+V wrap connects the final section back to the first.
+
+Generated corners inherit exact source-section corner ancestry and generated
+faces inherit the preceding source section. Unselected primitives remain in
+stable order; selected cross-sections are removed by default or retained as a
+prefix. The shared topology remapper preserves every packed attribute,
+ordinary/ordered group, and endpoint-affine native edge group. A generated-face
+group is optional. Stale point/vertex normals are removed and an existing
+normal owner may be rebuilt. Zero collinearity tolerance preserves every
+triangle whose point numbers are distinct, so metric roundoff cannot change
+topology; a positive dimensionless sine threshold is explicit approximate
+filtering policy.
+
+Pair planning and filling are O(output triangles); small closest-seam searches
+are O(a*b), while large closed pairs are expected O((a+b) log b) with linear
+scratch. Exact cardinalities allocate topology and ancestry once. Independent
+section pairs, retained topology copies, remapped payload, and normal fills use
+stable disjoint domain ranges. The hot triangle loop uses typed `Float.max`
+rather than polymorphic extrema and allocates no per-triangle boxes.
+
+Skin is a second public operation over this same packed loft kernel, not a
+second topology implementation. For equal-cardinality neighboring sections it
+emits one ordered quad `[a_i; a_(i+1); b_(i+1); b_i]` per segment, reducing
+primitive and corner storage while retaining the exact PolyLoft alignment,
+selection, U/V wrap, source-retention, payload/group ancestry, cancellation,
+and normal contracts. Unequal cardinalities use the shared deterministic
+triangle zipper. Planning and materialization are O(output corners), with one
+fixed-arity plan per independent section pair and no per-face size boxes.
+Native spline surfaces and two-input bilinear cross-skins are intentionally not
+represented by this polygon kernel.
+
+PolyBridge first decomposes two topology-affine edge selections into simple
+degree-two-or-less paths and loops. Open paths begin at their least numbered
+available endpoint; cycles and all component ties use stable point/primitive
+keys. Source and destination component arrays pair in authored order or by
+independently sorting their scale-safe centroids on X/Y/Z and stable component
+index. The latter is O(k log k), retains a one-to-one mapping, and avoids the
+quadratic greedy matching scan that an early implementation used.
+
+Each paired boundary becomes an indexed section in the same PolyLoft/Skin
+planner. Equal cardinalities emit quads and unequal cardinalities emit zipper
+triangles. Reverse controls reorder either indexed boundary; automatic closest
+endpoint/seam alignment runs before an explicit destination shift for closed
+loops. The direct bridge shares existing boundary points and appends to input
+topology by default. Exact source-corner/source-primitive ancestry drives the
+common topology remapper, so packed payload, ordinary groups, and native edge
+groups retain their established policies; generated cross-edges acquire no
+invented ancestry.
+
+Path extraction and materialization are O(vertices + edges + output corners)
+with O(edges + output) storage. Component arrays use geometric-growth local
+buffers rather than allocating the complete selected-edge count per component.
+Independent plans, topology fills, payload maps, and normal generation use
+stable disjoint pool ranges. One giant bridge retains sequential ordered path
+tracing and zipper planning; many independent bridge pairs expose coarse
+parallel work. Spine subdivision, curved/external paths, and thickness/twist
+are handled separately from this direct no-new-points path.
+
+For equal-cardinality pairs, positive PolyBridge divisions now allocate
+`(divisions - 1) * boundary_points` intermediate points and emit one quad per
+boundary segment per division. Positions and all numeric point/vertex payload
+use scale-safe linear interpolation; integer, text, ragged payload, and
+ordinary groups use the nearest endpoint with an exact half-way destination
+tie. Detail payload remains shared, primitive payload follows the source
+footing, and native edge groups map only through unchanged original boundary
+points. Interpolation maps are allocated only when their owner actually has
+payload or groups. Stale normals never pass through the topology change, and an
+existing point or vertex normal owner can be regenerated after the full cook.
+
+Intermediate point and quad-validity fills parallelize one giant pair by
+stable ranges; independent pairs parallelize at pair granularity. Positive
+collinearity filtering uses a packed byte decision plane, then allocates exact
+face/corner cardinalities. Unequal-cardinality divided bridges are rejected
+until a topology-transition policy can preserve explicit source/destination
+footing rows; curved/external paths, non-uniform spacing, and thickness/twist
+remain audited extensions rather than approximations.
+
+Circular Sweep/PolyWire exposes one operation over two cardinality-specialized
+paths. The measured fixed-resolution, unrestricted compatibility path remains
+byte-identical. The general path replaces only selected primitive curves,
+passes polygons and curves outside the group through exactly, preserves free
+points, and samples every selected source edge by a constant or point-integer
+endpoint-averaged segment count. A point-integer division attribute selects
+each sampled ring's radial cardinality; unequal neighboring rings use a stable
+minimal triangle/quad zipper with `a + b - gcd(a,b)` faces and
+`3a + 3b - 2gcd(a,b)` corners.
+
+Both paths use scale-safe rotation-minimizing frames, closed-curve holonomy
+correction, point-float radius scaling, point-integer snapped seams, optional
+point-authored V and projected joint-up fields, and seam-safe side UVs. The
+general path supports a constant or outgoing-corner float2 first/last interior
+segment placement in normalized source-edge coordinates. Endpoints remain at
+zero and one; inclusive placement may deliberately create coincident sampled
+rings, while the source edge itself must remain finite and non-zero. Generated
+UVs can be disabled without discarding an authored source vertex `uv` field.
+Constant U/V ranges or outgoing-corner float4 `(u0,u1,v0,v1)` ranges apply per
+source edge; an authored point V field has precedence over the V range. It also
+supports opt-in joint buckling prevention at every non-end source point. The
+joint tangent is the scale-safe bisector of the incident unit edge directions;
+each radial ring point is enlarged by the exact cylinder-intersection miter
+factor and clamped by a finite constant or point-float maximum of at least one.
+Straight joints remain unchanged, bend-axis-independent sides retain unit
+scale, source endpoints remain ordinary rings, and control-only neighbor,
+direction, and limit planes are not allocated when prevention is disabled. It
+also supports constant Smooth Point, point-float smooth values with the
+documented 0.5 threshold, and optional maximum selected-edge valence. A broken
+joint duplicates only its source ring and omits the cross-joint transition;
+tangent search and frame transport restart independently at each run. Closed
+curves rotate deterministically to their first broken source point and become
+one or more open runs. Break ends remain uncapped even when ordinary open-curve
+caps are enabled. Selected-edge valence uses the shared packed topology index,
+and the no-control path allocates no smooth-run planes. An outgoing-corner
+integer segment-seam field cyclically remaps the physical ring correspondence
+for every transition on that source edge. The same shift is reduced safely for
+unequal ring cardinalities, applies to cap ordering and native-edge ancestry,
+and preserves logical seam-safe U coordinates without varying halfway through
+a subdivided edge. It also supports
+optional open-spine N-gon caps carrying seam-aware planar UVs, hard vertex
+normals, and a primitive cap group. The general path records exact two-endpoint
+ancestry for every sampled ring: numeric fixed-width point/vertex payload is
+linearly interpolated; integer, text, ragged payload and ordinary groups use a
+documented destination tie at one half; primitive/detail payload remains exact.
+Native edge groups propagate to retained edges and to only those longitudinal
+wire edges whose normalized radial coordinates coincide, never zipper
+diagonals. Ring points, global transitions, caps, payload, groups, and native
+edge bitsets fill independent stable ranges; the ordered frame prefix of each
+curve remains sequential.
+
+General-profile Sweep is a separate two-input packed kernel rather than a
+second mode hidden inside PolyWire. It forms stable backbone-major Cartesian
+pairs of selected polygon curves and emits the same point/row/column/quad and
+triangle connectivity vocabulary as Grid. Cross sections are interpreted in
+local XY with +Y up and +Z along the backbone, while full local XYZ offsets are
+retained. Average-edge, central-difference, previous/next-edge, and fixed-Z
+tangents feed scale-safe rotation-minimizing frames; closed-loop correction is
+performed after distance-weighted roll/twist so a non-integral twist cannot be
+concentrated into the closing edge. Conventional point `orient`, `N`, `up`,
+`pscale`, and float3 `scale` fields optionally replace or scale that frame.
+
+Both inputs retain point/corner/primitive/detail ancestry. Cross-section fields
+and ordinary/native groups use an explicit prefix (default
+`cross_section_`) so the two sources do not silently overwrite one another;
+backbone and profile native edges map only to longitudinal and ring edges,
+respectively, never generated triangle diagonals. Ancestry planes are allocated
+only for owners that actually carry payload or edge provenance. Ordered frame
+transport remains per curve, but independent curves, global output points,
+topology, UVs, attributes, groups, and edge classification use stable disjoint
+pool ranges. See the SOP audit for the deliberately unclaimed SideFX controls.
+
+Resample uses the same polygon-curve boundary with either an exact segment
+count, a maximum segment length, or both as a deterministic ceiling. It can
+equalize every output edge or retain a shorter final edge. Primitive groups
+restrict cooking without reordering the stream; primitive float length and
+integer count fields override controls, with non-positive fields disabling the
+corresponding control and exact pass-through when both are disabled. It
+preserves open and closed endpoints/topology, interpolates all point/vertex payloads, and retains
+primitive/detail, ordinary-group, and exact traversed native-edge ancestry.
+Optional point fields expose input polygon `curveu`, source curve number,
+half-adjacent-edge coverage distance, and normalized output tangent. One packed
+cumulative-length plane is shared by stable output chunks, so a single long
+curve can parallelize without an O(output log input) per-sample search.
+
+PolyFrame constructs normalized coordinate fields without changing topology.
+First Edge, Two Edges, Primitive Centroid, and Texture UV produce point-owned
+frames; Texture UV Gradient and Attribute Gradient produce vertex-owned frames
+so discontinuous UV or arbitrary float2/float3 fields retain their seams.
+Empty texture names resolve to `uv`. Typed component selection, configurable
+output names, disabled tangent/bitangent outputs, and optional orthogonal
+projection with explicit right-/left-handed output are explicit. Existing output values outside the
+selection survive unchanged. The implementation shares packed topology and
+face/point-normal passes, computes local attribute derivatives directly, and
+fills independently owned point, vertex, and primitive ranges through the
+reusable domain pool.
+
+Facet is an ordered modeling pipeline rather than a bag of independent flags.
+Its current packed stages follow pre normals/unit normalization, Unique Points,
+mutually exclusive point or normal consolidation, inline-point removal, polygon
+orientation, dihedral-angle polygon cusping, degenerate cleanup, post normals,
+and final normal reversal.
+The entire ordered pipeline can be restricted to a primitive group. A private
+primitive bitset follows topology deletion between stages and is removed before
+publication. Empty selection preserves object identity; full selection takes
+the original allocation-tight compatibility path. Unselected primitive corners,
+winding, and primitive payload remain exact. Point-owned values intentionally
+follow referenced-point semantics: a shared point is selected when at least one
+selected primitive references it.
+The public typed selection boundary also accepts point, vertex, and native-edge
+groups. Point membership promotes every incident primitive, vertex membership
+promotes its owning primitive, and edge membership promotes every incident
+primitive. Promotion validates ordinary owner/length or native topology
+affinity, scans stable primitive corner ranges, and materializes one packed
+primitive mask before any stage runs. Supplying both the typed boundary and the
+legacy pre-resolved primitive group is rejected atomically.
+Unique Points gives every referenced corner an
+independent point while retaining isolated points; all point storages and
+ordered groups follow exact target-to-source ancestry, and one selected shared
+native edge expands to every new boundary-edge descendant. Orient Polygons
+solves stable manifold component parity, reverses vertex fields/groups with
+their corners, retains edge groups by endpoint identity, and rejects
+non-manifold or contradictory orientation constraints atomically. Cusp
+Polygons splits the incident corner fans at manifold edges whose dihedral angle
+strictly exceeds the threshold. It retains the first fan at each source point,
+appends later fans in stable incidence order, duplicates every point payload,
+and maps native edge groups to every descendant. Classification and packed
+materialization are parallel; deterministic iterative union-by-rank keeps fan
+connectivity stack-safe and independent of domain scheduling.
+
+Remove Inline Points performs stable, iterative polygon simplification against
+the previous-to-next segment with a finite world-space distance threshold. A
+linked cyclic work queue revisits only neighbors of removed corners, never
+reduces a polygon below three vertices, and passes non-polygon primitives
+through unchanged. Exact target-to-source planes preserve point, corner,
+primitive, detail, ordinary-group, and native-edge ancestry; pre-existing
+isolated points survive while points orphaned by simplification are compacted.
+Scale-normalized predicates remain translation robust at extreme finite
+coordinates, and unchanged inputs retain geometry identity.
+
+Consolidate Normals uses the same deterministic representative-bounded spatial
+clustering core as Fuse without changing point positions or topology. Point
+`N` averages cluster members; vertex `N` averages every incident corner of the
+cluster's points. Both owners may coexist, arithmetic averages retain their
+natural magnitude, and scale-normalized accumulation prevents finite extreme
+vectors from overflowing. Stable cluster-member CSR planes preserve exact
+source-order sums across domain counts, while disjoint cluster reductions and
+normal fills use the reusable domain pool. Missing normals are an identity
+operation; invalid storage and non-finite values fail atomically.
+
+Make Planar projects every selected non-planar polygon onto its centroid plane
+using a scale-normalized Newell normal. Triangles, polygon curves, and polygons
+already planar to the floating-point noise floor preserve identity. A selected
+polygon with a non-finite corner, no stable plane, or a projection outside the
+finite coordinate range fails atomically with its stable primitive index.
+Exclusive points move in place. When one source point belongs to an unchanged
+primitive or to several independently projected polygons, only the conflicting
+corners receive duplicated points; this guarantees every transformed polygon
+is planar without moving an unselected neighbor. All point storage kinds,
+ordinary groups, and native edge ancestry follow the exact source-point map.
+Classification and projection use disjoint primitive/corner ranges; stable
+point claims and output numbering remain independent of domain scheduling.
+
+Circle is the packed polygon-curve implementation of SideFX's circle/ellipse
+and arc contract. The compatible default remains a closed XZ circle. Independent
+radii produce ellipses; XY, XZ, YZ, and scale-safe custom axes place the curve;
+center, positive uniform scale, in-plane radians rotation, and reversed
+traversal complete the polygon transform surface. Typed arc modes emit a full
+closed curve, an open sampled arc, an endpoint-chord closed arc, or a closed
+pie-slice boundary with one center point. Closed PDK topology is canonical and
+does not duplicate the first point.
+
+For `s` segments, a full circle emits exactly `s` points/vertices, an open or
+chord-closed arc emits `s+1`, and a sliced arc emits `s+2`; every mode emits one
+curve primitive. Position and identity-index planes are allocated once and
+filled together in fixed disjoint ranges. Exact arc endpoints bypass accumulated
+parameter error. Work and output are O(points); auxiliary error storage is
+O(ceil(points / grain)). No point tuple, list, builder growth, or temporary
+geometry survives the source cook.
+
+Grid accepts either division counts or Houdini-style point counts. Its output
+can be free points; one open polyline per row, column, or both; quads; regular
+or reverse diagonal triangles; or checkerboard alternating triangles. The
+plane is XZ, XY, YZ, or a caller-defined pair of axes. Custom axes use
+scale-safe normalization and Gram-Schmidt rejection, then an optional in-plane
+rotation; the resulting normal is the normalized vertical-by-horizontal cross
+product. Width and height are independent, `size` remains the compatible
+shared default, and an optional point float2 field stores normalized lattice
+coordinates.
+
+For `u` by `v` output points, Grid emits exactly `uv` points. Rows and columns
+emit respectively `(uv, v)` and `(uv, u)` vertices/primitives; both emit
+`(2uv, u+v)`. With `c=(u-1)(v-1)`, quads emit `(4c, c)` and triangle modes emit
+`(6c, 2c)` vertices/primitives. All cardinalities are checked before allocation.
+Point rows, line primitives, surface cells, and offset planes are written to
+disjoint stable ranges through the reusable pool. Time is
+O(points + vertices + primitives); auxiliary storage beyond the exact output is
+O(ceil(rows / row-grain)) for deterministic numeric-error reporting. There are
+no per-point objects, lists, append pipelines, or scheduling-order-dependent
+indices.
+
+Surface Scatter plans only selected polygon faces, ignores curve primitives,
+and ear-clips simple concave N-gons directly into source-corner triples without
+materializing a second geometry. A Walker alias table gives O(1) triangle
+selection per output point. Fixed-total density can be point, vertex,
+primitive, or detail float storage; negative values contribute zero. For
+point/vertex density, triangle integrals use the exact mean of the linear
+corner field and samples use the corresponding mixture of Dirichlet(2,1,1)
+distributions, rather than merely weighting whole faces. General attribute and
+ordinary-group patterns reuse Attribute Interpolate through exact three-entry
+source-vertex/weight rows; those CSR rows and original primitive numbers can
+also remain as public provenance for later deformation cooks. Direct triangle
+meshes avoid triangle-map storage. Position, normal/color, provenance, and
+alias buffers are exact-sized, point ranges allocate nothing per sample, and
+all published ordering is exact across domain counts. Planning is O(sum of
+selected polygon corner-squared ear work), sampling is O(output points), and
+auxiliary storage is O(emitted triangles + output provenance).
+
+Ray and closest-surface projection share `Surface_index`, the single packed
+polygon collision core. The index ear-clips simple N-gons while retaining the
+original primitive and source-corner identities, then builds a median-split
+AABB hierarchy over compact structure-of-arrays bounds and triangle maps.
+Directional traversal normalizes constant or point-owned directions robustly,
+supports forward/reverse/bidirectional and first/last-surface policies, and
+uses an exact closest-triangle check for world-space border tolerance instead
+of a shape-dependent barycentric epsilon. Selected queries and output/import
+ranges write disjoint exact arrays. Hits can retain original primitive plus
+source-vertex/weight CSR provenance, so later operations reconstruct collision
+fields without exposing internal triangulation. Multi-ray projection retains
+one exact unjittered direction and derives every extra cone-disk sample from a
+stable seed/point/sample key. Each worker owns O(samples) result/order scratch;
+average, upper-median, shortest, and longest reduction cannot leak scheduling
+order into output. Average attribute import sizes exact CSR rows first and
+repeats only the chosen directional sample set, avoiding a
+points-by-samples temporary hit matrix. Collision construction is
+expected O(corners + triangles log triangles) time and O(triangles) storage;
+ordinary queries are expected O(log triangles) each and sampled projection is
+O(points * samples * log triangles), with an additional O(samples log samples)
+per point for the median combiner. Queries can degrade to
+O(triangles) for completely overlapping bounds. Operation storage is
+O(triangles + source points + requested imported output + domains * samples),
+apart from output-sized average provenance.
+
+`Ops.materialize_instances` is the single editable-topology boundary for an
+arbitrary ordered transform array. It computes point, vertex, and primitive
+cardinalities before allocation, emits exact transform-major topology, repeats
+ordinary attributes/groups and topology-affine edge groups with stable
+ancestry, and transforms typed point/vertex normals by normalized inverse
+transpose. If any applied matrix is singular, typed normals are removed
+atomically; other payloads remain intact. Zero transforms produce valid empty
+topology while preserving detail attributes, and `apply_transform=false`
+materializes prototype-space copies. Position, topology, attribute, group, and
+normal planes use deterministic disjoint ranges, cancellation never publishes
+a partial snapshot, and auxiliary storage is O(instances) beyond exact output.
+Unrestricted `Duplicate` constructs its transform sequence and invokes this
+same exact-copy kernel. Its primitive-restricted path retains the full input as
+an exact prefix and plans stable selected primitive, corner, and referenced
+point maps once. It then fills only appended selected payload, with ordinary
+and ordered group ancestry, native-edge ancestry, and normalized
+inverse-transpose normals. Optional one-based copy groups are built as bounded
+packed bitsets in one metadata commit; same-name primitive membership is
+replaced or explicitly preserved by union. No compact/materialize/merge
+intermediate is retained, so auxiliary memory remains linear in input maps plus
+exact output rather than duplicating the output snapshot.
+
+UV Project creates packed vertex float2 coordinates through arbitrary
+planar frames or cylindrical/spherical frames, with finite-input validation,
+primitive restriction, output ranges, per-primitive wrap correction, and pole
+repair. UV Transform applies translation, non-uniform scale, rotation, and
+pivot to point- or vertex-owned float2 UVs with owner-matched group
+restriction. UV Auto Seam classifies compact undirected topology using angle,
+boundary/non-manifold, primitive partition, and existing-UV continuity rules;
+it emits a native edge group and optional stable primitive island IDs while
+retaining an outgoing-corner compatibility view. Edge Group exposes
+the same native topology layer directly with incidence, length, and primitive
+filters. Its angle basis is either the dihedral between two incident polygon
+faces or the angle between every pair of selected edges sharing a point; an
+edge matches the latter when any pair lies in the inclusive range. Edge
+directions use normalized SoA scratch, including near `max_float`, and the
+final topology-affine membership is written directly as a bitset. Dihedral
+classification is O(edges + polygon corners); incident-edge classification is
+O(edges + sum(point degree squared)), which is the required pairwise work,
+with O(edges) numeric scratch. UV Unitize fits either individual faces or connected UV islands to the
+unit square, with optional aspect preservation and explicit seam cuts. UV
+Flatten splits corner charts on native or compatibility seams, validates each
+triangle island as a manifold disk, maps its boundary by 3D arc length to a
+convex circle, and solves positive mean-value harmonic coordinates. UV Relax
+uses the same chart and solver while preserving existing boundary coordinates.
+The matrix-free diagonally preconditioned conjugate-gradient passes report
+non-convergence, collapsed triangles, and flips instead of publishing partial
+UVs. The
+normal/edge and bounds/output stages use deterministic disjoint parallel
+ranges; island union is sequential so work-stealing cannot affect component
+IDs. These operations preserve topology, positions, unrelated
+attributes, and groups by identity. Deterministic Fuse supports exact/tolerance
+clustering, named point restriction, explicit position/attribute policies,
+point-group union, and optional attribute-seam matching. Unselected points are
+neither queries nor implicit targets. Its fixed-target planner accepts a
+read-only second geometry or a separate same-geometry target group. Packed
+near-point cells select either the least eligible target number or closest
+target with stable ties; an alternate direct integer map implements specified
+targets. Non-negative point radii expand the distance threshold, scalar
+float/integer/text match fields filter equal or unequal candidates, and output
+metadata records mapped queries and target numbers. Query ranges and position
+writes are parallel and allocation-free inside the candidate loop. Snap-only
+mode shares unchanged topology and payload; optional exact consolidation
+reuses the original Fuse cluster/remap core. Same-input Modify Target converts
+stable query/target links to deterministic minimum-root components and reduces
+both sides. Its position policies cover least/greatest point, average,
+component minimum/maximum/mode/upper-median/sum/sum-squares/RMS, weighted
+average/sum, and minimum/maximum weight; weighted policies consume one finite
+scalar point plane and fail atomically on an invalid or zero-denominator
+result. Keep Fused Points rewires topology but keeps all point records.
+Optional cleanup removes consecutive duplicates and resulting sub-cardinality
+polygons/curves, with either newly orphaned or all-unused stable point
+compaction. Complete vertex/primitive attribute, ordered-group, and native-edge
+ancestry is preserved. Ordered point-attribute rules provide numerical,
+string, weighted, scalar-to-array, and existing-array concatenation policies;
+point-group rules provide least/greatest, union, intersection, and strict
+majority. Fixed targets copy matching payload and target-only groups through
+the selected target map, while Modify Target reduces both sides. Rule patterns
+are compiled and generated output metadata is committed afterward. Grid Snap
+writes selected positions into
+exact packed planes using positive per-axis spacing, normalized offsets, stable
+nearest/down/up rounding, and optional Euclidean movement tolerance. Its moved
+membership uses one packed bit per point with byte-aligned worker ownership;
+optional consolidation delegates to Fuse at zero tolerance instead of owning a
+second weld algorithm. Snap-only work is O(points + output payload) time and
+three position planes plus O(points / 8) transient state. Fuse cluster discovery
+is stable source order so earliest-representative semantics do not depend on
+scheduling; exact-sized position, attribute, topology, and group remaps are
+parallel.
+
+Bound converts an optional typed point, vertex, primitive, or native-edge
+selection to referenced points through the shared topology index. Range-local
+min/max values reduce in stable order; cheap million-point reductions retain a
+measured sequential cutoff, while larger or incidence-heavy inputs keep the
+parallel path. Divided boxes compute all six face cardinalities before
+allocation and fill disjoint face-local position, normal, triangle, and winding
+ranges. Bounding spheres start from the selected AABB diagonal, then apply
+asymmetric padding as center/radius changes to the shared UV-sphere generator.
+That generator now allocates exact packed position, normal, and topology arrays
+and fills points/triangles directly, with no per-triangle point tuples. Optional
+detail center/radii and the all-output primitive group are committed only after
+successful geometry construction. Bounds reduction is O(points + selected
+incidence); box output is O(surface divisions), sphere output is O(segments ×
+rings), and auxiliary/output memory is exact linear storage plus range-local
+min/max values.
+
+Match Size separates three roles that Houdini exposes independently: the
+component selection to move, the source selection used for justification
+bounds, and the target selection used for reference bounds. Each typed
+selection resolves to referenced points through the shared topology index.
+The target may instead be an origin-centered unit box or an explicit finite
+center/size box, so the eager PDK API does not require a synthetic geometry
+input for numeric matching. Source and target anchors are independently
+continuous from minimum through center to maximum on each axis. Translation
+enable, world offset, non-uniform scale enable, and the scale multiplier are
+also per-call immutable facts.
+
+Scale modes include independent stretch, uniform X/Y/Z axis matching,
+contain, cover, and total primitive perimeter, surface-area, or signed-volume
+matching. Metric modes reuse `Analysis` and convert ratios to linear scale by
+identity, square root, or cube root; non-primitive metric selections and
+measureless inputs fail explicitly. Selected positions fill exact copied SoA
+planes in disjoint ranges. Point and vertex `N` use the selected diagonal
+inverse transpose and normalization; singular output removes stale normals.
+Incidence-based move selections compile once to a one-byte-per-point mask so
+position and both normal traversals do not repeat topology scans. Bounds are
+O(points + selected incidence); bounds-only fitting then costs O(points +
+normal payload), while metric fits add O(vertices) perimeter work or the
+documented polygon-measure triangulation. Transform stash/restore remains out
+until PDK has an unambiguous detail-matrix storage type.
+
+Sort reorders point or primitive ownership while preserving every dependent
+packed plane. Point permutations rebuild topology point references and remap
+point attributes, ordinary/ordered groups, and native-edge endpoints. Primitive
+permutations rebuild CSR spans and remap vertex/primitive payload and groups.
+Restricted value sorts replace only the selected destination slots and retain
+stable input order for equal keys.
+
+Point By Vertex Order assigns referenced points by first packed-corner
+appearance; By Primitive Index uses the lowest incident primitive. Both place
+unconnected points first in stable point-number order. Spatial Locality maps
+finite point positions or primitive centroids into a scale-normalized 21-bit
+box per axis and sorts the resulting positive 63-bit Morton codes. Coincident
+cells retain stable input order. The Morton plane fills in parallel without
+tuple allocation and remains finite for coordinates near `max_float`.
+
+Seeded random sorting uses an immutable `Rand.t` stream and an in-place O(n)
+Fisher-Yates permutation with no per-element allocation; as in the documented
+Houdini contract, this mode rejects group restriction. Reorder-by-index accepts
+only an exact integer permutation of all destination indices, or of the actual
+selected slots for a restricted sort. Duplicate, missing, out-of-range, wrong-
+owner, and wrong-storage fields fail before remapping.
+
+Indirect Sort Indices computes the same permutation but publishes its inverse
+destination-rank integer plane without changing topology. Combine mode first
+restores the stable order encoded by an existing valid rank plane, then applies
+the next stable value key; chained multi-key sorts therefore avoid intermediate
+geometry rebuilds. Shuffle and index validation are O(n); value sorting is
+O(n log n). Key preparation, inverse-rank output, and all payload remaps use
+deterministic disjoint parallel ranges, while comparison order and shuffle are
+serial by contract.
+
+Blast by Attribute classifies one same-owner scalar float or integer plane over
+points or primitives. Threshold mode is strictly lower-than; range and
+center/width modes include both endpoints. An optional packed base group
+restricts both normal and inverted selection. The result either replaces one
+ordinary same-owner group while sharing all other geometry, or delegates the
+selection to the authoritative Delete planner. Primitive deletion may compact
+all unused points; point deletion follows Delete's destroy-touched-primitive
+contract.
+
+Mode, owner, name, base cardinality, output policy, and numeric data validate
+before commit. Operated floating values must be finite; values outside a base
+group are deliberately not read or validated. Classification is O(elements)
+time and one packed bit per element. Independent output bytes fill through the
+reusable domain pool with no per-element boxing; destructive output then has
+Delete's O(points + vertices + primitives + payload) time and linear remap
+storage. One- and multi-domain results preserve exact element and payload order.
+
+### Crease authoring
+
+Crease operates on PDK's unique undirected topology edges while storing the
+result in the vertex-owned scalar `creaseweight` representation consumed by
+Subdivide. An omitted selection addresses every edge; a supplied selection is
+a topology-affine native edge group. Add reduces all existing incident-corner
+values by maximum before adding, matching Subdivide's edge interpretation.
+Set replaces the edge value and Delete clears it. Every incident corner then
+receives the same value, including non-manifold incidence, while corners on
+unselected edges remain byte-exact. Clearing the final positive value removes
+the all-zero field.
+
+Optional visualization creates or updates vertex float4 `Cd`. Both endpoint
+corners of every positive crease become deterministic red; other vertex colors
+remain exact. If no vertex color exists, a valid point float4 color is expanded
+as the default, otherwise white is used. This is display metadata only and the
+same authored sharpness feeds Subdivide without conversion.
+
+Validation and unique-edge reductions are O(vertices + edges). Set/Delete use
+one exact vertex output plane; Add additionally uses one edge plane, and color
+visualization uses four vertex planes plus one edge plane. Fixed blocks write
+disjoint ranges through the reusable domain pool. Invalid storage, negative or
+non-finite sharpness, addition overflow, foreign edge-group affinity, and
+cancellation return no snapshot. No-op Add/Delete/Set paths preserve physical
+geometry identity.
+
+The release benchmark command is:
+
+```sh
+PRISMEL_PDK_OPS_COLUMNS=500 PRISMEL_PDK_OPS_ROWS=300 \
+  PRISMEL_PDK_OPS_REPEATS=7 PRISMEL_PDK_BENCH_GRAIN=16384 \
+  PRISMEL_PDK_OPS_FILTER=crease PRISMEL_BENCH_DOMAINS=1 \
+  dune exec --profile=release tools/bench_pdk_ops.exe
+PRISMEL_PDK_OPS_COLUMNS=500 PRISMEL_PDK_OPS_ROWS=300 \
+  PRISMEL_PDK_OPS_REPEATS=7 PRISMEL_PDK_BENCH_GRAIN=16384 \
+  PRISMEL_PDK_OPS_FILTER=crease PRISMEL_BENCH_DOMAINS=4 \
+  dune exec --profile=release tools/bench_pdk_ops.exe
+```
+
+On the four-core aarch64 CI host with OCaml 5.3.0, a 500 by 300 quad grid has
+150,801 points, 600,000 corners, and 300,800 unique edges. Seven-run release
+medians at grain 16,384 are:
+
+| Cook | 1 domain | 4 domains | allocated, 1/4 domains |
+|---|---:|---:|---:|
+| sparse Set | 2.477 ms | 1.129 ms | 4.803 / 4.812 MB |
+| sparse Add with incident maximum reduction | 5.344 ms | 2.275 ms | 7.898 / 7.434 MB |
+| sparse Delete | 3.769 ms | 1.543 ms | 4.804 / 4.821 MB |
+| all-edge Set | 1.747 ms | 0.811 ms | 4.803 / 4.811 MB |
+| sparse Set plus endpoint color | 11.519 ms | 8.092 ms | 31.225 / 27.840 MB |
+
+The former manual per-corner Set workflow measured 3.387/3.651 ms and
+13.028 MB; the packed kernel is 1.37x faster on one domain and 3.23x faster on
+four while allocating 63% less. Manual Delete measured 3.756/3.571 ms and
+13.028 MB; the packed result is 2.31x faster at four domains with the identical
+hash and 63% less allocation. The manual Add row is not a correctness oracle:
+it independently incremented asymmetric incident corners, whereas the new
+kernel performs the required unique-edge maximum reduction. The optimized Add
+still scales 2.35x from one to four domains. All one/four-domain hashes and
+rendered framebuffer bytes match; the complete four-domain benchmark process
+peaked at 123,160 KiB RSS.
+
+### Attribute Fade
+
+Attribute Fade is a scalar point-field operation with explicit frame-domain
+semantics. For point value `v`, start driver `s`, and hold driver `h`, the
+effective start is `retime_offset + s * retime_scale + frame_offset` and the
+effective hold is `fade_hold * h`. Before the start the envelope is zero. It
+samples the fade-in ramp over the inclusive fade-in interval, holds one, then
+samples the fade-out ramp over its inclusive interval and returns to zero. The
+result is `v * envelope`. Missing fade/start/hold fields supply one/zero/one;
+start and hold accept scalar float or integer storage while the authored fade
+field remains scalar float.
+
+An optional point group restricts the multiplication and preserves every
+unselected fade value exactly. The start and hold drivers may instead be read
+by point number from independent equal-cardinality geometries. Start retiming
+is deliberately affine: `(0,1)` reads an attribute in frames, while `(1,FPS)`
+maps zero seconds to frame one and each second to `FPS` frames. Visualization
+replaces point float4 `Cd` with the faded value on RGB and one on alpha; this
+explicit output policy avoids target/backend viewer state.
+
+Both ramps are finite, strictly ordered, endpoint-complete piecewise-linear
+tables on `[0,1]`. Durations and per-point hold scales are finite and
+non-negative. Selection ownership/cardinality, both reference cardinalities,
+all operated values, affine/relative-time overflow, result overflow, attribute
+names/storage, grain, and cancellation are validated before publication. An
+empty or numerically unchanged edit with an existing fade field preserves
+physical geometry identity, even when opaque malformed values exist outside
+the selected points.
+
+For `n` points and at most `k` ramp knots, time is `O(n log k)` and persistent
+output is exactly one `n`-float plane, plus four `n`-float planes only for
+visualization. Inputs, topology, and all unrelated payload remain shared.
+Block error/change records use `O(ceil(n/grain))` bytes/integers. The operated
+point loop is allocation-free: scalar-plane dispatch and ramp sampling are
+inlined, blocks write disjoint ranges, and the reusable domain pool produces
+byte-identical ordered results.
+
+The release benchmark uses a 500x300 quad grid (150,801 points), every seventh
+point excluded, float fade/start/hold fields, four-knot ramps, frame 137.25,
+grain 16,384, and seven medians on the four-core Linux aarch64/OCaml 5.3.0
+runner:
+
+| Cook | 1 domain | 4 domains | allocated, 1/4 domains | Exact hash |
+|---|---:|---:|---:|---:|
+| selected four-knot ramps | 1.815 ms | 0.754 ms | 1.212 / 1.215 MB | `3899516654851549430` |
+| all points/default ramps | 1.366 ms | 0.564 ms | 1.212 / 1.215 MB | `147492431177321602` |
+| selected ramps plus `Cd` | 3.143 ms | 2.185 ms | 6.038 / 6.042 MB | `3597614511156252915` |
+
+The retained manual scalar reference is intentionally unchecked and serial: it
+measured 1.314/1.322 ms and allocated 3.620/3.620 MB. The production kernel's
+selected-ramp one-domain path pays 0.501 ms for full validation/cancellation,
+but allocates 66.5% less; four domains are 1.75x faster than that reference
+with the identical result hash. The packed kernel itself scales 2.41x from one
+to four domains. Exact one/four-domain attribute, render-mesh, and dedicated
+320x240 native-framebuffer regressions pass. The complete four-domain
+benchmark process peaked at 64,568 KiB RSS.
+
+```sh
+PRISMEL_PDK_OPS_COLUMNS=500 PRISMEL_PDK_OPS_ROWS=300 \
+PRISMEL_PDK_OPS_REPEATS=7 PRISMEL_PDK_BENCH_GRAIN=16384 \
+PRISMEL_PDK_OPS_FILTER=attribute_fade PRISMEL_BENCH_DOMAINS=1 \
+  opam exec --switch=. -- dune exec --profile release tools/bench_pdk_ops.exe
+# Repeat with PRISMEL_BENCH_DOMAINS=4. Use attribute_fade_reference for the
+# retained unchecked scalar baseline.
+```
+
+### PolyCut
+
+PolyCut breaks selected polygon primitives and polygon curves through a single
+packed fragment planner. The point mode marks selection-eligible endpoints of
+invalid edges. Remove drops marked endpoints and both adjacent segments; Cut
+retains them as independently owned endpoints on the neighboring fragments.
+The edge mode instead removes invalid edges or inserts disconnected cut
+endpoints along them. A primitive group restricts the source paths, while the
+secondary restriction is owner-exact: a point group in point mode and a
+topology-affine native edge group in edge mode.
+
+Three detection policies are explicit. All treats every eligible edge as
+invalid. Crossing accepts a scalar point float or integer attribute and uses a
+scale-normalized interpolation ratio, including exact endpoint crossings; an
+edge whose two values both equal the threshold is removed without inventing a
+cut position, matching SideFX's published rule. Change accepts scalar or
+float2/3/4 point storage, measures absolute or scale-safe Euclidean change,
+and, under Cut, emits `ceil(change/threshold)` disconnected subsegments. A
+positive threshold is required for that finite-subdivision case. `P` is
+available to Change through the canonical packed position plane but is
+deliberately rejected by scalar Crossing.
+
+Open fragments remain open. Fragments from a closed polyline or polygon may be
+closed when they contain at least three corners; the corresponding source kind
+is retained and its new closure edge has no invented source ancestry. Source
+points remain shared where no break requires separation. Inserted interior
+cuts receive two independently owned points, and point cuts clone only the
+outgoing side. Point Remove compacts a source point only when no retained
+corner uses it, while preserving pre-existing free points. Edge Remove keeps
+the original point domain, as deleting an edge does not imply deleting its
+endpoints.
+
+Point and vertex floating payload is linearly interpolated, including normal
+renormalization through the shared curve interpolation boundary. Integer,
+text, and packed CSR rows use the nearest endpoint. Primitive attributes and
+groups follow exact fragment ancestry, detail values are shared, ordered
+groups retain source traversal order, and every retained or subdivided native
+edge inherits its source edge membership. All output planes are allocated from
+precomputed cardinalities and published only after validation.
+
+For `p` points, `v` corners, `r` primitives, and `k` emitted cut subsegments,
+time and auxiliary storage are `O(p + v + r + k)` plus linear payload remap.
+Edge Remove has a specialized no-interpolation path that shares positions and
+point/detail payload, avoids expanded-segment/sample planes, and writes stable
+fragment ranges directly. Other modes classify directed edges in parallel,
+prefix exact segment/fragment cardinalities, fill disjoint primitive/corner
+ranges, compact retained points once, and interpolate output planes through
+the reusable domain pool. Lowest malformed operated-field diagnostics,
+ordering, attributes, groups, mesh conversion, and framebuffer bytes are exact
+between one and four domains.
+
+The release fixture contains 300 independent 501-point curves (150,300
+points), a scalar sawtooth crossing field, grain 16,384, and seven medians on
+the four-core Linux aarch64/OCaml 5.3.0 runner:
+
+| Cook | 1 domain | 4 domains | allocated, 1/4 domains | Output cardinality | Exact hash |
+|---|---:|---:|---:|---:|---:|
+| edge Remove/crossing | 5.532 ms | 3.479 ms | 8.041 / 7.370 MB | 311,161 | `990841547120428818` |
+| edge Cut/crossing | 16.182 ms | 11.839 ms | 60.617 / 37.868 MB | 352,625 | `3032578540479040296` |
+| edge Cut/change, threshold 3 | 21.232 ms | 16.519 ms | 86.497 / 53.245 MB | 533,640 | `722701032308820201` |
+
+The retained allocation-heavy serial reference for crossing removal measured
+4.321 ms and 11.246 MB. The four-domain packed fast path is 1.24x faster,
+allocates 34.5% less, and produces the identical complete geometry hash; it
+scales 1.59x from the validated one-domain path. Cut modes necessarily emit
+interpolated endpoint and ancestry planes and scale 1.37x/1.29x. The complete
+four-domain benchmark process, including all three cooks and Dune/opam runtime,
+peaked at 85,048 KiB RSS. Direct PDK, immutable SOP/cache, every-storage,
+malformed/cancellation, exact one/four-domain mesh, and visible 360x240
+framebuffer regressions cover the operation.
+
+```sh
+PRISMEL_PDK_OPS_COLUMNS=500 PRISMEL_PDK_OPS_ROWS=300 \
+PRISMEL_PDK_OPS_REPEATS=7 PRISMEL_PDK_BENCH_GRAIN=16384 \
+PRISMEL_PDK_OPS_FILTER=poly_cut PRISMEL_BENCH_DOMAINS=1 \
+  opam exec --switch=. -- dune exec --profile release tools/bench_pdk_ops.exe
+# Repeat with PRISMEL_BENCH_DOMAINS=4 and use poly_cut_reference for the
+# retained serial/list crossing-removal baseline.
+```
+
+### Separate Pieces
+
+Separate Pieces assigns stable dense IDs to the first occurrence of each
+integer or text identity, then packs the corresponding geometry into disjoint
+projection intervals along a scale-safe normalized axis. The first non-empty
+piece remains fixed; later pieces translate so their lower projected bound
+follows the previous upper bound by the requested non-negative gap. Components
+with one identity share one union bound and one rigid translation even when
+they are disconnected.
+
+The identity owner is explicit. A point-owned field must be constant over each
+polygon or curve primitive. A primitive-owned field may cover many primitives,
+but every shared point must see the same identity. These checks prevent an
+apparently rigid piece operation from stretching topology. Free points remain
+untouched under primitive ownership. A float3 translation field is written on
+the same owner domain; Move Back subtracts it and retains the field. Ordinary
+payload, topology, groups, edge groups, and normals remain structurally shared.
+Floating subtraction can introduce ordinary roundoff, so Move Back promises
+deterministic geometric restoration, not byte-identical source coordinates.
+
+For `p` points, `v` corners, `r` primitives, and `k` pieces, time is
+`O(p + v + r + k)` and auxiliary storage is `O(p + k)`. Key compilation,
+stable scattered bound reduction, and the layout prefix are sequential.
+Point/primitive rigidity validation, projection, translation metadata, and
+changed position planes use the reusable domain pool with disjoint output
+ranges. Axis-aligned packs share the two unchanged position planes. Missing or
+wrong storage, mixed ownership, non-finite operated positions, unrepresentable
+projection/layout/output coordinates, invalid gaps, and cancellation fail
+before publication.
+
+The release fixture contains 300 overlapping independent 501-point curves
+(150,300 points), dense primitive integer identities, gap `0.01`, grain
+16,384, and seven warm-index medians on the four-core Linux aarch64/OCaml 5.3.0
+runner:
+
+| Cook | Time | Allocated | Cardinality | Exact hash |
+|---|---:|---:|---:|---:|
+| validated packed, 1 domain | 3.313 ms | 3,700,272 B | 300,900 | `3435451684132487927` |
+| validated packed, 4 domains | 2.360 ms | 3,711,256 B | 300,900 | `3435451684132487927` |
+| retained unchecked serial reference | 2.640 ms | 13,239,208 B | 300,900 | `3435451684132487927` |
+
+Four domains scale 1.40x from the validated one-domain path and are 1.12x
+faster than the narrow serial reference while allocating 72.0% less. The
+reference assumes dense primitive-to-point correspondence and omits owner,
+topology, finite-value, overflow, and cancellation validation. The direct cold
+four-domain process, including fixture and topology-index construction, peaked
+at 50,204 KiB RSS. Direct point/primitive, integer/text, Move Back,
+malformed/cancellation, exact one/four-domain geometry/mesh, immutable SOP
+cache, and visible 360x240 framebuffer regressions cover the operation.
+
+```sh
+PRISMEL_PDK_OPS_COLUMNS=500 PRISMEL_PDK_OPS_ROWS=300 \
+PRISMEL_PDK_OPS_REPEATS=7 PRISMEL_PDK_BENCH_GRAIN=16384 \
+PRISMEL_PDK_OPS_FILTER=separate_pieces PRISMEL_BENCH_DOMAINS=1 \
+  opam exec --switch=. -- dune exec --profile release tools/bench_pdk_ops.exe
+# Repeat with PRISMEL_BENCH_DOMAINS=4 and use separate_pieces_reference for
+# the retained serial baseline.
+```
+
+Mirror supports arbitrary planes, source retention, corrected
+polygon winding, corner/group remapping, and reflected point/vertex normals.
+Clip supports arbitrary planes, above/below/all output, tolerance snapping,
+polygon curves, polygons, standalone points, optional split connectivity, and
+optional manifold caps. A typed point, vertex, primitive, or native-edge
+selection is promoted through the shared topology index to incident
+primitives; a point selection additionally addresses standalone points.
+Selected and unselected primitives that meet at a source point receive
+separate output identities, so clipping or snapping the selected side cannot
+move the pass-through side. Unselected primitive corner order and payload
+ancestry stay exact. The matrix convenience transforms a local origin and
+normal into the same world-space plane contract. Clip uses shared boundary
+points for watertight caps and vertex normals for a hard shading seam. Numeric
+point/vertex payloads are interpolated; integer and text payloads use a
+deterministic nearest endpoint; all ordinary attributes and groups, plus
+topology-affine edge groups, are copied or remapped in stable order. Generated
+primitive and native-edge groups replace same-name input groups by default or
+union with their remapped membership when replacement is disabled.
+When a half-plane disconnects a concave polygon, ordered clipping-plane
+intersections reconnect accepted source-boundary chains into the actual output
+cycles. Payload ancestry, cut-edge membership, side groups, and cap segments
+follow every emitted fragment. This O(k log k) reconstruction and O(k) scratch
+is used only for a polygon with multiple retained boundary runs; ordinary
+polygon clips retain exact linear planning. Cap tracing preserves directed
+boundary winding. An oppositely wound contained contour is a hole;
+same-winding nested solids remain independent, and alternating depth restores
+solid islands. Because one PDK polygon has one contour, a component with holes
+is normalized, deterministically visibility-bridged, and ear-clipped into
+triangles while retaining the original boundary tokens. Every boundary edge
+therefore stays shared with the clipped surface, bridge/diagonal edges remain
+internal, cap groups include every triangle, and hard cap normals stay exact.
+Open, non-manifold, inconsistently wound, intersecting, or unbridgeable cap
+graphs return structured diagnostics rather than invalid topology.
+Subdivision builds one immutable packed refinement plan for Catmull-Clark,
+Loop, or bilinear refinement. Catmull-Clark/bilinear output remains native
+quads; Loop remains triangles. Point numeric payloads use the position
+stencils, vertex payloads use face-local stencils so seams remain split,
+primitive/detail payloads propagate without topology ambiguity, and groups use
+documented all-parent membership for generated elements. Semi-sharp vertex or
+primitive `creaseweight` and point `cornerweight` affect each level and emit
+residual vertex creases for the next level. A second polygon/polyline
+topology may define crease edges by matching point-number pairs; positions are
+never consulted. A finite non-negative override replaces source weights on
+matching edges. Otherwise vertex and primitive `creaseweight` values reduce by
+maximum over selected shared-edge incidence and require topology identical to
+the source, matching SideFX's attribute-input restriction. The crease input
+may use a primitive group, residual edge/corner fields can be suppressed, and
+positive residual edges can be emitted as a named native group. Identical
+topology reduces independently into disjoint unique-edge slots; subset
+topology uses the cached integer edge lookup. Recursive cooks apply the second
+input only once and carry exact subdivided sharpness forward.
+
+Open and closed polygon curves are refined by the same public Subdivide
+boundary through a dedicated packed one-dimensional planner, not a second
+geometry core. Every source segment gains one midpoint. Bilinear refinement
+keeps old points fixed; Catmull-Clark applies the cubic boundary rule
+`1/8 neighbor A + 3/4 point + 1/8 neighbor B` at unique-edge degree-two
+points and pins open endpoints and branches. Shared mode creates one old point
+per source point and one midpoint per unique topology edge, so separate curve
+primitives can form a continuous graph. `treat_curves_as_independent=true`
+allocates each primitive corner separately, making every open primitive's ends
+independent even when source point numbers coincide, exactly matching the
+documented SideFX option. Loop rejects selected curves because its input must
+be triangulated.
+
+The planner counts output points, vertices, stencil terms, and primitive
+offsets before allocation. Positions and every scalar/tuple point field use
+the point stencil; vertex numeric fields use direct or midpoint-linear rules;
+integer, text, and CSR-array rows use stable representatives. Old point and
+vertex group members survive, midpoint membership requires both parents,
+primitive/detail payloads propagate, and every selected native source edge
+selects both child edges. Point `N` follows the same stencil as `P` and vertex
+`N` follows the ordinary vertex policy. When `recompute_point_normals` is set
+and the input had point `N`, one final area-weighted normal pass replaces both
+normal owners with normalized point normals; inputs without point `N` do not
+gain it. Recursive levels rebuild only the next packed curve plan. Mixed polygon/curve inputs are
+compacted by family, evaluated by the surface and curve planners, concatenated,
+and stably restored by source primitive ancestry; local curve selections split
+shared identity only across the selected/coarse boundary, and free points
+survive once. Whole-curve inputs bypass that partition/sort path. One level is
+O(points + unique edges + vertices + attribute payload) time and auxiliary/
+output storage. Topology decisions are sequential and deterministic; stencil,
+topology, attribute, and group fills use disjoint parallel ranges.
+
+When no second topology is supplied, a finite non-negative crease override
+replaces every source edge weight in the subdivided surface. Full refinement
+passes the scalar directly into the first crease planner; local refinement
+passes it only into the compact selected mesh, leaving coarse unselected edges
+unchanged. The planner fills its already-required E-value sharpness plane with
+the scalar, so it avoids a synthetic per-corner `creaseweight` field, an extra
+edge reduction, and a temporary geometry identity. Later recursive levels use
+the ordinary residual child field. Zero cleanly suppresses prior vertex and
+primitive sharpness, and optional resulting groups contain exactly the
+positive descendants.
+
+Uniform creasing, the compatibility default, subtracts one from the finite
+sharpness of both child edges. Chaikin computes each child independently at
+its corresponding parent endpoint: `0.75 * parent + 0.25 * mean(other
+positive incident creases) - 1`, clamped to zero. A lone positive crease uses
+ordinary uniform decay. The packed planner computes the two child values of
+every source edge once by point-owned disjoint writes. Current edge masks use
+the child pair as OpenSubdiv requires: a sub-unit parent becomes a full crease
+when both Chaikin children remain positive, otherwise it retains the ordinary
+fractional parent blend. Vertex masks classify both the parent and child
+neighborhood as smooth/dart, crease, or corner; differing rules blend by the
+clamped mean sharpness of exactly the features which decay to zero. This covers
+corner-to-crease and crease-to-smooth transitions rather than approximating
+them from the two largest parent weights. Point `cornerweight` continues to
+decay uniformly by one at each level.
+
+The same child plan drives point positions, point fields, smoothly constrained
+face-varying tuples, recursive vertex `creaseweight`, and each side of the
+optional resulting native edge group. It costs O(points + edges) time and
+2E floats plus O(points) packed rule/neighbor planes beyond the common
+subdivision plan. Values are finite by PDK contract, so OpenSubdiv's separate
+infinite-sharpness sentinel is not part of Chaikin's neighborhood mean.
+
+Before constructing that plan, Subdivide scans the source attribute metadata
+once for Houdini's five OpenSubdiv detail controls. `osd_scheme` accepts either
+integer `0`, `1`, `2` or text `"catmull-clark"`, `"loop"`, `"bilinear"`.
+`osd_vtxboundaryinterpolation` uses integer `0..2`,
+`osd_fvarlinearinterpolation` uses `0..5` in OpenSubdiv enum order,
+`osd_creasingmethod` uses `0`/`1` for Uniform/Chaikin, and
+`osd_trianglesubdiv` uses `0`/`1` for Catmull-Clark/Smooth. A present detail
+control takes precedence over the corresponding public argument for the whole
+recursive or local cook. The immutable fields still propagate as detail
+attributes, but are not reparsed at every refinement level. Wrong storage,
+unsupported text, and out-of-range integers return a structured error before
+crease inputs, automatic boundary holes, or output topology can be published.
+Point/vertex/primitive fields with the same names are intentionally ignored.
+Resolution costs O(attribute count) time and five option slots; it allocates no
+geometry-sized alternate representation.
+
+The canonical `subdivision_hole` primitive group, or an explicit external
+group installed under that name, follows SideFX/OpenSubdiv hole semantics:
+hole polygons remain in the full adjacency and stencil plan but their
+descendant primitives are omitted. Recursive cooks retain and refine the hole
+faces internally until the final level, so their influence does not disappear
+one iteration early. `remove_holes=false` retains and propagates the faces.
+Final topology cardinality is counted before allocation; visible
+Catmull-Clark corners or Loop faces fill disjoint stable ranges. Point and edge
+stencils intentionally retain the complete source topology, including unused
+face/edge points belonging only to holes, because the contract removes faces
+rather than pre-deleting their control vertices. Local refinement folds hole
+faces into its selected partition so they can contribute without leaking a
+coarse copy. Direct child-edge ancestry skips edges with no visible child and
+produces a valid zero-edge group for an all-hole surface.
+Point-boundary interpolation is a typed OpenSubdiv policy. `Edge Only` is the
+compatibility default and evaluates boundary points with the smooth cubic
+boundary-curve stencil. `Edge and Corner` uses the same curve stencil except
+that a boundary point incident to exactly one face is pinned. `None` follows
+OpenSubdiv's finite-sharpness behavior by unioning every boundary-incident
+face into `subdivision_hole`; PDK exposes only finite crease weights, so every
+topological boundary qualifies. Bilinear's zero-neighborhood rule is
+unaffected. Automatic classification scans the cached packed reverse topology
+in O(points + edges + vertices) time, stores point and face decisions in
+packed bitsets, observes cancellation in both passes, and fills disjoint bytes
+in stable ranges. The policy applies recursively through the propagated hole
+group and to ordinary point attributes through the same position stencil.
+
+Floating vertex attributes use an independently indexed face-varying channel.
+`Subdivide_fvar_none` smooths through every value region; `Corners Only` pins
+one-face region corners; `Corners Plus 1` additionally pins junctions of three
+or more regions; `Corners Plus 2` additionally pins darts and both sides of a
+concave two-region corner; `Boundaries` keeps every value-region boundary
+linear; and `All` applies bilinear interpolation everywhere. `All` remains the
+compatibility default. Exact equality of the complete float, float2, float3,
+or float4 tuple defines continuity, so a seam in any component remains a seam.
+Point `cornerweight`, edge `creaseweight`, and Edge-and-Corner point-boundary
+rules take precedence over a smoother face-varying policy. Bilinear subdivision
+is already Linear All and ignores the option.
+
+The planner first detects globally continuous attributes and reuses the main
+geometry stencils and child topology without constructing a second reverse
+index. Fully split one-face regions use a face-local fast path. Mixed seams are
+partitioned per source point with deterministic union-find, assigned stable
+packed value indices, and refined through one value-topology index and one CSR
+stencil plan shared by every component of the tuple. Work is
+O(vertices + edges + output stencil terms), with O(vertices + edges + points +
+stencil terms) auxiliary storage for the mixed case. Every parallel pass owns
+disjoint point, corner, component, or output ranges, and recursive refinement
+reconstructs the next value topology from the exact computed tuples.
+
+Catmull-Clark triangle refinement separately selects standard Catmull-Clark or
+OpenSubdiv Smooth Triangles edge masks. For an interior edge, each incident
+triangle proposes face-center weight 0.470 and each non-triangle proposes
+0.25; their average is the weight for each of the two face centers, while each
+endpoint receives `0.5 * (1 - 2 * face_weight)`. The ordinary mask is therefore
+0.25/0.25 for endpoints and face centers, a two-triangle edge uses 0.03/0.470,
+and a triangle/quad edge uses 0.14/0.36. Face and point masks do not change.
+Semi-sharp interpolation blends this smooth result with the ordinary sharp
+midpoint, so a fully sharp or boundary edge is unaffected. The same plan
+refines point fields and smoothly constrained face-varying fields. Loop,
+bilinear, and Linear-All face-varying interpolation ignore the option. Since
+the first Catmull-Clark level emits quads, recursive application naturally
+changes only levels that still contain authored triangles. As Pixar documents,
+this empirical smoothing rule may prevent independently subdivided meshes from
+joining seamlessly when triangles touch the separate boundaries.
+
+Unsupported primitive kinds, selected curves under Loop, repeated surface
+points, non-manifold surface edges, invalid surface boundaries, disconnected
+surface vertex fans, and zero-length curve topology edges fail before an
+output snapshot is published.
+An optional primitive group evaluates only its induced polygon mesh and
+implements SideFX's Do Not Close policy. Selected and unselected regions are
+compacted independently, free points survive exactly once, and only points on
+the selection boundary are duplicated. Pull Closed/No Edge Division carries
+exact source-edge ancestry through every recursive level, projects each
+descendant chain onto its coarse edge, and snaps multi-edge junctions to their
+shared source endpoint without welding or proximity matching. Stitch/No Edge
+Division inserts deterministic non-degenerate triangle fans between each
+refined chain and the two coarse endpoints. The faces share both sides' existing
+points, inherit stable coarse primitive and side-corner payload, and leave
+generated spokes out of native edge groups. As in SideFX's No Edge Division
+contract, the unsplit coarse edge and fan spokes form a non-conforming
+T-junction. Pull Closed/Divide Edges materializes the exact coarse descendant
+chain, welds it by source-edge ancestry rather than spatial proximity, and
+linearly places joined points between the coarse and refined chains using a
+finite [[0, 1]] bias. Stitch/Divide Edges retains both chains and emits a
+consistently wound two-triangle strip per segment; exact coincident pairs are
+welded and their zero-area bridge triangle is omitted. Numeric point and
+face-varying payload interpolates along divided coarse edges, discrete/ragged
+payload uses a stable nearest parent, generated group membership requires both
+parents, and original native-edge membership propagates to every child edge.
+Multiple selected fans that touch only
+at one point are deterministically split before validation, while edge-adjacent
+faces retain shared stencils. Empty selections preserve identity and full
+selections retain the original whole-mesh output ordering and hash. Pull and
+Stitch Triangulate reuse the shared deterministic ear-clipping kernel only on
+surrounding polygons; Pull evaluates the triangulation at the final biased
+boundary positions. Enforce Consistent Topology disables position-dependent
+coincident-chain welding and bridge-face omission, and replaces geometric ear
+selection with a stable source-corner fan. Counts, connectivity, and ordering
+therefore depend only on input topology and selection; an exactly coincident
+transition may deliberately retain a zero-area face. Geom's public Loop and Catmull-Clark
+functions now adapt through this kernel rather than owning duplicate topology
+algorithms.
+The unified deletion planner accepts point, vertex, or primitive bitsets.
+Selected/non-selected inversion is resolved once; a cardinality pass then
+either destroys every touched primitive or removes selected corners and heals
+the retained polygon/curve order. Invalid undersized results are dropped.
+Point deletion always removes selected point records, while optional compaction
+also removes all topology-unused points. Positions and point payloads remain
+structurally shared when their point map is unchanged; empty deletion is an
+identity operation. All changed owner planes and groups remap in stable order,
+and healing invalidates normals rather than retaining stale surface data.
+`Attribute_ops.promote` covers every ordinary owner pair with stable packed
+incidence reductions. Component-wise numeric mode chooses the smallest tied
+value and median chooses the upper middle value. Integer/text destination
+piece attributes partition reductions, deduplicate contributing source
+elements, and restore ascending source-index order; same-owner piece reduction
+is supported. Median uses in-place introspective selection, dense integer mode
+uses counting, and independent piece ranges use incidence-adjusted parallel
+grain. Unsupported lossy integer/text methods return structured errors rather
+than silently coercing storage. Scalar integer and float `Array_all` promotion
+writes incidence-ordered packed CSR rows directly. `Unique_values` sorts each
+independent row with the specialized packed comparator, counts canonical
+values, prefix-sums exact row offsets, and fills disjoint result slices;
+integer and floating rows use `Int.compare` and `Float.compare` equivalence.
+Piece output remaps complete rows with a checked exact-size allocation. Wider
+tuples, text, and existing arrays fail explicitly until tuple-width and
+text-array storage exist rather than losing shape information.
+`Attribute_ops.enumerate` assigns
+integer or prefixed-text sequences to point, vertex, or primitive owners.
+Restricted groups use stable chunk-prefix ranks, preserve existing values
+outside the selection, and produce exact output across domain counts. An
+optional same-owner integer or text piece attribute enables both documented
+piece modes: Piece Elements restarts the sequence independently within each
+piece, while Pieces assigns one dense sequence value to the complete piece.
+Distinct pieces are ordered by their first selected element and elements inside
+each piece retain increasing owner index, including when the output overwrites
+the piece attribute itself. Integer keys use a specialized geometric-growth
+open-addressed table; text keys use structural string equality. Stable piece
+planning is sequential, while exact owner-sized output materialization remains
+parallel. Work is expected O(elements), with O(elements + pieces) auxiliary and
+output storage and no per-element option/list allocation in the integer path.
+`Attribute_ops.promote_pattern` binds every selected source payload to one
+shared topology incidence and optional piece-partition plan instead of
+rebuilding the plan once per name. Its optional aligned multi-term destination
+and index rules assign one replacement to every positive source term;
+exclusions consume no replacement, later matching positive terms win, and
+each rule captures `*`, runs of `?`, and runs of character classes before
+substitution by wildcard signature and stable position. All rewritten names
+are validated before cooking. Selected sources are removed as one immutable
+batch before promoted outputs are installed, so overlapping names cannot erase
+one another and any failure remains atomic.
+For first/last/minimum/maximum scalar promotion, the value and contributing
+source-element index fill in one incidence pass. Mode reuses the sorted value
+plane and performs one stable lookup in the original relation. Ties retain the
+first incidence; piece relations are already unique and source-index ordered.
+Index capture rules create a distinct destination-owned integer plane for each
+plural scalar value, and empty incidences use `-1` rather than a valid source
+number. Float extrema preserve the value kernel's NaN propagation and
+signed-zero bits. Float2/3/4 values reduce component-wise and publish one
+fixed-width packed integer CSR row per destination, so independently selected
+component sources remain exact without expanding the global storage catalog.
+Text/index values follow SideFX's documented coercion: Average is upper median,
+Sum is incidence-order concatenation, and other numeric methods use First;
+explicit First, Last, Mode, and Median retain their ordinary semantics.
+`Attribute_ops.transfer_points` and `transfer_primitives` share one typed
+proximity plan. Points query canonical positions; primitives query packed
+arithmetic corner barycenters. Both support nearest and k-nearest
+inverse-distance transfer with bounded distance, explicit miss policy,
+deterministic ties, numeric tuple blending, nearest integer/text semantics,
+and owner-matched packed source/target restrictions. A full-influence distance
+threshold plus linear, smoothstep, or fixed uniform-bias blend band is shared
+by point, primitive, vertex, and surface paths. Every zero-width spatial
+transfer retains its direct-write hot path and allocates no influence plane.
+`transfer_detail` structurally shares selected immutable detail payloads
+without copying.
+`transfer_vertices` and `transfer_surface` reuse one `Surface_index` plan to
+sample point/vertex numeric payloads barycentrically, primitive payloads
+constantly, and integer/text payloads from the largest barycentric corner into
+target point, vertex, or primitive planes. Target vertices query their
+referenced point positions; target primitives query arithmetic barycenters.
+The surface path optionally records closest distance, normalizes interpolated
+`N`, and supports bounded distance plus the same explicit miss policy.
+Source-primitive and source-vertex bitsets restrict indexing, while
+destination-owner bitsets restrict writes. Source-vertex restriction retains
+triangulated regions with an explicit all-corners (default) or any-corner rule
+and preserves source primitive/corner identities for sampling.
+Empty source selections publish the requested miss/default policy without
+attempting to build an invalid empty surface index. Discrete payloads use a
+documented half-influence switch. `transfer_all` sequences explicitly requested
+point, primitive, vertex, and detail patterns in one typed call; each spatial
+owner builds one plan for all of its fields and owner kernels are not nested.
+All transfer variants collect output attributes and replace/append them with
+one expected-linear metadata-table rebuild rather than a quadratic immutable
+rebuild per field.
+
+`Attribute_ops.blur_points` reuses the cached `Topology_index` point-edge CSR
+for one or many matching point-owned floating planes, including canonical
+position. Uniform and inverse-original-edge-length modes preserve stable edge
+order; coincident neighbors take exclusive precedence rather than introducing
+an arbitrary scale epsilon. Iterations use two exact packed plane sets and one
+parallel point-range launch per pass. Receiver weights, clamped neighbor alpha,
+selection, and border pins are read-only controls. Position changes invalidate
+stale point/vertex normals before selected output attributes are reinstalled.
+The kernel rejects non-finite source, control, step, blend, and output values
+atomically.
+
+`Ops.smooth` is the geometry-facing policy layer over that same numeric
+kernel. An optional primitive group is converted to referenced points directly
+from the cached point-corner CSR. Free, unshared-edge, and selected-group-
+boundary modes compile one packed update bitset; an optional constrained point
+group is subtracted in the same pass. Group boundaries classify each incident
+topology edge from its packed corner-to-primitive incidence, so no element
+lists or per-point allocations enter the hot path. Existing normals are
+recomputed after a position change unless point `N` was explicitly among the
+smoothed fields; otherwise stale point/vertex normals are removed by the blur
+kernel. Selection preparation is O(points + vertices), each numeric pass is
+O(attribute components * (points + edges)), and live numeric scratch is two
+exact point planes per component plus the cached topology index and at most one
+point-membership bitset.
+
+`Attribute_ops.randomize` creates or modifies floating scalar and tuple
+payloads on every owner, including canonical point `P`, and weighted-discrete
+text payloads. Distribution
+parameters are validated and unpacked once. Each selected element/component
+uses `Rand.float_at` with an immediate integer identity derived from the
+immutable global generator, integer seed attribute or stable element number,
+and component number. The indexed sampler performs no hot-loop boxing and
+disjoint ranges write exact preallocated planes, so scheduling cannot alter
+values or order. Tuple-valued two-choice sampling makes one choice per element,
+not an independent choice per component. Unit direction and quaternion modes
+use uniform spherical-cap mappings; interior-sphere modes use the same optional
+axis/cone restriction and the exact dimension-dependent radial power for
+uniform volume. The SideFX-compatible bias transform can favor either the axis
+or cone boundary without rejection sampling. Inverse-CDF ramps and
+weighted discrete tuples compile once into packed knots or cumulative weights.
+Multidimensional Cauchy uses one shared scale and a multivariate Student-t
+degree-one construction, so its direction is rotationally symmetric instead
+of applying unrelated scalar Cauchy samples per axis. Component limits clamp
+raw samples before global scale and the arithmetic operation; exact fraction
+endpoints can therefore represent bounded distribution tails. Weighted text
+choices share immutable choice strings and allocate only the required owner
+pointer plane. Typed point, vertex, primitive, and native-edge selections
+promote incident membership through `Element_selection`; direct corner scans
+and the lightweight point-incidence index cover ordinary sources, while only
+native-edge sources require the full half-edge index.
+An owner-matched fraction attribute replaces indexed randomness with explicit
+quantiles, including a monotone inverse-normal approximation and the correct
+dimension-minus-one direction parameterization. Range workers reuse one
+four-float scratch array, independent of element count. Position changes
+invalidate normals.
+
+`Attribute_ops.remap` maps floating scalar/tuple components in place or into a
+new same-width payload. Explicit input ranges are constant-time setup;
+automatic ranges use range-local packed minima/maxima followed by a stable
+component/range reduction. Clamp and cycle modes can shape normalized values
+through a validated piecewise-linear ramp; extrapolation remains linear. Empty
+selections leave an existing destination unchanged or a new destination at its
+zero default. Both operations are O(elements * components), allocate only
+exact output planes plus O(chunks * components) reduction/error state, poll
+cancellation, reject non-finite published output, and preserve unrelated
+geometry by identity.
+
+`Ops.normals`, `Ops.peak`, `Ops.bend`, and `Ops.mountain` share one deformation
+core. `Ops.point_jitter` uses the same packed position replacement and normal
+invalidation contract with a specialized indexed-random fill.
+Normal generation preserves the source topology and computes one packed
+area-vector per polygon followed by stable corner-order accumulation into
+points; polygon curves and isolated points receive zero normals. Peak resolves
+direction from a custom point float3 attribute, point `N`, averaged vertex
+`N`, or geometric normals in that order. Its point/vertex/primitive/native-edge
+selection is compiled once to affected points, and an optional point-float
+mask scales signed distance without hidden clamping. Bend builds a robust
+orthonormal frame from capture origin/direction/up, then applies axial twist
+and an arc-length-preserving bend over a finite or unbounded interval. It
+supports bidirectional capture, mirrored or continuous twist, typed component
+selection, a clamped point-float mask, and optional capture-influence output.
+Stable sinc/cosc expansions keep tiny bends finite without a zero-angle
+branch. Mountain adds seeded 3D
+Perlin fBm with per-axis frequency/offset, bounded octave controls, and an
+optional signed-height attribute. Each worker range owns four reusable fBm
+scalars, so sampling allocates nothing per point or octave. Position changes
+remove stale point/vertex normals unless full point-normal recomputation is
+requested. Face-vector, normalization, noise, and output ranges parallelize;
+shared-point corner accumulation remains stable and sequential so domain
+scheduling cannot perturb floating-point sums. All four operators preserve
+unrelated attributes, groups, and topology by identity.
+
+Point Jitter adds independent uniform component samples in `[-0.5, 0.5)`
+scaled by an overall factor, per-axis factors, an optional point-float mask,
+and optional point `pscale`. A named integer ID makes the stream stable across
+point renumbering; a missing named ID deliberately falls back to point number.
+The kernel copies the three position planes once, validates and fills disjoint
+ranges, returns the input snapshot by identity when no position changes, and
+removes stale point/vertex `N` after a change. It is O(points) time with three
+exact output planes and O(ceil(points / grain)) diagnostic state, and is
+byte-identical across domain counts.
+
+`Ops.edge_divide` inserts `divisions - 1` equal-parametric points into every
+selected topology edge. With shared points enabled, one ordered chain is
+allocated for each selected unique edge and reused by all incident polygons or
+polygon curves, including non-manifold incidence. With sharing disabled, each
+primitive-edge incidence owns a private chain. Original points remain a stable
+prefix, primitive count and kinds are unchanged, and each primitive's corner
+order is expanded in place. Numeric point and vertex fields interpolate
+linearly; integer, text, and ragged fields use the nearest stable endpoint.
+Ordinary groups use endpoint intersection for inserted elements, ordered group
+ancestry is remapped explicitly, and every native edge group maps to the exact
+child segments of its source edges. Empty selection and one division preserve
+the input by physical identity.
+
+The cardinality-first planner computes point, vertex, and per-primitive output
+ranges before allocation. Planning and disjoint position, topology, payload,
+and ancestry fills use the reusable domain pool; target reverse-topology
+construction remains the main sequential phase. Time is O(points + vertices +
+primitives + edges + inserted points + inserted vertices), and auxiliary/output
+storage is linear in those same packed cardinalities. The public edge-group
+selection is topology-affine and therefore selects all coincident incidences by
+construction. Connecting inserted points across faces requires an ordered cut
+path and is deliberately left to a separate future split operation instead of
+inventing order on an unordered native edge group.
+
+`Ops.edge_collapse` builds deterministic disjoint-set components from selected
+topology edges, optionally rejecting unions across exact point-attribute value
+boundaries. Each component is materialized directly as the packed cluster
+layout consumed by the existing Fuse reducer; it does not route known links
+through a spatial search, add a temporary field, or maintain a second payload
+reduction implementation. Unique component points move to their arithmetic
+center, and stable lowest-point ancestry supplies ordinary point payload and
+group values. Fuse performs point compaction, topology rewiring, every other
+attribute/group remap, and topology-affine edge ancestry. Its cleanup removes
+collapsed consecutive corners and under-cardinality polygons/curves by
+default. Position changes always remove stale point/vertex `N`; an existing
+point `N` is optionally rebuilt, while inputs without one remain without one.
+
+Selected-edge classification and deterministic union/find are
+O(edges × α(points)); packed cluster materialization is O(points), and reduction/cleanup is
+linear in input plus output payload. Union/find remains sequential because
+selected edges share parents, while independent attribute, topology, cleanup,
+normal, and output ranges use the process-wide domain pool. Temporary storage
+is O(points + edges), cache lifetime remains bounded by immutable topology and
+session ownership, and one/four-domain output is byte-identical.
+
+`Ops.poly_reduce` is the adaptive surface-reduction owner above Edge Collapse.
+It first routes every non-triangle polygon through the existing robust
+Triangulate kernel, then repeatedly builds normalized face-plane quadrics and
+scores topology edges at their midpoint or stable lower-numbered endpoint.
+Hard points, hard-edge endpoints, non-manifold neighborhoods,
+selected/unselected interfaces, and optionally every unshared-boundary point
+are excluded. Candidate contractions must satisfy the triangle-mesh link
+condition and preserve every surviving incident triangle without collapse,
+winding reversal, or an optional excessive normal deviation.
+
+Stable `(cost, edge number)` ordering chooses one-ring-independent batches, so
+committed contractions cannot interfere. Each batch is passed to
+`Ops.edge_collapse`; the reducer therefore does not duplicate topology cleanup,
+attribute/group policy, or topology-affine native-edge remapping. Point and
+face quadrics, costs, incidence, lock planes, and validation stamps are packed
+and reused across shrinking rounds. Face/quadrics/cost setup is parallel over
+disjoint ranges; deterministic ordering and conflict selection stay
+sequential. A constrained mesh may stop above its requested ratio or absolute
+polygon count rather than violating topology.
+
+For `r` adaptive rounds the worst-case time is
+O(r × (points + primitives + edges log edges + payload)) and live scratch is
+O(points + primitives + edges), in addition to current/next immutable packed
+snapshots and cached reverse topology. Output ordering, positions, every
+payload plane, and group membership are exact across domain counts.
+
+`Ops.poly_bevel` is the packed polygon-fillet owner. It accepts topology-affine
+edges but operates only on oppositely wound two-sided polygon incidences;
+boundary, non-manifold, self, curve, inconsistent, and optionally flat edges
+are excluded before topology planning. Every touched face corner receives a
+cutback point. Unselected ring edges insert the opposite face's slide point,
+so a partial edge selection remains watertight rather than leaving T-junctions.
+Equal continuation profiles share point identities, while path and cyclic
+selected-edge fans emit deterministic corner boundaries only where a surface
+gap remains.
+
+Chamfer rows use linear cross-profile interpolation. Round rows use a rational
+quadratic circular arc when the two cutbacks form the equal-radius tangent
+case; convexity blends that arc through a flat profile to its inward mirror.
+Point-float scaling, local adjacent-front collision limits, flatness exclusion,
+and named edge/corner/offset output groups are explicit policy. Numeric vertex
+payload interpolates across rows; discrete payload, ordinary/ordered groups,
+primitive ancestry, and source native-edge membership follow stable maps.
+Stale point/vertex normals are removed and an existing point normal can be
+rebuilt.
+
+Planning is O(points + vertices + primitives + edges), plus exact output-sized
+fills. It uses the shared lightweight `Topology_edge_lookup` for output edge
+ancestry instead of retaining a full reverse CSR index. Combinatorial fan and
+collision decisions stay stable and sequential; point/profile, base-face,
+attribute, group, normal, and packed edge-bit ranges use the reusable domain
+pool. One- and four-domain output is byte-identical.
+
+`Ops.point_generate` is the packed owner for point-cloud emission. Total mode
+creates an origin cloud without source ancestry. Per-point mode computes a
+non-negative expected count from a constant and optional point-float scale,
+then uses integer count plus deterministic source-keyed stochastic rounding of
+the fractional remainder. Probability mode validates a point-float field in
+`[0,1]` and emits zero or one point from the same immutable random stream.
+Named point-group selection is resolved before planning; output order is always
+source-point then local generated index and does not depend on scheduling.
+
+The kernel computes every source count and a checked prefix cardinality before
+allocating output. Generated positions and all selected Float, Int, Text,
+Float2/3/4, Int-array, and Float-array point fields follow a single
+target-to-source map; detail fields use an independent ordered glob pattern.
+`sourcepoint` and `sourceindex` are integer fields with caller-selectable names,
+and an optional point group marks exactly the generated suffix. When input is
+retained, original points are a stable prefix, unmatched generated attribute
+rows receive typed zero/empty defaults, ordered point groups preserve their
+order, and generated membership is appended if the output group aliases one.
+Polygon/curve vertex-point, primitive-offset, and primitive-kind planes are
+structurally shared while the point domain is extended. Topology-affine native
+edge bits are rebound only after verifying that those planes are shared.
+
+Planning and fixed-width fills are O(input points + output points + copied
+payload). Ragged copies add O(total copied row values). Auxiliary storage is
+O(input points + output points), excluding required output payload. Count and
+mapping ranges use the reusable domain pool and write disjoint slices. Once a
+no-prefix map has served all payload copies, its owned buffers become the
+public provenance fields directly instead of being copied. Range, finite,
+storage, name, pattern, overflow, cardinality, affinity, and cancellation
+failures are atomic. Complete one-/four-domain geometry and framebuffer output
+are exact.
+
+`Ops.point_replicate` consumes that exact emission plan instead of maintaining
+a second cardinality or payload kernel. For every source point, a four-point
+origin/+X/+Y/+Z basis passes once through the authoritative Copy-to-Points
+operator. The resulting affine basis therefore inherits the same `pscale`,
+float3 `scale`, quaternion `orient`, `N`/`v` plus `up`, post-`rot`, `pivot`,
+`trans`, and fixed-row affine `transform` validation and composition rules.
+Generated local positions then evaluate that borrowed frame directly. This
+keeps transform behavior centralized even for matrix, pivot, and degenerate-up
+edge cases.
+
+The zero-dimensional point preset places every generated point at the local
+center. An optional compiled attribute pattern applies the borrowed linear
+frame to matching copied point Float3 values. `P` is excluded because positions
+already traverse the frame exactly once. Ordinary vectors use the linear 3x3
+part; `N` uses a scale-normalized inverse transpose and unit normalization.
+Velocity synthesis precedes this optional compatibility pass, so explicitly
+matching `v` transforms the final inherited/radial velocity like any other
+vector. If any selected source that emits points has a singular frame, the
+complete `N` attribute is removed atomically, matching Copy-to-Points normal
+policy (including a retained prefix because an attribute cannot exist for only
+one point-domain suffix). Other retained input-prefix values are never
+transformed. Malformed patterns and non-finite transformed payload fail without
+exposing partial geometry.
+
+Built-in box, volume-uniform sphere, area-uniform disk, and line samples use
+three source/local keyed immutable random coordinates. A custom point cloud is
+sampled by point number and emits integer `shapeptnum` ancestry. Integer point
+`id`, when present, keys fractional count rounding, random placement, and
+source-specific quasi offsets, so reordering points preserves each cloud.
+Quasi mode precomputes base-two/base-three radical-inverse sequences only to
+the maximum per-source count and three source offset planes; no sequence work
+is repeated per emitted point.
+
+Optional velocity stretch multiplies local Z after source scale, or first
+normalizes all three borrowed basis axes to ignore geometric scale. Generated
+`v` combines a caller-scaled source velocity with the transformed radial
+offset. Optional vector fBm perturbs local coordinates with explicit frequency,
+offset, amplitude, roughness, attenuation, octave count, and seed. A point
+float3 `rest` replaces source `P` only for noise coordinates, keeping the noisy
+cloud attached while animated source positions move. One owned noise scratch
+is reused per parallel range.
+
+Without noise, work is O(input points + generated points + copied payload) and
+auxiliary storage is O(input points + generated points), including the bounded
+four-basis frame geometry. Noise adds O(generated points * turbulence) work;
+quasi setup adds O(input points + maximum per-source count) values. All output
+ranges are disjoint. Cancellation, malformed transforms/IDs/rest/velocity,
+non-finite policy, invalid sizes/noise, custom-shape cardinality, overflow, and
+selection errors fail atomically. One-/four-domain complete geometry and
+framebuffer output are exact.
+
+`Ops.point_split` is the packed owner for separating selected incidences of a
+shared point. Point, vertex, and primitive selections map to an explicit corner
+mask; native-edge selection is rejected because an edge does not identify
+which incident corner owns the split. With no seam criteria, each selected
+corner receives its own point. Otherwise ordered include/exclude globs select
+vertex and primitive fields plus named vertex/primitive groups. Corners remain
+together only when every integer, text, fixed-width numeric, ragged, and Boolean
+group-membership component agrees. Float equality uses an inclusive
+caller-supplied per-component tolerance; every consulted float must be finite.
+
+Classification is point-local and deterministic. Incidences are sorted by the
+complete seam tuple with the vertex number as the final tie-break, then assigned
+to the first compatible stable representative. An unselected incidence keeps
+the original point as the representative cluster; a selected incidence whose
+tuple agrees with it does not split. Original point numbers remain a prefix and
+additional clusters are appended by source-point order. Every point field and
+ordinary/ordered point group duplicates through a single target-to-source
+plane. Vertex, primitive, and detail slots otherwise share unchanged, and the
+lightweight output-edge remapper replicates native edge membership one-to-many
+without constructing a complete target reverse topology.
+
+Optional promotion moves each matched attribute from vertex or primitive
+ownership to points using the cluster representative. Unreferenced points use
+the storage type's zero or empty value; groups participate in classification
+but are not promoted. A matched attribute name present on both seam
+owners is rejected for promotion rather than silently choosing one. The unique
+mode is O(points + vertices + output payload + output edges). Seam clustering
+is O(sum(degree log degree)) for exact tuples; arbitrary tolerance tuples may
+compare each representative within one sorted numeric slab, so the documented
+worst case is O(sum(degree * clusters * seam components)). Auxiliary storage is
+O(points + vertices + output edges) plus output payload. Point-local planning,
+payload duplication, promotion, and edge-group fills use stable disjoint ranges
+from the reusable pool, and one-/four-domain output is byte-identical.
+
+`Ops.dissolve` removes selected polygon edges and merges their oppositely wound
+manifold incidences into deterministic face components. It traces the remaining
+directed component boundary through the shared `Topology_index` rather than
+constructing a second half-edge representation. A disk component emits one
+polygon. Multiple closed loops may remain disjoint, be deleted, or be connected
+through selected source bridge edges with explicit repeated endpoints. A
+selected surface-boundary edge deletes its component by default or emits the
+remaining open/closed boundary runs as polygon curves. Polygon-curve edges are
+deliberately ignored.
+
+Optional inline cleanup uses a linked queue over only selected-edge endpoints,
+keeps polygon/curve minimum cardinality, and compares scale-normalized segment
+directions against an explicit radian tolerance. Stable source-corner and
+lowest-source-primitive ancestry drive the shared `Topology_remap` layer;
+point/detail storage is shared until optional unused-point compaction, while
+ordinary ordered groups and endpoint-affine native edge groups are remapped
+exactly. Existing normals can be rebuilt, but the operation does not invent an
+`N` field. Non-manifold selections, inconsistent winding, branching boundaries,
+foreign groups, and non-finite policy fail atomically.
+
+The common disk/boundary path is O(points + vertices + primitives + edges +
+output) time and storage. The uncommon bridged multi-loop policy scans selected
+edges once per joined loop; current bridging requires a selected source edge
+between loops. Dense selections start with bounded geometric-growth output
+buffers instead of reserving source-sized output. Combinatorial planning and
+union/find are sequential for stable topology decisions; packed payload/group
+remaps and normal fills use deterministic disjoint domain ranges.
+
+`Ops.edge_flip` rotates a selected edge shared by exactly two oppositely
+oriented polygon primitives around their joined boundary. A cycle advances the
+first diagonal endpoint by one boundary point while preserving each incident
+face's cardinality; this definition applies unchanged to triangles, quads, and
+mixed N-gons. Vertex fields and groups cycle relative to the selected source
+corners by default, while point/primitive/detail payload shares unchanged.
+Every unchanged point-pair edge retains its native-edge ancestry and the new
+diagonal inherits the replaced edge's memberships. Stale point/vertex normals
+are removed, with optional rebuilding only when point `N` existed.
+
+Planning rejects boundary/non-manifold edges, inconsistent winding, repeated
+joined-boundary points, duplicate or zero-length replacement diagonals,
+invalid resulting polygons, and selected pairs sharing a primitive. The last
+restriction makes otherwise order-dependent edits explicit as successive SOPs.
+Planning is O(edges + selected boundary vertices); topology/payload work is
+linear in the geometry. Pairwise-disjoint topology fills, polygon validation,
+and payload remaps use stable ranges in the reusable domain pool, with exact
+one/four-domain results and bounded scratch per validation block.
+
+`Ops.edge_cusp` interprets a native edge group as paths and splits point fans
+only where a point is incident to at least two selected edges. Thus a single
+edge preserves physical snapshot identity, two connected edges unique only
+their shared point, and a closed loop splits every loop vertex. Effective
+non-manifold edges and non-polygon incidences fail explicitly. Boundary edges
+may participate in a path but introduce no fictitious opposite face.
+
+Edge Cusp and Facet's dihedral Cusp Polygons stage share
+`Facet.split_points_on_edge_ends`; PDK does not maintain two fan-partitioning
+kernels. The splitter preserves unaffected point-touching components, copies
+all point storage and ordinary/ordered point groups by stable source ancestry,
+keeps vertex/primitive/detail slots except the normal API's documented
+same-name-owner replacement, and maps every resulting edge from a source
+corner. Existing point `N` is rebuilt by default and no normal is invented.
+Planning is O(points + vertices + edges) time/storage; packed output
+and payload fills are parallel and byte-identical across domain counts.
+
+`Ops.edge_straighten` builds connected components from the selected native
+edges and orthogonally projects each component's points onto its least-squares
+best-fit line. Omitted selection means all topology edges. Components with one
+edge and already-collinear components return exact source coordinates; cycles
+and branches use the same fit and require no arbitrary path traversal.
+Topology, attributes, and ordinary groups share structurally, an optional
+native output group records the selection, and changed positions invalidate
+point/vertex `N`.
+
+Each covariance is accumulated in stable ascending point order after
+scale-normalizing coordinates. Three deterministic power iterations seeded by
+the coordinate basis prevent an orthogonal seed from locking onto a
+subdominant eigenvector; the candidate with greatest Rayleigh quotient wins,
+with stable X/Y/Z ties. Component fits are batched across the reusable domain
+pool and point projections write disjoint output slots. Time and temporary
+storage are O(points + edges), selected/output positions are finite-checked,
+and one/four-domain geometry is byte-identical.
+
+### Circle from Edges
+
+`Ops.circle_from_edges` finds connected components in an explicit native edge
+group, or in the topology boundary when the group is omitted. Every effective
+component must be a simple degree-two loop or degree-one-ended path with at
+least three unique points. Branches, collinear components, self edges, stale
+topology affinity, non-finite selected endpoints, and unstable or
+unrepresentable fits fail before an immutable output is committed.
+
+Each component first normalizes its coordinates by the greatest finite
+absolute component. A stable point-order covariance and the analytic symmetric
+3x3 eigensystem produce the least-variance fitting plane; a deterministic
+orthonormal basis then reduces the points to 2D. PDK solves the algebraic
+least-squares circle center and uses the compensated mean radial distance as
+the fitted radius, unless an explicit positive world-space radius is supplied.
+Projection returns points to the fitting plane and applies the optional
+component-wise world-axis scale about the fitted center.
+
+Topology, all non-normal payload, groups, and unselected coordinates retain
+their original ordering and ancestry. Changed output removes stale point and
+vertex `N`, while an optional native edge group records exactly the processed
+selection. Stable union-find and component CSR construction are O(points +
+edges) time/storage. Independent fits and disjoint point projection use the
+reusable domain pool; scalar eigensystem helpers avoid tuple results, and a
+compare-and-set minimum makes the first-error diagnostic scheduling-independent.
+Direct, SOP, scale, malformed,
+cancellation, and headless framebuffer tests compare one and four domains
+exactly.
+
+### Graph Color
+
+`Ops.graph_color` writes a non-negative integer point or primitive attribute so
+no two directly connected selected elements share a value. Point connectivity
+treats the referenced points of each primitive as a clique. Primitive
+connectivity either joins every pair incident to a common point or only polygon
+faces incident to a common topology edge; closed/open polygon curves do not
+enter polygon-edge adjacency. Typed point, vertex, primitive, or native-edge
+selections promote through the shared `Element_selection` core, and unselected
+elements receive `-1`.
+
+Stable union-find discovers selected connected components without materializing
+clique adjacency. Each component is colored greedily in ascending element order
+by rescanning packed point/corner/edge incidence, so adjacency memory remains
+O(points + vertices + primitives + edges) even for high valence. Disconnected
+components write disjoint color/mark ranges through the reusable domain pool;
+the dependency-ordered greedy loop inside one component remains serial. This
+preserves exact one/four-domain colors and avoids implying parallel speedup for
+a single connected mesh.
+
+Optional stable owner sorting delegates every topology, payload, and group
+remap to the authoritative Sort kernel. Unselected elements sort first, followed
+by ascending-color blocks. Requested detail integer-array begin/length fields
+describe those selected worksets exactly. Existing output storage, group
+affinity/cardinality, names, grain, cancellation, empty geometry, connectivity
+conflicts, sorted payload ancestry, SOP cache identity, million-element scale,
+and headless framebuffer equality are covered directly.
+
+### Triangulate 2D
+
+`Ops.triangulate_2d` is the first public adapter over the shared packed
+`Delaunay2` core. It accepts a typed point selection and projects source points
+through PCA best fit, XY/YZ/ZX, an explicit origin/normal frame, or a point
+float2/float3 attribute. Triangles continue to reference the original point
+numbers and therefore restore the authored 3D positions without a reverse
+metric mapping. Exact projected duplicates use the lowest selected source
+point. Optional duplicate removal deletes only the non-representative selected
+points after topology and groups are finalized; it uses the shared stable
+Deletion remap, so unrelated unused or unselected points and their payload
+remain intact. Point/detail payload and point groups are shared by default; topology-
+dependent payload and stale normals are removed.
+
+Ignore Non-Constraint Points mode first derives the complete exact constraint
+set and uses only its source endpoints in stable source order. Explicit native
+edge and primitive constraints are prefiltered before projection and Delaunay
+construction; silhouette mode retains the full orientation pass, then rebuilds
+from the exact derived boundary. Other selected source points remain in the
+immutable point payload but are isolated from output topology; a separate
+Remove Unused Points policy may compact them. The reduced seed and
+endpoint remap use exact-sized packed arrays and disjoint stable fills.
+Requesting this mode without any constraint is an explicit error rather than
+silently producing an empty mesh.
+
+After topology and output groups are finalized, optional Remove Unused Points
+uses the shared stable packed compaction kernel, preserving exact fixed/ragged
+payload and group ancestry. Optional Recompute Point Normals invokes the shared
+Normals kernel only when the input already contained point `N`; it does not
+invent a normal schema for inputs that did not request one. Both controls are
+part of immutable SOP identity rather than hidden post-cook mutation.
+
+The core uses packed counter-clockwise triangle/neighbor planes, adjacency
+walking, local Bowyer-Watson cavities, and recycled triangle slots. Filtered
+orientation and incircle tests fall back to exact dyadic signs whenever a
+binary64 decision is ambiguous, underflows, or overflows. Ordinary ranges use
+a finite power-of-two supertriangle; extreme finite inputs use exact
+homogeneous coordinates, so no finite world-space bound is assumed. Seeded
+insertion only shuffles fixed spatial blocks and never reads global random
+state. Projection and output point-number fills use stable disjoint ranges;
+the dependency-ordered topology insertion remains serial.
+
+Native-edge and primitive-perimeter constraints first enter the shared
+`Planar_constraints` arrangement. A packed median BVH filters segment pairs;
+exact orientation signs classify proper crossings, endpoint-on-segment
+junctions, and collinear overlaps. Proper crossings are rejected unless the
+explicit splitting policy is enabled. When enabled, exact homogeneous
+line-line constructions are deduplicated before deterministic atomic segments
+are emitted. Existing constraint endpoints split T junctions and overlaps in
+either mode. Authored Delaunay representatives are queried against the same
+packed segment BVH in two passes. Exact orientation decides point-on-segment
+incidence; prefix-summed counts permit disjoint parallel fills and stable
+output. Exact-coordinate duplicates select the lowest source point, including
+when an authored point already occupies a proper crossing. Expected work is
+O((segments + embedded points) log segments + incidences), with linear
+auxiliary storage and unavoidable output proportional to incidences.
+New points are inserted by exact containing-face or containing-
+edge splits and then enter the shared `Planar_cdt` kernel. It traces the exact
+sequence of triangles crossed by each atomic segment, removes that strip as one
+cavity, exact-ear-clips the two boundary chains against the new segment, and
+repairs only unconstrained diagonals to a stable constrained-Delaunay state.
+This avoids the cycling failure of repeated arbitrary Lawson flips and
+preserves triangle cardinality. A specialized integer edge table owns
+incidence and constraint affinity; recovered segments can be emitted as a
+topology-affine native edge group. Split points append to the original point
+planes. Their 3D position and continuous point fields use the deterministically
+lower-indexed source constraint; discrete/ragged fields and point groups use
+its nearest endpoint. A generated-point group makes this policy inspectable.
+Authored points that split a constraint retain their existing identity and are
+not reported as generated.
+
+Optional quality refinement operates on that already clipped constrained-
+Delaunay mesh rather than reconstructing the original convex hull. Each stable
+generation classifies bad triangles by minimum angle, maximum area, or target
+edge length. It proposes a scale-normalized binary64 circumcenter and accepts
+that construction only after exact orientation predicates certify it inside
+the retained parent triangle; a rounded centroid is the bounded fallback.
+Predicates remain exact for every accepted binary64 construction. An
+encroached constraint is split at its exact homogeneous midpoint when
+constraint splitting is enabled. All accepted points are exact-deduplicated,
+constraints are re-atomized in stable order, and the new batch is inserted
+into the current clipped CDT. Consequently refinement cannot resurrect a
+previously removed exterior region.
+
+The point budget includes arrangement crossings as well as refinement points;
+an arrangement that already exceeds the requested budget fails before a
+partial result is committed. Reaching the interior refinement budget returns
+the best completed generation and records the limit rather than exceeding the
+bound. Minimum angle is in radians and must be below pi/3. Minimum edge length
+suppresses further work on a bad triangle whose longest edge is smaller than
+the threshold. Generated positions and continuous point payload use stored
+parent barycentric weights recursively; exact constraint midpoints use equal
+endpoint weights. Discrete, ragged, and group payload select a stable parent
+representative. Split-point and refinement-point output groups remain
+distinct.
+
+Triangle classification and candidate construction fill disjoint arrays in
+parallel, but CDT recovery is dependency-ordered and serial. For one
+generation, classification is O(T), CDT update has the documented
+`Planar_cdt` expected cost, and a shared packed bounds index makes constraint
+encroachment and re-atomization expected O(S log S + (Q+B) log S + I), for Q
+quality candidates, B accepted points, S atomic constraints, and I conservative
+broad-phase incidences. Certified implicit-coordinate intervals and an
+outward-rounded L1 circle bound prevent the index from dropping an exact
+candidate; exact diametral and point-on-segment predicates remain authoritative.
+Packed point, triangle, constraint, provenance, index, and scratch planes
+require O(P + T + S + Q + B) live storage.
+
+An explicit non-negative Regularization Steps count runs after the final
+refinement generation. Each step builds one packed unique-edge/point-incidence
+index, fixes every hull and constraint point, and moves eligible generated
+interior points toward the stable compensated average of their one-ring
+neighbors. Allow Movement of Interior Input Points extends eligibility to
+original projected interior points. Candidate coordinates are rounded
+binary64 constructions, then a deterministic global backtracking factor is
+halved until every moved point remains in its old star and every triangle has
+strictly positive exact orientation under the simultaneous move. The shared
+CDT repair restores constrained-Delaunay topology after the accepted step.
+
+Repeated movement appends to a compact topologically ordered provenance DAG.
+Generated 3D positions and numeric point payload evaluate this DAG once;
+discrete, ragged, and group payload follow its stable greatest-weight source
+representative. Original input positions are still restored by the adapter,
+matching the current Restore Original Point Positions behavior while their
+relaxed projections may affect connectivity. One step costs O(T log T + E + P)
+for its packed index and relaxation work plus CDT repair; live relaxation
+scratch is O(T + E + P), and provenance grows only with explicitly moved
+generated points per requested step. Centroid, construction, containment, and
+orientation ranges are parallel; stable index construction, acceptance, DAG
+commit, and CDT repair remain serial.
+
+Optional hull-boundary outside removal seeds every triangle incident to an
+unconstrained convex-hull edge and performs one packed breadth-first flood
+through unconstrained adjacency. Constrained edges are exact barriers. The
+result compacts retained triangles and constrained-edge metadata in stable
+order. Cavity retriangulation also detects vertices interior to a traced strip
+and deterministically reinserts them, preventing a valid non-hull constraint
+from silently dropping authored points.
+
+Constraint-polygon outside removal carries signed directed winding through
+every split atomic segment. Duplicate and overlapping segments aggregate their
+signed multiplicity. Starting from exact hull-side values, one packed dual
+breadth-first traversal propagates winding across every triangle edge; no
+rounded centroid or ray test decides membership. Non-zero regions remain.
+Consequently disjoint loops form a union, overlapping same-oriented loops stay
+filled, same-oriented nesting remains filled, opposite-oriented nesting forms
+a hole, and coincident opposite loops cancel. Edge-group and open-curve
+constraints carry zero winding and therefore remain barriers without inventing
+polygon interiors.
+
+Projected-silhouette mode classifies every selected polygon with the exact
+packed area sign. It chooses one global facing orientation, cancels directed
+incidence across same-facing internal edges, and retains boundary or
+opposite-facing edges as the silhouette. Reversing every source face therefore
+does not change the result. Face classification and per-topology-edge winding
+write disjoint stable ranges through the shared domain pool; validation and
+constraint emission remain serial so errors and edge order are deterministic.
+Partially selected polygons are rejected, while zero-area projected faces do
+not invent an interior.
+
+With OCaml 5.3.0, Dune 3.24.0's default development profile, grain 16,384,
+and the four-core Linux 6.8/aarch64 runner used by the surrounding PDK table,
+100,000 deterministic points produced 199,918 triangles in a 0.949-second
+median with 65.7 MB current-domain allocation and 1,648 promoted bytes (three
+repetitions, one domain).
+That allocation figure is the current optimization baseline, not a production
+claim. Source-primitive retention and the exact undocumented SideFX numerical
+regularization profile remain explicit parity gates before this node can
+move out of Partial status.
+
+On the same 100,000-point seed, recovering one legal long constraint and
+repairing 199,918 triangles takes a 0.234-second median with 81.88 MB allocated,
+960 promoted bytes, and stable hash `4607585910187537252`.
+
+The exact arrangement benchmark uses two complementary workloads. 100,000
+disjoint segments take a 0.0909-second median with 92.50 MB current-domain
+allocation, 2,120 promoted bytes, and stable hash `521543672821096657`.
+A 256-by-256 crossing grid constructs and deduplicates 65,536 exact split
+points in a 0.277-second median with 155.91 MB allocated and stable hash
+`331324657301745941`. Before the no-crossing fast path and linear BVH-bound
+construction, the disjoint workload took 1.048 seconds, allocated 546.64 MB,
+and promoted 98.42 MB on the same process configuration.
+
+One constraint containing 100,000 authored collinear points atomizes into
+99,999 edges in a five-run median of 0.135 seconds on one domain and 0.116
+seconds on four domains, with stable hash `2878715107207330704`. The
+one-domain path allocates 82.40 MB on the calling domain; the four-domain
+calling-domain figure is 42.82 MB because worker-domain minor allocation is
+not included by `Gc.allocated_bytes`. Before this path existed, the valid
+input failed constraint recovery instead of producing a benchmarkable result.
+
+The duplicate-removal adapter benchmark selects 100,000 points at four exact
+projected coordinates, with distinct authored Z values. It retains the lowest
+selected representative at each coordinate and compacts to four points in a
+0.0258-second one-domain median and a 0.0254-second four-domain median. The
+packed topology hash is `3186253908326029459` in both modes; calling-domain
+allocation is 15.93 MB and 13.84 MB respectively. This is a selective deletion
+baseline, not a global Remove Unused Points measurement.
+
+The bounded quality-refinement benchmark starts from a unit square and targets
+an edge length of `1.8 / sqrt(100000)`. It emits 66,049 points in a three-run
+median of 1.510 seconds on one domain and 1.561 seconds on four domains, with
+identical hash `3660410599853783093`. Calling-domain allocation is 1.143 GB and
+818.73 MB respectively; promoted and major allocation are approximately
+92.4 MB and 248.6 MB in both modes. The lack of multicore speedup is recorded
+honestly: serial incremental CDT recovery dominates this workload, and worker-
+domain minor allocation is excluded from the four-domain calling-domain
+figure. This is a regression and allocation baseline, not a production claim.
+
+A constrained refinement scale case uses a 10,000-edge closed boundary and a
+256-point budget. The former candidate-by-constraint scan took 2.778 seconds
+and allocated 7.108 GB on the calling domain; the shared packed bounds index
+produces the identical 10,256-point result and hash `5576516039082866` in
+0.269 seconds with 200.07 MB allocated. These are one-repeat measurements on
+the same process configuration, a 10.3x wall-time and 35.5x allocation
+improvement. Reproduce the scale with `PRISMEL_REFINEMENT_CONSTRAINTS=10000`.
+
+The regularization benchmark refines the unit square to 8,321 points, then runs
+two relaxation steps. The zero-step seed takes a 0.157-second median and
+143.33 MB calling-domain allocation; the two-step cook takes 0.298 seconds and
+235.70 MB on one domain. Four domains take 0.169 and 0.312 seconds respectively,
+so the current serial packed-edge sort and CDT repair dominate at this size and
+no speedup is claimed. One and four domains produce exact hashes
+`4415231494534350957` before movement and `192142334138055436` after two steps.
+These are three-repeat OCaml 5.3 development-profile baselines with
+`PRISMEL_REGULARIZATION_POINTS=10000`.
+
+An unblocked hull flood over the 199,918-triangle seed removes the complete
+triangulation in a 0.191-second median with 72.48 MB allocated and stable empty
+hash `17`. Empty polygon winding classification traverses the same seed in a
+0.203-second median with 82.08 MB allocated and the same empty hash.
+
+An explicit triangular constraint over a 100,000-point source cooks in 0.924
+milliseconds on one domain and 0.991 milliseconds on four when Ignore
+Non-Constraint Points is enabled. It emits one triangle with stable hash
+`4798887604116780`, retains the other source points as isolated payload, and
+allocates 1.83 MB on the calling domain. The corresponding unrestricted
+Delaunay seed alone takes 0.949 seconds, demonstrating that endpoint
+prefiltering occurs before the expensive topology construction.
+
+The complete projected-silhouette adapter benchmark starts from the same
+100,000 points and their 199,918 authored triangular faces, extracts the hull
+silhouette, recovers it, and emits the unchanged triangulation. Its three-run
+median is 1.416 seconds on one domain and 1.419 seconds on four domains, with
+identical hash `2710672592452761305`. The corresponding allocations are
+364.79 MB and 342.94 MB. The measured workload is dominated by the serial
+Delaunay and topology-index stages; the four-domain result is retained as an
+honest regression baseline rather than presented as a speedup. The complete
+one-repeat benchmark process, including every workload in the executable,
+peaks at 241,240 KiB RSS on one domain.
+
+Reproduce the baseline with:
+
+```sh
+PRISMEL_DELAUNAY_POINTS=100000 PRISMEL_DELAUNAY_REPEATS=3 \
+  PRISMEL_REFINEMENT_POINTS=100000 PRISMEL_REGULARIZATION_POINTS=10000 \
+  PRISMEL_DELAUNAY_DOMAINS=1 \
+  dune exec -j 1 tools/bench_delaunay2.exe
+```
+
+### Edge Equalize
+
+`Ops.edge_equalize` reduces the initial selected lengths to a scale-safe
+average, longest, or shortest target, then moves only points incident to the
+selection. Omitted selection means every topology edge. A topology-affine
+output edge group can record the exact processed set; changed snapshots share
+topology and unrelated payload while removing stale point/vertex `N`.
+
+When every selected point has degree one, each edge is independent: PDK applies
+the symmetric endpoint correction in one disjoint parallel pass, preserves the
+edge midpoint, and shares coordinate planes that cannot change. Connected
+selections use stable point-to-edge CSR incidence and a Jacobi projection with
+a common maximum-degree denominator and fixed `0.9` relaxation. The common
+denominator makes paired edge corrections cancel globally, preserving the
+selected system's centroid in exact arithmetic. A deterministic serial maximum
+residual check controls the explicit iteration ceiling and relative tolerance,
+so domain scheduling cannot change the stop iteration or result bits.
+
+Target reduction, topology-affinity, names, finite coordinates, representable
+lengths, cancellation, and convergence are validated before an immutable
+output is committed. A positive target cannot expand a zero-length edge because
+no direction exists; a zero shortest target may collapse other selected edges.
+Planning is O(points + edges), connected solving is
+O(iterations * (points + selected incidences)), and scratch is O(points +
+edges). Lengths and incidence are packed arrays; iteration buffers are bounded
+and become unreachable after the cook.
+
+### Edge Relax
+
+`Ops.edge_relax` matches source edges to an immutable reference with exactly
+the same packed topology. Individual mode uses each reference edge length;
+scale-independent mode rescales that distribution by the ratio of stable
+selected mean lengths, preserving source scale. A point group selects movable
+points directly, a primitive group promotes its incident points once, and an
+optional point group pins points. Edges incident to at least one movable,
+unpinned point form the constraint set. Unselected and pinned endpoints remain
+fixed, while `only_shorten` suppresses every non-shrinking correction.
+
+Disjoint constraints with stable step size use a closed-form geometric decay
+for the requested iteration count. This avoids retaining six iteration planes,
+supports one- or two-movable-endpoint constraints, writes edges in disjoint
+parallel ranges, and shares coordinate planes that cannot move. Connected
+constraints call the same `Edge_constraints.project` Jacobi kernel as Edge
+Equalize. Its stable CSR incident order, common maximum-degree denominator,
+disjoint point writes, and serial residual decision make one- and multi-domain
+results byte-identical. Reaching the iteration ceiling returns the bounded best
+effort, matching the artist-facing relaxation contract rather than smuggling
+state into a later cook.
+
+Source/reference topology, selections, pins, finite and representable lengths,
+normalization, zero-length expansion, step/tolerance/iteration policy, output,
+and cancellation are checked atomically. Planning is O(points + edges), solve
+time is O(iterations * (points + selected incidences)) for connected inputs,
+and scratch is O(points + edges). Changed output shares topology/unrelated
+payload and removes stale point/vertex `N`.
+
+### Blend Shapes
+
+`Ops.blend_shapes` keeps the first geometry's topology and blends its canonical
+point positions toward an ordered collection of immutable target shapes.
+Normalized mode assigns residual weight below one to the source and divides
+positive target totals above one; differencing mode accumulates weighted
+`target - source` deltas and deliberately permits negative or greater-than-one
+extrapolation. Targets always accumulate in descriptor order, so reusable-
+domain scheduling cannot alter floating-point association.
+
+An optional point group preserves all unselected source values. Integer or text
+point IDs build validated unique target maps for reordered and partial shapes;
+unmatched source IDs contribute their source value. Set/Scale masks may come
+from the first input or each target, with a target-specific attribute override.
+`P` and pattern-selected point Float/Float2/Float3/Float4 attributes use the
+same weights; a missing target field contributes the source field. Discrete and
+ragged fields remain structurally shared. Position changes remove stale vertex
+normals and remove point normals unless a target point `N` was actually blended.
+
+The hot path is target-major. Every output component is allocated once, and a
+masked/ID-normalized cook retains at most one O(points) weight-sum plane plus
+optional O(points) ID maps per target. Work is O(points * targets * blended
+components), auxiliary storage is O(output + points * ID-mapped targets), and
+point fills/validation use disjoint reusable-domain ranges. All validation,
+finite-output checks, cancellation, and metadata replacement commit atomically.
+
+### Attribute Composite
+
+`Ops.attribute_composite` composites an ordered first geometry plus any number
+of immutable weighted inputs while retaining the first geometry's topology,
+groups, and unselected payload. Detail, primitive, point, and vertex attributes
+have independent compiled include/exclude patterns. Canonical point `P` is
+never matched implicitly: `allow_position` must be true and the point pattern
+must also select `P`.
+
+Mean divides the sum of `attribute * input_weight * alpha` by the corresponding
+sum of effective weights, producing exact zero for a zero denominator. Maximum
+and Minimum compare those weighted candidates component by component. Over and
+Under initialize the intermediate result from the weighted first input and
+then fold additional inputs in descriptor order using respectively
+`source * alpha + destination * (1 - alpha)` and
+`source * (1 - alpha) + destination * alpha`. A missing selected field is
+numeric zero; a missing alpha field is exactly one. Alpha is a finite scalar
+float on the same owner and is not silently clamped.
+
+The packed kernel supports Float, Float2, Float3, and Float4 attributes. It
+discovers their union in stable first-seen input order, rejects same-name kind
+or direct-index cardinality conflicts, and allocates every output component
+once. Integer, text, and ragged attributes remain structurally shared from the
+first input. Input weights, operated values, alpha values, denominators, and
+intermediate/final results must be finite; errors and cancellation publish no
+partial geometry. Changing `P` removes point or vertex `N` unless that owner of
+`N` was explicitly composited in the same atomic commit.
+
+Time is O(elements * inputs * selected components). Output storage is exactly
+one float plane per selected component; spatially varying Mean alpha adds one
+denominator plane per active owner. Input-major accumulation order is stable,
+while each plane pass writes disjoint element ranges through the reusable
+domain pool, so one- and multi-domain results are byte-identical.
+
+### Attribute Mirror
+
+`Ops.attribute_mirror` copies point, vertex, or primitive attributes from a
+source element to selected destination elements while retaining topology and
+all unselected payload. Explicit mapping reads a same-owner integer field as a
+destination-to-source index and requires a same-owner destination group. Plane
+mapping robustly normalizes the plane, classifies exact-plane elements as a
+seam, reflects negative-side point positions or primitive bounding-box centers,
+and queries the shared packed `Spatial_index` for positive-side matches within
+the finite non-negative tolerance. Plane correspondence for vertex attributes
+and topology traversal are rejected rather than approximated by a second
+topology kernel.
+
+Compiled attribute patterns cover Float, Int, Text, Float2, Float3, Float4, and
+packed integer/float rows. Copy is exact. UV reflection uses a normalized line;
+vector reflection omits plane translation; point reflection includes it.
+Vector/point transforms therefore require plane mode. Literal text replacement
+is destination-only. Optional mapping output writes the source number on both
+members of every pair and `-1` elsewhere; optional source and destination groups
+may overlap for explicit self/cross mappings and are built deterministically.
+An owner-matched restriction may describe either the source or destination
+side. Explicitly selecting point `P` changes positions and invalidates stale
+point/vertex normals unless the corresponding `N` field is also selected.
+
+Explicit mapping is O(elements + copied payload) time and O(elements + output)
+auxiliary storage: one integer source plane and one destination bit-plane are
+the ordinary correspondence floor. Optional output maps/groups allocate only
+when requested. Plane mapping adds O(elements log source-elements) index build
+and nearest queries plus O(elements) packed spatial scratch. Cardinality,
+owner, storage, pattern, finite-value, transform, name, tolerance, and
+cancellation failures commit no partial geometry. Stable element scans and
+disjoint packed writes make one- and multi-domain results byte-identical.
+
+### Rewire Vertices
+
+`Ops.rewire_vertices` replaces polygon/curve corner-to-point indices from a
+scalar integer point, vertex, or primitive attribute. A typed point, vertex,
+primitive, or native-edge restriction is first promoted to the target
+attribute's owner, matching owner-dependent selection expansion. Point targets
+apply to every corner referencing each selected point, vertex targets apply per
+corner, and primitive targets apply to every corner of each selected primitive.
+Negative and out-of-range targets leave the corresponding corner unchanged.
+
+Recursive point mode resolves the target field as a functional graph in
+O(points) time: chains end at the terminal valid point, cycle members retain
+their own incidence, and a tail entering a cycle ends at its stable entry.
+Target-field deletion and optional vertex integer original-point provenance
+commit atomically. By default cleanup removes only points which were used by
+the input and became unused because of rewiring; points already free on the
+input remain present. `keep_unused_points` disables that cleanup. Point and
+vertex normals are invalidated after a real topology change.
+
+All fixed and ragged point payload plus point groups follow stable compaction;
+vertex, primitive, and detail payload retain their exact corner/primitive
+identity. Native edge groups follow source corner-edge ancestry. When several
+source edges become one target edge, membership is their deterministic union.
+The kernel preserves primitive order, corner order/count, primitive kinds, and
+degenerate topology exactly rather than silently invoking a repair operation.
+
+Direct mode is O(vertices + primitives + payload), with exact output topology
+planes. Recursive resolution and default cleanup add O(points) packed scratch.
+Owner/storage/cardinality/name/selection/affinity and cancellation failures
+publish no partial geometry. Disjoint corner fills, point-payload compaction,
+and edge-group bit materialization use the reusable domain pool; sequential
+functional-graph and prefix decisions have stable numeric order.
+
+### Edge Transport
+
+`Ops.edge_transport` builds a deterministic shortest-path forest over selected
+topology edges. First/last policy seeds every connected selected component;
+an explicit point group supplies multi-source roots and leaves unreachable
+points unchanged. Scale-safe edge metrics, then root number, then parent/point
+number break equal-distance ties. The packed indexed heap never exposes cook
+scheduling in the chosen forest.
+
+The forward pass supports root-value Transport, Transport from Root, ancestor
+Total, Maximum, and Minimum. Total can integrate an implicit constant and
+scale each contribution by its outgoing tree edge; Copy or Split controls
+branch fan-out. Backward traversal treats forest leaves as roots and combines
+child branches by Add, Maximum, or Minimum. Independent reverse trees evaluate
+through stable reusable-domain ranges. Global or per-component normalization
+is applied only to reached points. Topology is structurally shared and the
+scalar point attribute is installed only after all name, owner, cardinality,
+finite metric/output, group, grain, and cancellation checks succeed. Planning
+is O(points + edges), forest construction is O((points + edges) log points),
+evaluation is O(points), and bounded auxiliary storage is O(points + edges).
+Edge metric validation is parallel. First/last root policies drain independent
+components through component-local heaps; explicit multi-source roots retain a
+single stable heap so root/distance/point tie semantics remain global.
+
+`Ops.edge_transport_curves` avoids that general graph machinery for selected
+polygon/curve primitives. Open forward traversal starts at the lower-numbered
+endpoint. Closed primitives use the lowest-numbered point as a seam and the
+lower-numbered adjacent point as forward direction; backward traversal reverses
+the policy. Scalar point and vertex fields support the same operations and
+normalization. Selected curves fill disjoint primitive ranges through the
+reusable pool. Point ownership performs a linear alias audit and rejects a
+point shared by multiple selected curves; vertex ownership needs no alias
+plane. Time is O(selected vertices), scratch is O(points) for multi-curve point
+validation and O(1) beyond the exact output for vertex or single-curve input.
+One- and multi-domain fields are byte-identical.
+
+`Ops.edge_transport_parent` consumes an integer point parent attribute and does
+not require topology edges. Invalid, self, and selected-to-unselected parent
+references form roots; cycles are unreachable and preserve their input values.
+Stable numeric root and child order defines a packed child CSR. Forward
+Copy/Split and backward Add/Maximum/Minimum use the same scalar evaluator as
+the edge-network method, while independent trees cook in parallel. Common
+already ordered forward forests stream directly from the borrowed parent plane
+and allocate only the exact output field. General planning, evaluation, and
+normalization are O(points) time and O(points) bounded scratch.
+
+Convex Hull promotes an optional point, vertex, primitive, or native-edge
+selection once to a packed point mask and removes only bit-identical finite
+positions before topology work. Exact 2D/3D orientation predicates decide
+affine dimension, face visibility, and every horizon edge. One unique point
+remains free; a collinear set becomes an endpoint open polygon curve; a
+coplanar set uses a stable exact-orientation monotone chain and becomes one
+polygon; a full-dimensional set uses deterministic conflict-graph Quickhull
+and becomes an outward closed triangle surface. Approximate normalized signed
+volume participates only in choosing a legal pivot from an already exactly
+classified outside set and therefore cannot change inclusion or topology.
+
+Output points retain ascending source-point ancestry. Point fields and point
+groups follow that exact map, detail fields remain shared, and stale point
+`N`, corner/primitive payload, and topology-affine edge groups are removed.
+Optional source-number and all-face group outputs are materialized atomically.
+Conflict classification and reassignment, validation, payload remap, and final
+planes use stable disjoint domain ranges; dependent horizon expansion remains
+serial. Expected time is O(n log n), with Quickhull's O(n^2) worst case, and
+auxiliary storage is O(n + f) including retired work faces. Cancellation is
+polled in validation, classification, expansion, and materialization.
+
+Extract Centroid consumes the same packed positions and exact Convex Hull
+owner rather than maintaining a second hull implementation. Detail and
+per-primitive modes build direct point ranges. Point-owned integer/text pieces
+use stable first-occurrence IDs; primitive-owned pieces stable-radix-sort
+encoded `(point,piece)` incidences and materialize a unique-point CSR, so
+shared corners do not bias the result. Equal-point-mass reduction is
+scale-normalized, bounding-box centers use half sums that remain finite across
+opposite extreme coordinates, and hull centers reduce endpoint length, planar
+triangle area, or translated signed tetrahedral volume as appropriate.
+
+The output is exact-cardinality point-only topology with optional source
+primitive numbers or retained/renamed piece identities. Detail attributes are
+structurally shared; topology-affine point/corner/primitive groups and fields
+are deliberately not guessed. Non-hull independent centers fill disjoint
+ranges through the reusable domain pool. Classification and fixed-pass radix
+CSR are linear in input incidence up to the machine-word constant; hull mode
+adds the documented Quickhull cost per piece. Empty inputs/pieces, malformed
+identity fields, non-finite or unrepresentable centers, overflow, and
+cancellation fail before an output snapshot is published.
+
+Extract Point from Curve consumes selected open or closed polygon curves and a
+scalar point-owned float/integer distance field. A cut is either one finite
+constant or a scalar primitive-owned float/integer field. Every authored vertex
+whose value equals the cut is emitted once per curve; a strict sign crossing
+adds one scale-safe linearly interpolated point. Consequently, plateaus retain
+their authored vertices and a closed seam never duplicates its first vertex.
+Output order is source primitive then increasing uniform edge parameter.
+
+The exact output cardinality is classified before allocating positions and
+provenance planes. Numeric point payload interpolates; integer, text, and ragged
+payload uses a deterministic nearest-side rule. Compiled primitive patterns can
+be copied to point ownership, detail fields remain structurally shared, and
+optional point diagnostics contain curve U, total cuts on the source curve, and
+the original primitive number. Generated/preserved name conflicts, malformed
+groups and patterns, polygon faces, non-scalar or non-finite fields,
+unrepresentable output positions, overflow, and cancellation fail atomically.
+Ordinary and topology-affine groups are intentionally absent from the
+disconnected point result.
+
+Classification and materialization are O(curve vertices + output payload),
+with O(primitives + output) auxiliary storage. Ordinary curve sets use stable
+primitive ranges. When the average selected curve exceeds `grain`, stable
+primitive-major edge blocks expose even one long curve to the reusable domain
+pool; block prefix sums preserve byte-identical order. The measured hot loops
+perform no per-edge or per-cut temporary allocation: retained allocation is the
+exact output/provenance/payload planes plus O(primitives + blocks) metadata.
+
+Point compaction, optional compacting
+primitive deletion, bounding-box construction, and translate/stretch/
+contain/cover Match Size also live in this eager packed layer.
+Match Axis robustly aligns finite non-zero vectors, including deterministic
+parallel and antiparallel cases, and delegates packed position/normal work to
+the measured transform kernel.
+`Pdk.Analysis` provides bounds; primitive and total polygon area, curve/polygon
+perimeter, oriented signed volume; and stable point/primitive connectivity.
+Connectivity can restrict the primitive or point topology with packed groups,
+cut primitive components at topology-affine native edge seams or exact
+float2/float3 vertex-UV discontinuities, and write compact integer IDs or
+shared prefixed text labels. Excluded elements receive `-1` or the empty
+string rather than being silently assigned to an island.
+Measure accepts packed primitive groups, preserves an existing float payload
+outside a restricted selection, supports per-element or throughout
+accumulation, and can publish the selected total as a detail float. Concave
+simple polygons use the shared deterministic ear clipper; triangle-dense
+inputs take a direct allocation-free inner path. Primitive ranges write
+disjoint slots in parallel and totals reduce in primitive order. Attribute,
+ordinary-group, and native-edge-group
+buffers remain preserved or explicitly remapped by topology-changing
+operators; operations which make
+normals invalid remove them rather than retaining stale values.
+
+Group from Attribute Boundary compiles owner-qualified point, vertex, and
+primitive attribute patterns once and classifies discontinuities into one
+topology-affine native-edge bitset. Canonical `P` participates as a point
+float3 plane. Scalar and tuple floating values use component-wise absolute
+tolerance after a parallel finite-value validation; integers and text compare
+exactly. Point values compare edge endpoints, primitive values compare every
+incident face, and vertex values compare corresponding endpoint corners across
+every incident side, including non-manifold edges. Optional unshared topology
+includes polygon and closed-curve boundaries, with explicit first/last-only or
+all-edge policy for open curves. The packed edge result converts directly to
+incident points or primitives; primitive output can additionally include every
+face sharing a boundary endpoint. Classification is O(attribute payload +
+attributes * sum(edge incidence)) time with O(edges / 8) operation-owned
+storage beyond the shared topology index. Validation, edge classification,
+and owner conversion fill deterministic disjoint ranges in parallel.
+
+Groups from Name reads an explicitly selected point- or primitive-owned text
+attribute and emits one ordinary group for each distinct non-empty value.
+Names are prefixed and validated after empty values are discarded. Strict mode
+ignores invalid ASCII group names; force-valid mode replaces unsupported bytes,
+protects a leading digit, and unions normalization collisions. Output groups
+follow stable first-value occurrence. Replace and union conflict modes both
+publish unordered bitsets, including when the incoming group carried an
+explicit traversal order.
+
+The operation first classifies every owner element into one integer plane,
+then computes `groups * ceil(elements / 8)` and rejects the cook before dense
+membership allocation if either the group-count or packed-payload limit is
+exceeded. Existing union membership fills independent group planes in
+parallel; generated membership owns disjoint byte ranges. All groups are
+installed in one metadata commit. Expected time is O(elements + retained
+group bytes), temporary memory is O(elements + retained group bytes), and
+retained memory is exactly the packed group payload plus metadata. Reversible
+SideFX `encodeattrib` naming is not approximated; it remains an explicit API
+gap until its byte-level compatibility contract is implemented.
+
+Name from Groups provides the bounded inverse representation change. It
+compiles one include/exclude group-name pattern, resolves matching same-owner
+point, vertex, or primitive groups in stable geometry order, and writes their
+names to a text attribute. Existing text values or an explicit default cover
+unselected elements. Overlaps use deterministic first-group, last-group, or
+atomic-error policy; SideFX documents the corresponding case as undefined.
+Optional source deletion removes all matched groups in one metadata commit.
+The assignment pass reads borrowed immutable packed group bytes through a
+fixed byte-to-set-bit table, avoiding an O(groups * elements) membership-call
+loop. Time is O(selected packed bytes + selected cardinality + elements),
+temporary memory is one integer plane plus the required text output, and text
+materialization fills disjoint element ranges in parallel.
+
+Group Random covers Group Create's random-chance plane for point, vertex,
+primitive, and native-edge owners. It accepts a finite probability in [0,1],
+an optional exact-name base restriction, and the complete packed group merge
+algebra. Sampling is stateless through immutable `Rand.t`: points and
+primitives use their own number or owner-matched integer seed attribute;
+vertices use their referenced point number/value; native edges symmetrically
+combine their two endpoint point numbers/values. Exact zero and one avoid the
+sampler. Classification is O(owner elements), retains one ceil(n/8) bitset,
+and writes disjoint bytes through the shared pool, so fixed inputs retain exact
+membership and ordering across domain counts.
+
+Group Bounds covers Group Create's finite bounding-box and bounding-sphere
+plane for every topology owner. Point and vertex membership uses the canonical
+point position. Full primitive membership requires all referenced points and
+partial membership requires any referenced point. Full native edges require
+both endpoints; partial native edges use actual segment/box or segment/sphere
+intersection, including crossings whose endpoints are both outside. Segment
+math is normalized before midpoint, projection, and separating-axis products,
+so opposite finite `max_float` coordinates do not overflow. Inclusive boundary
+contacts, randomized slab/closest-point reference comparisons, base-group
+restriction, full merge algebra, and atomic cancellation are tested. The cook
+is O(owner incidence), retains exactly ceil(owner count/8) bytes, and writes
+disjoint output bytes in parallel.
+
+Group Normal covers Group Create's direction/spread plane for points,
+primitives, and native edges; vertex groups are rejected as SideFX documents.
+Primitive normals are implicit polygon winding normals. Point normals are
+stable corner-angle-weighted incident-face averages. Native-edge direction is
+the normalized mean of its endpoint point normals. Point and edge owners reuse
+an existing point float3 `N` by default and otherwise compute geometry normals;
+callers can force geometry or name an explicit owner-matched float3 plane.
+Primitive owners remain winding-derived unless explicitly overridden. This
+also provides the low-latency path when an upstream normal plane is reused.
+Direction and normal arithmetic normalize
+finite values before products, zero/degenerate directions do not match, spread
+angles are inclusive radians in [0, pi], and the optional opposite cap is a
+true union. Exact-name bases, the full merge algebra, cancellation, open-curve
+exclusion, extreme-coordinate regressions, and one/four-domain equality are
+covered. Primitive classification is O(vertices) with only its packed result;
+point/edge geometric classification additionally retains temporary SoA face
+and, for edges, point direction planes.
+
+Group Non-Planar covers the additive polygon test as a separate typed
+primitive operation. For every polygon it chooses the farthest point from an
+anchor and then the maximum-area third point, avoiding a fragile first-three
+vertices plane; it selects when any vertex's absolute world-space plane
+distance is greater than the finite non-negative tolerance. Collinear polygons
+and curve primitives remain unselected. Coordinate normalization keeps the
+O(vertices), O(1)-scratch-per-primitive test finite near `max_float`. Packed
+primitive bytes are filled in disjoint parallel ranges with exact domain-count
+parity; union merge reproduces Group Create's documented additive behavior.
+
+Group Backface classifies winding-derived polygon normals relative to a finite
+world-space viewpoint. Edge-on, degenerate, and curve primitives remain
+unselected. Geometry scale is normalized separately from viewpoint scale, so
+finite coordinates near `max_float` retain a stable sign test. Classification
+is O(vertices), uses O(1) scratch per primitive, and writes only the exact
+packed primitive result in disjoint parallel ranges. Replace merge creates the
+backface group; subtract merge removes backfaces from a same-name selection,
+matching Group Create's documented backface-removal composition.
+
+Group Edge Depth grows an exact-name point group to every point whose shortest
+topology-edge distance from any seed is at most a non-negative depth. Depth
+zero retains the seeds, disconnected components remain excluded, and a depth
+larger than a seeded component terminates when its frontier is exhausted. The
+same bounded multi-source BFS now powers positive point Group Expand and its
+step-distance attribute. It visits each reached point and incident edge once,
+retains one packed point bitset, and uses a geometric-growth integer queue for
+bounded depth; full flood mode allocates its known maximum queue once.
+
+Group Unshared classifies every unique topology edge with exactly one incident
+primitive and publishes the result as native edges, incident points, or
+incident primitives. Polygon boundary edges and every segment of an isolated
+polygon curve therefore follow the same incidence rule. Edge output is the
+classification bitset itself; point and primitive conversion traverse cached
+compact topology adjacency. All three owners support the complete merge
+algebra and exact one/four-domain results.
+
+Group Boundary Components restricts that same one-sided classification to
+polygon surfaces, joins boundary endpoints with a stable union-find, and emits
+one point group per connected boundary loop or chain. Polygon curves and
+non-manifold edges are excluded. Names use the stable
+`<prefix>__<component>` policy, with components ordered by their smallest point
+number. Group count and packed payload are preflight-bounded before group
+allocation; replace and union name-conflict policies are explicit. The pass is
+O(edges + points + output payload) time and uses O(points + boundary bits +
+output payload) auxiliary memory.
+
+Random, Bounds, Normal, Non-Planar, Backface, Edge Depth, and Unshared share one
+initial-merge publisher:
+an absent destination is the empty set, so replace/union/xor publish the
+generated selection while intersection/subtraction publish empty. Focused
+regressions protect these identities for both older and new criteria.
+
+Group Transfer maps destination points, primitives, and native edges to the
+closest same-owner source element. Points use `Spatial_index`. Polygon/curve
+primitives and unique edges share the private packed `Proximity_index`, whose
+features are deterministic ear-clipped triangles or curve/edge segments.
+Exact segment/triangle distance handles edge crossings, face containment, and
+mixed polygon/curve queries; a median-split feature AABB hierarchy rejects
+distant candidates. Source ties resolve by element then feature number.
+Feature construction, hierarchy subtrees, target queries, and packed group
+fills parallelize over disjoint ranges while immutable public geometry remains
+unchanged. When an ordinary source group is ordered, its destination group is
+ordered first by source sequence, then exact proximity, then destination index;
+unordered groups do not allocate or sort an order plane. Native edge groups
+remain topology-affine membership bitsets.
+
+Group Find Path consumes an explicitly ordered point or primitive group and
+emits an ordered group with the same owner. Point paths use the cached
+topology-edge graph. Primitive paths use the manifold shared-edge dual graph;
+non-manifold inputs fail atomically because a unique dual relation is not
+defined. Through-each mode joins contiguous base elements and pair mode solves
+stable start/end pairs. The path objective is lexicographic: minimum topology
+relations, then minimum finite point-edge length or primitive-centroid
+distance, then the lower predecessor element. Close mode blocks the primary
+route's interior elements and relations before finding a secondary route.
+Optional same-owner collision membership is either excluded or used as a
+containment region. Shared-element avoidance serializes dependent routes in
+base order; independent routes use the reusable domain pool and publish in
+pair order. Vertex and ordered-native-edge paths are not exposed.
+
+Finite point weights are built in O(points + edges); primitive weights use
+robust scaled centroids and take O(points + vertices + primitives + edges).
+Both preparations fill disjoint packed ranges. A point route is O(points +
+edges) worst-case; a primitive route is O(primitives + incident vertices).
+Scratch is O(owner elements). A synchronized scratch pool bounds live route
+workspace to O(workers * owner elements) instead of O(route_count * owner
+elements); the ordered result and retained route arrays are O(owner elements)
+because group membership cannot repeat an element.
+
+### Rest and motion snapshots
+
+`Pdk.Motion.rest_position` implements Store, Extract, and Swap over canonical
+point `P`. Missing rest data turns Extract or Swap into Store, matching the
+artist-facing Rest Position contract. An optional equal-cardinality reference
+snapshot supplies rest positions; immutable float3 planes are structurally
+shared between snapshots and attributes. Optional point-normal storage uses
+the same typed validation and sharing boundary. PDK has no transforming
+primitive family or float32 attribute representation, so primitive rest
+matrices and precision switching are deliberately not synthesized.
+
+`Pdk.Motion.point_velocity` keeps temporal ownership outside the kernel. It
+accepts explicit previous/current/next snapshots, positive sample time, and
+backward, forward, or central differences. Central differences can emit
+acceleration. Incoming, constant, and scaled float3-attribute initialization,
+final additive velocity, point-group restriction, and configurable output
+names use one atomic metadata commit. Identity Keep and unscaled whole-field
+copies structurally share their existing planes. Point-number correspondence requires
+equal cardinality; an integer or text point key permits changing cardinality,
+rejects ambiguous duplicate reference keys, and applies an explicit error or
+zero policy to unmatched current points. Output ranges are stable and disjoint
+across domains. Ordinary deformation costs O(current points); keyed matching
+costs O(current + sample points) expected time and linear packed lookup/output
+storage.
+
+## Performance contract
+
+- Packed dense operations are O(n) time and O(n) output storage unless a
+  documented topology algorithm states otherwise.
+- Stable sequential and multidomain runs must produce byte-identical topology,
+  attributes, group membership, and ordering.
+- Kernel grain is explicit and small workloads retain a sequential path.
+- No per-element name lookup, boxed vector, list rebuilding, `List.nth`, `@`,
+  or repeated array append is allowed in measured hot loops.
+- Benchmarks report release profile, input/output cardinality, domains, grain,
+  wall time, promoted/major allocation, and peak RSS when practical.
+- Scale regressions cover exact cardinality and retained-byte estimates in
+  addition to broad diagnostic timing thresholds.
+
+### Benchmark evidence
+
+Command (Dune release profile, five medians):
+
+```sh
+dune build --profile release tools/bench_pdk_ops.exe
+PRISMEL_BENCH_DOMAINS=1 PRISMEL_PDK_OPS_REPEATS=5 \
+  _build/default/tools/bench_pdk_ops.exe
+PRISMEL_BENCH_DOMAINS=4 PRISMEL_PDK_OPS_REPEATS=5 \
+  _build/default/tools/bench_pdk_ops.exe
+```
+
+Measured on Linux 6.8 aarch64, four single-threaded cores, OCaml 5.3.0 and
+Dune 3.24.0. The main grid fixture has 1,002,001 points, 6,000,000 vertices,
+and 2,000,000 triangles. Times are medians; allocations include required output
+storage.
+
+| Operation | 1 domain | 4 domains | Allocated (4d) | Exact hash |
+|---|---:|---:|---:|---:|
+| Circle source, closed (1,002,001 points) | 22.94 ms | 13.21 ms | 32.08 MB | 1595635405635298122 |
+| Circle source, elliptical open arc (1,002,002 points) | 22.75 ms | 12.04 ms | 32.08 MB | 1225605752256974054 |
+| Circle source, custom-plane reversed sliced ellipse (1,002,003 points) | 23.06 ms | 11.51 ms | 32.08 MB | 4305788162832572827 |
+| Grid source, regular triangles (1,002,001 points / 2,000,000 triangles) | 42.29 ms | 26.87 ms | 114.22 MB | 3253461948889680712 |
+| Grid source, quads (1,002,001 points / 1,000,000 quads) | 29.70 ms | 23.24 ms | 89.18 MB | 664173605796900264 |
+| Grid source, rows and columns (2,002 open curves) | 126.65 ms | 28.16 ms | 64.19 MB | 208363250742641765 |
+| Grid source, custom orientation + UV + alternating triangles | 47.41 ms | 37.00 ms | 130.27 MB | 2771498784011449356 |
+| transform | 16.1 ms | 7.8 ms | 48.1 MB | 4154521212671282630 |
+| noise displace | 27.9 ms | 9.3 ms | 32.1 MB | 3788867606196721633 |
+| normals, geometric area weighted | 68.1 ms | 50.5 ms | 72.1 MB | 3253461948889680712 |
+| Peak, point `N` + mask | 14.8 ms | 10.6 ms | 24.1 MB | 3517429522847750887 |
+| Bend + twist + mask + capture | 46.9 ms | 23.8 ms | 32.1 MB | 338536710968759944 |
+| Mountain, six-octave fBm + point `N` + height | 296.3 ms | 96.6 ms | 32.1 MB | 2870047288594138134 |
+| Point Jitter, uniform component offsets | 16.36 ms | 11.73 ms | 24.05 MB | 4306816342677270420 |
+| Point Jitter, group + mask + stable ID + `pscale` | 17.30 ms | 10.75 ms | 24.05 MB | 1943467239589564005 |
+| Edge Divide, shared points, 4 segments (75,551-point quad grid) | 213.32 ms | 174.36 ms | 327.23 MB | 23138927581944883 |
+| Edge Divide, unique points, 4 segments (75,551-point quad grid) | 355.68 ms | 272.08 ms | 450.56 MB | 430669910521685374 |
+| Edge Collapse, sparse centers + cleanup (200,901-point quad grid) | 184.10 ms | 165.43 ms | 329.91 MB | 3813930426841543590 |
+| Point Split, unique corners (200,901-point / 800,000-corner quad grid) | 136.47 ms | 111.47 ms | 136.26 MB | 1759525763580531095 |
+| Point Split, primitive-group seam (same grid) | 147.55 ms | 102.26 ms | 142.84 MB | 1376946659531591241 |
+| Point Split, mixed attribute/group seams + promotion (same grid) | 206.08 ms | 147.87 ms | 206.59 MB | 1955015017167342198 |
+| Extract Centroid, primitive AABB (501,264-point / 999,698-triangle grid) | 41.35 ms | 24.76 ms | 79.23 MB | 1441361096299877289 |
+| Extract Centroid, 499,849 primitive pieces (same grid) | 456.72 ms | 447.03 ms | 149.94 MB | 2510410779901382919 |
+| Extract Point from Curve, 1,000 sparse cuts / 1,001,000 points | 8.99 ms | 4.98 ms | 0.08 MB | 2773787659351257617 |
+| Extract Point from Curve, 1,000,000 dense cuts / 1,001,000 points | 30.72 ms | 22.61 ms | 56.02 MB | 1447278196685623313 |
+| Extract Point from Curve, dense payload and diagnostics | 56.34 ms | 38.77 ms | 96.10 MB | 2465483108862112169 |
+| Ends, shared unroll of one 1,002,001-corner curve | 3.88 ms | 3.17 ms | 13.03 MB | 1746403283212006364 |
+| Ends, new-point unroll of 100,000 independent quads | 25.95 ms | 19.88 ms | 81.42 MB | 162055801192148878 |
+| Ends, shared-point unroll of 159,201 grid faces | 49.23 ms | 47.14 ms | 53.00 MB | 1963371227389512144 |
+| Point Generate, 1M origin points | 12.90 ms | 10.22 ms | 40.03 MB | 2425641456680199725 |
+| Point Generate, 100k sources to 600k points with fixed/ragged payload | 44.14 ms | 26.21 ms | 76.09 MB | 3618383094568773800 |
+| Point Generate, same payload with 100k retained input points | 55.72 ms | 36.92 ms | 98.60 MB | 1367188153682677381 |
+| Point Replicate, sphere + source payload, 100k to 600k | 118.12 ms | 71.09 ms | 168.23 MB | 2137438907517278555 |
+| Point Replicate, sphere + two transformed vectors, 100k to 600k | 176.88 ms | 98.25 ms | 223.06 MB | 3340732060582328136 |
+| Point Replicate, quasi sphere + velocity, 100k to 600k | 127.60 ms | 72.49 ms | 171.16 MB | 28852990969694171 |
+| Point Replicate, four-octave vector fBm, 100k to 600k | 577.58 ms | 207.26 ms | 167.77 MB | 187623304489263081 |
+| Dissolve, million-quad grid to boundary polygon | 90.57 ms | 90.46 ms | 64.81 MB | 3098566088433871729 |
+| Dissolve + inline cleanup to rectangle | 105.43 ms | 102.69 ms | 74.54 MB | 2525572738818699091 |
+| Edge Flip, 50,000 disjoint triangle pairs (200,000 points) | 67.52 ms | 66.98 ms | 103.40 MB | 926999786504064952 |
+| Edge Cusp, all triangle edges (75,551 input points / 450,000 output points) | 100.71 ms | 88.80 ms | 166.12 MB | 1534610466325191131 |
+| Edge Straighten, 100,000 independent bends (300,000 points) | 21.87 ms | 15.67 ms | 26.06 MB | 1195252365093812429 |
+| Circle from Edges, 62,500 independent loops (1,000,000 points) | 79.61 ms | 54.26 ms | 79.02 MB | 362519991447600667 |
+| Circle from Edges, one 1,000,000-point loop | 55.21 ms | 46.78 ms | 66.02 MB | 4031980600791533435 |
+| Graph Color, 333,333 disconnected triangle point cliques (999,999 points) | 50.58 ms | 29.31 ms | 57.12 MB | 1757474405289905926 |
+| Graph Color, connected 1,000,000-quad primitive edge graph | 90.34 ms | 90.56 ms | 49.00 MB | 3023817910443667473 |
+| Graph Color, connected 1,000,000-quad primitive point graph | 113.44 ms | 113.90 ms | 49.00 MB | 2608693175212566257 |
+| Delaunay2, 100,000 deterministic planar points (199,918 triangles) | 928.28 ms | dependency-ordered topology build | 65.67 MB | 2710672592452761305 |
+| Planar CDT, one long constraint over 199,918 triangles | 227.60 ms | dependency-ordered recovery | 81.88 MB | 4607585910187537252 |
+| Planar CDT, unblocked hull flood over 199,918 triangles | 214.33 ms | dependency-ordered adjacency flood | 72.48 MB | 17 |
+| Planar CDT, empty polygon-winding classification over 199,918 triangles | 227.58 ms | dependency-ordered winding flood | 82.08 MB | 17 |
+| Planar constraints, 100,000 disjoint segments | 91.80 ms | exact arrangement is dependency ordered | 92.50 MB | 521543672821096657 |
+| Planar constraints, 256x256 crossing grid (65,536 splits) | 285.33 ms | exact arrangement is dependency ordered | 155.91 MB | 331324657301745941 |
+| Edge Equalize, 150,000 independent edges (300,000 points) | 5.21 ms | 3.79 ms | 3.61 MB | 908952120690714776 |
+| Edge Relax, 150,000 disjoint reference constraints (300,000 points) | 7.39 ms | 4.65 ms | 4.81 MB | 1571942082499176816 |
+| Edge Relax, 50,000 connected two-edge chains (150,000 points, 20 iterations) | 173.28 ms | 86.83 ms | 8.87 MB | 678064836994170377 |
+| Blend Shapes, one target / 1M positions | 18.47 ms | 9.81 ms | 24.04 MB | 3058586826073456996 |
+| Blend Shapes, two targets / 1M points with fields | 69.63 ms | 35.32 ms | 64.10 MB | 57601285729602360 |
+| Blend Shapes, two masked targets / 1M points with fields | 85.46 ms | 43.58 ms | 72.13 MB | 3663501905707757503 |
+| Attribute Composite Mean / 1M scalar points, 3 inputs | 13.76 ms | 5.51 ms | 8.06 MB | 1240842533481729218 |
+| Attribute Composite Mean / 1M points, alpha + P/scalar/Float4 | 148.63 ms | 62.77 ms | 72.51 MB | 1262478998332998410 |
+| Attribute Composite Over / 1M scalar points, 3 inputs | 19.04 ms | 7.82 ms | 8.09 MB | 1308454629395839844 |
+| Attribute Mirror explicit map / 1M Float4 points | 32.02 ms | 20.20 ms | 41.00 MB | 3641797497992649622 |
+| Attribute Mirror plane nearest / 1M Float4 points | 390.34 ms | 147.14 ms | 90.02 MB | 1685776360115969791 |
+| Rewire Vertices direct / 999,999 points and corners | 5.72 ms | 3.92 ms | 11.00 MB | 288734399921472577 |
+| Rewire Vertices cleanup + provenance / 999,999 points and corners | 33.21 ms | 27.51 ms | 50.33 MB | 2351447017972365808 |
+| Rewire Vertices recursive / 999,999 points and corners | 17.09 ms | 15.15 ms | 36.00 MB | 3495472325552027740 |
+| Edge Transport network, one 300,000-point curve | 20.97 ms | 18.50 ms | 27.01 MB | 898688424706882948 |
+| Edge Transport Each Curve, one 300,000-point curve | 6.02 ms | 5.88 ms | 2.40 MB | 898688424706882948 |
+| Edge Transport Each Curve, 30,000 ten-point curves | 6.48 ms | 2.74 ms | 5.09 MB | 60481824834182347 |
+| Edge Transport network forward, 30,000 ten-point components | 19.59 ms | 17.92 ms | 26.74 MB | 1325500647425514973 |
+| Edge Transport network backward, 30,000 ten-point components | 26.81 ms | 24.46 ms | 36.34 MB | 2252116270756994525 |
+| Edge Transport Parent ordered forward, 30,000 ten-point trees | 3.81 ms | 3.82 ms | 2.40 MB | 1380434282527042488 |
+| Edge Transport Parent backward, 30,000 ten-point trees | 9.94 ms | 8.82 ms | 12.01 MB | 3066036653996022544 |
+| Edge Transport Parent unordered forward, 30,000 ten-point trees | 10.91 ms | 8.27 ms | 14.42 MB | 1601551353367740335 |
+| Scatter, uniform exact million count | 472.2 ms | 192.2 ms | 104.1 MB | 3313061772989346825 |
+| Scatter, point density + fields + exact provenance | 1155.1 ms | 433.5 ms | 208.1 MB | 701893968125914561 |
+| Smooth, primitive/group boundary, 8 edge-weighted `P Cd` passes (160,801 points) | 164.3 ms | 70.3 ms | 21.9 MB | 3723028380804988092 |
+| Ray, cold BVH + vector projection (200,901 points / 400,000 triangles) | 496.53 ms | 197.41 ms | 102.58 MB | 2862479342738221337 |
+| Ray, cold BVH + provenance, normal, group, and `Cd` import | 526.80 ms | 223.17 ms | 128.37 MB | 3211764991733354948 |
+| Ray, eight-sample average + hit normal | 2600.97 ms | 837.61 ms | 169.82 MB | 3683760327621035444 |
+| Ray, eight-sample upper median + hit normal | 2679.26 ms | 874.73 ms | 215.37 MB | 1460998520121358970 |
+| Ray, eight-sample average + exact provenance and `Cd` import | 5055.80 ms | 1630.29 ms | 327.43 MB | 4210588290262089581 |
+| Grid Snap, all 1,002,001 points + moved group | 28.42 ms | 13.40 ms | 52.75 MB | 1871086277788101636 |
+| Grid Snap, alternating point group | 19.15 ms | 12.66 ms | 40.83 MB | 784787563699919619 |
+| Grid Snap + Fuse, 321,602 duplicate points | 53.96 ms | 45.76 ms | 92.61 MB | 3746365690112069076 |
+| Fuse exact, 321,602 duplicate points | 45.79 ms | 40.58 ms | 65.61 MB | 1998394940270991636 |
+| Fuse Modify Target + weighted average, 401,802 points | 173.22 ms | 86.19 ms | 123.07 MB | 4054786758075175250 |
+| Fuse cleanup, 200,901-point collapsing grid | 75.98 ms | 67.97 ms | 110.82 MB | 2326966657950004879 |
+| Fuse fixed-target attribute/group rules, 401,802 points | 131.67 ms | 57.00 ms | 58.10 MB | 4523923909597708345 |
+| Fuse Modify Target mixed attribute/group rules, 401,802 points | 207.74 ms | 104.39 ms | 164.36 MB | 2011718227915068739 |
+| Bound, 512³ divided box (1.58M points / 3.15M triangles) | 78.44 ms | 60.67 ms | 180.1 MB | 2440516349802212181 |
+| Bound, alternating group + 256×128×64 box | 12.01 ms | 11.96 ms | 13.20 MB | 457191895887099019 |
+| Bound sphere, 512×256 | 21.83 ms | 17.26 ms | 21.21 MB | 4575451352596622314 |
+| Match Size, contain + point `N` (1,002,001 points) | 31.07 ms | 24.28 ms | 48.13 MB | 1230402708513206392 |
+| Match Size, alternating move/bounds group + partial stretch | 28.87 ms | 23.40 ms | 48.13 MB | 3662433404310402415 |
+| Match Size, total surface-area fit + point `N` | 65.97 ms | 43.46 ms | 73.60 MB | 1474422832630293872 |
+| height color | 10.6 ms | 6.6 ms | 32.1 MB | 3176834444355416740 |
+| enumerate 1,002,001 points | 5.45 ms | 1.85 ms | 8.04 MB | 1867714337127167676 |
+| enumerate alternating point group | 6.40 ms | 2.56 ms | 8.05 MB | 4171775455324172707 |
+| enumerate 4,093 integer pieces, local elements | 18.70 ms | 16.50 ms | 16.44 MB | 181743986586326463 |
+| enumerate 4,093 integer pieces, piece IDs | 14.86 ms | 12.63 ms | 16.44 MB | 1507297164366801964 |
+| enumerate 4,093 text pieces, local elements | 62.33 ms | 59.10 ms | 32.33 MB | 181743986586326463 |
+| sort 1,002,001 points by X | 193.8 ms | 171.3 ms | 184.4 MB | 4320638863800733016 |
+| merge pair | 77.3 ms | 51.9 ms | 228.4 MB | 3886660968523129958 |
+| Copy to Points, 102,400 normal-aligned box copies | 80.39 ms | 47.78 ms | 195.79 MB | 493178525791329886 |
+| Copy to Points, 102,400 affine-matrix box copies | 86.84 ms | 52.86 ms | 196.71 MB | 2971098336695328274 |
+| Copy to Points, half source/target restriction | 28.27 ms | 19.97 ms | 68.32 MB | 931776985239124703 |
+| Copy to Points, three target-attribute rules | 138.56 ms | 100.17 ms | 374.17 MB | 1491781361630052172 |
+| Copy to Points, three target attributes + three target groups | 234.98 ms | 119.56 ms | 376.19 MB | 3019261027278696509 |
+| Copy to Points, four pieces / 103,041 targets | 171.36 ms | 122.77 ms | 362.37 / 294.97 MB | 4154600044073525722 |
+| Copy to Points, 2,048 pieces / 16,384 targets | 15.81 ms | 14.67 ms | 58.08 / 56.37 MB | 4369109338172539638 |
+| poly extrude (80k triangles) | 9.5 ms | 5.7 ms | 46.6 MB | 1964062128815843215 |
+| Line source (1,002,001 points) | 11.35 ms | 8.85 ms | 32.1 MB | 3766555573609226817 |
+| Curve Join, ordered (1,000 × 201-point curves) | 4.89 ms | 4.93 ms | 6.70 MB | 1479753540783563888 |
+| Curve Join, shuffled explicit endpoint picks (1,000 × 201-point curves) | 4.88 ms | 4.84 ms | 6.70 MB | 4405899669469262432 |
+| Curve Join, globally closest ends (65,537 scrambled curves) | 85.52 ms | 85.17 ms | 25.25 MB | 1380559747436316341 |
+| Curve Join, closest 128-sized subgroups + originals | 109.23 ms | 106.87 ms | 69.05 MB | 4452400491292640673 |
+| PolyLoft, authored two-point, 1.001M points / 2M triangles | 250.10 ms | 183.58 ms | 194.46 / 159.85 MB | 2140630329163433337 |
+| PolyLoft, authored three-point, 1.001M points / 2M triangles | 269.42 ms | 180.27 ms | 194.46 / 159.30 MB | 270081320839283753 |
+| PolyLoft, closest-seam three-point, 1.001M points / 2M triangles | 672.41 ms | 323.66 ms | 411.23 / 215.85 MB | 2336594115402408393 |
+| Skin, authored seams, 1.001M points / 1M quads | 64.08 ms | 48.61 ms | 121.26 / 98.04 MB | 1185213538368565200 |
+| Skin, closest seams, 1.001M points / 1M quads | 471.55 ms | 177.75 ms | 338.03 / 152.86 MB | 4033760677203082832 |
+| PolyBridge, one 500k-edge pair / 500k quads | 106.42 ms | 106.76 ms | 133.35 / 133.37 MB | 3425731626861180224 |
+| PolyBridge, 1,000 authored 500-edge pairs / 500k quads | 102.17 ms | 91.85 ms | 133.56 / 123.62 MB | 4562963049391598617 |
+| PolyBridge, 1,000 centroid-ranked pairs / 500k quads | 115.30 ms | 105.47 ms | 134.15 / 122.48 MB | 4562963049391598617 |
+| PolyBridge, one pair / 2 straight rows / 1M quads | 209.89 ms | 195.30 ms | 278.91 / 278.96 MB | 750105119733076194 |
+| PolyBridge, 1,000 pairs / 2 straight rows / 1M quads | 202.81 ms | 184.29 ms | 279.44 / 197.47 MB | 2567031205360025512 |
+| PolyBridge, divided + point/vertex payload/group | 303.02 ms | 246.65 ms | 499.78 / 415.38 MB | 3377060408763636413 |
+| circular sweep (10k rings) | 4.27 ms | 4.23 ms | 24.9 MB | 2407863765480717467 |
+| scaled PolyWire (120,400 two-point curves) | 100.6 ms | 83.7 ms | 317.3 MB | 1685661557956714237 |
+| capped scaled PolyWire (120,400 curves) | 160.0 ms | 131.0 ms | 522.8 MB | 2892678817770056258 |
+| PolyWire long spine (100,001 rings, 12 sides) | 82.41 ms | 75.99 ms | 250.2 MB | 3019630306846948580 |
+| controlled PolyWire long spine (scale/seam/V/up/caps) | 146.06 ms | 120.55 ms | 519.2 MB | 2382885542052628994 |
+| variable PolyWire divisions/segments/caps | 92.81 ms | 72.57 ms | 290.3 MB | 2058599888829015206 |
+| variable PolyWire segment scales + U/V ranges | 96.36 ms | 69.91 ms | 297.1 MB | 3984607635143579421 |
+| PolyWire sharp joints, buckling disabled | 101.34 ms | 79.80 ms | 334.5 MB | 4388196339880828253 |
+| PolyWire sharp joints, capped radial miters | 107.15 ms | 83.13 ms | 344.1 MB | 2107816651351191467 |
+| PolyWire smooth runs (97 breaks) | 102.62 ms | 81.88 ms | 344.4 MB | 3740266745668275405 |
+| variable PolyWire per-edge segment seams | 103.62 ms | 78.53 ms | 306.7 MB | 2516701176577015567 |
+| general-profile Sweep (20,001 × 32, alternating triangles) | 94.99 ms | 56.21 ms | 262.6 MB | 3981213447694709042 |
+| general-profile Sweep payload/caps/native edges | 354.42 ms | 308.40 ms | 775.7 MB | 3281918545425613217 |
+| Resample long spine (200,001 → 1,000,001 points) | 36.70 ms | 24.23 ms | 73.61 MB | 2971143590344181036 |
+| length Resample + U/curve/distance/tangent | 63.97 ms | 46.25 ms | 130.55 MB | 1048065382090500334 |
+| PolyFrame Two Edges (361,201 points) | 48.07 ms | 31.66 ms | 51.99 MB | 3123100058409629911 |
+| PolyFrame Texture UV point frame | 110.74 ms | 59.60 ms | 106.01 MB | 878999954786908287 |
+| PolyFrame Attribute Gradient vertex frame | 177.80 ms | 89.79 ms | 226.90 MB | 2738302846155992846 |
+| Facet Unique Points (200,901 → 1,200,000 points) | 52.04 ms | 34.35 ms | 99.77 MB | 52116703184864747 |
+| Facet pre normals + Unique Points + reverse | 73.12 ms | 52.96 ms | 143.01 MB | 216472004485794575 |
+| Facet grouped Unique Points (alternating 200,000 faces) | 47.40 ms | 30.64 ms | 76.69 MB | 862782961673215783 |
+| Facet grouped pre normals + Unique Points + reverse | 64.42 ms | 49.82 ms | 112.34 MB | 4403351474312899621 |
+| Facet Orient Polygons (400,000 triangles) | 31.65 ms | 27.68 ms | 26.45 MB | 2365675254808124655 |
+| Facet Cusp Polygons (1,200,000 corners) | 70.57 ms | 52.02 ms | 84.51 MB | 283124930776590793 |
+| Facet Remove Inline Points (1,200,000 corners) | 74.78 ms | 46.17 ms | 91.72 MB | 293960505550144756 |
+| Facet grouped Remove Inline Points (alternating 200,000 polygons) | 67.97 ms | 42.69 ms | 102.95 MB | 4428373719769560180 |
+| Facet Make Planar (800,000 points) | 43.07 ms | 29.22 ms | 53.23 MB | 3434920207817674627 |
+| Facet grouped Make Planar (alternating 100,000 quads) | 31.72 ms | 23.41 ms | 53.25 MB | 348575385667556423 |
+| Facet point-selection promotion + Unique Points | 42.56 ms | 28.10 ms | 69.61 MB | 214444916378444802 |
+| Facet vertex-selection promotion + Unique Points | 40.98 ms | 27.65 ms | 69.51 MB | 4122771134891582778 |
+| Facet edge-selection promotion + Unique Points | 42.96 ms | 28.55 ms | 70.55 MB | 3776704403672471336 |
+| Facet Consolidate point `N` (1,200,000 points) | 462.92 ms | 457.56 ms | 139.23 MB | 885417337606853454 |
+| Poly Fill Single Polygon, 100,000 holes (800,000 points) | 215.38 ms | 194.25 ms | 190.24 MB | 2051343833192007422 |
+| Poly Fill Triangles, 100,000 holes | 244.55 ms | 213.06 ms | 219.20 MB | 1491809127108389124 |
+| Poly Fill unique Triangle Fan, 100,000 holes | 359.86 ms | 290.62 ms | 346.87 MB | 1323544786701702380 |
+| Convert Line (3,002,000 unique edges + length) | 627.4 ms | 298.8 ms | 215.5 MB | 1159685896482037800 |
+| Convert Line fused Connect Path (3,002,000 edges) | 313.36 ms | 302.33 ms | 338.50 MB | 402758761000324084 |
+| PolyPath (3,002,000 unique edges, full ancestry) | 217.67 ms | 183.94 ms | 289.25 MB | 4605327786602156546 |
+| PolyPath + exact endpoint connection, no welds | 319.83 ms | 289.57 ms | 362.14 MB | 4605327786602156546 |
+| integer mode, 1,002,001 points → detail | 12.14 ms | 12.21 ms | 8.02 MB | 1214810429822179047 |
+| integer upper median, 1,002,001 points → detail | 28.26 ms | 28.49 ms | 8.02 MB | 1214810429822179029 |
+| integer mode in 64-point pieces | 142.3 ms | 52.62 ms | 33.0 MB | 3372359779053422621 |
+| unchanged triangle triangulate | 3.5 ms | 3.5 ms | 480 B | 3253461948889680712 |
+| cached procedural cook | 0.019 ms | 0.018 ms | 5.2 KB | 3176834444355416740 |
+
+The Scatter rows use `PRISMEL_PDK_OPS_FILTER=scatter` and
+`PRISMEL_PDK_SCATTER_COUNT=1000000`. After its output contract and indexed
+random stream were fixed, the one-domain uniform baseline took 641.5 ms and
+allocated 264.2 MB. Replacing returned float tuples/boxed hot-loop values with
+range-local unboxed scratch reduced that to 472.2 ms and 104.0 MB, which is the
+exact six float output planes, integer `id`, and three triangle alias arrays
+plus bounded range metadata. The density/provenance baseline took 1508.3 ms
+and 256.0 MB. Avoiding Attribute Interpolate's 6,000,000-entry
+vertex-to-primitive reverse map when no primitive field/group is requested
+reduced it to 1155.1 ms and 208.0 MB. Final one/four-domain hashes are exact;
+promoted allocation is zero in all four final runs.
+
+The Smooth row uses `PRISMEL_PDK_OPS_FILTER=smooth`. Its input contains 160,801
+points and 320,000 triangles, a sparse locked-point group, a patterned
+primitive restriction, and group-boundary constraints. The four-domain result
+is 2.34x faster with the same exact geometry hash; promoted allocation is zero.
+The 21.9 MB allocation is bounded topology-selection metadata plus the two
+packed `P`/`Cd` plane sets reused across all eight iterations, rather than
+iteration-proportional retained storage.
+
+The Ray rows use `PRISMEL_PDK_OPS_FILTER=ray` and three release-profile
+medians. Each cold cook builds the collision BVH, projects 200,901 source
+points against 400,000 triangles, and then materializes requested output. Four
+domains are 2.52x faster for one ray, 3.11x faster for eight-ray average, and
+3.10x faster when the average path repeats chosen hits to produce exact
+provenance and `Cd` import. Geometry hashes are byte-exact across domain
+counts. Replacing one recursive traversal closure per ray with fixed worker
+stacks reduced final one/four-domain single-ray allocation to 141.879/102.575
+MB from 207.768/116.170 MB with the established hash unchanged. Eight-ray
+average and its provenance/import path allocate 381.365/169.824 MB and
+725.351/327.431 MB; the larger numbers include repeated traversal boxing and
+the latter's required 48-slot-per-point average CSR payload rather than a
+retained temporary hit matrix. One-repeat processes peak at 147,116/153,796
+KiB RSS for position/normal output and 225,660/232,948 KiB with provenance,
+including fixture construction, Dune, hashing, and the OCaml heap.
+
+The Grid Snap/Fuse rows use `PRISMEL_PDK_OPS_FILTER=snap_to_grid` and
+`PRISMEL_PDK_OPS_FILTER=fuse`, with three release-profile medians. Snap-only
+position ranges scale 2.12x on the million-point all-selection fixture and
+1.51x on its alternating-group fixture. Replacing an eight-byte-per-point
+boolean change plane plus a second membership scan with a byte-owned packed
+bitset improved the all-selection cook from 33.22/18.51 ms to 28.42/13.40 ms
+at one/four domains and removed about 8 MB from its one-domain allocation and
+major-live measurements. Exact hashes did not change. Fuse cluster discovery
+retains stable earliest-source semantics and is deliberately sequential; its
+payload/topology remaps parallelize, so the duplicate fixture gains only
+1.13x-1.18x without exposing schedule-dependent cluster IDs. Extracting cluster
+discovery into one reusable PDK core also lets its cell, representative, size,
+and cursor planes share storage across phases. Exact Fuse fell from the prior
+71.60/64.97 ms and 104.2 MB to 45.79/40.58 ms and at most 65.61 MB without
+changing its hash.
+
+The Modify Target row uses disjoint halves of two offset 500x400 grids,
+closest-target links, pairwise weighted-average reduction, exact post-link
+fusion, and full topology/payload hashing. It scales 2.01x with identical
+one/four-domain cardinality and hash; one/four-domain allocations are
+144.79/123.07 MB. The cleanup row fuses horizontal grid neighbors, removes
+sequential duplicate corners and sub-cardinality faces, compacts all unused
+points, and retains exact ancestry; it scales 1.12x because stable spatial
+cluster discovery and prefix planning remain sequential. Its allocations are
+110.76/110.82 MB. Three-repeat process peak RSS was 278,144/203,520 KiB for
+Modify Target and 195,328/200,320 KiB for cleanup, including fixture setup,
+Dune, hashing, and the OCaml heap. These two new rows use Dune's dev profile on
+OCaml 5.3.0, Dune 3.24.0, Linux 6.8 aarch64, and four physical cores. Reproduce with
+`PRISMEL_PDK_OPS_FILTER=fuse_modify_target_weighted_pair` or
+`PRISMEL_PDK_OPS_FILTER=fuse_cleanup_grid_pairs`, plus
+`PRISMEL_PDK_OPS_REPEATS=3 PRISMEL_BENCH_DOMAINS=1 dune exec
+tools/bench_pdk_ops.exe`, then repeat with four domains.
+
+The fixed-target rule row copies one float field, converts one integer scalar
+to a one-element CSR row, and propagates a target-only point group through the
+already selected closest-target map. It takes 131.672/56.996 ms (2.31x),
+allocates 81.407/58.096 MB, promotes at most 8,776 bytes, and has exact
+one/four-domain hash `4523923909597708345`. The Modify Target rule row reduces
+weighted float, integer mode, weight-ordered text concatenation, and strict
+majority group membership across pair components. It takes 207.744/104.389 ms
+(1.99x), allocates 212.329/164.361 MB, and has exact hash
+`2011718227915068739`; 2.70/1.82 MB promotion is retained two-character string
+output rather than per-candidate garbage. Process peak RSS was
+195,712/203,648 KiB and 203,648/200,576 KiB respectively. Reproduce with
+`PRISMEL_PDK_OPS_FILTER=fuse_target_attribute_rules` or
+`PRISMEL_PDK_OPS_FILTER=fuse_modify_target_attribute_rules` and the same
+three-repeat one/four-domain command above.
+
+The Bound rows use `PRISMEL_PDK_OPS_FILTER=bound` and three release-profile
+medians over 1,002,001 source points. Dense divided-box output scales 1.29x and
+the 512×256 sphere scales 1.27x with byte-exact geometry hashes; the cheap
+alternating-group fixture intentionally stays sequential and equal-speed after
+measurement showed domain scheduling cost more than its 12 ms work. Replacing
+UV Sphere's builder plus boxed point retrieval in every triangle with exact SoA
+planes reduced sphere allocation from 90.13 MB to 21.19 MB and median time from
+32.14 ms to 21.83 ms on one domain, with zero promoted bytes and the same hash.
+
+The Match Size rows use `PRISMEL_PDK_OPS_FILTER=match_size` and five
+release-profile medians. Their fixture has 1,002,001 points, 6,000,000 corners,
+2,000,000 triangles, and a point-normal plane. The 48.13 MB allocation is the
+required immutable position and normal output plus range metadata; it does not
+grow with fit mode or iteration. Contain scales 1.28x, selected stretch 1.23x,
+and area fit 1.52x at four domains. Area adds deterministic primitive-measure
+planes/scratch and reports 73.60 MB at four domains. All three hashes are exact
+across domain counts, and a one-repeat four-domain process containing source,
+all three cooks, and the benchmark harness peaked at 222,592 KiB RSS.
+
+The 2026-08-02 packed-array Attribute Promote tranche used three process
+medians on a 160,801-point/320,000-triangle grid. Four scalar float fields were
+promoted together from points to primitive CSR rows; the result contains
+960,000 values per field. Allocated bytes include every required output row,
+and Unique Values additionally owns one incidence scratch plane per field.
+
+| Four-field array promotion | 1 domain | 4 domains | Allocated (1d) | Exact hash |
+|---|---:|---:|---:|---:|
+| Array of All | 30.844 ms | 23.281 ms | 102.415 MB | 3195221879676730096 |
+| sorted Unique Values | 74.793 ms | 57.144 ms | 266.255 MB | 1267023885901908324 |
+
+Both hashes are identical across domain counts. Array of All is O(incidences)
+time and exact output storage. Unique Values is O(incidences × log(max row))
+time with O(incidences + destinations) scratch/output offsets; independent
+rows sort and fill in disjoint domain ranges. A separate 40,000-element
+same-owner piece regression materializes 1.6 million integer values and
+compares every CSR offset/value exactly between one and four domains.
+Using typed zero-initialized incidence planes instead of a polymorphic
+per-slot initializer reduced Array of All allocation by 37.5% and its
+one-domain median by 24.2%; Unique Values allocation fell by 18.7%, with the
+same hashes.
+
+```sh
+PRISMEL_PDK_OPS_FILTER=attribute_promote_pattern4_array_all \
+  PRISMEL_PDK_OPS_REPEATS=3 PRISMEL_BENCH_DOMAINS=1 \
+  dune exec --profile release tools/bench_pdk_ops.exe
+# Repeat with domains=4 and filter attribute_promote_pattern4_unique_values.
+```
+
+The 2026-08-03 Attribute Promote compatibility tranche retained the same grid
+and grain 2,048. Aligned multi-term rename rules are preflighted once; float
+tuple extrema preserve one contributing source index per component in a
+fixed-width integer CSR row; text/index Average is upper median, Sum is stable
+incidence-order concatenation, and other numeric modes fall back to First.
+
+| Promotion path | 1 domain | 4 domains | Allocation (1d / 4d) | Exact hash |
+|---|---:|---:|---:|---:|
+| four scalar values + indices | 57.254 ms | 48.055 ms | 62.474 / 49.269 MB | 1588512353231422235 |
+| float4 + component indices | 63.397 ms | 53.747 ms | 75.251 / 62.118 MB | 1105309542113901142 |
+| text Sum | 18.448 ms | 7.823 ms | 7.682 / 4.196 MB | 150614732931925070 |
+
+All are five-run release medians and hashes agree exactly across domain
+counts. Tuple component indexing is O(incidences × width) time and exact
+O(destinations × width) required output at width at most four. Text Sum uses a
+checked byte-count pass and one exact output string per destination, for
+O(total contributing bytes + incidences) time and O(destinations) scratch.
+Single-repeat process peaks were 101,376/107,008 KiB RSS for tuple indexing and
+55,168/57,728 KiB for text Sum on one/four domains, including fixtures and the
+benchmark harness.
+
+```sh
+PRISMEL_PDK_OPS_FILTER=attribute_promote_pattern_tuple4_indexed_shared \
+  PRISMEL_PDK_OPS_REPEATS=5 PRISMEL_PDK_BENCH_GRAIN=2048 \
+  PRISMEL_BENCH_DOMAINS=4 dune exec --profile release tools/bench_pdk_ops.exe
+PRISMEL_PDK_OPS_FILTER=attribute_promote_pattern_text_sum \
+  PRISMEL_PDK_OPS_REPEATS=5 PRISMEL_PDK_BENCH_GRAIN=2048 \
+  PRISMEL_BENCH_DOMAINS=4 dune exec --profile release tools/bench_pdk_ops.exe
+```
+
+The 2026-08-02 Unpack tranche was measured separately in the release profile
+on the same Linux 6.8 aarch64 four-core environment, OCaml 5.3.0 and Dune
+3.24.0, with twenty-one medians. The fixture materializes 4,096 arbitrarily
+translated, rotated, and non-uniformly scaled hard-normal boxes carrying a
+native edge group: 24 source points and 294,912 output point/vertex/primitive
+elements. The legacy baseline transforms every copy and then performs a
+general Merge; both transformed paths have the exact hash
+`1215420005789118105`.
+
+| Unpack path | 1 domain | 4 domains | Allocated (4d) | Promoted (4d) | Major (4d) |
+|---|---:|---:|---:|---:|---:|
+| transform-each + Merge baseline | 29.485 ms | 30.513 ms | 68.00 MB | 6.12 MB | 37.68 MB |
+| cardinality-first packed Unpack | 6.203 ms | 5.607 ms | 16.90 MB | 2.40 MB | 8.71 MB |
+| packed Unpack, transforms disabled | 1.750 ms | 1.301 ms | 6.41 MB | 0 B | 6.37 MB |
+
+The applied-transform kernel is 5.44x faster than the four-domain composition
+and reduces allocated bytes by 75.1% without changing output. A three-repeat
+four-domain process containing these rows and the dense single-instance rows
+peaked at 61,336 KiB RSS.
+The single-instance fast path structurally shares topology, groups, native edge
+groups, and unchanged attributes. On a 251,001-point/500,000-triangle grid it
+produced the same `1082183089858954941` hash as the ordinary transform while
+taking 5.307/1.790 ms on one/four domains versus 5.722/2.071 ms, with 12.06 MB
+allocated in both paths.
+Reproduce it with:
+
+```sh
+PRISMEL_PDK_OPS_FILTER=unpack PRISMEL_PDK_OPS_REPEATS=21 \
+  PRISMEL_BENCH_DOMAINS=1 dune exec --profile release tools/bench_pdk_ops.exe
+# Repeat with PRISMEL_BENCH_DOMAINS=4.
+```
+
+Additional release-profile baseline. Most rows use a
+40,401-point/80,000-triangle grid and five medians; the refreshed 2026-08-03
+Clip rows use a genuine 1,002,001-point/two-million-triangle grid and three
+medians, while the filled sphere row uses its listed 6,050 points:
+
+| Operation | 1 domain | 4 domains | Allocated (1d) | Exact hash |
+|---|---:|---:|---:|---:|
+| packed topology index | 11.1 ms | 11.0 ms | 36.2 MB | 1337935550237066879 |
+| point→primitive float3 promote | 4.28 ms | 1.89 ms | 5.8 MB | 3859760677753242117 |
+| mirror | 18.3 ms | 17.8 ms | 14.9 MB | 2688318757016851213 |
+| exact fuse of duplicated pair | 12.6 ms | 11.6 ms | 27.7 MB | 555257625938432688 |
+| packed spatial index | 9.20 ms | 9.20 ms | 0.32 MB | 3559781733544285073 |
+| inverse-distance attribute transfer (k=4) | 98.0 ms | 51.1 ms | 4.20 MB | 2242929486872171700 |
+| packed triangle surface index | 55.1 ms | 55.5 ms | 164.1 MB | 3473727463466223475 |
+| closest-surface attribute transfer | 89.2 ms | 70.7 ms | 174.1 MB | 1224910455216365276 |
+| duplicate attributed grid, 8 added copies | 134.93 ms | 24.85 ms | 41.26 MB | 2456038152415910946 |
+| duplicate alternating primitives + 8 output groups | 42.44 ms | 29.03 ms | 51.61 MB | 2341744684409956267 |
+| sort 80,000 primitives by center X | 10.9 ms | 9.95 ms | 8.75 MB | 1612032759116215344 |
+| delete half + compact orphan points | 3.21 ms | 3.22 ms | 6.98 MB | 3918085630900232532 |
+| delete half, retain/share point payload | 3.32 ms | 3.35 ms | 3.89 MB | 2417081874446603328 |
+| delete left points + destroy touched + compact | 3.88 ms | 3.60 ms | 6.98 MB | 282286150904996980 |
+| heal sparse quad corners + attributes | 35.7 ms | 27.8 ms | 73.2 MB | 2052081519948109075 |
+| bounding box | 0.126 ms | 0.133 ms | 12.5 KB | 3938091890134867962 |
+| match size (contain) | 0.755 ms | 0.552 ms | 1.95 MB | 1220539449090061276 |
+| clip half million-point grid | 240.945 ms | 174.607 ms | 532.942 MB | 1457682456804818398 |
+| clip half grid + point/vertex/primitive attributes | 266.471 ms | 196.192 ms | 632.868 MB | 503833327352904549 |
+| clip custom float4 coordinates + distance + clipped edges | 541.924 ms | 420.652 ms | 1119.801 MB | 3228595801765344543 |
+| clip 6,050-point sphere, both sides + split + fill | 3.545 ms | 3.534 ms | 14.005 MB | 2678645509349667123 |
+| Loop subdivision + attributes | 67.794 ms | 45.713 ms | 109.878 MB | 858477177421416506 |
+| Catmull-Clark subdivision + attributes | 101.949 ms | 64.640 ms | 176.628 MB | 376865061323882225 |
+| Catmull-Clark + dense semi-sharp creases | 111.181 ms | 86.596 ms | 245.165 MB | 2240368469655108917 |
+| Catmull-Clark + dense second-input crease attributes | 141.076 ms | 96.156 ms | 256.813 MB | 2240368469655108917 |
+| Catmull-Clark + dense second-input creases/result group | 149.133 ms | 99.783 ms | 262.722 MB | 512181311574988744 |
+| Catmull-Clark + sparse 200-edge second-input override | 96.761 ms | 71.249 ms | 214.329 MB | 2384261217015432874 |
+| Catmull-Clark + sparse subdivision holes | 110.696 ms | 69.177 ms | 177.146 MB | 316117588020776784 |
+| Catmull-Clark + 50% subdivision holes | 89.885 ms | 55.928 ms | 146.923 MB | 2308137223929356764 |
+| Catmull-Clark + 50% retained hole faces | 103.292 ms | 65.256 ms | 176.658 MB | 2631021000821162415 |
+| bilinear subdivision | 36.949 ms | 28.280 ms | 87.415 MB | 683821733545155753 |
+| bilinear local contiguous half | 45.092 ms | 42.126 ms | 90.294 MB | 2012308210456171798 |
+| bilinear local alternating faces | 78.368 ms | 69.726 ms | 180.648 MB | 518621518380473251 |
+| Catmull-Clark local contiguous half | 60.233 ms | 37.981 ms | 122.303 MB | 1738102442901827305 |
+| Catmull-Clark local Pull/No Edge Division | 71.236 ms | 44.817 ms | 136.993 MB | 629813708611520190 |
+| Catmull-Clark local Stitch/No Edge Division | 79.003 ms | 71.801 ms | 155.226 MB | 3137573248193083737 |
+| Catmull-Clark local Pull/Divide Edges (bias 0.75) | 95.597 ms | 85.064 ms | 187.733 MB | 3697698291297517219 |
+| Catmull-Clark local Stitch/Divide Edges | 92.528 ms | 84.267 ms | 187.743 MB | 4580811677866533301 |
+| Catmull-Clark local Pull/Triangulate (bias 0.75) | 105.583 ms | 99.790 ms | 212.563 MB | 1771144634972156419 |
+| Catmull-Clark local Stitch/Triangulate | 110.261 ms | 94.770 ms | 211.425 MB | 3868299086784368101 |
+| Catmull-Clark local Stitch/Divide, consistent | 80.425 ms | 76.341 ms | 160.110 MB | 2807886286253650657 |
+| Catmull-Clark local Stitch/Triangulate, consistent | 91.859 ms | 84.722 ms | 183.091 MB | 249501161833618177 |
+| Catmull-Clark local Pull/Triangulate, consistent | 107.589 ms | 98.021 ms | 211.353 MB | 1351686240886644603 |
+
+The 2026-08-02 Attribute Transfer rework was measured again with the same
+release profile, machine, five medians, 40,401-point/80,000-triangle source,
+and stable exact hashes. Vertex destinations contain 240,000 corners. The quad
+index fixture contains 240,000 quads and emits 480,000 internal triangles.
+
+| Transfer/index operation | 1 domain | 4 domains | Allocated (1d) | Exact hash |
+|---|---:|---:|---:|---:|
+| inverse-distance point transfer (k=4) | 38.721 ms | 18.063 ms | 4.209 MB | 2242929486872171700 |
+| Hart-kernel point transfer (k=4) | 37.953 ms | 19.466 ms | 4.209 MB | 2242929486872171700 |
+| inverse-distance primitive-barycenter transfer (k=4) | 132.270 ms | 55.041 ms | 10.885 MB | 1679080687938051146 |
+| triangle-source surface index | 39.081 ms | 18.383 ms | 21.184 MB | 3473727463466223475 |
+| quad-source surface index | 262.804 ms | 112.873 ms | 154.497 MB | 1266878950770378852 |
+| mixed surface transfer → points | 74.416 ms | 35.478 ms | 31.209 MB | 1224910455216365276 |
+| vertex-only surface transfer → vertices | 195.056 ms | 71.208 ms | 69.189 MB | 2960979989216765941 |
+| mixed surface transfer → vertices | 210.519 ms | 77.521 ms | 80.711 MB | 3018446810536414038 |
+| mixed surface transfer → primitive barycenters | 104.278 ms | 46.787 ms | 42.950 MB | 2391410054704090816 |
+
+The partial source-vertex follow-up used three process medians on the same
+40,401-point/80,000-triangle release fixture. Selecting the first half of its
+packed corners with the default all-corners rule retained 40,000 triangles.
+
+| Vertex-restricted operation | 1 domain | 4 domains | Allocated (1d) | Exact hash |
+|---|---:|---:|---:|---:|
+| surface index construction | 20.070 ms | 13.823 ms | 12.633 MB | 3187255119519784648 |
+| mixed surface transfer → points | 39.459 ms | 29.834 ms | 22.660 MB | 4528112470654217908 |
+
+Both hashes are identical across domain counts. The selection pass reads the
+packed vertex bitset directly, writes one byte per candidate triangle plus one
+count per stable range, prefix-sums ranges sequentially, and fills exact-size
+triangle planes into disjoint slices. Its auxiliary storage is O(candidate
+triangles + ranges), construction retains the existing O(t log t) BVH bound,
+and transfer queries retain expected O(q log t) time with O(q) output storage.
+
+Reproduce the isolated transfer rows without constructing unrelated fixtures:
+
+```sh
+PRISMEL_PDK_OPS_FILTER=attribute_transfer_inverse4 \
+  PRISMEL_PDK_OPS_REPEATS=5 PRISMEL_BENCH_DOMAINS=1 \
+  dune exec --profile release tools/bench_pdk_ops.exe
+# Repeat with domains=4 and with filters attribute_transfer_kernel4_hart,
+# attribute_transfer_primitives,
+# attribute_transfer_vertices, attribute_transfer_surface,
+# attribute_transfer_surface_vertex_restricted, surface_index, or
+# surface_index_vertex_restricted.
+```
+
+The filtered harness reports the actual 40,401-point input in its CSV. A
+one-repeat Hart-kernel process peaked at 74,840/56,748 KiB RSS on one/four
+domains; the one-domain invocation also rebuilt the release executable, while
+the four-domain invocation reused it. A
+three-repeat four-domain vertex-transfer run under `/usr/bin/time -v` peaked at
+57,656 KiB RSS; the isolated process retained no unrelated million-point
+benchmark fixtures.
+
+Spatial-index and surface-index construction now split deterministic disjoint
+subtrees above the configured grain. Attribute-transfer queries and payload
+interpolation, mirror fills, fuse reductions/remaps, point compaction, and
+Match Size also write disjoint output ranges in parallel.
+The hashes verify exact ordering and payload equality across domain counts.
+
+The 2026-08-02 blend/multi-owner follow-up used the same release-profile
+40,401-point fixture and seven process medians:
+
+| Transfer operation | 1 domain | 4 domains | Allocated (1d) | Exact hash |
+|---|---:|---:|---:|---:|
+| inverse-distance k=4, zero blend | 40.883 ms | 18.553 ms | 4.208 MB | 2242929486872171700 |
+| inverse-distance k=4, smooth blend | 65.578 ms | 29.885 ms | 5.826 MB | 3699952128852573101 |
+| four owner-specific calls | 350.280 ms | 138.934 ms | 79.806 MB | 3363025554004648849 |
+| one `transfer_all` call | 350.430 ms | 140.190 ms | 79.806 MB | 3363025554004648849 |
+
+The pre-change zero-blend medians were 40.556 ms/19.067 ms and 4.206 MB,
+so the shared distance-window and batch-commit path changed one-domain time by
++0.8%, four-domain time by -2.7%, and added only 1,912 fixed bytes while
+preserving the exact hash. Blended transfer scales 2.19x from one to four
+domains. The multi-owner wrapper is within 1% of the identical explicit
+sequence and adds only 480 bytes while replacing four graph-level nodes with
+one. A separate
+4,096-detail-attribute fixture compares the former repeated immutable install
+with the batch commit: 61.910 ms/67.879 MB versus 0.566 ms/1.476 MB, a 109x
+wall-time improvement and 97.8% allocation reduction with hash
+2630023133807264573. The four-domain multi-owner process peaked at 69,504 KiB
+RSS under `/usr/bin/time -v`.
+
+```sh
+PRISMEL_PDK_OPS_FILTER=attribute_transfer_inverse4_blend \
+  PRISMEL_BENCH_DOMAINS=4 dune exec --profile release tools/bench_pdk_ops.exe
+PRISMEL_PDK_OPS_FILTER=attribute_transfer_all \
+  PRISMEL_BENCH_DOMAINS=4 dune exec --profile release tools/bench_pdk_ops.exe
+PRISMEL_PDK_OPS_FILTER=attribute_transfer_detail \
+  PRISMEL_BENCH_DOMAINS=1 dune exec --profile release tools/bench_pdk_ops.exe
+```
+
+The same date's million-point Attribute Copy fixture copied four point fields
+(float, int, float2, and float3) with exact hashes. Materializing those planes
+took 12.302 ms and allocated 56.003 MB. The identity planner instead shared
+their immutable storage in 0.017 ms with 7.0 KB allocated. A genuine
+quarter-source cyclic copy took 18.626 ms on one domain and 11.427 ms on four
+domains, with exact output hashes. The one-domain filtered process peaked at
+166,320 KiB RSS including both million-point fixtures and all source payloads.
+
+```sh
+PRISMEL_PDK_OPS_FILTER=attribute_copy PRISMEL_PDK_OPS_REPEATS=3 \
+  PRISMEL_BENCH_DOMAINS=1 dune exec --profile release tools/bench_pdk_ops.exe
+# Repeat with PRISMEL_BENCH_DOMAINS=4.
+```
+
+The million-point Attribute Combine fixture layers four float4 fields and masks
+with the same exact output hash for fused/sequential and one/four-domain runs.
+
+| Combine operation | 1 domain | 4 domains | Allocated (1d) | Exact hash |
+|---|---:|---:|---:|---:|
+| four sequential one-layer commits | 235.223 ms | 111.971 ms | 128.022 MB | 1955258015676273827 |
+| one fused four-layer traversal | 171.595 ms | 62.474 ms | 32.008 MB | 1955258015676273827 |
+| integer-key matched second input | 59.079 ms | 36.377 ms | 32.784 MB | 3241778002848886381 |
+
+Fusion removes three destination materializations, cuts allocation by 75%, and
+scales 2.75x from one to four domains. The matched case includes one exact-size
+output, destination map, and bounded-load packed open-address table; replacing
+the first boxed hash table reduced measured allocation from 72.395 MB to
+32.784 MB. The full filtered one-domain process, including all million-point
+source fixtures, peaked at 291,460 KiB RSS.
+
+```sh
+PRISMEL_PDK_OPS_FILTER=attribute_combine PRISMEL_PDK_OPS_REPEATS=5 \
+  PRISMEL_BENCH_DOMAINS=1 dune exec --profile release tools/bench_pdk_ops.exe
+# Repeat with PRISMEL_BENCH_DOMAINS=4.
+```
+
+The million-destination Attribute Interpolate fixture samples canonical `P`
+plus float, int, text, float2, float3, and float4 point fields from one quad.
+Seven independent cooks and the fused primitive cook produce exact hash
+4556032010648822215 on one and four domains. A second exact hash,
+1746913426898666179, covers computed point-number/weight CSR rows and a second
+cook driven exclusively by those rows.
+
+| Interpolate operation | 1 domain | 4 domains | Allocated (1d) |
+|---|---:|---:|---:|
+| seven sequential field cooks | 321.172 ms | 126.213 ms | 120.039 MB |
+| one fused primitive traversal | 192.449 ms | 75.214 ms | 120.013 MB |
+| fused primitive plus computed CSR rows | 241.901 ms | 111.053 ms | 208.015 MB |
+| explicit point-number/weight traversal | 255.502 ms | 105.453 ms | 120.014 MB |
+| weighted traversal plus one matched point group | 279.323 ms | 110.786 ms | 120.142 MB |
+
+Fusion avoids six repeated driver/topology/weight traversals and metadata
+commits while retaining only the exact final payload storage. The computed
+case necessarily allocates two CSR offsets planes and four-number/four-weight
+rows in addition to field output. The weighted field cook itself allocates only
+the exact 120 MB field payload. Removing destination-local iterator closures
+reduced its measured allocation from 560.014 MB to 120.014 MB and wall time
+from 326.904 ms to 255.502 ms on one domain. The weighted path scales 2.42x at
+four domains and preserves the exact computed-mode hash.
+One matched group adds only its exact 125,000-byte membership bitset plus
+metadata. The group-inclusive hash is 3149981480280984341 on both domain
+counts; byte-owned parallel output reduces its incremental one-domain cost of
+24.508 ms to 3.067 ms at four domains.
+
+```sh
+PRISMEL_PDK_OPS_FILTER=attribute_interpolate PRISMEL_PDK_OPS_REPEATS=3 \
+  PRISMEL_BENCH_DOMAINS=1 dune exec --profile release tools/bench_pdk_ops.exe
+# Repeat with PRISMEL_BENCH_DOMAINS=4.
+```
+
+The closest-surface baseline uses the same 80,000-triangle grid, transfers
+point `Cd`, vertex `uv`, primitive `density`, and a distance plane to 40,401
+offset target points through all-element source/target groups and a smoothstep
+blend band. Relative to the first correct tuple-heavy implementation,
+packed bounds, exact balanced-node allocation, reusable polygon-triangulation
+scratch, range-local query scratch, and non-escaping sequential recursion
+reduced surface-index construction from 295.7 ms/620.4 MB to 39.081 ms/21.184
+MB and complete point transfer from 348.1 ms/733.3 MB to 74.416 ms/31.209 MB
+on one domain. Four domains retain the exact geometry hashes and reduce those
+operations to 18.383 ms and 35.478 ms. Global active-axis selection in the
+point index reduced the planar k=4 point-transfer baseline from 98.0/51.1 ms;
+the current in-place coefficient path takes 38.721/18.063 ms on one/four
+domains, and the Hart kernel takes 37.953/19.466 ms. These are five-median
+measurements from the same release build; they establish measured production
+baselines, not timing thresholds.
+
+Clip accepts canonical `P` or scalar/int/float2/float3/float4 point coordinates;
+only the first three components participate and missing components are zero.
+Its finite distance translates the plane along the robustly normalized normal,
+and its native clipped-edge output replaces a same-named source edge group.
+Polygon-only unfilled cooks count source/side results in parallel, prefix them
+in stable order, allocate exact output plans, and fill disjoint topology slots.
+This reduced the million-point attributed case from 321.898/285.011 ms to
+266.471/196.192 ms on one/four domains and from 859.148/859.384 MB to
+632.868/556.435 MB, with unchanged hashes. Curves, filled caps, and degenerate
+repeated-corner polygons use the general builder. Cap tracing is sequential;
+output and auxiliary storage are linear except for the explicit pairwise
+containment check among cap loops.
+
+Subdivision topology indexing, manifold/fan validation, exact stencil-plan
+construction, and stable child topology emission are sequential. Position and
+each typed numeric payload plane evaluate into disjoint ranges in parallel.
+The measured attribute-heavy Catmull-Clark fixture improves 1.32× at four
+domains and the dense semi-sharp fixture 1.39×; hashes include topology,
+attributes, groups, and ordering and are exact across domain counts. One level
+is O(points + edges + vertices + payload) time/storage. Iterated output grows
+by the scheme's documented child cardinality and each completed level becomes
+unreachable before the next once no caller retains it. Local refinement adds
+linear selected/unselected extraction, fan splitting, and stable concatenation.
+On the 40,401-point/80,000-triangle fixture, a contiguous half selection is
+45.092/42.126 ms and a boundary-heavy alternating selection is 78.368/69.726
+ms at one/four domains. Their exact hashes match; stable topology partitioning
+and fan planning limit scaling despite parallel payload fills.
+On the same contiguous selection, Catmull-Clark Do Not Close is 60.233/37.981
+ms, Pull Closed/No Edge Division is 71.236/44.817 ms, and Stitch/No Edge
+Division is 79.003/71.801 ms. Exact hashes match across domain counts. Pull
+adds 14.690 MB and 11.003 ms to the one-domain median without constructing a
+second refined topology index; Stitch adds exact bridge topology and payload
+remapping for 32.923 MB and 18.770 ms above Do Not Close. Folding bridge
+cardinality and ancestry into the initial combine eliminated a second geometry
+materialization, cutting Stitch from 84.637 ms/167.561 MB to
+79.003 ms/155.226 MB with the same hash. Pull/Divide Edges measures
+95.597/85.064 ms and 187.733 MB at one domain; Stitch/Divide Edges measures
+92.528/84.267 ms and 187.743 MB. Both divided paths build the coarse chain
+directly from source ancestry and fold explicit point welding into final
+packed assembly; their one/four-domain hashes are exact. Pull/Triangulate is
+105.583/99.790 ms and Stitch/Triangulate is 110.261/94.770 ms, with
+212.563/211.425 MB allocated on one domain and exact hashes
+`1771144634972156419`/`3868299086784368101` across domain counts.
+Consistent Stitch/Divide is 80.425/76.341 ms with 160.110 MB allocated on one
+domain; consistent Stitch/Triangulate is 91.859/84.722 ms with 183.091 MB.
+Their exact hashes, `2807886286253650657` and `249501161833618177`, match
+across domain counts. Avoiding coincidence maps and geometric ear decisions
+makes the stronger stability contract cheaper on this fixture despite
+retaining every topology-prescribed bridge face. Consistent Pull/Triangulate
+is 107.589/98.021 ms with 211.353 MB allocated on one domain and exact hash
+`1351686240886644603`.
+
+Deletion planning is stable and sequential; position/attribute/group payload
+copies use disjoint parallel ranges. Attribute-heavy quad healing improves
+1.28× at four domains. Removing a per-primitive tuple from the measured
+planning loop cut that fixture from 45.0 ms/119.4 MB to 35.7 ms/73.2 MB on one
+domain and from 32.8 ms/79.1 MB to 27.8 ms/49.7 MB on four domains. Primitive
+deletion without compaction shares unchanged point payloads and allocates only
+3.89 MB for the retained topology/owner maps.
+
+The merge topology fill was the measured bottleneck: the same local benchmark
+fell from 0.903 s to 0.049 s at four domains after switching only its disjoint
+index/offset adjustment to packed parallel ranges. Output hashes remained
+identical. A three-repeat first-cook run peaked at 181,892 KiB RSS.
+The extrusion fixture initially allocated 88.1 MB and took 19.8 ms at four
+domains; direct cardinality-indexed writes and disjoint primitive ranges cut
+that to 46.6 MB and 5.7 ms with the same output hash.
+
+Box treats positive axis divisions `(dx, dy, dz)` as one integer lattice and
+maps its six outward-wound faces into that lattice in stable right, left, top,
+bottom, front, back order. Face-local output has
+`2*((dx+1)*(dy+1) + (dy+1)*(dz+1) + (dz+1)*(dx+1))` points. Consolidated
+surface output has `(dx+1)*(dy+1)*(dz+1) -
+(dx-1)*(dy-1)*(dz-1)` boundary points, while the volume-lattice mode retains
+the complete first product. The surface has
+`2*(dx*dy + dy*dz + dz*dx)` cells: quads emit one primitive/four corners per
+cell and triangles emit two primitives/six corners. Cardinalities are checked
+before allocation.
+
+Position, normal, UV, topology, offset, and face-group payloads are exact-sized.
+Integer-coordinate helpers compute transforms and attributes inside their
+single call sites, avoiding boxed float arguments on non-Flambda OCaml. Stable
+point/cell ranges write disjoint slices; only the six face ranges and bounded
+error flags are auxiliary. Smooth welded point normals are the normalized sum
+of incident orthogonal face normals, so face interiors remain flat, edges
+average two faces, and corners average three. Work is O(points + vertices +
+primitives), auxiliary storage beyond published output is O(dx + dy + dz +
+parallel ranges), and one/four-domain geometry is byte-identical.
+
+The Box-specific benchmark command is:
+
+```sh
+PRISMEL_PDK_OPS_FILTER=box_generator PRISMEL_PDK_OPS_REPEATS=5 \
+  PRISMEL_BENCH_DOMAINS=1 dune exec --profile=release tools/bench_pdk_ops.exe
+PRISMEL_PDK_OPS_FILTER=box_generator PRISMEL_PDK_OPS_REPEATS=5 \
+  PRISMEL_BENCH_DOMAINS=4 dune exec --profile=release tools/bench_pdk_ops.exe
+```
+
+On OCaml 5.3.0/Dune 3.24.0, Linux 6.8 aarch64, four Apple CPU cores, and grain
+16,384, five-run release medians were 28.469/19.493 ms for 523,606 face-local
+points and 1,040,000 triangles; 9.142/4.242 ms for 520,002 welded surface
+points with smooth point normals; 50.498/32.698 ms for the same welded points
+and 520,000 quads with hard vertex normals/UV/groups; and 8.939/3.592 ms for a
+1,030,301-point volume lattice. Exact hashes respectively remain
+`3248985372702655547`, `1256429452418273907`, `825093362255214193`, and
+`960043793403492254` across domain counts. Reported one-domain allocations are
+59.484, 24.989, 117.422, and 24.741 MB, within bounded control data of their
+required packed output. The first correct generic triangle, quad, and lattice
+loops allocated 284.592, 379.480, and 156.123 MB by boxing coordinate tuples
+and per-cell closures. The compatible 10,000-box batch retains hash
+`2906169571501514570`, improves from 6.660/12.170 ms to 4.770/7.102 ms, and
+reduces allocation from 67.840 MB to 34.480 MB; it deliberately remains
+sequential because each 24-point box is below parallel dispatch grain. The
+isolated final four-domain filtered process peaked at 126,188 KiB RSS,
+including all five fixtures, hashing, Dune, and the OCaml heap.
+
+UV Sphere treats `segments = s >= 3` as the longitude count and `rings = r >=
+2` as the number of pole-to-pole latitude bands. There are `s*(r-1)` interior
+points. Modes containing poles add two shared points or `2*s` unique
+per-meridian points; row-only output omits unused poles. Regular and alternating
+triangles emit `2*s*(r-1)` primitives and three times as many corners. Quad
+output emits `s*r` primitives and `4*s*r` corners with logical quad poles, or
+`4*s*(r-2) + 6*s` corners with triangular poles. Rows emit `r-1` open curves
+and `s*(r-1)` corners; columns emit `s` open curves and `s*(r+1)` corners; the
+combined mode is their exact sum. Every product and offset is checked before
+allocation.
+
+Latitude and longitude sine/cosine tables are O(r+s), computed once in stable
+parallel ranges, and shared by position and normal generation. The compatible
+triangle path retains its historical point/primitive order and exact normal
+bits while replacing per-point latitude trigonometry and per-triangle geometric
+winding classification with fixed outward index patterns. Ellipsoid normals
+use inverse-radius gradient weights scaled by the minimum radius; a logarithmic
+fallback covers finite anisotropy whose ratios underflow. Surface UVs are
+vertex-owned so the longitude seam never crosses a primitive. Position,
+normal, UV, topology, offset, and kind planes are exact-sized and filled in
+disjoint stable ranges. Work/output are O(s*r), auxiliary storage beyond
+published output is O(s+r+parallel ranges), and one/four-domain output is
+byte-identical.
+
+When triangular poles are disabled, each pole band intentionally remains a
+four-corner polygon with one coincident adjacent edge. The shared triangulation
+boundary recognizes exactly one such collapsed edge, verifies that the three
+remaining positions have non-zero scale-normalized area, emits one triangle,
+and remaps vertex attributes from the surviving corners. Arbitrary degenerate
+or non-simple polygons continue to fail rather than being silently repaired.
+
+The UV Sphere benchmark command is:
+
+```sh
+PRISMEL_PDK_OPS_FILTER=uv_sphere_generator PRISMEL_PDK_OPS_REPEATS=5 \
+  PRISMEL_BENCH_DOMAINS=1 dune exec --profile=release tools/bench_pdk_ops.exe
+PRISMEL_PDK_OPS_FILTER=uv_sphere_generator PRISMEL_PDK_OPS_REPEATS=5 \
+  PRISMEL_BENCH_DOMAINS=4 dune exec --profile=release tools/bench_pdk_ops.exe
+```
+
+On OCaml 5.3.0/Dune 3.24.0, Linux 6.8 aarch64, four Apple CPU cores, and grain
+16,384, five-run release medians and one-domain allocations were:
+
+| UV Sphere fixture | 1 domain | 4 domains | Allocated (1d) | Exact hash |
+|---|---:|---:|---:|---:|
+| 1,000,002-point compatible triangles | 66.733 ms | 40.679 ms | 114.044 MB | 1383169697053155230 |
+| 502,000-point alternating transformed ellipsoid, vertex N/UV | 86.883 ms | 55.808 ms | 165.079 MB | 2492680085440154034 |
+| 500,002-point logical-pole quads, point N/UV | 35.423 ms | 21.739 ms | 76.633 MB | 2746056298211748017 |
+| 1,000,002-point rows and columns, vertex N/UV | 52.622 ms | 31.680 ms | 120.259 MB | 561415338382752283 |
+| 1,004,000 unique points with point N/UV | 27.875 ms | 16.235 ms | 64.300 MB | 3189576027514060009 |
+
+Every allocation is the published packed payload plus bounded tables/range
+state. Before the compatible-path rewrite, the first fixture took
+87.170/47.487 ms, allocated 114.002 MB, and had the same exact hash. The final
+five-fixture four-domain process peaked at 173,640 KiB RSS including Dune,
+hashing, and the OCaml heap.
+
+Torus treats `rows = r` as U samples along the major sweep and `columns = c`
+as V samples around the cross-section. A wrapped axis has one cell per sample;
+an open axis includes both requested angle endpoints and has one fewer cell.
+Writing `u = r` or `v = c` at a wrapped topology seam reuses point zero while
+retaining vertex UV 1, so no polygon crosses the normalized seam. The point
+count is exactly `r*c`. With `ur = r` or `r-1` and `vc = c` or `c-1`, surface
+output has `ur*vc` cells: quads emit one primitive/four corners per cell and
+triangle modes emit two primitives/six corners. Row output has `c` U curves
+and `r*c` corners; column output has `r` V curves and `r*c` corners; combined
+output is their sum.
+
+For open U, U caps add two polygon primitives and `2*c` corners. For open V,
+the V closure adds `ur` quads or `2*ur` triangles and four or six times `ur`
+corners. Cap requests are rejected when their axis wraps, when connectivity is
+not polygonal, or when a requested boundary is geometrically degenerate.
+Signed U/V ranges are supported in every combination: surface winding is
+reversed exactly when one parameter direction descends, and cap order/normals
+follow the signed sweep. Smooth point normals retain the toroidal field; vertex
+normals make U/V caps hard.
+
+Sine, cosine, and normalized-parameter tables require O(r+c) auxiliary
+storage. Position, point-normal, topology, vertex-normal, UV, offset, and kind
+planes are exact-sized, and all dense fills use stable disjoint ranges with
+cancellation polling. Work/output are O(r*c), auxiliary storage beyond the
+published result is O(r+c+parallel ranges), and one/four-domain output is
+byte-identical. No per-point/corner float boxes remain in the measured paths.
+
+The Torus benchmark commands are:
+
+```sh
+PRISMEL_PDK_OPS_FILTER=torus_generator PRISMEL_PDK_OPS_REPEATS=5 \
+  PRISMEL_BENCH_DOMAINS=1 dune exec --profile=release tools/bench_pdk_ops.exe
+PRISMEL_PDK_OPS_FILTER=torus_generator PRISMEL_PDK_OPS_REPEATS=5 \
+  PRISMEL_BENCH_DOMAINS=4 dune exec --profile=release tools/bench_pdk_ops.exe
+```
+
+On OCaml 5.3.0/Dune 3.24.0, Linux 6.8 aarch64, four Apple CPU cores, and grain
+16,384, five-run release medians and one-domain allocations were:
+
+| Torus fixture | 1 domain | 4 domains | Allocated (1d) | Exact hash |
+|---|---:|---:|---:|---:|
+| 1,000,000-point compatible triangles | 57.928 ms | 38.153 ms | 114.085 MB | 3747492228246284738 |
+| 500,000-point transformed quads, vertex N/UV | 56.990 ms | 39.013 ms | 112.568 MB | 2980019896878501511 |
+| 500,000-point signed partial alternating surface with U/V caps, vertex N/UV | 72.703 ms | 50.931 ms | 164.960 MB | 2803938180915058581 |
+| 1,000,000-point rows and columns, vertex N/UV | 45.638 ms | 28.880 ms | 120.103 MB | 2100000711956294262 |
+| 1,000,000 points with point N/UV | 24.623 ms | 15.957 ms | 64.084 MB | 1726628037830314731 |
+
+The output-equivalent sequential reference took 174.728/182.901 ms, allocated
+210.002 MB, and retained the compatible hash. The final three-repeat
+four-domain process peaked at 173,548 KiB. Prismel's polygon subset was audited
+against the current [SideFX Torus SOP](https://www.sidefx.com/docs/houdini/nodes/sop/torus.html):
+native analytic, single Mesh/NURBS/Bezier, spline-order, and rational
+perfect/imperfect modes remain explicit omissions rather than placeholders.
+
+Tube treats `rows = r` as axial samples and `columns = c` as radial samples.
+Each nonzero-radius row owns `c` points; a zero-radius end owns one shared apex.
+When caps do not consolidate corner points, each capped nonzero end adds `c`
+private points. For polygon output, let `t` be the number of apex-adjacent
+bands (zero or one), `b = r - 1 - t`, and `k` the number of capped nonzero
+ends. Quad mode emits `(b+t)*c+k` primitives and
+`(4*b+3*t+k)*c` corners. Either triangle mode emits
+`(2*b+t)*c+k` primitives and `(6*b+3*t+k)*c` corners. Thus a cone tip is a
+ring of real triangles sharing one point, never a ring of coincident points or
+degenerate quads. Longitudinal rows use `c` open curves and `r*c` corners;
+radial columns use one closed curve and `c` corners for every nonzero row.
+
+Side normals use the analytic frustum gradient and remain smooth across the
+radial seam. Vertex normals keep cap corners hard; independent cap points also
+give point-normal output a hard rim. Side UVs preserve `u = 1` at the topology
+seam without duplicating positions, while cap UVs are planar. Position,
+topology, normal, UV, and group planes are exact-sized. Radius/height and
+trigonometric tables require O(r+c) auxiliary storage; generation is O(r*c)
+time and output, with stable disjoint band fills, cancellation polling, and
+byte-identical one/four-domain results.
+
+The Tube benchmark commands are:
+
+```sh
+PRISMEL_PDK_OPS_FILTER=tube_generator PRISMEL_PDK_OPS_REPEATS=5 \
+  PRISMEL_BENCH_DOMAINS=1 dune exec --profile=release tools/bench_pdk_ops.exe
+PRISMEL_PDK_OPS_FILTER=tube_generator PRISMEL_PDK_OPS_REPEATS=5 \
+  PRISMEL_BENCH_DOMAINS=4 dune exec --profile=release tools/bench_pdk_ops.exe
+```
+
+On OCaml 5.3.0/Dune 3.24.0, Linux 6.8 aarch64, four Apple CPU cores, and grain
+16,384, five-run release medians and one-domain allocations were:
+
+| Tube fixture | 1 domain | 4 domains | Allocated (1d) | Exact hash |
+|---|---:|---:|---:|---:|
+| 1,000,000-point open quads | 64.933 ms | 43.582 ms | 152.972 MB | 59682261814057068 |
+| 500,000-point capped frustum, vertex N/UV | 53.969 ms | 29.205 ms | 112.578 MB | 2924452240935117849 |
+| 499,501-point capped shared-apex cone, vertex N/UV | 67.520 ms | 48.129 ms | 164.985 MB | 2669512725917615264 |
+| 1,000,000-point rows and columns, vertex N/UV | 43.058 ms | 23.640 ms | 120.079 MB | 3051396544248793262 |
+| 1,000,000 points with point N/UV | 23.290 ms | 17.983 ms | 64.060 MB | 1765457354861488267 |
+
+The prior general Sweep-based million-point cylinder baseline took
+65.925/64.522 ms and allocated 201.021 MB. The dedicated source retains the
+same output cardinality while cutting allocation 23.9%, matches its sequential
+latency, and is 1.48x faster at four domains. The final three-repeat
+four-domain process peaked at 173,652 KiB. Prismel's polygon subset was audited
+against the current [SideFX Tube SOP](https://www.sidefx.com/docs/houdini/nodes/sop/tube.html):
+native analytic Primitive and single Mesh/NURBS/Bezier families, spline U/V
+orders and wrap, and rational perfect/imperfect modes remain explicit
+omissions.
+
+Platonic Solids stores one normalized immutable coordinate/topology/face-normal
+table for each regular polyhedron. Tetrahedron, cube, octahedron, icosahedron,
+and dodecahedron retain their natural three-, four-, or five-corner faces. The
+soccer ball is the exact edge-third truncation of the icosahedron: its 60
+directed-edge points form twelve pentagons followed by twenty hexagons, with 90
+two-manifold edges, black/white primitive `Cd`, and optional arity groups.
+Every point lies at the requested circumsphere radius. Point normals are radial;
+vertex normals are constant per polygon and preserve hard edges through terminal
+N-gon triangulation. `Geom.Polyhedra3` calls this kernel and no longer owns a
+second vertex/face implementation.
+
+All cardinalities are fixed and bounded by 60 points, 180 corners, and 32
+primitives. Cook time, output, and auxiliary memory are therefore O(1).
+Parallel dispatch is intentionally skipped because its setup exceeds the whole
+solid generation cost; outputs remain byte-identical under one- and four-domain
+sketch contexts.
+
+The Platonic benchmark commands are:
+
+```sh
+PRISMEL_PDK_OPS_FILTER=platonic_generator_reference \
+  PRISMEL_PDK_OPS_REPEATS=5 PRISMEL_BENCH_DOMAINS=1 \
+  dune exec --profile=release tools/bench_pdk_ops.exe
+PRISMEL_PDK_OPS_FILTER=platonic_generator PRISMEL_PDK_OPS_REPEATS=5 \
+  PRISMEL_BENCH_DOMAINS=1 dune exec --profile=release tools/bench_pdk_ops.exe
+```
+
+On OCaml 5.3.0/Dune 3.24.0, Linux 6.8 aarch64, four Apple CPU cores, the
+100,000-call icosahedron batch (1.2 million generated points) improved from
+83.603 ms and 696.800 MB to 23.459 ms and 266.400 MB with exact hash
+`108589944924191245`: 3.56x faster and 61.8% less allocation. A 20,000-call
+transformed soccer-ball batch with vertex normals, primitive color, and face
+groups took 49.815 ms and 292.640 MB with hash `4440798644007023453`. The final
+three-repeat process peaked at 54,496 KiB. The public subset was audited against
+the current [SideFX Platonic Solids SOP](https://www.sidefx.com/docs/houdini/nodes/sop/platonic.html):
+the mathematical solids and soccer ball are implemented; Houdini's bundled
+fixed Utah-teapot test asset is an explicit non-procedural omission.
+
+Revolve consumes selected open or closed polygon curves and assigns one
+deterministic output lattice to each profile. A full revolution has `d`
+angular samples and wrapped edges; an open arc has `d+1` samples and includes
+both requested signed-angle endpoints exactly. Points, angular rows, profile
+columns, both curve families, quads, and the regular/reverse/checkerboard
+triangle splits share one cardinality plan. Reversing the cross section changes
+profile traversal and winding without mutating the source.
+
+Each source corner normally owns one angular ring. A corner exactly on the
+rotation axis instead owns one point: adjacent cells become `d` triangles and
+an axis-to-axis cell emits nothing. This avoids coincident points and
+degenerate pole quads while preserving stable profile order. Full polygon
+surfaces may add one N-gon for each non-axis endpoint of an open profile;
+axis endpoints are already closed and never receive a degenerate cap.
+
+Source point, vertex, primitive, and detail payload and ordinary groups follow
+packed ancestry maps. Point/vertex `N` is invalidated because revolution
+changes its frame. Native input edges map to every generated profile edge by
+parallel classification of the target unique-edge plane. Normalized profile
+arc length is U and angular position is V; polygon surfaces store seam-safe
+vertex UVs, while free-point output stores point UVs.
+
+For selected profile corners `v`, emitted surface primitives `f`, and topology
+corners `c`, work is O(v*d + f + c) and published storage is O(v*d + f + c).
+Auxiliary storage is O(source vertices + output primitives), including ring,
+profile-distance, and stable per-edge output-range planes. Surface edges write
+disjoint ranges through the reusable domain pool; rule order, primitive order,
+and every output hash are independent of domain count. All cardinalities,
+finite positions, curve kinds/lengths, axis normalization, UV/group names, and
+cancellation are validated before an immutable geometry is published. The
+polygon subset is audited against the current
+[SideFX Revolve SOP](https://www.sidefx.com/docs/houdini/nodes/sop/revolve.html).
+
+Spiral emits one open polygon curve per phase copy. With `d` divisions and `s`
+spirals, positions, vertices, and every requested point attribute have exactly
+`s*(d+1)` entries, primitive offsets have `s+1` entries, and distance resets to
+zero at every curve. Per-turn divisions use `ceil(turns*divisions_per_turn)`
+segments and still include the exact requested endpoint. Archimedean radius is
+linear in turns; logarithmic radius is geometric. Both accept change-per-turn
+or exact end-radius controls before a positive global radius scale and a
+piecewise-linear radius ramp. Height is `height*t*height_ramp(t)`.
+
+Equal-angle sampling fills the shared per-curve parameter table directly.
+Equal-arc sampling integrates the analytic ramped curve speed with fixed
+five-point Gauss-Legendre quadrature. Its ordered integration partition merges
+uniform parameter bins with every interior height/radius ramp knot, so a
+derivative discontinuity is never integrated as a smooth interval. An ordered
+prefix sum followed by binary bin lookup and four bounded Newton corrections
+produces deterministic sample parameters. Multiple phase copies reuse the
+same radius/height/trigonometric tables.
+
+Requested X/Y/tangent axes form a right-handed orthonormal point frame. The Y
+axis is the central axis projected perpendicular to the finite-difference
+tangent; a stable radial fallback handles locally axial tangents. `orient`
+encodes the same basis as a normalized float4 quaternion. Cumulative polygon
+distance uses fixed 4,096-segment blocks: block totals cook independently,
+their prefixes are accumulated in curve/block order, and disjoint final fills
+retain byte-identical one/four-domain results. Point/frame hot loops allocate
+no per-element boxes.
+
+Let `n=d+1`, `s` be spiral count, and `k` be the total number of ramp keys.
+Equal-angle work is O(n+s*n), while equal-arc work is
+O(k*log k+n+k+n*log(n+k)+s*n); sorting is limited to interior ramp keys.
+Published output is O(s*n). Shared profile/integration tables use O(n+k)
+auxiliary storage, frame/distance block state is O(s*n/4096), and no output is
+generated before cardinality and OCaml array limits are validated.
+
+The Spiral benchmark commands are:
+
+```sh
+PRISMEL_PDK_OPS_FILTER=spiral_generator_reference PRISMEL_PDK_OPS_REPEATS=5 \
+  PRISMEL_BENCH_DOMAINS=1 dune exec --profile=release tools/bench_pdk_ops.exe
+PRISMEL_PDK_OPS_FILTER=spiral_generator PRISMEL_PDK_OPS_REPEATS=5 \
+  PRISMEL_BENCH_DOMAINS=1 dune exec --profile=release tools/bench_pdk_ops.exe
+PRISMEL_PDK_OPS_FILTER=spiral_generator PRISMEL_PDK_OPS_REPEATS=5 \
+  PRISMEL_BENCH_DOMAINS=4 dune exec --profile=release tools/bench_pdk_ops.exe
+```
+
+On OCaml 5.3.0/Dune 3.24.0, Linux 6.8 aarch64, four Apple CPU cores, grain
+16,384, and five-run release medians:
+
+| Spiral fixture | 1 domain | 4 domains | Allocated (1d) | Exact hash |
+|---|---:|---:|---:|---:|
+| 1,000,001-point equal-angle Archimedean curve | 42.837 ms | 30.393 ms | 80.006 MB | 3136671808158376137 |
+| 1,000,004-point four-copy equal-arc ramped logarithmic curve | 321.491 ms | 113.081 ms | 50.007 MB | 1570677764862568638 |
+| Same equal-arc curve with angle, X/Y/tangent, orient, and distance | 375.826 ms | 147.731 ms | 170.017 MB | 3988733468285775559 |
+
+The output-equivalent boxed tuple plus generic Polyline reference took
+107.229 ms and allocated 128.003 MB with the first fixture's exact hash. The
+dedicated equal-angle kernel is therefore 2.50x faster and allocates 37.5%
+less on one domain. The advanced all-attribute result is 2.54x faster on four
+domains than one, and its allocation is its packed output plus bounded shared
+integration/profile tables. The three-repeat four-domain equal-arc process
+peaked at 178,856 KiB RSS including both fixtures, hashing, Dune, and the OCaml
+heap. The polygon subset was audited against the current
+[SideFX Spiral SOP](https://www.sidefx.com/docs/houdini/nodes/sop/spiral.html):
+native NURBS/Bezier curves and curve-order controls remain explicit omissions.
+
+The Grid-specific command is:
+
+```sh
+PRISMEL_PDK_OPS_FILTER=grid_generator PRISMEL_PDK_OPS_REPEATS=5 \
+  PRISMEL_BENCH_DOMAINS=1 dune exec --profile=release tools/bench_pdk_ops.exe
+PRISMEL_PDK_OPS_FILTER=grid_generator PRISMEL_PDK_OPS_REPEATS=5 \
+  PRISMEL_BENCH_DOMAINS=4 dune exec --profile=release tools/bench_pdk_ops.exe
+```
+
+Before the Grid rewrite, the compatible million-point triangle source measured
+139.22 ms at one domain and 127.86 ms at four domains. The production kernel's
+five-run medians are 42.29 ms and 26.87 ms with the identical
+`3253461948889680712` geometry hash: 3.29x and 4.76x faster respectively, with
+the four-domain result 1.57x faster than one domain. Required output remains
+the allocation floor (114.22 MB for triangles); the four-mode run peaked at
+138,744 KiB RSS. Row-major point generation removes per-point division, while
+surface/curve topology and offsets use exact disjoint output ranges.
+
+The Circle-specific command is:
+
+```sh
+PRISMEL_PDK_OPS_FILTER=circle_generator PRISMEL_PDK_OPS_REPEATS=5 \
+  PRISMEL_BENCH_DOMAINS=1 dune exec --profile=release tools/bench_pdk_ops.exe
+PRISMEL_PDK_OPS_FILTER=circle_generator PRISMEL_PDK_OPS_REPEATS=5 \
+  PRISMEL_BENCH_DOMAINS=4 dune exec --profile=release tools/bench_pdk_ops.exe
+```
+
+The former closed-Circle path generated a boxed tuple array, rebuilt it through
+a packed builder, and remained serial: 92.75 ms at one domain, 88.49 ms at four,
+and 112.23 MB allocated for 1,002,001 points. The new exact-sized source retains
+the identical `1595635405635298122` hash and measures 22.94/13.21 ms: 4.04x
+faster at one domain, 6.70x faster at four, and 71.4% less allocation. The
+four-domain three-mode run peaked at 54,072 KiB RSS. Independent ellipse,
+orientation, and sliced-arc math stays in the same point loop instead of
+creating transform or topology intermediates.
+
+## Boolean intersection detection
+
+`Pdk.Boolean.run` is the public exact polygon-product boundary over the single
+PDK arrangement core. It builds the arrangement once, evaluates union,
+intersection, either subtraction direction, or XOR for independently typed
+solid/surface operands, transfers the complete supported payload schema through
+exact ancestry, verifies rounded output, and optionally splits seam points or
+detriangulates safe same-source patches. Point conflicts are explicitly
+rejected or promoted to vertex ownership. Cut components with multiple
+boundary cycles stay triangulated because the packed polygon representation
+does not encode holes. Solid Shatter reuses that arrangement and emits stable
+A-only/overlap/B-only boundaries with optional distinct primitive groups. The
+function returns structured errors, honors the
+shared cancellation token/grain, and produces exact ordered output across
+domain counts.
+
+`Pdk.Boolean.seam` exposes the same arrangement's seam products without
+reimplementing intersection decisions. Curve output can name left-self,
+between-input, and right-self primitive groups independently; coincident output
+returns exact coincident triangle patches with an optional named group. Both
+forms retain cancellation and exact ordered one-/multi-domain behavior.
+
+`Pdk.Ops.boolean_detect` is the packed diagnostic stage shared by one-input
+AxA self detection and two-input AxB detection. It triangulates selected simple
+polygons only inside immutable `Surface_index` values, preserving the source
+topology and every existing payload plane. A two-pass BVH traversal first
+counts and then fills exact-size triangle-pair arrays; no candidate list or
+boxed bounds object is allocated in a leaf loop.
+
+AxB retains left-triangle order. AxA retains only increasing internal-triangle
+pairs from different source primitives, so reverse duplicates and one polygon's
+triangulation diagonals never enter the narrow phase. Range-local float and
+integer scratch normalizes each pair around a shared local origin, classifies
+crossing/touching and optional coplanar overlap, and distinguishes genuine
+self-overlap from contact that exists only through shared point IDs. Each AxA
+primitive pair is written in both directions before per-primitive heapsort and
+stable deduplication, producing symmetric `Int_array` rows.
+
+Optional outputs are primitive groups, primitive `Int_array` intersecting-ID
+rows, and primitive integer row counts. AxA and AxB output names must be
+distinct within each metadata namespace. Installation is functional and
+atomic: a later validation/cancellation failure cannot expose already
+constructed intermediate metadata. Surface indexes, broad/narrow ranges, row
+sorts, and group fills use the reusable `Parallel` pool; source topology,
+positions, unrelated attributes, and groups remain structurally shared.
+
+Expected time is O((A+B) log B + C + sum k log k) for AxB and
+O(A log A + C + sum k log k) for AxA, with O(A+B+C+I) auxiliary storage for
+surface indexes, candidates, and retained primitive entries. Exact sparse,
+coplanar, and self-crossing baselines are maintained in
+`specification/performance.md`. Classification uses an explicit locally scaled
+floating tolerance; it is not the adaptive/arbitrary-precision predicate
+required to construct topology-changing Boolean seams.
+
+## Intersection point analysis
+
+`Pdk.Ops.intersection_analysis` consumes a packed BVH of triangle and
+polygon-curve segment pieces and uses the same `Triangle_intersection` narrow
+phase as Boolean Detect for triangle pairs. Its result is point-only geometry.
+With one input it visits unordered AxA pairs;
+with a collision input it visits ordered AxB pairs. Input geometry is never
+passed through. Ordinary self-contact at a shared source vertex or edge is
+suppressed, while duplicate faces and coplanar overlap beyond a shared edge
+produce events.
+
+The triangle/triangle, segment/segment, and segment/triangle narrow phases
+write at most twelve pair-local records into worker-owned fixed scratch. A
+count pass preflights exact event cardinality; a second pass fills disjoint
+packed position and parameter planes. Stable spatial welding
+then merges the same intersection location discovered through several
+piece pairs. The weld threshold is the larger of the explicit world-space
+tolerance and a bounded extent/ULP numerical floor. The earliest raw event
+owns the published position, so work-stealing order cannot change coordinates
+or point numbering.
+
+Optional point-owned attributes default to `sourceinput`, `sourceprim`,
+`sourceprimuv`, and `sourcepoint`. Their CSR rows are aligned by incident
+primitive incidence. Triangle `sourceprimuv` records are barycentric;
+polygon-curve records are `(u, 0, 0)`, where `u` spans the complete curve.
+Every record has three floats, and `sourcepoint` stores the coincident source
+point number or `-1`. Provenance is deduplicated by packed parameter incidence
+in stable first-incidence order without a per-output hash table. Adjacent
+segments share their internal endpoint incidence, while two distinct
+parameters remain visible when one curve primitive crosses itself.
+
+For A and B input linear pieces, C broad-phase candidates, E raw events, and R
+retained provenance records, expected time is
+O((A+B) log(A+B) + C + E) and auxiliary storage is O(A+B+C+E+R).
+Mixed-piece index construction, count/fill narrow phases, and representative
+position extraction use disjoint parallel ranges. Stable event welding and
+provenance aggregation are currently serial and dominate dense coplanar
+workloads. Selected polygons must be triangles; open and closed polygon curves
+are processed as stable segments without a second topology representation.
+
+## Research basis
+
+The design was checked through 2026-08-04 against SideFX's primary documentation:
+
+- [HDK geometry introduction](https://www.sidefx.com/docs/hdk/_h_d_k__geometry__intro.html)
+  for point/vertex/primitive ownership, offsets, topology, and data IDs;
+- [GA users guide](https://www.sidefx.com/docs/hdk/_h_d_k__g_a__using.html)
+  for page handles, splittable ranges, and parallel traversal;
+- [Geometry attributes 101](https://www.sidefx.com/docs/hdk/_h_d_k__geometry__attributes.html)
+  and [GA Attribute](https://www.sidefx.com/docs/hdk/class_g_a___attribute.html)
+  for typed bulk access and write-concurrence rules;
+- [GA Range](https://www.sidefx.com/docs/hdk/class_g_a___range.html) and
+  [GA PointGroup](https://www.sidefx.com/docs/hdk/class_g_a___point_group.html)
+  for compact selections and group algebra;
+- [Attribute Randomize](https://www.sidefx.com/docs/houdini/nodes/sop/attribrandomize.html)
+  and [Attribute Remap](https://www.sidefx.com/docs/houdini/nodes/sop/attribremap.html)
+  for artist-facing owner, group, distribution, range, extrapolation, and ramp
+  contracts;
+- [Attribute Copy](https://www.sidefx.com/docs/houdini/nodes/sop/attribcopy.html)
+  for ordered cycling, value/index matching, class-independent copying,
+  wildcard renaming, and explicit position policy;
+- [Attribute Swap](https://www.sidefx.com/docs/houdini/nodes/sop/attribswap.html)
+  for ordered copy/move/swap pairs, wildcard pairing, destination replacement,
+  missing-side copy behavior, and canonical position move policy;
+- [Enumerate](https://www.sidefx.com/docs/houdini/nodes/sop/enumerate.html)
+  for selected point/vertex/primitive sequences, integer/text piece identity,
+  per-piece element numbering, dense piece numbering, and text prefixes;
+- [Rest Position](https://www.sidefx.com/docs/houdini/nodes/sop/rest.html)
+  for store/extract/swap behavior, missing-rest Store fallback, second-input
+  reference positions, and optional rest normals;
+- [Point Velocity](https://www.sidefx.com/docs/houdini/nodes/sop/pointvelocity.html)
+  for basic velocity initialization, finite-difference deformation,
+  acceleration, point-ID matching, groups, and final additive velocity;
+- [Dissolve 2.0](https://www.sidefx.com/docs/houdini/nodes/sop/dissolve.html)
+  for selected/complementary edge removal, bridge and boundary policies,
+  inline-point cleanup, unused-point removal, and normal regeneration;
+- [Crease](https://www.sidefx.com/docs/houdini/nodes/sop/crease.html) for
+  unique-edge selection, Add/Set/Delete creaseweight behavior, Subdivide
+  integration, and optional vertex-color visualization;
+- [Attribute Fade](https://www.sidefx.com/docs/houdini/nodes/sop/attribfade.html)
+  for scalar point fading, point restriction, role-specific start/hold inputs,
+  start retiming, timing attributes, transition ramps, and visualization;
+- [Attribute Composite](https://www.sidefx.com/docs/houdini/nodes/sop/attribcomposite.html)
+- [Attribute Mirror](https://www.sidefx.com/docs/houdini/nodes/sop/attribmirror.html)
+- [Rewire Vertices](https://www.sidefx.com/docs/houdini/nodes/sop/rewire.html)
+  for ordered weighted inputs, independent owner patterns, explicit P policy,
+  same-owner alpha distribution, and Mean/Max/Min/Over/Under formulas;
+- [PolyCut](https://www.sidefx.com/docs/houdini/nodes/sop/polycut.html) for
+  point/edge restrictions, Remove/Cut behavior, crossing/change detection,
+  threshold interpolation/subdivision, and closed-fragment policy;
+- [Separate Pieces](https://www.sidefx.com/docs/houdini/nodes/sop/separatepieces.html)
+  for integer/text identity, stored Move Back translation, and two-input
+  union-bound intent;
+- [Edge Equalize](https://www.sidefx.com/docs/houdini/nodes/sop/edgeequalize.html)
+  for equal-length intent, average/longest/shortest initial targets, and
+  transformed-edge output grouping; the numerical solver is not published;
+- [Edge Relax](https://www.sidefx.com/docs/houdini/nodes/sop/edgerelax.html)
+  for reference positions, individual/scale-independent edge targets,
+  selection, pinning, iteration/step policy, shorten-only mode, and the
+  intentionally deferred slide-on-surface and anisotropic controls;
+- [Edge Transport](https://www.sidefx.com/docs/houdini/nodes/sop/edgetransport.html)
+  for Each Curve, Edge Network, Parent Attribute, direction, root, operation,
+  normalization, split/merge, constant/distance integration, and vector
+  rotation behavior;
+- [Attribute Combine](https://www.sidefx.com/docs/houdini/nodes/sop/attribcombine.html)
+  for ordered arithmetic layers, source adjustment, tuple conversion,
+  cross-input matching, blending, postprocessing, and cleanup policy;
+- [Attribute Interpolate](https://www.sidefx.com/docs/houdini/nodes/sop/attribinterpolate.html)
+  and [primitive parametric spaces](https://www.sidefx.com/docs/houdini/model/primitive_spaces.html)
+  for destination ownership, primitive/UVW and explicit-weight modes, field
+  ownership, and exact polygon/curve interpolation coordinates;
+- [Ray](https://www.sidefx.com/docs/houdini/nodes/sop/ray.html) for closest and
+  directional projection, direction/surface policies, distance bounds,
+  tolerance, bounded seeded multi-ray jitter, combine policies, hit transforms,
+  provenance, groups, and attribute import;
+- [Fuse 2.0](https://www.sidefx.com/docs/houdini/nodes/sop/fuse.html) for query
+  and target restrictions, near/grid/specified snapping, separate snapping and
+  consolidation, rounding/tolerance, output groups, and payload heuristics;
+- [Bound](https://www.sidefx.com/docs/houdini/nodes/sop/bound.html) for typed
+  restriction, box/sphere/rectangle modes, divisions, padding, empty/keep
+  policy, output groups, and transform/radii metadata;
+- [Match Size](https://www.sidefx.com/docs/houdini/nodes/sop/matchsize.html) for
+  independent move/justification groups, second-input and numeric references,
+  per-axis alignment, offsets, scale-fit axes and perimeter/area/volume modes,
+  plus transform stash/restore policy;
+- [CGAL HalfedgeDS](https://doc.cgal.org/latest/HalfedgeDS/index.html) for the
+  edge/corner incidence model and separation of combinatorics from geometry;
+- [Shewchuk's adaptive predicates](https://www.cs.cmu.edu/~quake/robust.html)
+  for the robust orientation/incircle boundary required by future topology-
+  changing kernels;
+- [UV Auto Seam](https://www.sidefx.com/docs/houdini/nodes/sop/uvautoseam.html),
+  [UV Flatten](https://www.sidefx.com/docs/houdini/nodes/sop/uvflatten.html),
+  and [Labs UV Unitize](https://www.sidefx.com/docs/houdini/nodes/sop/labs--uv_unitize.html)
+  for artist-facing seam inputs, island output, and face/island unit fitting.
+- [Mean value coordinates](https://doi.org/10.1016/S0167-8396(03)00002-5)
+  for the positive harmonic weights and convex-boundary injectivity basis.
+- [Line](https://www.sidefx.com/docs/houdini/nodes/sop/line.html),
+  [Circle](https://www.sidefx.com/docs/houdini/nodes/sop/circle.html),
+  [Grid](https://www.sidefx.com/docs/houdini/nodes/sop/grid.html),
+  [Box](https://www.sidefx.com/docs/houdini/nodes/sop/box.html),
+  [Sphere](https://www.sidefx.com/docs/houdini/nodes/sop/sphere.html),
+  [Convert Line](https://www.sidefx.com/docs/houdini/nodes/sop/convertline.html),
+  [Carve](https://www.sidefx.com/docs/houdini/nodes/sop/carve.html),
+  [Join](https://www.sidefx.com/docs/houdini/nodes/sop/join.html),
+  [Ends](https://www.sidefx.com/docs/houdini/nodes/sop/ends.html), and
+  [PolyWire](https://www.sidefx.com/docs/houdini/nodes/sop/polywire.html) for
+  polygon-curve parameters and the explicit spline/surface-only remainder;
+- [PolyFrame](https://www.sidefx.com/docs/houdini/nodes/sop/polyframe.html) for
+  frame styles, output ownership, optional orthogonalization, and the explicit
+  MikkT/sign remainder;
+- [Facet](https://www.sidefx.com/docs/houdini/nodes/sop/facet.html) for ordered
+  normal, point-sharing, cleanup, orientation, cusp, and planar stages;
+- [PolyFill](https://www.sidefx.com/docs/houdini/nodes/sop/polyfill.html) for
+  all-hole/partial-boundary selection, fused versus unique patches, fill-mode,
+  winding, point-normal, smoothing/deformation, and patch-group semantics.
+- [PolyLoft](https://www.sidefx.com/docs/houdini/nodes/sop/polyloft.html) for
+  closest-end pairing, two/three-point minimization, U/V wrap, rest-guided
+  topology, source retention, generated grouping, and collinearity policy.
+- [Skin](https://www.sidefx.com/docs/houdini/nodes/sop/skin.html) for linear
+  polygon cross-section skinning, source retention, V wrap, explicit polygon
+  output, and the audited spline/two-input surface boundary.
+- [PolyBridge](https://www.sidefx.com/docs/houdini/nodes/sop/polybridge.html)
+  for edge-loop/path inputs, multiple bridge pairing, reverse/shift controls,
+  unequal boundary compensation, input retention, and the explicitly deferred
+  spine/division/thickness/twist surface.
+- [PolyBevel](https://www.sidefx.com/docs/houdini/nodes/sop/polybevel.html) for
+  edge eligibility, cutback/profile/collision controls, connected junctions,
+  scale attributes, generated groups, and the explicitly audited remainder.
+- [Point Split](https://www.sidefx.com/docs/houdini/nodes/sop/splitpoints.html)
+  for selected shared-point separation, vertex/primitive seam attributes,
+  per-dimension tolerance, group seams, and optional point promotion;
+- [Extract Centroid](https://www.sidefx.com/docs/houdini/nodes/sop/extractcentroid.html)
+  for whole-detail, primitive, and piece center modes and output metadata;
+- [Extract Point from Curve](https://www.sidefx.com/docs/houdini/nodes/sop/extractpointfromcurve.html)
+  for constant, primitive-attribute, and current-time target sources, point and
+  primitive payload patterns, curve U, cut count, and source-curve metadata;
+- [Circle from Edges](https://www.sidefx.com/docs/houdini/nodes/sop/circlefromedges.html)
+  for selected geometry boundaries, optional best-fit/explicit radius and
+  scale, and transformed-edge group output;
+- [Graph Color](https://www.sidefx.com/docs/houdini/nodes/sop/graphcolor.html)
+  for point/primitive connectivity, optional color sorting, and workset fields;
+- [Point Generate](https://www.sidefx.com/docs/houdini/nodes/sop/pointgenerate.html)
+  for origin and input-point emission, count scaling versus probability,
+  original-point retention, attribute-copy patterns, generated grouping, and
+  source-point/local-index metadata.
+- [Point Replicate](https://www.sidefx.com/docs/houdini/nodes/sop/pointreplicate.html)
+  for shaped source-point clouds, standard instancing transforms, stable ID and
+  rest behavior, quasi sampling, velocity controls, source payload/provenance,
+  custom shape ancestry, and generated groups.
+- [Boolean 2.0](https://www.sidefx.com/docs/houdini/nodes/sop/boolean.html)
+  for the Detect-mode AxA/AxB group/list contract, one-input self behavior,
+  polygon triangulation policy, and separation from Seam/Resolve output.
+- [Intersection Analysis](https://www.sidefx.com/docs/houdini/nodes/sop/intersectionanalysis.html)
+  for one/two-input roles, point-only output, primitive restrictions, linear
+  triangle/polygon-curve scope, and optional input/primitive/UVW/point
+  provenance attributes.
+
+No SideFX implementation was copied. This is a native OCaml design based on
+the documented data model and execution constraints.

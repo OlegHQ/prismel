@@ -1,0 +1,7 @@
+(library
+ (name runtime)
+ (public_name prismel.runtime)
+ (foreign_stubs
+  (language c)
+  (names runtime_stubs))
+ (libraries unix tsdl tsdl-image tsdl-ttf wap))

@@ -73,7 +73,9 @@ val update : t -> Prismel.Event.t list -> t * change list
     the pointer and emit continuous, clamped changes while dragging. *)
 
 val scene : t -> Prismel.Scene.t
-(** Describe the complete UI as composable scene data. *)
+(** Describe the complete UI as composable scene data. Text fields include
+    pure text-input hit metadata used to summon mobile keyboards only when the
+    field itself is pressed. *)
 
 val add_label : t -> text:string -> unit
 val add_button : t -> name:string -> label:string -> unit

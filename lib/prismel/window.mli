@@ -38,6 +38,8 @@ val is_resizable : unit -> bool
 val is_fullscreen : unit -> bool
 val set_title : string -> unit
 val set_size : int -> int -> unit
+(* Resize the web logical viewport while applying its backing-pixel budget. *)
+val set_web_size : int -> int -> unit
 val set_position : int -> int -> unit
 val center : unit -> unit
 val set_fullscreen : bool -> unit

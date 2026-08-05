@@ -65,6 +65,18 @@ Pressing a text field gives it focus. `TextInput` appends committed UTF-8,
 `TextEditing` records in-progress IME composition, and Backspace removes one
 complete UTF-8 scalar sequence. A press elsewhere moves or clears focus.
 
+`Pxui.scene` includes a pure `Scene.text_input_region` for every text field.
+The web client receives those logical bounds before interaction and focuses its
+hidden textarea synchronously only for a press inside one. Mobile keyboard
+viewport changes do not resize the sketch while the textarea remains focused;
+the viewport is synchronized after blur. Virtual-keyboard `InputEvent` values
+and IME composition are converted into the same ordinary Prismel events used
+by native SDL text entry.
+
+`PointerCancelled` releases only the cancelled pointer and active drag. It does
+not clear text focus. This avoids treating a mobile browser gesture or keyboard
+transition as if the entire window lost focus.
+
 `WindowFocusLost` is a hard cancellation boundary: it clears pointer capture,
 hover, text focus, and composition without emitting a value change. The core
 Input module simultaneously clears held keys and mouse buttons, preventing a
@@ -82,4 +94,7 @@ Tests for PXUI changes must cover:
 6. focus loss during an armed or dragged interaction;
 7. ordered changes from a multi-event update;
 8. hover/pressed/drag scene differences and system-font rendering in a
-   headless framebuffer.
+   headless framebuffer;
+9. pointer cancellation without a false text-focus loss;
+10. mobile browser focus only for text-field regions, including virtual-keyboard
+    input and keyboard-induced viewport changes.

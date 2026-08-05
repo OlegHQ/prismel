@@ -190,6 +190,7 @@ let capture () =
   | Ok canvas ->
       (match Image.Private.get_renderer () with
        | Error message ->
+           Renderer3d.release_renderer canvas.renderer;
            Sdl.destroy_renderer canvas.renderer;
            Sdl.free_surface canvas.surface;
            Error message
@@ -204,24 +205,29 @@ let capture () =
            match read_result with
            | Ok () -> Ok canvas
            | Error message ->
+               Renderer3d.release_renderer canvas.renderer;
                Sdl.destroy_renderer canvas.renderer;
                Sdl.free_surface canvas.surface;
                Error message)
 
 let save_screen_png filename =
-  match capture () with
-  | Error _ as error -> error
-  | Ok canvas ->
-      Fun.protect ~finally:(fun () ->
-        Font.release_renderer canvas.renderer;
-        Sdl.destroy_renderer canvas.renderer;
-        Sdl.free_surface canvas.surface;
-        canvas.destroyed <- true)
-        (fun () -> save_png canvas filename)
+  if Backend.is_web () then Backend.download_web_frame ~filename
+  else
+    match capture () with
+    | Error _ as error -> error
+    | Ok canvas ->
+        Fun.protect ~finally:(fun () ->
+          Renderer3d.release_renderer canvas.renderer;
+          Font.release_renderer canvas.renderer;
+          Sdl.destroy_renderer canvas.renderer;
+          Sdl.free_surface canvas.surface;
+          canvas.destroyed <- true)
+          (fun () -> save_png canvas filename)
 
 let destroy canvas =
   require_main_domain ();
   if not canvas.destroyed then begin
+    Renderer3d.release_renderer canvas.renderer;
     Font.release_renderer canvas.renderer;
     Sdl.destroy_renderer canvas.renderer;
     Sdl.free_surface canvas.surface;

@@ -1,100 +1,195 @@
-## Backend Integration Details (Tsdl, Tsdl_image, Tsdl_mixer, etc.)
+# Runtime and rendering targets
 
-Our framework is built atop the SDL2 library via OCaml bindings, taking advantage of SDL’s cross-platform capabilities for windowing, graphics, and audio. Here we summarize how we use these backend libraries and any important integration points:
+Prismel separates application semantics, runtime lifecycle, and browser
+transport into three libraries:
 
-- **Tsdl (SDL2):** Tsdl provides low-level functions to create windows, render graphics, and handle events in OCaml. We rely on Tsdl for:
+```text
+examples ──► procedural ──► pdk ──► prismel ──► runtime ──► wap
+   │              │          ▲          │           │
+   ├────────────► geom ───────┘          │           └──► tsdl
+   ├────────────► pxui ──────────────────┘
+   └────────────────────────────────────► prismel
+```
 
-  - Initializing subsystems: `Sdl.init` with flags (video, audio, events).
-  - Creating the main window (`Sdl.create_window`) and setting its properties (size, title, fullscreen). Tsdl maps directly to SDL functions and constants, e.g., `Sdl.Window.resizable` flag corresponds to `SDL_WINDOW_RESIZABLE`.
-  - Creating an SDL renderer (`Sdl.create_renderer`) which we use for all 2D drawing. We request hardware acceleration and vsync by default, as mentioned, which yields smooth rendering on most systems.
-  - Event handling: Tsdl provides an event type and functions to poll events. For example, `Sdl.poll_event (Some event)` fills an `Sdl.Event.t` structure. We then use `Sdl.Event.get` to extract fields (type, key code, etc.) and translate them to our `Event.t`. Tsdl’s event constants and types align with SDL’s; e.g., a key down event is identified by `Sdl.Event.key_down` tag and you can get the scancode or key symbol from the event. We carefully map those to our Input.key variant. Notably, Tsdl delivers event data as `Sdl.Event.*` functions, and uses `Error (`Msg e)`for some operations if needed. We have to handle the case where certain events (like text input or controller events) exist but we haven't defined a corresponding variant; those we simply ignore or treat as`Event.Unknown\` if we had such.
-  - Window functions: we use `Sdl.set_window_title`, `Sdl.set_window_fullscreen`, etc., from Tsdl when the user calls our Window module functions. Tsdl’s naming conventions made these available in `Sdl.Window` submodule. We follow those (e.g., `Sdl.set_window_title win "Title"`).
-  - Clean up: `Sdl.destroy_renderer` and `Sdl.destroy_window` free the window and context, and `Sdl.quit` shuts down all SDL subsystems. Tsdl covers all that.
+- `prismel` owns `Sketch`, `Scene`, resources, renderer logic, and translation
+  into public `Event`/`Input` values.
+- `prismel.runtime` selects a target, initializes and shuts down SDL
+  subsystems, presents frames, and joins browser events to the initial domain.
+- `prismel.wap` is Prismel-agnostic. It owns the HTTP/WebSocket server,
+  browser shell, WebGL presentation, bounded frame transport, uploads, and
+  token-protected runtime assets. Browser audio and input-region commands cross
+  the boundary as typed values; their JSON/wire encoding remains inside Wap.
+  Runtime imports Wap; Wap never imports Prismel or Runtime.
+- `prismel.pdk` owns target-independent packed geometry, topology, attributes,
+  groups, deterministic CPU kernels, and the terminal conversion to
+  `Prismel.Mesh.t`. It does not import Geom, Procedural, Runtime, Wap, SDL, or
+  browser code.
+- `prismel.geom` owns ergonomic mathematical/curve/polygon APIs and explicit
+  adapters. Mesh generation and topology operators migrate into Pdk so Geom
+  and Procedural share one compute core; Pdk never imports either layer.
+- `prismel.procedural` owns immutable SOP graphs, cook contexts, diagnostics,
+  incremental evaluation, and bounded session caches. It may import Pdk, Geom,
+  and Prismel, but never Runtime or Wap. Its output reaches every render target
+  through the existing `Pdk.Geometry.t -> Prismel.Mesh.t -> Scene3` path.
 
-- **Tsdl_image (SDL2_image):** Tsdl_image is the OCaml binding for SDL_image, which loads image files of various formats. We utilize it for:
+PDK kernels and procedural cooks are ordinary target-neutral CPU work. They may
+use Prismel's reusable `Parallel` pool over disjoint packed ranges, but all SDL
+and renderer work still joins on the initial domain. There is no headless- or
+web-specific procedural renderer and no geometry protocol in Wap.
 
-  - Loading surfaces from files: `Img.load "file.ext"` returns a surface (wrapped in OCaml as `Sdl.surface`). Tsdl_image’s `Img.load` will automatically detect format by extension or file content and use the appropriate decoder (PNG, JPEG, etc.). We check the result: if `Error (`Msg e)`, we propagate that e in our `Image.load\` result.
-  - Initializing image library: We call `Img.init (Img.Init.png + Img.Init.jpg)` to ensure support for PNG and JPEG at least. Tsdl_image’s `Img.Init` flags correspond to SDL_image flags like `IMG_INIT_PNG`. If `Img.init` returns a subset of those flags (meaning some failed), we know a codec might not be available. We might still proceed, but image load of that format would error. We could log a warning if, say, PNG init failed.
-  - There is `Img.quit` to deinitialize if needed (we call it on shutdown).
-  - The binding closely mirrors SDL_image, so for save we would use `Img.save_png` or similar if present. The doc snippet suggests binding covers interface closely, so likely functions like `Img.save_png` or `Img.save` exist. We'll use those in Image.save if available.
+## Target selection
 
-- **Tsdl_mixer (SDL2_mixer):** Tsdl_mixer binds SDL_mixer for audio. We use it to:
+`PRISMEL_RENDER_TARGET` is authoritative. The accepted values are:
 
-  - Initialize audio: `Mix.open_audio frequency format channels chunk_size`. For example, `Mix.open_audio 44100 Mix.default_format 2 1024` to open at 44.1 kHz, signed 16-bit stereo, chunk of 1024 samples. Tsdl_mixer’s `Mix.default_format` might be the AUDIO_S16LSB which is typical. We check the result (should be Ok or unit). If `Error (`Msg e)\`, we fail (audio device problem).
-  - Init codecs: `Mix.init (Mix.Init.mp3 + Mix.Init.ogg)` to enable those decoders. If not all bits returned, possibly some codec missing (we could warn the user if they try to load that format).
-  - Load sounds:
+| Value | Behavior |
+|---|---|
+| `native`, `desktop`, `sdl`, `opengl` | visible SDL window and SDL-selected accelerated renderer |
+| `headless`, `software` | hidden SDL dummy window, software renderer, dummy audio |
+| `web`, `browser`, `webgl` | hidden SDL software renderer plus browser server |
 
-    - `Mix.load_wav "file.wav"` returns a `Mix.chunk`. Tsdl_mixer likely has `Mixer.load_wav` binding.
-    - `Mix.load_music "file.ogg"` returns a `Mix.music`. Bound as `Mixer.load_music`.
-      These return `Error (`Msg e)\` on failure which we propagate in Sound.load result.
+The `PRISMAL_RENDER_TARGET` spelling requested by deployment environments is
+accepted as an exact alias. `PRISMEL_WEB=1`/`PRISMAL_WEB=1` and
+`PRISMEL_HEADLESS=1`/`PRISMAL_HEADLESS=1` are shorthands. Legacy `HEADLESS`
+remains a final compatibility fallback and accepts `1`, `true`, `yes`, or `on`
+case-insensitively. An explicit render target always wins over shorthands.
 
-  - Play sounds:
+The checked-in `.env` selects `PRISMEL_RENDER_TARGET=headless`. Examples:
 
-    - `Mix.play_channel (-1) chunk loops` plays on first free channel. Tsdl_mixer’s `Mixer.play_channel` likely returns the channel number or -1 on failure. We'll call it and perhaps ignore the channel number except maybe store if we want to manage specifically. We could log if returns -1 (means no free channel).
-    - `Mix.play_music music loops` to play music. Returns Ok or an error code maybe; SDL_mixer might not fail play unless something is wrong with the music pointer.
+```sh
+PRISMEL_RENDER_TARGET=native dune exec examples/basic/main.exe
+PRISMEL_RENDER_TARGET=headless dune exec examples/basic/main.exe
+PRISMEL_RENDER_TARGET=web dune exec examples/basic/main.exe
+```
 
-  - Control:
+`Sketch.render_target`, `Sketch.is_headless`, and `Sketch.is_web` expose the
+selection without making application code inspect the environment.
 
-    - Volume: `Mix.volume_chunk chunk volume` sets volume for that chunk. `Mix.volume_music vol` sets music volume.
-    - Halt: `Mix.halt_channel channel` stops channel, `Mix.halt_music` stops music.
-    - Pause/Resume: `Mix.pause channel`, `Mix.resume channel`, `Mix.pause_music`, `Mix.resume_music`.
-    - Query: `Mix.playing channel` returns whether channel is active, `Mix.playing_music` for music.
-    - We use these to implement Sound.is_playing or internal checks for stop all (e.g., `Mix.halt_channel (-1)` stops all channels).
+## Native and headless lifecycle
 
-  - We also allocate channels: `Mix.allocate_channels n`. We'll call that after open_audio to ensure we have, say, 32 channels. (If user’s config or usage hints more channels, we could allow config for that, but 32 is fine default).
-  - On shutdown: `Mix.close_audio` to close device, `Mix.quit` to deinit mixer (free codecs, etc.).
-  - Tsdl_mixer functions usually return unit or result. We handle accordingly.
+Runtime initializes SDL video, audio, and events, followed by SDL_image and
+SDL_ttf. Prismel initializes SDL_mixer after Runtime starts and shuts it down
+before Runtime stops. Window, renderer, event, texture, font, and audio work
+remains on the initial OCaml domain.
 
-- **Tsdl_ttf (SDL2_ttf):** If we incorporate font rendering:
+Native mode asks SDL for acceleration; SDL chooses the platform renderer
+(OpenGL, Metal, Direct3D, or another supported driver). Headless and web modes
+set SDL's dummy video/audio drivers before initialization and require the
+software renderer. Neither mode needs a display server, monitor, GPU, or
+OpenGL context, and neither turns drawing into no-ops.
 
-  - We call `Ttf.init ()` at start.
-  - Use `Ttf.open_font file ptsize` to get a `Ttf.font`.
-  - Use `Ttf.render_utf8_solid font text color` to get an `Sdl.surface` with rendered text.
-  - Then like images, create a texture from that surface.
-  - Manage caching if needed (like we might not want to re-render static text each frame, so user might keep an Image.t for some text).
-  - At end, call `Ttf.quit ()`.
-  - Tsdl_ttf’s API will match C API closely, just result-wrapped.
-  - We’d integrate this in our Font and Graphics.text functions.
+Runtime performs presentation after `Scene.render`. It synchronizes `Time`'s
+vsync knowledge with the renderer configuration, so fixed-FPS sketches do not
+spin when a target has no real vsync source.
 
-- **OCaml GC and finalizers:** Some integration details:
+## Web target
 
-  - Tsdl uses Ctypes under the hood and allocates memory for e.g. Sdl.window, Sdl.renderer, etc. It likely sets up finalizers to free them if GC collects them, but we cannot rely on that for timely destruction (we call destroy explicitly).
-  - We must ensure not to double free (if Tsdl finalizer also frees). Usually, Tsdl’s documentation says when you call `Sdl.destroy_window`, it nullifies its internal pointer and disables finalizer. So safe.
-  - We should wrap any raw pointers (like mix chunk pointers) carefully. Tsdl_mixer might represent Mix.chunk as an abstract type with finalizer that calls Mix.free_chunk when GC collects. Actually, from the Tsdl_mixer snippet, it likely has similar structure (maybe not finalizing automatically since audio often persistent).
-  - Regardless, we explicitly free things via our destroy to avoid waiting for GC.
+Web mode binds an HTTP/WebSocket server to `0.0.0.0`; the default port is 8080.
+`PRISMEL_WEB_PORT` (or `PRISMAL_WEB_PORT`) selects another port, including `0`
+for an ephemeral test port. `PRISMEL_WEB_MAX_FPS` defaults to 60 and bounds
+framebuffer readback/network cadence independently of a faster simulation.
+`PRISMEL_WEB_MAX_MBIT` defaults to 2 and adds a target payload budget: large or
+incompressible updates reduce presentation cadence instead of consuming mobile
+traffic at the raw framebuffer rate. `PRISMEL_WEB_MAX_PIXELS` defaults to
+921600 and bounds the server framebuffer while preserving the full viewport as
+logical coordinates; for example, a 1920×1080 viewport uses a 1280×720 backing
+framebuffer. All variables accept the equivalent `PRISMAL_` spelling.
 
-- **Thread main requirement:** On some platforms (macOS/Cocoa), SDL requires events and window creation on main thread. Our design runs everything on main thread (OCaml programs by default single-threaded unless using threads). So that’s fine. If user uses domains/threads (OCaml 5), they must still ensure not to call SDL from other domains; we should mention the requirement that all SDL interactions should happen in the main domain. We do not inherently support multi-domain parallelism, as SDL isn't thread-safe for most calls.
+The server-side renderer remains authoritative. This is deliberate: Prismel's
+SDL2_gfx paths, native text/image decoders, software 3D shaders, depth/stencil,
+post-processing, Canvas behavior, and PXUI all retain one implementation and
+therefore the same output. A direct js_of_ocaml build would require replacing
+all SDL and C-stub boundaries and would create a second renderer with different
+coverage.
 
-- **Precision of timers:** We use `Sdl.get_performance_counter` and `Sdl.get_performance_frequency` behind `Time.now()`. If Tsdl provides a convenience for high-precision time, we use it. Otherwise, `Unix.gettimeofday` or `Sdl.get_ticks` (ms resolution) could be used. For smooth animation, performance counter is best (microsecond resolution). We likely use `Sdl.get_ticks` for simplicity (ms int) given moderate requirement, but since we wrote aiming at high quality, perhaps use performance counters:
+For every connected browser:
 
-  - Tsdl might not directly expose `SDL_GetPerformanceCounter` (though it might).
-  - If not, we can use `Mtime_clock.now ()` from ocaml’s monotonic clock as alternative. But to avoid new dependency, maybe just `Unix.gettimeofday` (gives float seconds with microsecond resolution on many systems).
-  - We'll specify we measure time in seconds as float using a high-precision source (e.g., performance counter if available, else fall back to tick). In results, we mention dt usage is fine either way because \~1ms resolution is enough for game stepping (60fps \~16ms frame).
+1. Prismel renders normally into the hidden software framebuffer.
+2. Runtime reads native RGBA8 pixels directly into a pooled Bigarray.
+3. Wap compares against the latest frame, suppresses exact duplicates, and
+   losslessly QOI-encodes compressible full frames or changed rectangles.
+4. Each browser has at most one unacknowledged frame. Once the browser presents
+   and acknowledges it, Wap sends a sequential 44-byte-header patch or the
+   newest complete 28-byte-header frame when that browser skipped the patch's
+   base. Socket buffers therefore cannot accumulate stale rendered frames.
+5. The browser decodes into reusable storage, uploads patches into one
+   persistent, linearly filtered WebGL texture with `texSubImage2D`, and draws
+   one full-screen strip from an antialiased context on the next animation
+   frame. Canvas 2D `putImageData` is the compatibility fallback.
 
-- **Safety and error messages:** Tsdl functions often return `Error (`Msg e)`with e coming from SDL’s`SDL_GetError`string when something fails. We propagate these to the user in our error results. For example, if`Image.load\` fails due to an unsupported format, SDL_image might set error "Unsupported image format" which Tsdl_image passes to us. We include that in Error so user sees something like "SDL_Image error: Unsupported format".
+Browser pointer coordinates are mapped back into logical sketch points before
+transport. Coalesced pointer samples are retained in chronological order but
+batched into one WebSocket message, preserving freehand fidelity with less
+protocol and thread overhead. Pointer capture, mouse buttons, motion, wheel, keyboard press and
+release, UTF-8 text, IME composition, focus loss, and resizable viewport facts
+join the same ordered `Frame.events` stream as SDL events. Browser file drops
+up to 16 MiB are bounded in transit, written to a temporary file, emitted as
+`Event.FileDropped`, and removed after `on_stop` returns.
 
-  - We avoid exposing raw pointers or the need for user to call any Tsdl function directly. They can entirely use our higher-level API.
+The browser viewport is authoritative: every web canvas fills it and emits a
+logical resize even when the desktop sketch has `resizable = false`. The
+configured sketch size is only the pre-connection size. Backing pixels may be
+smaller than logical points when the viewport exceeds the pixel budget; WebGL
+scales that backing texture across the exact viewport. Pointer positions use
+the live canvas content rectangle and remain unclamped during pointer capture,
+so release-outside and drag-outside semantics are not mistaken for events on a
+control at the canvas edge.
 
-- **Resource Limits:** Under the hood, SDL might have limits (max texture size, as said, or limited channels for audio, etc.). We try to handle gracefully:
+PXUI text fields emit pure `Scene.text_input_region` metadata. Runtime sends
+the transformed and clipped logical hit regions ahead of frames, allowing the
+browser to position and focus a transparent, field-sized textarea synchronously
+only when a pointer press lands on a text field. Pending focus survives an older server region snapshot until
+the corresponding application update confirms it, preventing the mobile
+keyboard from opening and immediately closing. Taps on buttons, sliders, the
+canvas, or other non-text controls never summon the keyboard. Pointer
+cancellation releases the held button and PXUI drag capture without pretending
+the window lost focus or dismissing an active text field. The canvas retains
+its pre-keyboard viewport while the textarea is focused, then adopts the latest
+viewport after blur. The textarea retains an internal edit snapshot so mobile
+autocorrect, replacement, deletion, and composition are translated into exact
+`TextInput`/Backspace facts instead of resetting the editor every character.
 
-  - If `Sdl.create_texture_from_surface` fails, it could be because image too large or out of GPU memory. We propagate error. We might in future add image resizing fallback if too large (not doing now).
-  - If `Mix.play_channel` returns -1 (no free channel), perhaps allocate more channels or warn user to allocate more via Sound.set_channel_count. We could auto-allocate one more channel when needed (not trivial to expand constantly). Simpler: we allocate a fixed high number up front.
+SDL_mixer remains active through the dummy device to preserve server-side
+lifecycle and query semantics. Samples and music are additionally registered
+as token-protected Wap assets; ordered playback, volume, loop, fade,
+pause/resume, stop, and destruction commands are mirrored to HTML audio in the
+browser. Browser autoplay policy may defer playback until the first pointer
+gesture, at which point the client resumes pending sounds.
 
-- **Integration testing:**
+## Web protocol and resource bounds
 
-  - Because our code is layered on Tsdl etc., if an issue arises it might come from either our logic or underlying library.
-  - For instance, memory leak: if we forget to destroy textures, GPU memory leaks; Tsdl won't auto free textures unless finalizer runs (and if we keep reference in Image.t, finalizer won't run until GC collects Image).
-  - Or if audio is choppy: maybe we chose a too small chunk size. Could adjust if needed.
-  - We rely on Tsdl design decisions (like event polling scheme, and results carrying SDL_GetError message as `Msg`). That is convenient because we can take that message directly to user.
+Wap implements RFC 6455 version 13. Client frames must be masked; server frames
+are unmasked. Ping/pong, close, binary fragmentation, payload limits, socket
+timeouts, and the standard SHA-1/Base64 upgrade are covered by protocol tests.
 
-In summary, our framework stands on the shoulders of these libraries:
+- At most 8 WebSocket clients and 64 total concurrent HTTP connections are
+  accepted by default.
+- The browser input queue is bounded by both count and retained bytes.
+- Upload messages are limited to about 16 MiB and queued event data to 32 MiB.
+- The pooled frame cache retains at most 16 reusable buffers and 256 MiB, plus
+  at most one in-flight frame per bounded client.
+- The ordered browser-control ring retains 256 small commands.
+- HTTP pages use no-store, assets require the per-process unguessable token
+  and support byte ranges for browser audio streaming and seeking,
+  and a restrictive Content Security Policy is emitted.
 
-- **SDL2 (via Tsdl)** for core cross-platform tasks (window, input, 2D rendering).
-- **SDL2_image (via Tsdl_image)** to easily load various image formats (so the user doesn’t worry about decoding PNG, etc.).
-- **SDL2_mixer (via Tsdl_mixer)** to handle audio decoding and mixing for multiple sound channels, simplifying audio playback a lot.
-- **SDL2_ttf (via Tsdl_ttf)** if we use it for fonts, to generate text surfaces for drawing.
+The stable WebSocket API exposes queued bytes but no delivery acknowledgement,
+while the less widely available `WebSocketStream` has stream backpressure. Wap
+therefore adds an application acknowledgement after presentation. A slow
+connection has one in-flight frame and observes the newest complete frame when
+ready again. This preserves broad browser support without unbounded socket or
+animation queues.
 
-Using these libraries means our small framework inherits a lot of capability:
-cross-platform support (Windows, Mac, Linux, etc.), support for many media formats, and hardware acceleration, without us writing platform-specific code or implementing complex decoders ourselves. It does mean our performance and limitations are tied to SDL's. For example, the renderer is not as flexible as OpenGL for certain tasks (like custom shaders or 3D), but it’s robust for 2D and very much in line with openFrameworks’ default renderer (which also uses OpenGL under the hood, but in immediate mode style).
+## Verification
 
-We ensure to keep the integration details hidden from the user behind our safer abstractions (e.g., user deals with `Image.t` not `Sdl.texture`, and with `Sound.t` not raw Mix_Chunk pointers), but we pass through any meaningful errors and handle resource management carefully as guided by SDL’s API. This approach lets the user focus on creative aspects while we handle the glue to the SDL world.
+`test/test_wap.ml` verifies the RFC handshake vector, target parsing and both
+environment prefixes, masked input decoding, authenticated assets, ordered
+commands, batched pointer samples, acknowledged fragmented binary frames,
+lossless full-frame and patch codecs, exact duplicate suppression, backing-size
+fitting, idle cadence, statistics, and intact RGBA bytes.
+
+`test/web_runtime_smoke.ml` starts the real web target on an ephemeral port and
+checks rendered framebuffer pixels, synthesized browser audio exposure,
+pointer/key/text/wheel/focus ordering, logical resize behavior, per-frame mouse
+delta, file upload contents, and temporary-file cleanup. `test/headless_smoke.ml`
+continues to cover native framebuffer drawing and deterministic PNG export in
+headless mode.

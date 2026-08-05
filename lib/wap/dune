@@ -1,0 +1,8 @@
+(library
+ (name wap)
+ (public_name prismel.wap)
+ (private_modules Sha1 Websocket Client_html Frame_codec)
+ (foreign_stubs
+  (language c)
+  (names frame_codec_stubs))
+ (libraries unix threads))

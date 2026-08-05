@@ -1,0 +1,208 @@
+open Pdk
+
+let fail format = Printf.ksprintf failwith format
+let check condition message = if not condition then fail "%s" message
+let get = function Ok value -> value | Error error -> fail "%s" (Error.to_string error)
+let get_string = function Ok value -> value | Error message -> fail "%s" message
+
+let geometry points vertex_points primitive_offsets =
+  let count = Array.length points in
+  let x = Array.init count (fun point -> let x, _, _ = points.(point) in x)
+  and y = Array.init count (fun point -> let _, y, _ = points.(point) in y)
+  and z = Array.init count (fun point -> let _, _, z = points.(point) in z) in
+  let topology = Topology.polygons_owned ~point_count:count ~vertex_points
+      ~primitive_offsets |> get_string in
+  Geometry.create ~positions:(Packed.Float3.Private.of_owned_exn ~x ~y ~z)
+    ~topology () |> get_string
+
+let triangles points indices =
+  geometry points indices
+    (Array.init ((Array.length indices / 3) + 1) (fun primitive -> primitive * 3))
+
+let tetra ~origin:(ox, oy, oz) size = triangles
+    [|ox,oy,oz; ox+.size,oy,oz; ox,oy+.size,oz; ox,oy,oz+.size|]
+    [|0;2;1; 0;1;3; 1;2;3; 2;0;3|]
+
+let cube_quads ~origin:(ox, oy, oz) size = geometry
+    [|ox,oy,oz; ox+.size,oy,oz; ox+.size,oy+.size,oz; ox,oy+.size,oz;
+      ox,oy,oz+.size; ox+.size,oy,oz+.size;
+      ox+.size,oy+.size,oz+.size; ox,oy+.size,oz+.size|]
+    [|0;3;2;1; 4;5;6;7; 0;1;5;4; 3;7;6;2; 0;4;7;3; 1;2;6;5|]
+    [|0;4;8;12;16;20;24|]
+
+let signature geometry =
+  let positions = Packed.Float3.Private.view (Geometry.positions geometry)
+  and topology = Topology.Private.view (Geometry.topology geometry) in
+  Array.copy positions.x, Array.copy positions.y, Array.copy positions.z,
+  Array.copy topology.vertex_points, Array.copy topology.primitive_offsets,
+  Bytes.copy topology.primitive_kinds
+
+let with_point_weight value geometry =
+  let attribute = Attribute.create_owned ~owner:Attribute.Point ~name:"weight"
+      (Attribute.Float (Array.make (Geometry.point_count geometry) value))
+      |> get_string in
+  Geometry.with_attribute attribute geometry |> get_string
+
+let test_solid_products () =
+  let left = tetra ~origin:(0.,0.,0.) 2.
+  and right = tetra ~origin:(0.5,0.2,0.2) 2. in
+  let run domains = Prismel.Parallel.run ~domains (fun () ->
+      [|Boolean.Union; Boolean.Intersection; Boolean.Difference;
+        Boolean.Reverse_difference; Boolean.Xor|]
+      |> Array.map (fun operation ->
+        Boolean.run ~grain:1 ~operation ~right left |> get |> signature)) in
+  let products = run 1 in
+  check (Array.for_all (fun (_, _, _, vertices, _, _) -> Array.length vertices > 0)
+      products) "public Boolean lost a non-empty solid product";
+  check (products = run 4)
+    "public solid Boolean differs between one and four domains"
+
+let test_surface_cut_and_payload () =
+  let left = cube_quads ~origin:(0.,0.,0.) 2. |> with_point_weight 1.
+  and right = triangles
+      [|-1.,1.,0.5; 3.,1.,0.5; -1.,1.,1.5; 3.,1.,1.5|]
+      [|0;1;2; 1;3;2|] |> with_point_weight 2. in
+  let output = Boolean.run ~grain:1 ~operation:Boolean.Difference
+      ~right_treatment:Boolean.Surface ~right left |> get in
+  check (Geometry.primitive_count output > 12)
+    "public solid-minus-surface Boolean lost its cut walls";
+  check (Geometry.find_attribute ~owner:Attribute.Point "weight" output = None
+      && Geometry.find_attribute ~owner:Attribute.Vertex "weight" output <> None)
+    "public Boolean did not promote conflicting point payload";
+  (match Boolean.run ~grain:1 ~operation:Boolean.Difference
+      ~right_treatment:Boolean.Surface ~point_conflict:Boolean.Reject
+      ~right left with
+   | Error error when Error.code error = "point_payload_conflict" -> ()
+   | Error error -> fail "unexpected public point conflict: %s"
+       (Error.to_string error)
+   | Ok _ -> fail "public Boolean ignored its reject point-conflict policy")
+
+let test_shatter () =
+  let left = tetra ~origin:(0.,0.,0.) 2.
+  and right = tetra ~origin:(0.5,0.2,0.2) 2. in
+  let run domains = Prismel.Parallel.run ~domains (fun () ->
+      let output = Boolean.run ~grain:1 ~operation:Boolean.Shatter ~right left
+          |> get in
+      let groups = [|"boolean_left"; "boolean_overlap"; "boolean_right"|]
+          |> Array.map (fun name ->
+            let group = Geometry.find_group ~owner:Group.Primitive name output
+                |> Option.get in
+            Array.init (Geometry.primitive_count output)
+              (fun primitive -> Group.mem primitive group)) in
+      for primitive = 0 to Geometry.primitive_count output - 1 do
+        let memberships = Array.fold_left (fun count group ->
+            count + if group.(primitive) then 1 else 0) 0 groups in
+        check (memberships = 1)
+          "public Boolean shatter groups do not partition output primitives"
+      done;
+      check (Array.for_all (Array.exists Fun.id) groups)
+        "public Boolean shatter lost a non-empty product";
+      signature output, groups) in
+  check (run 1 = run 4)
+    "public Boolean shatter differs between one and four domains";
+  (match Boolean.run ~grain:1 ~operation:Boolean.Shatter
+      ~left_piece_group:(Some "same") ~overlap_piece_group:(Some "same")
+      ~right left with
+   | Error error when Error.code error = "invalid_parameter" -> ()
+   | Error error -> fail "unexpected shatter-name error: %s" (Error.to_string error)
+   | Ok _ -> fail "public Boolean shatter accepted duplicate group names");
+  (match Boolean.run ~grain:1 ~operation:Boolean.Shatter
+      ~right_treatment:Boolean.Surface ~right left with
+   | Error error when Error.code error = "invalid_parameter" -> ()
+   | Error error -> fail "unexpected surface-shatter error: %s"
+       (Error.to_string error)
+   | Ok _ -> fail "public Boolean shatter accepted a surface operand")
+
+let test_output_policies () =
+  let left = cube_quads ~origin:(0.,0.,0.) 1.
+  and right = tetra ~origin:(10.,0.,0.) 1. in
+  let polygons = Boolean.run ~grain:1 ~detriangulation:Boolean.Unchanged_polygons
+      ~right left |> get in
+  check (Geometry.primitive_count polygons = 10)
+    "public Boolean unchanged-polygon detriangulation has wrong cardinality";
+  let overlap = cube_quads ~origin:(0.5,0.5,0.5) 1. in
+  let shared = Boolean.run ~grain:1 ~right:overlap left |> get
+  and split = Boolean.run ~grain:1 ~seam_points:Boolean.Split_seam_points
+      ~right:overlap left |> get in
+  check (Geometry.point_count split > Geometry.point_count shared
+      && Geometry.primitive_count split = Geometry.primitive_count shared)
+    "public Boolean seam-point policy did not split topology components";
+  let host = Ops.box ~grain:1 ~size:(Prismel.Vec3.create 2.8 2.2 2.2)
+      ~connectivity:Ops.Box_quads ~consolidate_points:true () |> get
+  and cutter = Ops.box ~grain:1 ~size:(Prismel.Vec3.create 2.2 1.15 1.15)
+      ~center:(Prismel.Vec3.create 0.85 0. 0.)
+      ~rotation:(Prismel.Vec3.create 0.35 0.42 0.12)
+      ~connectivity:Ops.Box_quads ~consolidate_points:true () |> get in
+  let cut = Boolean.run ~grain:1 ~operation:Boolean.Difference
+      ~detriangulation:Boolean.All_polygons ~right:cutter host |> get in
+  ignore (Ops.triangulate ~grain:1 cut |> get)
+
+let test_errors () =
+  let left = tetra ~origin:(0.,0.,0.) 1.
+  and right = tetra ~origin:(0.25,0.25,0.25) 1. in
+  (match Boolean.run ~grain:0 ~right left with
+   | Error error when Error.code error = "invalid_parameter" -> ()
+   | Error error -> fail "unexpected public Boolean grain error: %s"
+       (Error.to_string error)
+   | Ok _ -> fail "public Boolean accepted zero grain");
+  (match Boolean.run ~grain:1 ~cleanup_max_batches:0 ~right left with
+   | Error error when Error.code error = "invalid_parameter" -> ()
+   | Error error -> fail "unexpected public cleanup-bound error: %s"
+       (Error.to_string error)
+   | Ok _ -> fail "public Boolean accepted a zero cleanup batch bound");
+  let cancel = Cancel.create () in
+  Cancel.cancel cancel;
+  (match Boolean.run ~cancel ~grain:1 ~right left with
+   | Error error when Error.code error = "cancelled" -> ()
+   | Error error -> fail "unexpected public Boolean cancellation: %s"
+       (Error.to_string error)
+   | Ok _ -> fail "cancelled public Boolean completed")
+
+let test_bounded_cleanup () =
+  let left = cube_quads ~origin:(0.,0.,0.) 2.
+  and right = cube_quads
+      ~origin:(Float.next_after 0.6 Float.infinity,
+        0.60000000000000009,0.60000000000000009) 2. in
+  let threshold = 0.60000000000000009 in
+  let run domains = Prismel.Parallel.run ~domains (fun () ->
+      Boolean.run ~grain:1 ~tiny_seam_threshold:threshold
+        ~cleanup_max_batches:8 ~strict_cleanup:false ~right left
+      |> get |> signature) in
+  check (run 1 = run 4)
+    "public bounded Boolean cleanup differs between one and four domains"
+
+let test_seam_products () =
+  let left = tetra ~origin:(0.,0.,0.) 2.
+  and right = tetra ~origin:(0.5,0.2,0.2) 2. in
+  let run domains = Prismel.Parallel.run ~domains (fun () ->
+      let output = Boolean.seam ~grain:1 ~right left |> get in
+      let between = Geometry.find_group ~owner:Group.Primitive
+          "boolean_seam" output |> Option.get in
+      check (Geometry.primitive_count output > 0
+          && Group.cardinality between > 0)
+        "public Boolean seam lost its between-input curves";
+      signature output,
+      Array.init (Group.length between) (fun primitive -> Group.mem primitive between)) in
+  check (run 1 = run 4)
+    "public Boolean seam curves differ between one and four domains";
+  let coincident = Boolean.seam ~grain:1
+      ~output:Boolean.Coincident_patches ~right:left left |> get in
+  let group = Geometry.find_group ~owner:Group.Primitive
+      "boolean_coincident" coincident |> Option.get in
+  check (Geometry.primitive_count coincident > 0
+      && Group.cardinality group = Geometry.primitive_count coincident)
+    "public Boolean coincident product lost facets or naming";
+  (match Boolean.seam ~grain:1 ~left_self_group:(Some "same")
+      ~between_group:(Some "same") ~right left with
+   | Error error when Error.code error = "invalid_parameter" -> ()
+   | Error error -> fail "unexpected seam naming error: %s" (Error.to_string error)
+   | Ok _ -> fail "public Boolean seam accepted duplicate group names")
+
+let () =
+  test_solid_products ();
+  test_surface_cut_and_payload ();
+  test_shatter ();
+  test_output_policies ();
+  test_errors ();
+  test_bounded_cleanup ();
+  test_seam_products ()

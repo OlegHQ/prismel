@@ -1,0 +1,195 @@
+(library
+ (name procedural)
+ (public_name prismel.procedural)
+ (libraries prismel pdk unix)
+ (modules context diagnostic node session select instances sop graph inspect bridge))
+
+(test
+ (name test_procedural)
+ (modules test_procedural)
+ (libraries procedural prismel pdk))
+
+(test
+ (name test_procedural_parallel_exact)
+ (modules test_procedural_parallel_exact)
+ (libraries procedural prismel pdk))
+
+(test
+ (name test_motion_sop)
+ (modules test_motion_sop)
+ (libraries procedural prismel pdk))
+
+(test
+ (name test_dissolve_sop)
+ (modules test_dissolve_sop)
+ (libraries procedural prismel pdk))
+
+(test
+ (name test_poly_loft_sop)
+ (modules test_poly_loft_sop)
+ (libraries procedural prismel pdk))
+
+(test
+ (name test_skin_sop)
+ (modules test_skin_sop)
+ (libraries procedural prismel pdk))
+
+(test
+ (name test_poly_bridge_sop)
+ (modules test_poly_bridge_sop)
+ (libraries procedural prismel pdk))
+
+(test
+ (name test_poly_reduce_sop)
+ (modules test_poly_reduce_sop)
+ (libraries procedural prismel pdk))
+
+(test
+ (name test_remesh_sop)
+ (modules test_remesh_sop)
+ (libraries procedural prismel pdk))
+
+(test
+ (name test_convex_hull_sop)
+ (modules test_convex_hull_sop)
+ (libraries procedural prismel pdk))
+
+(test
+ (name test_extract_centroid_sop)
+ (modules test_extract_centroid_sop)
+ (libraries procedural prismel pdk))
+
+(test
+ (name test_extract_point_curve_sop)
+ (modules test_extract_point_curve_sop)
+ (libraries procedural prismel pdk))
+
+(test
+ (name test_circle_from_edges_sop)
+ (modules test_circle_from_edges_sop)
+ (libraries procedural prismel pdk))
+
+(test
+ (name test_graph_color_sop)
+ (modules test_graph_color_sop)
+ (libraries procedural prismel pdk))
+
+(test
+ (name test_triangulate2d_sop)
+ (modules test_triangulate2d_sop)
+ (libraries procedural prismel pdk))
+
+(test
+ (name test_boolean_detect_sop)
+ (modules test_boolean_detect_sop)
+ (libraries procedural prismel pdk))
+
+(test
+ (name test_boolean_sop)
+ (modules test_boolean_sop)
+ (libraries procedural prismel pdk))
+
+(test
+ (name test_intersection_analysis_sop)
+ (modules test_intersection_analysis_sop)
+ (libraries procedural prismel pdk))
+
+(test
+ (name test_poly_bevel_sop)
+ (modules test_poly_bevel_sop)
+ (libraries procedural prismel pdk))
+
+(test
+ (name test_point_split_sop)
+ (modules test_point_split_sop)
+ (libraries procedural prismel pdk))
+
+(test
+ (name test_point_generate_sop)
+ (modules test_point_generate_sop)
+ (libraries procedural prismel pdk))
+
+(test
+ (name test_point_replicate_sop)
+ (modules test_point_replicate_sop)
+ (libraries procedural prismel pdk))
+
+(test
+ (name test_ends_sop)
+ (modules test_ends_sop)
+ (libraries procedural prismel pdk))
+
+(test
+ (name test_duplicate_sop)
+ (modules test_duplicate_sop)
+ (libraries procedural prismel pdk))
+
+(test
+ (name test_transform_sop)
+ (modules test_transform_sop)
+ (libraries procedural prismel pdk))
+
+(test
+ (name test_soft_transform_sop)
+ (modules test_soft_transform_sop)
+ (libraries procedural prismel pdk))
+
+(test
+ (name test_distance_along_geometry_sop)
+ (modules test_distance_along_geometry_sop)
+ (libraries procedural prismel pdk))
+
+(test
+ (name test_distance_from_geometry_sop)
+ (modules test_distance_from_geometry_sop)
+ (libraries procedural prismel pdk))
+
+(test
+ (name test_distance_from_target_sop)
+ (modules test_distance_from_target_sop)
+ (libraries procedural prismel pdk))
+
+(test
+ (name test_sort_sop)
+ (modules test_sort_sop)
+ (libraries procedural prismel pdk))
+
+(test
+ (name test_blast_by_attribute_sop)
+ (modules test_blast_by_attribute_sop)
+ (libraries procedural prismel pdk))
+
+(test
+ (name test_crease_sop)
+ (modules test_crease_sop)
+ (libraries procedural prismel pdk))
+
+(test
+ (name test_attribute_fade_sop)
+ (modules test_attribute_fade_sop)
+ (libraries procedural prismel pdk))
+
+(test
+ (name test_attribute_mirror_sop)
+ (modules test_attribute_mirror_sop)
+ (libraries procedural prismel pdk))
+
+(test
+ (name test_rewire_vertices_sop)
+ (modules test_rewire_vertices_sop)
+ (libraries procedural prismel pdk))
+
+(test
+ (name test_poly_cut_sop)
+ (modules test_poly_cut_sop)
+ (libraries procedural prismel pdk))
+
+(test
+ (name test_separate_pieces_sop)
+ (modules test_separate_pieces_sop)
+ (libraries procedural prismel pdk))
+
+(test
+ (name test_polywire_sop)
+ (modules test_polywire_sop)
+ (libraries procedural prismel pdk))

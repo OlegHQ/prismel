@@ -2,13 +2,14 @@ module C = Configurator.V1
 
 let () =
   C.main ~name:"tsdl_gfx" (fun config ->
-    let default = ["-lSDL2_gfx"] in
-    let flags =
+    let default_libs = ["-lSDL2_gfx"] in
+    let cflags, libs =
       match C.Pkg_config.get config with
-      | None -> default
+      | None -> [], default_libs
       | Some pkg_config ->
           (match C.Pkg_config.query pkg_config ~package:"SDL2_gfx" with
-           | None -> default
-           | Some package -> package.libs)
+           | None -> [], default_libs
+           | Some package -> package.cflags, package.libs)
     in
-    C.Flags.write_sexp "c_library_flags.sexp" flags)
+    C.Flags.write_sexp "c_flags.sexp" cflags;
+    C.Flags.write_sexp "c_library_flags.sexp" libs)

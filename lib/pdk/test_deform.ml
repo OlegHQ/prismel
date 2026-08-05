@@ -1,0 +1,400 @@
+open Prismel
+open Pdk
+
+let fail message = raise (Failure message)
+let get_ok = function Ok value -> value | Error error -> fail (Error.to_string error)
+let get_string_ok = function Ok value -> value | Error message -> fail message
+
+let positions geometry = Packed.Float3.Private.view (Geometry.positions geometry)
+
+let near left right = abs_float (left -. right) <= 1e-11
+
+let equal_positions left right =
+  let left = positions left and right = positions right in
+  left.x = right.x && left.y = right.y && left.z = right.z
+
+let add_attribute attribute geometry =
+  Geometry.with_attribute attribute geometry |> get_string_ok
+
+let float_attribute name values =
+  Attribute.create_owned ~name ~owner:Attribute.Point (Attribute.Float values)
+  |> get_string_ok
+
+let float3_attribute ~owner name x y z =
+  let values = Packed.Float3.Private.of_owned_exn ~x ~y ~z in
+  Attribute.create_owned ~name ~owner (Attribute.Float3 values) |> get_string_ok
+
+let point_float name geometry =
+  Geometry.find_attribute ~owner:Attribute.Point name geometry |> Option.get
+  |> Attribute.get (Attribute.key ~name ~owner:Attribute.Point Attribute.float)
+  |> Option.get
+
+let point_float3 name geometry =
+  Geometry.find_attribute ~owner:Attribute.Point name geometry |> Option.get
+  |> Attribute.get (Attribute.key ~name ~owner:Attribute.Point Attribute.float3)
+  |> Option.get |> Packed.Float3.Private.view
+
+let expect_error code = function
+  | Error error when String.equal (Error.code error) code -> ()
+  | Error error -> fail (Printf.sprintf "expected %s, received %s: %s"
+      code (Error.code error) (Error.to_string error))
+  | Ok _ -> fail ("expected error " ^ code)
+
+let expect_only_points_moved source output expected delta_x delta_y delta_z =
+  let source = positions source and output = positions output in
+  for point = 0 to Array.length source.x - 1 do
+    let selected = Array.mem point expected in
+    let dx = output.x.(point) -. source.x.(point)
+    and dy = output.y.(point) -. source.y.(point)
+    and dz = output.z.(point) -. source.z.(point) in
+    if selected then begin
+      if not (near dx delta_x && near dy delta_y && near dz delta_z) then
+        fail (Printf.sprintf "selected point %d moved incorrectly" point)
+    end else if dx <> 0. || dy <> 0. || dz <> 0. then
+      fail (Printf.sprintf "unselected point %d moved" point)
+  done
+
+let () =
+  let quad_positions = Packed.Float3.Private.of_owned_exn
+      ~x:[|-1.; 1.; 1.; -1.|] ~y:[|0.; 0.; 0.; 0.|]
+      ~z:[|-1.; -1.; 1.; 1.|] in
+  let quad_topology_builder = Topology.Builder.create ~point_count:4 () in
+  Topology.Builder.add_polygon quad_topology_builder [|0; 1; 2; 3|];
+  let quad_topology = Topology.Builder.freeze quad_topology_builder in
+  let quad = Geometry.create ~positions:quad_positions ~topology:quad_topology ()
+      |> get_string_ok in
+  let normal_quad = Ops.normals quad |> get_ok in
+  if Topology.data_id (Geometry.topology normal_quad)
+      <> Topology.data_id quad_topology
+      || Geometry.primitive_count normal_quad <> 1
+      || Geometry.vertex_count normal_quad <> 4 then
+    fail "Normals changed N-gon topology";
+  let normal = point_float3 "N" normal_quad in
+  if not (Array.for_all Float.is_finite normal.x
+      && Array.for_all Float.is_finite normal.y
+      && Array.for_all Float.is_finite normal.z) then
+    fail "Normals produced non-finite values";
+
+  let peaked = Ops.peak ~distance:0.75 normal_quad |> get_ok in
+  let before = positions normal_quad and after = positions peaked in
+  for point = 0 to 3 do
+    if not (near (after.x.(point) -. before.x.(point)) (normal.x.(point) *. 0.75)
+        && near (after.y.(point) -. before.y.(point)) (normal.y.(point) *. 0.75)
+        && near (after.z.(point) -. before.z.(point)) (normal.z.(point) *. 0.75))
+    then fail "Peak did not follow point normals"
+  done;
+  if Geometry.find_attribute ~owner:Attribute.Point "N" peaked <> None then
+    fail "Peak retained stale point normals";
+
+  let grid = Ops.grid ~columns:1 ~rows:1 ~size:2. () |> get_ok in
+  let point_count = Geometry.point_count grid
+  and vertex_count = Geometry.vertex_count grid
+  and primitive_count = Geometry.primitive_count grid in
+  let direction = float3_attribute ~owner:Attribute.Point "direction"
+      (Array.make point_count 2.) (Array.make point_count 0.)
+      (Array.make point_count 0.) in
+  let directed = add_attribute direction grid in
+  let point_group = Group.init ~owner:Group.Point ~name:"one" point_count
+      (fun point -> point = 0) in
+  let point_peak = Ops.peak ~selection:(Ops.Selected_points point_group)
+      ~direction_attribute:"direction" ~distance:1. directed |> get_ok in
+  expect_only_points_moved directed point_peak [|0|] 1. 0. 0.;
+  let unnormalized = Ops.peak ~selection:(Ops.Selected_points point_group)
+      ~direction_attribute:"direction" ~normalize_direction:false ~distance:1.
+      directed |> get_ok in
+  expect_only_points_moved directed unnormalized [|0|] 2. 0. 0.;
+
+  let vertex_n = float3_attribute ~owner:Attribute.Vertex "N"
+      (Array.init vertex_count (fun vertex -> float_of_int (vertex + 1)))
+      (Array.make vertex_count 0.) (Array.make vertex_count 0.) in
+  let vertex_normal_source = grid
+      |> Geometry.without_attribute ~owner:Attribute.Point "N"
+      |> add_attribute vertex_n in
+  let vertex_normal_peak = Ops.peak ~normalize_direction:false ~distance:1.
+      vertex_normal_source |> get_ok in
+  let expected_sum = Array.make point_count 0.
+  and expected_count = Array.make point_count 0 in
+  for vertex = 0 to vertex_count - 1 do
+    let point = Topology.point_of_vertex (Geometry.topology grid) vertex in
+    expected_sum.(point) <- expected_sum.(point) +. float_of_int (vertex + 1);
+    expected_count.(point) <- expected_count.(point) + 1
+  done;
+  let vertex_before = positions vertex_normal_source
+  and vertex_after = positions vertex_normal_peak in
+  for point = 0 to point_count - 1 do
+    let expected = expected_sum.(point) /. float_of_int expected_count.(point) in
+    if not (near (vertex_after.x.(point) -. vertex_before.x.(point)) expected)
+        || vertex_after.y.(point) <> vertex_before.y.(point)
+        || vertex_after.z.(point) <> vertex_before.z.(point) then
+      fail "Peak did not average vertex normals at shared points"
+  done;
+
+  let masked_source = directed |> add_attribute
+      (float_attribute "mask" [|0.5; 0.; 1.; 1.|]) in
+  let masked = Ops.peak ~direction_attribute:"direction" ~mask_attribute:"mask"
+      ~distance:2. masked_source |> get_ok in
+  let masked_positions = positions masked in
+  let masked_source_positions = positions masked_source in
+  if masked_positions.x.(0) -. masked_source_positions.x.(0) <> 1.
+      || masked_positions.x.(1) <> masked_source_positions.x.(1)
+      || masked_positions.x.(2) -. masked_source_positions.x.(2) <> 2.
+      || masked_positions.x.(3) -. (positions masked_source).x.(3) <> 2. then
+    fail "Peak mask did not scale each point independently";
+
+  let topology = Geometry.topology directed in
+  let vertex_point = Topology.point_of_vertex topology 0 in
+  let vertices = Group.init ~owner:Group.Vertex ~name:"corner" vertex_count
+      (fun vertex -> vertex = 0) in
+  let vertex_peak = Ops.peak ~selection:(Ops.Selected_vertices vertices)
+      ~direction_attribute:"direction" ~distance:1. directed |> get_ok in
+  expect_only_points_moved directed vertex_peak [|vertex_point|] 1. 0. 0.;
+
+  let primitives = Group.init ~owner:Group.Primitive ~name:"face" primitive_count
+      (fun primitive -> primitive = 0) in
+  let primitive_points =
+    let first, last = Topology.primitive_vertex_range topology 0 in
+    Array.init (last - first) (fun local -> Topology.point_of_vertex topology
+      (first + local)) in
+  let primitive_peak = Ops.peak ~selection:(Ops.Selected_primitives primitives)
+      ~direction_attribute:"direction" ~distance:1. directed |> get_ok in
+  expect_only_points_moved directed primitive_peak primitive_points 1. 0. 0.;
+
+  let index = Topology_index.create topology in
+  let edges = Edge_group.init ~topology ~index ~name:"edge" (fun edge -> edge = 0) in
+  let edge_a, edge_b = Topology_index.edge_points index 0 in
+  let edge_peak = Ops.peak ~selection:(Ops.Selected_edges edges)
+      ~direction_attribute:"direction" ~distance:1. directed |> get_ok in
+  expect_only_points_moved directed edge_peak [|edge_a; edge_b|] 1. 0. 0.;
+
+  let recomputed = Ops.peak ~direction_attribute:"direction" ~distance:0.2
+      ~recompute_normals:true directed |> get_ok in
+  let recomputed_n = point_float3 "N" recomputed in
+  for point = 0 to point_count - 1 do
+    let length = sqrt ((recomputed_n.x.(point) *. recomputed_n.x.(point))
+        +. (recomputed_n.y.(point) *. recomputed_n.y.(point))
+        +. (recomputed_n.z.(point) *. recomputed_n.z.(point))) in
+    if not (near length 1.) then fail "Peak recomputed a non-unit point normal"
+  done;
+
+  let extreme_direction = float3_attribute ~owner:Attribute.Point "extreme"
+      (Array.make point_count max_float) (Array.make point_count max_float)
+      (Array.make point_count max_float) in
+  let extreme = add_attribute extreme_direction grid
+      |> Ops.peak ~direction_attribute:"extreme" ~distance:1. |> get_ok in
+  let extreme_positions = positions extreme in
+  if not (Array.for_all Float.is_finite extreme_positions.x
+      && Array.for_all Float.is_finite extreme_positions.y
+      && Array.for_all Float.is_finite extreme_positions.z) then
+    fail "Peak overflowed while normalizing an extreme finite direction";
+
+  expect_error "invalid_deformation"
+    (Ops.peak ~direction_attribute:"missing" ~distance:1. grid);
+  expect_error "invalid_deformation"
+    (Ops.peak ~direction_attribute:"missing" ~distance:0. grid);
+  expect_error "invalid_deformation"
+    (Ops.peak ~mask_attribute:"missing" ~distance:1. grid);
+  let wrong_group = Group.init ~owner:Group.Vertex ~name:"wrong" vertex_count
+      (fun _ -> true) in
+  expect_error "invalid_deformation"
+    (Ops.peak ~selection:(Ops.Selected_points wrong_group)
+      ~direction_attribute:"direction" ~distance:1. directed);
+  let other = Ops.grid ~columns:1 ~rows:1 ~size:3. () |> get_ok in
+  let other_index = Topology_index.create (Geometry.topology other) in
+  let other_edges = Edge_group.init ~topology:(Geometry.topology other)
+      ~index:other_index ~name:"other" (fun _ -> true) in
+  expect_error "invalid_deformation"
+    (Ops.peak ~selection:(Ops.Selected_edges other_edges)
+      ~direction_attribute:"direction" ~distance:1. directed);
+  expect_error "invalid_deformation"
+    (Ops.peak ~direction_attribute:"direction" ~distance:Float.infinity directed);
+
+  let bend_source = Ops.points [|
+      (0., 0., 0.); (0., 0., 1.); (0., 0., 2.); (0., 1., 2.);
+      (1., 0., 2.); (0., 0., 3.); (0., 0., -1.)|] in
+  let bent = Ops.bend ~length:2. ~bend_angle:(Float.pi /. 2.) bend_source
+      |> get_ok in
+  let bent_positions = positions bent and radius = 4. /. Float.pi in
+  if not (near bent_positions.x.(0) 0. && near bent_positions.y.(0) 0.
+      && near bent_positions.z.(0) 0.
+      && near bent_positions.y.(1) ((2. /. Float.pi) *. (2. -. sqrt 2.))
+      && near bent_positions.z.(1) ((2. *. sqrt 2.) /. Float.pi)
+      && near bent_positions.y.(2) radius && near bent_positions.z.(2) radius
+      && near bent_positions.y.(3) radius
+      && near bent_positions.z.(3) (radius -. 1.)
+      && near bent_positions.x.(4) 1. && near bent_positions.y.(4) radius
+      && near bent_positions.z.(4) radius
+      && bent_positions.z.(5) = 3. && bent_positions.z.(6) = -1.) then
+    fail "Bend arc/capture geometry";
+  if Geometry.find_attribute ~owner:Attribute.Point "N" bent <> None then
+    fail "Bend retained stale normals";
+
+  let twisted_source = Ops.points
+      [|(1., 0., 0.); (1., 0., 1.); (1., 0., 2.)|] in
+  let twisted = Ops.bend ~length:2. ~twist_angle:Float.pi twisted_source
+      |> get_ok |> positions in
+  if not (near twisted.x.(0) 1. && near twisted.y.(0) 0.
+      && near twisted.x.(1) 0. && near twisted.y.(1) 1.
+      && near twisted.x.(2) (-1.) && near twisted.y.(2) 0.
+      && twisted.z = [|0.; 1.; 2.|]) then
+    fail "Bend axial twist distribution";
+  let arbitrary = Ops.points [|(1., 1., 0.)|]
+      |> Ops.bend ~origin:Vec3.zero ~direction:Vec3.unit_x ~up:Vec3.unit_z
+           ~length:1. ~twist_angle:(Float.pi /. 2.) |> get_ok |> positions in
+  if not (near arbitrary.x.(0) 1. && near arbitrary.y.(0) 0.
+      && near arbitrary.z.(0) 1.) then
+    fail "Bend arbitrary capture frame";
+
+  let both_source = Ops.points [|(1., 0., -1.); (1., 0., 1.)|] in
+  let continuous = Ops.bend ~length:1. ~twist_angle:(Float.pi /. 2.)
+      ~both_directions:true ~continuous_twist:true both_source |> get_ok
+      |> positions
+  and mirrored_twist = Ops.bend ~length:1. ~twist_angle:(Float.pi /. 2.)
+      ~both_directions:true ~continuous_twist:false both_source |> get_ok
+      |> positions in
+  if not (near continuous.y.(0) (-1.) && near continuous.y.(1) 1.
+      && near mirrored_twist.y.(0) 1. && near mirrored_twist.y.(1) 1.) then
+    fail "Bend bidirectional twist policy";
+  let extended = Ops.bend ~length:1. ~twist_angle:(Float.pi /. 2.)
+      ~limit:false (Ops.points [|(1., 0., 2.); (1., 0., -1.)|])
+      |> get_ok |> positions in
+  if not (near extended.x.(0) (-1.) && near extended.y.(0) 0.
+      && extended.x.(1) = 1. && extended.y.(1) = 0.) then
+    fail "Bend unlimited forward capture";
+
+  let masked_bend_source = Ops.points
+      [|(1., 0., 1.); (1., 0., 1.); (1., 0., 1.); (1., 0., 3.)|]
+      |> add_attribute (float_attribute "bend_mask" [|0.5; -1.; 2.; 1.|]) in
+  let only_first = Group.init ~owner:Group.Point ~name:"bend_selected" 4
+      (fun point -> point <> 2) in
+  let masked_bend = Ops.bend ~selection:(Ops.Selected_points only_first)
+      ~mask_attribute:"bend_mask" ~capture_attribute:"bend_capture"
+      ~length:2. ~twist_angle:Float.pi masked_bend_source |> get_ok in
+  let masked_bend_positions = positions masked_bend
+  and capture = point_float "bend_capture" masked_bend in
+  if not (near masked_bend_positions.x.(0) (sqrt 0.5)
+      && near masked_bend_positions.y.(0) (sqrt 0.5)
+      && masked_bend_positions.x.(1) = 1.
+      && masked_bend_positions.y.(1) = 0.
+      && masked_bend_positions.x.(2) = 1.
+      && masked_bend_positions.y.(2) = 0.
+      && masked_bend_positions.z.(3) = 3.
+      && capture = [|0.5; 0.; 0.; 0.|]) then
+    fail "Bend selection/mask/capture influence";
+  let identity_bend = Ops.bend ~length:2. bend_source |> get_ok in
+  if Geometry.data_id identity_bend <> Geometry.data_id bend_source then
+    fail "zero Bend was not an identity";
+  let tiny_bend = Ops.bend ~length:2. ~bend_angle:1e-12
+      (Ops.points [|(0., 0., 2.)|]) |> get_ok |> positions in
+  if not (Float.is_finite tiny_bend.y.(0) && Float.is_finite tiny_bend.z.(0)
+      && near tiny_bend.y.(0) 1e-12 && near tiny_bend.z.(0) 2.) then
+    fail "Bend small-angle stability";
+
+  let bend_normals = Ops.bend ~length:2. ~bend_angle:0.4
+      ~recompute_normals:true grid |> get_ok in
+  if Geometry.find_attribute ~owner:Attribute.Point "N" bend_normals = None
+      || Geometry.find_attribute ~owner:Attribute.Vertex "N" bend_normals <> None
+  then fail "Bend normal recomputation contract";
+  List.iter (fun result -> expect_error "invalid_deformation" result) [
+    Ops.bend ~length:0. ~bend_angle:1. bend_source;
+    Ops.bend ~length:Float.nan ~bend_angle:1. bend_source;
+    Ops.bend ~length:1. ~bend_angle:Float.infinity bend_source;
+    Ops.bend ~direction:Vec3.zero ~length:1. ~bend_angle:1. bend_source;
+    Ops.bend ~direction:Vec3.unit_z ~up:Vec3.unit_z ~length:1.
+      ~bend_angle:1. bend_source;
+    Ops.bend ~origin:(Vec3.create Float.nan 0. 0.) ~length:1.
+      ~bend_angle:1. bend_source;
+    Ops.bend ~mask_attribute:"missing" ~length:1. ~bend_angle:1. bend_source;
+    Ops.bend ~capture_attribute:"" ~length:1. ~bend_angle:1. bend_source;
+    Ops.bend ~capture_attribute:"P" ~length:1. ~bend_angle:1. bend_source;
+  ];
+  let bad_bend_mask = bend_source |> add_attribute
+      (float3_attribute ~owner:Attribute.Point "bad_bend_mask"
+        (Array.make 7 0.) (Array.make 7 0.) (Array.make 7 0.)) in
+  expect_error "invalid_deformation"
+    (Ops.bend ~mask_attribute:"bad_bend_mask" ~length:1. ~bend_angle:1.
+      bad_bend_mask);
+
+  let bend_scale_source = Ops.grid ~columns:320 ~rows:220 ~size:12. ()
+      |> get_ok in
+  let bend_scale domains = Parallel.run ~domains (fun () ->
+      Ops.bend ~grain:1_009 ~origin:(Vec3.create 0. 0. (-6.))
+        ~direction:Vec3.unit_z ~up:Vec3.unit_y ~length:12.
+        ~bend_angle:1.3 ~twist_angle:2.1 ~capture_attribute:"bend_capture"
+        bend_scale_source |> get_ok) in
+  let bend_one = bend_scale 1 and bend_many = bend_scale 4 in
+  if not (equal_positions bend_one bend_many)
+      || point_float "bend_capture" bend_one
+         <> point_float "bend_capture" bend_many then
+    fail "Bend differs between one and four domains";
+
+  let mountain_source = Ops.grid ~columns:160 ~rows:120 ~size:12. () |> get_ok in
+  let large_count = Geometry.point_count mountain_source in
+  let geometric_source = mountain_source
+      |> Geometry.without_attribute ~owner:Attribute.Point "N"
+      |> Geometry.without_attribute ~owner:Attribute.Vertex "N" in
+  let normals domains = Parallel.run ~domains (fun () ->
+    Ops.normals ~grain:2_048 geometric_source |> get_ok) in
+  let normals_one = point_float3 "N" (normals 1)
+  and normals_many = point_float3 "N" (normals 4) in
+  if normals_one.x <> normals_many.x || normals_one.y <> normals_many.y
+      || normals_one.z <> normals_many.z then
+    fail "Normals differ between one and four domains";
+  let middle = Group.init ~owner:Group.Point ~name:"middle" large_count
+      (fun point -> point mod 3 <> 0) in
+  let mountain domains seed = Parallel.run ~domains (fun () ->
+    Ops.mountain ~grain:2_048 ~selection:(Ops.Selected_points middle) ~seed
+      ~height:1.25 ~frequency:(Vec3.create 0.35 0.7 0.55)
+      ~offset:(Vec3.create 1. 2. 3.) ~octaves:6 ~lacunarity:2.1
+      ~roughness:0.47 ~height_attribute:"height" mountain_source |> get_ok) in
+  let one = mountain 1 73 and many = mountain 4 73 in
+  if not (equal_positions one many)
+      || point_float "height" one <> point_float "height" many then
+    fail "Mountain differs between one and four domains";
+  let source_positions = positions mountain_source and output_positions = positions one
+  and heights = point_float "height" one in
+  let moved = ref false in
+  for point = 0 to large_count - 1 do
+    if Group.mem point middle then begin
+      if heights.(point) <> 0. then moved := true
+    end else if output_positions.x.(point) <> source_positions.x.(point)
+        || output_positions.y.(point) <> source_positions.y.(point)
+        || output_positions.z.(point) <> source_positions.z.(point)
+        || heights.(point) <> 0. then
+      fail "Mountain changed an unselected point or height"
+  done;
+  if not !moved then fail "Mountain produced no displacement";
+  let another_seed = mountain 1 74 in
+  if equal_positions one another_seed then fail "Mountain ignored its seed";
+
+  let zero_normal = float3_attribute ~owner:Attribute.Point "N"
+      (Array.make point_count 0.) (Array.make point_count 0.)
+      (Array.make point_count 0.) in
+  let zero_normal_source = grid |> add_attribute zero_normal in
+  let zero_normal_mountain = Ops.mountain ~seed:17 ~height:2.
+      zero_normal_source |> get_ok in
+  if not (equal_positions zero_normal_source zero_normal_mountain) then
+    fail "Mountain moved points whose normals are zero";
+
+  let mountain_normals = Ops.mountain ~seed:4 ~height:0.2
+      ~recompute_normals:true grid |> get_ok in
+  if Geometry.find_attribute ~owner:Attribute.Point "N" mountain_normals = None
+      || Geometry.find_attribute ~owner:Attribute.Vertex "N" mountain_normals <> None
+  then fail "Mountain normal recomputation contract";
+
+  List.iter (fun result -> expect_error "invalid_deformation" result) [
+    Ops.mountain ~height:1. ~octaves:0 grid;
+    Ops.mountain ~height:1. ~octaves:65 grid;
+    Ops.mountain ~height:1. ~lacunarity:0. grid;
+    Ops.mountain ~height:1. ~roughness:(-0.1) grid;
+    Ops.mountain ~height:1. ~roughness:1.1 grid;
+    Ops.mountain ~height:Float.nan grid;
+    Ops.mountain ~height:1. ~mask_attribute:"missing" grid;
+  ];
+  let cancelled = Cancel.create () in
+  Cancel.cancel cancelled;
+  expect_error "cancelled" (Ops.peak ~cancel:cancelled
+    ~direction_attribute:"direction" ~distance:1. directed);
+  expect_error "cancelled" (Ops.bend ~cancel:cancelled ~length:2.
+    ~bend_angle:1. bend_source);
+  expect_error "cancelled" (Ops.mountain ~cancel:cancelled ~height:1. grid);
+  print_endline "deform tests passed"

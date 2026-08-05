@@ -1,5 +1,4 @@
 open Tsdl
-open Tsdl_ttf
 
 (* Framework configuration *)
 type config = Window.config
@@ -22,50 +21,28 @@ let request_quit () =
 (* Check if framework is running *)
 let is_running () = !framework_running
 
-(* Initialize SDL and all subsystems *)
-let init_sdl () =
-  Backend.configure_environment ();
-  (* Set SDL hints for better rendering quality *)
-  ignore (Sdl.set_hint Sdl.Hint.render_scale_quality "1"); (* Linear filtering *)
-  if not (Backend.is_headless ()) then
-    ignore (Sdl.set_hint Sdl.Hint.render_driver ""); (* Let SDL choose best driver *)
-  
-  (* Audio is deliberately omitted in headless mode: CI hosts often have no
-     device. The dummy video driver still gives us a real software framebuffer. *)
-  let init_flags =
-    if Backend.is_headless () then Sdl.Init.(video + events)
-    else Sdl.Init.(video + audio + events)
-  in
-  match Sdl.init init_flags with
-  | Error (`Msg e) -> failwith ("SDL initialization failed: " ^ e)  
-  | Ok () ->
-    (* Initialize SDL_image *)
-    let img_flags = Tsdl_image.Image.Init.(jpg + png) in
-    let img_result = Tsdl_image.Image.init img_flags in
-    if not (Tsdl_image.Image.Init.test img_result img_flags) then
-      Printf.printf "Warning: Some image formats may not be supported\n%!";
-    
-    (* Initialize SDL_ttf *)
-    (match Ttf.init () with
-    | Error (`Msg e) -> Printf.printf "Warning: TTF initialization failed: %s\n%!" e
-    | Ok () -> ());
-    
-    (match Audio.init () with
-    | Ok () -> ()
-    | Error message ->
-        Printf.eprintf "Warning: audio disabled: %s\n%!" message);
-    ()
+(* Initialize the selected presentation target and Prismel-owned audio. *)
+let init_sdl ?(config = Window.default_config) () =
+  (match Backend.start ~width:config.width ~height:config.height
+      ~title:config.title ~resizable:config.resizable with
+   | Ok _ -> ()
+   | Error message -> failwith message);
+  match Audio.init () with
+  | Ok () -> ()
+  | Error message ->
+      Printf.eprintf "Warning: audio disabled: %s\n%!" message
 
 (* Cleanup SDL and all subsystems *)
 let cleanup_sdl () =
   Audio.shutdown ();
-  Ttf.quit ();
-  Tsdl_image.Image.quit ();
-  Sdl.quit ()
+  Backend.stop ()
 
 let cleanup_graphics () =
-  if Window.exists () then
-    Font.release_renderer (Window.get_renderer ());
+  if Window.exists () then begin
+    let renderer = Window.get_renderer () in
+    Renderer3d.release_renderer renderer;
+    Font.release_renderer renderer
+  end;
   Font.shutdown ();
   Window.destroy ()
 
@@ -100,8 +77,12 @@ let process_frame window user_state update_fn draw_fn after_draw_fn event_fn =
     draw_fn updated_state;
     Option.iter (fun after_draw -> after_draw updated_state) after_draw_fn;
     
-    (* Present the frame *)
-    Sdl.render_present renderer;
+    (* Present through the selected native, headless, or web target. *)
+    let logical_width, logical_height = Window.size () in
+    (match Backend.present renderer ~logical_width ~logical_height with
+     | Ok () -> ()
+     | Error message ->
+         Printf.eprintf "Prismel presentation warning: %s\n%!" message);
     
     (* Frame rate limiting *)
     Time.limit_frame_rate ();
@@ -142,14 +123,15 @@ let run
   
   try
     (* Initialize SDL and subsystems *)
-    init_sdl ();
+    init_sdl ~config ();
     
     (* Initialize timing system *)
     Time.init ();
+    Time.set_vsync config.vsync;
     
     (* Create window *)
     let window = Window.create ~config () in
-    if not (Backend.is_headless ()) then Window.show ();
+    if not (Backend.is_displayless ()) then Window.show ();
     let _, mouse = Sdl.get_mouse_state () in
     Input.reset ~mouse;
     Sdl.start_text_input ();

@@ -1,4 +1,4 @@
-(** Pure, composable descriptions of a 2D picture. *)
+(** Pure, composable descriptions of a 2D or 3D picture. *)
 
 type node
 type t = node list
@@ -116,6 +116,18 @@ val image :
   ?flip_x:bool ->
   unit ->
   node
+val view3d :
+  ?viewport:int * int * int * int ->
+  camera:Camera.t ->
+  Scene3.t ->
+  node
+(** Render a depth-tested 3D scene into a logical-point viewport. The default
+    viewport is the full active render target. *)
+
+val text_input_region :
+  at:int * int -> w:int -> h:int -> ?focused:bool -> unit -> node
+(** Declare a logical hit region that should summon a mobile browser keyboard.
+    This is non-visual pure scene metadata; transforms and clips apply. *)
 
 val translate : int -> int -> t -> node
 val rotate : float -> t -> node

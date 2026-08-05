@@ -1,0 +1,4 @@
+(library
+ (name geom)
+ (public_name prismel.geom)
+ (libraries prismel pdk))

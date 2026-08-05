@@ -137,6 +137,11 @@ module Gfx : sig
       Tsdl.Sdl.renderer ->
       ps:(int * int) list ->
       r:int -> g:int -> b:int -> a:int -> unit result
+
+    val polyline_rgba :
+      Tsdl.Sdl.renderer ->
+      ps:(int * int) list ->
+      r:int -> g:int -> b:int -> a:int -> unit result
     
     val bezier_rgba :
       Tsdl.Sdl.renderer ->

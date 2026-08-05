@@ -21,3 +21,21 @@ val fbm3 :
   ?gain:float ->
   t -> x:float -> y:float -> z:float -> float
 (** Fractal Brownian motion composed from multiple noise frequencies. *)
+
+module Private : sig
+  type fbm3_scratch
+  val create_fbm3_scratch : unit -> fbm3_scratch
+  val fbm3_with_scratch :
+    fbm3_scratch -> t -> octaves:int -> lacunarity:float -> gain:float ->
+    x:float -> y:float -> z:float -> float
+  (** Allocation-free fractal sample for an already validated octave profile.
+      Scratch is caller-owned and must not be shared concurrently. Non-finite
+      intermediate coordinates return [nan]. *)
+
+  val sample2_into :
+    t -> first:int -> last:int -> frequency:float ->
+    x:float array -> y:float array -> output:float array -> unit
+  (** Fill the half-open range in [output] from packed coordinate planes.
+      Arrays are borrowed, ranges must be in bounds, and disjoint ranges may
+      be called concurrently with the same immutable noise value. *)
+end

@@ -29,26 +29,34 @@ let get_renderer () =
   | Some r -> r
   | None -> failwith "Graphics not initialized"
 
-(* Convert Color.t to SDL RGBA components *)
 let color_to_sdl color =
-  Color.to_tuple color
-
-(* Helper function to convert Color.t to RGBA components *)
-let color_to_rgba color =
-  let (r, g, b, a) = Color.to_tuple color in
-  (r, g, b, a)
-
-
+  color.Color.r, color.g, color.b, color.a
 
 (* Apply current transform to a point *)
 let transform_point (x, y) =
   let (tx, ty) = Mat3.transform_point !graphics_state.current_transform (float_of_int x, float_of_int y) in
   (int_of_float tx, int_of_float ty)
 
+let axis_aligned_transform () =
+  let matrix = !graphics_state.current_transform in
+  if matrix.m12 = 0. && matrix.m21 = 0.
+     && matrix.m31 = 0. && matrix.m32 = 0. && matrix.m33 = 1.
+  then Some matrix
+  else None
+
+let axis_aligned_center matrix x y =
+  ( int_of_float ((matrix.Mat3.m11 *. float_of_int x) +. matrix.m13),
+    int_of_float ((matrix.m22 *. float_of_int y) +. matrix.m23) )
+
+let axis_aligned_box matrix x y w h =
+  let x1, y1 = axis_aligned_center matrix x y
+  and x2, y2 = axis_aligned_center matrix (x + w) (y + h) in
+  min x1 x2, min y1 y2, max x1 x2, max y1 y2
+
 (* Clear screen with given color *)
 let clear color =
   let renderer = get_renderer () in
-  let (r, g, b, a) = color_to_rgba color in
+  let r = color.Color.r and g = color.g and b = color.b and a = color.a in
   ignore (Sdl.set_render_draw_color renderer r g b a);
   ignore (Sdl.render_clear renderer)
 
@@ -67,26 +75,30 @@ let draw_transformed_polygon points ~filled color =
   | [] | [_] -> ()
   | _ ->
       let renderer = get_renderer () in
-      let r, g, b, a = color_to_rgba color in
+      let r = color.Color.r and g = color.g and b = color.b and a = color.a in
       let points = List.map transform_point points in
-      if filled then
+      if filled then begin
+        (* SDL2_gfx's filled polygon has binary edge coverage. Draw its
+           antialiased boundary first so the fill overwrites the inward half
+           while the fractional outward coverage remains visible. *)
+        ignore (Tsdl_gfx.Gfx.aapolygon_rgba renderer ~ps:points ~r ~g ~b ~a);
         ignore (Tsdl_gfx.Gfx.filled_polygon_rgba renderer ~ps:points ~r ~g ~b ~a)
-      else
+      end else
         ignore (Tsdl_gfx.Gfx.aapolygon_rgba renderer ~ps:points ~r ~g ~b ~a)
 
 let draw_transformed_polyline points color =
   let renderer = get_renderer () in
-  let r, g, b, a = color_to_rgba color in
-  let rec lines = function
+  let r = color.Color.r and g = color.g and b = color.b and a = color.a in
+  let points = List.map transform_point points in
+  let rec draw = function
     | first :: (second :: _ as rest) ->
-        let x1, y1 = transform_point first in
-        let x2, y2 = transform_point second in
-        ignore (Tsdl_gfx.Gfx.aaline_rgba renderer
-          ~x1 ~y1 ~x2 ~y2 ~r ~g ~b ~a);
-        lines rest
+        let x1, y1 = first and x2, y2 = second in
+        ignore
+          (Tsdl_gfx.Gfx.aaline_rgba renderer ~x1 ~y1 ~x2 ~y2 ~r ~g ~b ~a);
+        draw rest
     | _ -> ()
   in
-  lines points
+  draw points
 
 let ellipse_points ~center:(cx, cy) ~rx ~ry ~from_ ~to_ ~steps =
   List.init (steps + 1) (fun index ->
@@ -99,7 +111,7 @@ let ellipse_points ~center:(cx, cy) ~rx ~ry ~from_ ~to_ ~steps =
 let point ~x ~y ?color () =
   let renderer = get_renderer () in
   let c = get_color ?color () in
-  let (r, g, b, a) = color_to_rgba c in
+  let r = c.Color.r and g = c.g and b = c.b and a = c.a in
   let (tx, ty) = transform_point (x, y) in
      ignore (Tsdl_gfx.Gfx.pixel_rgba (Obj.magic renderer) ~x:tx ~y:ty ~r ~g ~b ~a)
 
@@ -107,7 +119,7 @@ let point ~x ~y ?color () =
 let line ~x1 ~y1 ~x2 ~y2 ?color () =
   let renderer = get_renderer () in
   let c = get_color ?color () in
-  let (r, g, b, a) = color_to_rgba c in
+  let r = c.Color.r and g = c.g and b = c.b and a = c.a in
   let (tx1, ty1) = transform_point (x1, y1) in
   let (tx2, ty2) = transform_point (x2, y2) in
   ignore (Tsdl_gfx.Gfx.aaline_rgba renderer ~x1:tx1 ~y1:ty1 ~x2:tx2 ~y2:ty2 ~r ~g ~b ~a)
@@ -115,31 +127,63 @@ let line ~x1 ~y1 ~x2 ~y2 ?color () =
 (* Draw a rectangle using tsdl_gfx optimized functions *)
 let rect ~pos:(x, y) ~w ~h ?(filled=true) ?color () =
   let c = get_color ?color () in
-  draw_transformed_polygon
-    [(x, y); (x + w, y); (x + w, y + h); (x, y + h)]
-    ~filled c
+  match axis_aligned_transform () with
+  | Some matrix ->
+      let renderer = get_renderer () in
+      let x1, y1, x2, y2 = axis_aligned_box matrix x y w h in
+      let r = c.Color.r and g = c.g and b = c.b and a = c.a in
+      if filled then
+        ignore (Tsdl_gfx.Gfx.box_rgba renderer ~x1 ~y1 ~x2 ~y2 ~r ~g ~b ~a)
+      else
+        ignore
+          (Tsdl_gfx.Gfx.rectangle_rgba renderer ~x1 ~y1 ~x2 ~y2
+             ~r ~g ~b ~a)
+  | None ->
+      draw_transformed_polygon
+        [(x, y); (x + w, y); (x + w, y + h); (x, y + h)]
+        ~filled c
 
 (* Draw an antialiased circle using tsdl_gfx *)
 let circle ~center:(cx, cy) ~radius ?(filled=true) ?color () =
   let c = get_color ?color () in
-  let steps = max 24 (min 128 (radius * 2)) in
-  let points =
-    ellipse_points ~center:(cx, cy) ~rx:radius ~ry:radius
-      ~from_:0. ~to_:(2. *. Float.pi) ~steps
-  in
-  draw_transformed_polygon points ~filled c
+  match axis_aligned_transform () with
+  | Some matrix ->
+      let renderer = get_renderer () in
+      let x, y = axis_aligned_center matrix cx cy in
+      let rx = abs (int_of_float (matrix.m11 *. float_of_int radius))
+      and ry = abs (int_of_float (matrix.m22 *. float_of_int radius)) in
+      let r = c.Color.r and g = c.g and b = c.b and a = c.a in
+      if filled then begin
+        ignore
+          (Tsdl_gfx.Gfx.aaellipse_rgba renderer ~x ~y ~rx ~ry ~r ~g ~b ~a);
+        ignore
+          (Tsdl_gfx.Gfx.filled_ellipse_rgba renderer ~x ~y ~rx ~ry
+             ~r ~g ~b ~a)
+      end
+      else
+        ignore
+          (Tsdl_gfx.Gfx.aaellipse_rgba renderer ~x ~y ~rx ~ry ~r ~g ~b ~a)
+  | None ->
+      let steps = max 24 (min 128 (radius * 2)) in
+      let points =
+        ellipse_points ~center:(cx, cy) ~rx:radius ~ry:radius
+          ~from_:0. ~to_:(2. *. Float.pi) ~steps
+      in
+      draw_transformed_polygon points ~filled c
 
 (* Draw an antialiased triangle using tsdl_gfx *)
 let triangle ~p1:(x1, y1) ~p2:(x2, y2) ~p3:(x3, y3) ?(filled=true) ?color () =
   let renderer = get_renderer () in
   let c = get_color ?color () in
-  let (r, g, b, a) = color_to_rgba c in
+  let r = c.Color.r and g = c.g and b = c.b and a = c.a in
   let (tx1, ty1) = transform_point (x1, y1) in
   let (tx2, ty2) = transform_point (x2, y2) in
   let (tx3, ty3) = transform_point (x3, y3) in
   
-  if filled then
+  if filled then begin
+    ignore (Tsdl_gfx.Gfx.aatrigon_rgba renderer ~x1:tx1 ~y1:ty1 ~x2:tx2 ~y2:ty2 ~x3:tx3 ~y3:ty3 ~r ~g ~b ~a);
     ignore (Tsdl_gfx.Gfx.filled_trigon_rgba renderer ~x1:tx1 ~y1:ty1 ~x2:tx2 ~y2:ty2 ~x3:tx3 ~y3:ty3 ~r ~g ~b ~a)
+  end
   else
     ignore (Tsdl_gfx.Gfx.aatrigon_rgba renderer ~x1:tx1 ~y1:ty1 ~x2:tx2 ~y2:ty2 ~x3:tx3 ~y3:ty3 ~r ~g ~b ~a)
 
@@ -174,7 +218,16 @@ let fill_contours contours ~rule ~color =
             min low (min y1 y2), max high (max y1 y2))
           (max_int, min_int) edges
       in
-      let r, g, b, a = color_to_rgba color in
+      let r = color.Color.r and g = color.g and b = color.b and a = color.a in
+      List.iter
+        (fun points ->
+          match points with
+          | [] | [_] -> ()
+          | _ ->
+              ignore
+                (Tsdl_gfx.Gfx.aapolygon_rgba renderer ~ps:points
+                   ~r ~g ~b ~a))
+        contours;
       let draw y left right =
         let left = int_of_float (Float.ceil left) in
         let right = int_of_float (Float.floor right) in
@@ -326,32 +379,53 @@ let polyline ~points ?color () =
 (* Draw an antialiased ellipse using tsdl_gfx *)
 let ellipse ~center:(cx, cy) ~rx ~ry ?(filled=true) ?color () =
   let c = get_color ?color () in
-  let steps = max 24 (min 128 (max rx ry * 2)) in
-  let points =
-    ellipse_points ~center:(cx, cy) ~rx ~ry
-      ~from_:0. ~to_:(2. *. Float.pi) ~steps
-  in
-  draw_transformed_polygon points ~filled c
+  match axis_aligned_transform () with
+  | Some matrix ->
+      let renderer = get_renderer () in
+      let x, y = axis_aligned_center matrix cx cy in
+      let rx = abs (int_of_float (matrix.m11 *. float_of_int rx))
+      and ry = abs (int_of_float (matrix.m22 *. float_of_int ry)) in
+      let r = c.Color.r and g = c.g and b = c.b and a = c.a in
+      if filled then begin
+        ignore
+          (Tsdl_gfx.Gfx.aaellipse_rgba renderer ~x ~y ~rx ~ry ~r ~g ~b ~a);
+        ignore
+          (Tsdl_gfx.Gfx.filled_ellipse_rgba renderer ~x ~y ~rx ~ry
+             ~r ~g ~b ~a)
+      end
+      else
+        ignore
+          (Tsdl_gfx.Gfx.aaellipse_rgba renderer ~x ~y ~rx ~ry ~r ~g ~b ~a)
+  | None ->
+      let steps = max 24 (min 128 (max rx ry * 2)) in
+      let points =
+        ellipse_points ~center:(cx, cy) ~rx ~ry
+          ~from_:0. ~to_:(2. *. Float.pi) ~steps
+      in
+      draw_transformed_polygon points ~filled c
 
 (* Draw a rounded rectangle using tsdl_gfx *)
 let rounded_rect ~pos:(x, y) ~w ~h ~radius ?(filled=true) ?color () =
   let c = get_color ?color () in
   let clamped_radius = min radius (min (w / 2) (h / 2)) in
-  let arc center from_ to_ =
-    ellipse_points ~center ~rx:clamped_radius ~ry:clamped_radius
-      ~from_ ~to_ ~steps:6
-  in
-  let points =
-    arc (x + clamped_radius, y + clamped_radius) Float.pi
-      (1.5 *. Float.pi)
-    @ arc (x + w - clamped_radius, y + clamped_radius)
-        (1.5 *. Float.pi) (2. *. Float.pi)
-    @ arc (x + w - clamped_radius, y + h - clamped_radius)
-        0. (0.5 *. Float.pi)
-    @ arc (x + clamped_radius, y + h - clamped_radius)
-        (0.5 *. Float.pi) Float.pi
-  in
-  draw_transformed_polygon points ~filled c
+  if clamped_radius <= 0 then rect ~pos:(x, y) ~w ~h ~filled ~color:c ()
+  else
+    let steps = max 4 (min 32 ((clamped_radius + 1) / 2)) in
+    let arc center from_ to_ =
+      ellipse_points ~center ~rx:clamped_radius ~ry:clamped_radius
+        ~from_ ~to_ ~steps
+    in
+    let points =
+      arc (x + clamped_radius, y + clamped_radius) Float.pi
+        (1.5 *. Float.pi)
+      @ arc (x + w - clamped_radius, y + clamped_radius)
+          (1.5 *. Float.pi) (2. *. Float.pi)
+      @ arc (x + w - clamped_radius, y + h - clamped_radius)
+          0. (0.5 *. Float.pi)
+      @ arc (x + clamped_radius, y + h - clamped_radius)
+          (0.5 *. Float.pi) Float.pi
+    in
+    draw_transformed_polygon points ~filled c
 
 (* Additional tsdl_gfx specific functions *)
 
@@ -359,7 +433,7 @@ let rounded_rect ~pos:(x, y) ~w ~h ~radius ?(filled=true) ?color () =
 let thick_line ~x1 ~y1 ~x2 ~y2 ~width ?color () =
   let renderer = get_renderer () in
   let c = get_color ?color () in
-  let (r, g, b, a) = color_to_rgba c in
+  let r = c.Color.r and g = c.g and b = c.b and a = c.a in
   let (tx1, ty1) = transform_point (x1, y1) in
   let (tx2, ty2) = transform_point (x2, y2) in
   ignore (Tsdl_gfx.Gfx.thick_line_rgba renderer ~x1:tx1 ~y1:ty1 ~x2:tx2 ~y2:ty2 ~width ~r ~g ~b ~a)
@@ -367,17 +441,30 @@ let thick_line ~x1 ~y1 ~x2 ~y2 ~width ?color () =
 (* Draw an arc *)
 let arc ~center:(cx, cy) ~radius ~start_angle ~end_angle ?color () =
   let c = get_color ?color () in
-  let span = abs_float (end_angle -. start_angle) in
-  let steps = max 8 (int_of_float (span *. float_of_int radius /. 4.)) in
-  ellipse_points ~center:(cx, cy) ~rx:radius ~ry:radius
-    ~from_:start_angle ~to_:end_angle ~steps
-  |> fun points -> draw_transformed_polyline points c
+  match axis_aligned_transform () with
+  | Some matrix when matrix.m11 > 0. && matrix.m22 > 0.
+                     && abs_float (matrix.m11 -. matrix.m22) <= 1e-12 ->
+      let renderer = get_renderer () in
+      let x, y = axis_aligned_center matrix cx cy in
+      let rad = int_of_float (matrix.m11 *. float_of_int radius) in
+      let degrees angle = int_of_float (angle *. 180. /. Float.pi) in
+      let r = c.Color.r and g = c.g and b = c.b and a = c.a in
+      ignore
+        (Tsdl_gfx.Gfx.arc_rgba renderer ~x ~y ~rad
+           ~start:(degrees start_angle) ~end_:(degrees end_angle)
+           ~r ~g ~b ~a)
+  | _ ->
+      let span = abs_float (end_angle -. start_angle) in
+      let steps = max 8 (int_of_float (span *. float_of_int radius /. 4.)) in
+      ellipse_points ~center:(cx, cy) ~rx:radius ~ry:radius
+        ~from_:start_angle ~to_:end_angle ~steps
+      |> fun points -> draw_transformed_polyline points c
 
 (* Draw a pie slice *)
 let pie ~center:(cx, cy) ~radius ~start_angle ~end_angle ?(filled=true) ?color () =
   let c = get_color ?color () in
   let span = abs_float (end_angle -. start_angle) in
-  let steps = max 8 (int_of_float (span *. float_of_int radius /. 4.)) in
+  let steps = max 8 (int_of_float (span *. float_of_int radius /. 2.)) in
   let points =
     (cx, cy)
     :: ellipse_points ~center:(cx, cy) ~rx:radius ~ry:radius
@@ -392,7 +479,7 @@ let bezier ~points ~steps ?color () =
   | _ ->
     let renderer = get_renderer () in
     let c = get_color ?color () in
-    let (r, g, b, a) = color_to_rgba c in
+    let r = c.Color.r and g = c.g and b = c.b and a = c.a in
     
     let transformed_points = List.map transform_point points in
     ignore (Tsdl_gfx.Gfx.bezier_rgba renderer ~ps:transformed_points ~s:steps ~r ~g ~b ~a)
@@ -401,7 +488,7 @@ let bezier ~points ~steps ?color () =
 let draw_gfx_text ~pos:(x, y) ~text ?color () =
   let renderer = get_renderer () in
   let c = get_color ?color () in
-  let (r, g, b, a) = color_to_rgba c in
+  let r = c.Color.r and g = c.g and b = c.b and a = c.a in
   let (tx, ty) = transform_point (x, y) in
   ignore (Tsdl_gfx.Gfx.string_rgba renderer ~x:tx ~y:ty ~s:text ~r ~g ~b ~a)
 

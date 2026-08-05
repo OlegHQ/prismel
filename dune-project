@@ -26,8 +26,6 @@
   tsdl-image
   tsdl-ttf
   tsdl-mixer
-  ctypes
-  ctypes-foreign
   dune-configurator
   (odoc :with-doc)
   (utop :with-test)

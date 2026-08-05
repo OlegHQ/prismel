@@ -157,8 +157,11 @@ done
 - TTF fonts lazily rasterize at the renderer's current native density but draw
   with logical dimensions. This avoids blurred 1× glyph textures on a 2×
   framebuffer.
-- `Canvas.capture` and `Canvas.save_screen_png` read the full native renderer
-  output. A Retina capture is intentionally larger than `Window.size`.
+- `Canvas.capture` reads the full native renderer. On native and headless
+  targets, `Canvas.save_screen_png` reads that renderer and writes the PNG to
+  the filesystem. On the web target it requests browser-side PNG encoding and
+  download of the presented canvas, avoiding a framebuffer round trip.
+  A native Retina capture is intentionally larger than `Window.size`.
 
 **Closing the app:**
 After breaking out of loop:

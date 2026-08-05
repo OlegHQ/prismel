@@ -1,349 +1,164 @@
-open Ctypes
 open Tsdl
-open Result
-
-let gfx_library =
-  let candidates =
-    [
-      "libSDL2_gfx.dylib";
-      "/opt/homebrew/lib/libSDL2_gfx.dylib";
-      "/usr/local/lib/libSDL2_gfx.dylib";
-      "libSDL2_gfx.so";
-      "libSDL2_gfx-1.0.so.0";
-      "SDL2_gfx.dll";
-    ]
-  in
-  let rec load errors = function
-    | [] ->
-        failwith ("Unable to load SDL2_gfx: " ^ String.concat "; " (List.rev errors))
-    | filename :: rest ->
-        (try Dl.dlopen ~filename ~flags:[Dl.RTLD_NOW; Dl.RTLD_GLOBAL]
-         with Dl.DL_error message -> load (message :: errors) rest)
-  in
-  load [] candidates
-
-let foreign name signature =
-  Foreign.foreign ~from:gfx_library name signature
 
 module Gfx = struct
-
-type 'a result = 'a Sdl.result
-
-let error () = Error (`Msg (Sdl.get_error ()))
-
-let zero_to_ok =
-  let read = function 0 -> Ok () | _ -> error () in
-  view ~read ~write:(fun _ -> assert false) int
-
-let renderer =
-  view
-    ~read:Sdl.unsafe_renderer_of_ptr
-    ~write:Sdl.unsafe_ptr_of_renderer
-    nativeint
-
-let pixel_rgba =
-  foreign "pixelRGBA" (
-    renderer @-> int @-> int @-> int @-> int @-> int @-> int @->
-      returning zero_to_ok)
-
-let pixel_rgba rnd ~x ~y ~r ~g ~b ~a =
-  pixel_rgba rnd x y r g b a
-
-let hline_rgba =
-  foreign "hlineRGBA" (
-    renderer @-> int @-> int @-> int @-> int @-> int @-> int @-> int @->
-      returning zero_to_ok)
-
-let vline_rgba =
-  foreign "vlineRGBA" (
-    renderer @-> int @-> int @-> int @-> int @-> int @-> int @-> int @->
-      returning zero_to_ok)
-
-let rectangle_rgba =
-  foreign "rectangleRGBA" (
-    renderer @-> int @-> int @-> int @-> int @-> int @-> int @-> int @-> int @->
-      returning zero_to_ok)
-
-
-let hline_rgba rnd ~x1 ~x2 ~y ~r ~g ~b ~a =
-  hline_rgba rnd x1 x2 y r g b a
-
-let vline_rgba rnd ~x ~y1 ~y2 ~r ~g ~b ~a =
-  vline_rgba rnd x y1 y2 r g b a
-
-let rectangle_rgba rnd ~x1 ~y1 ~x2 ~y2 ~r ~g ~b ~a =
-  rectangle_rgba rnd x1 y1 x2 y2 r g b a
-
-
-let line_rgba =
-  foreign "lineRGBA" (
-    renderer @-> int @-> int @-> int @-> int @-> int @-> int @-> int @-> int @->
-      returning zero_to_ok)
-
-let line_rgba rnd ~x1 ~y1 ~x2 ~y2 ~r ~g ~b ~a =
-  line_rgba rnd x1 y1 x2 y2 r g b a
-
-let aaline_rgba =
-  foreign "aalineRGBA" (
-    renderer @-> int @-> int @-> int @-> int @-> int @-> int @-> int @-> int @->
-      returning zero_to_ok)
-
-let aaline_rgba rnd ~x1 ~y1 ~x2 ~y2 ~r ~g ~b ~a =
-  aaline_rgba rnd x1 y1 x2 y2 r g b a
-
-
-let thick_line_rgba =
-  foreign "thickLineRGBA" (
-    renderer @-> int @-> int @-> int @-> int @-> int @-> int @-> int @-> int @-> int @->
-      returning zero_to_ok)
-
-let thick_line_rgba rnd ~x1 ~y1 ~x2 ~y2 ~width ~r ~g ~b ~a =
-  thick_line_rgba rnd x1 y1 x2 y2 width r g b a
-
-
-let rounded_rectangle_rgba =
-  foreign "roundedRectangleRGBA" (
-    renderer @-> int @-> int @-> int @-> int @-> int @-> int @-> int @-> int @-> int @->
-      returning zero_to_ok)
-
-let rounded_rectangle_rgba rnd ~x1 ~y1 ~x2 ~y2 ~rad ~r ~g ~b ~a =
-  rounded_rectangle_rgba rnd x1 y1 x2 y2 rad r g b a
-
-
-let box_rgba =
-  foreign "boxRGBA" (
-    renderer @-> int @-> int @-> int @-> int @-> int @-> int @-> int @-> int @->
-      returning zero_to_ok)
-
-let box_rgba rnd ~x1 ~y1 ~x2 ~y2 ~r ~g ~b ~a =
-  box_rgba rnd x1 y1 x2 y2 r g b a
-
-
-let rounded_box_rgba =
-  foreign "roundedBoxRGBA" (
-    renderer @-> int @-> int @-> int @-> int @-> int @-> int @-> int @-> int @-> int @->
-      returning zero_to_ok)
-
-let rounded_box_rgba rnd ~x1 ~y1 ~x2 ~y2 ~rad ~r ~g ~b ~a =
-  rounded_box_rgba rnd x1 y1 x2 y2 rad r g b a
-
-
-
-let circle_rgba =
-  foreign "circleRGBA" (
-    renderer @-> int @-> int @-> int @-> int @-> int @-> int @-> int @->
-      returning zero_to_ok)
-
-let circle_rgba rnd ~x ~y ~rad ~r ~g ~b ~a =
-  circle_rgba rnd x y rad r g b a
-
-
-let aacircle_rgba =
-  foreign "aacircleRGBA" (
-    renderer @-> int @-> int @-> int @-> int @-> int @-> int @-> int @->
-      returning zero_to_ok)
-
-let aacircle_rgba rnd ~x ~y ~rad ~r ~g ~b ~a =
-  aacircle_rgba rnd x y rad r g b a
-
-
-let filled_circle_rgba =
-  foreign "filledCircleRGBA" (
-    renderer @-> int @-> int @-> int @-> int @-> int @-> int @-> int @->
-      returning zero_to_ok)
-
-let filled_circle_rgba rnd ~x ~y ~rad ~r ~g ~b ~a =
-  filled_circle_rgba rnd x y rad r g b a
-
-
-let ellipse_rgba =
-  foreign "ellipseRGBA" (
-    renderer @-> int @-> int @-> int @-> int @-> int @-> int @-> int @-> int @->
-      returning zero_to_ok)
-
-let ellipse_rgba rnd ~x ~y ~rx ~ry ~r ~g ~b ~a =
-  ellipse_rgba rnd x y rx ry r g b a
-
-
-let aaellipse_rgba =
-  foreign "aaellipseRGBA" (
-    renderer @-> int @-> int @-> int @-> int @-> int @-> int @-> int @-> int @->
-      returning zero_to_ok)
-
-let aaellipse_rgba rnd ~x ~y ~rx ~ry ~r ~g ~b ~a =
-  aaellipse_rgba rnd x y rx ry r g b a
-
-
-let filled_ellipse_rgba =
-  foreign "filledEllipseRGBA" (
-    renderer @-> int @-> int @-> int @-> int @-> int @-> int @-> int @-> int @->
-      returning zero_to_ok)
-
-let filled_ellipse_rgba rnd ~x ~y ~rx ~ry ~r ~g ~b ~a =
-  filled_ellipse_rgba rnd x y rx ry r g b a
-
-
-let arc_rgba =
-  foreign "arcRGBA" (
-    renderer @-> int @-> int @-> int @-> int @-> int @-> int @-> int @-> int @-> int @->
-      returning zero_to_ok)
-
-let arc_rgba rnd ~x ~y ~rad ~start ~end_ ~r ~g ~b ~a =
-  arc_rgba rnd x y rad start end_ r g b a
-
-
-let pie_rgba =
-  foreign "pieRGBA" (
-    renderer @-> int @-> int @-> int @-> int @-> int @-> int @-> int @-> int @-> int @->
-      returning zero_to_ok)
-
-let pie_rgba rnd ~x ~y ~rad ~start ~end_ ~r ~g ~b ~a =
-  pie_rgba rnd x y rad start end_ r g b a
-
-
-let filled_pie_rgba =
-  foreign "filledPieRGBA" (
-    renderer @-> int @-> int @-> int @-> int @-> int @-> int @-> int @-> int @-> int @->
-      returning zero_to_ok)
-
-let filled_pie_rgba rnd ~x ~y ~rad ~start ~end_ ~r ~g ~b ~a =
-  filled_pie_rgba rnd x y rad start end_ r g b a
-
-
-let trigon_rgba =
-  foreign "trigonRGBA" (
-    renderer @-> int @-> int @-> int @-> int @-> int @-> int @-> int @-> int @-> int @-> int @->
-      returning zero_to_ok)
-
-let trigon_rgba rnd ~x1 ~y1 ~x2 ~y2 ~x3 ~y3 ~r ~g ~b ~a =
-  trigon_rgba rnd x1 y1 x2 y2 x3 y3 r g b a
-
-
-let aatrigon_rgba =
-  foreign "aatrigonRGBA" (
-    renderer @-> int @-> int @-> int @-> int @-> int @-> int @-> int @-> int @-> int @-> int @->
-      returning zero_to_ok)
-
-let aatrigon_rgba rnd ~x1 ~y1 ~x2 ~y2 ~x3 ~y3 ~r ~g ~b ~a =
-  aatrigon_rgba rnd x1 y1 x2 y2 x3 y3 r g b a
-
-
-let filled_trigon_rgba =
-  foreign "filledTrigonRGBA" (
-    renderer @-> int @-> int @-> int @-> int @-> int @-> int @-> int @-> int @-> int @-> int @->
-      returning zero_to_ok)
-
-let filled_trigon_rgba rnd ~x1 ~y1 ~x2 ~y2 ~x3 ~y3 ~r ~g ~b ~a =
-  filled_trigon_rgba rnd x1 y1 x2 y2 x3 y3 r g b a
-
-
-let polygon_rgba =
-  foreign "polygonRGBA" (
-    renderer @-> ptr void @-> ptr void @-> int @->
-      uint8_t @-> uint8_t @-> uint8_t @-> uint8_t @->
-        returning zero_to_ok)
-
-let polygon_rgba rnd ~ps ~r ~g ~b ~a =
-  let vx = List.map fst ps in
-  let vy = List.map snd ps in
-  let cax = CArray.of_list int16_t vx in
-  let cay = CArray.of_list int16_t vy in
-  let n = CArray.length cax in
-  let px = to_voidp (CArray.start cax) in
-  let py = to_voidp (CArray.start cay) in
-  let r = Unsigned.UInt8.of_int r in
-  let g = Unsigned.UInt8.of_int g in
-  let b = Unsigned.UInt8.of_int b in
-  let a = Unsigned.UInt8.of_int a in
-  polygon_rgba rnd px py n r g b a
-
-
-let aapolygon_rgba =
-  foreign "aapolygonRGBA" (
-    renderer @-> ptr void @-> ptr void @-> int @->
-      uint8_t @-> uint8_t @-> uint8_t @-> uint8_t @->
-        returning zero_to_ok)
-
-let aapolygon_rgba rnd ~ps ~r ~g ~b ~a =
-  let vx = List.map fst ps in
-  let vy = List.map snd ps in
-  let cax = CArray.of_list int16_t vx in
-  let cay = CArray.of_list int16_t vy in
-  let n = CArray.length cax in
-  let px = to_voidp (CArray.start cax) in
-  let py = to_voidp (CArray.start cay) in
-  let r = Unsigned.UInt8.of_int r in
-  let g = Unsigned.UInt8.of_int g in
-  let b = Unsigned.UInt8.of_int b in
-  let a = Unsigned.UInt8.of_int a in
-  aapolygon_rgba rnd px py n r g b a
-
-
-let filled_polygon_rgba =
-  foreign "filledPolygonRGBA" (
-    renderer @-> ptr void @-> ptr void @-> int @->
-      uint8_t @-> uint8_t @-> uint8_t @-> uint8_t @->
-        returning zero_to_ok)
-
-let filled_polygon_rgba rnd ~ps ~r ~g ~b ~a =
-  let vx = List.map fst ps in
-  let vy = List.map snd ps in
-  let cax = CArray.of_list int16_t vx in
-  let cay = CArray.of_list int16_t vy in
-  let n = CArray.length cax in
-  let px = to_voidp (CArray.start cax) in
-  let py = to_voidp (CArray.start cay) in
-  let r = Unsigned.UInt8.of_int r in
-  let g = Unsigned.UInt8.of_int g in
-  let b = Unsigned.UInt8.of_int b in
-  let a = Unsigned.UInt8.of_int a in
-  filled_polygon_rgba rnd px py n r g b a
-
-
-let bezier_rgba =
-  foreign "bezierRGBA" (
-    renderer @-> ptr void @-> ptr void @-> int @-> int @->
-      uint8_t @-> uint8_t @-> uint8_t @-> uint8_t @->
-        returning zero_to_ok)
-
-let bezier_rgba rnd ~ps ~s ~r ~g ~b ~a =
-  let vx = List.map fst ps in
-  let vy = List.map snd ps in
-  let cax = CArray.of_list int16_t vx in
-  let cay = CArray.of_list int16_t vy in
-  let n = CArray.length cax in
-  let px = to_voidp (CArray.start cax) in
-  let py = to_voidp (CArray.start cay) in
-  let r = Unsigned.UInt8.of_int r in
-  let g = Unsigned.UInt8.of_int g in
-  let b = Unsigned.UInt8.of_int b in
-  let a = Unsigned.UInt8.of_int a in
-  bezier_rgba rnd px py n s r g b a
-
-
-let character_rgba =
-  foreign "characterRGBA" (
-    renderer @-> int @-> int @-> char @-> int @-> int @-> int @-> int @->
-      returning zero_to_ok)
-
-let character_rgba rnd ~x ~y ~c ~r ~g ~b ~a =
-  character_rgba rnd x y c r g b a
-
-
-let string_rgba =
-  foreign "stringRGBA" (
-    renderer @-> int @-> int @-> string @-> int @-> int @-> int @-> int @->
-      returning zero_to_ok)
-
-let string_rgba rnd ~x ~y ~s ~r ~g ~b ~a =
-  string_rgba rnd x y s r g b a
-
-
-let set_font_rotation =
-  foreign "gfxPrimitivesSetFontRotation" (
-    int @-> returning void)
-
-let set_font_rotation ~rot =
-  set_font_rotation rot
-
+  type 'a result = 'a Sdl.result
+
+  external scalar_stub : int -> nativeint -> int array -> int
+    = "caml_tsdl_gfx_scalar"
+  external polygon_stub : int -> nativeint -> (int * int) list -> int array -> int
+    = "caml_tsdl_gfx_polygon"
+  external string_stub : nativeint -> string -> int array -> int
+    = "caml_tsdl_gfx_string"
+  external set_font_rotation_stub : int -> unit
+    = "caml_tsdl_gfx_font_rotation"
+
+  let arguments = Domain.DLS.new_key (fun () -> Array.make 10 0)
+  let cached_renderer : (Sdl.renderer * nativeint) option ref = ref None
+  let ok = Ok ()
+
+  let renderer_pointer renderer =
+    match !cached_renderer with
+    | Some (cached, pointer) when cached == renderer -> pointer
+    | _ ->
+        let pointer = Sdl.unsafe_ptr_of_renderer renderer in
+        cached_renderer := Some (renderer, pointer);
+        pointer
+
+  let finish = function
+    | 0 -> ok
+    | _ -> Error (`Msg (Sdl.get_error ()))
+
+  let invoke operation renderer args =
+    scalar_stub operation (renderer_pointer renderer) args |> finish
+
+  let pixel_rgba renderer ~x ~y ~r ~g ~b ~a =
+    let args = Domain.DLS.get arguments in
+    args.(0) <- x; args.(1) <- y;
+    args.(2) <- r; args.(3) <- g; args.(4) <- b; args.(5) <- a;
+    invoke 0 renderer args
+
+  let hline_rgba renderer ~x1 ~x2 ~y ~r ~g ~b ~a =
+    let args = Domain.DLS.get arguments in
+    args.(0) <- x1; args.(1) <- x2; args.(2) <- y;
+    args.(3) <- r; args.(4) <- g; args.(5) <- b; args.(6) <- a;
+    invoke 1 renderer args
+
+  let vline_rgba renderer ~x ~y1 ~y2 ~r ~g ~b ~a =
+    let args = Domain.DLS.get arguments in
+    args.(0) <- x; args.(1) <- y1; args.(2) <- y2;
+    args.(3) <- r; args.(4) <- g; args.(5) <- b; args.(6) <- a;
+    invoke 2 renderer args
+
+  let rectangle_rgba renderer ~x1 ~y1 ~x2 ~y2 ~r ~g ~b ~a =
+    let args = Domain.DLS.get arguments in
+    args.(0) <- x1; args.(1) <- y1; args.(2) <- x2; args.(3) <- y2;
+    args.(4) <- r; args.(5) <- g; args.(6) <- b; args.(7) <- a;
+    invoke 3 renderer args
+
+  let rounded_rectangle_rgba renderer ~x1 ~y1 ~x2 ~y2 ~rad ~r ~g ~b ~a =
+    let args = Domain.DLS.get arguments in
+    args.(0) <- x1; args.(1) <- y1; args.(2) <- x2; args.(3) <- y2;
+    args.(4) <- rad; args.(5) <- r; args.(6) <- g; args.(7) <- b; args.(8) <- a;
+    invoke 4 renderer args
+
+  let box_rgba renderer ~x1 ~y1 ~x2 ~y2 ~r ~g ~b ~a =
+    let args = Domain.DLS.get arguments in
+    args.(0) <- x1; args.(1) <- y1; args.(2) <- x2; args.(3) <- y2;
+    args.(4) <- r; args.(5) <- g; args.(6) <- b; args.(7) <- a;
+    invoke 5 renderer args
+
+  let rounded_box_rgba renderer ~x1 ~y1 ~x2 ~y2 ~rad ~r ~g ~b ~a =
+    let args = Domain.DLS.get arguments in
+    args.(0) <- x1; args.(1) <- y1; args.(2) <- x2; args.(3) <- y2;
+    args.(4) <- rad; args.(5) <- r; args.(6) <- g; args.(7) <- b; args.(8) <- a;
+    invoke 6 renderer args
+
+  let line_rgba renderer ~x1 ~y1 ~x2 ~y2 ~r ~g ~b ~a =
+    let args = Domain.DLS.get arguments in
+    args.(0) <- x1; args.(1) <- y1; args.(2) <- x2; args.(3) <- y2;
+    args.(4) <- r; args.(5) <- g; args.(6) <- b; args.(7) <- a;
+    invoke 7 renderer args
+
+  let aaline_rgba renderer ~x1 ~y1 ~x2 ~y2 ~r ~g ~b ~a =
+    let args = Domain.DLS.get arguments in
+    args.(0) <- x1; args.(1) <- y1; args.(2) <- x2; args.(3) <- y2;
+    args.(4) <- r; args.(5) <- g; args.(6) <- b; args.(7) <- a;
+    invoke 8 renderer args
+
+  let thick_line_rgba renderer ~x1 ~y1 ~x2 ~y2 ~width ~r ~g ~b ~a =
+    let args = Domain.DLS.get arguments in
+    args.(0) <- x1; args.(1) <- y1; args.(2) <- x2; args.(3) <- y2;
+    args.(4) <- width; args.(5) <- r; args.(6) <- g; args.(7) <- b; args.(8) <- a;
+    invoke 9 renderer args
+
+  let circle_call operation renderer ~x ~y ~rad ~r ~g ~b ~a =
+    let args = Domain.DLS.get arguments in
+    args.(0) <- x; args.(1) <- y; args.(2) <- rad;
+    args.(3) <- r; args.(4) <- g; args.(5) <- b; args.(6) <- a;
+    invoke operation renderer args
+
+  let circle_rgba = circle_call 10
+  let aacircle_rgba = circle_call 11
+  let filled_circle_rgba = circle_call 12
+
+  let ellipse_call operation renderer ~x ~y ~rx ~ry ~r ~g ~b ~a =
+    let args = Domain.DLS.get arguments in
+    args.(0) <- x; args.(1) <- y; args.(2) <- rx; args.(3) <- ry;
+    args.(4) <- r; args.(5) <- g; args.(6) <- b; args.(7) <- a;
+    invoke operation renderer args
+
+  let ellipse_rgba = ellipse_call 13
+  let aaellipse_rgba = ellipse_call 14
+  let filled_ellipse_rgba = ellipse_call 15
+
+  let pie_call operation renderer ~x ~y ~rad ~start ~end_ ~r ~g ~b ~a =
+    let args = Domain.DLS.get arguments in
+    args.(0) <- x; args.(1) <- y; args.(2) <- rad;
+    args.(3) <- start; args.(4) <- end_;
+    args.(5) <- r; args.(6) <- g; args.(7) <- b; args.(8) <- a;
+    invoke operation renderer args
+
+  let arc_rgba = pie_call 16
+  let pie_rgba = pie_call 17
+  let filled_pie_rgba = pie_call 18
+
+  let trigon_call operation renderer ~x1 ~y1 ~x2 ~y2 ~x3 ~y3 ~r ~g ~b ~a =
+    let args = Domain.DLS.get arguments in
+    args.(0) <- x1; args.(1) <- y1; args.(2) <- x2; args.(3) <- y2;
+    args.(4) <- x3; args.(5) <- y3;
+    args.(6) <- r; args.(7) <- g; args.(8) <- b; args.(9) <- a;
+    invoke operation renderer args
+
+  let trigon_rgba = trigon_call 19
+  let aatrigon_rgba = trigon_call 20
+  let filled_trigon_rgba = trigon_call 21
+
+  let polygon_call operation renderer ~ps ~r ~g ~b ~a =
+    let args = Domain.DLS.get arguments in
+    args.(0) <- 0; args.(1) <- r; args.(2) <- g; args.(3) <- b; args.(4) <- a;
+    polygon_stub operation (renderer_pointer renderer) ps args |> finish
+
+  let polygon_rgba = polygon_call 0
+  let aapolygon_rgba = polygon_call 1
+  let filled_polygon_rgba = polygon_call 2
+  let polyline_rgba = polygon_call 4
+
+  let bezier_rgba renderer ~ps ~s ~r ~g ~b ~a =
+    let args = Domain.DLS.get arguments in
+    args.(0) <- s; args.(1) <- r; args.(2) <- g; args.(3) <- b; args.(4) <- a;
+    polygon_stub 3 (renderer_pointer renderer) ps args |> finish
+
+  let character_rgba renderer ~x ~y ~c ~r ~g ~b ~a =
+    let args = Domain.DLS.get arguments in
+    args.(0) <- x; args.(1) <- y; args.(2) <- Char.code c;
+    args.(3) <- r; args.(4) <- g; args.(5) <- b; args.(6) <- a;
+    invoke 22 renderer args
+
+  let string_rgba renderer ~x ~y ~s ~r ~g ~b ~a =
+    let args = Domain.DLS.get arguments in
+    args.(0) <- x; args.(1) <- y;
+    args.(2) <- r; args.(3) <- g; args.(4) <- b; args.(5) <- a;
+    string_stub (renderer_pointer renderer) s args |> finish
+
+  let set_font_rotation ~rot = set_font_rotation_stub rot
 end

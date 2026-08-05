@@ -4,6 +4,8 @@ type clock =
   | Realtime
   | Fixed of float
 
+type render_target = Native | Headless | Web
+
 type config = {
   width : int;
   height : int;
@@ -14,6 +16,9 @@ type config = {
   resizable : bool;
   fullscreen : bool;
 }
+(** [width] and [height] are the initial web size until a browser connects.
+    Web canvases then adopt the full browser viewport regardless of
+    [resizable], which continues to control native desktop windows. *)
 
 val default_config : config
 
@@ -72,3 +77,5 @@ val export_state :
 
 val quit : unit -> unit
 val is_headless : unit -> bool
+val is_web : unit -> bool
+val render_target : unit -> render_target
