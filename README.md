@@ -215,7 +215,7 @@ PRISMEL_RENDER_TARGET=web PRISMEL_WEB_PORT=9000 \
 
 The browser viewport is authoritative in web mode: the canvas and
 `Frame.width`/`height` adopt the full available browser window even when the
-desktop sketch configuration has `resizable = false`. The initial configured
+desktop sketch configuration explicitly has `resizable = false`. The initial configured
 size is used only until the first browser connects. Large viewports keep their
 full logical coordinate space while the server backing framebuffer is fitted
 within `PRISMEL_WEB_MAX_PIXELS` (1280×720 at the default 921600-pixel budget).
@@ -247,26 +247,36 @@ declarative value stored in the sketch model:
 
 ```ocaml
 let ui =
-  Pxui.create ()
+  Pxui.create ~max_height:520 ()
   |> Pxui.label ~text:"Controls"
   |> Pxui.toggle ~name:"animate" ~label:"Animate" ~value:true
   |> Pxui.slider ~name:"radius" ~label:"Radius"
        ~min:10. ~max:120. ~value:48.
+  |> Pxui.int_slider ~name:"segments" ~label:"Segments"
+       ~min:3 ~max:128 ~value:24
   |> Pxui.text_field ~name:"title" ~label:"Title" ~value:"Orbit"
 
 let update model frame =
-  let ui, changes = Pxui.update model.ui frame.events in
+  let ui, changes = Pxui.update_frame model.ui frame in
   { model with ui }
 
 let view model _frame =
   Scene.[clear Color.black; group (Pxui.scene model.ui)]
 ```
 
-`Pxui.update` does not mutate its input and returns ordered named changes.
+`Pxui.update_frame` does not mutate its input and returns ordered named changes.
+Double-click a float or integer slider label to type an exact value; Enter
+commits it and Escape cancels it. Slider bounds are a soft drag range, so typed
+values may extend beyond them without being clamped.
 Text fields consume SDL text-input and IME-composition events. `Pxui.encode` /
 `decode` provide pure, typed settings round trips; `save` / `load` persist the
 same versioned format. Choice, dual-handle range, and 2D controls use the same
 builder/update/query pattern.
+
+Use `Pxui.int_slider` for counts, seeds, segments, and other discrete values;
+it emits and persists integers without sketch-side rounding. `~max_height`
+clips a long inspector and enables vertical wheel/trackpad scrolling with a
+visible scrollbar.
 
 The default theme uses a dark glass-like panel, cyan-green accent, subtle glow,
 rounded controls, and distinct hover/pressed states. Pass `~theme`, `~font`,
@@ -284,6 +294,46 @@ cannot activate a widget. The older `add_*`, `handle_event`, and `draw`
 functions remain available for low-level compatibility. See the
 [PXUI interaction specification](./specification/pxui.md) for the complete
 pointer and visual contract.
+
+SOP sketches generate each selected node's inspector from typed parameter
+metadata instead of duplicating fields as custom widgets. Add `(preprocess
+(pps prismel.ppx))`, derive a schema beside the SOP definition, and attach it
+to that node:
+
+```ocaml
+type controls = {
+  planes : int
+    [@sop.default 24] [@sop.folder "Geometry"]
+    [@sop.min 1] [@sop.max 50] [@sop.hard_min 1];
+  noise : float
+    [@sop.default 0.3] [@sop.folder "Noise"]
+    [@sop.min 0.] [@sop.max 1.];
+}
+[@@deriving sop_params]
+
+let cutters =
+  Custom.node ~label:"cutters" ~operation:"cutter-points"
+    ~schema:controls_schema ~values:controls_default []
+    (fun ~label ~inputs:_ ~parameters ->
+      Sop.point_generate_origin ~label ~points:parameters.planes ())
+```
+
+The generated `controls_default`/`controls_schema` retain defaults, labels,
+folder paths, soft slider ranges, optional strict bounds, and cook/view/export
+impact. `Sop_ui.Node_inspector` maps ordinary PXUI changes through
+`Graph.apply_parameters`; stable IDs preserve graph selection and unaffected
+caches. `Pxui_graph` presents an immutable `Edit_graph` document and emits
+typed add/delete/connect/disconnect/insert commands, while
+`Sketch_ui.Environment3.run` and `Environment2.run` share a resizable
+45/35/20 view/graph/inspector workspace, camera/render controls, `P/S/R`
+playback, `G/I/C/H` UI shortcuts, bounded background cooking, and status/export
+UI. See the roughly 70-line
+`sketches/shattered_cube/main.ml` for the full graph-first path.
+Slider min/max metadata defines the normal drag range, not a validity limit:
+typed values may exceed it. Add `[@sop.hard_min]` or `[@sop.hard_max]` only
+where the operation has an actual strict bound. Persist parameter state at the
+graph/node layer; the inspector is a view of the selected node, not a second
+parameter authority.
 
 ### Basic Usage
 
@@ -436,6 +486,13 @@ errors retain the complete root-to-failure node path. Use
 `Sop.native_point_ranges` to descend to allocation-tight packed OCaml loops
 without changing geometry formats.
 
+Interactive inspectors should use `Async_cook` instead of calling
+`Session.cook` inside `Sketch.update`. Its persistent worker owns the session,
+keeps only the latest pending request, cancels superseded contexts, and exposes
+non-blocking `poll`/`status` functions. Keep the previous successful mesh on
+screen with a visible cooking-time status; adopt immutable results and perform
+all SDL/GPU work on the initial domain. Close the worker from `~on_stop`.
+
 Generator nodes use the same production packed kernels directly. For example,
 `Sop.circle` supports closed circles, open or chord-closed arcs, center-sliced
 arcs, ellipses, arbitrary robust plane axes, center/rotation/scale, and reverse
@@ -563,6 +620,10 @@ oriented solid or a zero-volume surface; payload conflicts, seam-point
 splitting, bounded tiny-seam cleanup, source-polygon detriangulation,
 self-intersection resolution, and closed-output validation are typed node
 policies.
+`Sop.boolean_fracture` is the solid-by-surface specialization used by fracture
+sketches. It keeps exact seam points shared and writes a dense primitive
+`piece` attribute from the oriented Weiler cell behind each output face, so a
+packed transform moves a complete closed shard instead of individual patches.
 `Sop.boolean_seam` exposes the corresponding exact left-self, between-input,
 right-self curve products or coincident triangle patches with optional named
 primitive groups.
@@ -1087,6 +1148,10 @@ rotationally-symmetric multidimensional Cauchy, biased/constrained unit
 direction/orientation and uniform sphere-volume sampling, inverse-CDF ramps,
 weighted tuple or text choices, optional explicit fraction attributes, and
 typed point/vertex/primitive/native-edge group expansion;
+`attribute_noise` adds coherent scalar or vector Perlin/fBm fields with typed
+location, range, operation, blend, frequency, offset, and fractal controls;
+its normalized Float4 `orient` mode is a documented Prismel extension rather
+than a Houdini parity claim;
 `attribute_remap` normalizes or reshapes those values through explicit or
 automatic component ranges, cycling/clamping/extrapolation, and a linear ramp.
 Topology-preserving `normals`, selection-aware `peak`, captured `bend`/twist,
@@ -1692,9 +1757,23 @@ dependency direction are documented in [`AGENTS.md`](./AGENTS.md).
 - **`Pdk`** (`prismel.pdk`): Packed topology, typed attributes, groups,
   multicore geometry kernels, eager operations, and Prismel mesh conversion
 - **`Procedural`** (`prismel.procedural`): Human-first immutable SOP graphs,
-  bounded evaluation sessions, inspection, diagnostics, and render bridging
+  bounded evaluation sessions, inspection, diagnostics, PPX-parameterized
+  custom/wrangle-like nodes, and render bridging
 - **`Pxui`** (`prismel.pxui`): Functional controls, layout, themes, and
   settings persistence
+- **`Sop_catalog`** (`prismel.sop_catalog`): Inspectable catalog SOPs with
+  node-owned parameter metadata and a deterministic PPX-generated editor
+  manifest, including a labeled standard SOP Switch
+- **`Sop_ui`** (`prismel.sop_ui`): Generated selected-node inspectors
+- **`Pxui_graph`** (`prismel.pxui_graph`): Command-emitting SOP graph editor
+  with multi-selection, persistent tile layout, selectable wires, ordered ports,
+  disconnected node creation, hierarchical category submenus, global
+  breadcrumb search, subgraph clipboard shortcuts,
+  captured navigation, independent inspection/display selection, and VIEW flags
+- **`Sketch_support`** (`prismel.sketch_support`): Timeline, bounded reactive
+  cooking, and terminal packed-piece render transforms
+- **`Sketch_ui`** (`prismel.sketch_ui`): Reusable responsive three-column 2D
+  and 3D SOP sketch environments over one shared lifecycle
 
 ### Input & Events
 

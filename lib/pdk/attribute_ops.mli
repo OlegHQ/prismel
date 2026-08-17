@@ -304,6 +304,23 @@ type random_operation =
   | Random_minimum
   | Random_maximum
   | Random_multiply
+type noise_kind = Noise_float | Noise_vector | Noise_quaternion
+type noise_location =
+  | Noise_position
+  | Noise_element_number
+  | Noise_attribute of string
+type noise_range =
+  | Noise_positive
+  | Noise_zero_centered
+  | Noise_min_max of numeric_value * numeric_value
+type noise_operation =
+  | Noise_set_initial
+  | Noise_set
+  | Noise_add
+  | Noise_subtract
+  | Noise_multiply
+  | Noise_minimum
+  | Noise_maximum
 type random_selection =
   | Random_points of Group.t
   | Random_vertices of Group.t
@@ -467,6 +484,35 @@ val randomize :
     immutable {!Prismel.Rand} indexed streams or borrowed fraction planes.
     Distribution tables and range scratch are bounded independently of element
     count. Disjoint fills are byte-identical across domain counts. *)
+
+val noise :
+  ?cancel:Cancel.t ->
+  ?grain:int ->
+  ?selection:Group.t ->
+  seed:int ->
+  owner:Attribute.owner ->
+  name:string ->
+  kind:noise_kind ->
+  ?location:noise_location ->
+  ?range:noise_range ->
+  ?operation:noise_operation ->
+  ?blend:float ->
+  ?frequency:Prismel.Vec3.t ->
+  ?offset:Prismel.Vec3.t ->
+  ?octaves:int ->
+  ?lacunarity:float ->
+  ?roughness:float ->
+  Geometry.t ->
+  (Geometry.t, Error.t) result
+(** Apply deterministic coherent 3D gradient noise to a floating attribute.
+    This covers Attribute Noise's common scalar/vector controls: location,
+    range, operation, blend, scale/offset, and standard fractal parameters.
+    [Noise_element_number] corresponds to overriding the sampling position
+    with the element number. [Noise_quaternion] is a Prismel extension for a
+    normalized Float4 Copy-to-Points [orient] and accepts set operations only.
+
+    Work is O(elements * components * octaves), output storage is
+    O(elements * components), and disjoint parallel fills are deterministic. *)
 
 val remap :
   ?cancel:Cancel.t ->

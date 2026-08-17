@@ -2031,4 +2031,35 @@ let render ?viewport ~camera scene =
         end;
         render_software ?viewport ~camera scene
 
+let composite_over background foreground =
+  if foreground.Color.a = 255 then foreground
+  else if foreground.a = 0 then background
+  else
+    let alpha = float_of_int foreground.a /. 255. in
+    let channel foreground background =
+      int_of_float ((float_of_int foreground *. alpha)
+        +. (float_of_int background *. (1. -. alpha)) +. 0.5) in
+    Color.rgba
+      (channel foreground.r background.r)
+      (channel foreground.g background.g)
+      (channel foreground.b background.b) 255
+
+let capture_software ~width ~height ~background ~camera scene =
+  let output = rasterize ~attachments:true ~width ~height ~camera scene in
+  Ok (Array.map (composite_over background) output.colors)
+
+let capture ~width ~height ~background ~camera scene =
+  if width <= 0 || height <= 0 then Error "3D capture dimensions must be positive"
+  else if width > 16384 || height > 16384
+      || Int64.mul (Int64.of_int width) (Int64.of_int height) > 100_000_000L
+  then Error "3D capture exceeds the 16384-axis or 100-megapixel safety limit"
+  else if Backend.is_displayless () then
+    capture_software ~width ~height ~background ~camera scene
+  else match Renderer3d_gpu.capture ~width ~height ~background ~camera scene with
+    | Ok _ as output -> output
+    | Error message ->
+        Printf.eprintf
+          "Prismel native GPU capture fallback: %s; using software\n%!" message;
+        capture_software ~width ~height ~background ~camera scene
+
 let present_gpu_if_pending = Renderer3d_gpu.present_if_pending

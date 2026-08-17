@@ -14,6 +14,24 @@ use locally owned mutation and packed storage without exposing mutable aliases.
 | Offline sequence | thousands of frames | byte determinism and no cumulative cache/resource growth |
 | Software raster | millions of samples/frame | allocation-free pixel/sample loops and early rejection |
 
+### SOP graph interaction smoke baseline
+
+The focused graph test includes a 2,001-node/2,000-wire fan-in graph, validates
+packed graph cardinality and off-screen tile culling, and materializes one
+scene. On Apple M1 arm64, OCaml 5.3.0, Dune 3.24.1, the complete focused test
+(including smaller interaction regressions) measured 0.08 s wall time, 30.2 MB
+maximum RSS, and 13.4 MB peak footprint on 2026-08-06:
+
+```sh
+dune build test/test_pxui_graph.exe
+/usr/bin/time -l _build/default/test/test_pxui_graph.exe
+```
+
+This is a repeatable scale smoke baseline, not a claim that every wire-heavy
+graph has constant frame cost: scene traversal remains O(nodes + wires), while
+unchanged graph replacement is an identity fast path and node scene allocation
+is restricted to visible tiles.
+
 ## Representation rules
 
 - Mesh positions and normals are retained as structure-of-arrays XYZ float
@@ -32,6 +50,12 @@ use locally owned mutation and packed storage without exposing mutable aliases.
   boxed face lists.
 - Persistent spatial structures are for incremental/query workloads. Bulk
   construction may use mutable staging and freeze once.
+- The interactive SOP graph stores tiles and edges in compact arrays with a
+  stable-ID lookup only when graph identity changes. Unchanged frames reuse the
+  presentation value directly; parameter graph replacement preserves manual
+  tile positions, and scene construction allocates node primitives only for
+  tiles intersecting the visible graph bounds. Navigation and node movement do
+  no procedural cook work.
 - `Voxel3` stores immutable occupancy in 4,096-bit pages keyed by linear cell
   ranges. Persistent edits copy one 512-byte page, while `Voxel3.Builder`
   mutates owned pages and freezes once. `Voxel3.init` evaluates pure dense
@@ -539,6 +563,23 @@ use locally owned mutation and packed storage without exposing mutable aliases.
   edge-component-splits equal side signatures because curved surfaces can
   produce disconnected regions with the same signature. A floating
   point-to-surface proximity test is not an acceptable ancestry substitute.
+
+  The interactive sketch now measures responsiveness independently from cook
+  throughput. On the same Apple M1 (8 logical cores, 16 GiB), OCaml 5.3.0,
+  Dune 3.24.1, default dev profile, the in-process 50-plane/two-segment noisy
+  shatter produced 15,361 closed cells, 149,228 points, and 237,012 triangles.
+  Its background cook/preparation took 11.179 s while the initial-domain UI
+  advanced 648 frames; whole-process wall time was 13.586 s with 274% CPU.
+  The former synchronous update boundary necessarily advanced zero frames for
+  the entire cook. This is a responsiveness result, not a Boolean throughput
+  improvement: one foreground domain remains dedicated to the SDL loop, the
+  background context reserves one hardware domain, and superseded requests
+  are cancelled and discarded.
+
+  ```sh
+  time PRISMEL_RENDER_TARGET=headless PRISMEL_SHATTER_FRAMES=1 \
+    dune exec sketches/shattered_cube/main.exe
+  ```
 
   ```sh
   "$PRISMEL_HYTHON" tools/houdini/shattered_cube_reference.py \

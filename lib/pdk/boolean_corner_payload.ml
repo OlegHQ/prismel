@@ -139,7 +139,7 @@ let source_storage pair =
   Option.map Attribute.Private.storage pair.left,
   Option.map Attribute.Private.storage pair.right
 
-let interpolate_fixed ?cancel ~grain view corner_count pair =
+let interpolate_fixed ?cancel ~grain ancestry view corner_count pair =
   let left, right = source_storage pair in
   match left, right with
   | (Some (Attribute.Float _) | None), (Some (Attribute.Float _) | None)
@@ -230,7 +230,11 @@ let interpolate_fixed ?cancel ~grain view corner_count pair =
             let ox = wa *. values.x.(a) +. wb *. values.x.(b) +. wc *. values.x.(c)
             and oy = wa *. values.y.(a) +. wb *. values.y.(b) +. wc *. values.y.(c)
             and oz = wa *. values.z.(a) +. wb *. values.z.(b) +. wc *. values.z.(c) in
-            let ox,oy,oz = if pair.name = "N" then normalize3 ox oy oz else ox,oy,oz in
+            let ox, oy, oz = if pair.name = "N" then
+                let winding = float_of_int
+                    (Boolean_extract.primitive_winding ancestry primitive) in
+                normalize3 (winding *. ox) (winding *. oy) (winding *. oz)
+              else ox, oy, oz in
             x.(corner) <- ox; y.(corner) <- oy; z.(corner) <- oz);
       Attribute.Float3 (Packed.Float3.Private.of_owned_exn ~x ~y ~z)
   | (Some (Attribute.Float4 _) | None), (Some (Attribute.Float4 _) | None)
@@ -262,7 +266,7 @@ let interpolate_fixed ?cancel ~grain view corner_count pair =
       "%s attribute %S uses CSR storage not yet handled by the fixed-width interpolator"
       (if pair.source_owner = Attribute.Point then "point" else "vertex") pair.name))
 
-let interpolate_csr ?cancel ~grain view corner_count pair =
+let interpolate_csr ?cancel ~grain ancestry view corner_count pair =
   let left, right = source_storage pair in
   match left, right with
   | (Some (Attribute.Int_array _) | None), (Some (Attribute.Int_array _) | None)
@@ -356,7 +360,7 @@ let interpolate_csr ?cancel ~grain view corner_count pair =
             end);
       Attribute.Float_array
         (Packed.Float_array.Private.create_validated_owned ~offsets ~values)
-  | _ -> interpolate_fixed ?cancel ~grain view corner_count pair
+  | _ -> interpolate_fixed ?cancel ~grain ancestry view corner_count pair
 
 let first_corners topology point_count =
   let representatives = Array.make point_count (-1) in
@@ -635,7 +639,8 @@ let copy ?cancel ~grain ~point_conflict ~point_tolerance ancestry base =
         assert_no_promotion_collisions point_conflict point_attributes vertex_attributes
           point_groups vertex_groups;
         let copy_attribute pair =
-          let corner_storage = interpolate_csr ?cancel ~grain view corner_count pair in
+          let corner_storage = interpolate_csr ?cancel ~grain ancestry view
+              corner_count pair in
           match pair.source_owner, point_conflict with
           | Attribute.Point, Reject ->
               create_attribute pair Attribute.Point

@@ -4,11 +4,17 @@ Prismel separates application semantics, runtime lifecycle, and browser
 transport into three libraries:
 
 ```text
-examples ──► procedural ──► pdk ──► prismel ──► runtime ──► wap
-   │              │          ▲          │           │
-   ├────────────► geom ───────┘          │           └──► tsdl
-   ├────────────► pxui ──────────────────┘
-   └────────────────────────────────────► prismel
+examples/sketches ──► sop_ui ──┬──► procedural ──► pdk ──┐
+                               └──► pxui ─────────────────┤
+       sketches ──► sketch_support ──► procedural / pdk ──┤
+       sketches ──► pxui_graph ──► procedural / pxui ─────┤
+       sketches ──► sop_catalog ──► procedural / pdk ─────┤
+       sketches ──► sketch_ui ──► the four leaf adapters ─┤
+examples/sketches ────────────────► geom ─────────► pdk   ├──► prismel
+examples/sketches ────────────────────────────────────────┘       │
+                                                   runtime ◄─────┘
+                                                      │
+                                                      └──► wap / tsdl
 ```
 
 - `prismel` owns `Sketch`, `Scene`, resources, renderer logic, and translation
@@ -31,6 +37,22 @@ examples ──► procedural ──► pdk ──► prismel ──► runtime 
   incremental evaluation, and bounded session caches. It may import Pdk, Geom,
   and Prismel, but never Runtime or Wap. Its output reaches every render target
   through the existing `Pdk.Geometry.t -> Prismel.Mesh.t -> Scene3` path.
+- `prismel.sop_ui` is a leaf adapter over `procedural` and `pxui`. It maps
+  renderer-independent typed parameter templates to widgets and named changes;
+  neither Procedural nor PXUI imports it, and it has no Runtime/Wap access.
+- `prismel.sketch_support` is a leaf adapter over Prismel, PDK, and Procedural.
+  It standardizes cancellable background SOP submission and terminal
+  packed-piece render transforms without owning widgets, SDL resources, or a
+  competing geometry representation.
+- `prismel.pxui_graph` is a topology-read-only graph presentation leaf over
+  Procedural, PXUI, and Prismel. It owns persistent tile layout, ordered port/
+  wire rendering, selection, and navigation, never rewiring or cooking.
+- `prismel.sop_catalog` attaches PPX-derived parameter schemas to ordinary
+  Procedural nodes and imports neither PXUI nor sketch orchestration.
+- `prismel.sketch_ui` composes those leaves into the reusable responsive
+  view/graph/inspector environment. It owns column layout, UI/camera/timeline/
+  cook scheduling but no renderer backend, browser transport, or geometry
+  kernel.
 
 PDK kernels and procedural cooks are ordinary target-neutral CPU work. They may
 use Prismel's reusable `Parallel` pool over disjoint packed ranges, but all SDL
@@ -83,6 +105,21 @@ inherited 2D texturing, and restores SDL's shader/VBO bindings before 2D drawing
 resumes. Packed flat/smooth mesh views are bounded to
 the current and previous procedural mesh so slider-driven topology replacement
 cannot retain an unbounded trail.
+
+Native still export uses a temporary color plus depth/stencil OpenGL
+framebuffer at the requested `Render3` dimensions. It saves and restores the
+SDL renderer's program, buffer, framebuffer, renderbuffer, matrix, client, and
+server state, reads the GPU result once, flips OpenGL's bottom-up rows, and
+destroys every temporary attachment before returning. A PXUI render factor is
+therefore a larger GPU render rather than framebuffer upscaling or a window
+resize. Axis and total-pixel safety limits bound accidental allocations.
+
+`Render2.save_png` is a separate deterministic offscreen contract. It renders
+the camera-controlled 2D world into a factor-sized software `Canvas`, preserving
+logical framing rather than scaling a captured window. Native interactive 2D
+and PXUI remain on the accelerated SDL renderer, but 2D still export does not
+claim GPU execution. This explicit distinction avoids silently conflating the
+3D OpenGL framebuffer path with SDL's portable 2D scene semantics.
 
 The first accelerated tranche accepts untextured fixed-pipeline scenes.
 Textures, typed `Shader3`, shadows, fog, and separate-specular scenes currently

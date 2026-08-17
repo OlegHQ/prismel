@@ -13,6 +13,27 @@ type random_operation =
   | Random_maximum
   | Random_multiply
 
+type noise_kind = Noise_float | Noise_vector | Noise_quaternion
+
+type noise_location =
+  | Noise_position
+  | Noise_element_number
+  | Noise_attribute of string
+
+type noise_range =
+  | Noise_positive
+  | Noise_zero_centered
+  | Noise_min_max of numeric_value * numeric_value
+
+type noise_operation =
+  | Noise_set_initial
+  | Noise_set
+  | Noise_add
+  | Noise_subtract
+  | Noise_multiply
+  | Noise_minimum
+  | Noise_maximum
+
 type random_selection =
   | Random_points of Group.t
   | Random_vertices of Group.t
@@ -1102,6 +1123,220 @@ let randomize ?cancel ~grain ?selection ?element_selection ?seed_attribute
           else Result.bind (install ~owner ~name kind output geometry) (fun geometry ->
             Ok (if kind = Position then remove_stale_normals geometry else geometry))
     ))))))
+
+type noise_coordinates = { nx : float array; ny : float array; nz : float array }
+
+let noise_coordinates ~owner ~location geometry =
+  let count = owner_count geometry owner in
+  let topology = Geometry.topology geometry in
+  let position = Packed.Float3.Private.view (Geometry.positions geometry) in
+  let from_attribute name =
+    if owner = Attribute.Point && String.equal name "P" then
+      Ok { nx = position.x; ny = position.y; nz = position.z }
+    else match Geometry.find_attribute ~owner name geometry with
+      | None -> Error (Printf.sprintf
+          "Pdk.Attribute_ops.noise: missing location attribute %s" name)
+      | Some attribute ->
+          (match Attribute.Private.storage attribute with
+           | Attribute.Float3 values ->
+               let values = Packed.Float3.Private.view values in
+               Ok { nx = values.x; ny = values.y; nz = values.z }
+           | _ -> Error (Printf.sprintf
+               "Pdk.Attribute_ops.noise: location attribute %s must have float3 storage"
+               name))
+  in
+  match location with
+  | Noise_attribute name when String.trim name = "" ->
+      Error "Pdk.Attribute_ops.noise: location attribute name must not be empty"
+  | Noise_attribute name -> from_attribute name
+  | Noise_element_number ->
+      Ok { nx = Array.init count float_of_int; ny = Array.make count 0.;
+        nz = Array.make count 0. }
+  | Noise_position ->
+      (match owner with
+       | Attribute.Point -> from_attribute "P"
+       | Attribute.Vertex ->
+           let nx = Array.make count 0. and ny = Array.make count 0.
+           and nz = Array.make count 0. in
+           for vertex = 0 to count - 1 do
+             let point = Topology.point_of_vertex topology vertex in
+             nx.(vertex) <- position.x.(point);
+             ny.(vertex) <- position.y.(point);
+             nz.(vertex) <- position.z.(point)
+           done;
+           Ok { nx; ny; nz }
+       | Attribute.Primitive ->
+           let nx = Array.make count 0. and ny = Array.make count 0.
+           and nz = Array.make count 0. in
+           for primitive = 0 to count - 1 do
+             let first, last = Topology.primitive_vertex_range topology primitive in
+             let size = last - first in
+             for vertex = first to last - 1 do
+               let point = Topology.point_of_vertex topology vertex in
+               nx.(primitive) <- nx.(primitive) +. position.x.(point);
+               ny.(primitive) <- ny.(primitive) +. position.y.(point);
+               nz.(primitive) <- nz.(primitive) +. position.z.(point)
+             done;
+             if size > 0 then begin
+               let inverse = 1. /. float_of_int size in
+               nx.(primitive) <- nx.(primitive) *. inverse;
+               ny.(primitive) <- ny.(primitive) *. inverse;
+               nz.(primitive) <- nz.(primitive) *. inverse
+             end
+           done;
+           Ok { nx; ny; nz }
+       | Attribute.Detail ->
+           let nx = [|0.|] and ny = [|0.|] and nz = [|0.|] in
+           let points = Geometry.point_count geometry in
+           for point = 0 to points - 1 do
+             nx.(0) <- nx.(0) +. position.x.(point);
+             ny.(0) <- ny.(0) +. position.y.(point);
+             nz.(0) <- nz.(0) +. position.z.(point)
+           done;
+           if points > 0 then begin
+             let inverse = 1. /. float_of_int points in
+             nx.(0) <- nx.(0) *. inverse;
+             ny.(0) <- ny.(0) *. inverse;
+             nz.(0) <- nz.(0) *. inverse
+           end;
+           Ok { nx; ny; nz })
+
+let noise ?cancel ~grain ?selection ~seed ~owner ~name ~kind ~location ~range
+    ~operation ~blend ~frequency ~offset ~octaves ~lacunarity ~roughness
+    geometry =
+  if grain <= 0 then invalid_arg "Pdk.Attribute_ops.noise: grain must be positive";
+  let dimension = match kind with
+    | Noise_float -> 1 | Noise_vector -> 3 | Noise_quaternion -> 4 in
+  if String.trim name = "" then Error
+      "Pdk.Attribute_ops.noise: attribute name must not be empty"
+  else if not (Float.is_finite blend && blend >= 0. && blend <= 1.) then Error
+      "Pdk.Attribute_ops.noise: blend must be finite and in [0, 1]"
+  else if not (Float.is_finite frequency.Vec3.x
+      && Float.is_finite frequency.y && Float.is_finite frequency.z
+      && Float.is_finite offset.Vec3.x && Float.is_finite offset.y
+      && Float.is_finite offset.z && Float.is_finite lacunarity
+      && Float.is_finite roughness) then Error
+      "Pdk.Attribute_ops.noise: numeric parameters must be finite"
+  else if octaves < 1 || octaves > 64 then Error
+      "Pdk.Attribute_ops.noise: octaves must be in [1, 64]"
+  else if lacunarity <= 0. || roughness < 0. || roughness > 1. then Error
+      "Pdk.Attribute_ops.noise: lacunarity must be positive and roughness in [0, 1]"
+  else if kind = Noise_quaternion && operation <> Noise_set
+      && operation <> Noise_set_initial then Error
+      "Pdk.Attribute_ops.noise: quaternion output supports set operations only"
+  else
+    let count = owner_count geometry owner in
+    Result.bind (validate_selection "noise" owner count selection) (fun () ->
+    Result.bind (noise_coordinates ~owner ~location geometry) (fun coordinates ->
+    let bounds = match range with
+      | Noise_positive -> Ok (Array.make dimension 0., Array.make dimension 1.)
+      | Noise_zero_centered ->
+          Ok (Array.make dimension (-1.), Array.make dimension 1.)
+      | Noise_min_max (minimum, maximum) ->
+          let minimum = value_array minimum and maximum = value_array maximum in
+          if Array.length minimum <> dimension || Array.length maximum <> dimension
+          then Error "Pdk.Attribute_ops.noise: range dimension does not match output"
+          else if not (finite_array minimum && finite_array maximum) then Error
+              "Pdk.Attribute_ops.noise: range values must be finite"
+          else if not (Array.for_all2 (fun a b -> a <= b) minimum maximum)
+          then Error "Pdk.Attribute_ops.noise: range minimum must not exceed maximum"
+          else Ok (minimum, maximum)
+    in
+    Result.bind bounds (fun (minimum, maximum) ->
+    let target = existing_planes ~owner ~name geometry in
+    if operation = Noise_set_initial && target <> None then Ok geometry
+    else
+      let target_result = match target with
+        | None ->
+            let planes = Array.init dimension (fun _ -> Array.make count 0.) in
+            if kind = Noise_quaternion then Array.fill planes.(3) 0 count 1.;
+            Ok (kind_of_dimension dimension, planes)
+        | Some (_, planes) when Array.length planes = 0 -> Error
+            "Pdk.Attribute_ops.noise: existing attribute is not floating point"
+        | Some (target_kind, _) when kind_dimension target_kind <> dimension ->
+            Error "Pdk.Attribute_ops.noise: output dimension does not match target"
+        | Some (target_kind, planes) -> Ok (target_kind, Array.map Array.copy planes)
+      in
+      Result.bind target_result (fun (target_kind, output) ->
+      let source = match target with None -> None | Some (_, planes) -> Some planes in
+      let generator = Noise.create seed in
+      let ranges = if count = 0 then 0 else (count + grain - 1) / grain in
+      let errors = Array.make ranges (-1) in
+      Parallel.for_ ~chunk_size:1 ~start:0 ~finish:(ranges - 1) (fun range_index ->
+        let first = range_index * grain
+        and last = min count ((range_index + 1) * grain) in
+        let scratch = Noise.Private.create_fbm3_scratch () in
+        let generated = Array.make 4 0. in
+        for element = first to last - 1 do
+          if element land 4095 = 0 then Cancel.check_opt cancel;
+          if match selection with None -> true | Some group -> Group.mem element group
+          then begin
+            let x = (coordinates.nx.(element) +. offset.x) *. frequency.x
+            and y = (coordinates.ny.(element) +. offset.y) *. frequency.y
+            and z = (coordinates.nz.(element) +. offset.z) *. frequency.z in
+            for component = 0 to dimension - 1 do
+              let shift = float_of_int component *. 47.117 in
+              let sample = Noise.Private.fbm3_with_scratch scratch generator
+                  ~octaves ~lacunarity ~gain:roughness ~x:(x +. shift)
+                  ~y:(y -. (shift *. 0.37)) ~z:(z +. (shift *. 0.73)) in
+              generated.(component) <- minimum.(component) +.
+                  (sample *. (maximum.(component) -. minimum.(component)))
+            done;
+            if kind = Noise_quaternion then begin
+              let length = sqrt (Array.fold_left
+                  (fun sum value -> sum +. (value *. value)) 0. generated) in
+              if length > 1e-15 && Float.is_finite length then
+                for component = 0 to 3 do
+                  generated.(component) <- generated.(component) /. length
+                done
+              else begin
+                generated.(0) <- 0.; generated.(1) <- 0.;
+                generated.(2) <- 0.; generated.(3) <- 1.
+              end
+            end;
+            for component = 0 to dimension - 1 do
+              let previous = match source with
+                | None -> 0. | Some planes -> planes.(component).(element) in
+              let noise = generated.(component) in
+              let operated = match operation with
+                | Noise_set_initial | Noise_set -> noise
+                | Noise_add -> previous +. noise
+                | Noise_subtract -> previous -. noise
+                | Noise_multiply -> previous *. noise
+                | Noise_minimum -> Float.min previous noise
+                | Noise_maximum -> Float.max previous noise in
+              let value = previous +. (blend *. (operated -. previous)) in
+              output.(component).(element) <- value;
+              if errors.(range_index) < 0 && not (Float.is_finite value) then
+                errors.(range_index) <- element
+            done;
+            if kind = Noise_quaternion then begin
+              let length = sqrt ((output.(0).(element) ** 2.)
+                  +. (output.(1).(element) ** 2.)
+                  +. (output.(2).(element) ** 2.)
+                  +. (output.(3).(element) ** 2.)) in
+              if length > 1e-15 && Float.is_finite length then
+                for component = 0 to 3 do
+                  output.(component).(element) <-
+                    output.(component).(element) /. length
+                done
+              else begin
+                output.(0).(element) <- 0.; output.(1).(element) <- 0.;
+                output.(2).(element) <- 0.; output.(3).(element) <- 1.
+              end
+            end
+          end
+        done);
+      match Array.find_opt (fun element -> element >= 0) errors with
+      | Some element -> Error (Printf.sprintf
+          "Pdk.Attribute_ops.noise: non-finite output at element %d" element)
+      | None ->
+          let changed = match source with None -> true | Some source -> changed source output in
+          if not changed then Ok geometry
+          else Result.bind (install ~owner ~name target_kind output geometry)
+              (fun geometry -> Ok (if target_kind = Position then
+                  remove_stale_normals geometry else geometry))
+    ))))
 
 let validate_ramp ramp =
   let knots = Array.of_list ramp in

@@ -7,6 +7,7 @@ open Ctypes
 
 let gl_depth_buffer_bit = 0x00000100
 let gl_stencil_buffer_bit = 0x00000400
+let gl_color_buffer_bit = 0x00004000
 let gl_points = 0x0000
 let gl_lines = 0x0001
 let gl_line_loop = 0x0002
@@ -79,6 +80,15 @@ let gl_float = 0x1406
 let gl_unsigned_int = 0x1405
 let gl_unsigned_byte = 0x1401
 let gl_rgba = 0x1908
+let gl_rgba8 = 0x8058
+let gl_framebuffer = 0x8D40
+let gl_renderbuffer = 0x8D41
+let gl_color_attachment0 = 0x8CE0
+let gl_depth_stencil_attachment = 0x821A
+let gl_depth24_stencil8 = 0x88F0
+let gl_framebuffer_complete = 0x8CD5
+let gl_framebuffer_binding = 0x8CA6
+let gl_renderbuffer_binding = 0x8CA7
 let gl_all_attrib_bits = 0x000fffff
 let gl_ccw = 0x0901
 let gl_texture0 = 0x84C0
@@ -90,6 +100,7 @@ let gl_element_array_buffer_binding = 0x8895
 
 type api = {
   clear : int -> unit;
+  clear_color : float -> float -> float -> float -> unit;
   clear_depth : float -> unit;
   clear_stencil : int -> unit;
   viewport : int -> int -> int -> int -> unit;
@@ -132,6 +143,15 @@ type api = {
   draw_elements : int -> int -> int -> unit ptr -> unit;
   read_buffer : int -> unit;
   read_pixels : int -> int -> int -> int -> int -> int -> unit ptr -> unit;
+  gen_framebuffers : int -> int ptr -> unit;
+  bind_framebuffer : int -> int -> unit;
+  delete_framebuffers : int -> int ptr -> unit;
+  check_framebuffer_status : int -> int;
+  gen_renderbuffers : int -> int ptr -> unit;
+  bind_renderbuffer : int -> int -> unit;
+  renderbuffer_storage : int -> int -> int -> int -> unit;
+  framebuffer_renderbuffer : int -> int -> int -> int -> unit;
+  delete_renderbuffers : int -> int ptr -> unit;
   color4 : float -> float -> float -> float -> unit;
   color_material : int -> int -> unit;
   material4 : int -> int -> float ptr -> unit;
@@ -149,8 +169,18 @@ let api = lazy (
     let address = (Lazy.force sdl_gl_get_proc_address) name in
     if is_null address then failwith ("missing OpenGL entry point " ^ name);
     coerce (ptr void) (Foreign.funptr signature) address in
+  let bind_any names signature =
+    let rec find = function
+      | [] -> failwith ("missing OpenGL entry point " ^ String.concat "/" names)
+      | name :: rest ->
+          let address = (Lazy.force sdl_gl_get_proc_address) name in
+          if is_null address then find rest
+          else coerce (ptr void) (Foreign.funptr signature) address in
+    find names in
   {
     clear = bind "glClear" (int @-> returning void);
+    clear_color = bind "glClearColor"
+        (float @-> float @-> float @-> float @-> returning void);
     clear_depth = bind "glClearDepth" (double @-> returning void);
     clear_stencil = bind "glClearStencil" (int @-> returning void);
     viewport = bind "glViewport" (int @-> int @-> int @-> int @-> returning void);
@@ -200,6 +230,29 @@ let api = lazy (
     read_pixels = bind "glReadPixels"
         (int @-> int @-> int @-> int @-> int @-> int @-> ptr void
          @-> returning void);
+    gen_framebuffers = bind_any ["glGenFramebuffers"; "glGenFramebuffersEXT"]
+        (int @-> ptr int @-> returning void);
+    bind_framebuffer = bind_any ["glBindFramebuffer"; "glBindFramebufferEXT"]
+        (int @-> int @-> returning void);
+    delete_framebuffers = bind_any
+        ["glDeleteFramebuffers"; "glDeleteFramebuffersEXT"]
+        (int @-> ptr int @-> returning void);
+    check_framebuffer_status = bind_any
+        ["glCheckFramebufferStatus"; "glCheckFramebufferStatusEXT"]
+        (int @-> returning int);
+    gen_renderbuffers = bind_any ["glGenRenderbuffers"; "glGenRenderbuffersEXT"]
+        (int @-> ptr int @-> returning void);
+    bind_renderbuffer = bind_any ["glBindRenderbuffer"; "glBindRenderbufferEXT"]
+        (int @-> int @-> returning void);
+    renderbuffer_storage = bind_any
+        ["glRenderbufferStorage"; "glRenderbufferStorageEXT"]
+        (int @-> int @-> int @-> int @-> returning void);
+    framebuffer_renderbuffer = bind_any
+        ["glFramebufferRenderbuffer"; "glFramebufferRenderbufferEXT"]
+        (int @-> int @-> int @-> int @-> returning void);
+    delete_renderbuffers = bind_any
+        ["glDeleteRenderbuffers"; "glDeleteRenderbuffersEXT"]
+        (int @-> ptr int @-> returning void);
     color4 = bind "glColor4f"
         (float @-> float @-> float @-> float @-> returning void);
     color_material = bind "glColorMaterial" (int @-> int @-> returning void);
@@ -529,9 +582,30 @@ let render ?viewport ~camera scene =
     let renderer_width, renderer_height = match Sdl.get_renderer_output_size renderer with
       | Ok size -> size
       | Error (`Msg message) -> failwith message in
-    let x, y, width, height = match viewport with
-      | None -> 0, 0, renderer_width, renderer_height
-      | Some value -> value in
+    let logical_width, logical_height = Sdl.render_get_logical_size renderer in
+    let logical_width, logical_height =
+      if logical_width > 0 && logical_height > 0 then
+        logical_width, logical_height
+      else renderer_width, renderer_height in
+    let logical_viewport = match viewport with
+      | None -> 0, 0, logical_width, logical_height
+      | Some (x, y, width, height) ->
+          if width <= 0 || height <= 0 then
+            invalid_arg "Scene.view3d: viewport dimensions must be positive";
+          x, y, width, height in
+    let scale_edge position logical drawable =
+      int_of_float (Float.round
+        (float_of_int position *. float_of_int drawable
+         /. float_of_int logical)) in
+    let logical_x, logical_y, logical_view_width, logical_view_height =
+      logical_viewport in
+    let x = scale_edge logical_x logical_width renderer_width
+    and y = scale_edge logical_y logical_height renderer_height
+    and right = scale_edge (logical_x + logical_view_width)
+        logical_width renderer_width
+    and lower = scale_edge (logical_y + logical_view_height)
+        logical_height renderer_height in
+    let width = max 1 (right - x) and height = max 1 (lower - y) in
     let flush = Lazy.force sdl_render_flush in
     if flush (Obj.magic renderer) <> 0 then
       Error (Sdl.get_error ())
@@ -625,6 +699,128 @@ let render ?viewport ~camera scene =
            frame_pending := true;
            Ok ()
          end)
+  with
+  | Dl.DL_error message -> Error message
+  | Failure message -> Error message
+  | Invalid_argument message -> Error message
+
+let capture ~width ~height ~background ~camera scene =
+  if width <= 0 || height <= 0 then
+    Error "native GPU capture dimensions must be positive"
+  else if not (supported scene) then
+    Error "native GPU capture does not support this Scene3 feature set"
+  else try
+    let renderer = Graphics.get_renderer () in
+    let flush = Lazy.force sdl_render_flush in
+    if flush (Obj.magic renderer) <> 0 then Error (Sdl.get_error ())
+    else
+      let result = ref (Error "native GPU capture did not run") in
+      match Window.with_gpu_context (fun () ->
+        let gl = Lazy.force api in
+        let previous_program = integer_state gl gl_current_program
+        and previous_array_buffer = integer_state gl gl_array_buffer_binding
+        and previous_element_buffer = integer_state gl gl_element_array_buffer_binding
+        and previous_framebuffer = integer_state gl gl_framebuffer_binding
+        and previous_renderbuffer = integer_state gl gl_renderbuffer_binding in
+        let framebuffer = allocate int 0
+        and color_buffer = allocate int 0
+        and depth_buffer = allocate int 0 in
+        gl.gen_framebuffers 1 framebuffer;
+        gl.gen_renderbuffers 1 color_buffer;
+        gl.gen_renderbuffers 1 depth_buffer;
+        Fun.protect
+          ~finally:(fun () ->
+            gl.bind_framebuffer gl_framebuffer previous_framebuffer;
+            gl.bind_renderbuffer gl_renderbuffer previous_renderbuffer;
+            gl.delete_renderbuffers 1 depth_buffer;
+            gl.delete_renderbuffers 1 color_buffer;
+            gl.delete_framebuffers 1 framebuffer)
+          (fun () ->
+            gl.bind_framebuffer gl_framebuffer !@framebuffer;
+            gl.bind_renderbuffer gl_renderbuffer !@color_buffer;
+            gl.renderbuffer_storage gl_renderbuffer gl_rgba8 width height;
+            gl.framebuffer_renderbuffer gl_framebuffer gl_color_attachment0
+              gl_renderbuffer !@color_buffer;
+            gl.bind_renderbuffer gl_renderbuffer !@depth_buffer;
+            gl.renderbuffer_storage gl_renderbuffer gl_depth24_stencil8 width height;
+            gl.framebuffer_renderbuffer gl_framebuffer gl_depth_stencil_attachment
+              gl_renderbuffer !@depth_buffer;
+            let status = gl.check_framebuffer_status gl_framebuffer in
+            if status <> gl_framebuffer_complete then
+              failwith (Printf.sprintf
+                "OpenGL framebuffer is incomplete (0x%x)" status);
+            gl.push_attrib gl_all_attrib_bits;
+            gl.push_client_attrib (-1);
+            gl.matrix_mode gl_projection;
+            gl.push_matrix ();
+            gl.matrix_mode gl_modelview;
+            gl.push_matrix ();
+            Fun.protect
+              ~finally:(fun () ->
+                gl.matrix_mode gl_modelview;
+                gl.pop_matrix ();
+                gl.matrix_mode gl_projection;
+                gl.pop_matrix ();
+                gl.pop_client_attrib ();
+                gl.pop_attrib ();
+                gl.bind_buffer gl_array_buffer previous_array_buffer;
+                gl.bind_buffer gl_element_array_buffer previous_element_buffer;
+                gl.use_program previous_program)
+              (fun () ->
+                gl.use_program 0;
+                gl.bind_buffer gl_array_buffer 0;
+                gl.bind_buffer gl_element_array_buffer 0;
+                gl.active_texture gl_texture0;
+                gl.disable gl_texture_2d;
+                gl.disable gl_alpha_test;
+                gl.front_face gl_ccw;
+                gl.color_mask 1 1 1 1;
+                gl.draw_buffer gl_color_attachment0;
+                gl.read_buffer gl_color_attachment0;
+                gl.viewport 0 0 width height;
+                gl.enable gl_scissor_test;
+                gl.scissor 0 0 width height;
+                let red, green, blue, alpha = Color.to_floats background in
+                gl.clear_color red green blue alpha;
+                gl.clear_depth (Scene3.Private.depth_clear scene);
+                gl.clear_stencil (Scene3.Private.stencil_clear scene);
+                gl.depth_mask 1;
+                gl.stencil_mask 0xff;
+                gl.clear (gl_color_buffer_bit lor gl_depth_buffer_bit
+                  lor gl_stencil_buffer_bit);
+                let viewport = 0, 0, width, height in
+                let projection = Camera.projection_matrix ~viewport camera
+                and view = Camera.view_matrix camera in
+                gl.matrix_mode gl_projection;
+                let projection = matrix projection in
+                gl.load_matrix (bigarray_start array1 projection);
+                configure_lights gl ~view scene;
+                Scene3.Private.iter_batches (fun drawing instances ->
+                  match instances with
+                  | None -> draw gl ~view drawing drawing.transform
+                  | Some transforms -> Array.iter (fun instance ->
+                      draw gl ~view drawing
+                        (Mat4.mul drawing.transform instance)) transforms)
+                  scene;
+                let bytes = Bigarray.Array1.create Bigarray.int8_unsigned
+                    Bigarray.c_layout (width * height * 4) in
+                gl.read_pixels 0 0 width height gl_rgba gl_unsigned_byte
+                  (to_voidp (bigarray_start array1 bytes));
+                let colors = Array.init (width * height) (fun index ->
+                  let x = index mod width and y = index / width in
+                  let source = (((height - y - 1) * width) + x) * 4 in
+                  Color.rgba
+                    (Bigarray.Array1.unsafe_get bytes source)
+                    (Bigarray.Array1.unsafe_get bytes (source + 1))
+                    (Bigarray.Array1.unsafe_get bytes (source + 2))
+                    (Bigarray.Array1.unsafe_get bytes (source + 3))) in
+                let error = gl.get_error () in
+                if error <> 0 then
+                  failwith (Printf.sprintf "OpenGL capture error 0x%x" error);
+                result := Ok colors))
+        ) with
+      | Error message -> Error message
+      | Ok () -> !result
   with
   | Dl.DL_error message -> Error message
   | Failure message -> Error message

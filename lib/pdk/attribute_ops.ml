@@ -1626,6 +1626,24 @@ type random_operation = Attribute_generate.random_operation =
   | Random_minimum
   | Random_maximum
   | Random_multiply
+type noise_kind = Attribute_generate.noise_kind =
+  | Noise_float | Noise_vector | Noise_quaternion
+type noise_location = Attribute_generate.noise_location =
+  | Noise_position
+  | Noise_element_number
+  | Noise_attribute of string
+type noise_range = Attribute_generate.noise_range =
+  | Noise_positive
+  | Noise_zero_centered
+  | Noise_min_max of numeric_value * numeric_value
+type noise_operation = Attribute_generate.noise_operation =
+  | Noise_set_initial
+  | Noise_set
+  | Noise_add
+  | Noise_subtract
+  | Noise_multiply
+  | Noise_minimum
+  | Noise_maximum
 type random_selection = Attribute_generate.random_selection =
   | Random_points of Group.t
   | Random_vertices of Group.t
@@ -2271,6 +2289,22 @@ let randomize ?cancel ?(grain = 16_384) ?selection ?element_selection
       ~code:"cancelled" "attribute randomization was cancelled")
   | Invalid_argument message -> Error (Error.make
       ~operation:"attribute_randomize" ~code:"invalid_parameter" message)
+
+let noise ?cancel ?(grain = 16_384) ?selection ~seed ~owner ~name ~kind
+    ?(location = Noise_position) ?(range = Noise_positive)
+    ?(operation = Noise_set) ?(blend = 1.)
+    ?(frequency = Vec3.create 1. 1. 1.) ?(offset = Vec3.zero)
+    ?(octaves = 1) ?(lacunarity = 2.) ?(roughness = 0.5) geometry =
+  try Result.map_error
+      (Error.of_string ~operation:"attribute_noise" ~code:"invalid_noise")
+      (Attribute_generate.noise ?cancel ~grain ?selection ~seed ~owner ~name
+         ~kind ~location ~range ~operation ~blend ~frequency ~offset ~octaves
+         ~lacunarity ~roughness geometry)
+  with
+  | Cancel.Cancelled -> Error (Error.make ~operation:"attribute_noise"
+      ~code:"cancelled" "attribute noise was cancelled")
+  | Invalid_argument message -> Error (Error.make ~operation:"attribute_noise"
+      ~code:"invalid_parameter" message)
 
 let remap ?cancel ?(grain = 16_384) ?selection ~owner ~name ?into ~input
     ~output_min ~output_max ?(policy = Remap_clamp) ?(ramp = []) geometry =

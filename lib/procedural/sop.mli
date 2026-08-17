@@ -985,6 +985,13 @@ val duplicate_packed :
 val unpack : ?label:string -> ?apply_transform:bool -> Instances.t -> Node.t
 val switch : ?label:string -> index:int -> Node.t list -> Node.t
 val null : ?label:string -> Node.t -> Node.t
+(* Standard terminal Exploded View SOP marker. Its inspectable display
+    parameters are supplied by [Sop_catalog.Exploded_view]; cooking remains a
+    geometry passthrough so a renderer with packed-piece support can update
+    rigid per-piece transforms without recooking upstream topology.
+
+    Parameters are defined by Sop_catalog.Exploded_view. *)
+val exploded_view : ?label:string -> Node.t -> Node.t
 (* Deterministically ear-clip all polygon primitives or a named primitive
    group. Unselected polygons and curves pass through with exact payload. *)
 val triangulate : ?label:string -> ?group:string -> Node.t -> Node.t
@@ -1064,6 +1071,7 @@ val boolean :
   ?detriangulation:Pdk.Boolean.detriangulation ->
   ?assume_flat:bool ->
   ?require_closed:bool ->
+  ?piece_attribute:string ->
   ?left_piece_group:string option ->
   ?overlap_piece_group:string option ->
   ?right_piece_group:string option ->
@@ -1071,7 +1079,25 @@ val boolean :
 (* Exact two-input polygon Boolean SOP. Operand treatment, product/shatter, payload
     conflict, seam-point, detriangulation, self-intersection, flatness, and
     closed-output policies are immutable cache identity. The node delegates
-    all geometry work to {!Pdk.Boolean.run}; it does not own another kernel. *)
+    all geometry work to {!Pdk.Boolean.run}; it does not own another kernel.
+    [piece_attribute] names the optional primitive integer plane containing
+    exact Boolean-cell identities. *)
+val boolean_fracture :
+  ?label:string ->
+  ?resolve_cutter_self_intersections:bool ->
+  ?point_conflict:Pdk.Boolean.point_conflict ->
+  ?point_tolerance:float ->
+  ?tiny_seam_threshold:float ->
+  ?cleanup_max_batches:int ->
+  ?strict_cleanup:bool ->
+  ?detriangulation:Pdk.Boolean.detriangulation ->
+  ?assume_flat:bool ->
+  ?require_closed:bool ->
+  ?piece_attribute:string ->
+  cutters:Node.t -> Node.t -> Node.t
+(* Fracture a solid with zero-volume cutting surfaces. Output remains welded
+    at shared seams and receives one primitive integer identity per exact
+    closed arrangement cell, suitable for packing and rigid transforms. *)
 val boolean_seam :
   ?label:string -> ?output:Pdk.Boolean.seam_output ->
   ?left_treatment:Pdk.Boolean.treatment ->
@@ -1879,6 +1905,29 @@ val attribute_randomize :
     stream identity across unrelated graph construction edits. A
     [fraction_attribute] instead supplies deterministic quantiles, makes the
     node independent of context seed, and excludes both seed controls. *)
+
+val attribute_noise :
+  ?label:string ->
+  ?group:string ->
+  ?seed:int ->
+  ?location:Pdk.Attribute_ops.noise_location ->
+  ?range:Pdk.Attribute_ops.noise_range ->
+  ?operation:Pdk.Attribute_ops.noise_operation ->
+  ?blend:float ->
+  ?frequency:Prismel.Vec3.t ->
+  ?offset:Prismel.Vec3.t ->
+  ?octaves:int ->
+  ?lacunarity:float ->
+  ?roughness:float ->
+  owner:Pdk.Attribute.owner ->
+  name:string ->
+  Pdk.Attribute_ops.noise_kind ->
+  Node.t -> Node.t
+(** Apply deterministic coherent Attribute Noise. Scalar/vector modes follow
+    Houdini's common Attribute Noise controls. [Noise_element_number] exposes
+    the common element-number sampling override without embedding an
+    expression. [Noise_quaternion] is Prismel's typed normalized Float4 mode
+    for driving Copy-to-Points [orient]. *)
 
 val attribute_remap :
   ?label:string ->

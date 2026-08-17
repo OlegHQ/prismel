@@ -15,11 +15,29 @@ and deterministic headless execution.
 - `lib/<name>/` contains sibling libraries. A sibling library may depend on
   `prismel`; `prismel` must never depend on a sibling library.
 - `lib/pxui/` is the UI toolkit inspired by ofxUI.
+- `lib/sop_ui/` is the one-way adapter that renders typed `procedural`
+  parameter templates through PXUI; neither underlying library imports it.
+- `lib/pxui_graph/` owns SOP-network presentation and interaction. It consumes
+  immutable `Procedural.Edit_graph` metadata, retains graph-space tile
+  positions and selection, and emits typed add/delete/connect/disconnect/insert
+  requests; it never applies those requests, compiles nodes, cooks, or edits
+  geometry itself.
+- `lib/sop_catalog/` owns inspectable catalog constructors whose parameter
+  records and PPX metadata live with the SOP definition. It wraps public
+  `procedural` nodes and must not own a competing cook or geometry kernel.
 - `lib/pdk/` is the single packed geometry/topology compute core.
 - `lib/geom/` is the ergonomic functional geometry API and adapter layer; it
   consumes `pdk` for mesh generation and modeling algorithms rather than
   maintaining competing kernels.
 - `lib/procedural/` owns immutable SOP graphs and consumes `pdk` operations.
+- `lib/sketch/` owns reusable, target-neutral sketch orchestration helpers such
+  as background SOP reactivity and terminal packed-piece render transforms. It
+  may consume `prismel`, `pdk`, and `procedural`; those libraries never import it.
+- `lib/sketch_ui/` is the high-level interactive sketch environment over
+  `sketch_support`, `pxui`, `pxui_graph`, and `sop_ui`. It owns camera/render
+  controls for both 2D and 3D, the reusable responsive view/graph/inspector
+  workspace, one shared timeline/selection/cook lifecycle, scheduling/status,
+  and finite headless integration; lower layers never import it.
 - `examples/<project>/` contains self-contained example executables. Give every
   example its own `dune` file and keep shared framework code out of examples.
 - `sketches/<project>/` contains experimental creative-coding executables.
@@ -39,6 +57,12 @@ examples ──> pxui ──> prismel ──> runtime ──> wap
     └────────────────> prismel        │
                          │             └──> tsdl
                          └──> tsdl/tsdl_gfx
+
+sketches/examples ──> sop_ui ──> pxui
+                         └─────> procedural
+       sketches ──> sketch_support ──> procedural/pdk/prismel
+       sketches ──> sketch_ui ──> pxui_graph/sop_ui/sketch_support
+       sketches ──> sop_catalog ──> procedural/pdk/prismel
 ```
 
 Never introduce a dependency from `prismel` to `pxui` or to an example.
@@ -53,6 +77,20 @@ procedural ──> geom ──> pdk ──> prismel
 `procedural` may use `geom` for ergonomic curves, polygons, fields, and
 representation-neutral preparation, or call `pdk` directly for packed SOPs.
 `geom` must never depend on `procedural`; `pdk` must never depend on either.
+`sop_ui` may depend on both `procedural` and `pxui`; those libraries must never
+depend on `sop_ui` or each other.
+`sketch_support` is a leaf helper for sketches. It may depend on `procedural`,
+`pdk`, and `prismel`, but must not own widgets, renderer backends, or geometry
+kernels and must never be imported by those underlying libraries.
+`pxui_graph` and `sop_ui` are presentation adapters, not graph authorities:
+selection lives in returned immutable UI state, network topology lives in
+`Procedural.Edit_graph`, and the `sketch_ui` host applies typed editor commands
+before compiling a cookable DAG. Parameter edits replace the selected node in
+that same immutable document (or use `Graph.apply_parameters` in a compiled,
+non-editor context). `sop_catalog` may attach
+PPX-derived schemas through `Node.parameterize`, but delegates cooking to
+ordinary Procedural SOPs. `sketch_ui` composes these leaves and must not move
+widgets, camera policy, or render lifecycle into `procedural` or `pdk`.
 
 ## Procedural geometry scope
 
@@ -114,6 +152,10 @@ representation-neutral preparation, or call `pdk` directly for packed SOPs.
   payload transfer, one-time rounding, and bounded seam cleanup/verification.
   Detection and floating intersection-analysis nodes are diagnostics only and
   must never be silently reused for topology-changing decisions.
+- Standard normal payload is orientation-aware: when extraction reverses a
+  source facet, transferred point/vertex `N` must be reversed and normalized
+  with it. Terminal packed-piece expansion must preserve those authored
+  normals instead of silently replacing them with per-triangle normals.
 - Boolean product scope includes variadic expressions, union/intersection/
   subtraction/XOR, seam, shatter, solid/surface treatment, self-intersection
   resolution, coplanar overlap, non-manifold arrangement edges, and stable
@@ -226,6 +268,9 @@ representation-neutral preparation, or call `pdk` directly for packed SOPs.
 - Query renderer output size for physical backing pixels. Preserve
   `Frame.drawable_width`, `drawable_height`, `drawable_size`, and
   `pixel_scale` as the explicit native-pixel boundary.
+- Convert a logical `Scene.view3d` sub-viewport to physical drawable edges
+  exactly once inside the native GPU backend before calling OpenGL viewport or
+  scissor functions. Never pass logical Retina coordinates directly to GL.
 - `Canvas.capture` and `Canvas.save_screen_png` read and preserve the full native
   framebuffer. Never allocate their readback from logical window dimensions.
 - Keep `Scene.text` on an installed platform UI font and interpret `?size` in
@@ -517,10 +562,18 @@ Create `lib/<name>/dune` with a wrapped library named `<name>` and declare
 only when they are genuinely library-specific. Document the library in the
 README.
 
-For `pxui`, prefer the functional builder, `Pxui.update`, and `Pxui.scene` in
+For `pxui`, prefer the functional builder, `Pxui.update_frame`, and `Pxui.scene` in
 new code. UI values belong in the immutable sketch model. Keep `add_*`,
 `handle_event`, and `draw` only as compatibility wrappers around the same
 widget semantics.
+
+For SOP-backed inspectors, declare typed templates beside each operator with
+`Procedural.Parameter` (or `[@@deriving sop_params]`) and attach them to that
+node. Use `Procedural.Custom.node/create/map` for custom parameterized nodes,
+and `Sop_ui.Node_inspector` plus `Graph.apply_parameters` for selected-node
+editing. Do not recreate a sketch-wide shadow parameter record, copy
+names/defaults/ranges into hand-built widgets, or make `procedural` import
+PXUI.
 
 - Preserve visual feedback for hover, armed, and actively dragged controls in
   both the default theme and custom themes.
@@ -555,3 +608,52 @@ must not hide reusable framework code in the sketch directory. Prefer SOP
 graphs for procedural geometry, deterministic seeds for generative work, an
 `Easy_camera` for interactive 3D views, and explicit termination when running
 headless.
+
+Prefer `Sketch_ui.Environment3` for 3D SOP scenes and
+`Sketch_ui.Environment2` for 2D SOP scenes. Both own P/S/R playback,
+G/I/C/H visibility, selected-node inspection, reactive cooking, camera/render
+controls, resize handling, status, export, and finite headless termination;
+sketch source should primarily define its graph and scene preparation.
+
+Keep the standard sketch workspace as three independently collapsible columns:
+view, graph, and inspector, with default flexible proportions 45/35/20.
+Splitters retain ratios across window resize. An empty graph selection shows
+camera/render controls in the inspector; selecting a node shows only that
+node's generated SOP parameters. Graph tile dragging is presentation-only and
+must preserve connectivity, stable IDs, caches, and cook state. Right/middle
+drag pans, wheel/trackpad motion zooms at the pointer, [Home] frames all, and
+[F] frames the selected node. The Space catalog must allow every SOP to be
+created even when its inputs are not yet connected. Categories are non-empty
+paths rendered as nested submenus; typed search remains global and matches the
+full breadcrumb. A visual row limit must window the complete result set, never
+truncate accessible SOPs. Command/Ctrl-C/V/X and
+Command/Ctrl-D copy, paste, cut, and duplicate selected induced subgraphs with
+fresh IDs, retained internal wires and relative positions, and disconnected
+external inputs. Delete and Backspace remove selected nodes or wires.
+Inspection selection and display selection are
+independent: every tile exposes a VIEW button, the displayed tile is visibly
+flagged, and switching it submits that node through the bounded cook worker
+while retaining the prior successful preview.
+
+Define an inspectable editor SOP once in `sop_catalog`: keep its parameter
+record, stable node key, runtime operation identity, display label, category
+path, input arity, defaults, and rebuild closure together through
+`[@@deriving sop_params, sop_node]`, then
+mark the module `[@@sop.register]`. The PPX-generated deterministic manifest is
+the only Space-menu registry. Do not add a parallel hand-written factory list,
+mutable registration initializer, or menu-only parameter defaults. Catalog
+tests must reject duplicate keys, instantiate every registered factory with
+disconnected input placeholders, and prove that the resulting `Node.operation`
+matches the descriptor identity. The workspace must obtain its
+`Pxui_graph.catalog_entry` values only through
+`Pxui_graph.catalog_of_factories`; tests must search the Space menu by every
+generated stable key and receive that exact factory request. Use
+`[@@sop.node_operation "..."]` only when
+the menu key intentionally differs from the runtime operation; otherwise it
+defaults to the key.
+
+Model SOP ports as required/optional signatures rather than forcing every node
+into a fixed required arity. Use `[@@sop.node_optional "..."]` for optional
+zero-based slots. An absent optional slot must compile as an omitted operator
+argument; connecting or disconnecting it must preserve the logical node ID,
+parameter values, graph position, and deterministic input order.

@@ -43,6 +43,9 @@ let with_point_weight value geometry =
       |> get_string in
   Geometry.with_attribute attribute geometry |> get_string
 
+let with_vertex_normals ?(cusp_angle = Float.pi) geometry =
+  Ops.normals ~grain:1 ~owner:Attribute.Vertex ~cusp_angle geometry |> get
+
 let test_solid_products () =
   let left = tetra ~origin:(0.,0.,0.) 2.
   and right = tetra ~origin:(0.5,0.2,0.2) 2. in
@@ -76,6 +79,119 @@ let test_surface_cut_and_payload () =
    | Error error -> fail "unexpected public point conflict: %s"
        (Error.to_string error)
    | Ok _ -> fail "public Boolean ignored its reject point-conflict policy")
+
+let test_normal_payload_orientation () =
+  let left = cube_quads ~origin:(0.,0.,0.) 2.
+      |> with_vertex_normals ~cusp_angle:0.1
+  and right = triangles
+      [|-1.,1.,-1.; 3.,1.,-1.; -1.,1.,3.; 3.,1.,3.|]
+      [|0;1;2; 1;3;2|]
+      |> with_vertex_normals in
+  let run domains = Prismel.Parallel.run ~domains (fun () ->
+      Boolean.run ~grain:1 ~operation:Boolean.Difference
+        ~right_treatment:Boolean.Surface ~right left |> get) in
+  let output = run 1 and parallel = run 4 in
+  let normal_storage geometry =
+    Geometry.find_attribute ~owner:Attribute.Vertex "N" geometry
+    |> Option.get |> Attribute.storage in
+  check (signature output = signature parallel)
+    "Boolean normal topology differs between one and four domains";
+  let sequential_normals = normal_storage output
+  and parallel_normals = normal_storage parallel in
+  let normal_view = function
+    | Attribute.Float3 values -> Packed.Float3.Private.view values
+    | _ -> fail "Boolean vertex normal payload is not float3" in
+  let a = normal_view sequential_normals and b = normal_view parallel_normals in
+  if a.x <> b.x || a.y <> b.y || a.z <> b.z then begin
+    let differences = ref 0 and maximum = ref 0. in
+    for index = 0 to Array.length a.x - 1 do
+      List.iter (fun delta ->
+        if delta <> 0. then begin incr differences; maximum := max !maximum delta end)
+        [abs_float (a.x.(index) -. b.x.(index));
+         abs_float (a.y.(index) -. b.y.(index));
+         abs_float (a.z.(index) -. b.z.(index))]
+    done;
+    fail
+      "Boolean normal payload differs between one and four domains (%d components, max %.17g)"
+      !differences !maximum
+  end;
+  let normals = normal_storage output in
+  let normals = match normals with
+    | Attribute.Float3 values -> Packed.Float3.Private.view values
+    | _ -> fail "Boolean vertex normal payload is not float3" in
+  let positions = Packed.Float3.Private.view (Geometry.positions output)
+  and topology = Topology.Private.view (Geometry.topology output) in
+  for primitive = 0 to Geometry.primitive_count output - 1 do
+    let first = topology.primitive_offsets.(primitive)
+    and last = topology.primitive_offsets.(primitive + 1) in
+    check (last - first = 3)
+      "Boolean normal orientation regression expected triangular output";
+    let point vertex = topology.vertex_points.(vertex) in
+    let a = point first and b = point (first + 1) and c = point (first + 2) in
+    let ux = positions.x.(b) -. positions.x.(a)
+    and uy = positions.y.(b) -. positions.y.(a)
+    and uz = positions.z.(b) -. positions.z.(a)
+    and vx = positions.x.(c) -. positions.x.(a)
+    and vy = positions.y.(c) -. positions.y.(a)
+    and vz = positions.z.(c) -. positions.z.(a) in
+    let fx = (uy *. vz) -. (uz *. vy)
+    and fy = (uz *. vx) -. (ux *. vz)
+    and fz = (ux *. vy) -. (uy *. vx) in
+    for vertex = first to last - 1 do
+      let dot = (fx *. normals.x.(vertex)) +. (fy *. normals.y.(vertex))
+          +. (fz *. normals.z.(vertex)) in
+      check (dot > 1e-10)
+        "Boolean transferred a normal opposite to its output winding"
+    done
+  done
+
+let test_surface_fracture_pieces () =
+  let left = cube_quads ~origin:(0.,0.,0.) 2.
+  and right = triangles
+      [|-1.,1.,-1.; 3.,1.,-1.; -1.,1.,3.; 3.,1.,3.|]
+      [|0;1;2; 1;3;2|] in
+  let run domains = Prismel.Parallel.run ~domains (fun () ->
+      Boolean.run ~grain:1 ~operation:Boolean.Difference
+        ~right_treatment:Boolean.Surface
+        ~piece_attribute:"piece" ~require_closed:true ~right left
+      |> get) in
+  let output = run 1 in
+  let values = Geometry.find_attribute ~owner:Attribute.Primitive "piece" output
+      |> Option.get |> Attribute.storage in
+  let values = match values with
+    | Attribute.Int values -> values
+    | _ -> fail "public Boolean fracture piece plane is not integer-valued" in
+  check (Array.fold_left Int.max (-1) values = 1)
+    "one surface cutter did not produce exactly two Boolean-cell pieces";
+  let topology = Topology.Private.view (Geometry.topology output) in
+  for piece = 0 to 1 do
+    let edges = Hashtbl.create 32 and primitives = ref 0 in
+    for primitive = 0 to Geometry.primitive_count output - 1 do
+      if values.(primitive) = piece then begin
+        incr primitives;
+        let first = topology.primitive_offsets.(primitive)
+        and last = topology.primitive_offsets.(primitive + 1) in
+        for vertex = first to last - 1 do
+          let next = if vertex + 1 = last then first else vertex + 1 in
+          let a = topology.vertex_points.(vertex)
+          and b = topology.vertex_points.(next) in
+          let edge = if a < b then a, b else b, a in
+          Hashtbl.replace edges edge
+            (1 + Option.value ~default:0 (Hashtbl.find_opt edges edge))
+        done
+      end
+    done;
+    check (!primitives > 1)
+      "Boolean fracture assigned an individual polygon as a piece";
+    Hashtbl.iter (fun _ incidence ->
+      check (incidence = 2)
+        "Boolean fracture piece is not a closed two-manifold shell") edges
+  done;
+  let values_for geometry =
+    Geometry.find_attribute ~owner:Attribute.Primitive "piece" geometry
+    |> Option.get |> Attribute.storage in
+  check (values_for output = values_for (run 4))
+    "Boolean fracture piece identities differ between one and four domains"
 
 let test_shatter () =
   let left = tetra ~origin:(0.,0.,0.) 2.
@@ -201,6 +317,8 @@ let test_seam_products () =
 let () =
   test_solid_products ();
   test_surface_cut_and_payload ();
+  test_normal_payload_orientation ();
+  test_surface_fracture_pieces ();
   test_shatter ();
   test_output_policies ();
   test_errors ();

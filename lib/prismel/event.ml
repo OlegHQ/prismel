@@ -49,6 +49,7 @@ let sdl_key_to_input_key sym =
   | k when k = K.lshift || k = K.rshift -> Input.Shift
   | k when k = K.lctrl || k = K.rctrl -> Input.Ctrl
   | k when k = K.lalt || k = K.ralt -> Input.Alt
+  | k when k = K.lgui || k = K.rgui -> Input.Meta
   
   (* Function keys *)
   | k when k = K.f1 -> Input.F1
@@ -108,6 +109,7 @@ let web_key_to_input_key value =
   | "Shift" -> Input.Shift
   | "Control" -> Input.Ctrl
   | "Alt" -> Input.Alt
+  | "Meta" -> Input.Meta
   | "F1" -> Input.F1 | "F2" -> Input.F2 | "F3" -> Input.F3
   | "F4" -> Input.F4 | "F5" -> Input.F5 | "F6" -> Input.F6
   | "F7" -> Input.F7 | "F8" -> Input.F8 | "F9" -> Input.F9

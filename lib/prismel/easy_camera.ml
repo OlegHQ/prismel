@@ -84,7 +84,7 @@ let default_interactions =
   [
     { button = Input.LeftButton; key = None; interaction = Orbit };
     { button = Input.MiddleButton; key = None; interaction = Pan };
-    { button = Input.RightButton; key = None; interaction = Dolly };
+    { button = Input.RightButton; key = None; interaction = Pan };
   ]
 
 let create ?(target = Vec3.zero) ?(distance = 10.) ?(azimuth = 0.)
@@ -166,6 +166,9 @@ let camera value =
 
 let target value = value.target
 let distance value = value.distance
+let fov_y value = value.fov_y
+let near value = value.near
+let far value = value.far
 let enabled value = value.enabled
 let control_area value = value.control_area
 let inertia value = value.inertia
@@ -185,6 +188,18 @@ let with_distance distance value =
   validate_distance distance;
   { value with distance }
 
+let with_fov_y fov_y value =
+  ignore
+    (Camera.perspective ~fov_y ~near:value.near ~far:value.far
+       ~at:(Vec3.create 0. 0. value.distance) ~target:Vec3.zero ());
+  { value with fov_y }
+
+let with_clip ~near ~far value =
+  ignore
+    (Camera.perspective ~fov_y:value.fov_y ~near ~far
+       ~at:(Vec3.create 0. 0. value.distance) ~target:Vec3.zero ());
+  { value with near; far }
+
 let set_enabled enabled value =
   {
     value with
@@ -195,7 +210,8 @@ let set_enabled enabled value =
 
 let with_control_area area value =
   validate_control_area area;
-  { value with control_area = area; drag = None }
+  if area = value.control_area then value
+  else { value with control_area = area; drag = None }
 
 let with_inertia inertia value =
   { value with inertia; velocity = if inertia then value.velocity else None }
@@ -452,7 +468,9 @@ let update value frame =
                      velocity = if value.inertia then value.velocity else None;
                    }
                | _ -> value)
-          | MouseScrolled (_, vertical) when contains value frame.Frame.mouse ->
+          | MouseScrolled (horizontal, vertical)
+              when contains value frame.Frame.mouse ->
+              ignore horizontal;
               {
                 value with
                 distance =

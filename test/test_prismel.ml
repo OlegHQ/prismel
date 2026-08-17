@@ -1,6 +1,8 @@
 let fail message = raise (Failure message)
 
 let () =
+  if not Prismel.Sketch.default_config.resizable then
+    fail "high-level sketch windows are not resizable by default";
   let press point =
     Prismel.Event.MousePressed (Prismel.Input.LeftButton, point)
   in
@@ -73,6 +75,158 @@ let () =
   in
   if clicked <> [Pxui.Clicked "apply"] then
     fail "button did not fire on release inside";
+  let accordion_ui =
+    Pxui.create ~x:0 ~y:0 ~width:240 ()
+    |> Pxui.accordion ~name:"advanced" ~label:"Advanced" ~expanded:false
+         (fun ui -> ui
+           |> Pxui.toggle ~name:"nested" ~label:"Nested" ~value:false)
+    |> Pxui.toggle ~name:"visible" ~label:"Visible" ~value:false
+  in
+  let _, _, _, collapsed_height = Pxui.bounds accordion_ui in
+  if collapsed_height <> 80 || Pxui.toggle_value accordion_ui "nested" <> Some false
+  then fail "collapsed accordion lost its child or occupied child layout rows";
+  let accordion_ui, expanded_changes = Pxui.update accordion_ui
+      [press (20, 16); release (20, 16)] in
+  if expanded_changes <> [Pxui.Toggled ("advanced", true)]
+     || Pxui.accordion_expanded accordion_ui "advanced" <> Some true
+  then fail "accordion header did not expand on release inside";
+  let accordion_ui, nested_changes = Pxui.update accordion_ui
+      [press (210, 48); release (210, 48)] in
+  if nested_changes <> [Pxui.Toggled ("nested", true)]
+     || Pxui.toggle_value accordion_ui "nested" <> Some true
+  then fail "expanded accordion child was not interactive";
+  let integer_ui =
+    Pxui.create ~x:0 ~y:0 ~width:240 ()
+    |> Pxui.int_slider ~name:"count" ~label:"Count"
+         ~min:1 ~max:5 ~value:2
+  in
+  let integer_ui, integer_changes = Pxui.update integer_ui
+      [press (100, 16); move (400, 16); release (400, 16)] in
+  if Pxui.int_slider_value integer_ui "count" <> Some 5
+     || not (List.exists
+       (function Pxui.Int_slid ("count", 5) -> true | _ -> false)
+       integer_changes)
+  then fail "integer slider did not snap, clamp, or emit an integer change";
+  let typed_integer_ui =
+    Pxui.create ~x:0 ~y:0 ~width:240 ()
+    |> Pxui.int_slider ~name:"count" ~label:"Count"
+         ~min:1 ~max:50 ~value:12
+  in
+  let typed_integer_ui, _ =
+    Pxui.update ~time:1. typed_integer_ui
+      [press (20, 16); release (20, 16)]
+  in
+  let typed_integer_ui, _ =
+    Pxui.update ~time:1.2 typed_integer_ui
+      [press (20, 16); release (20, 16)]
+  in
+  let typed_integer_ui, typed_integer_changes =
+    Pxui.update ~time:1.21 typed_integer_ui
+      [ Prismel.Event.TextInput "27";
+        Prismel.Event.KeyPressed Prismel.Input.Enter;
+      ]
+  in
+  if Pxui.int_slider_value typed_integer_ui "count" <> Some 27
+     || typed_integer_changes <> [Pxui.Int_slid ("count", 27)]
+  then fail "double-click integer editing did not replace and commit the value";
+  let extended_integer_ui, _ =
+    Pxui.update ~time:2. typed_integer_ui
+      [press (20, 16); release (20, 16)]
+  in
+  let extended_integer_ui, _ =
+    Pxui.update ~time:2.2 extended_integer_ui
+      [press (20, 16); release (20, 16)]
+  in
+  let extended_integer_ui, extended_integer_changes =
+    Pxui.update ~time:2.21 extended_integer_ui
+      [ Prismel.Event.TextInput "999";
+        Prismel.Event.KeyPressed Prismel.Input.Enter;
+      ]
+  in
+  if Pxui.int_slider_value extended_integer_ui "count" <> Some 999
+     || extended_integer_changes <> [Pxui.Int_slid ("count", 999)]
+  then fail "typed integer values did not exceed the soft slider range";
+  let invalid_integer_ui, _ =
+    Pxui.update ~time:3. extended_integer_ui
+      [press (20, 16); release (20, 16)]
+  in
+  let invalid_integer_ui, _ =
+    Pxui.update ~time:3.2 invalid_integer_ui
+      [press (20, 16); release (20, 16)]
+  in
+  let invalid_integer_ui, invalid_integer_changes =
+    Pxui.update ~time:3.21 invalid_integer_ui
+      [ Prismel.Event.TextInput "3.5";
+        Prismel.Event.KeyPressed Prismel.Input.Enter;
+      ]
+  in
+  let invalid_integer_ui, cancelled_integer_changes =
+    Pxui.update ~time:3.22 invalid_integer_ui
+      [ Prismel.Event.KeyPressed Prismel.Input.Escape;
+        Prismel.Event.TextInput "4";
+      ]
+  in
+  if Pxui.int_slider_value invalid_integer_ui "count" <> Some 999
+     || invalid_integer_changes <> [] || cancelled_integer_changes <> []
+  then fail "integer editing accepted a fraction or Escape failed to cancel";
+  let typed_float_ui =
+    Pxui.create ~x:0 ~y:0 ~width:240 ()
+    |> Pxui.slider ~name:"amount" ~label:"Amount"
+         ~min:0. ~max:1. ~value:0.25
+  in
+  let typed_float_ui, _ =
+    Pxui.update ~time:4. typed_float_ui
+      [press (20, 16); release (20, 16)]
+  in
+  let typed_float_ui, _ =
+    Pxui.update ~time:4.2 typed_float_ui
+      [press (20, 16); release (20, 16)]
+  in
+  let typed_float_ui, typed_float_changes =
+    Pxui.update ~time:4.21 typed_float_ui
+      [Prismel.Event.TextInput "2.5"; press (300, 200)]
+  in
+  if Pxui.slider_value typed_float_ui "amount" <> Some 2.5
+     || typed_float_changes <> [Pxui.Slid ("amount", 2.5)]
+  then fail "typed float did not exceed its soft range on outside commit";
+  let soft_range_ui =
+    Pxui.create ~x:0 ~y:0 ~width:240 ()
+    |> Pxui.slider ~name:"float" ~label:"Float"
+         ~min:0. ~max:1. ~value:2.
+    |> Pxui.int_slider ~name:"integer" ~label:"Integer"
+         ~min:1 ~max:5 ~value:9
+    |> fun ui -> Pxui.set_slider_value ui "float" 3.
+    |> fun ui -> Pxui.set_int_slider_value ui "integer" 11
+  in
+  if Pxui.slider_value soft_range_ui "float" <> Some 3.
+     || Pxui.int_slider_value soft_range_ui "integer" <> Some 11
+  then fail "initial or programmatic slider values were hard-clamped";
+  let restored_integer_ui =
+    match Pxui.decode
+        (Pxui.create ~x:0 ~y:0 ~width:240 ()
+         |> Pxui.int_slider ~name:"count" ~label:"Count"
+              ~min:1 ~max:5 ~value:1)
+        (Pxui.encode extended_integer_ui) with
+    | Ok ui -> ui
+    | Error message -> fail message
+  in
+  if Pxui.int_slider_value restored_integer_ui "count" <> Some 999 then
+    fail "integer slider persistence clamped an out-of-range typed value";
+  let scroll_ui =
+    List.init 4 Fun.id
+    |> List.fold_left (fun ui index ->
+      Pxui.toggle ~name:(Printf.sprintf "scroll-%d" index)
+        ~label:(Printf.sprintf "Row %d" index) ~value:false ui)
+      (Pxui.create ~x:0 ~y:0 ~width:240 ~max_height:80 ())
+  in
+  let _, _, _, scroll_height = Pxui.bounds scroll_ui in
+  let scroll_ui, scroll_changes = Pxui.update scroll_ui
+      [move (100, 40); Prismel.Event.MouseScrolled (0, -2);
+       press (210, 16); release (210, 16)] in
+  if scroll_height <> 80
+     || Pxui.toggle_value scroll_ui "scroll-2" <> Some true
+     || scroll_changes <> [Pxui.Toggled ("scroll-2", true)]
+  then fail "scrollable panel did not clamp its viewport or route scrolled hits";
   let functional_ui =
     Pxui.create ~x:0 ~y:0 ~width:240 ()
     |> Pxui.toggle ~name:"pure" ~label:"Pure" ~value:false
@@ -433,6 +587,104 @@ let () =
       MouseReleased (Input.LeftButton, (130, 80));
     ];
   } in
+  let camera_control = Pxui.Camera_control.create () in
+  let camera_ui = Pxui.create ~x:0 ~y:0 ~width:240 ()
+      |> Pxui.Camera_control.append camera_control ~camera:easy in
+  let capped_ui = Pxui.with_max_height (Some 120) camera_ui in
+  let press_render = { frame with mouse = 30, 56;
+    mouse_buttons = [Input.LeftButton];
+    events = [Event.MousePressed (Input.LeftButton, (30, 56))] } in
+  let _, capped_ui, capped_camera, _, _ =
+    Pxui.Camera_control.update camera_control ~ui:capped_ui ~camera:easy
+      press_render in
+  let capped_ui = Pxui.with_max_height (Some 120) capped_ui in
+  let release_render = { frame with mouse = 30, 56; mouse_buttons = [];
+    events = [Event.MouseReleased (Input.LeftButton, (30, 56))] } in
+  let _, capped_ui, _, _, _ =
+    Pxui.Camera_control.update camera_control ~ui:capped_ui
+      ~camera:capped_camera release_render in
+  if Pxui.accordion_expanded capped_ui "camera.render-section" <> Some true
+  then fail "camera frame fitting cancelled an externally capped accordion press";
+  let shortcut_frame = { frame with mouse_buttons = [];
+    events = [Event.KeyPressed (Input.KeyChar 'c')] } in
+  let camera_control, camera_ui, controlled, _, _ =
+    Pxui.Camera_control.update camera_control ~ui:camera_ui ~camera:easy
+      shortcut_frame in
+  if Pxui.accordion_expanded camera_ui "camera.section" <> Some true
+     || Easy_camera.control_area controlled <> Some (248, 0, 392, 360)
+  then fail "camera control did not toggle with C or resize its gesture area";
+  let scroll_frame = { frame with
+    mouse = 320, 100; mouse_buttons = [];
+    events = [Event.MouseScrolled (0, 2)] } in
+  let camera_control, camera_ui, zoomed, _, _ =
+    Pxui.Camera_control.update camera_control ~ui:camera_ui ~camera:controlled
+      scroll_frame in
+  let _, camera_ui, zoomed_idle, _, _ =
+    Pxui.Camera_control.update camera_control ~ui:camera_ui ~camera:zoomed
+      { scroll_frame with events = [] } in
+  if Easy_camera.distance zoomed = Easy_camera.distance controlled
+     || Easy_camera.distance zoomed_idle <> Easy_camera.distance zoomed
+     || Pxui.slider_value camera_ui "camera.distance"
+        <> Some (Easy_camera.distance zoomed)
+  then fail "camera control undid or failed to display trackpad zoom";
+  let horizontal_scroll_frame = { frame with
+    mouse = 320, 100; mouse_buttons = [];
+    events = [Event.MouseScrolled (2, 0)] } in
+  let _, _, horizontal_ignored, _, _ =
+    Pxui.Camera_control.update camera_control ~ui:camera_ui ~camera:zoomed_idle
+      horizontal_scroll_frame in
+  if not (Vec3.nearly_equal (Easy_camera.target horizontal_ignored)
+      (Easy_camera.target zoomed_idle) ~eps:1e-9)
+     || Easy_camera.distance horizontal_ignored <> Easy_camera.distance zoomed_idle
+  then fail "horizontal trackpad scrolling unexpectedly moved the camera";
+  let right_frame = { frame with
+    mouse = 330, 90;
+    mouse_buttons = [Input.RightButton];
+    events = [
+      Event.MousePressed (Input.RightButton, (300, 60));
+      MouseMoved (330, 90);
+      MouseReleased (Input.RightButton, (330, 90));
+    ] } in
+  let _, _, right_panned, _, _ =
+    Pxui.Camera_control.update camera_control ~ui:camera_ui
+      ~camera:horizontal_ignored right_frame in
+  if Vec3.nearly_equal (Easy_camera.target right_panned)
+      (Easy_camera.target horizontal_ignored) ~eps:1e-9
+     || Easy_camera.distance right_panned
+        <> Easy_camera.distance horizontal_ignored
+  then fail "camera control did not map right-drag to pan";
+  let middle_frame = { frame with
+    mouse = 330, 90;
+    mouse_buttons = [Input.MiddleButton];
+    events = [
+      Event.MousePressed (Input.MiddleButton, (300, 60));
+      MouseMoved (330, 90);
+      MouseReleased (Input.MiddleButton, (330, 90));
+    ] } in
+  let _, _, panned, _, _ =
+    Pxui.Camera_control.update camera_control ~ui:camera_ui ~camera:right_panned
+      middle_frame in
+  if Vec3.nearly_equal (Easy_camera.target panned)
+      (Easy_camera.target right_panned) ~eps:1e-9
+  then fail "camera control did not preserve default middle-drag pan";
+  let hidden_control, hidden_ui, _, _, _ =
+    Pxui.Camera_control.update camera_control ~ui:camera_ui ~camera:panned
+      { shortcut_frame with events = [Event.KeyPressed (Input.KeyChar 'h')] } in
+  if Pxui.Camera_control.ui_visible hidden_control
+     || Pxui.Camera_control.scene hidden_control hidden_ui <> Scene.empty
+     || Pxui.Camera_control.overlay hidden_control
+          Scene.[text ~at:(0, 0) "label"] <> Scene.empty
+  then fail "camera control H shortcut did not hide all UI";
+  let shown_control, shown_ui, _, _, _ =
+    Pxui.Camera_control.update hidden_control ~ui:hidden_ui ~camera:panned
+      { shortcut_frame with
+        events = [Event.KeyPressed (Input.KeyChar 'c')] }
+  in
+  if not (Pxui.Camera_control.ui_visible shown_control)
+     || Pxui.accordion_expanded shown_ui "camera.section" <> Some true
+     || Pxui.Camera_control.overlay shown_control
+          Scene.[text ~at:(0, 0) "label"] = Scene.empty
+  then fail "camera control C shortcut did not reveal its expanded UI";
   let easy = Easy_camera.update easy frame in
   if Vec3.nearly_equal
        (Camera.position (Easy_camera.camera easy))

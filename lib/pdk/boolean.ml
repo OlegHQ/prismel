@@ -31,6 +31,7 @@ let run ?cancel ?(grain = 16_384) ?(operation = Union)
     ?(strict_cleanup = true)
     ?(seam_points = Shared_seam_points) ?(detriangulation = Triangles)
     ?(assume_flat = false) ?require_closed
+    ?piece_attribute
     ?(left_piece_group = Some "boolean_left")
     ?(overlap_piece_group = Some "boolean_overlap")
     ?(right_piece_group = Some "boolean_right") ~right left =
@@ -45,7 +46,11 @@ let run ?cancel ?(grain = 16_384) ?(operation = Union)
   else if cleanup_max_batches <= 0 then
     error "invalid_parameter" "cleanup_max_batches must be positive"
   else begin
-    let group_names = List.filter_map Fun.id
+    if (match piece_attribute with
+        | Some name -> String.trim name = ""
+        | None -> false) then
+      error "invalid_parameter" "piece attribute name must not be empty"
+    else let group_names = List.filter_map Fun.id
         [left_piece_group; overlap_piece_group; right_piece_group] in
     if operation = Shatter
         && List.exists (fun name -> String.trim name = "") group_names then
@@ -114,7 +119,58 @@ let run ?cancel ?(grain = 16_384) ?(operation = Union)
                       ~point_conflict ~point_tolerance ancestry primitive_payload
                   else Ok primitive_payload)
                   (fun payload ->
-                    let finalize source geometry = match shatter_counts with
+                    let finalize source geometry =
+                      let add_piece_attribute geometry = match piece_attribute with
+                        | None -> Ok geometry
+                        | Some name ->
+                            let ancestry_view =
+                              Boolean_extract.Private.ancestry_view ancestry in
+                            let complex = Boolean_extract.Private.complex ancestry
+                            and weiler = Boolean_solid.Private.weiler prepared in
+                            let shell_to_piece =
+                              Array.make (Boolean_weiler.shell_count weiler) (-1)
+                            and next_piece = ref 0 in
+                            let values = Array.init
+                                (Geometry.primitive_count geometry) (fun primitive ->
+                              let source_primitive = source primitive in
+                              let facet =
+                                ancestry_view.primitive_complex_facets.
+                                  (source_primitive) in
+                              let second =
+                                ancestry_view.corner_complex_vertices.
+                                  ((source_primitive * 3) + 1) in
+                              let canonical_second =
+                                Boolean_complex.facet_vertex complex facet 1 in
+                              let reversed_second =
+                                Boolean_complex.facet_vertex complex facet 2 in
+                              let half =
+                                if second = canonical_second then
+                                  Boolean_weiler.Negative
+                                else if second = reversed_second then
+                                  Boolean_weiler.Positive
+                                else invalid_arg
+                                  "Boolean output ancestry lost facet orientation" in
+                              let shell = Boolean_weiler.half_facet_shell weiler
+                                  (Boolean_weiler.half_facet facet half) in
+                              let piece = shell_to_piece.(shell) in
+                              if piece >= 0 then piece else begin
+                                let piece = !next_piece in
+                                shell_to_piece.(shell) <- piece;
+                                incr next_piece;
+                                piece
+                              end) in
+                            bind (Attribute.create_owned ~name
+                                ~owner:Attribute.Primitive (Attribute.Int values)
+                              |> Result.map_error (fun message ->
+                                Error.make ~operation:"boolean"
+                                  ~code:"invalid_output" message))
+                              (fun attribute ->
+                                Geometry.with_attribute attribute geometry
+                                |> Result.map_error (fun message ->
+                                  Error.make ~operation:"boolean"
+                                    ~code:"invalid_output" message)) in
+                      bind (add_piece_attribute geometry) (fun geometry ->
+                      match shatter_counts with
                       | None -> Ok geometry
                       | Some counts ->
                           let first_overlap = counts.(0)
@@ -137,7 +193,7 @@ let run ?cancel ?(grain = 16_384) ?(operation = Union)
                                   (fun value -> value >= first_overlap
                                     && value < first_right) geometry)
                                 (fun geometry -> add right_piece_group
-                                  (fun value -> value >= first_right) geometry)) in
+                                  (fun value -> value >= first_right) geometry))) in
                     let finish_cleanup cleanup =
                       let detriangulated = match detriangulation with
                         | Triangles -> Ok cleanup

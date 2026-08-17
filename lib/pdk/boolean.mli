@@ -25,6 +25,7 @@ val run :
   ?detriangulation:detriangulation ->
   ?assume_flat:bool ->
   ?require_closed:bool ->
+  ?piece_attribute:string ->
   ?left_piece_group:string option ->
   ?overlap_piece_group:string option ->
   ?right_piece_group:string option ->
@@ -33,8 +34,10 @@ val run :
     Both operands may be oriented solids or zero-volume surfaces.
     Point/vertex/primitive attributes and ordinary/native groups transfer
     through exact source ancestry; conflicting point fields are rejected or
-    promoted explicitly. Surface subtraction emits paired opposite-facing cut
-    walls. A finite non-negative tiny-seam threshold enables bounded,
+    promoted explicitly. Standard point/vertex [N] is interpolated,
+    normalized, and negated whenever extraction reverses its source facet, so
+    it remains aligned with output winding. Surface subtraction emits paired
+    opposite-facing cut walls. A finite non-negative tiny-seam threshold enables bounded,
     independently certified contraction batches; strict cleanup refuses to
     publish while candidates remain after the explicit batch bound.
     Independently of that optional cleanup, exact vertices that cannot be
@@ -43,6 +46,12 @@ val run :
     edges are considered, ancestry is composed through every change, and the
     complete rounded incidence/self-contact verifier remains the publication
     gate.
+
+    [piece_attribute] optionally writes a dense, deterministic primitive
+    integer attribute identifying the exact oriented Weiler cell bounded by
+    each output face. Unlike split seam points, this keeps all exterior and
+    cut-wall polygons of one closed fragment under one identity while allowing
+    adjacent fragments to share seam points.
 
     Output is triangle-only by default. Detriangulation reconstructs only
     unchanged source polygons or every coplanar same-source polygon and never

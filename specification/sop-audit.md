@@ -1,6 +1,146 @@
 # SOP production-parity audit
 
-Status: active parity program. Last audited 2026-08-05.
+Status: active parity program. Last audited 2026-08-06.
+
+## Interactive editor coverage
+
+The public `Procedural.Sop` signature currently contains 182 entry points whose
+types mention `Node.t`. This is not the count of distinct menu nodes: it also
+includes convenience variants, multi-output functions, literal/snapshot
+sources, and callback-kernel boundaries that require application-owned values.
+As of 2026-08-06, the deterministic PPX editor manifest contains 159 creatable
+node descriptors: Box, Grid, UV Sphere, Platonic Solid, Point Generate, Line,
+Circle, Spiral, Torus, Tube, Null, Transform, Match Size, Mirror, Clip, Triangulate,
+Normal, Mountain, Switch, Copy to Points, Boolean Fracture, Attribute Noise
+(Quaternion), Point Jitter, Exploded View, Crease, Subdivide, Edge Divide,
+Edge Collapse, Dissolve, Poly Bevel, Peak, Bend, Smooth, Reverse, Clean, and
+Facet, Separate Pieces, Edge Flip, Edge Cusp, Edge Straighten, Circle from
+Edges, and Edge Equalize.
+The manifest additionally exposes Snap to Grid, Remesh, Poly Extrude,
+Poly Fill, and Convert Line.
+Resample, Carve, Ends, Join Curves, and PolyPath are also editor-creatable.
+The exact Boolean and Boolean Seam products are registered separately from
+Boolean Fracture.
+Boolean Detect and Intersection Analysis retain optional collision inputs in
+the editor document and switch correctly between self and A/B analysis.
+PolyReduce, Measure Curvature, Attribute Laplacian, and PolyFrame are included
+with their typed modes and output-attribute controls.
+Duplicate, Match Axis, Convex Hull, Extract Centroid, and Bound are also
+registered with complete input signatures and generated inspectors.
+Fuse retains its optional target input and its targeting, matching, payload,
+output, and cleanup controls.
+Ray exposes its required collision input, directional and minimum-distance
+modes, bounded jitter, transfer patterns, and provenance outputs.
+Distance Along Geometry, Distance from Geometry, and Distance from Target expose
+typed restrictions, falloffs, normalization policy, and output fields.
+Point Split, PolyBridge, Graph Color, and reference-driven Edge Relax are now
+editor-creatable.
+PolyLoft retains its optional rest-geometry input and complete loft controls.
+Revolve exposes surface connectivity, arc/cap policy, UVs, and arbitrary axis.
+Sweep exposes its required backbone/profile inputs and complete surface/frame
+controls.
+PolyWire retains its segmentation, miter, smoothing, seam, attribute override,
+UV, and cap controls.
+Measure, Connectivity, constant Float/Integer/Vector/Orient/Color setters,
+Delete Attribute, Rename Attribute, Rest Position, Enumerate, and Attribute
+Blur are now registered under nested Attribute categories. Rest Position
+retains its optional reference input.
+UV Project, UV Transform, UV Auto Seam, UV Unitize, UV Flatten, and UV Relax
+are registered under nested UV creation, seam, modification, and layout
+categories with their typed projection/layout modes and seam controls.
+Group Edges, Group Random, Group by Bounds, Group by Normal, Group Non-Planar,
+Group Backfaces, Group Edge Depth, Group Unshared, and Group Boundary Components
+are registered with typed owners, merge algebra, restrictions, and limits.
+Poly Cut, Sort, Noise Displace, Color by Height, and Scatter are registered
+with their detection/key/random/density/transfer controls.
+General Attribute Noise and Attribute Remap descriptors expose all supported
+noise kinds, sampling/range/operation/fractal modes and scalar-to-float4 remap
+ranges; the quaternion preset remains a separate teaching-friendly catalog
+entry for Copy to Points workflows.
+Compact Points, Bounding Box, Rename Group, Delete Edge Group, and Rename Edge
+Group cover the small topology/metadata utilities that are otherwise easy to
+omit from a modeling-focused menu.
+Attribute Randomize exposes every fixed-form numeric distribution, scalar to
+float4 values, owner/group restrictions, deterministic seed or fraction
+sampling, clamps, bias, and combine operation. Custom ramp/discrete entry
+multiparms remain part of the shared multiparm UI tranche.
+Delete Attributes exposes owner-pattern deletion/retention and preserves its
+optional reference-geometry input in the editable document.
+Triangulate 2D exposes every implemented projection, constraint, refinement,
+payload, cleanup, and output-group control. Extract Point from Curve exposes
+constant, primitive-attribute, and time-driven cuts plus transfer/provenance
+fields.
+Soft Transform uses the standard typed TRS wrapper and exposes transform and
+rotation orders, translation/rotation/scale/shear/pivot, typed selection,
+radius/edge/attribute metrics, falloff, and normal/output policy.
+The input-driven Point Generate SOP is distinct from the origin generator and
+exposes total, per-point, and probability modes, deterministic seeds, payload
+patterns, source provenance, grouping, and input retention.
+Point Replicate preserves its optional custom-shape input and exposes every
+implemented built-in shape, count/seed policy, shape transform, stratification,
+velocity, noise, payload transformation, grouping, and provenance control.
+Attribute Fade retains independent optional start and hold source ports. Its
+captured sparse-port rebuild closure preserves which physical input occupies
+which logical slot across parameter edits.
+Point Velocity exposes deformation/keep/set/attribute initialization,
+backward/central/forward sampling, matching, additive velocity, acceleration,
+and independent sparse previous/next inputs with the same port-stability test.
+Attribute Transfer and Attribute Transfer All expose required source/target
+ports, owner or multi-owner patterns, nearest/inverse/Links/RenderMan/Hart
+sampling, distance falloff, unmatched policy, and exact/pattern group filters.
+Promote Attribute and Promote Attributes expose all packed owners, reduction
+methods, source deletion, piece partitioning, capture renaming, and contributing
+source-index outputs. Set Transform exposes the complete affine matrix used by
+Copy to Points. Attribute Mirror, Rewire Vertices, and all three Edge Transport
+forms are editor-creatable with their fixed controls. Groups from Name, Name
+from Groups, Group Promote, Group Invert, Group Find Path, Blast, and Blast by
+Attribute are also generated descriptors rather than menu-specific wrappers.
+Therefore complete Space-menu coverage is not yet claimed.
+
+Each migrated descriptor defines its key, label, category path, arity,
+parameter defaults, and rebuild closure beside the SOP wrapper and is included
+by `[@@sop.register]`. The manifest test rejects duplicate keys and constructs
+every descriptor with disconnected placeholders. The workspace converts that
+manifest with `Pxui_graph.catalog_of_factories`; a regression searches the
+actual Space menu by every one of the 159 stable keys and requires the exact add
+request. Remaining public operations
+must be classified as an editable descriptor or an explicitly programmatic-only
+boundary before editor completeness can be claimed.
+
+### Explicit non-catalog boundaries
+
+The following public functions are implemented, but are deliberately not
+advertised as ordinary fixed-port Space-menu nodes yet:
+
+- `snapshot`, literal-array `points` and `polyline`, `custom`, and
+  `native_point_ranges` capture application-owned geometry, buffers, or
+  callbacks. They are programmatic graph boundaries, not generic editor
+  constructors. The menu's `points` key is the parameterized Point Generate
+  source, not the literal-array helper.
+- `pack`, `duplicate_packed`, and `unpack` cross the explicit packed-instance
+  representation boundary rather than producing an ordinary editable
+  `Pdk.Geometry.t` SOP at every stage.
+- `split` has two geometry outputs. The current editor document has one output
+  identity per node, so registering it as unary would silently lose one branch.
+- `merge`, `blend_shapes`, `attribute_composite`, and `attribute_combine` have
+  variadic geometry ports. They require add/remove/reorderable input ports
+  before registration; Attribute Combine's ordered layer values are already
+  representable through the shared typed encoded-value boundary.
+- `group`, `ordered_group`, and `delete` carry a typed `Select.t` or an ordered
+  integer traversal authored by application code. Named interactive deletion
+  is covered by Blast; registering these raw-value APIs without a selection
+  editor would not expose their actual contract.
+- `transform_trs`, `soft_transform_trs`, `clip_transform`, `skin`,
+  `curve_ends`, `sweep_circle`, and `measure_area` are convenience constructors
+  or aliases of the registered Transform, Soft Transform, Clip, PolyLoft,
+  Ends, Sweep, and Measure node families. `point_generate_origin` is the
+  implementation convenience behind the registered zero-input Point Generate
+  preset. `blend_shape` and `attribute_composite_input` construct entries for
+  their variadic parent nodes and are not standalone SOPs.
+
+This list is intentionally finite and reviewed. A new public `Sop` entry point
+must either gain a generated descriptor or be added here with the concrete
+editor feature that blocks honest registration.
 
 ## Meaning of parity
 
@@ -67,6 +207,7 @@ operation and is not misclassified here as a missing Subdivide parameter.
 | `smooth` | Production subset | Dedicated polygon/curve geometry smoothing over the shared Attribute Blur kernel; named primitive restriction converted through packed point incidence; free, unshared-edge, or selected-group-boundary constraints; additional locked point group; uniform or inverse-original-edge-length weights; constant or alternating signed passes for shrink-resistant Taubin-style filtering; point-float receiver and neighbor controls; arbitrary point-owned floating fields including `P`; explicit original/smoothed composition; existing-normal recomputation unless `N` is explicitly smoothed; topology/payload preservation, cancellation, bounded double buffers, and exact one/four-domain geometry/framebuffer output | SideFX Smooth 2.0's proprietary Scale-Dominant and Curvature-Dominant/filter-quality profiles, vertex-owned field smoothing, affected-only owner-preserving normal recomputation, and group-expression parsing |
 | `ray` | Production subset | Closest-surface and normalized directional projection against a separately cooked polygon collision input; point/vertex/primitive/native-edge source selection and primitive collision restriction; constant vector, point float3 attribute, or authored/computed normal direction; forward, reverse, bidirectional closest/farthest, first/last surface, minimum/maximum distance, world-space border tolerance, hit scale, normal lift, distance/original primitive/hit-normal/hit-group output, and exact original-collision vertex/weight CSR provenance; one exact plus 1–1,023 deterministic seeded cone-disk jitter rays; bounded average/upper-median/shortest/longest successful-hit combination; average geometric normals and equal-ray normalized CSR drivers for numerical field import without a points-by-samples hit matrix; explicit imported-collision-`N` precedence over geometric hit normals; compiled point/vertex/primitive/detail attribute and ordinary-group import through Attribute Interpolate; deterministic concave N-gon triangulation, stable ties, miss sentinels, finite validation, cancellation, atomic output, measured packed BVH traversal, and exact one/four-domain geometry/framebuffer output | Houdini primitive-UVW output (PDK exposes exact triangulation-independent CSR provenance instead); exact SideFX jitter distribution/seed and discrete-field multi-hit profiles are undocumented and remain comparison work; packed/non-polygon collision primitives and group-expression parsing |
 | `attribute_randomize` | Production subset | Point/vertex/primitive/detail float, float2, float3, and float4 attributes plus canonical `P`, and weighted-discrete text; numeric set/add/minimum/maximum/multiply and global scale plus text Set; owner-matched shorthand groups or typed point/vertex/primitive/native-edge expansion through the shared lightweight selection core; indexed immutable global seed and optional integer seed attribute with element-number fallback; constant, two-value tuple, continuous/discrete uniform, normal, exponential, log-normal, rotationally symmetric multidimensional Cauchy, biased/constrained 2D/3D unit direction, 4D unit orientation, full or biased/constrained uniform 2D/3D/4D sphere-volume, inverse-CDF ramp, and weighted discrete tuple/text distributions; component-wise min/max tail limiting before global scale/operation; owner-matched fraction/quantile attributes with exact inverse-normal tails and correct distribution-specific dimensionality; finite validation, cancellation, exact output storage, allocation-free indexed sampling, uniform-volume and Cauchy rotational-moment regressions, and exact parallel geometry/framebuffer ordering | Target-independent packed image distributions and generated-point distribution visualization |
+| `attribute_noise` | Production subset | Coherent scalar/vector Perlin and standard fBm on point/vertex/primitive/detail attributes; owner-matched groups; `P`, element number, or same-owner float3 location; positive, zero-centered, or explicit per-component ranges; set-initial/set/add/subtract/multiply/min/max, uniform blend, vector frequency/offset, octaves/lacunarity/roughness, cancellation, packed deterministic parallel fills; normalized Float4 quaternion output is an explicitly non-Houdini Prismel extension for `orient` | Houdini's additional Unified Noise models, negative/min-plus-length/middle ranges, raw-value redistribution/remap ramps/value correction, per-component masks, blend attributes, noise-along-vector, Element Size naming/reciprocal UI, VEXpressions, animation/flow, terrain/hybrid fractals, warping, distortion/stretch/droop/Worley details, post min/max, unit vector output, and normal recomputation |
 | `attribute_remap` | Production subset | Point/vertex/primitive/detail scalar and tuple float attributes plus canonical `P`; in-place or renamed output; explicit or selected-data component ranges; clamp/cycle/extrapolate policy; strictly validated piecewise-linear ramp; typed groups; reversed output ranges; finite validation, cancellation, output-sized storage, deterministic parallel min/max, and exact parallel output | Houdini UI range-promotion workflow, spline/interpolation bases beyond piecewise linear, per-component ramps, and integer/string storage |
 | `attribute_fade` | Production subset | Scalar point fade field multiplied by an explicit frame-domain fade-in/hold/fade-out envelope; Houdini defaults for missing fade/start/hold values and 2/0/2-frame timings; named point restriction with exact outside preservation; independent equal-point-count start and hold reference inputs; scalar float/integer timing fields; affine `(offset, scale)` Start Frame Retime including `(1,$FPS)` seconds convention; per-point non-negative hold scaling; independent finite endpoint-complete piecewise-linear in/out ramps; optional opaque grayscale point float4 `Cd`; exact frame-only graph dependency and role-complete cache identity; finite/name/storage/cardinality/duration/scale/affine/relative-time/output/grain validation; cancellation and atomic immutable output; unchanged/empty-selection identity; one exact float plane plus visualization-only color planes; allocation-free inlined block-parallel point loop; measured 150,801-point baselines; exact one/four-domain attributes, render mesh, combined framebuffer, and dedicated visible framebuffer | Houdini ramp interpolation bases beyond piecewise linear and ad hoc point-group expression parsing; PDK deliberately rejects unequal reference point counts rather than relying on undocumented out-of-range point-number reads; the public SideFX page does not specify non-scalar Fade conversion or custom-ramp boundary discontinuities, so Prismel requires scalar float Fade and publishes inclusive endpoint sampling |
 | `poly_cut` | Production subset | Open/closed polygon-curve and polygon primitive restriction; point or topology-affine native-edge cut restriction; Remove and Cut strategies; all-edge invalidation; scalar float/integer point-attribute threshold crossing with scale-normalized exact interpolation, endpoint handling, and equal/equal removal; scalar or float2/3/4 absolute/Euclidean change detection with exact `ceil(change/threshold)` cut subdivision; canonical `P` change detection; independently owned break endpoints; optional viable closed fragments retaining the source closed kind; point-removal compaction with pre-existing free-point preservation and edge-removal endpoint retention; complete point/vertex numeric interpolation, nearest discrete/text/CSR rows, primitive/detail ancestry, ordinary/ordered/native-edge group remap; no-op identity; finite/storage/owner/length/topology-affinity/cardinality/interpolation/grain validation; cancellation and atomic output; specialized no-interpolation Edge Remove path; linear packed planning and exact one/four-domain geometry, render mesh, and dedicated visible framebuffer; measured 150,300-point baselines | Houdini ad hoc group-expression parsing and native NURBS/Bezier primitive families; the public SideFX page exposes a scalar Cut Value and does not define vector-crossing conversion, so Prismel restricts Crossing to scalar fields while Change supports tuple length; SideFX does not publish the exact one-endpoint Cut Points restriction or Cut-with-empty-attribute placement, so Prismel publishes endpoint intersection and treats locationless edge Cut as removal rather than claiming undocumented numeric parity |
@@ -178,7 +319,7 @@ operation and is not misclassified here as a missing Subdivide parameter.
 | `native_point_ranges` | Production subset | Native packed deterministic range kernel | Typed bindings for arbitrary attributes and reductions |
 | `custom` | Production subset | Inspectable versioned PDK/Geom composition boundary with declared context facts and bounded-session participation | Higher-level reusable node packages and typed multi-output contracts |
 | `remesh` | Production subset | Complete polygon-surface triangulation followed by deterministic isotropic iterations: shared midpoint splitting above 4/3 of local target size, topology-safe independent contraction below 4/5, valence-improving primitive-disjoint edge flips, constrained Laplacian relaxation, and optional packed-BVH projection to the immutable input; uniform positive target length or positive scalar point target-size field; input-points-only mode; explicit hard points and topology-affine hard edges; automatic boundary/non-manifold/vertex-UV-discontinuity preservation; hard-edge, point mesh-size, and scale-invariant triangle-quality outputs; exact fixed/ragged point/vertex/primitive/detail payload, ordinary/ordered group, and native-edge ancestry through fused split and direct source-to-final collapse remaps; stale-normal invalidation and optional point-normal generation; finite/name/owner/storage/affinity/topology/cardinality validation, cancellation, and atomic failure; O(points + primitives + edges log edges + payload) work per iteration with O(points + primitives + edges) orchestration storage; disjoint parallel metric, payload, relaxation, BVH, normal, and diagnostic ranges; exact one/four-domain geometry/SOP/framebuffer output and measured 134,400-point release baseline | Primitive-group restriction and Detach From Nongroup Geometry; curvature-driven Adaptive mode, relative density, min/max size, gradation, and their control attributes; rest-geometry edge metrics; boundary deviation and its mask; distinct UV Ignore/Harden/Resample policy; interpolation of existing normals when recomputation is disabled; arbitrary group expressions. Exact undocumented SideFX topology numbering, smoothing, and adaptive numerical parity are not claimed |
-| `boolean` | Partial | Exact build-once arrangement with filtered/exact predicates, implicit intersection constructions, exact coplanar overlay/CDT, radial/Weiler cells, generalized winding classification, and deterministic union/intersection/both differences/XOR and stable solid A-only/overlap/B-only Shatter; independently typed solid/surface operands with zero-volume sheets, coincident patch algebra, and intentional paired cut walls; opt-in per-input self-intersection resolution; full supported primitive/point/vertex fixed/ragged payload, ordinary/ordered group, and multi-member native-edge ancestry; explicit point reject/promote conflict policy and finite agreement tolerance; shared or split seam points; triangle, unchanged-source, or safe all-source polygon detriangulation with multi-cycle/non-simple components retained as triangles; closed-output policy, independently named left-self/between-input/right-self seam curves or coincident-patch output, bounded strict/diagnostic tiny-seam contraction batches with composed ancestry and stable unresolved counts, mandatory bit-identical coalescing plus ancestry-preserving closed/pair-canceling sliver deletion and certified/bounded ULP-contact repair, exact post-rounding collision/degeneracy/incidence/self-contact verification, cancellation, immutable two-input cache identity, public PDK/SOP tests, exact one/four-domain topology/payload/framebuffer output, a 24/24 standard adversarial campaign including self-resolved overlapping shells, and measured product/repair release baselines | Resolved-arrangement output mode; source primitive restrictions and output-piece/group controls; complete non-manifold/open/multi-way/opposite-duplicate corpus, packed retained LPI/TPI storage, external differential fuzz corpus, and production-scale memory evidence. Houdini parity and production-ready status are not claimed until these gates close |
+| `boolean` / `boolean_fracture` | Partial | Exact build-once arrangement with filtered/exact predicates, implicit intersection constructions, exact coplanar overlay/CDT, radial/Weiler cells, generalized winding classification, and deterministic union/intersection/both differences/XOR and stable solid A-only/overlap/B-only Shatter; independently typed solid/surface operands with zero-volume sheets, coincident patch algebra, and intentional paired cut walls; dense primitive piece identity from the oriented exact Weiler cell behind every output face, including solid-by-surface Boolean Fracture with shared seam topology and complete-shard packing; opt-in per-input self-intersection resolution; full supported primitive/point/vertex fixed/ragged payload, ordinary/ordered group, and multi-member native-edge ancestry; explicit point reject/promote conflict policy and finite agreement tolerance; shared or split seam points; triangle, unchanged-source, or safe all-source polygon detriangulation with multi-cycle/non-simple components retained as triangles; closed-output policy, independently named left-self/between-input/right-self seam curves or coincident-patch output, bounded strict/diagnostic tiny-seam contraction batches with composed ancestry and stable unresolved counts, mandatory bit-identical coalescing plus ancestry-preserving closed/pair-canceling sliver deletion and certified/bounded ULP-contact repair, exact post-rounding collision/degeneracy/incidence/self-contact verification, cancellation, immutable two-input cache identity, public PDK/SOP tests including closed two-cell fracture and exact one/four-domain piece IDs, exact one/four-domain topology/payload/framebuffer output, a 24/24 standard adversarial campaign including self-resolved overlapping shells, and measured product/repair release baselines | Resolved-arrangement output mode; source primitive restrictions; full Boolean Fracture piece naming, interior/exterior/seam groups and constraint outputs; complete non-manifold/open/multi-way/opposite-duplicate corpus, packed retained LPI/TPI storage, external differential fuzz corpus, and production-scale memory evidence. Houdini parity and production-ready status are not claimed until these gates close |
 | `boolean_detect` | Production subset | Source pass-through with optional collision input and independent A/B primitive restrictions; one-input AxA self mode and two-input AxB mode with mode-appropriate default groups; deterministic concave-polygon triangulation inside packed surface indexes; exact-cardinality two-pass AxB and unordered AxA BVH AABB pair discovery; same-source-primitive diagonal rejection; crossing, touching, and optional coplanar-overlap classification under an explicit non-negative world tolerance in a common-translation-invariant local frame; suppression of ordinary shared-vertex/shared-edge topology contact while retaining duplicate faces and overlap beyond a shared edge; AxA/AxB source primitive groups, sorted unique primitive-number integer-array CSR, and exact row counts; symmetric AxA rows; source topology/positions/payload structural sharing and atomic distinct-name metadata replacement; empty/restricted surfaces; finite/name/owner/cardinality/curve/degenerate diagnostics and cancellation; expected O((A+B) log B+C+sum k log k) time and O(A+B+C+I) auxiliary storage; disjoint parallel index, candidate, narrow-phase, row-sort, and packed-group ranges; exact one/four-domain PDK/SOP/framebuffer output; measured sparse-crossing, dense-coplanar, and self-crossing release baselines | Explicit intersection points and parameter-space coordinates are provided by the separate Intersection Analysis node. Adaptive/arbitrary-precision classification and the exact undocumented SideFX tolerance/contact profile remain. Self-intersection resolution and solid/surface union, intersection, subtraction, shatter, seam, and resolve require corefinement and are not aliases of this detection node |
 | `intersection_analysis` | Production subset | Point-only AxA or AxB triangle, polygon-curve, and mixed intersection output with independent primitive restrictions; one packed mixed-piece BVH over triangles and stable open/closed curve segments without a duplicate surface index; the shared Boolean Detect triangle decision/event kernel plus fixed-scratch segment/segment and segment/triangle crossing, touching, collinear-overlap, and optional segment/triangle coplanar clipping; complete-curve `(u,0,0)` parameters and triangle barycentrics; same-primitive curve self-crossings with ordinary adjacent endpoint/shared-edge topology contact suppression; duplicate-face and beyond-edge-overlap retention; exact-cardinality two-pass event generation; stable spatial welding with bounded numerical floor; aligned point-owned input-number, primitive-number, flattened parameter-triplet, and incident-point-or-minus-one CSR provenance with independently suppressible/distinct names; empty/restricted output, non-finite/name/group/cardinality/non-triangle/degenerate-segment/cancellation diagnostics; expected O((A+B) log(A+B)+C+E) time and O(A+B+C+E+R) auxiliary storage; parallel mixed index, candidate/event count/fill, and representative-position ranges; exact one/four-domain PDK/SOP triangle and curve geometry plus byte-identical triangle and curve marker framebuffers; measured sparse AxB, AxA, dense coplanar, and curve-grid release baselines | Adaptive/arbitrary-precision classification and dense-weld/provenance parallelization. Prismel additionally accepts an explicit tolerance, supports closed polygon curves, and reports stable first-incidence ordering rather than claiming undocumented SideFX point numbering |
 
@@ -404,6 +545,7 @@ a measured scale fixture before the old kernel is retired.
 - [Smooth (legacy)](https://www.sidefx.com/docs/houdini/nodes/sop/smooth-.html)
 - [Ray](https://www.sidefx.com/docs/houdini/nodes/sop/ray.html)
 - [Attribute Randomize](https://www.sidefx.com/docs/houdini/nodes/sop/attribrandomize.html)
+- [Attribute Noise 2.0](https://www.sidefx.com/docs/houdini/nodes/sop/attribnoise.html)
 - [Attribute Remap](https://www.sidefx.com/docs/houdini/nodes/sop/attribremap.html)
 - [Attribute Fade](https://www.sidefx.com/docs/houdini/nodes/sop/attribfade.html)
 - [Blend Shapes 2.0](https://www.sidefx.com/docs/houdini/nodes/sop/blendshapes.html)

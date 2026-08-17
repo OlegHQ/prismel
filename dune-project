@@ -29,6 +29,7 @@
   ctypes
   ctypes-foreign
   dune-configurator
+  ppxlib
   (odoc :with-doc)
   (utop :with-test)
   domainslib

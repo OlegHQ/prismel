@@ -35,11 +35,17 @@ val create :
 val update : t -> Frame.t -> t
 (** Consume the ordered pointer facts in one frame. Captured drags continue
     outside the control area. Double-clicking a configured button resets the
-    original target, distance, and orientation. *)
+    original target, distance, and orientation. Vertical wheel/trackpad motion
+    dollies and horizontal wheel/trackpad motion is ignored. The default drag
+    bindings are left orbit and middle/right pan; [translation_key] plus a left
+    drag also pans. *)
 
 val camera : t -> Camera.t
 val target : t -> Vec3.t
 val distance : t -> float
+val fov_y : t -> float
+val near : t -> float
+val far : t -> float
 val enabled : t -> bool
 val control_area : t -> (int * int * int * int) option
 val inertia : t -> bool
@@ -56,6 +62,8 @@ val interactions : t -> binding list
 
 val with_target : Vec3.t -> t -> t
 val with_distance : float -> t -> t
+val with_fov_y : float -> t -> t
+val with_clip : near:float -> far:float -> t -> t
 val set_enabled : bool -> t -> t
 val with_control_area : (int * int * int * int) option -> t -> t
 val with_inertia : bool -> t -> t

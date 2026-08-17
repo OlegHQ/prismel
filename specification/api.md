@@ -507,14 +507,118 @@ Pointer behavior is captured and deterministic:
   release, update on each intervening pointer move even outside their bounds,
   and clamp to the declared ranges;
 - `WindowFocusLost` cancels capture, text focus, and composition;
-- `Pxui.update` preserves event order when returning named changes.
+- `Pxui.update_frame` preserves event order when returning named changes and
+  uses logical `Frame.time` for deterministic numeric-label double clicks.
+
+`Pxui.int_slider` is a distinct integer control: its range and stored value are
+integers, dragging snaps before it emits `Int_slid`, its label never displays a
+fraction, and settings persistence uses an integer payload. Float sliders
+remain continuous.
+
+Double-clicking either slider label opens an inline numeric field. Enter commits
+a finite value, Escape cancels, and pressing elsewhere commits only valid input.
+Slider bounds are soft for typed, initial, programmatic, and persisted values;
+only pointer dragging clamps to them. Integer sliders reject fractional text
+rather than rounding it.
+
+`Pxui.accordion` groups nested controls under a persistent disclosure row.
+Collapsed children retain values but leave layout, hit testing, and text-input
+metadata. `Pxui.bounds` therefore reports only visible rows.
+`Pxui.create ~max_height` and `Pxui.with_max_height` bound the inspector,
+clip overflowing rows and text-input regions, and route vertical wheel or
+trackpad motion to a clamped scroll offset while the pointer is over the panel.
+`Pxui.Camera_control` appends reusable 3D Camera and Render accordions to the same
+canvas and automatically limits its height to the resized frame. It owns
+resize-aware camera hit bounds, FOV/distance/near/far/inertia,
+reset, render factor and PNG output, preserves middle-drag pan, maps `C` to the
+camera accordion, and maps `H` to whole-overlay visibility through
+`Pxui.Camera_control.overlay`, including labels and status text outside the
+panel. Render requests are
+explicit values so sketches can save the current render-only scene without
+recooking procedural geometry. The controller keeps middle-drag pan and adds a
+Mac-trackpad path: right-click drag or Space plus primary drag pans, vertical
+two-finger motion zooms, and horizontal two-finger motion is ignored.
+`Pxui.Camera2_control` exposes the same C/H/render policy for
+`Easy_camera2`, with center, zoom, rotation, inertia, and reset controls.
+Middle/right/Space-primary drag pans; vertical trackpad motion performs
+pointer-anchored zoom and horizontal motion is ignored.
+
+### `Sop_ui`
+
+`Procedural.Parameter` owns renderer-neutral typed templates and immutable
+values. `Node.parameterize` attaches a schema, current values, and a pure
+rebuild function to the SOP that owns them. The leaf `prismel.sop_ui` adapter
+generates the selected node's PXUI inspector without making either underlying
+library depend on the other:
+
+```ocaml
+let inspector = Sop_ui.Node_inspector.create selected_node
+
+let ui = Pxui.create ()
+  |> Sop_ui.Node_inspector.append ~expanded:["Geometry"] inspector ~graph
+
+let camera_control, ui, camera, changes, requests =
+  Pxui.Camera_control.update camera_control ~ui ~camera frame
+in
+let graph, ui, effects =
+  Sop_ui.Node_inspector.update inspector ~graph ~ui changes |> Result.get_ok
+```
+
+`effects.cook` requests a deferred/asynchronous graph cook;
+`effects.view` updates render-only metadata without invalidating geometry;
+`effects.export` marks output-only state. Graph edits preserve logical IDs and
+shared subgraphs. `prismel.pxui_graph` supplies deterministic initial layout,
+persistent graph-space tile positions, ordered ports/wires, topology-safe node
+dragging, independent inspector/display selection through each tile's VIEW
+button, selection clearing, captured pan, zoom, and framing. `Sketch_ui.Environment3.run`
+and `Environment2.run` compose both in a splitter-resizable, independently
+collapsible view/graph/inspector workspace whose default widths are 45/35/20.
+The inspector shows camera/render controls with no selection and generated SOP
+parameters with a selection. Display selection cooks the flagged node while
+retaining the previous successful preview. Overlay callbacks receive a
+view-local frame. Both environments retain one shared pause/stop/reset,
+dependency-aware cooking, status, selection, inspection, and finite-headless
+core.
+
+`Easy_camera2` is the immutable 2D view transform. It supplies resize-safe
+viewports and gesture areas, world/screen conversion, captured pan, inertia,
+rotation, pointer-anchored zoom, and pure `Scene` composition. `Render2.save_png`
+preserves the logical camera framing at integer render factors through the
+deterministic software canvas. Interactive native 2D presentation still uses
+the accelerated SDL renderer; 2D still export does not claim the native 3D GPU
+framebuffer path.
+
+### Boolean fracture pieces
+
+`Procedural.Sop.boolean_fracture` subtracts zero-volume cutter surfaces from an
+oriented solid through the shared exact Boolean arrangement. Its primitive
+integer `piece` attribute comes from the oriented Weiler cell bounded by each
+output face. Seam points remain shared in the cooked geometry: membership, not
+global point disconnection or ordinary polygon connectivity, is the fragment
+boundary. This keeps the exterior polygons and paired cut walls of each closed
+cell under one stable identity for terminal packing and rigid explosion.
+
+`Pdk.Boolean.run ~piece_attribute:name` exposes the same optional cell
+identity for lower-level Boolean products. IDs are dense in first-output-face
+order and deterministic across domain counts; cleanup and detriangulation map
+the final primitives back through extraction ancestry before the attribute is
+written.
 
 ### `Sketch`
 
-`Sketch.default_config` uses realtime wall-clock timing. Setting
+`Sketch.default_config` uses realtime wall-clock timing and enables resizable
+native windows. Set `resizable = false` only for deliberately fixed-size
+desktop output. Setting
 `clock = Sketch.Fixed dt` makes `Frame.dt`, `Frame.time`, and `Frame.fps`
 deterministic functions of the positive timestep and frame count. This mode is
 intended for repeatable simulation, tests, and offline frame export.
+
+Expensive procedural sketches use `Procedural.Async_cook`: submit immutable
+graph/context/preparation requests after parameter commit, poll once per frame,
+keep the previous successful snapshot interactive, and show the reported cook
+elapsed time in the overlay. The queue is bounded to the active request plus
+one latest pending request; superseded work is cancelled and its result is
+never published. Only target-neutral CPU preparation runs in the worker.
 
 - `Sketch.run view` is the zero-state path.
 - `Sketch.run_state ~init ~update ~view ()` is the functional model path.
@@ -559,6 +663,10 @@ per item.
 
 Outside `Sketch.run`, the same operations safely fall back to sequential
 execution unless the caller explicitly brackets work with `Parallel.run`.
+Cached pools are keyed by their owning domain as well as domain count.
+Persistent background coordinators call
+`Parallel.release_current_domain_pools` after their final job and before that
+domain exits; ordinary sketch code must not manage pool lifetime directly.
 
 ## Naming rules
 

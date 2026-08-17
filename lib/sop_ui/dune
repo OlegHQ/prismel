@@ -1,0 +1,4 @@
+(library
+ (name sop_ui)
+ (public_name prismel.sop_ui)
+ (libraries procedural pxui))

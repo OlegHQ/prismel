@@ -1,0 +1,5 @@
+(library
+ (name sop_catalog)
+ (public_name prismel.sop_catalog)
+ (libraries prismel pdk procedural)
+ (preprocess (pps prismel.ppx)))

@@ -9,22 +9,28 @@ let init _frame =
   let ui =
     Pxui.create ()
     |> Pxui.label ~text:"PXUI"
-    |> Pxui.toggle ~name:"animate" ~label:"Animate" ~value:true
-    |> Pxui.slider ~name:"radius" ~label:"Radius"
-         ~min:10. ~max:120. ~value:48.
-    |> Pxui.range ~name:"band" ~label:"Band"
-         ~min:0. ~max:1. ~low:0.2 ~high:0.8
-    |> Pxui.choice ~name:"palette" ~label:"Palette"
-         ~options:["ocean"; "sunset"; "mono"] ~selected:0
-    |> Pxui.xy ~name:"center" ~label:"Center"
-         ~x_range:(340., 600.) ~y_range:(80., 300.) ~value:(470., 180.)
-    |> Pxui.text_field ~name:"caption" ~label:"Caption" ~value:"Functional UI"
+    |> Pxui.accordion ~name:"motion" ~label:"Motion" ~expanded:true
+         (fun ui -> ui
+           |> Pxui.toggle ~name:"animate" ~label:"Animate" ~value:true
+           |> Pxui.slider ~name:"radius" ~label:"Radius"
+                ~min:10. ~max:120. ~value:48.
+           |> Pxui.xy ~name:"center" ~label:"Center"
+                ~x_range:(340., 600.) ~y_range:(80., 300.)
+                ~value:(470., 180.))
+    |> Pxui.accordion ~name:"appearance" ~label:"Appearance" ~expanded:false
+         (fun ui -> ui
+           |> Pxui.range ~name:"band" ~label:"Band"
+                ~min:0. ~max:1. ~low:0.2 ~high:0.8
+           |> Pxui.choice ~name:"palette" ~label:"Palette"
+                ~options:["ocean"; "sunset"; "mono"] ~selected:0
+           |> Pxui.text_field ~name:"caption" ~label:"Caption"
+                ~value:"Functional UI")
     |> Pxui.button ~name:"quit" ~label:"Quit"
   in
   { angle = 0.; ui }
 
 let update model (frame : Frame.t) =
-  let ui, changes = Pxui.update model.ui frame.events in
+  let ui, changes = Pxui.update_frame model.ui frame in
   if List.exists (function Pxui.Clicked "quit" -> true | _ -> false) changes
   then Sketch.quit ();
   if Sketch.is_headless () && frame.count >= 3 then Sketch.quit ();

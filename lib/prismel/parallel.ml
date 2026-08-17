@@ -10,7 +10,7 @@ type context =
   | Sequential
   | Pooled of pooled
 
-let pools : (int, pooled) Hashtbl.t = Hashtbl.create 4
+let pools : ((Domain.id * int), pooled) Hashtbl.t = Hashtbl.create 4
 let pools_lock = Mutex.create ()
 let active_context = Domain.DLS.new_key (fun () -> Outside)
 let stopped = ref false
@@ -18,18 +18,28 @@ let stopped = ref false
 let recommended_domains () = max 1 (Domain.recommended_domain_count ())
 
 let get_pool domains =
+  let key = Domain.self (), domains in
   Mutex.lock pools_lock;
   Fun.protect ~finally:(fun () -> Mutex.unlock pools_lock) (fun () ->
     if !stopped then invalid_arg "Parallel: pools have already been shut down";
-    match Hashtbl.find_opt pools domains with
+    match Hashtbl.find_opt pools key with
     | Some pooled -> pooled
     | None ->
         let pooled = {
           pool = Task.setup_pool ~num_domains:(domains - 1) ();
           execution_lock = Mutex.create ();
         } in
-        Hashtbl.add pools domains pooled;
+        Hashtbl.add pools key pooled;
         pooled)
+
+let release_current_domain_pools () =
+  let owner = Domain.self () in
+  Mutex.lock pools_lock;
+  let owned = Hashtbl.fold (fun ((candidate, _) as key) pooled values ->
+    if candidate = owner then (key, pooled) :: values else values) pools [] in
+  List.iter (fun (key, _) -> Hashtbl.remove pools key) owned;
+  Mutex.unlock pools_lock;
+  List.iter (fun (_, pooled) -> Task.teardown_pool pooled.pool) owned
 
 let with_context context operation =
   let previous = Domain.DLS.get active_context in

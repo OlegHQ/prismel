@@ -26,7 +26,13 @@ type t = {
   inputs : t array;
   cook : node_id:int -> Context.t -> Pdk.Geometry.t array ->
     (Private_types.cooked, Diagnostic.error) result;
+  parameterization : parameterization option;
 }
+and parameterization = Parameters : {
+  schema : 'parameters Parameter.schema;
+  values : 'parameters;
+  rebuild : label:string -> inputs:t array -> 'parameters -> t;
+} -> parameterization
 
 let next_id = Atomic.make 1
 let fresh_id () = Atomic.fetch_and_add next_id 1
@@ -41,6 +47,38 @@ let dependencies value = value.dependencies
 let inputs value = Array.to_list value.inputs
 let trace value = Diagnostic.{ node_id = value.id; label = value.label;
                                operation = value.operation }
+
+let parameter_fields value = match value.parameterization with
+  | None -> []
+  | Some (Parameters parameterization) ->
+      Parameter.view parameterization.schema parameterization.values
+
+let has_parameters value = Option.is_some value.parameterization
+
+let parameterize ~schema ~values ~rebuild value =
+  let values = match Parameter.normalize schema values with
+    | Ok values -> values
+    | Error message -> invalid_arg ("Node.parameterize: " ^ message)
+  in
+  let rebuild ~label ~inputs values =
+    rebuild ~label ~inputs:(Array.to_list inputs) values
+  in
+  { value with parameterization = Some (Parameters { schema; values; rebuild }) }
+
+let apply_parameters value changes = match value.parameterization with
+  | None when changes = [] -> Ok (value, Parameter.no_effects)
+  | None -> Error (Printf.sprintf "node %S has no exposed parameters" value.label)
+  | Some (Parameters parameterization) ->
+      Result.map (fun (values, effects) ->
+        if not (Parameter.has_effects effects) then value, effects
+        else if effects.cook then
+          let rebuilt = parameterization.rebuild ~label:value.label
+              ~inputs:(Array.copy value.inputs) values in
+          { rebuilt with id = value.id }, effects
+        else
+          { value with parameterization = Some (Parameters {
+              parameterization with values }) }, effects)
+        (Parameter.apply_all parameterization.schema parameterization.values changes)
 
 module Private = struct
   include Private_types
@@ -60,9 +98,33 @@ module Private = struct
      | Only index when index >= 0 && index < Array.length inputs -> ()
      | Only _ -> invalid_arg "Node.make: selected input is out of bounds");
     { id = fresh_id (); label; operation; version; parameters; cook_mode;
-      dependencies; input_policy; inputs; cook }
+      dependencies; input_policy; inputs; cook; parameterization = None }
 
   let input_policy value = value.input_policy
   let input_array value = Array.copy value.inputs
+  let with_inputs value inputs =
+    let inputs = Array.copy inputs in
+    (match value.input_policy with
+     | All -> ()
+     | Only index when index >= 0 && index < Array.length inputs -> ()
+    | Only _ -> invalid_arg "Node.with_inputs: selected input is out of bounds");
+    { value with inputs }
+  let rebuild_with_inputs value inputs =
+    let inputs = Array.copy inputs in
+    match value.parameterization with
+    | None -> with_inputs value inputs
+    | Some (Parameters parameterization) ->
+        let rebuilt = parameterization.rebuild ~label:value.label
+            ~inputs parameterization.values in
+        { rebuilt with id = value.id }
+  let clone_with_inputs value inputs =
+    let inputs = Array.copy inputs in
+    match value.parameterization with
+    | None -> { value with id = fresh_id (); inputs }
+    | Some (Parameters parameterization) ->
+        parameterization.rebuild ~label:value.label
+          ~inputs parameterization.values
+  let adopt_identity ~source value =
+    { value with id = source.id; label = source.label }
   let cook value context inputs = value.cook ~node_id:value.id context inputs
 end

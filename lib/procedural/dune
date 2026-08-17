@@ -2,11 +2,17 @@
  (name procedural)
  (public_name prismel.procedural)
  (libraries prismel pdk unix)
- (modules context diagnostic node session select instances sop graph inspect bridge))
+ (modules context diagnostic parameter node session async_cook select instances
+  sop custom graph edit_graph inspect bridge))
 
 (test
  (name test_procedural)
  (modules test_procedural)
+ (libraries procedural prismel pdk))
+
+(test
+ (name test_edit_graph)
+ (modules test_edit_graph)
  (libraries procedural prismel pdk))
 
 (test

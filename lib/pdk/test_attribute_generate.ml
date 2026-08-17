@@ -715,6 +715,31 @@ let () =
          <> float_values ~owner:Attribute.Primitive "edge_expanded_parallel"
            extended_many
   then fail "extended Attribute Randomize differs between one and four domains";
+  let noise_input = Ops.points (Array.make 4_097 (0., 0., 0.)) in
+  let noisy domains = Parallel.run ~domains (fun () ->
+    Attribute_ops.noise ~grain:512 ~seed:73 ~owner:Attribute.Point
+      ~name:"orient" ~kind:Attribute_ops.Noise_quaternion
+      ~location:Attribute_ops.Noise_element_number
+      ~range:Attribute_ops.Noise_zero_centered
+      ~frequency:(Vec3.create 0.071 0.071 0.071)
+      ~octaves:3 ~lacunarity:2. ~roughness:0.55 noise_input |> get_ok) in
+  let noise_one = noisy 1 and noise_many = noisy 4 in
+  let orient_one = float4_values ~owner:Attribute.Point "orient" noise_one
+  and orient_many = float4_values ~owner:Attribute.Point "orient" noise_many in
+  if orient_one.x <> orient_many.x || orient_one.y <> orient_many.y
+      || orient_one.z <> orient_many.z || orient_one.w <> orient_many.w then
+    fail "Attribute Noise quaternion differs between one and four domains";
+  for point = 0 to Array.length orient_one.x - 1 do
+    let length = sqrt ((orient_one.x.(point) ** 2.) +. (orient_one.y.(point) ** 2.)
+        +. (orient_one.z.(point) ** 2.) +. (orient_one.w.(point) ** 2.)) in
+    if abs_float (length -. 1.) > 1e-12 then
+      fail (Printf.sprintf "Attribute Noise orient %d is not normalized" point)
+  done;
+  if not (Array.exists (fun point -> orient_one.x.(point) <> orient_one.x.(0)
+      || orient_one.y.(point) <> orient_one.y.(0)
+      || orient_one.z.(point) <> orient_one.z.(0)
+      || orient_one.w.(point) <> orient_one.w.(0)) (Array.init 4_097 Fun.id)) then
+    fail "Attribute Noise element-number location produced a constant field";
   let remapped domains geometry = Parallel.run ~domains (fun () ->
     Attribute_ops.remap ~grain:2_048 ~owner:Attribute.Point ~name:"sample"
       ~into:"mapped" ~input:Attribute_ops.Remap_auto

@@ -8,6 +8,7 @@ type change =
   | Clicked of string
   | Toggled of string * bool
   | Slid of string * float
+  | Int_slid of string * int
   | Text_changed of string * string
   | Selected of string * string
   | Ranged of string * float * float
@@ -34,17 +35,31 @@ val create :
   ?theme:theme ->
   ?font:Prismel.Font.t ->
   ?font_size:int ->
+  ?max_height:int ->
   unit ->
   t
 (** Create a graphite/cyan panel using Prismel's installed system UI font by
     default. [font_size] is a logical point size; [font] overrides the default
-    font resource. *)
+    font resource. [max_height] clips overflowing rows and enables vertical
+    wheel/trackpad scrolling while the pointer is over the panel. *)
 
 val label : text:string -> t -> t
+(* Group controls beneath a clickable, persistent disclosure header.
+    Collapsed children retain their values and do not participate in layout or
+    hit testing. Accordions may be nested. *)
+val accordion :
+  name:string -> label:string -> expanded:bool -> (t -> t) -> t -> t
 val button : name:string -> label:string -> t -> t
 val toggle : name:string -> label:string -> value:bool -> t -> t
 val slider :
   name:string -> label:string -> min:float -> max:float -> value:float -> t -> t
+(** Slider bounds define its soft drag range. The initial value, programmatic
+    setters, persistence, and inline numeric entry may remain outside it. *)
+
+(** [int_slider] stores, displays, emits, and persists integers without a
+    float-rounding adapter. Its bounds are likewise a soft drag range. *)
+val int_slider :
+  name:string -> label:string -> min:int -> max:int -> value:int -> t -> t
 val text_field : name:string -> label:string -> value:string -> t -> t
 val choice :
   name:string -> label:string -> options:string list -> selected:int -> t -> t
@@ -67,30 +82,131 @@ val xy :
   t
 (** Functional, pipeline-friendly widget builders. *)
 
-val update : t -> Prismel.Event.t list -> t * change list
+val update : ?time:float -> t -> Prismel.Event.t list -> t * change list
 (** Return an updated UI value and ordered changes without mutating the input.
     Buttons activate on release-inside. Sliders, ranges, and XY pads capture
-    the pointer and emit continuous, clamped changes while dragging. *)
+    the pointer and emit continuous, clamped changes while dragging. Integer
+    sliders snap before emitting [Int_slid]. Typed slider values are finite but
+    may exceed the soft drag range. A bounded panel consumes vertical scrolling
+    while the tracked pointer is inside it. Passing logical [time] enables
+    deterministic double-click editing of numeric parameter labels. *)
+
+val update_frame : t -> Prismel.Frame.t -> t * change list
+(** Update from the frame's ordered events and logical time. This is the
+    preferred sketch path and enables numeric-label double-click editing. *)
 
 val scene : t -> Prismel.Scene.t
-(** Describe the complete UI as composable scene data. Text fields include
-    pure text-input hit metadata used to summon mobile keyboards only when the
-    field itself is pressed. *)
+(** Describe the complete UI as composable scene data. Text fields and active
+    numeric editors include pure text-input hit metadata used to summon mobile
+    keyboards only when the editable control itself is pressed. *)
 
 val add_label : t -> text:string -> unit
 val add_button : t -> name:string -> label:string -> unit
 val add_toggle : t -> name:string -> label:string -> value:bool -> unit
 val add_slider :
   t -> name:string -> label:string -> min:float -> max:float -> value:float -> unit
+val add_int_slider :
+  t -> name:string -> label:string -> min:int -> max:int -> value:int -> unit
 val add_text_field : t -> name:string -> label:string -> value:string -> unit
 val draw : t -> unit
 val handle_event : t -> Prismel.Event.t -> change list
 val toggle_value : t -> string -> bool option
+val set_toggle_value : t -> string -> bool -> t
 val slider_value : t -> string -> float option
+val set_slider_value : t -> string -> float -> t
+val int_slider_value : t -> string -> int option
+val set_int_slider_value : t -> string -> int -> t
 val text_value : t -> string -> string option
+val set_text_value : t -> string -> string -> t
 val choice_value : t -> string -> string option
+val set_choice_value : t -> string -> string -> t
 val range_value : t -> string -> (float * float) option
 val xy_value : t -> string -> (float * float) option
+val accordion_expanded : t -> string -> bool option
+val set_accordion_expanded : t -> string -> bool -> t
+
+val with_position : x:int -> y:int -> t -> t
+
+(** Resize a canvas without rebuilding its widgets, values, accordion state,
+    or scroll position. Active pointer capture is cancelled because widget hit
+    bounds changed. *)
+val with_width : int -> t -> t
+
+(** Set or remove the visible panel-height bound while retaining a clamped
+    scroll offset. *)
+val with_max_height : int option -> t -> t
+(* Logical panel bounds after collapsed accordion rows are removed. *)
+val bounds : t -> int * int * int * int
+
+type canvas = t
+
+module Camera_control : sig
+  type t
+  type render_request = {
+    filename : string;
+    factor : int;
+  }
+
+  val create : ?prefix:string -> unit -> t
+  val append : t -> camera:Prismel.Easy_camera.t -> canvas -> canvas
+  val update :
+    ?control_area:(int * int * int * int) ->
+    ?panel_visible:bool ->
+    t ->
+    ui:canvas ->
+    camera:Prismel.Easy_camera.t ->
+    Prismel.Frame.t ->
+    t * canvas * Prismel.Easy_camera.t * change list * render_request list
+  val scene : t -> canvas -> Prismel.Scene.t
+
+  (** Show arbitrary labels and status overlays under the same [H] visibility
+      state as the PXUI canvas. *)
+  val overlay : t -> Prismel.Scene.t -> Prismel.Scene.t
+  val ui_visible : t -> bool
+  val save :
+    ?background:Prismel.Color.t ->
+    render_request ->
+    frame:Prismel.Frame.t ->
+    camera:Prismel.Easy_camera.t ->
+    Prismel.Scene3.t ->
+    (unit, string) result
+  (** Append reusable FOV, clipping, distance, inertia, reset, render-factor,
+      and PNG controls. [update] owns PXUI event handling, maps [C] to the
+      camera accordion and [H] to all UI/overlay labels, reserves the resized
+      non-UI viewport for camera gestures, and preserves middle/right-drag pan. *)
+end
+
+module Camera2_control : sig
+  type t
+  type render_request = {
+    filename : string;
+    factor : int;
+  }
+
+  val create : ?prefix:string -> unit -> t
+  val append : t -> camera:Prismel.Easy_camera2.t -> canvas -> canvas
+  val update :
+    ?control_area:(int * int * int * int) ->
+    ?viewport:(int * int * int * int) ->
+    ?panel_visible:bool ->
+    t ->
+    ui:canvas ->
+    camera:Prismel.Easy_camera2.t ->
+    Prismel.Frame.t ->
+    t * canvas * Prismel.Easy_camera2.t * change list * render_request list
+  val scene : t -> canvas -> Prismel.Scene.t
+  val overlay : t -> Prismel.Scene.t -> Prismel.Scene.t
+  val ui_visible : t -> bool
+  val save :
+    ?background:Prismel.Color.t ->
+    render_request ->
+    frame:Prismel.Frame.t ->
+    camera:Prismel.Easy_camera2.t ->
+    Prismel.Scene.t ->
+    (unit, string) result
+  (** Append reusable center, zoom, rotation, inertia, reset, render-factor,
+      and PNG controls. Shortcuts and visibility match [Camera_control]. *)
+end
 
 val encode : t -> string
 val decode : t -> string -> (t, string) result

@@ -2599,6 +2599,11 @@ let null ?label input =
     ~cook_mode:(Node.Passthrough 0) ~dependencies:Context.Dependencies.static
     ~inputs:[|input|] (fun ~node_id:_ _context inputs -> cooked inputs.(0))
 
+let exploded_view ?label input =
+  Node.Private.make ?label ~operation:"exploded_view" ~version:1 ~parameters:""
+    ~cook_mode:(Node.Passthrough 0) ~dependencies:Context.Dependencies.static
+    ~inputs:[|input|] (fun ~node_id:_ _context inputs -> cooked inputs.(0))
+
 let unary_result ?label ~operation cook input =
   Node.Private.make ?label ~operation ~version:1 ~parameters:""
     ~cook_mode:(Node.Duplicate_input 0) ~dependencies:Context.Dependencies.static
@@ -2815,7 +2820,8 @@ let boolean ?label ?(operation = Pdk.Boolean.Union)
     ?(strict_cleanup = true)
     ?(seam_points = Pdk.Boolean.Shared_seam_points)
     ?(detriangulation = Pdk.Boolean.Triangles) ?(assume_flat = false)
-    ?require_closed ?(left_piece_group = Some "boolean_left")
+    ?require_closed ?piece_attribute
+    ?(left_piece_group = Some "boolean_left")
     ?(overlap_piece_group = Some "boolean_overlap")
     ?(right_piece_group = Some "boolean_right") ~right left =
   if not (Float.is_finite point_tolerance) || point_tolerance < 0. then
@@ -2825,6 +2831,10 @@ let boolean ?label ?(operation = Pdk.Boolean.Union)
       "Sop.boolean: tiny_seam_threshold must be finite and non-negative";
   if cleanup_max_batches <= 0 then
     invalid_arg "Sop.boolean: cleanup_max_batches must be positive";
+  if (match piece_attribute with
+      | Some name -> String.trim name = ""
+      | None -> false) then
+    invalid_arg "Sop.boolean: empty piece attribute name";
   let piece_names = List.filter_map Fun.id
       [left_piece_group; overlap_piece_group; right_piece_group] in
   if operation = Pdk.Boolean.Shatter
@@ -2880,6 +2890,7 @@ let boolean ?label ?(operation = Pdk.Boolean.Union)
       "detriangulation=" ^ detriangulation_key detriangulation;
       "assume_flat=" ^ string_of_bool assume_flat;
       "require_closed=" ^ optional_bool_key require_closed;
+      "piece_attribute=" ^ option_string_key piece_attribute;
       "left_piece_group=" ^ piece_key left_piece_group;
       "overlap_piece_group=" ^ piece_key overlap_piece_group;
       "right_piece_group=" ^ piece_key right_piece_group])
@@ -2891,10 +2902,24 @@ let boolean ?label ?(operation = Pdk.Boolean.Union)
           ~resolve_right_self_intersections ~point_conflict ~point_tolerance
           ~tiny_seam_threshold ~cleanup_max_batches ~strict_cleanup
           ~seam_points ~detriangulation ~assume_flat ?require_closed
+          ?piece_attribute
           ~left_piece_group ~overlap_piece_group ~right_piece_group
           ~right:inputs.(1) inputs.(0) with
       | Ok geometry -> cooked geometry
       | Error error -> structured_pdk_error error)
+
+let boolean_fracture ?label ?(resolve_cutter_self_intersections = false)
+    ?point_conflict ?point_tolerance ?tiny_seam_threshold
+    ?cleanup_max_batches ?strict_cleanup ?detriangulation ?assume_flat
+    ?(require_closed = true) ?(piece_attribute = "piece") ~cutters source =
+  boolean ?label ~operation:Pdk.Boolean.Difference
+    ~left_treatment:Pdk.Boolean.Solid ~right_treatment:Pdk.Boolean.Surface
+    ~resolve_right_self_intersections:resolve_cutter_self_intersections
+    ?point_conflict ?point_tolerance ?tiny_seam_threshold
+    ?cleanup_max_batches ?strict_cleanup
+    ~seam_points:Pdk.Boolean.Shared_seam_points
+    ?detriangulation ?assume_flat ~require_closed
+    ~piece_attribute ~right:cutters source
 
 let boolean_seam ?label ?(output = Pdk.Boolean.Seam_curves)
     ?(left_treatment = Pdk.Boolean.Solid)
@@ -6974,6 +6999,31 @@ let random_operation_key = function
   | Pdk.Attribute_ops.Random_maximum -> "maximum"
   | Pdk.Attribute_ops.Random_multiply -> "multiply"
 
+let noise_kind_key = function
+  | Pdk.Attribute_ops.Noise_float -> "float"
+  | Pdk.Attribute_ops.Noise_vector -> "vector"
+  | Pdk.Attribute_ops.Noise_quaternion -> "quaternion"
+
+let noise_location_key = function
+  | Pdk.Attribute_ops.Noise_position -> "position"
+  | Pdk.Attribute_ops.Noise_element_number -> "element_number"
+  | Pdk.Attribute_ops.Noise_attribute name -> "attribute:" ^ String.escaped name
+
+let noise_range_key = function
+  | Pdk.Attribute_ops.Noise_positive -> "positive"
+  | Pdk.Attribute_ops.Noise_zero_centered -> "zero_centered"
+  | Pdk.Attribute_ops.Noise_min_max (minimum, maximum) ->
+      "min_max:" ^ numeric_value_key minimum ^ ":" ^ numeric_value_key maximum
+
+let noise_operation_key = function
+  | Pdk.Attribute_ops.Noise_set_initial -> "set_initial"
+  | Pdk.Attribute_ops.Noise_set -> "set"
+  | Pdk.Attribute_ops.Noise_add -> "add"
+  | Pdk.Attribute_ops.Noise_subtract -> "subtract"
+  | Pdk.Attribute_ops.Noise_multiply -> "multiply"
+  | Pdk.Attribute_ops.Noise_minimum -> "minimum"
+  | Pdk.Attribute_ops.Noise_maximum -> "maximum"
+
 let random_distribution_key = function
   | Pdk.Attribute_ops.Random_constant value ->
       "constant:" ^ numeric_value_key value
@@ -7716,6 +7766,52 @@ let attribute_randomize ?label ?group ?selection ?seed ?seed_attribute
               ?selection ?element_selection ?seed_attribute ?fraction_attribute
               ?minimum ?maximum ~seed ~owner ~name ~direction_bias ~operation ~scale
               distribution inputs.(0) with
+          | Ok geometry -> cooked geometry
+          | Error error -> structured_pdk_error error)
+
+let attribute_noise ?label ?group ?seed
+    ?(location = Pdk.Attribute_ops.Noise_position)
+    ?(range = Pdk.Attribute_ops.Noise_positive)
+    ?(operation = Pdk.Attribute_ops.Noise_set) ?(blend = 1.)
+    ?(frequency = Vec3.create 1. 1. 1.) ?(offset = Vec3.zero) ?(octaves = 1)
+    ?(lacunarity = 2.) ?(roughness = 0.5) ~owner ~name kind input =
+  if String.trim name = "" then
+    invalid_arg "Sop.attribute_noise: empty attribute name";
+  let dependencies = match seed with
+    | Some _ -> Context.Dependencies.static
+    | None -> Context.Dependencies.one Context.Dependencies.Seed in
+  let parameters = String.concat ";" [
+      "owner=" ^ attribute_owner_key owner;
+      "name=" ^ String.escaped name;
+      "group=" ^ option_string_key group;
+      "seed=" ^ (match seed with None -> "context" | Some seed -> string_of_int seed);
+      "kind=" ^ noise_kind_key kind;
+      "location=" ^ noise_location_key location;
+      "range=" ^ noise_range_key range;
+      "operation=" ^ noise_operation_key operation;
+      "blend=" ^ float_key blend;
+      "frequency=" ^ vec3_key frequency;
+      "offset=" ^ vec3_key offset;
+      "octaves=" ^ string_of_int octaves;
+      "lacunarity=" ^ float_key lacunarity;
+      "roughness=" ^ float_key roughness] in
+  let stable_identity = Option.map (fun label ->
+    stable_string_hash ("attribute_noise:" ^ label)) label in
+  Node.Private.make ?label ~operation:"attribute_noise" ~version:1
+    ~parameters ~cook_mode:(Node.Duplicate_input 0) ~dependencies
+    ~inputs:[|input|] (fun ~node_id context inputs ->
+      match resolve_attribute_group ~operation:"attribute_noise" ~owner group
+          inputs.(0) with
+      | Error error -> Error error
+      | Ok selection ->
+          let identity = Option.value ~default:(Int64.of_int node_id)
+              stable_identity in
+          let seed = Option.value ~default:(mixed_seed context identity) seed in
+          match Pdk.Attribute_ops.noise
+              ~cancel:(Context.cancel_token context) ~grain:(Context.grain context)
+              ?selection ~seed ~owner ~name ~kind ~location ~range ~operation
+              ~blend ~frequency ~offset ~octaves ~lacunarity ~roughness inputs.(0)
+          with
           | Ok geometry -> cooked geometry
           | Error error -> structured_pdk_error error)
 

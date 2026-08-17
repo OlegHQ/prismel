@@ -22,7 +22,7 @@ let default_config = {
   fps = Some 60;
   domains = None;
   clock = Realtime;
-  resizable = false;
+  resizable = true;
   fullscreen = false;
 }
 

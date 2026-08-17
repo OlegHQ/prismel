@@ -11,6 +11,11 @@ val run : ?domains:int -> (unit -> 'a) -> 'a
     the current execution context. [domains] includes the calling domain;
     [domains:1] forces every nested [Parallel] helper to execute sequentially. *)
 
+val release_current_domain_pools : unit -> unit
+(** Tear down cached pools created by the calling domain. Long-lived background
+    coordinator domains must call this once, after their last parallel job and
+    before the domain exits. Ordinary sketches never call it. *)
+
 val map_array : ?grain:int -> ('a -> 'b) -> 'a array -> 'b array
 (** Parallel order-preserving array map. Output slots are disjoint and no
     per-element option boxes are allocated. [grain] is both the sequential

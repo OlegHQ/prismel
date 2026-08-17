@@ -28,6 +28,168 @@ let contains text pattern =
   in
   pattern_length = 0 || search 0
 
+let wait_until ?(seconds = 2.) operation =
+  let deadline = Unix.gettimeofday () +. seconds in
+  let rec loop () =
+    match operation () with
+    | Some value -> value
+    | None when Unix.gettimeofday () < deadline ->
+        Unix.sleepf 0.001;
+        loop ()
+    | None -> fail "timed out waiting for background procedural cook"
+  in
+  loop ()
+
+type inspectable_parameters = {
+  translate_x : float;
+  display_gain : float;
+}
+
+type encoded_parameters = { rules : int list }
+
+let encoded_rules = Parameter.encoded ~equal:( = )
+    ~encode:(fun values -> String.concat "," (List.map string_of_int values))
+    ~decode:(fun text ->
+      let text = String.trim text in
+      if text = "" then Ok []
+      else
+        String.split_on_char ',' text
+        |> List.fold_left (fun result token -> Result.bind result (fun values ->
+          match int_of_string_opt (String.trim token) with
+          | Some value -> Ok (value :: values)
+          | None -> Error (Printf.sprintf "invalid integer %S" token))) (Ok [])
+        |> Result.map List.rev)
+
+let encoded_schema = Parameter.schema ~name:"encoded_rules"
+    ~default:{ rules = [1; 2] } [
+  Parameter.field ~name:"rules" ~kind:encoded_rules ~default:[1; 2]
+    ~get:(fun value -> value.rules)
+    ~set:(fun rules _value -> { rules }) ();
+]
+
+let inspectable_default = { translate_x = 0.; display_gain = 1. }
+
+let inspectable_schema = Parameter.schema ~name:"inspectable_transform"
+    ~default:inspectable_default [
+  Parameter.field ~name:"translate_x" ~label:"Translate X"
+    ~folder:["Transform"] ~kind:(Parameter.floating ~min:(-2.) ~max:2. ())
+    ~default:0. ~get:(fun value -> value.translate_x)
+    ~set:(fun translate_x value -> { value with translate_x }) ();
+  Parameter.field ~name:"display_gain" ~label:"Display gain"
+    ~folder:["Viewport"] ~impact:Parameter.View
+    ~kind:(Parameter.floating ~min:0. ~max:2. ()) ~default:1.
+    ~get:(fun value -> value.display_gain)
+    ~set:(fun display_gain value -> { value with display_gain }) ();
+]
+
+let rec inspectable_transform ~label input parameters =
+  Sop.transform ~label
+    (Mat4.translation (Vec3.create parameters.translate_x 0. 0.)) input
+  |> Node.parameterize ~schema:inspectable_schema ~values:parameters
+       ~rebuild:(fun ~label ~inputs parameters -> match inputs with
+         | [input] -> inspectable_transform ~label input parameters
+         | _ -> invalid_arg "inspectable_transform expects one input")
+
+let test_node_owned_parameters_and_graph_edit () =
+  let source = Sop.points [|0., 0., 0.|] in
+  let editable = inspectable_transform ~label:"move" source inspectable_default in
+  let graph = Sop.merge [Sop.null ~label:"left" editable;
+                         Sop.null ~label:"right" editable] in
+  let original_infos = Graph.inspect graph in
+  check (List.length (Node.parameter_fields editable) = 2
+      && Node.has_parameters editable)
+    "node-owned parameter metadata was not exposed";
+  let translated, effects = Graph.apply_parameters graph
+      ~node_id:(Node.id editable)
+      ["translate_x", Parameter.Float_value 1.5] |> get_ok in
+  check (effects.cook && not effects.view && not effects.export)
+    "graph edit lost cook impact";
+  let edited = Option.get (Graph.find translated ~node_id:(Node.id editable)) in
+  check (Node.id edited = Node.id editable
+      && List.map (fun info -> info.Graph.id) (Graph.inspect translated)
+         = List.map (fun info -> info.Graph.id) original_infos)
+    "graph edit did not preserve logical node identities";
+  let merge_inputs = Node.inputs translated in
+  let left_input = Node.inputs (List.nth merge_inputs 0) |> List.hd
+  and right_input = Node.inputs (List.nth merge_inputs 1) |> List.hd in
+  check (left_input == right_input && Node.id left_input = Node.id editable)
+    "graph edit duplicated a shared subgraph";
+  let evaluator = session () and current = context () in
+  ignore (cook_ok evaluator current graph);
+  let before_edit = Session.stats evaluator in
+  let output = cook_ok evaluator current translated in
+  let after_edit = Session.stats evaluator in
+  let positions = Pdk.Packed.Float3.Private.view
+      (Pdk.Geometry.positions output.geometry) in
+  check (positions.x = [|1.5; 1.5|])
+    "edited node did not rebuild its cook closure";
+  check (after_edit.hits > before_edit.hits)
+    "stable graph edit did not reuse an unaffected cached input";
+  let view_only, view_effects = Graph.apply_parameters translated
+      ~node_id:(Node.id editable)
+      ["display_gain", Parameter.Float_value 1.75] |> get_ok in
+  check (not view_effects.cook && view_effects.view && not view_effects.export)
+    "view-only node edit requested a cook";
+  let before_view = Session.stats evaluator in
+  ignore (cook_ok evaluator current view_only);
+  let after_view = Session.stats evaluator in
+  check (after_view.cooks = before_view.cooks)
+    "view-only metadata invalidated cooked geometry";
+  let view_node = Option.get (Graph.find view_only ~node_id:(Node.id editable)) in
+  let display = List.find (fun field -> field.Parameter.name = "display_gain")
+      (Node.parameter_fields view_node) in
+  check (display.current = Parameter.Float_value 1.75)
+    "view-only node value was not retained for the inspector";
+  Session.close evaluator
+
+let test_encoded_parameter () =
+  let initial = { rules = [1; 2] } in
+  let field = Parameter.view encoded_schema initial |> List.hd in
+  check (field.kind = Parameter.Text_view
+      && field.current = Parameter.Text_value "1,2")
+    "encoded parameter did not expose its deterministic text form";
+  let edited, effects = Parameter.apply_all encoded_schema initial
+      ["rules", Parameter.Text_value "3, 5, 8"] |> get_ok in
+  check (edited.rules = [3; 5; 8] && effects.cook)
+    "encoded parameter did not decode an inspector edit";
+  check (Parameter.key encoded_schema initial
+      <> Parameter.key encoded_schema edited)
+    "encoded parameter did not participate in cache identity";
+  check (Result.is_error (Parameter.apply encoded_schema initial ~name:"rules"
+      (Parameter.Text_value "3,nope")))
+    "encoded parameter accepted an invalid structured edit"
+
+let test_async_cook_latest_request () =
+  let worker = Async_cook.create ~max_entries:4
+      ~max_payload_bytes:4_000_000 |> get_ok in
+  let slow = Sop.custom ~operation:"async_test_slow" ~version:1
+      ~parameters:"delay=0.05" [Sop.points [|0., 0., 0.|]]
+      (fun ~context geometries ->
+        Unix.sleepf 0.05;
+        if Context.cancelled context then Error "cancelled"
+        else Ok geometries.(0)) in
+  let prepare output = Ok (Pdk.Geometry.point_count output.Session.geometry) in
+  let first = Async_cook.submit worker ~context:(context ~domains:2 ())
+      ~node:slow ~prepare |> get_ok in
+  ignore (wait_until (fun () -> match Async_cook.status worker with
+    | Async_cook.Cooking _ -> Some ()
+    | Idle -> None));
+  let second = Async_cook.submit worker ~context:(context ~domains:2 ())
+      ~node:(Sop.points [|0., 0., 0.; 1., 0., 0.; 2., 0., 0.|])
+      ~prepare |> get_ok in
+  let completion = wait_until (fun () -> Async_cook.poll worker) in
+  check (first <> second && completion.request_id = second)
+    "async cook published a stale request";
+  (match completion.result with
+   | Ok 3 -> ()
+   | Ok _ -> fail "async cook latest request returned the wrong geometry"
+   | Error error -> fail (Async_cook.error_to_string error));
+  check (Async_cook.status worker = Idle)
+    "async cook remained busy after publishing the latest result";
+  Async_cook.close worker;
+  Async_cook.close worker;
+  check (Async_cook.is_closed worker) "async cook did not close idempotently"
+
 let test_static_context_cache () =
   let graph =
     Sop.grid ~label:"terrain" ~columns:4 ~rows:3 ~size:5. ()
@@ -1594,6 +1756,31 @@ let test_generators_selections_and_delete () =
   check (float_attribute "fixed" fixed_a.geometry
       = float_attribute "fixed" fixed_b.geometry)
     "explicit Attribute Randomize seed retained a context dependency";
+  let orient_graph = Sop.point_generate_origin ~points:32 ()
+      |> Sop.attribute_noise ~label:"orient-noise" ~seed:91
+           ~owner:Pdk.Attribute.Point ~name:"orient"
+           ~location:Pdk.Attribute_ops.Noise_element_number
+           ~range:Pdk.Attribute_ops.Noise_zero_centered
+           ~frequency:(Vec3.create 0.13 0.13 0.13) ~octaves:2
+           Pdk.Attribute_ops.Noise_quaternion in
+  let orient_a = cook_ok evaluator (context ~seed:1L ()) orient_graph
+  and orient_b = cook_ok evaluator (context ~seed:999L ()) orient_graph in
+  check (orient_a.geometry == orient_b.geometry)
+    "explicit Attribute Noise seed retained a context dependency";
+  let orient_values = match Pdk.Geometry.find_attribute
+      ~owner:Pdk.Attribute.Point "orient" orient_a.geometry with
+    | Some attribute ->
+        (match Pdk.Attribute.storage attribute with
+         | Pdk.Attribute.Float4 values -> Pdk.Packed.Float4.Private.view values
+         | _ -> fail "Attribute Noise produced non-quaternion orient storage")
+    | None -> fail "Attribute Noise omitted orient" in
+  for point = 0 to Array.length orient_values.x - 1 do
+    let length = sqrt ((orient_values.x.(point) ** 2.)
+        +. (orient_values.y.(point) ** 2.) +. (orient_values.z.(point) ** 2.)
+        +. (orient_values.w.(point) ** 2.)) in
+    check (abs_float (length -. 1.) < 1e-12)
+      (Printf.sprintf "Attribute Noise orient %d is not normalized" point)
+  done;
   let fraction_attribute = Pdk.Attribute.create_owned ~name:"fraction"
       ~owner:Pdk.Attribute.Point (Pdk.Attribute.Float [|0.; 0.25; 0.5; 0.75; 1.|])
       |> get_ok in
@@ -4364,6 +4551,9 @@ let test_edge_transport_contract () =
     "procedural Edge Transport Parent rebuilt topology"
 
 let () =
+  test_node_owned_parameters_and_graph_edit ();
+  test_encoded_parameter ();
+  test_async_cook_latest_request ();
   test_static_context_cache ();
   test_grid_generator_contract ();
   test_circle_generator_contract ();

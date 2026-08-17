@@ -18,7 +18,8 @@ type config = {
 }
 (** [width] and [height] are the initial web size until a browser connects.
     Web canvases then adopt the full browser viewport regardless of
-    [resizable], which continues to control native desktop windows. *)
+    [resizable], which continues to control native desktop windows.
+    [default_config] enables native resizing. *)
 
 val default_config : config
 
