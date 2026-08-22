@@ -77,6 +77,140 @@ let complete_commands commands =
    | _ -> fail "sparse conformance command buffer did not complete");
   get (Command_buffer.destroy commands)
 
+let test_uncompressed_format_matrix device =
+  let formats = Texture.all_formats in
+  if List.length formats <> 64
+     || List.length (List.sort_uniq compare formats) <> List.length formats
+  then fail "uncompressed Metal pixel-format inventory is incomplete or duplicated";
+  let expect_layout format block_width block_height bytes_per_block =
+    let layout = Texture.format_layout format in
+    if layout.block_width <> block_width
+       || layout.block_height <> block_height
+       || layout.bytes_per_block <> bytes_per_block
+    then fail "Metal pixel-format block layout is wrong"
+  in
+  expect_layout Texture.R8_sint 1 1 1;
+  expect_layout Texture.B5g6r5_unorm 1 1 2;
+  expect_layout Texture.Rgba32_uint 1 1 16;
+  expect_layout Texture.Gbgr422 2 1 4;
+  let before_invalid = get (Release_queue.stats ()) in
+  ignore
+    (expect_error Invalid_argument
+       (Texture.create ~device
+          (Texture.descriptor_2d ~format:Texture.Gbgr422 ~width:3 ~height:2
+             ())));
+  ignore
+    (expect_error Invalid_argument
+       (Texture.create ~device
+          (Texture.descriptor_2d ~mipmapped:true ~format:Texture.Bgrg422
+             ~width:4 ~height:4 ())));
+  ignore
+    (expect_error Invalid_argument
+       (Texture.create ~device
+          (Texture.descriptor_2d ~format:Texture.X32_stencil8 ~width:4
+             ~height:4 ())));
+  let after_invalid = get (Release_queue.stats ()) in
+  if after_invalid.total_created <> before_invalid.total_created then
+    fail "invalid special-format descriptors allocated native handles";
+  if not (get (Device.supports_depth24_stencil8 device)) then begin
+    let before = get (Release_queue.stats ()) in
+    ignore
+      (expect_error Unsupported
+         (Texture.create ~device
+            (Texture.descriptor_2d
+               ~format:Texture.Depth24_unorm_stencil8 ~width:4 ~height:4
+               ())));
+    let after = get (Release_queue.stats ()) in
+    if after.total_created <> before.total_created then
+      fail "unsupported Depth24Unorm_Stencil8 allocated a native handle"
+  end;
+  let supported = ref 0 in
+  List.iteri
+    (fun index format ->
+      if format <> Texture.X32_stencil8 && format <> Texture.X24_stencil8 then
+        let descriptor =
+          Texture.descriptor_2d ~storage:Buffer.Private
+            ~usage:[ Texture.Shader_read ] ~format ~width:4 ~height:4 ()
+        in
+        match Texture.create ~device descriptor with
+        | Ok texture ->
+            incr supported;
+            if (Texture.descriptor texture).format <> format then
+              fail "Metal changed pixel format at matrix index %d" index;
+            get (Texture.destroy texture)
+        | Error { kind = (Native_error | Unsupported); _ } -> ()
+        | Error error -> fail "%s" (Format.asprintf "%a" pp_error error))
+    formats;
+  if !supported < 48 then
+    fail "device accepted only %d of 62 creatable uncompressed formats" !supported;
+  let transfer_descriptor =
+    Texture.descriptor_2d ~storage:Buffer.Shared
+      ~format:Texture.Rgba8_uint ~width:4 ~height:2 ()
+  in
+  let transfer = get (Texture.create ~device transfer_descriptor) in
+  let transfer_region : Texture.region =
+    { x = 0; y = 0; z = 0; width = 4; height = 2; depth = 1 }
+  in
+  let bytes = Bytes.init 32 (fun index -> Char.chr ((index * 29) land 0xff)) in
+  get
+    (Texture.write_bytes transfer ~region:transfer_region ~mip_level:0
+       ~slice:0 ~bytes_per_row:16 ~bytes_per_image:32 bytes);
+  if
+    get
+      (Texture.read_bytes transfer ~region:transfer_region ~mip_level:0
+         ~slice:0 ~bytes_per_row:16 ~bytes_per_image:32)
+    <> bytes
+  then fail "integer pixel-format transfer did not round-trip exactly";
+  get (Texture.destroy transfer);
+  let packed_descriptor =
+    Texture.descriptor_2d ~storage:Buffer.Shared ~format:Texture.Gbgr422
+      ~width:4 ~height:2 ()
+  in
+  (match Texture.create ~device packed_descriptor with
+   | Error { kind = Native_error; _ } -> ()
+   | Error error -> fail "%s" (Format.asprintf "%a" pp_error error)
+   | Ok packed ->
+       let misaligned : Texture.region =
+         { x = 1; y = 0; z = 0; width = 2; height = 1; depth = 1 }
+       in
+       ignore
+         (expect_error Invalid_argument
+            (Texture.write_bytes packed ~region:misaligned ~mip_level:0
+               ~slice:0 ~bytes_per_row:4 ~bytes_per_image:4
+               (Bytes.make 4 '\000')));
+       let full : Texture.region =
+         { x = 0; y = 0; z = 0; width = 4; height = 2; depth = 1 }
+       in
+       let packed_bytes =
+         Bytes.init 16 (fun index -> Char.chr ((index * 17) land 0xff))
+       in
+       get
+         (Texture.write_bytes packed ~region:full ~mip_level:0 ~slice:0
+            ~bytes_per_row:8 ~bytes_per_image:16 packed_bytes);
+       if
+         get
+           (Texture.read_bytes packed ~region:full ~mip_level:0 ~slice:0
+              ~bytes_per_row:8 ~bytes_per_image:16)
+         <> packed_bytes
+       then fail "subsampled pixel-format transfer did not round-trip exactly";
+       get (Texture.destroy packed));
+  let depth_stencil_descriptor =
+    Texture.descriptor_2d ~storage:Buffer.Private
+      ~usage:[ Texture.Render_target; Texture.Pixel_format_view ]
+      ~format:Texture.Depth32_float_stencil8 ~width:4 ~height:4 ()
+  in
+  (match Texture.create ~device depth_stencil_descriptor with
+   | Error { kind = Native_error; _ } -> ()
+   | Error error -> fail "%s" (Format.asprintf "%a" pp_error error)
+   | Ok depth_stencil ->
+       let stencil =
+         get
+           (Texture.create_view depth_stencil ~format:Texture.X32_stencil8
+              ~base_mip:0 ~mip_count:1 ~base_slice:0 ~slice_count:1 ())
+       in
+       get (Texture.destroy stencil);
+       get (Texture.destroy depth_stencil))
+
 let test_sparse_textures device =
   if not (get (Device.supports_sparse_textures device)) then false
   else begin
@@ -534,6 +668,7 @@ let () =
     if info.name = "" || info.registry_id = 0L then
       fail "default device identity is incomplete";
     if info.max_buffer_length < 16L then fail "device buffer limit is invalid";
+    test_uncompressed_format_matrix device;
     let residency_sets_supported = test_residency_set device in
     ignore (test_sparse_textures device);
     let before_finalizer = get (Release_queue.stats ()) in

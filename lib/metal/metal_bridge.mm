@@ -423,29 +423,70 @@ NSUInteger texture_bytes_per_pixel(MTLPixelFormat format) {
   case MTLPixelFormatA8Unorm:
   case MTLPixelFormatR8Unorm:
   case MTLPixelFormatR8Unorm_sRGB:
+  case MTLPixelFormatR8Snorm:
   case MTLPixelFormatR8Uint:
+  case MTLPixelFormatR8Sint:
   case MTLPixelFormatStencil8:
     return 1;
+  case MTLPixelFormatR16Unorm:
+  case MTLPixelFormatR16Snorm:
+  case MTLPixelFormatR16Uint:
+  case MTLPixelFormatR16Sint:
   case MTLPixelFormatR16Float:
   case MTLPixelFormatRG8Unorm:
   case MTLPixelFormatRG8Unorm_sRGB:
+  case MTLPixelFormatRG8Snorm:
+  case MTLPixelFormatRG8Uint:
+  case MTLPixelFormatRG8Sint:
+  case MTLPixelFormatB5G6R5Unorm:
+  case MTLPixelFormatA1BGR5Unorm:
+  case MTLPixelFormatABGR4Unorm:
+  case MTLPixelFormatBGR5A1Unorm:
+  case MTLPixelFormatGBGR422:
+  case MTLPixelFormatBGRG422:
   case MTLPixelFormatDepth16Unorm:
     return 2;
+  case MTLPixelFormatR32Uint:
+  case MTLPixelFormatR32Sint:
   case MTLPixelFormatR32Float:
+  case MTLPixelFormatRG16Unorm:
+  case MTLPixelFormatRG16Snorm:
+  case MTLPixelFormatRG16Uint:
+  case MTLPixelFormatRG16Sint:
   case MTLPixelFormatRG16Float:
   case MTLPixelFormatRGBA8Unorm:
   case MTLPixelFormatRGBA8Unorm_sRGB:
+  case MTLPixelFormatRGBA8Snorm:
+  case MTLPixelFormatRGBA8Uint:
+  case MTLPixelFormatRGBA8Sint:
   case MTLPixelFormatBGRA8Unorm:
   case MTLPixelFormatBGRA8Unorm_sRGB:
   case MTLPixelFormatRGB10A2Unorm:
+  case MTLPixelFormatRGB10A2Uint:
   case MTLPixelFormatRG11B10Float:
+  case MTLPixelFormatRGB9E5Float:
+  case MTLPixelFormatBGR10A2Unorm:
+  case MTLPixelFormatBGR10_XR:
+  case MTLPixelFormatBGR10_XR_sRGB:
+  case MTLPixelFormatBGRA10_XR:
+  case MTLPixelFormatBGRA10_XR_sRGB:
   case MTLPixelFormatDepth32Float:
   case MTLPixelFormatDepth24Unorm_Stencil8:
+  case MTLPixelFormatX24_Stencil8:
     return 4;
+  case MTLPixelFormatRG32Uint:
+  case MTLPixelFormatRG32Sint:
   case MTLPixelFormatRG32Float:
+  case MTLPixelFormatRGBA16Unorm:
+  case MTLPixelFormatRGBA16Snorm:
+  case MTLPixelFormatRGBA16Uint:
+  case MTLPixelFormatRGBA16Sint:
   case MTLPixelFormatRGBA16Float:
   case MTLPixelFormatDepth32Float_Stencil8:
+  case MTLPixelFormatX32_Stencil8:
     return 8;
+  case MTLPixelFormatRGBA32Uint:
+  case MTLPixelFormatRGBA32Sint:
   case MTLPixelFormatRGBA32Float:
     return 16;
   default:
@@ -455,27 +496,18 @@ NSUInteger texture_bytes_per_pixel(MTLPixelFormat format) {
 
 bool texture_supports_buffer_backing(MTLPixelFormat format) {
   switch (format) {
-  case MTLPixelFormatA8Unorm:
-  case MTLPixelFormatR8Unorm:
-  case MTLPixelFormatR8Unorm_sRGB:
-  case MTLPixelFormatR8Uint:
-  case MTLPixelFormatR16Float:
-  case MTLPixelFormatR32Float:
-  case MTLPixelFormatRG8Unorm:
-  case MTLPixelFormatRG8Unorm_sRGB:
-  case MTLPixelFormatRG16Float:
-  case MTLPixelFormatRG32Float:
-  case MTLPixelFormatRGBA8Unorm:
-  case MTLPixelFormatRGBA8Unorm_sRGB:
-  case MTLPixelFormatBGRA8Unorm:
-  case MTLPixelFormatBGRA8Unorm_sRGB:
-  case MTLPixelFormatRGB10A2Unorm:
-  case MTLPixelFormatRG11B10Float:
-  case MTLPixelFormatRGBA16Float:
-  case MTLPixelFormatRGBA32Float:
-    return true;
-  default:
+  case MTLPixelFormatGBGR422:
+  case MTLPixelFormatBGRG422:
+  case MTLPixelFormatDepth16Unorm:
+  case MTLPixelFormatDepth32Float:
+  case MTLPixelFormatStencil8:
+  case MTLPixelFormatDepth24Unorm_Stencil8:
+  case MTLPixelFormatDepth32Float_Stencil8:
+  case MTLPixelFormatX32_Stencil8:
+  case MTLPixelFormatX24_Stencil8:
     return false;
+  default:
+    return texture_bytes_per_pixel(format) != 0;
   }
 }
 
@@ -519,14 +551,24 @@ bool texture_transfer_range(id<MTLTexture> texture, value raw_transfer,
       uh > mip_height - uy || uz > mip_depth || ud > mip_depth - uz) {
     return false;
   }
+  if ((texture.pixelFormat == MTLPixelFormatGBGR422 ||
+       texture.pixelFormat == MTLPixelFormatBGRG422) &&
+      (ux % 2 != 0 || uw % 2 != 0)) {
+    return false;
+  }
   const NSUInteger bytes_per_pixel = texture_bytes_per_pixel(texture.pixelFormat);
   if (bytes_per_pixel == 0 || uw > static_cast<NSUInteger>(Max_long) / bytes_per_pixel) {
     return false;
   }
+  const intnat row_alignment =
+      texture.pixelFormat == MTLPixelFormatGBGR422 ||
+              texture.pixelFormat == MTLPixelFormatBGRG422
+          ? 4
+          : static_cast<intnat>(bytes_per_pixel);
   const intnat minimum_row =
       static_cast<intnat>(uw * bytes_per_pixel);
   if (*bytes_per_row < minimum_row ||
-      *bytes_per_row % static_cast<intnat>(bytes_per_pixel) != 0 ||
+      *bytes_per_row % row_alignment != 0 ||
       *bytes_per_row > Max_long / height) {
     return false;
   }
@@ -1389,6 +1431,13 @@ caml_prismel_metal_device_supports_texture_sample_count(value raw,
   }
   CAMLreturn(Val_bool(
       [device supportsTextureSampleCount:static_cast<NSUInteger>(count)]));
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_device_supports_depth24_stencil8(value raw) {
+  CAMLparam1(raw);
+  id<MTLDevice> device = object_of_handle(raw, Handle_kind::Device);
+  CAMLreturn(Val_bool(device.depth24Stencil8PixelFormatSupported));
 }
 
 extern "C" CAMLprim value caml_prismel_metal_heap_buffer_size_and_align(
@@ -3132,8 +3181,17 @@ caml_prismel_metal_blit_encoder_copy_buffer_to_texture(
           std::max<NSUInteger>(1, texture.height >> level);
       const NSUInteger mip_depth =
           std::max<NSUInteger>(1, texture.depth >> level);
-      if (copy_width > std::numeric_limits<NSUInteger>::max() / pixel_bytes ||
+      if (((texture.pixelFormat == MTLPixelFormatGBGR422 ||
+            texture.pixelFormat == MTLPixelFormatBGRG422) &&
+           (destination_x % 2 != 0 || copy_width % 2 != 0)) ||
+          copy_width > std::numeric_limits<NSUInteger>::max() / pixel_bytes ||
           static_cast<NSUInteger>(bytes_per_row) < copy_width * pixel_bytes ||
+          static_cast<NSUInteger>(bytes_per_row) %
+                  ((texture.pixelFormat == MTLPixelFormatGBGR422 ||
+                    texture.pixelFormat == MTLPixelFormatBGRG422)
+                       ? 4
+                       : pixel_bytes) !=
+              0 ||
           static_cast<NSUInteger>(bytes_per_row) >
               std::numeric_limits<NSUInteger>::max() / copy_height ||
           static_cast<NSUInteger>(bytes_per_image) <

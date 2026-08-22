@@ -91,28 +91,32 @@ as a hard ownership failure.
 
 `Texture.descriptor` models all current Metal texture kinds, explicit
 dimensions, mip/sample/array counts, storage/cache/hazard modes, usage, GPU
-optimization intent, and a deliberately reviewed set of ordinary color,
-floating-point, depth, and stencil formats. `Texture.create` validates positive
-and bounded dimensions, mip cardinality, array/kind shape, duplicate usage,
-multisample structure, and device sample-count support before entering
-Objective-C. The bridge then checks that Metal preserved every observable
-descriptor property. A native rejection remains a labeled `Native_error`; it
-never leaves a partially owned safe handle.
+optimization intent, and all 64 non-compressed numeric, packed, subsampled,
+extended-range, depth, stencil, and stencil-plane formats in the pinned SDK.
+`Texture.format_layout` exposes their checked block dimensions and byte size.
+`Texture.create` validates positive and bounded dimensions, mip cardinality,
+array/kind shape, duplicate usage, multisample structure, view-only formats,
+4:2:2 shape, device sample-count support, and the device's explicit
+Depth24/Stencil8 capability before entering Objective-C. The bridge then checks
+that Metal preserved every observable descriptor property. A native rejection
+remains a labeled `Native_error`; it never leaves a partially owned safe
+handle.
 
 Shared and managed texture transfers accept explicit regions, mip levels,
-slices, source offsets, row pitches, and image pitches. Region bounds, pixel
-stride, cardinality, OCaml byte-buffer limits, and source coverage are checked
-in OCaml and defensively repeated at the C boundary. Private and multisample
-textures reject CPU transfer. Reads initialize the entire result so Metal's
-untouched pitch padding cannot expose native memory. Texture views require
-`Pixel_format_view` usage, preserve kind/slice shape, currently permit only the
-reviewed equal or linear/sRGB format pairs, and hold their parent alive until
-explicit destruction or finalization.
+slices, source offsets, row pitches, and image pitches. Region bounds, format
+block alignment, cardinality, OCaml byte-buffer limits, and source coverage are
+checked in OCaml and defensively repeated at the C boundary, including exact
+two-pixel blocks for packed 4:2:2 formats. Private and multisample textures
+reject CPU transfer. Reads initialize the entire result so Metal's untouched
+pitch padding cannot expose native memory. Texture views require
+`Pixel_format_view` usage, preserve kind/slice shape, permit the reviewed equal,
+linear/sRGB, extended-range/sRGB, and depth-stencil/stencil-plane pairs, and
+hold their parent alive until explicit destruction or finalization.
 
 `Texture.minimum_buffer_alignment` distinguishes ordinary 2D linear textures
 from the `Texture_buffer` kind and exposes Metal's per-device, per-format
 alignment as a checked positive power of two. `Texture.create_from_buffer`
-accepts only those two kinds and ordinary or packed color formats. It requires
+accepts only those two kinds and ordinary numeric or packed color formats. It requires
 depth, array length, mip count, and sample count of one; normalizes and matches
 the buffer's storage/cache/hazard modes; gates render-target usage on Apple GPU
 family 1; and checks offset, aligned row pitch, pixel-row cardinality, 64-bit
@@ -258,9 +262,8 @@ clamps, comparison, LOD averaging, and argument-buffer support. Invalid
 anisotropy, non-finite or inverted clamps, illegal unnormalized-coordinate
 combinations, and malformed labels fail before sampler creation. Sparse
 depth/stencil and placement resources, cross-process IOSurface/shared-handle
-transport, and the remaining pixel-format capability matrix are still pending;
-this resource slice is therefore progress toward M3, not an M3 completion
-claim.
+transport and compressed block-format coverage are still pending; this
+resource slice is therefore progress toward M3, not an M3 completion claim.
 
 `test_metal.exe` runs a real M1 compute kernel, wrong-domain and invalid-state
 cases, shader diagnostics, copied/no-copy external buffer ownership,
@@ -271,8 +274,9 @@ configured cache/hazard modes, and shared transfer, buffer and texture bounds,
 stride, and cardinality checks, texture mip transfer and views, sampler
 validation, multisample capability gating, heap alignment and placement,
 aliasing, purgeability, residency
-membership/commit/queue/command retention, sparse page and tile capability
-queries, map/blit/read/unmap behavior, command-resource retention, parent
+membership/commit/queue/command retention, the 64-format uncompressed matrix,
+format-block transfers, Depth24 capability gating, sparse page and tile
+capability queries, map/blit/read/unmap behavior, command-resource retention, parent
 ownership, idempotent destruction, stale access, and GC-finalizer release. The
 separate ownership stress performs
 warm-up followed

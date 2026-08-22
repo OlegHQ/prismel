@@ -35,8 +35,8 @@
 (library
  (name metal)
  (public_name prismel.metal)
- (modules Metal Metal_raw Generated_provenance)
- (private_modules Metal_raw Generated_provenance)
+ (modules Metal Metal_format Metal_raw Generated_provenance)
+ (private_modules Metal_format Metal_raw Generated_provenance)
  (foreign_archives metal_bridge_stubs)
  (c_library_flags (:include c_library_flags.sexp)))
 

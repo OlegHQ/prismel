@@ -108,6 +108,7 @@ module Device : sig
   val info : t -> (info, error) result
   val supports_family : t -> family -> (bool, error) result
   val supports_texture_sample_count : t -> int -> (bool, error) result
+  val supports_depth24_stencil8 : t -> (bool, error) result
   val supports_residency_sets : t -> (bool, error) result
   val supports_sparse_textures : t -> (bool, error) result
   val destroy : t -> (unit, error) result
@@ -210,26 +211,73 @@ module Texture : sig
     | A8_unorm
     | R8_unorm
     | R8_unorm_srgb
+    | R8_snorm
     | R8_uint
+    | R8_sint
+    | R16_unorm
+    | R16_snorm
+    | R16_uint
+    | R16_sint
     | R16_float
-    | R32_float
     | Rg8_unorm
     | Rg8_unorm_srgb
+    | Rg8_snorm
+    | Rg8_uint
+    | Rg8_sint
+    | B5g6r5_unorm
+    | A1bgr5_unorm
+    | Abgr4_unorm
+    | Bgr5a1_unorm
+    | R32_uint
+    | R32_sint
+    | R32_float
+    | Rg16_unorm
+    | Rg16_snorm
+    | Rg16_uint
+    | Rg16_sint
     | Rg16_float
-    | Rg32_float
     | Rgba8_unorm
     | Rgba8_unorm_srgb
+    | Rgba8_snorm
+    | Rgba8_uint
+    | Rgba8_sint
     | Bgra8_unorm
     | Bgra8_unorm_srgb
     | Rgb10a2_unorm
+    | Rgb10a2_uint
     | Rg11b10_float
+    | Rgb9e5_float
+    | Bgr10a2_unorm
+    | Bgr10_xr
+    | Bgr10_xr_srgb
+    | Rg32_uint
+    | Rg32_sint
+    | Rg32_float
+    | Rgba16_unorm
+    | Rgba16_snorm
+    | Rgba16_uint
+    | Rgba16_sint
     | Rgba16_float
+    | Bgra10_xr
+    | Bgra10_xr_srgb
+    | Rgba32_uint
+    | Rgba32_sint
     | Rgba32_float
+    | Gbgr422
+    | Bgrg422
     | Depth16_unorm
     | Depth32_float
     | Stencil8
     | Depth24_unorm_stencil8
     | Depth32_float_stencil8
+    | X32_stencil8
+    | X24_stencil8
+
+  type format_layout =
+    { block_width : int
+    ; block_height : int
+    ; bytes_per_block : int
+    }
 
   type cpu_cache_mode =
     | Default_cache
@@ -344,6 +392,8 @@ module Texture : sig
     val destroy : t -> (unit, error) result
   end
 
+  val format_layout : format -> format_layout
+  val all_formats : format list
   val descriptor_2d :
     ?mipmapped:bool -> ?storage:Buffer.storage_mode -> ?usage:usage list ->
     ?label:string -> format:format -> width:int -> height:int -> unit ->

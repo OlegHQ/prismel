@@ -174,30 +174,7 @@ type texture_kind =
   | Texture_2d_multisample_array
   | Texture_buffer
 
-type pixel_format =
-  | A8_unorm
-  | R8_unorm
-  | R8_unorm_srgb
-  | R8_uint
-  | R16_float
-  | R32_float
-  | Rg8_unorm
-  | Rg8_unorm_srgb
-  | Rg16_float
-  | Rg32_float
-  | Rgba8_unorm
-  | Rgba8_unorm_srgb
-  | Bgra8_unorm
-  | Bgra8_unorm_srgb
-  | Rgb10a2_unorm
-  | Rg11b10_float
-  | Rgba16_float
-  | Rgba32_float
-  | Depth16_unorm
-  | Depth32_float
-  | Stencil8
-  | Depth24_unorm_stencil8
-  | Depth32_float_stencil8
+type pixel_format = Metal_format.t
 
 type resource_cpu_cache_mode =
   | Default_cache
@@ -875,6 +852,12 @@ module Device = struct
           Ok
             (Metal_raw.device_supports_texture_sample_count value.raw sample_count))
 
+  let supports_depth24_stencil8 (value : t) =
+    on_main "Metal.Device.supports_depth24_stencil8" (fun () ->
+      match ensure_live "Metal.Device.supports_depth24_stencil8" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () -> Ok (Metal_raw.device_supports_depth24_stencil8 value.raw))
+
   let supports_residency_sets (value : t) =
     on_main "Metal.Device.supports_residency_sets" (fun () ->
       match ensure_live "Metal.Device.supports_residency_sets" value.lifetime with
@@ -1455,30 +1438,77 @@ module Texture = struct
     | Texture_2d_multisample_array
     | Texture_buffer
 
-  type format = pixel_format =
+  type format = Metal_format.t =
     | A8_unorm
     | R8_unorm
     | R8_unorm_srgb
+    | R8_snorm
     | R8_uint
+    | R8_sint
+    | R16_unorm
+    | R16_snorm
+    | R16_uint
+    | R16_sint
     | R16_float
-    | R32_float
     | Rg8_unorm
     | Rg8_unorm_srgb
+    | Rg8_snorm
+    | Rg8_uint
+    | Rg8_sint
+    | B5g6r5_unorm
+    | A1bgr5_unorm
+    | Abgr4_unorm
+    | Bgr5a1_unorm
+    | R32_uint
+    | R32_sint
+    | R32_float
+    | Rg16_unorm
+    | Rg16_snorm
+    | Rg16_uint
+    | Rg16_sint
     | Rg16_float
-    | Rg32_float
     | Rgba8_unorm
     | Rgba8_unorm_srgb
+    | Rgba8_snorm
+    | Rgba8_uint
+    | Rgba8_sint
     | Bgra8_unorm
     | Bgra8_unorm_srgb
     | Rgb10a2_unorm
+    | Rgb10a2_uint
     | Rg11b10_float
+    | Rgb9e5_float
+    | Bgr10a2_unorm
+    | Bgr10_xr
+    | Bgr10_xr_srgb
+    | Rg32_uint
+    | Rg32_sint
+    | Rg32_float
+    | Rgba16_unorm
+    | Rgba16_snorm
+    | Rgba16_uint
+    | Rgba16_sint
     | Rgba16_float
+    | Bgra10_xr
+    | Bgra10_xr_srgb
+    | Rgba32_uint
+    | Rgba32_sint
     | Rgba32_float
+    | Gbgr422
+    | Bgrg422
     | Depth16_unorm
     | Depth32_float
     | Stencil8
     | Depth24_unorm_stencil8
     | Depth32_float_stencil8
+    | X32_stencil8
+    | X24_stencil8
+
+  type format_layout = Metal_format.layout =
+    { block_width : int
+    ; block_height : int
+    ; bytes_per_block : int
+    }
 
   type cpu_cache_mode = resource_cpu_cache_mode = Default_cache | Write_combined
   type hazard_tracking_mode = resource_hazard_tracking_mode =
@@ -1818,47 +1848,14 @@ module Texture = struct
     | Texture_2d_multisample_array -> 8
     | Texture_buffer -> 9
 
-  let format_code = function
-    | A8_unorm -> 1
-    | R8_unorm -> 10
-    | R8_unorm_srgb -> 11
-    | R8_uint -> 13
-    | R16_float -> 25
-    | R32_float -> 55
-    | Rg8_unorm -> 30
-    | Rg8_unorm_srgb -> 31
-    | Rg16_float -> 65
-    | Rg32_float -> 105
-    | Rgba8_unorm -> 70
-    | Rgba8_unorm_srgb -> 71
-    | Bgra8_unorm -> 80
-    | Bgra8_unorm_srgb -> 81
-    | Rgb10a2_unorm -> 90
-    | Rg11b10_float -> 92
-    | Rgba16_float -> 115
-    | Rgba32_float -> 125
-    | Depth16_unorm -> 250
-    | Depth32_float -> 252
-    | Stencil8 -> 253
-    | Depth24_unorm_stencil8 -> 255
-    | Depth32_float_stencil8 -> 260
+  let format_code = Metal_format.code
+  let format_layout = Metal_format.layout
+  let all_formats = Metal_format.all
+  let supports_buffer_backing = Metal_format.supports_buffer_backing
 
-  let bytes_per_pixel = function
-    | A8_unorm | R8_unorm | R8_unorm_srgb | R8_uint | Stencil8 -> 1
-    | R16_float | Rg8_unorm | Rg8_unorm_srgb | Depth16_unorm -> 2
-    | R32_float | Rg16_float | Rgba8_unorm | Rgba8_unorm_srgb
-    | Bgra8_unorm | Bgra8_unorm_srgb | Rgb10a2_unorm | Rg11b10_float
-    | Depth32_float | Depth24_unorm_stencil8 -> 4
-    | Rg32_float | Rgba16_float | Depth32_float_stencil8 -> 8
-    | Rgba32_float -> 16
-
-  let supports_buffer_backing = function
-    | A8_unorm | R8_unorm | R8_unorm_srgb | R8_uint | R16_float | R32_float
-    | Rg8_unorm | Rg8_unorm_srgb | Rg16_float | Rg32_float | Rgba8_unorm
-    | Rgba8_unorm_srgb | Bgra8_unorm | Bgra8_unorm_srgb | Rgb10a2_unorm
-    | Rg11b10_float | Rgba16_float | Rgba32_float -> true
-    | Depth16_unorm | Depth32_float | Stencil8 | Depth24_unorm_stencil8
-    | Depth32_float_stencil8 -> false
+  let bytes_per_pixel format =
+    let layout = format_layout format in
+    layout.bytes_per_block / (layout.block_width * layout.block_height)
 
   let validate_buffer_kind_format operation ~kind ~format =
     if kind <> Texture_2d && kind <> Texture_buffer then
@@ -1924,7 +1921,8 @@ module Texture = struct
     | Texture_1d | Texture_1d_array | Texture_2d | Texture_2d_array
     | Texture_cube | Texture_cube_array | Texture_3d | Texture_buffer -> false
 
-  let validate_descriptor operation device (descriptor : descriptor) =
+  let validate_descriptor operation (device : Device.t)
+      (descriptor : descriptor) =
     let invalid message = error operation Invalid_argument message in
     if descriptor.width <= 0 || descriptor.height <= 0 || descriptor.depth <= 0
        || descriptor.mip_levels <= 0 || descriptor.sample_count <= 0
@@ -1942,6 +1940,22 @@ module Texture = struct
       invalid "texture array length must be below 2048"
     else if List.length descriptor.usage <> List.length (List.sort_uniq compare descriptor.usage)
     then invalid "texture usage contains duplicates"
+    else if
+      descriptor.format = Depth24_unorm_stencil8
+      && not (Metal_raw.device_supports_depth24_stencil8 device.raw)
+    then
+      error operation Unsupported
+        "device does not support Depth24Unorm_Stencil8 textures"
+    else if Metal_format.is_view_only descriptor.format then
+      invalid "stencil-plane formats can only be created as texture views"
+    else if
+      Metal_format.is_subsampled descriptor.format
+      && (descriptor.kind <> Texture_2d || descriptor.width mod 2 <> 0
+          || descriptor.mip_levels <> 1 || descriptor.sample_count <> 1
+          || descriptor.array_length <> 1 || descriptor.depth <> 1)
+    then
+      invalid
+        "subsampled 4:2:2 formats require an even-width, single-mip 2D texture"
     else
       match descriptor.label with
       | Some label when contains_nul label -> invalid "texture label contains a NUL byte"
@@ -2494,14 +2508,33 @@ module Texture = struct
          || region.z > depth || region.depth > depth - region.z
       then invalid "texture region exceeds the selected mip level"
       else
-        let pixel_bytes = bytes_per_pixel value.descriptor.format in
-        match checked_mul region.width pixel_bytes with
+        let layout = format_layout value.descriptor.format in
+        let aligned origin length limit block =
+          origin mod block = 0
+          && (length mod block = 0 || origin + length = limit)
+        in
+        if
+          not
+            (aligned region.x region.width width layout.block_width
+             && aligned region.y region.height height layout.block_height)
+        then
+          invalid "texture region is not aligned to its format blocks"
+        else
+        let blocks value block = 1 + ((value - 1) / block) in
+        match
+          checked_mul (blocks region.width layout.block_width)
+            layout.bytes_per_block
+        with
         | None -> invalid "texture row cardinality overflows an OCaml integer"
         | Some minimum_row
-          when bytes_per_row < minimum_row || bytes_per_row mod pixel_bytes <> 0 ->
-            invalid "texture row pitch is too small or not pixel-aligned"
+          when bytes_per_row < minimum_row
+               || bytes_per_row mod layout.bytes_per_block <> 0 ->
+            invalid "texture row pitch is too small or not block-aligned"
         | Some _ ->
-            (match checked_mul bytes_per_row region.height with
+            (match
+               checked_mul bytes_per_row
+                 (blocks region.height layout.block_height)
+             with
              | None -> invalid "texture image cardinality overflows an OCaml integer"
              | Some minimum_image when bytes_per_image < minimum_image ->
                  invalid "texture image pitch is smaller than its rows"
@@ -2570,15 +2603,7 @@ module Texture = struct
                | Ok bytes -> Ok bytes
                | Error message -> native_error "Metal.Texture.read_bytes" message))
 
-  let compatible_view_format source target =
-    source = target
-    ||
-    match source, target with
-    | R8_unorm, R8_unorm_srgb | R8_unorm_srgb, R8_unorm
-    | Rg8_unorm, Rg8_unorm_srgb | Rg8_unorm_srgb, Rg8_unorm
-    | Rgba8_unorm, Rgba8_unorm_srgb | Rgba8_unorm_srgb, Rgba8_unorm
-    | Bgra8_unorm, Bgra8_unorm_srgb | Bgra8_unorm_srgb, Bgra8_unorm -> true
-    | _ -> false
+  let compatible_view_format = Metal_format.compatible_view
 
   let create_view (parent : t) ~format ~base_mip ~mip_count ~base_slice
       ~slice_count ?label () =
@@ -2591,6 +2616,13 @@ module Texture = struct
       | Ok () when not (compatible_view_format parent.descriptor.format format) ->
           error "Metal.Texture.create_view" Invalid_argument
             "requested texture-view format is not in a compatible format class"
+      | Ok ()
+        when format = X24_stencil8
+             && not
+                  (Metal_raw.device_supports_depth24_stencil8
+                     parent.device.raw) ->
+          error "Metal.Texture.create_view" Unsupported
+            "device does not support X24_Stencil8 texture views"
       | Ok () when base_mip < 0 || mip_count <= 0
                    || base_mip > parent.descriptor.mip_levels
                    || mip_count > parent.descriptor.mip_levels - base_mip ->
@@ -3271,7 +3303,7 @@ module Heap = struct
                             (Texture.supports_buffer_backing descriptor.format)
                         then
                           error "Metal.Heap.create_texture" Unsupported
-                            "sparse depth and stencil textures are not yet in the reviewed format matrix"
+                            "sparse depth, stencil, and subsampled textures are not yet in the reviewed format matrix"
                         else
                           match
                             Metal_raw.device_sparse_texture_tile_size
@@ -4864,25 +4896,48 @@ module Blit_encoder = struct
                         error operation Invalid_argument
                           "blit destination region exceeds the selected mip level"
                       else
-                        let pixel_bytes =
-                          Texture.bytes_per_pixel descriptor.format
+                        let layout =
+                          Texture.format_layout descriptor.format
+                        in
+                        let aligned origin length limit block =
+                          origin mod block = 0
+                          && (length mod block = 0
+                              || origin + length = limit)
+                        in
+                        if
+                          not
+                            (aligned destination_region.x
+                               destination_region.width mip_width
+                               layout.block_width
+                             && aligned destination_region.y
+                                  destination_region.height mip_height
+                                  layout.block_height)
+                        then
+                          error operation Invalid_argument
+                            "blit destination region is not format-block aligned"
+                        else
+                        let blocks value block = 1 + ((value - 1) / block) in
+                        let row_blocks =
+                          blocks destination_region.width layout.block_width
                         in
                         (match
-                           Texture.checked_mul destination_region.width
-                             pixel_bytes
+                           Texture.checked_mul row_blocks
+                             layout.bytes_per_block
                          with
                          | None ->
                              error operation Invalid_argument
                                "blit row cardinality overflows an OCaml integer"
                          | Some minimum_row
                            when source_bytes_per_row < minimum_row
-                                || source_bytes_per_row mod pixel_bytes <> 0 ->
+                                || source_bytes_per_row
+                                   mod layout.bytes_per_block <> 0 ->
                              error operation Invalid_argument
-                               "blit source row pitch is too small or not pixel-aligned"
+                               "blit source row pitch is too small or not block-aligned"
                          | Some _ ->
                              (match
                                 Texture.checked_mul source_bytes_per_row
-                                  destination_region.height
+                                  (blocks destination_region.height
+                                     layout.block_height)
                               with
                               | None ->
                                   error operation Invalid_argument
