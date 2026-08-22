@@ -55,7 +55,7 @@
  (modules headless_smoke)
  (libraries prismel pxui tsdl)
  (action
-  (setenv HEADLESS 1
+  (setenv PRISMEL_RENDER_TARGET headless
    (run %{test}))))
 
 (test

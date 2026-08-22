@@ -4,7 +4,7 @@
     and [Audio]. These modules expose mutable renderer/window lifecycle state
     and must remain on the initial domain. *)
 
-module App = App
-module Backend = Backend
-module Graphics = Graphics
-module Window = Window
+module App : module type of App
+module Backend : module type of Backend
+module Graphics : module type of Graphics
+module Window : module type of Window
