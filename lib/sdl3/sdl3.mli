@@ -383,6 +383,34 @@ module Event : sig
   val mouse_delta : t list -> float * float
 end
 
+module Surface : sig
+  type t
+
+  type rgba = private {
+    width : int;
+    height : int;
+    stride : int;
+    pixels : bytes;
+  }
+
+  val create_rgba : width:int -> height:int -> (t, error) result
+
+  (** Copy tightly packed or explicitly strided RGBA8 rows into an owned SDL
+      CPU surface. The source bytes remain owned by the caller. *)
+  val of_rgba :
+    width:int -> height:int -> ?stride:int -> bytes -> (t, error) result
+
+  val generation : t -> int
+  val destroyed : t -> bool
+  val size : t -> (int * int, error) result
+  val pitch : t -> (int, error) result
+
+  (** Return a tightly packed RGBA8 snapshot. No SDL pointer escapes. *)
+  val copy_rgba : t -> (rgba, error) result
+
+  val destroy : t -> (unit, error) result
+end
+
 module Metal_view : sig
   type t
   type layer

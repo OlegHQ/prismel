@@ -75,3 +75,13 @@ type raw_event =
 external poll_event : unit -> raw_event option = "caml_sdl3_poll_event"
 external wait_event_timeout : int -> raw_event option
   = "caml_sdl3_wait_event_timeout"
+
+external create_surface_rgba : int -> int -> nativeint
+  = "caml_sdl3_create_surface_rgba"
+external destroy_surface : nativeint -> unit = "caml_sdl3_destroy_surface"
+external surface_info : nativeint -> (int * int * int) option
+  = "caml_sdl3_surface_info"
+external surface_write_rgba : nativeint -> bytes -> int -> bool
+  = "caml_sdl3_surface_write_rgba"
+external surface_copy_rgba : nativeint -> bytes option
+  = "caml_sdl3_surface_copy_rgba"

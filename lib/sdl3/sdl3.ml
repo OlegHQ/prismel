@@ -79,37 +79,48 @@ module Thread = struct
     else Ok ()
 end
 
-type release_token = Metal_view_token of nativeint | Window_token of nativeint
+type release_token =
+  | Surface_token of nativeint
+  | Metal_view_token of nativeint
+  | Window_token of nativeint
 
 module Release_queue = struct
   let capacity = 1_024
   let mutex = Mutex.create ()
+  let surfaces = Queue.create ()
   let metal_views = Queue.create ()
   let windows = Queue.create ()
   let dropped = Atomic.make 0
 
   let enqueue queue token =
     Mutex.lock mutex;
-    if Queue.length metal_views + Queue.length windows >= capacity then
+    if Queue.length surfaces + Queue.length metal_views + Queue.length windows
+        >= capacity then
       Atomic.incr dropped
     else Queue.add token queue;
     Mutex.unlock mutex
 
+  let surface raw = enqueue surfaces (Surface_token raw)
   let metal_view raw = enqueue metal_views (Metal_view_token raw)
   let window raw = enqueue windows (Window_token raw)
 
   let drain () =
     Mutex.lock mutex;
+    let pending_surfaces = Queue.create () in
     let views = Queue.create () and pending_windows = Queue.create () in
+    Queue.transfer surfaces pending_surfaces;
     Queue.transfer metal_views views;
     Queue.transfer windows pending_windows;
     Mutex.unlock mutex;
     Queue.iter (function
+      | Surface_token raw -> Private_raw.destroy_surface raw
+      | Metal_view_token _ | Window_token _ -> assert false) pending_surfaces;
+    Queue.iter (function
       | Metal_view_token raw -> Private_raw.destroy_metal_view raw
-      | Window_token _ -> assert false) views;
+      | Surface_token _ | Window_token _ -> assert false) views;
     Queue.iter (function
       | Window_token raw -> Private_raw.destroy_window raw
-      | Metal_view_token _ -> assert false) pending_windows
+      | Surface_token _ | Metal_view_token _ -> assert false) pending_windows
 end
 
 let dropped_release_tokens () = Atomic.get Release_queue.dropped
@@ -894,4 +905,122 @@ module Event = struct
     List.fold_left (fun (total_x, total_y) -> function
       | Mouse_motion { dx; dy; _ } -> total_x +. dx, total_y +. dy
       | _ -> total_x, total_y) (0., 0.) events
+end
+
+module Surface = struct
+  type t = {
+    raw : nativeint;
+    generation : int;
+    mutable destroyed : bool;
+  }
+
+  type rgba = {
+    width : int;
+    height : int;
+    stride : int;
+    pixels : bytes;
+  }
+
+  let next_generation = Atomic.make 1
+  let generation value = value.generation
+  let destroyed value = value.destroyed
+
+  let checked_layout operation ~width ~height ~stride ~length =
+    if width <= 0 || height <= 0 then
+      error operation Invalid_argument "surface dimensions must be positive"
+    else if width > max_int / 4 then
+      error operation Invalid_argument "surface row byte count overflows"
+    else
+      let row_bytes = width * 4 in
+      if stride < row_bytes then
+        error operation Invalid_argument
+          "RGBA stride is smaller than the tightly packed row"
+      else if height > max_int / stride then
+        error operation Invalid_argument "surface byte count overflows"
+      else if length < stride * height then
+        error operation Invalid_argument
+          "RGBA source is shorter than stride multiplied by height"
+      else Ok ()
+
+  let checked_dimensions operation ~width ~height =
+    if width <= 0 || height <= 0 then
+      error operation Invalid_argument "surface dimensions must be positive"
+    else if width > max_int / 4 || height > max_int / (width * 4) then
+      error operation Invalid_argument "surface byte count overflows"
+    else Ok ()
+
+  let owned raw =
+    let value = {
+      raw;
+      generation = Atomic.fetch_and_add next_generation 1;
+      destroyed = false;
+    } in
+    Gc.finalise (fun value ->
+      if not value.destroyed then begin
+        value.destroyed <- true;
+        Release_queue.surface value.raw
+      end) value;
+    value
+
+  let live operation value callback =
+    on_main operation (fun () ->
+      if value.destroyed then error operation Destroyed "surface is destroyed"
+      else callback value.raw)
+
+  let create_rgba ~width ~height =
+    let operation = "SDL3.Surface.create_rgba" in
+    match checked_dimensions operation ~width ~height with
+    | Error _ as failure -> failure
+    | Ok () -> on_main operation (fun () ->
+        Private_raw.clear_error ();
+        let raw = Private_raw.create_surface_rgba width height in
+        if raw = Nativeint.zero then sdl_error operation else Ok (owned raw))
+
+  let of_rgba ~width ~height ?stride pixels =
+    let operation = "SDL3.Surface.of_rgba" in
+    let stride = Option.value stride ~default:(if width > max_int / 4 then 0
+      else width * 4) in
+    match checked_layout operation ~width ~height ~stride
+        ~length:(Bytes.length pixels) with
+    | Error _ as failure -> failure
+    | Ok () -> on_main operation (fun () ->
+        Private_raw.clear_error ();
+        let raw = Private_raw.create_surface_rgba width height in
+        if raw = Nativeint.zero then sdl_error operation
+        else if Private_raw.surface_write_rgba raw pixels stride then
+          Ok (owned raw)
+        else
+          let message = Private_raw.get_error () in
+          Private_raw.destroy_surface raw;
+          error operation Sdl_error
+            (if message = "" then "SDL surface pixel copy failed" else message))
+
+  let info operation value = live operation value (fun raw ->
+    match Private_raw.surface_info raw with
+    | Some info -> Ok info
+    | None -> sdl_error operation)
+
+  let size value =
+    Result.map (fun (width, height, _) -> width, height)
+      (info "SDL3.Surface.size" value)
+
+  let pitch value =
+    Result.map (fun (_, _, pitch) -> pitch) (info "SDL3.Surface.pitch" value)
+
+  let copy_rgba value = live "SDL3.Surface.copy_rgba" value (fun raw ->
+    match Private_raw.surface_info raw with
+    | None -> sdl_error "SDL3.Surface.copy_rgba"
+    | Some (width, height, _) ->
+        Private_raw.clear_error ();
+        (match Private_raw.surface_copy_rgba raw with
+         | Some pixels -> Ok { width; height; stride = width * 4; pixels }
+         | None -> sdl_error "SDL3.Surface.copy_rgba"))
+
+  let destroy value = on_main "SDL3.Surface.destroy" (fun () ->
+    if value.destroyed then Ok ()
+    else begin
+      value.destroyed <- true;
+      Private_raw.destroy_surface value.raw;
+      Ok ()
+    end)
 end

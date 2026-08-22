@@ -4,6 +4,10 @@
 #include <caml/mlvalues.h>
 #include <caml/threads.h>
 
+#include <limits.h>
+#include <stdint.h>
+#include <string.h>
+
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_metal.h>
 
@@ -12,6 +16,11 @@
 static SDL_Window *window_of_value(value raw)
 {
   return (SDL_Window *)(intnat)Nativeint_val(raw);
+}
+
+static SDL_Surface *surface_of_value(value raw)
+{
+  return (SDL_Surface *)(intnat)Nativeint_val(raw);
 }
 
 CAMLprim value caml_sdl3_linked_version(value unit)
@@ -140,6 +149,133 @@ CAMLprim value caml_sdl3_hide_window(value raw)
 CAMLprim value caml_sdl3_set_window_fullscreen(value raw, value enabled)
 {
   return Val_bool(SDL_SetWindowFullscreen(window_of_value(raw), Bool_val(enabled)));
+}
+
+CAMLprim value caml_sdl3_create_surface_rgba(value width, value height)
+{
+  SDL_Surface *surface;
+  CAMLparam2(width, height);
+  surface = SDL_CreateSurface(Int_val(width), Int_val(height),
+      SDL_PIXELFORMAT_RGBA32);
+  CAMLreturn(caml_copy_nativeint((intnat)surface));
+}
+
+CAMLprim value caml_sdl3_destroy_surface(value raw)
+{
+  SDL_DestroySurface(surface_of_value(raw));
+  return Val_unit;
+}
+
+CAMLprim value caml_sdl3_surface_info(value raw)
+{
+  SDL_Surface *surface = surface_of_value(raw);
+  CAMLparam1(raw);
+  CAMLlocal2(info, some);
+  if (surface == NULL) {
+    SDL_SetError("surface pointer is NULL");
+    CAMLreturn(Val_none);
+  }
+  info = caml_alloc_tuple(3);
+  Store_field(info, 0, Val_int(surface->w));
+  Store_field(info, 1, Val_int(surface->h));
+  Store_field(info, 2, Val_int(surface->pitch));
+  some = caml_alloc(1, 0);
+  Store_field(some, 0, info);
+  CAMLreturn(some);
+}
+
+static bool valid_rgba_surface(SDL_Surface *surface, size_t *row_bytes,
+    size_t *total_bytes)
+{
+  size_t row;
+  if (surface == NULL || surface->format != SDL_PIXELFORMAT_RGBA32 ||
+      surface->w <= 0 || surface->h <= 0 || surface->pixels == NULL) {
+    SDL_SetError("surface is not a non-empty RGBA32 CPU surface");
+    return false;
+  }
+  if ((size_t)surface->w > SIZE_MAX / 4) {
+    SDL_SetError("surface row byte count overflows");
+    return false;
+  }
+  row = (size_t)surface->w * 4;
+  if ((size_t)surface->h > SIZE_MAX / row) {
+    SDL_SetError("surface byte count overflows");
+    return false;
+  }
+  *row_bytes = row;
+  *total_bytes = row * (size_t)surface->h;
+  return true;
+}
+
+CAMLprim value caml_sdl3_surface_write_rgba(
+    value raw, value pixels, value source_pitch_value)
+{
+  SDL_Surface *surface = surface_of_value(raw);
+  size_t row_bytes = 0;
+  size_t total_bytes = 0;
+  size_t source_pitch;
+  size_t required;
+  int row;
+  CAMLparam3(raw, pixels, source_pitch_value);
+  if (!valid_rgba_surface(surface, &row_bytes, &total_bytes)) {
+    CAMLreturn(Val_false);
+  }
+  (void)total_bytes;
+  if (Int_val(source_pitch_value) < 0) {
+    SDL_SetError("negative RGBA source pitch");
+    CAMLreturn(Val_false);
+  }
+  source_pitch = (size_t)Int_val(source_pitch_value);
+  if (source_pitch < row_bytes ||
+      (size_t)surface->h > SIZE_MAX / source_pitch) {
+    SDL_SetError("invalid or overflowing RGBA source pitch");
+    CAMLreturn(Val_false);
+  }
+  required = source_pitch * (size_t)surface->h;
+  if (required > caml_string_length(pixels)) {
+    SDL_SetError("RGBA source buffer is too short");
+    CAMLreturn(Val_false);
+  }
+  if (!SDL_LockSurface(surface)) {
+    CAMLreturn(Val_false);
+  }
+  for (row = 0; row < surface->h; row++) {
+    memcpy((uint8_t *)surface->pixels + ((size_t)row * (size_t)surface->pitch),
+        (const uint8_t *)Bytes_val(pixels) + ((size_t)row * source_pitch),
+        row_bytes);
+  }
+  SDL_UnlockSurface(surface);
+  CAMLreturn(Val_true);
+}
+
+CAMLprim value caml_sdl3_surface_copy_rgba(value raw)
+{
+  SDL_Surface *surface = surface_of_value(raw);
+  size_t row_bytes = 0;
+  size_t total_bytes = 0;
+  int row;
+  CAMLparam1(raw);
+  CAMLlocal2(pixels, some);
+  if (!valid_rgba_surface(surface, &row_bytes, &total_bytes)) {
+    CAMLreturn(Val_none);
+  }
+  if (total_bytes > Max_long) {
+    SDL_SetError("surface is too large for an OCaml byte string");
+    CAMLreturn(Val_none);
+  }
+  pixels = caml_alloc_string(total_bytes);
+  if (!SDL_LockSurface(surface)) {
+    CAMLreturn(Val_none);
+  }
+  for (row = 0; row < surface->h; row++) {
+    memcpy((uint8_t *)Bytes_val(pixels) + ((size_t)row * row_bytes),
+        (const uint8_t *)surface->pixels + ((size_t)row * (size_t)surface->pitch),
+        row_bytes);
+  }
+  SDL_UnlockSurface(surface);
+  some = caml_alloc(1, 0);
+  Store_field(some, 0, pixels);
+  CAMLreturn(some);
 }
 
 CAMLprim value caml_sdl3_create_metal_view(value raw_window)

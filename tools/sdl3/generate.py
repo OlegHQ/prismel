@@ -28,8 +28,10 @@ OUTPUTS = (
 # Every other active stable-header symbol remains intentionally private/raw.
 SAFE_FUNCTIONS = {
     "SDL_ClearError": "any-thread",
+    "SDL_CreateSurface": "any-thread",
     "SDL_CreateWindow": "main-thread",
     "SDL_DestroyWindow": "main-thread",
+    "SDL_DestroySurface": "owned-surface",
     "SDL_GetError": "any-thread",
     "SDL_GetRevision": "any-thread",
     "SDL_GetVersion": "any-thread",
@@ -43,11 +45,13 @@ SAFE_FUNCTIONS = {
     "SDL_Metal_CreateView": "main-thread",
     "SDL_Metal_DestroyView": "main-thread",
     "SDL_Metal_GetLayer": "main-thread",
+    "SDL_LockSurface": "owned-surface",
     "SDL_PollEvent": "main-thread",
     "SDL_Quit": "main-thread",
     "SDL_QuitSubSystem": "main-thread",
     "SDL_SetWindowFullscreen": "main-thread",
     "SDL_ShowWindow": "main-thread",
+    "SDL_UnlockSurface": "owned-surface",
     "SDL_WasInit": "any-thread",
     "SDL_WaitEventTimeout": "main-thread-blocking",
 }
@@ -110,6 +114,7 @@ LAYOUT_FIELDS: dict[str, tuple[str, ...]] = {
     ),
     "SDL_AudioDeviceEvent": ("type", "timestamp", "which", "recording"),
     "SDL_SensorEvent": ("type", "timestamp", "which", "data", "sensor_timestamp"),
+    "SDL_Surface": ("format", "w", "h", "pitch", "pixels", "refcount"),
 }
 
 ABI_CONSTANTS = (
@@ -126,6 +131,7 @@ ABI_CONSTANTS = (
     "SDL_WINDOW_RESIZABLE",
     "SDL_WINDOW_HIGH_PIXEL_DENSITY",
     "SDL_WINDOW_METAL",
+    "SDL_PIXELFORMAT_RGBA32",
     "SDL_EVENT_QUIT",
     "SDL_EVENT_TERMINATING",
     "SDL_EVENT_LOW_MEMORY",

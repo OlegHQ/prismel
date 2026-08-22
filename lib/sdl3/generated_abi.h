@@ -238,6 +238,14 @@ _Static_assert(offsetof(SDL_SensorEvent, timestamp) == 8, "SDL_SensorEvent.times
 _Static_assert(offsetof(SDL_SensorEvent, which) == 16, "SDL_SensorEvent.which offset changed");
 _Static_assert(offsetof(SDL_SensorEvent, data) == 20, "SDL_SensorEvent.data offset changed");
 _Static_assert(offsetof(SDL_SensorEvent, sensor_timestamp) == 48, "SDL_SensorEvent.sensor_timestamp offset changed");
+_Static_assert(sizeof(SDL_Surface) == 48, "SDL_Surface size changed");
+_Static_assert(_Alignof(SDL_Surface) == 8, "SDL_Surface alignment changed");
+_Static_assert(offsetof(SDL_Surface, format) == 4, "SDL_Surface.format offset changed");
+_Static_assert(offsetof(SDL_Surface, w) == 8, "SDL_Surface.w offset changed");
+_Static_assert(offsetof(SDL_Surface, h) == 12, "SDL_Surface.h offset changed");
+_Static_assert(offsetof(SDL_Surface, pitch) == 16, "SDL_Surface.pitch offset changed");
+_Static_assert(offsetof(SDL_Surface, pixels) == 24, "SDL_Surface.pixels offset changed");
+_Static_assert(offsetof(SDL_Surface, refcount) == 32, "SDL_Surface.refcount offset changed");
 _Static_assert((unsigned long long)(SDL_INIT_AUDIO) == 16ULL, "SDL_INIT_AUDIO changed");
 _Static_assert((unsigned long long)(SDL_INIT_VIDEO) == 32ULL, "SDL_INIT_VIDEO changed");
 _Static_assert((unsigned long long)(SDL_INIT_JOYSTICK) == 512ULL, "SDL_INIT_JOYSTICK changed");
@@ -251,6 +259,7 @@ _Static_assert((unsigned long long)(SDL_WINDOW_HIDDEN) == 8ULL, "SDL_WINDOW_HIDD
 _Static_assert((unsigned long long)(SDL_WINDOW_RESIZABLE) == 32ULL, "SDL_WINDOW_RESIZABLE changed");
 _Static_assert((unsigned long long)(SDL_WINDOW_HIGH_PIXEL_DENSITY) == 8192ULL, "SDL_WINDOW_HIGH_PIXEL_DENSITY changed");
 _Static_assert((unsigned long long)(SDL_WINDOW_METAL) == 536870912ULL, "SDL_WINDOW_METAL changed");
+_Static_assert((unsigned long long)(SDL_PIXELFORMAT_RGBA32) == 376840196ULL, "SDL_PIXELFORMAT_RGBA32 changed");
 _Static_assert((unsigned long long)(SDL_EVENT_QUIT) == 256ULL, "SDL_EVENT_QUIT changed");
 _Static_assert((unsigned long long)(SDL_EVENT_TERMINATING) == 257ULL, "SDL_EVENT_TERMINATING changed");
 _Static_assert((unsigned long long)(SDL_EVENT_LOW_MEMORY) == 258ULL, "SDL_EVENT_LOW_MEMORY changed");
