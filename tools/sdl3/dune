@@ -1,0 +1,4 @@
+(executable
+ (name generate)
+ (modules generate generator_spec generator_support)
+ (libraries digestif dune-configurator unix yojson))

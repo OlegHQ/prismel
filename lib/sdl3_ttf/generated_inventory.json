@@ -888,7 +888,7 @@
       "thread": "any-thread"
     }
   ],
-  "generator": "prismel-sdl3-extension-clang-inventory-v1",
+  "generator": "prismel-sdl3-extension-clang-inventory-v2",
   "header_sha256": "4cfa5c13c68e87de6d513b1ae297055c8877432aa140d49dbcb29252b87701ed",
   "header_version": {
     "major": 3,

@@ -114,7 +114,7 @@
     "SDL_WINDOW_METAL": 536870912,
     "SDL_WINDOW_RESIZABLE": 32
   },
-  "generator": "prismel-sdl3-clang-inventory-v1",
+  "generator": "prismel-sdl3-clang-inventory-v2",
   "header_aggregate_sha256": "ae5110d736ba19ecda1f5113a976f7a00ef264a1160b287f4ff48b3dd9cee279",
   "header_version": {
     "major": 3,

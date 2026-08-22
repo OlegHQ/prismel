@@ -28,11 +28,13 @@
   tsdl-mixer
   ctypes
   ctypes-foreign
+  digestif
   dune-configurator
   ppxlib
   (odoc :with-doc)
   (utop :with-test)
   domainslib
+  yojson
   conf-sdl2
   conf-sdl2-image
   conf-sdl2-ttf

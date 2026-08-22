@@ -29,8 +29,7 @@
 
 (rule
  (alias runtest)
- (deps ../../tools/sdl3/generate_extension.py generated_provenance.ml
-  generated_inventory.json generated_abi.h)
+ (deps generated_provenance.ml generated_inventory.json generated_abi.h)
  (action
-  (run python3 %{dep:../../tools/sdl3/generate_extension.py}
-   --root %{workspace_root} --extension ttf --check)))
+  (run %{exe:../../tools/sdl3/generate.exe} --root %{workspace_root}
+   --extension ttf --check)))
