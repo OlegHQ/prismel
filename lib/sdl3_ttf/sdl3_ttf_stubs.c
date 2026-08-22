@@ -199,6 +199,35 @@ CAMLprim value caml_sdl3_ttf_set_font_size(value raw, value size)
   CAMLreturn(unit_success());
 }
 
+CAMLprim value caml_sdl3_ttf_set_font_size_dpi(
+    value raw, value size, value horizontal, value vertical)
+{
+  CAMLparam4(raw, size, horizontal, vertical);
+  if (!TTF_SetFontSizeDPI(font_of_value(raw), Double_val(size),
+      Int_val(horizontal), Int_val(vertical))) {
+    CAMLreturn(string_error());
+  }
+  CAMLreturn(unit_success());
+}
+
+CAMLprim value caml_sdl3_ttf_font_dpi(value raw)
+{
+  int horizontal = 0;
+  int vertical = 0;
+  CAMLparam1(raw);
+  CAMLlocal3(pair, result, failure);
+  if (!TTF_GetFontDPI(font_of_value(raw), &horizontal, &vertical)) {
+    failure = string_error();
+    CAMLreturn(failure);
+  }
+  pair = caml_alloc_tuple(2);
+  Store_field(pair, 0, Val_int(horizontal));
+  Store_field(pair, 1, Val_int(vertical));
+  result = caml_alloc(1, 0);
+  Store_field(result, 0, pair);
+  CAMLreturn(result);
+}
+
 CAMLprim value caml_sdl3_ttf_size_text(value raw, value text)
 {
   int width = 0;

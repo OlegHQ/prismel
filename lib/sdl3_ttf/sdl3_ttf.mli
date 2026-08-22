@@ -7,6 +7,7 @@ type error_kind =
   | Invalid_argument
   | Incompatible_version
   | Not_initialized
+  | Font_not_found
   | Fonts_still_open
   | Surface_error of Sdl3.error
 
@@ -48,12 +49,19 @@ module Font : sig
   }
 
   val open_file : path:string -> size:float -> (t, error) result
+
+  (** Locate an installed UI font. [PRISMEL_UI_FONT] is authoritative when
+      non-empty; otherwise platform candidates are tried in stable order. *)
+  val system_path : unit -> (string, error) result
   val generation : t -> int
   val destroyed : t -> bool
   val metrics : t -> (metrics, error) result
   val family_name : t -> (string option, error) result
   val style_name : t -> (string option, error) result
   val set_size : t -> float -> (unit, error) result
+  val set_size_dpi :
+    t -> size:float -> horizontal:int -> vertical:int -> (unit, error) result
+  val dpi : t -> ((int * int), error) result
   val size_text : t -> string -> (int * int, error) result
 
   (** Render UTF-8 to a CPU RGBA8 surface. Empty text is [Ok None], preserving

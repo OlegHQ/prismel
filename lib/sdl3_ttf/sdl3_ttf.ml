@@ -5,6 +5,7 @@ type error_kind =
   | Invalid_argument
   | Incompatible_version
   | Not_initialized
+  | Font_not_found
   | Fonts_still_open
   | Surface_error of Sdl3.error
 
@@ -40,6 +41,11 @@ external raw_font_style_name : nativeint -> string option
   = "caml_sdl3_ttf_font_style_name"
 external raw_set_font_size : nativeint -> float -> (unit, string) result
   = "caml_sdl3_ttf_set_font_size"
+external raw_set_font_size_dpi :
+  nativeint -> float -> int -> int -> (unit, string) result
+  = "caml_sdl3_ttf_set_font_size_dpi"
+external raw_font_dpi : nativeint -> ((int * int), string) result
+  = "caml_sdl3_ttf_font_dpi"
 external raw_size_text : nativeint -> string -> ((int * int), string) result
   = "caml_sdl3_ttf_size_text"
 external raw_render_blended :
@@ -182,6 +188,39 @@ module Font = struct
 
   let valid_size value = Float.is_finite value && value > 0.
 
+  let system_font_candidates () =
+    let fixed =
+      [ "/System/Library/Fonts/SFNS.ttf"
+      ; "/System/Library/Fonts/SFCompact.ttf"
+      ; "/System/Library/Fonts/HelveticaNeue.ttc"
+      ; "/System/Library/Fonts/Helvetica.ttc"
+      ; "/System/Library/Fonts/LucidaGrande.ttc"
+      ; "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf"
+      ; "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+      ; "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf"
+      ; "/usr/share/fonts/TTF/DejaVuSans.ttf"
+      ]
+    in
+    match Sys.getenv_opt "WINDIR" with
+    | None -> fixed
+    | Some root ->
+        Filename.concat root "Fonts/SegUIVar.ttf"
+        :: Filename.concat root "Fonts/segoeui.ttf"
+        :: Filename.concat root "Fonts/arial.ttf"
+        :: fixed
+
+  let system_path () =
+    match Sys.getenv_opt "PRISMEL_UI_FONT" with
+    | Some path when path <> "" ->
+        if Sys.file_exists path then Ok path
+        else error "SDL3_ttf.Font.system_path" Font_not_found
+          ("PRISMEL_UI_FONT does not name a readable font: " ^ path)
+    | _ ->
+        (match List.find_opt Sys.file_exists (system_font_candidates ()) with
+         | Some path -> Ok path
+         | None -> error "SDL3_ttf.Font.system_path" Font_not_found
+             "no supported installed system UI font was found")
+
   let owned raw =
     Atomic.incr live_fonts;
     let value = {
@@ -240,6 +279,23 @@ module Font = struct
       | Ok () ->
           value.generation <- Atomic.fetch_and_add next_generation 1;
           Ok ())
+
+  let set_size_dpi value ~size ~horizontal ~vertical =
+    let operation = "SDL3_ttf.Font.set_size_dpi" in
+    if not (valid_size size) then
+      error operation Invalid_argument "font size must be finite and positive"
+    else if horizontal <= 0 || vertical <= 0 then
+      error operation Invalid_argument "font DPI must be positive"
+    else live operation value (fun raw ->
+      match ttf_result operation
+          (raw_set_font_size_dpi raw size horizontal vertical) with
+      | Error _ as failure -> failure
+      | Ok () ->
+          value.generation <- Atomic.fetch_and_add next_generation 1;
+          Ok ())
+
+  let dpi value = live "SDL3_ttf.Font.dpi" value (fun raw ->
+    ttf_result "SDL3_ttf.Font.dpi" (raw_font_dpi raw))
 
   let size_text value text =
     let operation = "SDL3_ttf.Font.size_text" in

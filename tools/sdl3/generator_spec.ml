@@ -306,6 +306,8 @@ let ttf =
       ; "TTF_OpenFont", "initial-domain-owned-result"
       ; "TTF_CloseFont", "font-owner-thread"
       ; "TTF_SetFontSize", "font-owner-thread"
+      ; "TTF_SetFontSizeDPI", "font-owner-thread"
+      ; "TTF_GetFontDPI", "font-owner-thread"
       ; "TTF_GetFontHeight", "font-owner-thread"
       ; "TTF_GetFontAscent", "font-owner-thread"
       ; "TTF_GetFontDescent", "font-owner-thread"

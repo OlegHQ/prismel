@@ -25,7 +25,7 @@
  (libraries sdl3 sdl3_ttf)
  (action
   (setenv SDL_VIDEODRIVER dummy
-   (run %{test} /System/Library/Fonts/SFNS.ttf))))
+   (run %{test}))))
 
 (rule
  (alias runtest)

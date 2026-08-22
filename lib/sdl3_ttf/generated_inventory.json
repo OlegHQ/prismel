@@ -2,8 +2,8 @@
   "classification_counts": {
     "not-applicable": 0,
     "platform-excluded": 0,
-    "raw-only": 168,
-    "safe": 15,
+    "raw-only": 166,
+    "safe": 17,
     "unreviewed": 0
   },
   "compiler": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
@@ -223,11 +223,11 @@
       "thread": "font-owner-thread"
     },
     {
-      "classification": "raw-only",
+      "classification": "safe",
       "header": "SDL3_ttf/<clang-elided-source>",
       "name": "TTF_GetFontDPI",
       "signature": "bool (TTF_Font *, int *, int *)",
-      "thread": "raw-only-not-reviewed"
+      "thread": "font-owner-thread"
     },
     {
       "classification": "safe",
@@ -748,11 +748,11 @@
       "thread": "font-owner-thread"
     },
     {
-      "classification": "raw-only",
+      "classification": "safe",
       "header": "SDL3_ttf/<clang-elided-source>",
       "name": "TTF_SetFontSizeDPI",
       "signature": "bool (TTF_Font *, float, int, int)",
-      "thread": "raw-only-not-reviewed"
+      "thread": "font-owner-thread"
     },
     {
       "classification": "raw-only",
