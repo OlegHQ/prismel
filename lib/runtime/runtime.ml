@@ -1,6 +1,10 @@
 open Tsdl
 open Tsdl_ttf
 
+let format_rgba32 =
+  if Sys.big_endian then Sdl.Pixel.format_rgba8888
+  else Sdl.Pixel.format_abgr8888
+
 type target = Target.t = Native | Headless | Web
 
 type web_mouse_button = Wap.mouse_button = Left | Middle | Right | X1 | X2
@@ -343,7 +347,7 @@ let present runtime renderer ~logical_width ~logical_height =
              let pixels =
                Wap.acquire_frame server ~length:(pitch * drawable_height) in
              match Sdl.render_read_pixels renderer None
-                 (Some Sdl.Pixel.format_rgba32) pixels pitch with
+                 (Some format_rgba32) pixels pitch with
              | Error (`Msg message) ->
                  Wap.discard_frame server pixels;
                  Error ("web framebuffer readback failed: " ^ message)

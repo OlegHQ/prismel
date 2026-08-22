@@ -58,7 +58,9 @@ let load filename =
   | Error (`Msg message) -> Error ("Texture load failed: " ^ message)
   | Ok source ->
       Fun.protect ~finally:(fun () -> Sdl.free_surface source) (fun () ->
-        match Sdl.convert_surface_format source Sdl.Pixel.format_rgba32 with
+        match
+          Sdl.convert_surface_format source Sdl_compat.format_rgba32
+        with
         | Error (`Msg message) ->
             Error ("Texture format conversion failed: " ^ message)
         | Ok surface ->
@@ -71,7 +73,9 @@ let load filename =
                   Fun.protect
                     ~finally:(fun () -> Sdl.unlock_surface surface)
                     (fun () ->
-                      match Sdl.alloc_format Sdl.Pixel.format_rgba32 with
+                      match
+                        Sdl.alloc_format Sdl_compat.format_rgba32
+                      with
                       | Error (`Msg message) ->
                           Error ("Texture pixel format failed: " ^ message)
                       | Ok format ->

@@ -1919,7 +1919,7 @@ let acquire_streaming_texture renderer ~width ~height =
       Option.iter (fun cached -> Sdl.destroy_texture cached.texture) previous;
       streaming_texture_cache := None;
       match
-        Sdl.create_texture renderer Sdl.Pixel.format_rgba32
+        Sdl.create_texture renderer Sdl_compat.format_rgba32
           Sdl.Texture.access_streaming ~w:width ~h:height
       with
       | Error _ as error -> error

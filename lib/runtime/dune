@@ -1,7 +1,18 @@
+(executable
+ (name discover)
+ (modules discover)
+ (libraries dune-configurator))
+
+(rule
+ (targets c_library_flags.sexp)
+ (action (run ./discover.exe)))
+
 (library
  (name runtime)
  (public_name prismel.runtime)
+ (modules runtime target)
  (foreign_stubs
   (language c)
   (names runtime_stubs))
+ (c_library_flags (:include c_library_flags.sexp))
  (libraries unix tsdl tsdl-image tsdl-ttf wap))

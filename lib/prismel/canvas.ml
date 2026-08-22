@@ -26,7 +26,7 @@ let create ~width ~height =
     Error "Canvas.create: dimensions must be positive"
   else
     match Sdl.create_rgb_surface_with_format ~w:width ~h:height ~depth:32
-        Sdl.Pixel.format_rgba32 with
+        Sdl_compat.format_rgba32 with
     | Error (`Msg message) -> Error ("Canvas surface creation failed: " ^ message)
     | Ok surface ->
         (match Sdl.create_software_renderer surface with
@@ -92,7 +92,9 @@ let with_pixels canvas operation =
             (Sdl.get_surface_pitch canvas.surface / 4))
 
 let with_format operation =
-  match Sdl.alloc_format Sdl.Pixel.format_rgba32 with
+  match
+    Sdl.alloc_format Sdl_compat.format_rgba32
+  with
   | Error (`Msg message) -> failwith ("Canvas pixel format failed: " ^ message)
   | Ok format -> Fun.protect ~finally:(fun () -> Sdl.free_format format)
       (fun () -> operation format)
@@ -199,7 +201,7 @@ let capture () =
              with_pixels canvas (fun values _stride ->
                result_message "Screen capture failed"
                  (Sdl.render_read_pixels renderer None
-                    (Some Sdl.Pixel.format_rgba32) values
+                    (Some Sdl_compat.format_rgba32) values
                     (Sdl.get_surface_pitch canvas.surface)))
            in
            match read_result with

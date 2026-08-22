@@ -1,6 +1,10 @@
 open Prismel
 open Tsdl
 
+let format_rgba32 =
+  if Sys.big_endian then Sdl.Pixel.format_rgba8888
+  else Sdl.Pixel.format_abgr8888
+
 let sdl_exn context = function
   | Ok value -> value
   | Error (`Msg message) -> failwith (context ^ ": " ^ message)
@@ -26,7 +30,7 @@ let verify_two_x_renderer () =
   let surface =
     sdl_exn "2x probe surface"
       (Sdl.create_rgb_surface_with_format ~w:128 ~h:96 ~depth:32
-         Sdl.Pixel.format_rgba32)
+         format_rgba32)
   in
   let renderer =
     match Sdl.create_software_renderer surface with
@@ -60,7 +64,7 @@ let verify_two_x_renderer () =
           let stride = Sdl.get_surface_pitch surface / 4 in
           let format =
             sdl_exn "2x pixel format"
-              (Sdl.alloc_format Sdl.Pixel.format_rgba32)
+              (Sdl.alloc_format format_rgba32)
           in
           Fun.protect ~finally:(fun () -> Sdl.free_format format) (fun () ->
             match Sdl.get_rgba format values.{(95 * stride) + 127} with

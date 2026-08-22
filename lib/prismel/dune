@@ -1,6 +1,6 @@
 (library
  (name prismel)
  (public_name prismel)
- (private_modules App Backend Graphics Renderer3d Renderer3d_gpu Window)
+ (private_modules Renderer3d Renderer3d_gpu Sdl_compat)
  (libraries unix domainslib ctypes ctypes.foreign tsdl tsdl-image tsdl-ttf
   tsdl-mixer tsdl_gfx runtime))
