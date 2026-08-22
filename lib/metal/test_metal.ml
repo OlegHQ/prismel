@@ -125,6 +125,229 @@ let () =
       (expect_error Unsupported
          (Buffer.read_bytes private_buffer ~offset:0L ~length:4));
     get (Buffer.destroy private_buffer);
+    let texture_descriptor =
+      Texture.descriptor_2d ~mipmapped:true ~storage:Buffer.Shared
+        ~usage:[ Texture.Shader_read; Texture.Pixel_format_view ]
+        ~label:"Metal conformance texture" ~format:Texture.Rgba8_unorm
+        ~width:4 ~height:4 ()
+    in
+    let odd_mip_descriptor =
+      Texture.descriptor_2d ~mipmapped:true ~format:Texture.R8_unorm ~width:3
+        ~height:1 ()
+    in
+    if odd_mip_descriptor.mip_levels <> 2 then
+      fail "non-power-of-two texture mip cardinality is wrong";
+    let texture = get (Texture.create ~device texture_descriptor) in
+    if (Texture.descriptor texture).mip_levels <> 3 then
+      fail "2D texture mip cardinality is wrong";
+    if get (Texture.label texture) <> Some "Metal conformance texture" then
+      fail "texture label did not round-trip";
+    get (Texture.set_label texture "Metal renamed texture");
+    if get (Texture.label texture) <> Some "Metal renamed texture" then
+      fail "texture label mutation did not round-trip";
+    let texture_bytes = Bytes.make 80 '\xee' in
+    for row = 0 to 3 do
+      for column_byte = 0 to 15 do
+        Bytes.set_uint8 texture_bytes ((row * 20) + column_byte)
+          ((row * 16) + column_byte)
+      done
+    done;
+    let full_region : Texture.region =
+      { x = 0; y = 0; z = 0; width = 4; height = 4; depth = 1 }
+    in
+    get
+      (Texture.write_bytes texture ~region:full_region ~mip_level:0 ~slice:0
+         ~bytes_per_row:20 ~bytes_per_image:80 texture_bytes);
+    let texture_copy =
+      get
+        (Texture.read_bytes texture ~region:full_region ~mip_level:0 ~slice:0
+           ~bytes_per_row:20 ~bytes_per_image:80)
+    in
+    for row = 0 to 3 do
+      for column_byte = 0 to 15 do
+        let offset = (row * 20) + column_byte in
+        if Bytes.get_uint8 texture_copy offset <> Bytes.get_uint8 texture_bytes offset
+        then fail "texture byte transfer changed active pixel data"
+      done;
+      for padding = 16 to 19 do
+        if Bytes.get_uint8 texture_copy ((row * 20) + padding) <> 0 then
+          fail "texture read exposed uninitialized row padding"
+      done
+    done;
+    ignore
+      (expect_error Invalid_argument
+         (Texture.write_bytes texture ~region:full_region ~mip_level:0 ~slice:0
+            ~bytes_per_row:15 ~bytes_per_image:60 texture_bytes));
+    ignore
+      (expect_error Invalid_argument
+         (Texture.write_bytes texture ~region:full_region ~mip_level:0 ~slice:0
+            ~bytes_per_row:20 ~bytes_per_image:80 (Bytes.create 79)));
+    ignore
+      (expect_error Invalid_argument
+         (Texture.write_bytes texture ~region:full_region ~mip_level:0 ~slice:0
+            ~src_offset:81 ~bytes_per_row:20 ~bytes_per_image:80 texture_bytes));
+    ignore
+      (expect_error Invalid_argument
+         (Texture.read_bytes texture ~region:full_region ~mip_level:0 ~slice:0
+            ~bytes_per_row:max_int ~bytes_per_image:max_int));
+    let invalid_region : Texture.region =
+      { full_region with x = 3; width = 2 }
+    in
+    ignore
+      (expect_error Invalid_argument
+         (Texture.read_bytes texture ~region:invalid_region ~mip_level:0 ~slice:0
+            ~bytes_per_row:8 ~bytes_per_image:32));
+    let mip_region : Texture.region =
+      { x = 0; y = 0; z = 0; width = 2; height = 2; depth = 1 }
+    in
+    let mip_bytes = Bytes.init 16 (fun index -> Char.chr (index + 20)) in
+    get
+      (Texture.write_bytes texture ~region:mip_region ~mip_level:1 ~slice:0
+         ~bytes_per_row:8 ~bytes_per_image:16 mip_bytes);
+    if
+      get
+        (Texture.read_bytes texture ~region:mip_region ~mip_level:1 ~slice:0
+           ~bytes_per_row:8 ~bytes_per_image:16)
+      <> mip_bytes
+    then fail "texture mip transfer did not round-trip";
+    let texture_view =
+      get
+        (Texture.create_view texture ~format:Texture.Rgba8_unorm_srgb
+           ~base_mip:0 ~mip_count:3 ~base_slice:0 ~slice_count:1
+           ~label:"Metal sRGB view" ())
+    in
+    if get (Texture.label texture_view) <> Some "Metal sRGB view" then
+      fail "texture-view label did not round-trip";
+    ignore
+      (expect_error Invalid_argument
+         (Texture.create_view texture ~format:Texture.Rgba16_float ~base_mip:0
+            ~mip_count:1 ~base_slice:0 ~slice_count:1 ()));
+    ignore
+      (expect_error Invalid_argument
+         (Texture.create_view texture ~format:Texture.Rgba8_unorm ~base_mip:3
+            ~mip_count:1 ~base_slice:0 ~slice_count:1 ()));
+    ignore (expect_error Parent_has_dependents (Texture.destroy texture));
+    get (Texture.destroy texture_view);
+    let no_view_texture =
+      get
+        (Texture.create ~device
+           (Texture.descriptor_2d ~storage:Buffer.Shared
+              ~format:Texture.Rgba8_unorm ~width:1 ~height:1 ()))
+    in
+    ignore
+      (expect_error Invalid_argument
+         (Texture.create_view no_view_texture ~format:Texture.Rgba8_unorm
+            ~base_mip:0 ~mip_count:1 ~base_slice:0 ~slice_count:1 ()));
+    get (Texture.destroy no_view_texture);
+    let private_texture =
+      get
+        (Texture.create ~device
+           (Texture.descriptor_2d ~storage:Buffer.Private
+              ~usage:[ Texture.Render_target ] ~format:Texture.Bgra8_unorm
+              ~width:4 ~height:4 ()))
+    in
+    ignore
+      (expect_error Unsupported
+         (Texture.read_bytes private_texture ~region:full_region ~mip_level:0
+            ~slice:0 ~bytes_per_row:16 ~bytes_per_image:64));
+    get (Texture.destroy private_texture);
+    ignore
+      (expect_error Invalid_argument
+         (Texture.create ~device { texture_descriptor with width = 0 }));
+    ignore
+      (expect_error Invalid_argument
+         (Texture.create ~device { texture_descriptor with mip_levels = 9 }));
+    ignore
+      (expect_error Invalid_argument
+         (Texture.create ~device
+            { texture_descriptor with
+              kind = Texture.Texture_1d
+            ; height = 2
+            ; mip_levels = 1
+            }));
+    ignore
+      (expect_error Invalid_argument
+         (Texture.create ~device
+            { texture_descriptor with sample_count = 2; mip_levels = 1 }));
+    ignore
+      (expect_error Invalid_argument
+         (Texture.create ~device
+            { texture_descriptor with
+              usage = [ Texture.Shader_read; Texture.Shader_read ]
+            }));
+    ignore
+      (expect_error Invalid_argument
+         (Texture.create ~device
+            { texture_descriptor with label = Some "invalid\000label" }));
+    ignore
+      (expect_error Native_error
+         (Texture.create ~device
+            { texture_descriptor with label = Some "\255" }));
+    ignore
+      (expect_error Invalid_argument
+         (Device.supports_texture_sample_count device 0));
+    if get (Device.supports_texture_sample_count device 2) then begin
+      let multisample_texture =
+        get
+          (Texture.create ~device
+             { texture_descriptor with
+               kind = Texture.Texture_2d_multisample
+             ; mip_levels = 1
+             ; sample_count = 2
+             ; storage = Buffer.Private
+             ; usage = [ Texture.Render_target ]
+             ; label = None
+             })
+      in
+      ignore
+        (expect_error Unsupported
+           (Texture.read_bytes multisample_texture ~region:full_region
+              ~mip_level:0 ~slice:0 ~bytes_per_row:16 ~bytes_per_image:64));
+      get (Texture.destroy multisample_texture)
+    end;
+    let sampler_descriptor =
+      { (Sampler.default ~label:"Metal linear sampler" ()) with
+        min_filter = Sampler.Linear
+      ; mag_filter = Sampler.Linear
+      ; mip_filter = Sampler.Mip_linear
+      ; max_anisotropy = 4
+      ; s_address = Sampler.Repeat
+      ; t_address = Sampler.Repeat
+      ; r_address = Sampler.Repeat
+      ; lod_max_clamp = 3.
+      ; support_argument_buffers = true
+      }
+    in
+    let sampler = get (Sampler.create ~device sampler_descriptor) in
+    if get (Sampler.label sampler) <> Some "Metal linear sampler" then
+      fail "sampler label did not round-trip";
+    ignore
+      (expect_error Invalid_argument
+         (Sampler.create ~device { sampler_descriptor with max_anisotropy = 0 }));
+    ignore
+      (expect_error Invalid_argument
+         (Sampler.create ~device { sampler_descriptor with lod_min_clamp = nan }));
+    ignore
+      (expect_error Invalid_argument
+         (Sampler.create ~device
+            { sampler_descriptor with
+              normalized_coordinates = false
+            ; s_address = Sampler.Repeat
+            }));
+    ignore
+      (expect_error Invalid_argument
+         (Sampler.create ~device
+            { sampler_descriptor with lod_min_clamp = 2.; lod_max_clamp = 1. }));
+    ignore
+      (expect_error Invalid_argument
+         (Sampler.create ~device
+            { sampler_descriptor with label = Some "invalid\000label" }));
+    ignore
+      (expect_error Native_error
+         (Sampler.create ~device
+            { sampler_descriptor with label = Some "\255" }));
+    get (Sampler.destroy sampler);
+    get (Texture.destroy texture);
     let invalid_shader =
       expect_error Native_error
         (Library.compile_source ~device "not a Metal program")
@@ -179,6 +402,6 @@ let () =
       fail "Metal release accounting did not settle (%d pending, %d dropped, %d live)"
         stats.pending stats.dropped stats.live_handles;
     Printf.printf
-      "Metal ARC/device/buffer/runtime-shader/compute conformance passed on %s\n%!"
+      "Metal ARC/device/buffer/texture/sampler/runtime-shader/compute conformance passed on %s\n%!"
       info.name
   end

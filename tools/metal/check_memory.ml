@@ -122,8 +122,7 @@ let tests mode artifacts =
   in
   let conformance = test "Metal conformance" "lib/metal/test_metal.exe" in
   let stress =
-    test "Metal 100000-cycle ownership stress"
-      "lib/metal/test_metal_stress.exe"
+    test "Metal resource ownership stress" "lib/metal/test_metal_stress.exe"
   in
   match mode with Guard_malloc -> [ conformance ] | _ -> [ conformance; stress ]
 

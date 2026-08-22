@@ -24,14 +24,34 @@ let enum_cases owner names =
 
 let bound_identifiers =
   [ "class:MTLCompileOptions"
+  ; "class:MTLSamplerDescriptor"
+  ; "class:MTLTextureDescriptor"
   ; "enum:MTLCommandBufferStatus"
+  ; "enum:MTLCompareFunction"
+  ; "enum:MTLCPUCacheMode"
   ; "enum:MTLGPUFamily"
+  ; "enum:MTLHazardTrackingMode"
+  ; "enum:MTLPixelFormat"
   ; "enum:MTLResourceOptions"
+  ; "enum:MTLSamplerAddressMode"
+  ; "enum:MTLSamplerBorderColor"
+  ; "enum:MTLSamplerMinMagFilter"
+  ; "enum:MTLSamplerMipFilter"
   ; "enum:MTLStorageMode"
+  ; "enum:MTLTextureType"
+  ; "enum:MTLTextureUsage"
   ; "function:MTLCopyAllDevices"
   ; "function:MTLCreateSystemDefaultDevice"
+  ; "function:MTLRegionMake3D"
   ; "function:MTLSizeMake"
+  ; "record:MTLOrigin"
+  ; "record:MTLRegion"
   ; "record:MTLSize"
+  ; "field:MTLOrigin:x"
+  ; "field:MTLOrigin:y"
+  ; "field:MTLOrigin:z"
+  ; "field:MTLRegion:origin"
+  ; "field:MTLRegion:size"
   ; "field:MTLSize:width"
   ; "field:MTLSize:height"
   ; "field:MTLSize:depth"
@@ -45,11 +65,25 @@ let bound_identifiers =
   ; "protocol:MTLFunction"
   ; "protocol:MTLLibrary"
   ; "protocol:MTLResource"
+  ; "protocol:MTLSamplerState"
+  ; "protocol:MTLTexture"
   ; "typedef:MTLCommandBufferStatus"
+  ; "typedef:MTLCompareFunction"
+  ; "typedef:MTLCPUCacheMode"
   ; "typedef:MTLGPUFamily"
+  ; "typedef:MTLHazardTrackingMode"
+  ; "typedef:MTLOrigin"
+  ; "typedef:MTLPixelFormat"
+  ; "typedef:MTLRegion"
   ; "typedef:MTLResourceOptions"
+  ; "typedef:MTLSamplerAddressMode"
+  ; "typedef:MTLSamplerBorderColor"
+  ; "typedef:MTLSamplerMinMagFilter"
+  ; "typedef:MTLSamplerMipFilter"
   ; "typedef:MTLSize"
   ; "typedef:MTLStorageMode"
+  ; "typedef:MTLTextureType"
+  ; "typedef:MTLTextureUsage"
   ]
   @ methods
       [ ( "MTLBuffer"
@@ -74,14 +108,48 @@ let bound_identifiers =
           ; "newBufferWithLength:options:"; "newCommandQueue"
           ; "newComputePipelineStateWithFunction:error:"
           ; "newLibraryWithSource:options:error:"
+          ; "newSamplerStateWithDescriptor:"
+          ; "newTextureWithDescriptor:"
           ; "recommendedMaxWorkingSetSize"; "registryID"
           ; "supportsDynamicLibraries"; "supportsFamily:"
           ; "supportsFunctionPointers"; "supportsRaytracing"
-          ; "supportsRaytracingFromRender"
+          ; "supportsRaytracingFromRender"; "supportsTextureSampleCount:"
           ] )
       ; "MTLFunction", [ "name" ]
       ; "MTLLibrary", [ "newFunctionWithName:" ]
       ; "MTLResource", [ "label"; "setLabel:"; "storageMode" ]
+      ; ( "MTLSamplerDescriptor"
+        , [ "borderColor"; "compareFunction"; "label"; "lodAverage"
+          ; "lodMaxClamp"; "lodMinClamp"; "magFilter"; "maxAnisotropy"
+          ; "minFilter"; "mipFilter"; "normalizedCoordinates"
+          ; "rAddressMode"; "sAddressMode"; "setBorderColor:"
+          ; "setCompareFunction:"; "setLabel:"; "setLodAverage:"
+          ; "setLodMaxClamp:"; "setLodMinClamp:"; "setMagFilter:"
+          ; "setMaxAnisotropy:"; "setMinFilter:"; "setMipFilter:"
+          ; "setNormalizedCoordinates:"; "setRAddressMode:"
+          ; "setSAddressMode:"; "setSupportArgumentBuffers:"
+          ; "setTAddressMode:"; "supportArgumentBuffers"; "tAddressMode"
+          ] )
+      ; "MTLSamplerState", [ "label" ]
+      ; ( "MTLTexture"
+        , [ "arrayLength"; "depth"
+          ; "getBytes:bytesPerRow:bytesPerImage:fromRegion:mipmapLevel:slice:"
+          ; "height"; "mipmapLevelCount"
+          ; "newTextureViewWithPixelFormat:textureType:levels:slices:"
+          ; "pixelFormat"
+          ; "replaceRegion:mipmapLevel:slice:withBytes:bytesPerRow:bytesPerImage:"
+          ; "sampleCount"; "textureType"; "usage"; "width"
+          ] )
+      ; ( "MTLTextureDescriptor"
+        , [ "allowGPUOptimizedContents"; "arrayLength"; "cpuCacheMode"
+          ; "depth"; "hazardTrackingMode"; "height"; "mipmapLevelCount"
+          ; "pixelFormat"; "sampleCount"; "setAllowGPUOptimizedContents:"
+          ; "setArrayLength:"; "setCpuCacheMode:"; "setDepth:"
+          ; "setHazardTrackingMode:"; "setHeight:"
+          ; "setMipmapLevelCount:"; "setPixelFormat:"; "setSampleCount:"
+          ; "setStorageMode:"; "setTextureType:"; "setUsage:"; "setWidth:"
+          ; "storageMode"; "textureType"; "usage"; "width"
+          ] )
       ; "MTLCommandQueue", [ "commandBuffer" ]
       ]
   @ properties
@@ -98,6 +166,24 @@ let bound_identifiers =
           ] )
       ; "MTLFunction", [ "name" ]
       ; "MTLResource", [ "label"; "storageMode" ]
+      ; ( "MTLSamplerDescriptor"
+        , [ "borderColor"; "compareFunction"; "label"; "lodAverage"
+          ; "lodMaxClamp"; "lodMinClamp"; "magFilter"; "maxAnisotropy"
+          ; "minFilter"; "mipFilter"; "normalizedCoordinates"
+          ; "rAddressMode"; "sAddressMode"; "supportArgumentBuffers"
+          ; "tAddressMode"
+          ] )
+      ; "MTLSamplerState", [ "label" ]
+      ; ( "MTLTexture"
+        , [ "arrayLength"; "depth"; "height"; "mipmapLevelCount"
+          ; "pixelFormat"; "sampleCount"; "textureType"; "usage"; "width"
+          ] )
+      ; ( "MTLTextureDescriptor"
+        , [ "allowGPUOptimizedContents"; "arrayLength"; "cpuCacheMode"
+          ; "depth"; "hazardTrackingMode"; "height"; "mipmapLevelCount"
+          ; "pixelFormat"; "sampleCount"; "storageMode"; "textureType"
+          ; "usage"; "width"
+          ] )
       ; "MTLBuffer", [ "length" ]
       ]
   @ enum_cases "MTLGPUFamily"
@@ -118,6 +204,60 @@ let bound_identifiers =
       [ "MTLCommandBufferStatusNotEnqueued"; "MTLCommandBufferStatusEnqueued"
       ; "MTLCommandBufferStatusCommitted"; "MTLCommandBufferStatusScheduled"
       ; "MTLCommandBufferStatusCompleted"; "MTLCommandBufferStatusError"
+      ]
+  @ enum_cases "MTLCompareFunction"
+      [ "MTLCompareFunctionNever"; "MTLCompareFunctionLess"
+      ; "MTLCompareFunctionEqual"; "MTLCompareFunctionLessEqual"
+      ; "MTLCompareFunctionGreater"; "MTLCompareFunctionNotEqual"
+      ; "MTLCompareFunctionGreaterEqual"; "MTLCompareFunctionAlways"
+      ]
+  @ enum_cases "MTLCPUCacheMode"
+      [ "MTLCPUCacheModeDefaultCache"; "MTLCPUCacheModeWriteCombined" ]
+  @ enum_cases "MTLHazardTrackingMode"
+      [ "MTLHazardTrackingModeDefault"; "MTLHazardTrackingModeUntracked"
+      ; "MTLHazardTrackingModeTracked"
+      ]
+  @ enum_cases "MTLPixelFormat"
+      [ "MTLPixelFormatA8Unorm"; "MTLPixelFormatR8Unorm"
+      ; "MTLPixelFormatR8Unorm_sRGB"; "MTLPixelFormatR8Uint"
+      ; "MTLPixelFormatR16Float"; "MTLPixelFormatR32Float"
+      ; "MTLPixelFormatRG8Unorm"; "MTLPixelFormatRG8Unorm_sRGB"
+      ; "MTLPixelFormatRG16Float"; "MTLPixelFormatRG32Float"
+      ; "MTLPixelFormatRGBA8Unorm"; "MTLPixelFormatRGBA8Unorm_sRGB"
+      ; "MTLPixelFormatBGRA8Unorm"; "MTLPixelFormatBGRA8Unorm_sRGB"
+      ; "MTLPixelFormatRGB10A2Unorm"; "MTLPixelFormatRG11B10Float"
+      ; "MTLPixelFormatRGBA16Float"; "MTLPixelFormatRGBA32Float"
+      ; "MTLPixelFormatDepth16Unorm"; "MTLPixelFormatDepth32Float"
+      ; "MTLPixelFormatStencil8"; "MTLPixelFormatDepth24Unorm_Stencil8"
+      ; "MTLPixelFormatDepth32Float_Stencil8"
+      ]
+  @ enum_cases "MTLSamplerAddressMode"
+      [ "MTLSamplerAddressModeClampToEdge"
+      ; "MTLSamplerAddressModeMirrorClampToEdge"
+      ; "MTLSamplerAddressModeRepeat"; "MTLSamplerAddressModeMirrorRepeat"
+      ; "MTLSamplerAddressModeClampToZero"
+      ; "MTLSamplerAddressModeClampToBorderColor"
+      ]
+  @ enum_cases "MTLSamplerBorderColor"
+      [ "MTLSamplerBorderColorTransparentBlack"
+      ; "MTLSamplerBorderColorOpaqueBlack"; "MTLSamplerBorderColorOpaqueWhite"
+      ]
+  @ enum_cases "MTLSamplerMinMagFilter"
+      [ "MTLSamplerMinMagFilterNearest"; "MTLSamplerMinMagFilterLinear" ]
+  @ enum_cases "MTLSamplerMipFilter"
+      [ "MTLSamplerMipFilterNotMipmapped"; "MTLSamplerMipFilterNearest"
+      ; "MTLSamplerMipFilterLinear"
+      ]
+  @ enum_cases "MTLTextureType"
+      [ "MTLTextureType1D"; "MTLTextureType1DArray"; "MTLTextureType2D"
+      ; "MTLTextureType2DArray"; "MTLTextureType2DMultisample"
+      ; "MTLTextureTypeCube"; "MTLTextureTypeCubeArray"; "MTLTextureType3D"
+      ; "MTLTextureType2DMultisampleArray"; "MTLTextureTypeTextureBuffer"
+      ]
+  @ enum_cases "MTLTextureUsage"
+      [ "MTLTextureUsageUnknown"; "MTLTextureUsageShaderRead"
+      ; "MTLTextureUsageShaderWrite"; "MTLTextureUsageRenderTarget"
+      ; "MTLTextureUsagePixelFormatView"; "MTLTextureUsageShaderAtomic"
       ]
 
 let bound_identifier_set = String_set.of_list bound_identifiers

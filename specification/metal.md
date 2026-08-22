@@ -50,14 +50,14 @@ API.
 total-released, and resident-byte facts for qualification. Queue overflow is a
 hard typed error rather than silent reclamation on a GC domain.
 
-## Implemented vertical slice
+## Implemented vertical slices
 
-The initial safe slice covers device enumeration and capabilities; shared,
+The current safe slices cover device enumeration and capabilities; shared,
 managed, and private buffers; CPU range transfer and lexical mapped-range
-handles; labels; runtime MSL library compilation with full `NSError`
-diagnostics; function lookup; compute-pipeline
-creation and limits; command queues and buffers; compute encoding and resource
-binding; checked thread dispatch; submission; blocking completion; and command
+handles; textures and views; samplers; labels; runtime MSL library compilation
+with full `NSError` diagnostics; function lookup; compute-pipeline creation and
+limits; command queues and buffers; compute encoding and resource binding;
+checked thread dispatch; submission; blocking completion; and command
 status/errors.
 
 A `Buffer.Mapping.t` is valid only inside `Buffer.with_mapping`. It exposes
@@ -66,12 +66,45 @@ pointer. Retaining the opaque value is harmless: every operation returns
 `Destroyed` after the callback leaves, buffer teardown is rejected while the
 scope is active, and `Fun.protect` closes the scope on exceptions.
 
+`Texture.descriptor` models all current Metal texture kinds, explicit
+dimensions, mip/sample/array counts, storage/cache/hazard modes, usage, GPU
+optimization intent, and a deliberately reviewed set of ordinary color,
+floating-point, depth, and stencil formats. `Texture.create` validates positive
+and bounded dimensions, mip cardinality, array/kind shape, duplicate usage,
+multisample structure, and device sample-count support before entering
+Objective-C. The bridge then checks that Metal preserved every observable
+descriptor property. A native rejection remains a labeled `Native_error`; it
+never leaves a partially owned safe handle.
+
+Shared and managed texture transfers accept explicit regions, mip levels,
+slices, source offsets, row pitches, and image pitches. Region bounds, pixel
+stride, cardinality, OCaml byte-buffer limits, and source coverage are checked
+in OCaml and defensively repeated at the C boundary. Private and multisample
+textures reject CPU transfer. Reads initialize the entire result so Metal's
+untouched pitch padding cannot expose native memory. Texture views require
+`Pixel_format_view` usage, preserve kind/slice shape, currently permit only the
+reviewed equal or linear/sRGB format pairs, and hold their parent alive until
+explicit destruction or finalization.
+
+`Sampler.descriptor` covers min/mag/mip filtering, anisotropy, all current
+address modes and border colors, normalized coordinates, finite float32 LOD
+clamps, comparison, LOD averaging, and argument-buffer support. Invalid
+anisotropy, non-finite or inverted clamps, illegal unnormalized-coordinate
+combinations, and malformed labels fail before sampler creation. Heaps, sparse
+resources, aliasing, purgeability, residency, buffer-backed textures, external
+ownership, and the remaining pixel-format capability matrix are still pending;
+this resource slice is therefore progress toward M3, not an M3 completion
+claim.
+
 `test_metal.exe` runs a real M1 compute kernel, wrong-domain and invalid-state
-cases, shader diagnostics, bounds and overflow checks, parent ownership,
-idempotent destruction, stale access, and GC-finalizer release. The separate
-ownership stress performs 5,000 warm-up cycles and 100,000 measured buffer
-create/destroy cycles, requires exact created/released balance, zero pending or
-dropped releases, stable live-handle count, and bounded settled RSS growth.
+cases, shader diagnostics, buffer and texture bounds/stride/cardinality checks,
+texture mip transfer and views, sampler validation, multisample capability
+gating, parent ownership, idempotent destruction, stale access, and
+GC-finalizer release. The separate ownership stress performs warm-up followed
+by 100,000 measured buffer create/destroy cycles and 100,000 measured
+texture/sampler create/destroy cycles. Each lane requires exact
+created/released balance, zero pending or dropped releases, stable live-handle
+count, and bounded settled RSS growth.
 
 `PRISMEL_METAL_SANITIZERS` is parsed by OCaml build configuration and accepts
 `address`, `undefined`, or `thread`; ThreadSanitizer is deliberately exclusive,

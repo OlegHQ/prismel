@@ -79,6 +79,49 @@ external buffer_write :
 external buffer_read : handle -> int64 -> int -> (bytes, string) result =
   "caml_prismel_metal_buffer_read"
 
+external device_supports_texture_sample_count : handle -> int -> bool =
+  "caml_prismel_metal_device_supports_texture_sample_count"
+
+external texture_create :
+  handle ->
+  (int * int * int * int * int * int * int * int * int * int * int * int * bool) ->
+  string option -> (handle, string) result
+  = "caml_prismel_metal_texture_create"
+
+external texture_info : handle -> int array = "caml_prismel_metal_texture_info"
+
+external texture_set_label : handle -> string -> (unit, string) result =
+  "caml_prismel_metal_texture_set_label"
+
+external texture_label : handle -> string option =
+  "caml_prismel_metal_texture_label"
+
+external texture_write :
+  handle ->
+  ((int * int * int * int * int * int) * int * int * int * int * int) ->
+  bytes -> (unit, string) result
+  = "caml_prismel_metal_texture_write"
+
+external texture_read :
+  handle ->
+  ((int * int * int * int * int * int) * int * int * int * int * int) ->
+  (bytes, string) result
+  = "caml_prismel_metal_texture_read"
+
+external texture_create_view :
+  handle -> (int * int * int * int * int * int) -> string option ->
+  (handle, string) result
+  = "caml_prismel_metal_texture_create_view"
+
+external sampler_create :
+  handle ->
+  (int * int * int * int * int * int * int * int * bool * float * float * bool * int * bool) ->
+  string option -> (handle, string) result
+  = "caml_prismel_metal_sampler_create"
+
+external sampler_label : handle -> string option =
+  "caml_prismel_metal_sampler_label"
+
 external library_compile : handle -> string -> (handle, string) result =
   "caml_prismel_metal_library_compile"
 

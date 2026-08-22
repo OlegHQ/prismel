@@ -2,11 +2,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 0,
-    "bound": 120,
+    "bound": 330,
     "scope-excluded": 7,
-    "unreviewed": 5159
+    "unreviewed": 4949
   },
-  "classification_source_sha256": "639d85957b65868df512b6e9ca551a702204ee59d24b1a3d828b0a9759a61670",
+  "classification_source_sha256": "56d138bc0ac879550bec256b43ada757fe20dcbd522d66e92ffc2a8c73d95df3",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "header_aggregate_sha256": "c2ee1e44c76606cf05fa81d1a8314dadfa49efe900342e8bcb3670363c16f0d1",
@@ -2390,14 +2390,14 @@
         "AvailabilityAttr",
         "VisibilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "class:MTLSamplerDescriptor",
       "kind": "class",
       "line": 107,
       "name": "MTLSamplerDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -2570,14 +2570,14 @@
         "AvailabilityAttr",
         "VisibilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "class:MTLTextureDescriptor",
       "kind": "class",
       "line": 114,
       "name": "MTLTextureDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -5035,26 +5035,26 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResource.h",
       "id": "enum-case:MTLCPUCacheMode:MTLCPUCacheModeDefaultCache",
       "kind": "enum-case",
       "line": 53,
       "name": "MTLCPUCacheModeDefaultCache",
       "owner": "MTLCPUCacheMode",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLCPUCacheMode"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResource.h",
       "id": "enum-case:MTLCPUCacheMode:MTLCPUCacheModeWriteCombined",
       "kind": "enum-case",
       "line": 54,
       "name": "MTLCPUCacheModeWriteCombined",
       "owner": "MTLCPUCacheMode",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLCPUCacheMode"
     },
     {
@@ -5513,98 +5513,98 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDepthStencil.h",
       "id": "enum-case:MTLCompareFunction:MTLCompareFunctionAlways",
       "kind": "enum-case",
       "line": 21,
       "name": "MTLCompareFunctionAlways",
       "owner": "MTLCompareFunction",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLCompareFunction"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDepthStencil.h",
       "id": "enum-case:MTLCompareFunction:MTLCompareFunctionEqual",
       "kind": "enum-case",
       "line": 16,
       "name": "MTLCompareFunctionEqual",
       "owner": "MTLCompareFunction",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLCompareFunction"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDepthStencil.h",
       "id": "enum-case:MTLCompareFunction:MTLCompareFunctionGreater",
       "kind": "enum-case",
       "line": 18,
       "name": "MTLCompareFunctionGreater",
       "owner": "MTLCompareFunction",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLCompareFunction"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDepthStencil.h",
       "id": "enum-case:MTLCompareFunction:MTLCompareFunctionGreaterEqual",
       "kind": "enum-case",
       "line": 20,
       "name": "MTLCompareFunctionGreaterEqual",
       "owner": "MTLCompareFunction",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLCompareFunction"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDepthStencil.h",
       "id": "enum-case:MTLCompareFunction:MTLCompareFunctionLess",
       "kind": "enum-case",
       "line": 15,
       "name": "MTLCompareFunctionLess",
       "owner": "MTLCompareFunction",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLCompareFunction"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDepthStencil.h",
       "id": "enum-case:MTLCompareFunction:MTLCompareFunctionLessEqual",
       "kind": "enum-case",
       "line": 17,
       "name": "MTLCompareFunctionLessEqual",
       "owner": "MTLCompareFunction",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLCompareFunction"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDepthStencil.h",
       "id": "enum-case:MTLCompareFunction:MTLCompareFunctionNever",
       "kind": "enum-case",
       "line": 14,
       "name": "MTLCompareFunctionNever",
       "owner": "MTLCompareFunction",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLCompareFunction"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDepthStencil.h",
       "id": "enum-case:MTLCompareFunction:MTLCompareFunctionNotEqual",
       "kind": "enum-case",
       "line": 19,
       "name": "MTLCompareFunctionNotEqual",
       "owner": "MTLCompareFunction",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLCompareFunction"
     },
     {
@@ -8195,38 +8195,38 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResource.h",
       "id": "enum-case:MTLHazardTrackingMode:MTLHazardTrackingModeDefault",
       "kind": "enum-case",
       "line": 99,
       "name": "MTLHazardTrackingModeDefault",
       "owner": "MTLHazardTrackingMode",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLHazardTrackingMode"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResource.h",
       "id": "enum-case:MTLHazardTrackingMode:MTLHazardTrackingModeTracked",
       "kind": "enum-case",
       "line": 101,
       "name": "MTLHazardTrackingModeTracked",
       "owner": "MTLHazardTrackingMode",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLHazardTrackingMode"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResource.h",
       "id": "enum-case:MTLHazardTrackingMode:MTLHazardTrackingModeUntracked",
       "kind": "enum-case",
       "line": 100,
       "name": "MTLHazardTrackingModeUntracked",
       "owner": "MTLHazardTrackingMode",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLHazardTrackingMode"
     },
     {
@@ -9505,14 +9505,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatA8Unorm",
       "kind": "enum-case",
       "line": 18,
       "name": "MTLPixelFormatA8Unorm",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
@@ -10413,26 +10413,26 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatBGRA8Unorm",
       "kind": "enum-case",
       "line": 65,
       "name": "MTLPixelFormatBGRA8Unorm",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatBGRA8Unorm_sRGB",
       "kind": "enum-case",
       "line": 66,
       "name": "MTLPixelFormatBGRA8Unorm_sRGB",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
@@ -10451,54 +10451,54 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatDepth16Unorm",
       "kind": "enum-case",
       "line": 210,
       "name": "MTLPixelFormatDepth16Unorm",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatDepth24Unorm_Stencil8",
       "kind": "enum-case",
       "line": 219,
       "name": "MTLPixelFormatDepth24Unorm_Stencil8",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatDepth32Float",
       "kind": "enum-case",
       "line": 211,
       "name": "MTLPixelFormatDepth32Float",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatDepth32Float_Stencil8",
       "kind": "enum-case",
       "line": 220,
       "name": "MTLPixelFormatDepth32Float_Stencil8",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
@@ -10779,14 +10779,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatR16Float",
       "kind": "enum-case",
       "line": 32,
       "name": "MTLPixelFormatR16Float",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
@@ -10839,14 +10839,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatR32Float",
       "kind": "enum-case",
       "line": 51,
       "name": "MTLPixelFormatR32Float",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
@@ -10899,64 +10899,64 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatR8Uint",
       "kind": "enum-case",
       "line": 23,
       "name": "MTLPixelFormatR8Uint",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatR8Unorm",
       "kind": "enum-case",
       "line": 20,
       "name": "MTLPixelFormatR8Unorm",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatR8Unorm_sRGB",
       "kind": "enum-case",
       "line": 21,
       "name": "MTLPixelFormatR8Unorm_sRGB",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatRG11B10Float",
       "kind": "enum-case",
       "line": 73,
       "name": "MTLPixelFormatRG11B10Float",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatRG16Float",
       "kind": "enum-case",
       "line": 57,
       "name": "MTLPixelFormatRG16Float",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
@@ -11009,14 +11009,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatRG32Float",
       "kind": "enum-case",
       "line": 85,
       "name": "MTLPixelFormatRG32Float",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
@@ -11081,28 +11081,28 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatRG8Unorm",
       "kind": "enum-case",
       "line": 34,
       "name": "MTLPixelFormatRG8Unorm",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatRG8Unorm_sRGB",
       "kind": "enum-case",
       "line": 35,
       "name": "MTLPixelFormatRG8Unorm_sRGB",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
@@ -11119,14 +11119,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatRGB10A2Unorm",
       "kind": "enum-case",
       "line": 70,
       "name": "MTLPixelFormatRGB10A2Unorm",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
@@ -11143,14 +11143,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatRGBA16Float",
       "kind": "enum-case",
       "line": 91,
       "name": "MTLPixelFormatRGBA16Float",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
@@ -11203,14 +11203,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatRGBA32Float",
       "kind": "enum-case",
       "line": 100,
       "name": "MTLPixelFormatRGBA32Float",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
@@ -11275,38 +11275,38 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatRGBA8Unorm",
       "kind": "enum-case",
       "line": 59,
       "name": "MTLPixelFormatRGBA8Unorm",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatRGBA8Unorm_sRGB",
       "kind": "enum-case",
       "line": 60,
       "name": "MTLPixelFormatRGBA8Unorm_sRGB",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatStencil8",
       "kind": "enum-case",
       "line": 215,
       "name": "MTLPixelFormatStencil8",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
@@ -11801,172 +11801,172 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "enum-case:MTLSamplerAddressMode:MTLSamplerAddressModeClampToBorderColor",
       "kind": "enum-case",
       "line": 70,
       "name": "MTLSamplerAddressModeClampToBorderColor",
       "owner": "MTLSamplerAddressMode",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLSamplerAddressMode"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "enum-case:MTLSamplerAddressMode:MTLSamplerAddressModeClampToEdge",
       "kind": "enum-case",
       "line": 65,
       "name": "MTLSamplerAddressModeClampToEdge",
       "owner": "MTLSamplerAddressMode",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLSamplerAddressMode"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "enum-case:MTLSamplerAddressMode:MTLSamplerAddressModeClampToZero",
       "kind": "enum-case",
       "line": 69,
       "name": "MTLSamplerAddressModeClampToZero",
       "owner": "MTLSamplerAddressMode",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLSamplerAddressMode"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "enum-case:MTLSamplerAddressMode:MTLSamplerAddressModeMirrorClampToEdge",
       "kind": "enum-case",
       "line": 66,
       "name": "MTLSamplerAddressModeMirrorClampToEdge",
       "owner": "MTLSamplerAddressMode",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLSamplerAddressMode"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "enum-case:MTLSamplerAddressMode:MTLSamplerAddressModeMirrorRepeat",
       "kind": "enum-case",
       "line": 68,
       "name": "MTLSamplerAddressModeMirrorRepeat",
       "owner": "MTLSamplerAddressMode",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLSamplerAddressMode"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "enum-case:MTLSamplerAddressMode:MTLSamplerAddressModeRepeat",
       "kind": "enum-case",
       "line": 67,
       "name": "MTLSamplerAddressModeRepeat",
       "owner": "MTLSamplerAddressMode",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLSamplerAddressMode"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "enum-case:MTLSamplerBorderColor:MTLSamplerBorderColorOpaqueBlack",
       "kind": "enum-case",
       "line": 88,
       "name": "MTLSamplerBorderColorOpaqueBlack",
       "owner": "MTLSamplerBorderColor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLSamplerBorderColor"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "enum-case:MTLSamplerBorderColor:MTLSamplerBorderColorOpaqueWhite",
       "kind": "enum-case",
       "line": 89,
       "name": "MTLSamplerBorderColorOpaqueWhite",
       "owner": "MTLSamplerBorderColor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLSamplerBorderColor"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "enum-case:MTLSamplerBorderColor:MTLSamplerBorderColorTransparentBlack",
       "kind": "enum-case",
       "line": 87,
       "name": "MTLSamplerBorderColorTransparentBlack",
       "owner": "MTLSamplerBorderColor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLSamplerBorderColor"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "enum-case:MTLSamplerMinMagFilter:MTLSamplerMinMagFilterLinear",
       "kind": "enum-case",
       "line": 26,
       "name": "MTLSamplerMinMagFilterLinear",
       "owner": "MTLSamplerMinMagFilter",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLSamplerMinMagFilter"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "enum-case:MTLSamplerMinMagFilter:MTLSamplerMinMagFilterNearest",
       "kind": "enum-case",
       "line": 25,
       "name": "MTLSamplerMinMagFilterNearest",
       "owner": "MTLSamplerMinMagFilter",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLSamplerMinMagFilter"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "enum-case:MTLSamplerMipFilter:MTLSamplerMipFilterLinear",
       "kind": "enum-case",
       "line": 39,
       "name": "MTLSamplerMipFilterLinear",
       "owner": "MTLSamplerMipFilter",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLSamplerMipFilter"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "enum-case:MTLSamplerMipFilter:MTLSamplerMipFilterNearest",
       "kind": "enum-case",
       "line": 38,
       "name": "MTLSamplerMipFilterNearest",
       "owner": "MTLSamplerMipFilter",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLSamplerMipFilter"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "enum-case:MTLSamplerMipFilter:MTLSamplerMipFilterNotMipmapped",
       "kind": "enum-case",
       "line": 37,
       "name": "MTLSamplerMipFilterNotMipmapped",
       "owner": "MTLSamplerMipFilter",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLSamplerMipFilter"
     },
     {
@@ -13153,202 +13153,202 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "enum-case:MTLTextureType:MTLTextureType1D",
       "kind": "enum-case",
       "line": 25,
       "name": "MTLTextureType1D",
       "owner": "MTLTextureType",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLTextureType"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "enum-case:MTLTextureType:MTLTextureType1DArray",
       "kind": "enum-case",
       "line": 26,
       "name": "MTLTextureType1DArray",
       "owner": "MTLTextureType",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLTextureType"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "enum-case:MTLTextureType:MTLTextureType2D",
       "kind": "enum-case",
       "line": 27,
       "name": "MTLTextureType2D",
       "owner": "MTLTextureType",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLTextureType"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "enum-case:MTLTextureType:MTLTextureType2DArray",
       "kind": "enum-case",
       "line": 28,
       "name": "MTLTextureType2DArray",
       "owner": "MTLTextureType",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLTextureType"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "enum-case:MTLTextureType:MTLTextureType2DMultisample",
       "kind": "enum-case",
       "line": 29,
       "name": "MTLTextureType2DMultisample",
       "owner": "MTLTextureType",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLTextureType"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "enum-case:MTLTextureType:MTLTextureType2DMultisampleArray",
       "kind": "enum-case",
       "line": 33,
       "name": "MTLTextureType2DMultisampleArray",
       "owner": "MTLTextureType",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLTextureType"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "enum-case:MTLTextureType:MTLTextureType3D",
       "kind": "enum-case",
       "line": 32,
       "name": "MTLTextureType3D",
       "owner": "MTLTextureType",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLTextureType"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "enum-case:MTLTextureType:MTLTextureTypeCube",
       "kind": "enum-case",
       "line": 30,
       "name": "MTLTextureTypeCube",
       "owner": "MTLTextureType",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLTextureType"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "enum-case:MTLTextureType:MTLTextureTypeCubeArray",
       "kind": "enum-case",
       "line": 31,
       "name": "MTLTextureTypeCubeArray",
       "owner": "MTLTextureType",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLTextureType"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "enum-case:MTLTextureType:MTLTextureTypeTextureBuffer",
       "kind": "enum-case",
       "line": 34,
       "name": "MTLTextureTypeTextureBuffer",
       "owner": "MTLTextureType",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLTextureType"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "enum-case:MTLTextureUsage:MTLTextureUsagePixelFormatView",
       "kind": "enum-case",
       "line": 103,
       "name": "MTLTextureUsagePixelFormatView",
       "owner": "MTLTextureUsage",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "(unnamed enum at /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Metal.framework/Headers/MTLTexture.h:97:9)"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "enum-case:MTLTextureUsage:MTLTextureUsageRenderTarget",
       "kind": "enum-case",
       "line": 102,
       "name": "MTLTextureUsageRenderTarget",
       "owner": "MTLTextureUsage",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "(unnamed enum at /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Metal.framework/Headers/MTLTexture.h:97:9)"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "enum-case:MTLTextureUsage:MTLTextureUsageShaderAtomic",
       "kind": "enum-case",
       "line": 104,
       "name": "MTLTextureUsageShaderAtomic",
       "owner": "MTLTextureUsage",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "(unnamed enum at /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Metal.framework/Headers/MTLTexture.h:97:9)"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "enum-case:MTLTextureUsage:MTLTextureUsageShaderRead",
       "kind": "enum-case",
       "line": 100,
       "name": "MTLTextureUsageShaderRead",
       "owner": "MTLTextureUsage",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "(unnamed enum at /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Metal.framework/Headers/MTLTexture.h:97:9)"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "enum-case:MTLTextureUsage:MTLTextureUsageShaderWrite",
       "kind": "enum-case",
       "line": 101,
       "name": "MTLTextureUsageShaderWrite",
       "owner": "MTLTextureUsage",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "(unnamed enum at /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Metal.framework/Headers/MTLTexture.h:97:9)"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "enum-case:MTLTextureUsage:MTLTextureUsageUnknown",
       "kind": "enum-case",
       "line": 99,
       "name": "MTLTextureUsageUnknown",
       "owner": "MTLTextureUsage",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "(unnamed enum at /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Metal.framework/Headers/MTLTexture.h:97:9)"
     },
     {
@@ -14668,14 +14668,14 @@
         "AvailabilityAttr",
         "EnumExtensibilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResource.h",
       "id": "enum:MTLCPUCacheMode",
       "kind": "enum",
       "line": 51,
       "name": "MTLCPUCacheMode",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -14790,14 +14790,14 @@
         "AvailabilityAttr",
         "EnumExtensibilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDepthStencil.h",
       "id": "enum:MTLCompareFunction",
       "kind": "enum",
       "line": 13,
       "name": "MTLCompareFunction",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -15075,14 +15075,14 @@
         "AvailabilityAttr",
         "EnumExtensibilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResource.h",
       "id": "enum:MTLHazardTrackingMode",
       "kind": "enum",
       "line": 97,
       "name": "MTLHazardTrackingMode",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -15481,14 +15481,14 @@
         "AvailabilityAttr",
         "EnumExtensibilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum:MTLPixelFormat",
       "kind": "enum",
       "line": 12,
       "name": "MTLPixelFormat",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -15604,14 +15604,14 @@
         "AvailabilityAttr",
         "EnumExtensibilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "enum:MTLSamplerAddressMode",
       "kind": "enum",
       "line": 64,
       "name": "MTLSamplerAddressMode",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -15619,14 +15619,14 @@
         "AvailabilityAttr",
         "EnumExtensibilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "enum:MTLSamplerBorderColor",
       "kind": "enum",
       "line": 86,
       "name": "MTLSamplerBorderColor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -15634,14 +15634,14 @@
         "AvailabilityAttr",
         "EnumExtensibilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "enum:MTLSamplerMinMagFilter",
       "kind": "enum",
       "line": 24,
       "name": "MTLSamplerMinMagFilter",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -15649,14 +15649,14 @@
         "AvailabilityAttr",
         "EnumExtensibilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "enum:MTLSamplerMipFilter",
       "kind": "enum",
       "line": 36,
       "name": "MTLSamplerMipFilter",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -15998,14 +15998,14 @@
         "AvailabilityAttr",
         "EnumExtensibilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "enum:MTLTextureType",
       "kind": "enum",
       "line": 23,
       "name": "MTLTextureType",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -16014,14 +16014,14 @@
         "EnumExtensibilityAttr",
         "FlagEnumAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "enum:MTLTextureUsage",
       "kind": "enum",
       "line": 97,
       "name": "MTLTextureUsage",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -17523,38 +17523,38 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTypes.h",
       "id": "field:MTLOrigin:x",
       "kind": "field",
       "line": 16,
       "name": "x",
       "owner": "MTLOrigin",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTypes.h",
       "id": "field:MTLOrigin:y",
       "kind": "field",
       "line": null,
       "name": "y",
       "owner": "MTLOrigin",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTypes.h",
       "id": "field:MTLOrigin:z",
       "kind": "field",
       "line": null,
       "name": "z",
       "owner": "MTLOrigin",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
@@ -17631,26 +17631,26 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTypes.h",
       "id": "field:MTLRegion:origin",
       "kind": "field",
       "line": 46,
       "name": "origin",
       "owner": "MTLRegion",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLOrigin"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTypes.h",
       "id": "field:MTLRegion:size",
       "kind": "field",
       "line": 47,
       "name": "size",
       "owner": "MTLRegion",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLSize"
     },
     {
@@ -18265,14 +18265,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTypes.h",
       "id": "function:MTLRegionMake3D",
       "kind": "function",
       "line": 66,
       "name": "MTLRegionMake3D",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLRegion (NSUInteger, NSUInteger, NSUInteger, NSUInteger, NSUInteger, NSUInteger)"
     },
     {
@@ -35327,14 +35327,14 @@
       "attributes": [
         "NSReturnsRetainedAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newSamplerStateWithDescriptor:]",
       "kind": "method",
       "line": 745,
       "name": "newSamplerStateWithDescriptor:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLSamplerDescriptor * _Nonnull __strong) -> id<MTLSamplerState> _Nullable"
     },
     {
@@ -35431,14 +35431,14 @@
       "attributes": [
         "NSReturnsRetainedAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newTextureWithDescriptor:]",
       "kind": "method",
       "line": 706,
       "name": "newTextureWithDescriptor:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLTextureDescriptor * _Nonnull __strong) -> id<MTLTexture> _Nullable"
     },
     {
@@ -35922,14 +35922,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice supportsTextureSampleCount:]",
       "kind": "method",
       "line": 889,
       "name": "supportsTextureSampleCount:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (NSUInteger) -> BOOL"
     },
     {
@@ -46900,54 +46900,54 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "method:-[MTLSamplerDescriptor borderColor]",
       "kind": "method",
       "line": 159,
       "name": "borderColor",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLSamplerBorderColor"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "method:-[MTLSamplerDescriptor compareFunction]",
       "kind": "method",
       "line": 210,
       "name": "compareFunction",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLCompareFunction"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "method:-[MTLSamplerDescriptor label]",
       "kind": "method",
       "line": 222,
       "name": "label",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSString * _Nullable"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "method:-[MTLSamplerDescriptor lodAverage]",
       "kind": "method",
       "line": 197,
       "name": "lodAverage",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -46966,98 +46966,98 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "method:-[MTLSamplerDescriptor lodMaxClamp]",
       "kind": "method",
       "line": 190,
       "name": "lodMaxClamp",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> float"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "method:-[MTLSamplerDescriptor lodMinClamp]",
       "kind": "method",
       "line": 183,
       "name": "lodMinClamp",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> float"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "method:-[MTLSamplerDescriptor magFilter]",
       "kind": "method",
       "line": 121,
       "name": "magFilter",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLSamplerMinMagFilter"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "method:-[MTLSamplerDescriptor maxAnisotropy]",
       "kind": "method",
       "line": 135,
       "name": "maxAnisotropy",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSUInteger"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "method:-[MTLSamplerDescriptor minFilter]",
       "kind": "method",
       "line": 114,
       "name": "minFilter",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLSamplerMinMagFilter"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "method:-[MTLSamplerDescriptor mipFilter]",
       "kind": "method",
       "line": 128,
       "name": "mipFilter",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLSamplerMipFilter"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "method:-[MTLSamplerDescriptor normalizedCoordinates]",
       "kind": "method",
       "line": 176,
       "name": "normalizedCoordinates",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> BOOL"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "method:-[MTLSamplerDescriptor rAddressMode]",
       "kind": "method",
       "line": 153,
       "name": "rAddressMode",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLSamplerAddressMode"
     },
     {
@@ -47076,68 +47076,68 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "method:-[MTLSamplerDescriptor sAddressMode]",
       "kind": "method",
       "line": 141,
       "name": "sAddressMode",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLSamplerAddressMode"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "method:-[MTLSamplerDescriptor setBorderColor:]",
       "kind": "method",
       "line": null,
       "name": "setBorderColor:",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLSamplerBorderColor) -> void"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "method:-[MTLSamplerDescriptor setCompareFunction:]",
       "kind": "method",
       "line": null,
       "name": "setCompareFunction:",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLCompareFunction) -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "method:-[MTLSamplerDescriptor setLabel:]",
       "kind": "method",
       "line": null,
       "name": "setLabel:",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (NSString * _Nullable) -> void"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "method:-[MTLSamplerDescriptor setLodAverage:]",
       "kind": "method",
       "line": null,
       "name": "setLodAverage:",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -47156,98 +47156,98 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "method:-[MTLSamplerDescriptor setLodMaxClamp:]",
       "kind": "method",
       "line": null,
       "name": "setLodMaxClamp:",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (float) -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "method:-[MTLSamplerDescriptor setLodMinClamp:]",
       "kind": "method",
       "line": null,
       "name": "setLodMinClamp:",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (float) -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "method:-[MTLSamplerDescriptor setMagFilter:]",
       "kind": "method",
       "line": null,
       "name": "setMagFilter:",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLSamplerMinMagFilter) -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "method:-[MTLSamplerDescriptor setMaxAnisotropy:]",
       "kind": "method",
       "line": null,
       "name": "setMaxAnisotropy:",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "method:-[MTLSamplerDescriptor setMinFilter:]",
       "kind": "method",
       "line": null,
       "name": "setMinFilter:",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLSamplerMinMagFilter) -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "method:-[MTLSamplerDescriptor setMipFilter:]",
       "kind": "method",
       "line": null,
       "name": "setMipFilter:",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLSamplerMipFilter) -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "method:-[MTLSamplerDescriptor setNormalizedCoordinates:]",
       "kind": "method",
       "line": null,
       "name": "setNormalizedCoordinates:",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (BOOL) -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "method:-[MTLSamplerDescriptor setRAddressMode:]",
       "kind": "method",
       "line": null,
       "name": "setRAddressMode:",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLSamplerAddressMode) -> void"
     },
     {
@@ -47266,66 +47266,66 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "method:-[MTLSamplerDescriptor setSAddressMode:]",
       "kind": "method",
       "line": null,
       "name": "setSAddressMode:",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLSamplerAddressMode) -> void"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "method:-[MTLSamplerDescriptor setSupportArgumentBuffers:]",
       "kind": "method",
       "line": null,
       "name": "setSupportArgumentBuffers:",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (BOOL) -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "method:-[MTLSamplerDescriptor setTAddressMode:]",
       "kind": "method",
       "line": null,
       "name": "setTAddressMode:",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLSamplerAddressMode) -> void"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "method:-[MTLSamplerDescriptor supportArgumentBuffers]",
       "kind": "method",
       "line": 216,
       "name": "supportArgumentBuffers",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> BOOL"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "method:-[MTLSamplerDescriptor tAddressMode]",
       "kind": "method",
       "line": 147,
       "name": "tAddressMode",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLSamplerAddressMode"
     },
     {
@@ -47356,14 +47356,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "method:-[MTLSamplerState label]",
       "kind": "method",
       "line": 237,
       "name": "label",
       "owner": "MTLSamplerState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSString * _Nullable"
     },
     {
@@ -48422,14 +48422,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTexture arrayLength]",
       "kind": "method",
       "line": 420,
       "name": "arrayLength",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -48490,14 +48490,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTexture depth]",
       "kind": "method",
       "line": 400,
       "name": "depth",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -48516,14 +48516,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTexture getBytes:bytesPerRow:bytesPerImage:fromRegion:mipmapLevel:slice:]",
       "kind": "method",
       "line": 484,
       "name": "getBytes:bytesPerRow:bytesPerImage:fromRegion:mipmapLevel:slice:",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (void * _Nonnull, NSUInteger, NSUInteger, MTLRegion, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -48554,14 +48554,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTexture height]",
       "kind": "method",
       "line": 393,
       "name": "height",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -48634,14 +48634,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTexture mipmapLevelCount]",
       "kind": "method",
       "line": 406,
       "name": "mipmapLevelCount",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -48708,14 +48708,14 @@
         "AvailabilityAttr",
         "NSReturnsRetainedAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTexture newTextureViewWithPixelFormat:textureType:levels:slices:]",
       "kind": "method",
       "line": 514,
       "name": "newTextureViewWithPixelFormat:textureType:levels:slices:",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLPixelFormat, MTLTextureType, NSRange, NSRange) -> id<MTLTexture> _Nullable"
     },
     {
@@ -48777,14 +48777,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTexture pixelFormat]",
       "kind": "method",
       "line": 380,
       "name": "pixelFormat",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLPixelFormat"
     },
     {
@@ -48803,14 +48803,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTexture replaceRegion:mipmapLevel:slice:withBytes:bytesPerRow:bytesPerImage:]",
       "kind": "method",
       "line": 490,
       "name": "replaceRegion:mipmapLevel:slice:withBytes:bytesPerRow:bytesPerImage:",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLRegion, NSUInteger, NSUInteger, const void * _Nonnull, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -48841,14 +48841,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTexture sampleCount]",
       "kind": "method",
       "line": 413,
       "name": "sampleCount",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -48895,38 +48895,38 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTexture textureType]",
       "kind": "method",
       "line": 374,
       "name": "textureType",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLTextureType"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTexture usage]",
       "kind": "method",
       "line": 426,
       "name": "usage",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLTextureUsage"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTexture width]",
       "kind": "method",
       "line": 386,
       "name": "width",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -48981,26 +48981,26 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTextureDescriptor allowGPUOptimizedContents]",
       "kind": "method",
       "line": 233,
       "name": "allowGPUOptimizedContents",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> BOOL"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTextureDescriptor arrayLength]",
       "kind": "method",
       "line": 188,
       "name": "arrayLength",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -49021,76 +49021,76 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTextureDescriptor cpuCacheMode]",
       "kind": "method",
       "line": 201,
       "name": "cpuCacheMode",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLCPUCacheMode"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTextureDescriptor depth]",
       "kind": "method",
       "line": 167,
       "name": "depth",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSUInteger"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTextureDescriptor hazardTrackingMode]",
       "kind": "method",
       "line": 220,
       "name": "hazardTrackingMode",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLHazardTrackingMode"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTextureDescriptor height]",
       "kind": "method",
       "line": 160,
       "name": "height",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSUInteger"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTextureDescriptor mipmapLevelCount]",
       "kind": "method",
       "line": 174,
       "name": "mipmapLevelCount",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSUInteger"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTextureDescriptor pixelFormat]",
       "kind": "method",
       "line": 147,
       "name": "pixelFormat",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLPixelFormat"
     },
     {
@@ -49121,40 +49121,40 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTextureDescriptor sampleCount]",
       "kind": "method",
       "line": 181,
       "name": "sampleCount",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSUInteger"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTextureDescriptor setAllowGPUOptimizedContents:]",
       "kind": "method",
       "line": null,
       "name": "setAllowGPUOptimizedContents:",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (BOOL) -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTextureDescriptor setArrayLength:]",
       "kind": "method",
       "line": null,
       "name": "setArrayLength:",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -49175,76 +49175,76 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTextureDescriptor setCpuCacheMode:]",
       "kind": "method",
       "line": null,
       "name": "setCpuCacheMode:",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLCPUCacheMode) -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTextureDescriptor setDepth:]",
       "kind": "method",
       "line": null,
       "name": "setDepth:",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTextureDescriptor setHazardTrackingMode:]",
       "kind": "method",
       "line": null,
       "name": "setHazardTrackingMode:",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLHazardTrackingMode) -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTextureDescriptor setHeight:]",
       "kind": "method",
       "line": null,
       "name": "setHeight:",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTextureDescriptor setMipmapLevelCount:]",
       "kind": "method",
       "line": null,
       "name": "setMipmapLevelCount:",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTextureDescriptor setPixelFormat:]",
       "kind": "method",
       "line": null,
       "name": "setPixelFormat:",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLPixelFormat) -> void"
     },
     {
@@ -49275,28 +49275,28 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTextureDescriptor setSampleCount:]",
       "kind": "method",
       "line": null,
       "name": "setSampleCount:",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTextureDescriptor setStorageMode:]",
       "kind": "method",
       "line": null,
       "name": "setStorageMode:",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLStorageMode) -> void"
     },
     {
@@ -49315,54 +49315,54 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTextureDescriptor setTextureType:]",
       "kind": "method",
       "line": null,
       "name": "setTextureType:",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLTextureType) -> void"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTextureDescriptor setUsage:]",
       "kind": "method",
       "line": null,
       "name": "setUsage:",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLTextureUsage) -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTextureDescriptor setWidth:]",
       "kind": "method",
       "line": null,
       "name": "setWidth:",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTextureDescriptor storageMode]",
       "kind": "method",
       "line": 207,
       "name": "storageMode",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLStorageMode"
     },
     {
@@ -49381,40 +49381,40 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTextureDescriptor textureType]",
       "kind": "method",
       "line": 141,
       "name": "textureType",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLTextureType"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTextureDescriptor usage]",
       "kind": "method",
       "line": 226,
       "name": "usage",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLTextureUsage"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTextureDescriptor width]",
       "kind": "method",
       "line": 153,
       "name": "width",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -61547,54 +61547,54 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "property:MTLSamplerDescriptor:borderColor",
       "kind": "property",
       "line": 159,
       "name": "borderColor",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLSamplerBorderColor"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "property:MTLSamplerDescriptor:compareFunction",
       "kind": "property",
       "line": 210,
       "name": "compareFunction",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLCompareFunction"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "property:MTLSamplerDescriptor:label",
       "kind": "property",
       "line": 222,
       "name": "label",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSString * _Nullable"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "property:MTLSamplerDescriptor:lodAverage",
       "kind": "property",
       "line": 197,
       "name": "lodAverage",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "BOOL"
     },
     {
@@ -61613,98 +61613,98 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "property:MTLSamplerDescriptor:lodMaxClamp",
       "kind": "property",
       "line": 190,
       "name": "lodMaxClamp",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "float"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "property:MTLSamplerDescriptor:lodMinClamp",
       "kind": "property",
       "line": 183,
       "name": "lodMinClamp",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "float"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "property:MTLSamplerDescriptor:magFilter",
       "kind": "property",
       "line": 121,
       "name": "magFilter",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLSamplerMinMagFilter"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "property:MTLSamplerDescriptor:maxAnisotropy",
       "kind": "property",
       "line": 135,
       "name": "maxAnisotropy",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "property:MTLSamplerDescriptor:minFilter",
       "kind": "property",
       "line": 114,
       "name": "minFilter",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLSamplerMinMagFilter"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "property:MTLSamplerDescriptor:mipFilter",
       "kind": "property",
       "line": 128,
       "name": "mipFilter",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLSamplerMipFilter"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "property:MTLSamplerDescriptor:normalizedCoordinates",
       "kind": "property",
       "line": 176,
       "name": "normalizedCoordinates",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "BOOL"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "property:MTLSamplerDescriptor:rAddressMode",
       "kind": "property",
       "line": 153,
       "name": "rAddressMode",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLSamplerAddressMode"
     },
     {
@@ -61723,40 +61723,40 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "property:MTLSamplerDescriptor:sAddressMode",
       "kind": "property",
       "line": 141,
       "name": "sAddressMode",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLSamplerAddressMode"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "property:MTLSamplerDescriptor:supportArgumentBuffers",
       "kind": "property",
       "line": 216,
       "name": "supportArgumentBuffers",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "BOOL"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "property:MTLSamplerDescriptor:tAddressMode",
       "kind": "property",
       "line": 147,
       "name": "tAddressMode",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLSamplerAddressMode"
     },
     {
@@ -61787,14 +61787,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "property:MTLSamplerState:label",
       "kind": "property",
       "line": 237,
       "name": "label",
       "owner": "MTLSamplerState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSString * _Nullable"
     },
     {
@@ -62383,14 +62383,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLTexture:arrayLength",
       "kind": "property",
       "line": 420,
       "name": "arrayLength",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
@@ -62451,14 +62451,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLTexture:depth",
       "kind": "property",
       "line": 400,
       "name": "depth",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
@@ -62503,14 +62503,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLTexture:height",
       "kind": "property",
       "line": 393,
       "name": "height",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
@@ -62557,14 +62557,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLTexture:mipmapLevelCount",
       "kind": "property",
       "line": 406,
       "name": "mipmapLevelCount",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
@@ -62611,14 +62611,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLTexture:pixelFormat",
       "kind": "property",
       "line": 380,
       "name": "pixelFormat",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
@@ -62651,14 +62651,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLTexture:sampleCount",
       "kind": "property",
       "line": 413,
       "name": "sampleCount",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
@@ -62719,38 +62719,38 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLTexture:textureType",
       "kind": "property",
       "line": 374,
       "name": "textureType",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLTextureType"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLTexture:usage",
       "kind": "property",
       "line": 426,
       "name": "usage",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLTextureUsage"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLTexture:width",
       "kind": "property",
       "line": 386,
       "name": "width",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
@@ -62805,26 +62805,26 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLTextureDescriptor:allowGPUOptimizedContents",
       "kind": "property",
       "line": 233,
       "name": "allowGPUOptimizedContents",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "BOOL"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLTextureDescriptor:arrayLength",
       "kind": "property",
       "line": 188,
       "name": "arrayLength",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
@@ -62845,76 +62845,76 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLTextureDescriptor:cpuCacheMode",
       "kind": "property",
       "line": 201,
       "name": "cpuCacheMode",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLCPUCacheMode"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLTextureDescriptor:depth",
       "kind": "property",
       "line": 167,
       "name": "depth",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLTextureDescriptor:hazardTrackingMode",
       "kind": "property",
       "line": 220,
       "name": "hazardTrackingMode",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLHazardTrackingMode"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLTextureDescriptor:height",
       "kind": "property",
       "line": 160,
       "name": "height",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLTextureDescriptor:mipmapLevelCount",
       "kind": "property",
       "line": 174,
       "name": "mipmapLevelCount",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLTextureDescriptor:pixelFormat",
       "kind": "property",
       "line": 147,
       "name": "pixelFormat",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
@@ -62945,28 +62945,28 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLTextureDescriptor:sampleCount",
       "kind": "property",
       "line": 181,
       "name": "sampleCount",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLTextureDescriptor:storageMode",
       "kind": "property",
       "line": 207,
       "name": "storageMode",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLStorageMode"
     },
     {
@@ -62985,40 +62985,40 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLTextureDescriptor:textureType",
       "kind": "property",
       "line": 141,
       "name": "textureType",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLTextureType"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLTextureDescriptor:usage",
       "kind": "property",
       "line": 226,
       "name": "usage",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLTextureUsage"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLTextureDescriptor:width",
       "kind": "property",
       "line": 153,
       "name": "width",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
@@ -64573,14 +64573,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "protocol:MTLSamplerState",
       "kind": "protocol",
       "line": 231,
       "name": "MTLSamplerState",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -64631,14 +64631,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "protocol:MTLTexture",
       "kind": "protocol",
       "line": 313,
       "name": "MTLTexture",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -65013,14 +65013,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTypes.h",
       "id": "record:MTLOrigin",
       "kind": "record",
       "line": 15,
       "name": "MTLOrigin",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "struct"
     },
     {
@@ -65049,14 +65049,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTypes.h",
       "id": "record:MTLRegion",
       "kind": "record",
       "line": 44,
       "name": "MTLRegion",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "struct"
     },
     {
@@ -65855,14 +65855,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResource.h",
       "id": "typedef:MTLCPUCacheMode",
       "kind": "typedef",
       "line": 51,
       "name": "MTLCPUCacheMode",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "enum MTLCPUCacheMode"
     },
     {
@@ -66009,14 +66009,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDepthStencil.h",
       "id": "typedef:MTLCompareFunction",
       "kind": "typedef",
       "line": 13,
       "name": "MTLCompareFunction",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "enum MTLCompareFunction"
     },
     {
@@ -66420,14 +66420,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResource.h",
       "id": "typedef:MTLHazardTrackingMode",
       "kind": "typedef",
       "line": 97,
       "name": "MTLHazardTrackingMode",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "enum MTLHazardTrackingMode"
     },
     {
@@ -66886,14 +66886,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTypes.h",
       "id": "typedef:MTLOrigin",
       "kind": "typedef",
       "line": 17,
       "name": "MTLOrigin",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "struct MTLOrigin"
     },
     {
@@ -66960,14 +66960,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "typedef:MTLPixelFormat",
       "kind": "typedef",
       "line": 12,
       "name": "MTLPixelFormat",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "enum MTLPixelFormat"
     },
     {
@@ -67032,14 +67032,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTypes.h",
       "id": "typedef:MTLRegion",
       "kind": "typedef",
       "line": 48,
       "name": "MTLRegion",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "struct MTLRegion"
     },
     {
@@ -67112,50 +67112,50 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "typedef:MTLSamplerAddressMode",
       "kind": "typedef",
       "line": 64,
       "name": "MTLSamplerAddressMode",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "enum MTLSamplerAddressMode"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "typedef:MTLSamplerBorderColor",
       "kind": "typedef",
       "line": 86,
       "name": "MTLSamplerBorderColor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "enum MTLSamplerBorderColor"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "typedef:MTLSamplerMinMagFilter",
       "kind": "typedef",
       "line": 24,
       "name": "MTLSamplerMinMagFilter",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "enum MTLSamplerMinMagFilter"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "typedef:MTLSamplerMipFilter",
       "kind": "typedef",
       "line": 36,
       "name": "MTLSamplerMipFilter",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "enum MTLSamplerMipFilter"
     },
     {
@@ -67508,28 +67508,28 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "typedef:MTLTextureType",
       "kind": "typedef",
       "line": 23,
       "name": "MTLTextureType",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "enum MTLTextureType"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "typedef:MTLTextureUsage",
       "kind": "typedef",
       "line": 97,
       "name": "MTLTextureUsage",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {

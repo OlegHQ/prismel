@@ -91,6 +91,7 @@ module Device : sig
   val destroyed : t -> bool
   val info : t -> (info, error) result
   val supports_family : t -> family -> (bool, error) result
+  val supports_texture_sample_count : t -> int -> (bool, error) result
   val destroy : t -> (unit, error) result
 end
 
@@ -127,6 +128,162 @@ module Buffer : sig
 
   val with_mapping :
     t -> offset:int64 -> length:int -> (Mapping.t -> 'a) -> ('a, error) result
+  val destroy : t -> (unit, error) result
+end
+
+module Texture : sig
+  type t
+
+  type kind =
+    | Texture_1d
+    | Texture_1d_array
+    | Texture_2d
+    | Texture_2d_array
+    | Texture_2d_multisample
+    | Texture_cube
+    | Texture_cube_array
+    | Texture_3d
+    | Texture_2d_multisample_array
+    | Texture_buffer
+
+  type format =
+    | A8_unorm
+    | R8_unorm
+    | R8_unorm_srgb
+    | R8_uint
+    | R16_float
+    | R32_float
+    | Rg8_unorm
+    | Rg8_unorm_srgb
+    | Rg16_float
+    | Rg32_float
+    | Rgba8_unorm
+    | Rgba8_unorm_srgb
+    | Bgra8_unorm
+    | Bgra8_unorm_srgb
+    | Rgb10a2_unorm
+    | Rg11b10_float
+    | Rgba16_float
+    | Rgba32_float
+    | Depth16_unorm
+    | Depth32_float
+    | Stencil8
+    | Depth24_unorm_stencil8
+    | Depth32_float_stencil8
+
+  type cpu_cache_mode =
+    | Default_cache
+    | Write_combined
+
+  type hazard_tracking_mode =
+    | Default_hazard_tracking
+    | Untracked
+    | Tracked
+
+  type usage =
+    | Shader_read
+    | Shader_write
+    | Render_target
+    | Pixel_format_view
+    | Shader_atomic
+
+  type descriptor =
+    { kind : kind
+    ; format : format
+    ; width : int
+    ; height : int
+    ; depth : int
+    ; mip_levels : int
+    ; sample_count : int
+    ; array_length : int
+    ; storage : Buffer.storage_mode
+    ; cpu_cache : cpu_cache_mode
+    ; hazard_tracking : hazard_tracking_mode
+    ; usage : usage list
+    ; allow_gpu_optimized_contents : bool
+    ; label : string option
+    }
+
+  type region =
+    { x : int
+    ; y : int
+    ; z : int
+    ; width : int
+    ; height : int
+    ; depth : int
+    }
+
+  val descriptor_2d :
+    ?mipmapped:bool -> ?storage:Buffer.storage_mode -> ?usage:usage list ->
+    ?label:string -> format:format -> width:int -> height:int -> unit ->
+    descriptor
+  val create : device:Device.t -> descriptor -> (t, error) result
+  val create_view :
+    t -> format:format -> base_mip:int -> mip_count:int -> base_slice:int ->
+    slice_count:int -> ?label:string -> unit -> (t, error) result
+  val device : t -> Device.t
+  val descriptor : t -> descriptor
+  val generation : t -> int64
+  val destroyed : t -> bool
+  val label : t -> (string option, error) result
+  val set_label : t -> string -> (unit, error) result
+  val write_bytes :
+    t -> region:region -> mip_level:int -> slice:int -> ?src_offset:int ->
+    bytes_per_row:int -> bytes_per_image:int -> bytes -> (unit, error) result
+  val read_bytes :
+    t -> region:region -> mip_level:int -> slice:int -> bytes_per_row:int ->
+    bytes_per_image:int -> (bytes, error) result
+  val destroy : t -> (unit, error) result
+end
+
+module Sampler : sig
+  type t
+  type filter = Nearest | Linear
+  type mip_filter = Not_mipmapped | Mip_nearest | Mip_linear
+  type address_mode =
+    | Clamp_to_edge
+    | Mirror_clamp_to_edge
+    | Repeat
+    | Mirror_repeat
+    | Clamp_to_zero
+    | Clamp_to_border_color
+
+  type border_color = Transparent_black | Opaque_black | Opaque_white
+  type compare_function =
+    | Never
+    | Less
+    | Equal
+    | Less_equal
+    | Greater
+    | Not_equal
+    | Greater_equal
+    | Always
+
+  type descriptor =
+    { min_filter : filter
+    ; mag_filter : filter
+    ; mip_filter : mip_filter
+    ; max_anisotropy : int
+    ; s_address : address_mode
+    ; t_address : address_mode
+    ; r_address : address_mode
+    ; border_color : border_color
+    ; normalized_coordinates : bool
+    ; lod_min_clamp : float
+    ; lod_max_clamp : float
+    ; lod_average : bool
+    ; compare_function : compare_function
+    ; support_argument_buffers : bool
+    ; label : string option
+    }
+
+  val default : ?label:string -> unit -> descriptor
+  val create : device:Device.t -> descriptor -> (t, error) result
+  val device : t -> Device.t
+  val descriptor : t -> descriptor
+  val generation : t -> int64
+  val destroyed : t -> bool
+  val label : t -> (string option, error) result
   val destroy : t -> (unit, error) result
 end
 

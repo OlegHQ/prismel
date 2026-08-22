@@ -1,7 +1,9 @@
 #define CAML_NAME_SPACE
 
+#include <algorithm>
 #include <array>
 #include <atomic>
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <mutex>
@@ -24,6 +26,8 @@ namespace {
 enum class Handle_kind : std::uint32_t {
   Device = 1,
   Buffer,
+  Texture,
+  Sampler,
   Library,
   Function,
   Compute_pipeline,
@@ -206,6 +210,116 @@ std::size_t tuple_dimension(value tuple, mlsize_t index) {
     caml_invalid_argument("Metal dimensions must be positive");
   }
   return static_cast<std::size_t>(dimension);
+}
+
+NSUInteger texture_slice_count(id<MTLTexture> texture) {
+  switch (texture.textureType) {
+  case MTLTextureType1DArray:
+  case MTLTextureType2DArray:
+  case MTLTextureType2DMultisampleArray:
+    return texture.arrayLength;
+  case MTLTextureTypeCube:
+    return 6;
+  case MTLTextureTypeCubeArray:
+    return texture.arrayLength * 6;
+  default:
+    return 1;
+  }
+}
+
+NSUInteger texture_bytes_per_pixel(MTLPixelFormat format) {
+  switch (format) {
+  case MTLPixelFormatA8Unorm:
+  case MTLPixelFormatR8Unorm:
+  case MTLPixelFormatR8Unorm_sRGB:
+  case MTLPixelFormatR8Uint:
+  case MTLPixelFormatStencil8:
+    return 1;
+  case MTLPixelFormatR16Float:
+  case MTLPixelFormatRG8Unorm:
+  case MTLPixelFormatRG8Unorm_sRGB:
+  case MTLPixelFormatDepth16Unorm:
+    return 2;
+  case MTLPixelFormatR32Float:
+  case MTLPixelFormatRG16Float:
+  case MTLPixelFormatRGBA8Unorm:
+  case MTLPixelFormatRGBA8Unorm_sRGB:
+  case MTLPixelFormatBGRA8Unorm:
+  case MTLPixelFormatBGRA8Unorm_sRGB:
+  case MTLPixelFormatRGB10A2Unorm:
+  case MTLPixelFormatRG11B10Float:
+  case MTLPixelFormatDepth32Float:
+  case MTLPixelFormatDepth24Unorm_Stencil8:
+    return 4;
+  case MTLPixelFormatRG32Float:
+  case MTLPixelFormatRGBA16Float:
+  case MTLPixelFormatDepth32Float_Stencil8:
+    return 8;
+  case MTLPixelFormatRGBA32Float:
+    return 16;
+  default:
+    return 0;
+  }
+}
+
+bool texture_transfer_range(id<MTLTexture> texture, value raw_transfer,
+                            MTLRegion *region, NSUInteger *level,
+                            NSUInteger *slice, intnat *source_offset,
+                            intnat *bytes_per_row, intnat *bytes_per_image,
+                            intnat *total_bytes) {
+  value raw_region = Field(raw_transfer, 0);
+  const intnat x = Long_val(Field(raw_region, 0));
+  const intnat y = Long_val(Field(raw_region, 1));
+  const intnat z = Long_val(Field(raw_region, 2));
+  const intnat width = Long_val(Field(raw_region, 3));
+  const intnat height = Long_val(Field(raw_region, 4));
+  const intnat depth = Long_val(Field(raw_region, 5));
+  const intnat signed_level = Long_val(Field(raw_transfer, 1));
+  const intnat signed_slice = Long_val(Field(raw_transfer, 2));
+  *source_offset = Long_val(Field(raw_transfer, 3));
+  *bytes_per_row = Long_val(Field(raw_transfer, 4));
+  *bytes_per_image = Long_val(Field(raw_transfer, 5));
+  if (x < 0 || y < 0 || z < 0 || width <= 0 || height <= 0 || depth <= 0 ||
+      signed_level < 0 || signed_slice < 0 || *source_offset < 0 ||
+      *bytes_per_row <= 0 || *bytes_per_image <= 0) {
+    return false;
+  }
+  *level = static_cast<NSUInteger>(signed_level);
+  *slice = static_cast<NSUInteger>(signed_slice);
+  if (*level >= texture.mipmapLevelCount || *slice >= texture_slice_count(texture)) {
+    return false;
+  }
+  const NSUInteger mip_width = std::max<NSUInteger>(1, texture.width >> *level);
+  const NSUInteger mip_height = std::max<NSUInteger>(1, texture.height >> *level);
+  const NSUInteger mip_depth = std::max<NSUInteger>(1, texture.depth >> *level);
+  const auto ux = static_cast<NSUInteger>(x);
+  const auto uy = static_cast<NSUInteger>(y);
+  const auto uz = static_cast<NSUInteger>(z);
+  const auto uw = static_cast<NSUInteger>(width);
+  const auto uh = static_cast<NSUInteger>(height);
+  const auto ud = static_cast<NSUInteger>(depth);
+  if (ux > mip_width || uw > mip_width - ux || uy > mip_height ||
+      uh > mip_height - uy || uz > mip_depth || ud > mip_depth - uz) {
+    return false;
+  }
+  const NSUInteger bytes_per_pixel = texture_bytes_per_pixel(texture.pixelFormat);
+  if (bytes_per_pixel == 0 || uw > static_cast<NSUInteger>(Max_long) / bytes_per_pixel) {
+    return false;
+  }
+  const intnat minimum_row =
+      static_cast<intnat>(uw * bytes_per_pixel);
+  if (*bytes_per_row < minimum_row ||
+      *bytes_per_row % static_cast<intnat>(bytes_per_pixel) != 0 ||
+      *bytes_per_row > Max_long / height) {
+    return false;
+  }
+  const intnat minimum_image = *bytes_per_row * height;
+  if (*bytes_per_image < minimum_image || *bytes_per_image > Max_long / depth) {
+    return false;
+  }
+  *total_bytes = *bytes_per_image * depth;
+  *region = MTLRegionMake3D(ux, uy, uz, uw, uh, ud);
+  return true;
 }
 
 } // namespace
@@ -553,6 +667,288 @@ extern "C" CAMLprim value caml_prismel_metal_buffer_read(
               static_cast<const std::uint8_t *>(contents) + signed_offset,
               static_cast<std::size_t>(length));
   result = result_ok(contents_value);
+  CAMLreturn(result);
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_device_supports_texture_sample_count(value raw,
+                                                         value raw_count) {
+  CAMLparam2(raw, raw_count);
+  id<MTLDevice> device = object_of_handle(raw, Handle_kind::Device);
+  const intnat count = Long_val(raw_count);
+  if (count <= 0) {
+    CAMLreturn(Val_false);
+  }
+  CAMLreturn(Val_bool(
+      [device supportsTextureSampleCount:static_cast<NSUInteger>(count)]));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_texture_create(
+    value raw_device, value raw_descriptor, value raw_label) {
+  CAMLparam3(raw_device, raw_descriptor, raw_label);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    id<MTLDevice> device = object_of_handle(raw_device, Handle_kind::Device);
+    const intnat width = Long_val(Field(raw_descriptor, 2));
+    const intnat height = Long_val(Field(raw_descriptor, 3));
+    const intnat depth = Long_val(Field(raw_descriptor, 4));
+    const intnat mip_levels = Long_val(Field(raw_descriptor, 5));
+    const intnat sample_count = Long_val(Field(raw_descriptor, 6));
+    const intnat array_length = Long_val(Field(raw_descriptor, 7));
+    if (width <= 0 || height <= 0 || depth <= 0 || mip_levels <= 0 ||
+        sample_count <= 0 || array_length <= 0) {
+      CAMLreturn(result_error_text("texture descriptor dimensions are invalid"));
+    }
+    MTLTextureDescriptor *descriptor = [[MTLTextureDescriptor alloc] init];
+    descriptor.textureType =
+        static_cast<MTLTextureType>(Long_val(Field(raw_descriptor, 0)));
+    descriptor.pixelFormat =
+        static_cast<MTLPixelFormat>(Long_val(Field(raw_descriptor, 1)));
+    descriptor.width = static_cast<NSUInteger>(width);
+    descriptor.height = static_cast<NSUInteger>(height);
+    descriptor.depth = static_cast<NSUInteger>(depth);
+    descriptor.mipmapLevelCount = static_cast<NSUInteger>(mip_levels);
+    descriptor.sampleCount = static_cast<NSUInteger>(sample_count);
+    descriptor.arrayLength = static_cast<NSUInteger>(array_length);
+    descriptor.storageMode =
+        static_cast<MTLStorageMode>(Long_val(Field(raw_descriptor, 8)));
+    descriptor.cpuCacheMode =
+        static_cast<MTLCPUCacheMode>(Long_val(Field(raw_descriptor, 9)));
+    descriptor.hazardTrackingMode =
+        static_cast<MTLHazardTrackingMode>(Long_val(Field(raw_descriptor, 10)));
+    descriptor.usage =
+        static_cast<MTLTextureUsage>(Long_val(Field(raw_descriptor, 11)));
+    descriptor.allowGPUOptimizedContents = Bool_val(Field(raw_descriptor, 12));
+    id<MTLTexture> texture = [device newTextureWithDescriptor:descriptor];
+    if (texture == nil) {
+      CAMLreturn(result_error_text("Metal rejected the texture descriptor"));
+    }
+    if (Is_block(raw_label)) {
+      NSString *label = string_from_ocaml(Field(raw_label, 0));
+      if (label == nil) {
+        CAMLreturn(result_error_text("texture label is not valid UTF-8"));
+      }
+      texture.label = label;
+    }
+    raw = allocate_handle(texture, Handle_kind::Texture);
+  }
+  CAMLreturn(result_ok(raw));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_texture_info(value raw) {
+  CAMLparam1(raw);
+  CAMLlocal1(result);
+  id<MTLTexture> texture = object_of_handle(raw, Handle_kind::Texture);
+  result = caml_alloc(10, 0);
+  Store_field(result, 0, Val_long(texture.textureType));
+  Store_field(result, 1, Val_long(texture.pixelFormat));
+  Store_field(result, 2, Val_long(texture.width));
+  Store_field(result, 3, Val_long(texture.height));
+  Store_field(result, 4, Val_long(texture.depth));
+  Store_field(result, 5, Val_long(texture.mipmapLevelCount));
+  Store_field(result, 6, Val_long(texture.sampleCount));
+  Store_field(result, 7, Val_long(texture.arrayLength));
+  Store_field(result, 8, Val_long(texture.usage));
+  Store_field(result, 9, Val_long(texture.storageMode));
+  CAMLreturn(result);
+}
+
+extern "C" CAMLprim value caml_prismel_metal_texture_set_label(
+    value raw, value raw_label) {
+  CAMLparam2(raw, raw_label);
+  @autoreleasepool {
+    id<MTLTexture> texture = object_of_handle(raw, Handle_kind::Texture);
+    NSString *label = string_from_ocaml(raw_label);
+    if (label == nil) {
+      CAMLreturn(result_error_text("texture label is not valid UTF-8"));
+    }
+    texture.label = label;
+  }
+  CAMLreturn(result_unit());
+}
+
+extern "C" CAMLprim value caml_prismel_metal_texture_label(value raw) {
+  CAMLparam1(raw);
+  CAMLlocal1(result);
+  @autoreleasepool {
+    id<MTLTexture> texture = object_of_handle(raw, Handle_kind::Texture);
+    result = copy_optional_string(texture.label);
+  }
+  CAMLreturn(result);
+}
+
+extern "C" CAMLprim value caml_prismel_metal_texture_write(
+    value raw, value raw_transfer, value source) {
+  CAMLparam3(raw, raw_transfer, source);
+  id<MTLTexture> texture = object_of_handle(raw, Handle_kind::Texture);
+  MTLRegion region{};
+  NSUInteger level = 0;
+  NSUInteger slice = 0;
+  intnat source_offset = 0;
+  intnat bytes_per_row = 0;
+  intnat bytes_per_image = 0;
+  intnat total_bytes = 0;
+  if (!texture_transfer_range(texture, raw_transfer, &region, &level, &slice,
+                              &source_offset, &bytes_per_row, &bytes_per_image,
+                              &total_bytes) ||
+      source_offset > static_cast<intnat>(caml_string_length(source)) ||
+      total_bytes >
+          static_cast<intnat>(caml_string_length(source)) - source_offset ||
+      texture.storageMode == MTLStorageModePrivate ||
+      texture.textureType == MTLTextureType2DMultisample ||
+      texture.textureType == MTLTextureType2DMultisampleArray) {
+    CAMLreturn(result_error_text("texture write arguments are invalid"));
+  }
+  [texture replaceRegion:region
+             mipmapLevel:level
+                    slice:slice
+                withBytes:reinterpret_cast<const std::uint8_t *>(
+                              Bytes_val(source)) +
+                          source_offset
+              bytesPerRow:static_cast<NSUInteger>(bytes_per_row)
+            bytesPerImage:static_cast<NSUInteger>(bytes_per_image)];
+  CAMLreturn(result_unit());
+}
+
+extern "C" CAMLprim value caml_prismel_metal_texture_read(
+    value raw, value raw_transfer) {
+  CAMLparam2(raw, raw_transfer);
+  CAMLlocal2(bytes, result);
+  id<MTLTexture> texture = object_of_handle(raw, Handle_kind::Texture);
+  MTLRegion region{};
+  NSUInteger level = 0;
+  NSUInteger slice = 0;
+  intnat ignored_offset = 0;
+  intnat bytes_per_row = 0;
+  intnat bytes_per_image = 0;
+  intnat total_bytes = 0;
+  if (!texture_transfer_range(texture, raw_transfer, &region, &level, &slice,
+                              &ignored_offset, &bytes_per_row, &bytes_per_image,
+                              &total_bytes) ||
+      texture.storageMode == MTLStorageModePrivate ||
+      texture.textureType == MTLTextureType2DMultisample ||
+      texture.textureType == MTLTextureType2DMultisampleArray) {
+    CAMLreturn(result_error_text("texture read arguments are invalid"));
+  }
+  bytes = caml_alloc_string(static_cast<mlsize_t>(total_bytes));
+  std::memset(Bytes_val(bytes), 0, static_cast<std::size_t>(total_bytes));
+  [texture getBytes:Bytes_val(bytes)
+             bytesPerRow:static_cast<NSUInteger>(bytes_per_row)
+           bytesPerImage:static_cast<NSUInteger>(bytes_per_image)
+             fromRegion:region
+            mipmapLevel:level
+                   slice:slice];
+  result = result_ok(bytes);
+  CAMLreturn(result);
+}
+
+extern "C" CAMLprim value caml_prismel_metal_texture_create_view(
+    value raw_parent, value raw_descriptor, value raw_label) {
+  CAMLparam3(raw_parent, raw_descriptor, raw_label);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    id<MTLTexture> parent = object_of_handle(raw_parent, Handle_kind::Texture);
+    const intnat format = Long_val(Field(raw_descriptor, 0));
+    const intnat kind = Long_val(Field(raw_descriptor, 1));
+    const intnat base_level = Long_val(Field(raw_descriptor, 2));
+    const intnat level_count = Long_val(Field(raw_descriptor, 3));
+    const intnat base_slice = Long_val(Field(raw_descriptor, 4));
+    const intnat slice_count = Long_val(Field(raw_descriptor, 5));
+    const NSUInteger parent_slices = texture_slice_count(parent);
+    if (base_level < 0 || level_count <= 0 || base_slice < 0 ||
+        slice_count <= 0 ||
+        static_cast<NSUInteger>(base_level) > parent.mipmapLevelCount ||
+        static_cast<NSUInteger>(level_count) >
+            parent.mipmapLevelCount - static_cast<NSUInteger>(base_level) ||
+        static_cast<NSUInteger>(base_slice) > parent_slices ||
+        static_cast<NSUInteger>(slice_count) >
+            parent_slices - static_cast<NSUInteger>(base_slice)) {
+      CAMLreturn(result_error_text("texture view range is invalid"));
+    }
+    id<MTLTexture> view = [parent
+        newTextureViewWithPixelFormat:static_cast<MTLPixelFormat>(format)
+                         textureType:static_cast<MTLTextureType>(kind)
+                              levels:NSMakeRange(
+                                         static_cast<NSUInteger>(base_level),
+                                         static_cast<NSUInteger>(level_count))
+                              slices:NSMakeRange(
+                                         static_cast<NSUInteger>(base_slice),
+                                         static_cast<NSUInteger>(slice_count))];
+    if (view == nil) {
+      CAMLreturn(result_error_text("Metal rejected the texture view"));
+    }
+    if (Is_block(raw_label)) {
+      NSString *label = string_from_ocaml(Field(raw_label, 0));
+      if (label == nil) {
+        CAMLreturn(result_error_text("texture-view label is not valid UTF-8"));
+      }
+      view.label = label;
+    }
+    raw = allocate_handle(view, Handle_kind::Texture);
+  }
+  CAMLreturn(result_ok(raw));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_sampler_create(
+    value raw_device, value raw_descriptor, value raw_label) {
+  CAMLparam3(raw_device, raw_descriptor, raw_label);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    id<MTLDevice> device = object_of_handle(raw_device, Handle_kind::Device);
+    const intnat anisotropy = Long_val(Field(raw_descriptor, 3));
+    const double lod_min = Double_val(Field(raw_descriptor, 9));
+    const double lod_max = Double_val(Field(raw_descriptor, 10));
+    if (anisotropy < 1 || anisotropy > 16 || !std::isfinite(lod_min) ||
+        !std::isfinite(lod_max) || lod_min < 0.0 || lod_max < lod_min) {
+      CAMLreturn(result_error_text("sampler descriptor values are invalid"));
+    }
+    MTLSamplerDescriptor *descriptor = [[MTLSamplerDescriptor alloc] init];
+    descriptor.minFilter = static_cast<MTLSamplerMinMagFilter>(
+        Long_val(Field(raw_descriptor, 0)));
+    descriptor.magFilter = static_cast<MTLSamplerMinMagFilter>(
+        Long_val(Field(raw_descriptor, 1)));
+    descriptor.mipFilter =
+        static_cast<MTLSamplerMipFilter>(Long_val(Field(raw_descriptor, 2)));
+    descriptor.maxAnisotropy = static_cast<NSUInteger>(anisotropy);
+    descriptor.sAddressMode =
+        static_cast<MTLSamplerAddressMode>(Long_val(Field(raw_descriptor, 4)));
+    descriptor.tAddressMode =
+        static_cast<MTLSamplerAddressMode>(Long_val(Field(raw_descriptor, 5)));
+    descriptor.rAddressMode =
+        static_cast<MTLSamplerAddressMode>(Long_val(Field(raw_descriptor, 6)));
+    descriptor.borderColor =
+        static_cast<MTLSamplerBorderColor>(Long_val(Field(raw_descriptor, 7)));
+    descriptor.normalizedCoordinates = Bool_val(Field(raw_descriptor, 8));
+    descriptor.lodMinClamp = static_cast<float>(lod_min);
+    descriptor.lodMaxClamp = static_cast<float>(lod_max);
+    descriptor.lodAverage = Bool_val(Field(raw_descriptor, 11));
+    descriptor.compareFunction =
+        static_cast<MTLCompareFunction>(Long_val(Field(raw_descriptor, 12)));
+    descriptor.supportArgumentBuffers = Bool_val(Field(raw_descriptor, 13));
+    if (Is_block(raw_label)) {
+      NSString *label = string_from_ocaml(Field(raw_label, 0));
+      if (label == nil) {
+        CAMLreturn(result_error_text("sampler label is not valid UTF-8"));
+      }
+      descriptor.label = label;
+    }
+    id<MTLSamplerState> sampler =
+        [device newSamplerStateWithDescriptor:descriptor];
+    if (sampler == nil) {
+      CAMLreturn(result_error_text("Metal rejected the sampler descriptor"));
+    }
+    raw = allocate_handle(sampler, Handle_kind::Sampler);
+  }
+  CAMLreturn(result_ok(raw));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_sampler_label(value raw) {
+  CAMLparam1(raw);
+  CAMLlocal1(result);
+  @autoreleasepool {
+    id<MTLSamplerState> sampler = object_of_handle(raw, Handle_kind::Sampler);
+    result = copy_optional_string(sampler.label);
+  }
   CAMLreturn(result);
 }
 
