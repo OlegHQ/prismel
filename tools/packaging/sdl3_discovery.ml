@@ -10,6 +10,10 @@ type link_mode =
   | Dynamic
   | Static
 
+type sanitizer =
+  | Address
+  | Undefined
+
 type details =
   { configurator_name : string
   ; package : string
@@ -60,6 +64,44 @@ let link_mode () =
   | Some value ->
       C.die
         "PRISMEL_SDL3_LINK_MODE must be dynamic or static, not %S" value
+
+let sanitizer_configuration () =
+  let sanitizers =
+    match environment "PRISMEL_SDL3_SANITIZERS" with
+    | None | Some "none" -> []
+    | Some value ->
+        String.split_on_char ',' value
+        |> List.map String.trim
+        |> List.map (function
+          | "address" -> Address
+          | "undefined" -> Undefined
+          | sanitizer ->
+              C.die
+                "PRISMEL_SDL3_SANITIZERS accepts address and undefined, not %S"
+                sanitizer)
+        |> List.sort_uniq compare
+  in
+  let names =
+    List.map
+      (function
+        | Address -> "address"
+        | Undefined -> "undefined")
+      sanitizers
+  in
+  match names with
+  | [] -> [], []
+  | _ ->
+      let sanitizer_flag = "-fsanitize=" ^ String.concat "," names in
+      let undefined_flags =
+        if List.mem Undefined sanitizers
+        then [ "-fno-sanitize-recover=undefined" ]
+        else []
+      in
+      let compile_flags =
+        sanitizer_flag :: "-fno-omit-frame-pointer" :: undefined_flags
+      in
+      let link_flags = sanitizer_flag :: undefined_flags in
+      compile_flags, link_flags
 
 let starts_with ~prefix value =
   let prefix_length = String.length prefix in
@@ -212,8 +254,9 @@ let platform_libraries config libraries =
 let configure config component =
   let details = details component in
   let mode = link_mode () in
+  let sanitizer_cflags, sanitizer_libraries = sanitizer_configuration () in
   let package, core = package_queries config mode details in
-  let cflags = component_cflags details package in
+  let cflags = component_cflags details package @ sanitizer_cflags in
   let override_directory =
     existing_directory (details.environment_prefix ^ "_LIB_DIR")
   in
@@ -222,6 +265,7 @@ let configure config component =
     | Dynamic -> dynamic_libraries details package core override_directory
     | Static -> static_libraries details package core override_directory
   in
+  let libraries = libraries @ sanitizer_libraries in
   C.Flags.write_sexp "c_flags.sexp" cflags;
   C.Flags.write_sexp "c_library_flags.sexp"
     (platform_libraries config libraries)

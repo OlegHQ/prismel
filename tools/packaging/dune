@@ -14,6 +14,27 @@
  (modules check_installed_consumer)
  (libraries unix))
 
+(executable
+ (name check_sdl3_memory)
+ (modules check_sdl3_memory)
+ (libraries unix))
+
+(alias
+ (name sdl3-memory-tests)
+ (deps
+  check_sdl3_memory.exe
+  sdl3_asan.supp
+  ../../lib/sdl3/test_sdl3.exe
+  ../../lib/sdl3/test_sdl3_events.exe
+  ../../lib/sdl3/test_sdl3_failure.exe
+  ../../lib/sdl3/test_sdl3_stress.exe
+  ../../lib/sdl3/test_sdl3_metal.exe
+  ../../lib/sdl3_image/test_sdl3_image.exe
+  ../../lib/sdl3_ttf/test_sdl3_ttf.exe
+  ../../lib/sdl3_ttf/test_sdl3_ttf_discovery_failure.exe
+  ../../lib/sdl3_mixer/test_sdl3_mixer.exe
+  ../../lib/sdl3_mixer/test_sdl3_mixer_device_failure.exe))
+
 (test
  (name test_sdl3_discovery)
  (modules test_sdl3_discovery)

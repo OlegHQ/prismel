@@ -64,3 +64,33 @@ opam exec -- dune exec --profile release \
 The consumer checker installs `prismel` into a temporary relocatable prefix,
 resolves all four packages from that prefix, then builds and executes a separate
 Dune project outside the source checkout.
+
+## Native memory qualification
+
+Set `PRISMEL_SDL3_SANITIZERS` to `address`, `undefined`, or
+`address,undefined` in a dedicated Dune build directory.  The shared
+configurator adds the sanitizer to both C compilation and the final native
+link; unknown values fail discovery.
+
+The committed `sdl3-memory-tests` alias builds the ten core/extension
+conformance executables.  `check_sdl3_memory.exe` runs that identical matrix
+under AddressSanitizer, UndefinedBehaviorSanitizer, or macOS Instruments
+Leaks and rejects diagnostics even when a tool exits zero.  A normal leak run
+is:
+
+```sh
+opam exec -- dune build @tools/packaging/sdl3-memory-tests
+opam exec -- dune exec tools/packaging/check_sdl3_memory.exe -- \
+  --mode leaks --artifacts _build/default \
+  --fixtures test/sdl3_image_fixtures
+```
+
+Use an OCaml compiler built with opam's
+`ocaml-option-address-sanitizer` for the ASan lane.  During execution the
+driver disables ASan's alternate signal stack because Apple ASan otherwise
+mis-handles OCaml Domain teardown on this arm64 16 KiB-page platform.  The
+native window test also loads `tools/packaging/sdl3_asan.supp`, which suppresses
+only a reproducible `pdf_lexer_scan` over-read in macOS 26 CoreUI's system-owned
+theme asset.  Prismel does not call that function; all Prismel and SDL3 stub
+interceptors remain enabled.  The complete native window path is independently
+run without suppression under UBSan and Instruments Leaks.

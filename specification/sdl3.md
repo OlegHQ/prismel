@@ -123,3 +123,25 @@ relocatable package prefix, confirms `ocamlfind` resolves every SDL3 package
 inside it, and builds and executes an independent Dune project outside the
 checkout.  This distinguishes source-tree success from a usable installed
 package.
+
+## Native memory qualification
+
+`PRISMEL_SDL3_SANITIZERS` applies `address`, `undefined`, or both to every
+binding stub compilation and native link.  The committed memory driver runs
+the same ten tests in all lanes: core ownership, typed events, constructor
+failures, 100,000-cycle stress, real CAMetalLayer lifecycle, every image
+decoder, font parity/failure, and mixer parity/failure.  It treats sanitizer or
+Leaks diagnostics as failures even if the child process returns success.
+
+On the qualified Apple M1/macOS 26 host, Apple ASan's alternate signal stack
+cannot be torn down cleanly after OCaml Domain tests on 16 KiB pages, so the
+driver sets `use_sigaltstack=0`; ordinary, UBSan, and Leaks runs retain the full
+signal-stack behavior.  AppKit window resizing also exposes a system
+CoreGraphics `pdf_lexer_scan` over-read while CoreUI loads an Apple-owned theme
+PDF.  The address lane uses a function-scoped interceptor suppression for that
+system frame only.  The binding does not call the suppressed function, and the
+same real native window lifecycle passes without suppression under UBSan and
+Instruments Leaks.  No Prismel or SDL3 stub suppression is present.
+
+The release, ASan, and UBSan builds consume the same checked
+`generated_layout.json`; its byte hash is compared as part of Phase 1 evidence.

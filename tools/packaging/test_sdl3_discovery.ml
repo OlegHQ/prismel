@@ -181,7 +181,7 @@ let package_file ~root component =
   write_file (Filename.concat root (component.package ^ ".pc")) contents;
   include_directory, library_directory
 
-let run_case ~root ~mode ?include_override ?library_override component =
+let run_case ~root ~mode ?sanitizers ?include_override ?library_override component =
   with_temp_directory ("prismel-discover-" ^ component.package ^ "-")
     (fun directory ->
       let replacements =
@@ -189,6 +189,9 @@ let run_case ~root ~mode ?include_override ?library_override component =
         ; "PKG_CONFIG_LIBDIR", root
         ; "PRISMEL_SDL3_LINK_MODE", mode
         ]
+        @ (match sanitizers with
+           | Some value -> [ "PRISMEL_SDL3_SANITIZERS", value ]
+           | None -> [])
         @ (match include_override with
            | Some value ->
                [ component.environment_prefix ^ "_INCLUDE_DIR", value ]
@@ -201,6 +204,7 @@ let run_case ~root ~mode ?include_override ?library_override component =
       let removals =
         [ "PKG_CONFIG"
         ; "PKG_CONFIG_ARGN"
+        ; "PRISMEL_SDL3_SANITIZERS"
         ; "PRISMEL_SDL3_INCLUDE_DIR"
         ; "PRISMEL_SDL3_LIB_DIR"
         ; "PRISMEL_SDL3_IMAGE_INCLUDE_DIR"
@@ -281,6 +285,25 @@ let test_overrides root components =
         static_libraries)
     components
 
+let test_sanitizers root component =
+  let cflags, libraries =
+    run_case ~root ~mode:"dynamic" ~sanitizers:"address" component
+  in
+  require_flag "address sanitizer C flags" "-fsanitize=address" cflags;
+  require_flag "address sanitizer C flags" "-fno-omit-frame-pointer" cflags;
+  require_flag "address sanitizer link flags" "-fsanitize=address" libraries;
+  let cflags, libraries =
+    run_case ~root ~mode:"dynamic" ~sanitizers:"undefined,address" component
+  in
+  require_flag "combined sanitizer C flags" "-fsanitize=address,undefined"
+    cflags;
+  require_flag "combined sanitizer C flags" "-fno-sanitize-recover=undefined"
+    cflags;
+  require_flag "combined sanitizer link flags" "-fsanitize=address,undefined"
+    libraries;
+  require_flag "combined sanitizer link flags"
+    "-fno-sanitize-recover=undefined" libraries
+
 let test_invalid_mode root component =
   with_temp_directory "prismel-discover-invalid-" (fun directory ->
     let environment =
@@ -337,9 +360,10 @@ let () =
       test_dynamic root fixtures components;
       test_static root fixtures components;
       test_overrides root components;
+      test_sanitizers root (List.hd components);
       test_invalid_mode root (List.hd components));
     Printf.printf
-      "SDL3 core/image/ttf/mixer dynamic, static, and explicit-path discovery passed\n%!"
+      "SDL3 core/image/ttf/mixer dynamic, static, explicit-path, and sanitizer discovery passed\n%!"
   with
   | Failure message ->
       prerr_endline message;
