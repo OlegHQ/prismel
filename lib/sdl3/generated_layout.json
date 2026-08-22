@@ -398,6 +398,16 @@
       },
       "size": 24
     },
+    "SDL_Rect": {
+      "alignment": 4,
+      "offsets": {
+        "h": 12,
+        "w": 8,
+        "x": 0,
+        "y": 4
+      },
+      "size": 16
+    },
     "SDL_SensorEvent": {
       "alignment": 8,
       "offsets": {

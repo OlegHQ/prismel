@@ -21,6 +21,36 @@ external show_window : nativeint -> bool = "caml_sdl3_show_window"
 external hide_window : nativeint -> bool = "caml_sdl3_hide_window"
 external set_window_fullscreen : nativeint -> bool -> bool
   = "caml_sdl3_set_window_fullscreen"
+external window_id : nativeint -> int64 = "caml_sdl3_window_id"
+external window_display : nativeint -> int64 = "caml_sdl3_window_display"
+external window_pixel_density : nativeint -> float
+  = "caml_sdl3_window_pixel_density"
+external window_display_scale : nativeint -> float
+  = "caml_sdl3_window_display_scale"
+external window_position : nativeint -> (int * int) option
+  = "caml_sdl3_window_position"
+external set_window_position : nativeint -> int -> int -> bool
+  = "caml_sdl3_set_window_position"
+
+external displays : unit -> int64 array option = "caml_sdl3_displays"
+external primary_display : unit -> int64 = "caml_sdl3_primary_display"
+external display_name : int64 -> string option = "caml_sdl3_display_name"
+external display_bounds : int64 -> bool -> (int * int * int * int) option
+  = "caml_sdl3_display_bounds"
+external display_content_scale : int64 -> float
+  = "caml_sdl3_display_content_scale"
+
+external clipboard_set_text : string -> bool = "caml_sdl3_clipboard_set_text"
+external clipboard_get_text : unit -> string option = "caml_sdl3_clipboard_get_text"
+external clipboard_has_text : unit -> bool = "caml_sdl3_clipboard_has_text"
+
+external start_text_input : nativeint -> bool = "caml_sdl3_start_text_input"
+external stop_text_input : nativeint -> bool = "caml_sdl3_stop_text_input"
+external text_input_active : nativeint -> bool = "caml_sdl3_text_input_active"
+external set_text_input_area : nativeint -> (int * int * int * int) option -> int -> bool
+  = "caml_sdl3_set_text_input_area"
+external text_input_area : nativeint -> ((int * int * int * int) * int) option
+  = "caml_sdl3_text_input_area"
 
 external create_metal_view : nativeint -> nativeint = "caml_sdl3_create_metal_view"
 external destroy_metal_view : nativeint -> unit = "caml_sdl3_destroy_metal_view"

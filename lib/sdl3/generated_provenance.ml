@@ -9,5 +9,5 @@ let header_aggregate_sha256 = "ae5110d736ba19ecda1f5113a976f7a00ef264a1160b287f4
 let clang_version = "Apple clang version 21.0.0 (clang-2100.1.1.101)"
 let target_triple = "arm64-apple-darwin25.4.0"
 let function_count = 1246
-let safe_function_count = 32
-let layout_sha256 = "af16ffce4d88a68f340c373cc873a3080560a06ce409f21fc7ad6bb9977bafea"
+let safe_function_count = 53
+let layout_sha256 = "b5052eb020468c2269abfd0d9dcd02a9493aa7d990c365afe1c0fa01c2d26eab"

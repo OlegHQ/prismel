@@ -22,9 +22,43 @@ let () =
   let window = get (Window.create ~title:"SDL3 ownership test" ~width:96 ~height:64
       ~flags:[Window.Hidden] ()) in
   if Window.destroyed window then fail "new window starts destroyed";
+  let window_id = get (Window.id window) in
+  if window_id = 0L then fail "window ID is zero";
   if get (Window.size window) <> (96, 64) then fail "logical window size changed";
   let pixel_width, pixel_height = get (Window.size_in_pixels window) in
   if pixel_width < 96 || pixel_height < 64 then fail "drawable size is too small";
+  let pixel_density = get (Window.pixel_density window) in
+  let display_scale = get (Window.display_scale window) in
+  if pixel_density < 1. || display_scale <= 0. then
+    fail "window DPI facts are invalid";
+  let displays = get (Display.all ()) in
+  if displays = [] then fail "dummy video reported no displays";
+  let primary = get (Display.primary ()) in
+  let display = get (Window.display window) in
+  if not (List.exists (fun candidate -> Display.id candidate = Display.id display)
+      displays) then fail "window display is absent from display inventory";
+  ignore (get (Display.name primary));
+  let bounds = get (Display.bounds primary) in
+  let usable = get (Display.usable_bounds primary) in
+  if bounds.width <= 0 || bounds.height <= 0
+      || usable.width <= 0 || usable.height <= 0
+      || get (Display.content_scale primary) <= 0. then
+    fail "display bounds or scale are invalid";
+  get (Window.set_position window ~x:11 ~y:13);
+  ignore (get (Window.position window));
+  get (Text_input.set_area window
+    (Some { x = 3; y = 4; width = 40; height = 16 }) ~cursor:7);
+  (match get (Text_input.area window) with
+   | { x = 3; y = 4; width = 40; height = 16 }, 7 -> ()
+   | _ -> fail "text-input logical area changed");
+  get (Text_input.start window);
+  if not (get (Text_input.active window)) then fail "text input did not start";
+  get (Text_input.stop window);
+  if get (Text_input.active window) then fail "text input did not stop";
+  get (Clipboard.set_text "Prismel ž clipboard");
+  if not (get (Clipboard.has_text ()))
+      || get (Clipboard.get_text ()) <> "Prismel ž clipboard" then
+    fail "clipboard UTF-8 text did not round-trip";
   ignore (get (Event.poll_all ()));
   (match get (Event.wait ~timeout_ms:0) with
    | None -> ()

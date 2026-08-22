@@ -433,6 +433,17 @@ def generate(extension: str) -> dict[str, str]:
     header_version = version(macros, config)
     headers, aggregate_hash = header_hashes(include_root, config)
     inventory_groups = ast_inventory(clang, cflags, config)
+    inventoried_functions = {
+        item["name"] for item in inventory_groups["functions"]
+    }
+    missing_safe = sorted(
+        set(config["safe_functions"]) - inventoried_functions
+    )
+    if missing_safe:
+        raise GenerationError(
+            f"safe SDL3 {extension} functions missing from Clang inventory: "
+            + ", ".join(missing_safe)
+        )
     clang_version = run([clang, "--version"]).splitlines()[0]
     target = run([clang, "-dumpmachine"]).strip()
     counts = {

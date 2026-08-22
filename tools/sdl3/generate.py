@@ -28,6 +28,9 @@ OUTPUTS = (
 # Every other active stable-header symbol remains intentionally private/raw.
 SAFE_FUNCTIONS = {
     "SDL_ClearError": "any-thread",
+    "SDL_SetClipboardText": "main-thread",
+    "SDL_GetClipboardText": "main-thread-owned-result",
+    "SDL_HasClipboardText": "main-thread",
     "SDL_ConvertSurface": "owned-surface",
     "SDL_CreateProperties": "any-thread-owned-result",
     "SDL_CreateSurface": "any-thread",
@@ -36,9 +39,20 @@ SAFE_FUNCTIONS = {
     "SDL_DestroySurface": "owned-surface",
     "SDL_DestroyProperties": "owned-properties",
     "SDL_GetError": "any-thread",
+    "SDL_GetDisplays": "main-thread-owned-result",
+    "SDL_GetPrimaryDisplay": "main-thread",
+    "SDL_GetDisplayName": "main-thread-borrowed-string",
+    "SDL_GetDisplayBounds": "main-thread",
+    "SDL_GetDisplayUsableBounds": "main-thread",
+    "SDL_GetDisplayContentScale": "main-thread",
+    "SDL_GetDisplayForWindow": "main-thread",
     "SDL_GetRevision": "any-thread",
     "SDL_GetVersion": "any-thread",
     "SDL_GetWindowFlags": "main-thread",
+    "SDL_GetWindowID": "main-thread",
+    "SDL_GetWindowPixelDensity": "main-thread",
+    "SDL_GetWindowDisplayScale": "main-thread",
+    "SDL_GetWindowPosition": "main-thread",
     "SDL_GetWindowSize": "main-thread",
     "SDL_GetWindowSizeInPixels": "main-thread",
     "SDL_HideWindow": "main-thread",
@@ -54,10 +68,17 @@ SAFE_FUNCTIONS = {
     "SDL_Quit": "main-thread",
     "SDL_QuitSubSystem": "main-thread",
     "SDL_SetWindowFullscreen": "main-thread",
+    "SDL_SetWindowPosition": "main-thread",
     "SDL_SetNumberProperty": "owned-properties",
     "SDL_ShowWindow": "main-thread",
+    "SDL_StartTextInput": "main-thread",
+    "SDL_StopTextInput": "main-thread",
+    "SDL_TextInputActive": "main-thread",
+    "SDL_SetTextInputArea": "main-thread",
+    "SDL_GetTextInputArea": "main-thread",
     "SDL_UnlockSurface": "owned-surface",
     "SDL_WasInit": "any-thread",
+    "SDL_free": "matching-native-allocation",
     "SDL_WaitEventTimeout": "main-thread-blocking",
 }
 
@@ -120,6 +141,7 @@ LAYOUT_FIELDS: dict[str, tuple[str, ...]] = {
     "SDL_AudioDeviceEvent": ("type", "timestamp", "which", "recording"),
     "SDL_SensorEvent": ("type", "timestamp", "which", "data", "sensor_timestamp"),
     "SDL_Surface": ("format", "w", "h", "pitch", "pixels", "refcount"),
+    "SDL_Rect": ("x", "y", "w", "h"),
 }
 
 ABI_CONSTANTS = (
@@ -535,6 +557,15 @@ def generate() -> dict[str, str]:
     header_version = version(macros)
     headers, aggregate_hash = header_hashes(include_root)
     inventory_groups = ast_inventory(clang, include_root)
+    inventoried_functions = {
+        item["name"] for item in inventory_groups["functions"]
+    }
+    missing_safe = sorted(set(SAFE_FUNCTIONS) - inventoried_functions)
+    if missing_safe:
+        raise GenerationError(
+            "safe SDL3 functions missing from Clang inventory: "
+            + ", ".join(missing_safe)
+        )
     clang_version = run([clang, "--version"]).splitlines()[0]
     target = run([clang, "-dumpmachine"]).strip()
     inventory = {

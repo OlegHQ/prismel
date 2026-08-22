@@ -12,6 +12,8 @@ type error = {
   message : string;
 }
 
+type rect = { x : int; y : int; width : int; height : int }
+
 let pp_error formatter error =
   Format.fprintf formatter "%s: %s" error.operation error.message
 
@@ -182,6 +184,49 @@ module Init = struct
       Ok ())
 end
 
+module Display = struct
+  type t = int64
+
+  let id value = value
+
+  let rect (x, y, width, height) = { x; y; width; height }
+
+  let all () = on_main "SDL3.Display.all" (fun () ->
+    Private_raw.clear_error ();
+    match Private_raw.displays () with
+    | Some displays -> Ok (Array.to_list displays)
+    | None -> sdl_error "SDL3.Display.all")
+
+  let primary () = on_main "SDL3.Display.primary" (fun () ->
+    Private_raw.clear_error ();
+    let display = Private_raw.primary_display () in
+    if display = 0L then sdl_error "SDL3.Display.primary" else Ok display)
+
+  let name display = on_main "SDL3.Display.name" (fun () ->
+    Private_raw.clear_error ();
+    match Private_raw.display_name display with
+    | Some name -> Ok name
+    | None -> sdl_error "SDL3.Display.name")
+
+  let bounds display = on_main "SDL3.Display.bounds" (fun () ->
+    Private_raw.clear_error ();
+    match Private_raw.display_bounds display false with
+    | Some bounds -> Ok (rect bounds)
+    | None -> sdl_error "SDL3.Display.bounds")
+
+  let usable_bounds display = on_main "SDL3.Display.usable_bounds" (fun () ->
+    Private_raw.clear_error ();
+    match Private_raw.display_bounds display true with
+    | Some bounds -> Ok (rect bounds)
+    | None -> sdl_error "SDL3.Display.usable_bounds")
+
+  let content_scale display = on_main "SDL3.Display.content_scale" (fun () ->
+    Private_raw.clear_error ();
+    let scale = Private_raw.display_content_scale display in
+    if Float.is_finite scale && scale > 0. then Ok scale
+    else sdl_error "SDL3.Display.content_scale")
+end
+
 module rec Window : sig
   type flag =
     | Fullscreen | Hidden | Borderless | Resizable | High_pixel_density
@@ -196,8 +241,14 @@ module rec Window : sig
     (t, error) result
   val generation : t -> int
   val destroyed : t -> bool
+  val id : t -> (int64, error) result
+  val display : t -> (Display.t, error) result
   val size : t -> (int * int, error) result
   val size_in_pixels : t -> (int * int, error) result
+  val pixel_density : t -> (float, error) result
+  val display_scale : t -> (float, error) result
+  val position : t -> (int * int, error) result
+  val set_position : t -> x:int -> y:int -> (unit, error) result
   val flags : t -> (int64, error) result
   val show : t -> (unit, error) result
   val hide : t -> (unit, error) result
@@ -265,6 +316,39 @@ end = struct
     match Private_raw.window_size_in_pixels raw with
     | Some size -> Ok size
     | None -> sdl_error "SDL3.Window.size_in_pixels")
+
+  let id value = live "SDL3.Window.id" value (fun raw ->
+    Private_raw.clear_error ();
+    let id = Private_raw.window_id raw in
+    if id = 0L then sdl_error "SDL3.Window.id" else Ok id)
+
+  let display value = live "SDL3.Window.display" value (fun raw ->
+    Private_raw.clear_error ();
+    let display = Private_raw.window_display raw in
+    if display = 0L then sdl_error "SDL3.Window.display" else Ok display)
+
+  let positive_scale operation call value = live operation value (fun raw ->
+    Private_raw.clear_error ();
+    let scale = call raw in
+    if Float.is_finite scale && scale > 0. then Ok scale else sdl_error operation)
+
+  let pixel_density = positive_scale "SDL3.Window.pixel_density"
+      Private_raw.window_pixel_density
+
+  let display_scale = positive_scale "SDL3.Window.display_scale"
+      Private_raw.window_display_scale
+
+  let position value = live "SDL3.Window.position" value (fun raw ->
+    Private_raw.clear_error ();
+    match Private_raw.window_position raw with
+    | Some position -> Ok position
+    | None -> sdl_error "SDL3.Window.position")
+
+  let set_position value ~x ~y = live "SDL3.Window.set_position" value
+      (fun raw ->
+        Private_raw.clear_error ();
+        if Private_raw.set_window_position raw x y then Ok ()
+        else sdl_error "SDL3.Window.set_position")
 
   let flags value = live "SDL3.Window.flags" value (fun raw ->
     Ok (Private_raw.window_flags raw))
@@ -355,6 +439,68 @@ end = struct
       Private_raw.destroy_metal_view value.raw;
       Ok ()
     end)
+end
+
+module Clipboard = struct
+  let contains_nul value =
+    try ignore (String.index value '\x00'); true with Not_found -> false
+
+  let set_text text =
+    let operation = "SDL3.Clipboard.set_text" in
+    if contains_nul text then
+      error operation Invalid_argument "clipboard text contains a NUL byte"
+    else on_main operation (fun () ->
+      Private_raw.clear_error ();
+      if Private_raw.clipboard_set_text text then Ok () else sdl_error operation)
+
+  let get_text () = on_main "SDL3.Clipboard.get_text" (fun () ->
+    Private_raw.clear_error ();
+    match Private_raw.clipboard_get_text () with
+    | Some text -> Ok text
+    | None -> sdl_error "SDL3.Clipboard.get_text")
+
+  let has_text () = on_main "SDL3.Clipboard.has_text" (fun () ->
+    Ok (Private_raw.clipboard_has_text ()))
+end
+
+module Text_input = struct
+  let live operation window callback = on_main operation (fun () ->
+    if window.Window.destroyed then
+      error operation Destroyed "text input window is destroyed"
+    else callback window.Window.raw)
+
+  let bool_call operation call window = live operation window (fun raw ->
+    Private_raw.clear_error ();
+    if call raw then Ok () else sdl_error operation)
+
+  let start = bool_call "SDL3.Text_input.start" Private_raw.start_text_input
+  let stop = bool_call "SDL3.Text_input.stop" Private_raw.stop_text_input
+
+  let active window = live "SDL3.Text_input.active" window (fun raw ->
+    Ok (Private_raw.text_input_active raw))
+
+  let set_area window area ~cursor =
+    let operation = "SDL3.Text_input.set_area" in
+    if cursor < 0 then
+      error operation Invalid_argument "text-input cursor offset must be non-negative"
+    else
+      match area with
+      | Some { width; height; _ } when width <= 0 || height <= 0 ->
+          error operation Invalid_argument
+            "text-input area dimensions must be positive"
+      | None | Some _ -> live operation window (fun raw ->
+          let raw_area = Option.map (fun area ->
+            area.x, area.y, area.width, area.height) area in
+          Private_raw.clear_error ();
+          if Private_raw.set_text_input_area raw raw_area cursor then Ok ()
+          else sdl_error operation)
+
+  let area window = live "SDL3.Text_input.area" window (fun raw ->
+    Private_raw.clear_error ();
+    match Private_raw.text_input_area raw with
+    | Some ((x, y, width, height), cursor) ->
+        Ok ({ x; y; width; height }, cursor)
+    | None -> sdl_error "SDL3.Text_input.area")
 end
 
 module Event = struct

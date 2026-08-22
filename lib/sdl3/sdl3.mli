@@ -14,6 +14,8 @@ type error = private {
   message : string;
 }
 
+type rect = { x : int; y : int; width : int; height : int }
+
 val pp_error : Format.formatter -> error -> unit
 
 module Version : sig
@@ -54,6 +56,18 @@ module Init : sig
   val quit : unit -> (unit, error) result
 end
 
+module Display : sig
+  type t
+
+  val all : unit -> (t list, error) result
+  val primary : unit -> (t, error) result
+  val id : t -> int64
+  val name : t -> (string, error) result
+  val bounds : t -> (rect, error) result
+  val usable_bounds : t -> (rect, error) result
+  val content_scale : t -> (float, error) result
+end
+
 module Window : sig
   type t
 
@@ -73,13 +87,33 @@ module Window : sig
     (t, error) result
   val generation : t -> int
   val destroyed : t -> bool
+  val id : t -> (int64, error) result
+  val display : t -> (Display.t, error) result
   val size : t -> (int * int, error) result
   val size_in_pixels : t -> (int * int, error) result
+  val pixel_density : t -> (float, error) result
+  val display_scale : t -> (float, error) result
+  val position : t -> (int * int, error) result
+  val set_position : t -> x:int -> y:int -> (unit, error) result
   val flags : t -> (int64, error) result
   val show : t -> (unit, error) result
   val hide : t -> (unit, error) result
   val set_fullscreen : t -> bool -> (unit, error) result
   val destroy : t -> (unit, error) result
+end
+
+module Clipboard : sig
+  val set_text : string -> (unit, error) result
+  val get_text : unit -> (string, error) result
+  val has_text : unit -> (bool, error) result
+end
+
+module Text_input : sig
+  val start : Window.t -> (unit, error) result
+  val stop : Window.t -> (unit, error) result
+  val active : Window.t -> (bool, error) result
+  val set_area : Window.t -> rect option -> cursor:int -> (unit, error) result
+  val area : Window.t -> ((rect * int), error) result
 end
 
 module Event : sig

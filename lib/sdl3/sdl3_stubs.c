@@ -151,6 +151,205 @@ CAMLprim value caml_sdl3_set_window_fullscreen(value raw, value enabled)
   return Val_bool(SDL_SetWindowFullscreen(window_of_value(raw), Bool_val(enabled)));
 }
 
+CAMLprim value caml_sdl3_window_id(value raw)
+{
+  CAMLparam1(raw);
+  CAMLreturn(caml_copy_int64(SDL_GetWindowID(window_of_value(raw))));
+}
+
+CAMLprim value caml_sdl3_window_display(value raw)
+{
+  CAMLparam1(raw);
+  CAMLreturn(caml_copy_int64(SDL_GetDisplayForWindow(window_of_value(raw))));
+}
+
+CAMLprim value caml_sdl3_window_pixel_density(value raw)
+{
+  CAMLparam1(raw);
+  CAMLreturn(caml_copy_double(SDL_GetWindowPixelDensity(window_of_value(raw))));
+}
+
+CAMLprim value caml_sdl3_window_display_scale(value raw)
+{
+  CAMLparam1(raw);
+  CAMLreturn(caml_copy_double(SDL_GetWindowDisplayScale(window_of_value(raw))));
+}
+
+CAMLprim value caml_sdl3_window_position(value raw)
+{
+  int x = 0;
+  int y = 0;
+  bool success = SDL_GetWindowPosition(window_of_value(raw), &x, &y);
+  return copy_size_result(success, x, y);
+}
+
+CAMLprim value caml_sdl3_set_window_position(value raw, value x, value y)
+{
+  return Val_bool(SDL_SetWindowPosition(
+      window_of_value(raw), Int_val(x), Int_val(y)));
+}
+
+CAMLprim value caml_sdl3_displays(value unit)
+{
+  SDL_DisplayID *displays;
+  int count = 0;
+  int index;
+  CAMLparam1(unit);
+  CAMLlocal3(array, item, some);
+  displays = SDL_GetDisplays(&count);
+  if (displays == NULL) {
+    CAMLreturn(Val_none);
+  }
+  if (count < 0 || count > 1048576) {
+    SDL_free(displays);
+    SDL_SetError("display count is invalid or unreasonably large");
+    CAMLreturn(Val_none);
+  }
+  array = count == 0 ? Atom(0) : caml_alloc(count, 0);
+  for (index = 0; index < count; index++) {
+    item = caml_copy_int64(displays[index]);
+    Store_field(array, index, item);
+  }
+  SDL_free(displays);
+  some = caml_alloc(1, 0);
+  Store_field(some, 0, array);
+  CAMLreturn(some);
+}
+
+CAMLprim value caml_sdl3_primary_display(value unit)
+{
+  CAMLparam1(unit);
+  CAMLreturn(caml_copy_int64(SDL_GetPrimaryDisplay()));
+}
+
+CAMLprim value caml_sdl3_display_name(value raw_id)
+{
+  const char *name;
+  CAMLparam1(raw_id);
+  CAMLlocal2(copy, some);
+  name = SDL_GetDisplayName((SDL_DisplayID)Int64_val(raw_id));
+  if (name == NULL) {
+    CAMLreturn(Val_none);
+  }
+  copy = caml_copy_string(name);
+  some = caml_alloc(1, 0);
+  Store_field(some, 0, copy);
+  CAMLreturn(some);
+}
+
+CAMLprim value caml_sdl3_display_bounds(value raw_id, value usable)
+{
+  SDL_Rect rect;
+  bool success;
+  CAMLparam2(raw_id, usable);
+  CAMLlocal2(result, some);
+  if (Bool_val(usable)) {
+    success = SDL_GetDisplayUsableBounds(
+        (SDL_DisplayID)Int64_val(raw_id), &rect);
+  } else {
+    success = SDL_GetDisplayBounds((SDL_DisplayID)Int64_val(raw_id), &rect);
+  }
+  if (!success) {
+    CAMLreturn(Val_none);
+  }
+  result = caml_alloc_tuple(4);
+  Store_field(result, 0, Val_int(rect.x));
+  Store_field(result, 1, Val_int(rect.y));
+  Store_field(result, 2, Val_int(rect.w));
+  Store_field(result, 3, Val_int(rect.h));
+  some = caml_alloc(1, 0);
+  Store_field(some, 0, result);
+  CAMLreturn(some);
+}
+
+CAMLprim value caml_sdl3_display_content_scale(value raw_id)
+{
+  CAMLparam1(raw_id);
+  CAMLreturn(caml_copy_double(
+      SDL_GetDisplayContentScale((SDL_DisplayID)Int64_val(raw_id))));
+}
+
+CAMLprim value caml_sdl3_clipboard_set_text(value text)
+{
+  return Val_bool(SDL_SetClipboardText(String_val(text)));
+}
+
+CAMLprim value caml_sdl3_clipboard_get_text(value unit)
+{
+  char *text;
+  CAMLparam1(unit);
+  CAMLlocal2(copy, some);
+  text = SDL_GetClipboardText();
+  if (text == NULL) {
+    CAMLreturn(Val_none);
+  }
+  copy = caml_copy_string(text);
+  SDL_free(text);
+  some = caml_alloc(1, 0);
+  Store_field(some, 0, copy);
+  CAMLreturn(some);
+}
+
+CAMLprim value caml_sdl3_clipboard_has_text(value unit)
+{
+  (void)unit;
+  return Val_bool(SDL_HasClipboardText());
+}
+
+CAMLprim value caml_sdl3_start_text_input(value raw)
+{
+  return Val_bool(SDL_StartTextInput(window_of_value(raw)));
+}
+
+CAMLprim value caml_sdl3_stop_text_input(value raw)
+{
+  return Val_bool(SDL_StopTextInput(window_of_value(raw)));
+}
+
+CAMLprim value caml_sdl3_text_input_active(value raw)
+{
+  return Val_bool(SDL_TextInputActive(window_of_value(raw)));
+}
+
+CAMLprim value caml_sdl3_set_text_input_area(
+    value raw, value rectangle, value cursor)
+{
+  SDL_Rect native_rectangle;
+  SDL_Rect *pointer = NULL;
+  if (Is_block(rectangle)) {
+    value fields = Field(rectangle, 0);
+    native_rectangle.x = Int_val(Field(fields, 0));
+    native_rectangle.y = Int_val(Field(fields, 1));
+    native_rectangle.w = Int_val(Field(fields, 2));
+    native_rectangle.h = Int_val(Field(fields, 3));
+    pointer = &native_rectangle;
+  }
+  return Val_bool(SDL_SetTextInputArea(
+      window_of_value(raw), pointer, Int_val(cursor)));
+}
+
+CAMLprim value caml_sdl3_text_input_area(value raw)
+{
+  SDL_Rect rectangle;
+  int cursor = 0;
+  CAMLparam1(raw);
+  CAMLlocal3(fields, pair, some);
+  if (!SDL_GetTextInputArea(window_of_value(raw), &rectangle, &cursor)) {
+    CAMLreturn(Val_none);
+  }
+  fields = caml_alloc_tuple(4);
+  Store_field(fields, 0, Val_int(rectangle.x));
+  Store_field(fields, 1, Val_int(rectangle.y));
+  Store_field(fields, 2, Val_int(rectangle.w));
+  Store_field(fields, 3, Val_int(rectangle.h));
+  pair = caml_alloc_tuple(2);
+  Store_field(pair, 0, fields);
+  Store_field(pair, 1, Val_int(cursor));
+  some = caml_alloc(1, 0);
+  Store_field(some, 0, pair);
+  CAMLreturn(some);
+}
+
 CAMLprim value caml_sdl3_create_surface_rgba(value width, value height)
 {
   SDL_Surface *surface;
