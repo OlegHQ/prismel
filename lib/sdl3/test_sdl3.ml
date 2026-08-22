@@ -1,3 +1,5 @@
+module System_thread = Thread
+
 open Sdl3
 
 let fail message = failwith ("SDL3 test: " ^ message)
@@ -17,7 +19,7 @@ let () =
    | Error { kind = Incompatible_version; _ } -> ()
    | Ok () | Error _ -> fail "older linked version was not rejected");
   get (Init.init [Init.Video; Init.Events]);
-  if not (Init.initialized [Init.Video; Init.Events]) then
+  if not (get (Init.initialized [Init.Video; Init.Events])) then
     fail "initialized subsystem mask was not retained";
   let window = get (Window.create ~title:"SDL3 ownership test" ~width:96 ~height:64
       ~flags:[Window.Hidden] ()) in
@@ -66,16 +68,38 @@ let () =
   (match Event.wait ~timeout_ms:(-2) with
    | Error { kind = Invalid_argument; _ } -> ()
    | Ok _ | Error _ -> fail "invalid event timeout was not rejected");
+  let worker_may_run = Atomic.make false in
+  let begin_wait = Atomic.make false in
+  let worker = System_thread.create (fun () ->
+    while not (Atomic.get begin_wait) do System_thread.yield () done;
+    System_thread.delay 0.01;
+    Atomic.set worker_may_run true) () in
+  Atomic.set begin_wait true;
+  ignore (get (Event.wait ~timeout_ms:50));
+  if not (Atomic.get worker_may_run) then
+    fail "blocking event wait retained the OCaml runtime lock";
+  System_thread.join worker;
+  let expect_wrong_domain label = function
+    | Error { kind = Wrong_domain; _ } -> ()
+    | Ok _ | Error _ -> fail (label ^ " was not rejected on a worker domain")
+  in
+  expect_wrong_domain "init"
+    (Domain.spawn (fun () -> Init.init [Init.Events]) |> Domain.join);
+  expect_wrong_domain "init query"
+    (Domain.spawn (fun () -> Init.initialized [Init.Events]) |> Domain.join);
+  expect_wrong_domain "display query"
+    (Domain.spawn Display.all |> Domain.join);
+  expect_wrong_domain "clipboard query"
+    (Domain.spawn Clipboard.has_text |> Domain.join);
+  expect_wrong_domain "text-input query"
+    (Domain.spawn (fun () -> Text_input.active window) |> Domain.join);
   let wrong_domain = Domain.spawn (fun () ->
     Window.create ~title:"wrong domain" ~width:8 ~height:8 ()) |> Domain.join in
   (match wrong_domain with
    | Error { kind = Wrong_domain; _ } -> ()
    | Ok window -> ignore (Window.destroy window); fail "wrong-domain create succeeded"
    | Error _ -> fail "wrong-domain create returned the wrong error");
-  let wrong_domain_event = Domain.spawn Event.poll |> Domain.join in
-  (match wrong_domain_event with
-   | Error { kind = Wrong_domain; _ } -> ()
-   | Ok _ | Error _ -> fail "wrong-domain event poll was not rejected");
+  expect_wrong_domain "event poll" (Domain.spawn Event.poll |> Domain.join);
   let padded = Bytes.make 24 '\x7f' in
   for index = 0 to 7 do
     Bytes.set padded index (Char.chr index);

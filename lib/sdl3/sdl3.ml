@@ -170,8 +170,9 @@ module Init = struct
           else sdl_error "SDL3.Init.init")
 
   let initialized subsystems =
-    let requested = mask subsystems in
-    Private_raw.was_init requested land requested = requested
+    on_main "SDL3.Init.initialized" (fun () ->
+      let requested = mask subsystems in
+      Ok (Private_raw.was_init requested land requested = requested))
 
   let quit_subsystems subsystems =
     on_main "SDL3.Init.quit_subsystems" (fun () ->

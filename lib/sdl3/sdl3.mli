@@ -51,7 +51,7 @@ module Init : sig
     | Camera
 
   val init : ?release:bool -> subsystem list -> (unit, error) result
-  val initialized : subsystem list -> bool
+  val initialized : subsystem list -> (bool, error) result
   val quit_subsystems : subsystem list -> (unit, error) result
   val quit : unit -> (unit, error) result
 end

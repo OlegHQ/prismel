@@ -54,7 +54,10 @@ let () =
    | Ok mixer -> ignore (Mixer.destroy mixer); fail "mixer created before init"
    | Error _ -> fail "pre-init mixer returned the wrong error");
   get (Init.init ());
-  if not (Init.initialized ()) then fail "mixer init was not retained";
+  if not (get (Init.initialized ())) then fail "mixer init was not retained";
+  (match Domain.spawn Init.initialized |> Domain.join with
+   | Error { kind = Wrong_domain; _ } -> ()
+   | Ok _ | Error _ -> fail "wrong-domain mixer init query was not rejected");
 
   let mixer = get (Mixer.create_memory ~sample_rate:48_000 ~channels:2) in
   if Mixer.mode mixer <> Mixer.Memory

@@ -31,7 +31,11 @@ let () =
    | Ok font -> ignore (Font.destroy font); fail "font opened before TTF init"
    | Error _ -> fail "pre-init font open returned the wrong error");
   get_ttf (Init.init ());
-  if not (Init.initialized ()) then fail "TTF initialization was not retained";
+  if not (get_ttf (Init.initialized ())) then
+    fail "TTF initialization was not retained";
+  (match Domain.spawn Init.initialized |> Domain.join with
+   | Error { kind = Wrong_domain; _ } -> ()
+   | Ok _ | Error _ -> fail "wrong-domain TTF init query was not rejected");
   (match Font.open_file ~path:Sys.argv.(1) ~size:nan with
    | Error { kind = Invalid_argument; _ } -> ()
    | Ok font -> ignore (Font.destroy font); fail "NaN font size was accepted"

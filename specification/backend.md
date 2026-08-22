@@ -92,6 +92,9 @@ boundaries:
 - `raster2` has no SDL3, Metal, OGPU, Runtime, Prismel, or PXUI dependency;
 - Wap imports no platform or renderer library.
 
+The replacement binding's ownership, callback, blocking-call, and per-operation
+thread classes are recorded in [`sdl3.md`](sdl3.md).
+
 `test/gpu_dependency_direction.ml` checks these edges from the Dune library
 stanzas and proves the check itself with an injected forbidden reverse edge.
 The older target details below are retained deliberately as Phase 0 baseline

@@ -143,7 +143,8 @@ module Init = struct
          | Error _ as failure -> failure
          | Ok () -> incr init_count; Ok ()))
 
-  let initialized () = raw_was_init () > 0
+  let initialized () = on_main "SDL3_ttf.Init.initialized" (fun () ->
+    Ok (raw_was_init () > 0))
 
   let quit () = on_main "SDL3_ttf.Init.quit" (fun () ->
     let open_count = Atomic.get live_fonts in
@@ -198,9 +199,11 @@ module Font = struct
 
   let live operation value callback = on_main operation (fun () ->
     if value.destroyed then error operation Destroyed "font is destroyed"
-    else if not (Init.initialized ()) then
-      error operation Not_initialized "SDL3_ttf is not initialized"
-    else callback value.raw)
+    else
+      match Init.initialized () with
+      | Error _ as failure -> failure
+      | Ok false -> error operation Not_initialized "SDL3_ttf is not initialized"
+      | Ok true -> callback value.raw)
 
   let open_file ~path ~size =
     let operation = "SDL3_ttf.Font.open_file" in
@@ -209,12 +212,13 @@ module Font = struct
     else if not (valid_size size) then
       error operation Invalid_argument "font size must be finite and positive"
     else on_main operation (fun () ->
-      if not (Init.initialized ()) then
-        error operation Not_initialized "SDL3_ttf is not initialized"
-      else
-        match ttf_result operation (raw_open_font path size) with
-        | Error _ as failure -> failure
-        | Ok raw -> Ok (owned raw))
+      match Init.initialized () with
+      | Error _ as failure -> failure
+      | Ok false -> error operation Not_initialized "SDL3_ttf is not initialized"
+      | Ok true ->
+          (match ttf_result operation (raw_open_font path size) with
+           | Error _ as failure -> failure
+           | Ok raw -> Ok (owned raw)))
 
   let metrics value = live "SDL3_ttf.Font.metrics" value (fun raw ->
     let height, ascent, descent, line_skip = raw_font_metrics raw in

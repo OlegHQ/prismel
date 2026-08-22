@@ -212,7 +212,8 @@ module Init = struct
          | Error _ as failure -> failure
          | Ok () -> incr init_count; Ok ()))
 
-  let initialized () = !init_count > 0
+  let initialized () = on_main "SDL3_mixer.Init.initialized" (fun () ->
+    Ok (!init_count > 0))
 
   let quit () = on_main "SDL3_mixer.Init.quit" (fun () ->
     let handles = Atomic.get live_mixers + Atomic.get live_audios
@@ -229,8 +230,10 @@ module Init = struct
 end
 
 let require_initialized operation =
-  if Init.initialized () then Ok ()
-  else error operation Not_initialized "SDL3_mixer is not initialized"
+  match Init.initialized () with
+  | Error _ as failure -> failure
+  | Ok true -> Ok ()
+  | Ok false -> error operation Not_initialized "SDL3_mixer is not initialized"
 
 let contains_nul value =
   try ignore (String.index value '\x00'); true with Not_found -> false

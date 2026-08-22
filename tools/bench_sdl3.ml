@@ -115,7 +115,7 @@ let () =
     measure ~name:"version_and_init_query" ~iterations:arguments.iterations
       ~calls_per_iteration:2 (fun _ ->
         ignore (Sdl3.Version.linked ());
-        ignore (Sdl3.Init.initialized [ Sdl3.Init.Events ]))
+        ignore (sdl (Sdl3.Init.initialized [ Sdl3.Init.Events ])))
   in
   let events =
     measure ~name:"event_poll" ~iterations:arguments.iterations

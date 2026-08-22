@@ -33,7 +33,7 @@ end
 
 module Init : sig
   val init : unit -> (unit, error) result
-  val initialized : unit -> bool
+  val initialized : unit -> (bool, error) result
   val quit : unit -> (unit, error) result
 end
 

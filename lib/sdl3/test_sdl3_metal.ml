@@ -23,6 +23,9 @@ let () =
     ignore (get (Display.name (get (Window.display window))));
     let view = get (Metal_view.create window) in
     ignore (get (Metal_view.layer view));
+    (match Domain.spawn (fun () -> Metal_view.layer view) |> Domain.join with
+     | Error { kind = Wrong_domain; _ } -> ()
+     | Ok _ | Error _ -> fail "wrong-domain Metal view access was not rejected");
     (match Window.destroy window with
      | Error { kind = Parent_has_dependents; _ } -> ()
      | Ok () | Error _ -> fail "parent teardown ignored a live Metal view");
