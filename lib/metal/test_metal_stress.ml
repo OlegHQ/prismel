@@ -21,6 +21,16 @@ let rss_tolerance () =
        | Some _ | None ->
            fail "PRISMEL_METAL_STRESS_RSS_TOLERANCE must be nonnegative")
 
+let external_rss_tolerance () =
+  match Sys.getenv_opt "PRISMEL_METAL_EXTERNAL_STRESS_RSS_TOLERANCE" with
+  | None -> rss_tolerance ()
+  | Some raw ->
+      (match Int64.of_string_opt raw with
+       | Some value when value >= 0L -> value
+       | Some _ | None ->
+           fail
+             "PRISMEL_METAL_EXTERNAL_STRESS_RSS_TOLERANCE must be nonnegative")
+
 let run_buffer_cycles device count =
   for _ = 1 to count do
     let buffer =
@@ -84,7 +94,19 @@ let run_residency_cycles device count =
     get (Residency_set.destroy residency_set)
   done
 
-let check_cycles ~name ~expected (baseline : Release_queue.stats)
+let run_external_buffer_cycles device ~page_size count =
+  let length = Int64.of_int page_size in
+  for _ = 1 to count do
+    let memory = get (Buffer.External.create ~length) in
+    let buffer =
+      get
+        (Buffer.create_no_copy ~device ~memory ~storage:Buffer.Shared ())
+    in
+    get (Buffer.destroy buffer);
+    get (Buffer.External.destroy memory)
+  done
+
+let check_cycles ?rss_limit ~name ~expected (baseline : Release_queue.stats)
     (finished : Release_queue.stats) =
   let created = Int64.sub finished.total_created baseline.total_created in
   let released = Int64.sub finished.total_released baseline.total_released in
@@ -98,7 +120,12 @@ let check_cycles ~name ~expected (baseline : Release_queue.stats)
   if finished.pending <> 0 || finished.dropped <> 0 then
     fail "%s: release queue did not settle (%d pending, %d dropped)" name
       finished.pending finished.dropped;
-  let rss_tolerance = rss_tolerance () in
+  if
+    finished.external_deallocation_mismatches
+    <> baseline.external_deallocation_mismatches
+  then
+    fail "%s: Metal reported a no-copy deallocator layout mismatch" name;
+  let rss_tolerance = Option.value rss_limit ~default:(rss_tolerance ()) in
   if rss_growth > rss_tolerance then
     fail "%s: resident memory grew by %Ld bytes after settling (limit %Ld)" name
       rss_growth rss_tolerance;
@@ -146,6 +173,20 @@ let () =
       end
       else None
     in
+    let page_size = get (Buffer.External.page_size ()) in
+    run_external_buffer_cycles device ~page_size 500;
+    let external_baseline = settle () in
+    run_external_buffer_cycles device ~page_size 10_000;
+    let external_finished = settle () in
+    let external_rss_growth =
+      check_cycles ~rss_limit:(external_rss_tolerance ())
+        ~name:"external/no-copy buffers" ~expected:20_000L
+        external_baseline external_finished
+    in
+    let external_deallocations =
+      Int64.sub external_finished.external_deallocations
+        external_baseline.external_deallocations
+    in
     get (Device.destroy device);
     let final = settle () in
     if final.live_handles <> 0 then
@@ -153,11 +194,12 @@ let () =
     (match residency_rss_growth with
      | Some residency_rss_growth ->
          Printf.printf
-           "Metal ownership stress passed: 100000 buffer, 100000 texture/sampler, 30000 heap/resource, and 20000 residency/resource handles, %Ld/%Ld/%Ld/%Ld-byte settled RSS deltas\n%!"
+           "Metal ownership stress passed: 100000 buffer, 100000 texture/sampler, 30000 heap/resource, 20000 residency/resource, and 20000 external/no-copy handles, %Ld/%Ld/%Ld/%Ld/%Ld-byte settled RSS deltas, %Ld deferred no-copy callbacks\n%!"
            buffer_rss_growth resource_rss_growth heap_rss_growth
-           residency_rss_growth
+           residency_rss_growth external_rss_growth external_deallocations
      | None ->
          Printf.printf
-           "Metal ownership stress passed: 100000 buffer, 100000 texture/sampler, and 30000 heap/resource handles; residency unsupported, %Ld/%Ld/%Ld-byte settled RSS deltas\n%!"
-           buffer_rss_growth resource_rss_growth heap_rss_growth)
+           "Metal ownership stress passed: 100000 buffer, 100000 texture/sampler, 30000 heap/resource, and 20000 external/no-copy handles; residency unsupported, %Ld/%Ld/%Ld/%Ld-byte settled RSS deltas, %Ld deferred no-copy callbacks\n%!"
+           buffer_rss_growth resource_rss_growth heap_rss_growth
+           external_rss_growth external_deallocations)
   end

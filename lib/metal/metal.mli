@@ -44,6 +44,8 @@ module Release_queue : sig
     ; live_handles : int
     ; total_created : int64
     ; total_released : int64
+    ; external_deallocations : int64
+    ; external_deallocation_mismatches : int64
     ; resident_bytes : int64
     }
 
@@ -104,6 +106,21 @@ end
 module Buffer : sig
   type t
 
+  module External : sig
+    type t
+
+    val page_size : unit -> (int, error) result
+    val create : length:int64 -> (t, error) result
+    val generation : t -> int64
+    val length : t -> int64
+    val alignment : t -> int64
+    val destroyed : t -> bool
+    val write_bytes :
+      t -> ?src_offset:int -> dst_offset:int64 -> bytes -> (unit, error) result
+    val read_bytes : t -> offset:int64 -> length:int -> (bytes, error) result
+    val destroy : t -> (unit, error) result
+  end
+
   type storage_mode =
     | Shared
     | Managed
@@ -122,6 +139,14 @@ module Buffer : sig
     device:Device.t -> length:int64 -> storage:storage_mode ->
     ?cpu_cache:cpu_cache_mode -> ?hazard_tracking:hazard_tracking_mode ->
     ?label:string -> unit -> (t, error) result
+  val create_copy :
+    device:Device.t -> storage:storage_mode -> ?cpu_cache:cpu_cache_mode ->
+    ?hazard_tracking:hazard_tracking_mode -> ?label:string -> ?src_offset:int ->
+    ?length:int -> bytes -> (t, error) result
+  val create_no_copy :
+    device:Device.t -> memory:External.t -> storage:storage_mode ->
+    ?cpu_cache:cpu_cache_mode -> ?hazard_tracking:hazard_tracking_mode ->
+    ?label:string -> unit -> (t, error) result
   val device : t -> Device.t
   val generation : t -> int64
   val length : t -> int64
@@ -129,6 +154,7 @@ module Buffer : sig
   val cpu_cache_mode : t -> cpu_cache_mode
   val hazard_tracking_mode : t -> hazard_tracking_mode
   val heap_offset : t -> int64 option
+  val external_memory : t -> External.t option
   val destroyed : t -> bool
   val label : t -> (string option, error) result
   val set_label : t -> string -> (unit, error) result

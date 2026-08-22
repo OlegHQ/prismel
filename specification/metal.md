@@ -53,8 +53,9 @@ hard typed error rather than silent reclamation on a GC domain.
 ## Implemented vertical slices
 
 The current safe slices cover device enumeration and capabilities; shared,
-managed, and private buffers; CPU range transfer and lexical mapped-range
-handles; textures and views; samplers; labels; runtime MSL library compilation
+managed, and private buffers; copied and page-aligned no-copy buffer creation;
+CPU range transfer and lexical mapped-range handles; textures and views;
+samplers; labels; runtime MSL library compilation
 with full `NSError` diagnostics; automatic and placement heaps; macOS-15
 residency sets; function lookup; compute-pipeline creation and limits; command
 queues and buffers; compute encoding and resource binding; checked thread
@@ -65,6 +66,23 @@ checked copy operations rather than a Bigarray backed by an escaping native
 pointer. Retaining the opaque value is harmless: every operation returns
 `Destroyed` after the callback leaves, buffer teardown is rejected while the
 scope is active, and `Fun.protect` closes the scope on exceptions.
+
+`Buffer.create_copy` passes a checked OCaml byte range to
+`newBufferWithBytes:length:options:` and verifies that the returned buffer owns
+the requested length and resource modes. The source remains rooted for the
+synchronous copy only; later source mutation cannot change the Metal buffer.
+
+`Buffer.External` owns an opaque, zero-initialized, page-aligned single VM
+region allocated with `mmap`. Lengths must be positive page multiples, and all
+copy access is range-checked in OCaml and again at the native boundary.
+`Buffer.create_no_copy` is exclusive: a second borrow, owner access, or owner
+destruction is rejected while the safe Metal buffer is live, and private
+storage is rejected before Objective-C. Metal's deallocator block strongly
+retains the VM owner until the native buffer actually relinquishes the borrow;
+this is necessary because the qualified M1 may defer the callback past safe
+handle destruction. The VM owner uses `munmap`, so 10,000 create/borrow/destroy
+cycles settle without allocator-retained page growth. Callback pointer/length
+mismatches are counted as a hard ownership failure.
 
 `Texture.descriptor` models all current Metal texture kinds, explicit
 dimensions, mip/sample/array counts, storage/cache/hazard modes, usage, GPU
@@ -150,14 +168,15 @@ address modes and border colors, normalized coordinates, finite float32 LOD
 clamps, comparison, LOD averaging, and argument-buffer support. Invalid
 anisotropy, non-finite or inverted clamps, illegal unnormalized-coordinate
 combinations, and malformed labels fail before sampler creation. Sparse
-resources, buffer-backed textures, external ownership, and the remaining
-pixel-format capability matrix are still pending; this resource slice is
-therefore progress toward M3, not an M3 completion claim.
+resources, buffer-backed textures, IOSurface/shared-handle texture ownership,
+and the remaining pixel-format capability matrix are still pending; this
+resource slice is therefore progress toward M3, not an M3 completion claim.
 
 `test_metal.exe` runs a real M1 compute kernel, wrong-domain and invalid-state
-cases, shader diagnostics, buffer and texture bounds/stride/cardinality checks,
-texture mip transfer and views, sampler validation, multisample capability
-gating, heap alignment and placement, aliasing, purgeability, residency
+cases, shader diagnostics, copied/no-copy external buffer ownership, buffer and
+texture bounds/stride/cardinality checks, texture mip transfer and views,
+sampler validation, multisample capability gating, heap alignment and
+placement, aliasing, purgeability, residency
 membership/commit/queue/command retention, command-resource retention, parent
 ownership, idempotent destruction, stale access, and GC-finalizer release. The
 separate ownership stress performs
@@ -166,9 +185,10 @@ by 100,000 measured buffer create/destroy cycles, 100,000 measured
 texture/sampler create/destroy cycles, 10,000 heap/purge/alias/replacement
 cycles covering 30,000 measured heap/child-resource handles, and 10,000
 residency add/commit/remove/commit cycles covering 20,000 measured
-set/resource handles. Each lane requires exact created/released balance, zero
-pending or dropped releases, stable live-handle count, and bounded settled RSS
-growth.
+set/resource handles. A further 10,000 external-memory/no-copy cycles cover
+20,000 measured handles and exact deferred-deallocator layout. Each lane
+requires exact created/released balance, zero pending or dropped releases,
+stable live-handle count, and bounded settled RSS growth.
 
 `PRISMEL_METAL_SANITIZERS` is parsed by OCaml build configuration and accepts
 `address`, `undefined`, or `thread`; ThreadSanitizer is deliberately exclusive,
@@ -183,9 +203,12 @@ intentional memory amplification rather than Metal lifetime settling.
 AddressSanitizer qualification disables its allocation quarantine for the
 ownership stress. This keeps the RSS assertion about live Metal/ARC resources
 instead of ASan's intentionally retained freed blocks; exact created/released,
-queue, and sanitizer checks remain active. ThreadSanitizer uses a larger RSS
-tolerance for shadow-memory growth while retaining the same exact handle
-balance.
+queue, and sanitizer checks remain active. ThreadSanitizer uses a 64 MiB RSS
+tolerance for ordinary Metal lanes and a separate 384 MiB tolerance only for
+the 10,000-cycle `mmap`/`munmap` external-memory lane, whose address churn
+retains substantially more TSan shadow metadata. The ordinary unsanitized lane
+keeps the default 8 MiB limit, and every mode retains exact handle balance,
+zero deallocator-layout mismatches, and sanitizer diagnostics.
 
 `tools/bench_metal_ffi.exe` is the release-profile M9 baseline. It measures one
 Objective-C property query per OCaml call, one batched call containing the same

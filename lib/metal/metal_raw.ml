@@ -11,6 +11,10 @@ external dropped_releases : unit -> int = "caml_prismel_metal_dropped_releases"
 external live_handles : unit -> int = "caml_prismel_metal_live_handles"
 external total_created : unit -> int64 = "caml_prismel_metal_total_created"
 external total_released : unit -> int64 = "caml_prismel_metal_total_released"
+external external_deallocations : unit -> int64 =
+  "caml_prismel_metal_external_deallocations"
+external external_deallocation_mismatches : unit -> int64 =
+  "caml_prismel_metal_external_deallocation_mismatches"
 external resident_bytes : unit -> int64 = "caml_prismel_metal_resident_bytes"
 
 external default_device : unit -> (handle, string) result =
@@ -64,6 +68,31 @@ external device_supports_residency_sets : handle -> bool =
 
 external buffer_create : handle -> int64 -> int -> (handle, string) result =
   "caml_prismel_metal_buffer_create"
+
+external buffer_create_copy :
+  handle -> bytes -> int -> int -> int -> (handle, string) result
+  = "caml_prismel_metal_buffer_create_copy"
+
+external external_memory_page_size : unit -> int =
+  "caml_prismel_metal_external_memory_page_size"
+
+external external_memory_create : int64 -> (handle, string) result =
+  "caml_prismel_metal_external_memory_create"
+
+external external_memory_info : handle -> int64 * int64 =
+  "caml_prismel_metal_external_memory_info"
+
+external external_memory_write :
+  handle -> int64 -> bytes -> int -> int -> (unit, string) result
+  = "caml_prismel_metal_external_memory_write"
+
+external external_memory_read :
+  handle -> int64 -> int -> (bytes, string) result
+  = "caml_prismel_metal_external_memory_read"
+
+external buffer_create_no_copy :
+  handle -> handle -> int -> (handle, string) result
+  = "caml_prismel_metal_buffer_create_no_copy"
 
 external buffer_info : handle -> int64 * int * int * int * int64 =
   "caml_prismel_metal_buffer_info"

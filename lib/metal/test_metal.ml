@@ -327,6 +327,132 @@ let () =
            <> Empty
          then fail "empty buffer restore did not report discarded contents");
     get (Buffer.destroy configured_buffer);
+    let copy_source = Bytes.init 32 (fun index -> Char.chr (index + 1)) in
+    let copied_buffer =
+      get
+        (Buffer.create_copy ~device ~storage:Buffer.Shared ~src_offset:4
+           ~length:16 ~label:"Copied Metal buffer" copy_source)
+    in
+    if Buffer.external_memory copied_buffer <> None
+       || get (Buffer.label copied_buffer) <> Some "Copied Metal buffer"
+    then fail "copied buffer ownership or label is wrong";
+    let expected_copy = Bytes.sub copy_source 4 16 in
+    Bytes.fill copy_source 4 16 '\000';
+    if get (Buffer.read_bytes copied_buffer ~offset:0L ~length:16) <> expected_copy
+    then fail "newBufferWithBytes did not retain an independent copy";
+    ignore
+      (expect_error Invalid_argument
+         (Buffer.create_copy ~device ~storage:Buffer.Shared ~src_offset:(-1)
+            copy_source));
+    ignore
+      (expect_error Invalid_argument
+         (Buffer.create_copy ~device ~storage:Buffer.Shared ~length:0
+            copy_source));
+    ignore
+      (expect_error Invalid_argument
+         (Buffer.create_copy ~device ~storage:Buffer.Shared ~src_offset:24
+            ~length:9 copy_source));
+    get (Buffer.destroy copied_buffer);
+    let page_size = get (Buffer.External.page_size ()) in
+    if page_size <= 0 || page_size land (page_size - 1) <> 0 then
+      fail "native VM page size is invalid";
+    ignore
+      (expect_error Invalid_argument (Buffer.External.create ~length:0L));
+    ignore
+      (expect_error Invalid_argument
+         (Buffer.External.create ~length:(Int64.of_int (page_size - 1))));
+    let external_memory =
+      get (Buffer.External.create ~length:(Int64.of_int page_size))
+    in
+    if Buffer.External.length external_memory <> Int64.of_int page_size
+       || Buffer.External.alignment external_memory <> Int64.of_int page_size
+    then fail "external-memory page layout is wrong";
+    if
+      get (Buffer.External.read_bytes external_memory ~offset:0L ~length:16)
+      <> Bytes.make 16 '\000'
+    then fail "external memory was not initialized deterministically";
+    get
+      (Buffer.External.write_bytes external_memory ~dst_offset:0L (input_values ()));
+    let before_no_copy = get (Release_queue.stats ()) in
+    let no_copy_buffer =
+      get
+        (Buffer.create_no_copy ~device ~memory:external_memory
+           ~storage:Buffer.Shared ~label:"No-copy Metal buffer" ())
+    in
+    (match Buffer.external_memory no_copy_buffer with
+     | Some owner when owner == external_memory -> ()
+     | Some _ | None -> fail "no-copy buffer lost its external owner");
+    if get (Buffer.read_bytes no_copy_buffer ~offset:0L ~length:16)
+       <> input_values ()
+    then fail "no-copy buffer did not expose its external bytes";
+    ignore
+      (expect_error Parent_has_dependents
+         (Buffer.External.read_bytes external_memory ~offset:0L ~length:1));
+    ignore
+      (expect_error Parent_has_dependents
+         (Buffer.External.write_bytes external_memory ~dst_offset:0L
+            (Bytes.make 1 '\000')));
+    ignore
+      (expect_error Parent_has_dependents
+         (Buffer.External.destroy external_memory));
+    ignore
+      (expect_error Parent_has_dependents
+         (Buffer.create_no_copy ~device ~memory:external_memory
+            ~storage:Buffer.Shared ()));
+    let private_external =
+      get (Buffer.External.create ~length:(Int64.of_int page_size))
+    in
+    ignore
+      (expect_error Unsupported
+         (Buffer.create_no_copy ~device ~memory:private_external
+            ~storage:Buffer.Private ()));
+    get (Buffer.External.destroy private_external);
+    let updated_external = Bytes.make 16 '\123' in
+    get (Buffer.write_bytes no_copy_buffer ~dst_offset:0L updated_external);
+    get (Buffer.destroy no_copy_buffer);
+    let after_no_copy = get (Release_queue.stats ()) in
+    if after_no_copy.external_deallocation_mismatches
+       <> before_no_copy.external_deallocation_mismatches
+    then
+      fail
+        "Metal no-copy deallocator mismatch (before=%Ld/%Ld after=%Ld/%Ld)"
+        before_no_copy.external_deallocations
+        before_no_copy.external_deallocation_mismatches
+        after_no_copy.external_deallocations
+        after_no_copy.external_deallocation_mismatches;
+    if
+      get (Buffer.External.read_bytes external_memory ~offset:0L ~length:16)
+      <> updated_external
+    then fail "external bytes did not survive the Metal buffer borrow";
+    get (Buffer.External.destroy external_memory);
+    ignore
+      (expect_error Destroyed
+         (Buffer.External.read_bytes external_memory ~offset:0L ~length:1));
+    let before_external_finalizer = get (Release_queue.stats ()) in
+    let allocate_unreleased_external_buffer () =
+      let memory =
+        get (Buffer.External.create ~length:(Int64.of_int page_size))
+      in
+      ignore
+        (get
+           (Buffer.create_no_copy ~device ~memory ~storage:Buffer.Shared ()))
+    in
+    allocate_unreleased_external_buffer ();
+    let after_external_finalizer =
+      settle_finalizers ~expected_live:before_external_finalizer.live_handles
+    in
+    if
+      Int64.sub after_external_finalizer.total_created
+        before_external_finalizer.total_created
+      <> 2L
+      || Int64.sub after_external_finalizer.total_released
+           before_external_finalizer.total_released
+         <> 2L
+      || after_external_finalizer.external_deallocation_mismatches
+         <> before_external_finalizer.external_deallocation_mismatches
+    then
+      fail
+        "external/no-copy finalization did not release exactly two handles with a valid deallocator layout";
     let texture_descriptor =
       Texture.descriptor_2d ~mipmapped:true ~storage:Buffer.Shared
         ~usage:[ Texture.Shader_read; Texture.Pixel_format_view ]
@@ -908,9 +1034,14 @@ let () =
     get (Device.destroy device);
     List.iter (fun value -> get (Device.destroy value)) all_devices;
     let stats = settle_finalizers ~expected_live:0 in
-    if stats.pending <> 0 || stats.dropped <> 0 || stats.live_handles <> 0 then
-      fail "Metal release accounting did not settle (%d pending, %d dropped, %d live)"
-        stats.pending stats.dropped stats.live_handles;
+    if stats.pending <> 0 || stats.dropped <> 0 || stats.live_handles <> 0
+       || stats.external_deallocation_mismatches <> 0L
+    then
+      fail
+        "Metal release accounting did not settle (%d pending, %d dropped, %d live, %Ld external deallocations, %Ld mismatches)"
+        stats.pending stats.dropped stats.live_handles
+        stats.external_deallocations
+        stats.external_deallocation_mismatches;
     Printf.printf
       "Metal ARC/device/heap/buffer/texture/sampler/residency/runtime-shader/compute conformance passed on %s\n%!"
       info.name

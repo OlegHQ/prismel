@@ -66,6 +66,8 @@ module Release_queue = struct
     ; live_handles : int
     ; total_created : int64
     ; total_released : int64
+    ; external_deallocations : int64
+    ; external_deallocation_mismatches : int64
     ; resident_bytes : int64
     }
 
@@ -95,6 +97,9 @@ module Release_queue = struct
             ; live_handles = Metal_raw.live_handles ()
             ; total_created = Metal_raw.total_created ()
             ; total_released = Metal_raw.total_released ()
+            ; external_deallocations = Metal_raw.external_deallocations ()
+            ; external_deallocation_mismatches =
+                Metal_raw.external_deallocation_mismatches ()
             ; resident_bytes
             }
 end
@@ -266,9 +271,17 @@ type heap =
   ; active_uses : int Atomic.t
   }
 
+and external_memory =
+  { raw : Metal_raw.handle
+  ; lifetime : lifetime
+  ; length : int64
+  ; alignment : int64
+  }
+
 and resource_parent =
   | Device_resource of device
   | Heap_resource of heap
+  | External_resource of external_memory
 
 and buffer =
   { raw : Metal_raw.handle
@@ -448,7 +461,8 @@ let command_resource_lifetime = function
 
 let command_resource_heap = function
   | Command_buffer_buffer { parent = Heap_resource heap; _ } -> Some heap
-  | Command_buffer_buffer { parent = Device_resource _; _ } -> None
+  | Command_buffer_buffer
+      { parent = (Device_resource _ | External_resource _); _ } -> None
   | Command_residency_set _ -> None
 
 let release_command_resources resources =
@@ -473,7 +487,7 @@ let retain_command_buffer_buffer (command_buffer : command_buffer) (buffer : buf
     attach buffer.lifetime;
     Option.iter (fun heap -> Atomic.incr heap.active_uses)
       (match buffer.parent with
-       | Device_resource _ -> None
+       | Device_resource _ | External_resource _ -> None
        | Heap_resource heap -> Some heap);
     command_buffer.resources :=
       Command_buffer_buffer buffer :: !(command_buffer.resources)
@@ -508,6 +522,7 @@ let deactivate_allocation (value : heap_allocation option) =
 let resource_parent_lifetime = function
   | Device_resource device -> device.lifetime
   | Heap_resource heap -> heap.lifetime
+  | External_resource memory -> memory.lifetime
 
 let texture_parent_lifetime = function
   | Texture_resource parent -> resource_parent_lifetime parent
@@ -549,7 +564,7 @@ let apply_purgeable_state operation call tracked state =
             | Ok _current -> Ok previous))
 
 let parent_heap = function
-  | Device_resource _ -> None
+  | Device_resource _ | External_resource _ -> None
   | Heap_resource heap -> Some heap
 
 let rec texture_heap (value : texture) =
@@ -758,6 +773,122 @@ module Buffer = struct
     | Untracked
     | Tracked
 
+  module External = struct
+    type t = external_memory
+
+    let page_size () =
+      on_main "Metal.Buffer.External.page_size" (fun () ->
+        let page_size = Metal_raw.external_memory_page_size () in
+        if page_size <= 0 then
+          native_error "Metal.Buffer.External.page_size"
+            "native VM page size is not positive"
+        else Ok page_size)
+
+    let create ~length =
+      on_main "Metal.Buffer.External.create" (fun () ->
+        let page_size = Metal_raw.external_memory_page_size () in
+        if length <= 0L then
+          error "Metal.Buffer.External.create" Invalid_argument
+            "external-memory length must be positive"
+        else if page_size <= 0 then
+          native_error "Metal.Buffer.External.create"
+            "native VM page size is not positive"
+        else if Int64.rem length (Int64.of_int page_size) <> 0L then
+          error "Metal.Buffer.External.create" Invalid_argument
+            "external-memory length must be a whole number of VM pages"
+        else
+          match Metal_raw.external_memory_create length with
+          | Error message -> native_error "Metal.Buffer.External.create" message
+          | Ok raw ->
+              let actual_length, alignment =
+                Metal_raw.external_memory_info raw
+              in
+              if actual_length <> length
+                 || alignment <> Int64.of_int page_size
+              then begin
+                ignore (Metal_raw.destroy raw);
+                native_error "Metal.Buffer.External.create"
+                  "native external memory changed its checked page layout"
+              end
+              else
+                Ok { raw; lifetime = lifetime (); length; alignment })
+
+    let generation (value : t) = Metal_raw.generation value.raw
+    let length (value : t) = value.length
+    let alignment (value : t) = value.alignment
+    let destroyed (value : t) = is_destroyed value.lifetime
+
+    let validate_range operation (value : t) ~offset ~length =
+      if offset < 0L || length < 0 then
+        error operation Invalid_argument "external-memory range is negative"
+      else
+        let length64 = Int64.of_int length in
+        if offset > value.length || length64 > Int64.sub value.length offset then
+          error operation Invalid_argument
+            "external-memory range exceeds its allocation"
+        else Ok ()
+
+    let ensure_exclusive operation (value : t) =
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when dependent_count value.lifetime <> 0 ->
+          error operation Parent_has_dependents
+            "external memory is borrowed by a no-copy Metal buffer"
+      | Ok () -> Ok ()
+
+    let write_bytes (value : t) ?(src_offset = 0) ~dst_offset bytes =
+      on_main "Metal.Buffer.External.write_bytes" (fun () ->
+        match ensure_exclusive "Metal.Buffer.External.write_bytes" value with
+        | Error _ as failure -> failure
+        | Ok () ->
+            let source_length = Bytes.length bytes in
+            if src_offset < 0 || src_offset > source_length then
+              error "Metal.Buffer.External.write_bytes" Invalid_argument
+                "source offset is outside the byte buffer"
+            else
+              let length = source_length - src_offset in
+              (match
+                 validate_range "Metal.Buffer.External.write_bytes" value
+                   ~offset:dst_offset ~length
+               with
+               | Error _ as failure -> failure
+               | Ok () ->
+                   (match
+                      Metal_raw.external_memory_write value.raw dst_offset bytes
+                        src_offset length
+                    with
+                    | Ok () -> Ok ()
+                    | Error message ->
+                        native_error "Metal.Buffer.External.write_bytes"
+                          message)))
+
+    let read_bytes (value : t) ~offset ~length =
+      on_main "Metal.Buffer.External.read_bytes" (fun () ->
+        match ensure_exclusive "Metal.Buffer.External.read_bytes" value with
+        | Error _ as failure -> failure
+        | Ok () when length > Sys.max_string_length ->
+            error "Metal.Buffer.External.read_bytes" Invalid_argument
+              "read length exceeds the maximum OCaml byte-buffer size"
+        | Ok () ->
+            (match
+               validate_range "Metal.Buffer.External.read_bytes" value ~offset
+                 ~length
+             with
+             | Error _ as failure -> failure
+             | Ok () ->
+                 (match
+                    Metal_raw.external_memory_read value.raw offset length
+                  with
+                  | Ok bytes -> Ok bytes
+                  | Error message ->
+                      native_error "Metal.Buffer.External.read_bytes"
+                        message)))
+
+    let destroy (value : t) =
+      destroy_parent "Metal.Buffer.External.destroy" value.lifetime value.raw
+        (fun () -> ())
+  end
+
   let validate_create operation (device : Device.t) ~length ~label =
     if length <= 0L then
       error operation Invalid_argument "buffer length must be positive"
@@ -774,7 +905,10 @@ module Buffer = struct
     in
     let expected_hazard =
       concrete_hazard_tracking
-        ~heap:(match parent with Heap_resource _ -> true | Device_resource _ -> false)
+        ~heap:
+          (match parent with
+           | Heap_resource _ -> true
+           | Device_resource _ | External_resource _ -> false)
         hazard_tracking
     in
     if actual_length <> length || actual_storage <> storage_code storage
@@ -834,8 +968,89 @@ module Buffer = struct
                | Ok raw ->
                    finish_create "Metal.Buffer.create" ~device
                      ~parent:(Device_resource device) ~length ~storage ~cpu_cache
-                     ~hazard_tracking ~heap_offset:None ~allocation:None ~label
-                     raw))
+                   ~hazard_tracking ~heap_offset:None ~allocation:None ~label
+                   raw))
+
+  let create_copy ~(device : Device.t) ~storage
+      ?(cpu_cache = Default_cache)
+      ?(hazard_tracking = Default_hazard_tracking) ?label ?(src_offset = 0)
+      ?length bytes =
+    on_main "Metal.Buffer.create_copy" (fun () ->
+      match ensure_live "Metal.Buffer.create_copy" device.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          let source_length = Bytes.length bytes in
+          if src_offset < 0 || src_offset > source_length then
+            error "Metal.Buffer.create_copy" Invalid_argument
+              "source offset is outside the byte buffer"
+          else
+            let length =
+              Option.value length ~default:(source_length - src_offset)
+            in
+            if length <= 0 || length > source_length - src_offset then
+              error "Metal.Buffer.create_copy" Invalid_argument
+                "buffer copy range is empty or exceeds the source bytes"
+            else
+              let length64 = Int64.of_int length in
+              (match
+                 validate_create "Metal.Buffer.create_copy" device
+                   ~length:length64 ~label
+               with
+               | Error _ as failure -> failure
+               | Ok () ->
+                   let options =
+                     resource_options_code ~storage ~cpu_cache ~hazard_tracking
+                   in
+                   match
+                     Metal_raw.buffer_create_copy device.raw bytes src_offset
+                       length options
+                   with
+                   | Error message ->
+                       native_error "Metal.Buffer.create_copy" message
+                   | Ok raw ->
+                       finish_create "Metal.Buffer.create_copy" ~device
+                         ~parent:(Device_resource device) ~length:length64
+                         ~storage ~cpu_cache ~hazard_tracking ~heap_offset:None
+                         ~allocation:None ~label raw))
+
+  let create_no_copy ~(device : Device.t) ~(memory : External.t) ~storage
+      ?(cpu_cache = Default_cache)
+      ?(hazard_tracking = Default_hazard_tracking) ?label () =
+    on_main "Metal.Buffer.create_no_copy" (fun () ->
+      match ensure_live "Metal.Buffer.create_no_copy" device.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match ensure_live "Metal.Buffer.create_no_copy" memory.lifetime with
+           | Error _ as failure -> failure
+           | Ok () when dependent_count memory.lifetime <> 0 ->
+               error "Metal.Buffer.create_no_copy" Parent_has_dependents
+                 "external memory is already borrowed by a Metal buffer"
+           | Ok () when storage = Private ->
+               error "Metal.Buffer.create_no_copy" Unsupported
+                 "no-copy buffers cannot use private storage"
+           | Ok () ->
+               (match
+                  validate_create "Metal.Buffer.create_no_copy" device
+                    ~length:memory.length ~label
+                with
+                | Error _ as failure -> failure
+                | Ok () ->
+                    let options =
+                      resource_options_code ~storage ~cpu_cache
+                        ~hazard_tracking
+                    in
+                    match
+                      Metal_raw.buffer_create_no_copy device.raw memory.raw
+                        options
+                    with
+                    | Error message ->
+                        native_error "Metal.Buffer.create_no_copy" message
+                    | Ok raw ->
+                        finish_create "Metal.Buffer.create_no_copy" ~device
+                          ~parent:(External_resource memory)
+                          ~length:memory.length ~storage ~cpu_cache
+                          ~hazard_tracking ~heap_offset:None ~allocation:None
+                          ~label raw)))
 
   let device (value : t) = value.device
   let generation (value : t) = Metal_raw.generation value.raw
@@ -844,6 +1059,10 @@ module Buffer = struct
   let cpu_cache_mode (value : t) = value.cpu_cache
   let hazard_tracking_mode (value : t) = value.hazard_tracking
   let heap_offset (value : t) = value.heap_offset
+  let external_memory (value : t) =
+    match value.parent with
+    | External_resource memory -> Some memory
+    | Device_resource _ | Heap_resource _ -> None
   let destroyed (value : t) = is_destroyed value.lifetime
 
   let label (value : t) =
@@ -1059,6 +1278,9 @@ module Buffer = struct
            | Device_resource _ ->
                error "Metal.Buffer.make_aliasable" Invalid_state
                  "only heap-backed buffers can become aliasable"
+           | External_resource _ ->
+               error "Metal.Buffer.make_aliasable" Invalid_state
+                 "externally backed buffers cannot become aliasable"
            | Heap_resource heap ->
                (match
                   ensure_heap_nonvolatile "Metal.Buffer.make_aliasable"
@@ -1368,7 +1590,8 @@ module Texture = struct
     let heap =
       match parent with
       | Texture_resource (Heap_resource _) -> true
-      | Texture_resource (Device_resource _) | Texture_view _ -> false
+      | Texture_resource (Device_resource _ | External_resource _)
+      | Texture_view _ -> false
     in
     match verify_info operation raw descriptor ~heap with
     | Error _ as failure -> ignore (Metal_raw.destroy raw); failure
@@ -1693,6 +1916,9 @@ module Texture = struct
            | Texture_resource (Device_resource _) ->
                error "Metal.Texture.make_aliasable" Invalid_state
                  "only heap-backed textures can become aliasable"
+           | Texture_resource (External_resource _) ->
+               error "Metal.Texture.make_aliasable" Invalid_state
+                 "externally backed textures cannot become aliasable"
            | Texture_resource (Heap_resource heap) ->
                (match
                   ensure_heap_nonvolatile "Metal.Texture.make_aliasable"

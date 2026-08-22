@@ -130,6 +130,7 @@ let base_removals =
   [ "ASAN_OPTIONS"; "UBSAN_OPTIONS"; "TSAN_OPTIONS"
   ; "DYLD_INSERT_LIBRARIES"; "MallocStackLogging"
   ; "PRISMEL_METAL_STRESS_RSS_TOLERANCE"
+  ; "PRISMEL_METAL_EXTERNAL_STRESS_RSS_TOLERANCE"
   ]
 
 let run_test mode test =
@@ -150,6 +151,7 @@ let run_test mode test =
         , []
         , [ "TSAN_OPTIONS", "halt_on_error=1"
           ; "PRISMEL_METAL_STRESS_RSS_TOLERANCE", "67108864"
+          ; "PRISMEL_METAL_EXTERNAL_STRESS_RSS_TOLERANCE", "402653184"
           ] )
     | Leaks ->
         "/usr/bin/leaks", [ "--quiet"; "--atExit"; "--"; test.executable ], []

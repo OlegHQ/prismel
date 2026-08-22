@@ -122,6 +122,8 @@ let bound_identifiers =
           ; "heapBufferSizeAndAlignWithLength:options:"
           ; "heapTextureSizeAndAlignWithDescriptor:"
           ; "isLowPower"; "isRemovable"; "maxBufferLength"; "name"
+          ; "newBufferWithBytes:length:options:"
+          ; "newBufferWithBytesNoCopy:length:options:deallocator:"
           ; "newBufferWithLength:options:"; "newCommandQueue"
           ; "newComputePipelineStateWithFunction:error:"
           ; "newLibraryWithSource:options:error:"

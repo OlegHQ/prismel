@@ -9,6 +9,9 @@
 #include <mutex>
 #include <vector>
 
+#include <sys/mman.h>
+#include <unistd.h>
+
 #include <caml/alloc.h>
 #include <caml/custom.h>
 #include <caml/fail.h>
@@ -21,6 +24,51 @@
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
 #import <QuartzCore/CAMetalLayer.h>
+
+@interface PrismelMetalExternalMemory : NSObject
+@property(nonatomic, readonly) void *bytes;
+@property(nonatomic, readonly) NSUInteger length;
+@property(nonatomic, readonly) NSUInteger alignment;
+- (nullable instancetype)initWithLength:(NSUInteger)length
+                              alignment:(NSUInteger)alignment;
+@end
+
+@implementation PrismelMetalExternalMemory {
+  void *_bytes;
+  NSUInteger _length;
+  NSUInteger _alignment;
+}
+
+- (nullable instancetype)initWithLength:(NSUInteger)length
+                              alignment:(NSUInteger)alignment {
+  self = [super init];
+  if (self != nil) {
+    if (length == 0 || alignment == 0) {
+      return nil;
+    }
+    void *bytes = mmap(nullptr, length, PROT_READ | PROT_WRITE,
+                       MAP_PRIVATE | MAP_ANON, -1, 0);
+    if (bytes == MAP_FAILED) {
+      return nil;
+    }
+    _bytes = bytes;
+    _length = length;
+    _alignment = alignment;
+  }
+  return self;
+}
+
+- (void)dealloc {
+  if (_bytes != nullptr) {
+    (void)munmap(_bytes, _length);
+  }
+}
+
+- (void *)bytes { return _bytes; }
+- (NSUInteger)length { return _length; }
+- (NSUInteger)alignment { return _alignment; }
+
+@end
 
 namespace {
 
@@ -37,6 +85,7 @@ enum class Handle_kind : std::uint32_t {
   Command_buffer,
   Compute_encoder,
   Residency_set,
+  External_memory,
 };
 
 struct Handle {
@@ -56,6 +105,8 @@ std::atomic<std::uint64_t> dropped_releases{0};
 std::atomic<std::uint64_t> live_handle_count{0};
 std::atomic<std::uint64_t> total_created_count{0};
 std::atomic<std::uint64_t> total_released_count{0};
+std::atomic<std::uint64_t> external_deallocation_count{0};
+std::atomic<std::uint64_t> external_deallocation_mismatch_count{0};
 
 Handle *handle_of_value(value raw) {
   return static_cast<Handle *>(Data_custom_val(raw));
@@ -155,6 +206,10 @@ id<MTLAllocation> allocation_of_handle(value raw) {
     caml_failwith("Metal custom handle is destroyed");
   }
   return (__bridge id<MTLAllocation>)handle->object;
+}
+
+PrismelMetalExternalMemory *external_memory_of_handle(value raw) {
+  return object_of_handle(raw, Handle_kind::External_memory);
 }
 
 API_AVAILABLE(macos(15.0))
@@ -509,6 +564,20 @@ extern "C" CAMLprim value caml_prismel_metal_total_released(value unit) {
       total_released_count.load(std::memory_order_relaxed))));
 }
 
+extern "C" CAMLprim value caml_prismel_metal_external_deallocations(
+    value unit) {
+  CAMLparam1(unit);
+  CAMLreturn(caml_copy_int64(static_cast<std::int64_t>(
+      external_deallocation_count.load(std::memory_order_relaxed))));
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_external_deallocation_mismatches(value unit) {
+  CAMLparam1(unit);
+  CAMLreturn(caml_copy_int64(static_cast<std::int64_t>(
+      external_deallocation_mismatch_count.load(std::memory_order_relaxed))));
+}
+
 extern "C" CAMLprim value caml_prismel_metal_resident_bytes(value unit) {
   CAMLparam1(unit);
   mach_task_basic_info_data_t information{};
@@ -686,6 +755,177 @@ extern "C" CAMLprim value caml_prismel_metal_buffer_create(
                    options:resource_options(Int_val(raw_options))];
     if (buffer == nil) {
       CAMLreturn(result_error_text("Metal failed to allocate the buffer"));
+    }
+    raw = allocate_handle(buffer, Handle_kind::Buffer);
+  }
+  CAMLreturn(result_ok(raw));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_buffer_create_copy(
+    value raw_device, value source, value raw_source_offset, value raw_length,
+    value raw_options) {
+  CAMLparam5(raw_device, source, raw_source_offset, raw_length, raw_options);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    id<MTLDevice> device = object_of_handle(raw_device, Handle_kind::Device);
+    const intnat source_offset = Long_val(raw_source_offset);
+    const intnat length = Long_val(raw_length);
+    const intnat source_length =
+        static_cast<intnat>(caml_string_length(source));
+    if (source_offset < 0 || length <= 0 || source_offset > source_length ||
+        length > source_length - source_offset) {
+      CAMLreturn(result_error_text("buffer copy range is invalid"));
+    }
+    const void *bytes =
+        reinterpret_cast<const std::uint8_t *>(Bytes_val(source)) +
+        source_offset;
+    id<MTLBuffer> buffer =
+        [device newBufferWithBytes:bytes
+                            length:static_cast<NSUInteger>(length)
+                           options:resource_options(Int_val(raw_options))];
+    if (buffer == nil) {
+      CAMLreturn(result_error_text("Metal failed to copy the buffer bytes"));
+    }
+    raw = allocate_handle(buffer, Handle_kind::Buffer);
+  }
+  CAMLreturn(result_ok(raw));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_external_memory_page_size(
+    value unit) {
+  CAMLparam1(unit);
+  const long page_size = sysconf(_SC_PAGESIZE);
+  if (page_size <= 0 || page_size > Max_long) {
+    caml_failwith("could not determine the native VM page size");
+  }
+  CAMLreturn(Val_long(page_size));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_external_memory_create(
+    value raw_length) {
+  CAMLparam1(raw_length);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    const std::int64_t signed_length = Int64_val(raw_length);
+    const long page_size = sysconf(_SC_PAGESIZE);
+    if (signed_length <= 0 || page_size <= 0 ||
+        signed_length % page_size != 0) {
+      CAMLreturn(result_error_text(
+          "external memory must be a positive whole number of VM pages"));
+    }
+    PrismelMetalExternalMemory *memory =
+        [[PrismelMetalExternalMemory alloc]
+            initWithLength:static_cast<NSUInteger>(signed_length)
+                 alignment:static_cast<NSUInteger>(page_size)];
+    if (memory == nil) {
+      CAMLreturn(result_error_text("native external-memory allocation failed"));
+    }
+    if (memory.length != static_cast<NSUInteger>(signed_length) ||
+        memory.alignment != static_cast<NSUInteger>(page_size) ||
+        reinterpret_cast<std::uintptr_t>(memory.bytes) %
+                static_cast<std::uintptr_t>(page_size) !=
+            0) {
+      CAMLreturn(result_error_text(
+          "native external memory does not meet its checked page layout"));
+    }
+    raw = allocate_handle(memory, Handle_kind::External_memory);
+  }
+  CAMLreturn(result_ok(raw));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_external_memory_info(value raw) {
+  CAMLparam1(raw);
+  CAMLlocal3(result, length, alignment);
+  PrismelMetalExternalMemory *memory = external_memory_of_handle(raw);
+  result = caml_alloc_tuple(2);
+  length = caml_copy_int64(static_cast<std::int64_t>(memory.length));
+  alignment = caml_copy_int64(static_cast<std::int64_t>(memory.alignment));
+  Store_field(result, 0, length);
+  Store_field(result, 1, alignment);
+  CAMLreturn(result);
+}
+
+extern "C" CAMLprim value caml_prismel_metal_external_memory_write(
+    value raw, value raw_offset, value source, value raw_source_offset,
+    value raw_length) {
+  CAMLparam5(raw, raw_offset, source, raw_source_offset, raw_length);
+  PrismelMetalExternalMemory *memory = external_memory_of_handle(raw);
+  const std::int64_t signed_offset = Int64_val(raw_offset);
+  const intnat source_offset = Long_val(raw_source_offset);
+  const intnat length = Long_val(raw_length);
+  if (signed_offset < 0 || source_offset < 0 || length < 0 ||
+      source_offset > static_cast<intnat>(caml_string_length(source)) ||
+      length > static_cast<intnat>(caml_string_length(source)) - source_offset ||
+      static_cast<std::uint64_t>(signed_offset) > memory.length ||
+      static_cast<std::uint64_t>(length) >
+          memory.length - static_cast<std::uint64_t>(signed_offset)) {
+    CAMLreturn(result_error_text("external-memory write range is invalid"));
+  }
+  std::memcpy(static_cast<std::uint8_t *>(memory.bytes) + signed_offset,
+              reinterpret_cast<const std::uint8_t *>(Bytes_val(source)) +
+                  source_offset,
+              static_cast<std::size_t>(length));
+  CAMLreturn(result_unit());
+}
+
+extern "C" CAMLprim value caml_prismel_metal_external_memory_read(
+    value raw, value raw_offset, value raw_length) {
+  CAMLparam3(raw, raw_offset, raw_length);
+  CAMLlocal2(contents, result);
+  PrismelMetalExternalMemory *memory = external_memory_of_handle(raw);
+  const std::int64_t signed_offset = Int64_val(raw_offset);
+  const intnat length = Long_val(raw_length);
+  if (signed_offset < 0 || length < 0 ||
+      static_cast<std::uint64_t>(signed_offset) > memory.length ||
+      static_cast<std::uint64_t>(length) >
+          memory.length - static_cast<std::uint64_t>(signed_offset)) {
+    CAMLreturn(result_error_text("external-memory read range is invalid"));
+  }
+  contents = caml_alloc_string(static_cast<mlsize_t>(length));
+  std::memcpy(Bytes_val(contents),
+              static_cast<std::uint8_t *>(memory.bytes) + signed_offset,
+              static_cast<std::size_t>(length));
+  result = result_ok(contents);
+  CAMLreturn(result);
+}
+
+extern "C" CAMLprim value caml_prismel_metal_buffer_create_no_copy(
+    value raw_device, value raw_memory, value raw_options) {
+  CAMLparam3(raw_device, raw_memory, raw_options);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    id<MTLDevice> device = object_of_handle(raw_device, Handle_kind::Device);
+    PrismelMetalExternalMemory *memory =
+        external_memory_of_handle(raw_memory);
+    const MTLResourceOptions options = resource_options(Int_val(raw_options));
+    const MTLStorageMode storage =
+        static_cast<MTLStorageMode>((Int_val(raw_options) >> 4) & 0xf);
+    if (storage == MTLStorageModePrivate) {
+      CAMLreturn(result_error_text(
+          "no-copy buffers cannot use private storage"));
+    }
+    PrismelMetalExternalMemory *owner = memory;
+    void (^deallocator)(void *, NSUInteger) =
+        ^(void *pointer, NSUInteger length) {
+          if (pointer != owner.bytes || length != owner.length) {
+            external_deallocation_mismatch_count.fetch_add(
+                1, std::memory_order_relaxed);
+          }
+          external_deallocation_count.fetch_add(1,
+                                                std::memory_order_relaxed);
+        };
+    id<MTLBuffer> buffer =
+        [device newBufferWithBytesNoCopy:memory.bytes
+                                  length:memory.length
+                                 options:options
+                             deallocator:deallocator];
+    if (buffer == nil) {
+      CAMLreturn(result_error_text(
+          "Metal rejected the page-aligned no-copy buffer"));
+    }
+    if (buffer.length != memory.length || buffer.contents != memory.bytes) {
+      CAMLreturn(result_error_text(
+          "Metal changed the checked no-copy buffer layout"));
     }
     raw = allocate_handle(buffer, Handle_kind::Buffer);
   }
