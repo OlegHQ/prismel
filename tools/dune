@@ -14,6 +14,10 @@
  (name bench_instances)
  (libraries prismel unix))
 
+(executable
+ (name bench_shattered_cube)
+ (libraries prismel pdk procedural sop_catalog sketch_support unix))
+
 (test
  (name compare_floor)
  (libraries prismel unix))
