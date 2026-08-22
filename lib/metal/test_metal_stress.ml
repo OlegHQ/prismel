@@ -154,6 +154,24 @@ let run_shared_texture_cycles device count =
     get (Texture.destroy imported)
   done
 
+let run_io_surface_cycles device count =
+  let descriptor =
+    Texture.descriptor_2d ~storage:Buffer.Shared
+      ~format:Texture.Rgba8_unorm ~width:1 ~height:1 ()
+  in
+  for _ = 1 to count do
+    let surface =
+      get
+        (Texture.Io_surface.create ~width:1 ~height:1 ~bytes_per_element:4 ())
+    in
+    let texture =
+      get
+        (Texture.create_from_io_surface ~device ~surface ~plane:0 descriptor)
+    in
+    get (Texture.destroy texture);
+    get (Texture.Io_surface.destroy surface)
+  done
+
 let check_cycles ?rss_limit ~name ~expected (baseline : Release_queue.stats)
     (finished : Release_queue.stats) =
   let created = Int64.sub finished.total_created baseline.total_created in
@@ -237,6 +255,14 @@ let () =
       check_cycles ~name:"shared textures/handles/imports" ~expected:30_000L
         shared_texture_baseline shared_texture_finished
     in
+    run_io_surface_cycles device 500;
+    let io_surface_baseline = settle () in
+    run_io_surface_cycles device 10_000;
+    let io_surface_finished = settle () in
+    let io_surface_rss_growth =
+      check_cycles ~name:"IOSurface/texture ownership" ~expected:20_000L
+        io_surface_baseline io_surface_finished
+    in
     let page_size = get (Buffer.External.page_size ()) in
     run_external_buffer_cycles device ~page_size 500;
     let external_baseline = settle () in
@@ -258,14 +284,15 @@ let () =
     (match residency_rss_growth with
      | Some residency_rss_growth ->
          Printf.printf
-           "Metal ownership stress passed: 100000 buffer, 100000 texture/sampler, 30000 heap/resource, 20000 residency/resource, 20000 buffer/linear-texture, 30000 shared-texture/handle/import, and 20000 external/no-copy handles, %Ld/%Ld/%Ld/%Ld/%Ld/%Ld/%Ld-byte settled RSS deltas, %Ld deferred no-copy callbacks\n%!"
+           "Metal ownership stress passed: 100000 buffer, 100000 texture/sampler, 30000 heap/resource, 20000 residency/resource, 20000 buffer/linear-texture, 30000 shared-texture/handle/import, 20000 IOSurface/texture, and 20000 external/no-copy handles, %Ld/%Ld/%Ld/%Ld/%Ld/%Ld/%Ld/%Ld-byte settled RSS deltas, %Ld deferred no-copy callbacks\n%!"
            buffer_rss_growth resource_rss_growth heap_rss_growth
            residency_rss_growth buffer_texture_rss_growth
-           shared_texture_rss_growth external_rss_growth external_deallocations
+           shared_texture_rss_growth io_surface_rss_growth external_rss_growth
+           external_deallocations
      | None ->
          Printf.printf
-           "Metal ownership stress passed: 100000 buffer, 100000 texture/sampler, 30000 heap/resource, 20000 buffer/linear-texture, 30000 shared-texture/handle/import, and 20000 external/no-copy handles; residency unsupported, %Ld/%Ld/%Ld/%Ld/%Ld/%Ld-byte settled RSS deltas, %Ld deferred no-copy callbacks\n%!"
+           "Metal ownership stress passed: 100000 buffer, 100000 texture/sampler, 30000 heap/resource, 20000 buffer/linear-texture, 30000 shared-texture/handle/import, 20000 IOSurface/texture, and 20000 external/no-copy handles; residency unsupported, %Ld/%Ld/%Ld/%Ld/%Ld/%Ld/%Ld-byte settled RSS deltas, %Ld deferred no-copy callbacks\n%!"
            buffer_rss_growth resource_rss_growth heap_rss_growth
            buffer_texture_rss_growth shared_texture_rss_growth
-           external_rss_growth external_deallocations)
+           io_surface_rss_growth external_rss_growth external_deallocations)
   end

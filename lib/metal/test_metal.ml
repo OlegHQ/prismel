@@ -1031,6 +1031,224 @@ let () =
     then
       fail
         "shared texture finalization did not release its source, handle, and import";
+    let before_invalid_io_surfaces = get (Release_queue.stats ()) in
+    ignore
+      (expect_error Invalid_argument
+         (Texture.Io_surface.create ~width:0 ~height:4 ~bytes_per_element:4
+            ()));
+    ignore
+      (expect_error Invalid_argument
+         (Texture.Io_surface.create ~width:4 ~height:4 ~bytes_per_element:3
+            ()));
+    ignore
+      (expect_error Invalid_argument
+         (Texture.Io_surface.create ~width:max_int ~height:2
+            ~bytes_per_element:16 ()));
+    ignore
+      (expect_error Invalid_argument
+         (Texture.Io_surface.create_planar []));
+    let after_invalid_io_surfaces = get (Release_queue.stats ()) in
+    if
+      after_invalid_io_surfaces.total_created
+      <> before_invalid_io_surfaces.total_created
+    then fail "invalid IOSurface creation allocated a native handle";
+    let io_surface =
+      get
+        (Texture.Io_surface.create ~label:"Metal IOSurface" ~width:4
+           ~height:4 ~bytes_per_element:4 ())
+    in
+    let io_plane = get (Texture.Io_surface.plane io_surface 0) in
+    if
+      Texture.Io_surface.id io_surface <= 0L
+      || Texture.Io_surface.allocation_size io_surface < io_plane.size
+      || Texture.Io_surface.planar io_surface
+      || Texture.Io_surface.plane_count io_surface <> 1
+      || Texture.Io_surface.generation io_surface <= 0L
+      || get (Texture.Io_surface.label io_surface) <> Some "Metal IOSurface"
+      || io_plane.width <> 4 || io_plane.height <> 4
+      || io_plane.bytes_per_element <> 4 || io_plane.bytes_per_row < 16
+    then fail "non-planar IOSurface properties are wrong";
+    ignore
+      (expect_error Invalid_argument
+         (Texture.Io_surface.plane io_surface 1));
+    ignore
+      (expect_error Invalid_argument
+         (Texture.Io_surface.read_bytes io_surface ~plane:0 ~offset:io_plane.size
+            ~length:1));
+    ignore
+      (expect_error Invalid_argument
+         (Texture.Io_surface.write_bytes io_surface ~plane:0 ~src_offset:1
+            ~dst_offset:0L Bytes.empty));
+    let io_initial = Bytes.make (Int64.to_int io_plane.size) '\090' in
+    get
+      (Texture.Io_surface.write_bytes io_surface ~plane:0 ~dst_offset:0L
+         io_initial);
+    let io_descriptor =
+      Texture.descriptor_2d ~storage:Buffer.Shared
+        ~usage:[ Texture.Shader_read; Texture.Pixel_format_view ]
+        ~label:"Metal IOSurface texture" ~format:Texture.Rgba8_unorm ~width:4
+        ~height:4 ()
+    in
+    let before_invalid_io_textures = get (Release_queue.stats ()) in
+    ignore
+      (expect_error Invalid_argument
+         (Texture.create_from_io_surface ~device ~surface:io_surface ~plane:(-1)
+            io_descriptor));
+    ignore
+      (expect_error Invalid_argument
+         (Texture.create_from_io_surface ~device ~surface:io_surface ~plane:0
+            { io_descriptor with width = 5 }));
+    ignore
+      (expect_error Invalid_argument
+         (Texture.create_from_io_surface ~device ~surface:io_surface ~plane:0
+            { io_descriptor with format = Texture.Rg8_unorm }));
+    ignore
+      (expect_error Invalid_argument
+         (Texture.create_from_io_surface ~device ~surface:io_surface ~plane:0
+            { io_descriptor with storage = Buffer.Private }));
+    ignore
+      (expect_error Invalid_argument
+         (Texture.create_from_io_surface ~device ~surface:io_surface ~plane:0
+            { io_descriptor with mip_levels = 2 }));
+    let after_invalid_io_textures = get (Release_queue.stats ()) in
+    if
+      after_invalid_io_textures.total_created
+      <> before_invalid_io_textures.total_created
+    then fail "invalid IOSurface texture creation allocated a native handle";
+    let io_texture =
+      get
+        (Texture.create_from_io_surface ~device ~surface:io_surface ~plane:0
+           io_descriptor)
+    in
+    if get (Texture.label io_texture) <> Some "Metal IOSurface texture"
+       || get (Texture.is_shareable io_texture)
+    then fail "IOSurface texture properties are wrong";
+    (match Texture.io_surface_backing io_texture with
+     | Some backing when backing.surface == io_surface && backing.plane = 0 -> ()
+     | Some _ | None -> fail "IOSurface texture lost its typed ancestry");
+    let io_texture_initial =
+      get
+        (Texture.read_bytes io_texture ~region:full_region ~mip_level:0 ~slice:0
+           ~bytes_per_row:16 ~bytes_per_image:64)
+    in
+    if io_texture_initial <> Bytes.make 64 '\090' then
+      fail "IOSurface bytes were not visible through the Metal texture";
+    let io_replacement = Bytes.make 64 '\051' in
+    get
+      (Texture.write_bytes io_texture ~region:full_region ~mip_level:0 ~slice:0
+         ~bytes_per_row:16 ~bytes_per_image:64 io_replacement);
+    let io_surface_after_texture =
+      get
+        (Texture.Io_surface.read_bytes io_surface ~plane:0 ~offset:0L
+           ~length:(Int64.to_int io_plane.size))
+    in
+    for row = 0 to 3 do
+      if Bytes.sub io_surface_after_texture (row * io_plane.bytes_per_row) 16
+         <> Bytes.make 16 '\051'
+      then fail "Metal texture writes did not reach the IOSurface plane"
+    done;
+    ignore
+      (expect_error Invalid_state (Texture.purgeable_state io_texture));
+    ignore (expect_error Invalid_state (Texture.make_aliasable io_texture));
+    let io_view =
+      get
+        (Texture.create_view io_texture ~format:Texture.Rgba8_unorm_srgb
+           ~base_mip:0 ~mip_count:1 ~base_slice:0 ~slice_count:1 ())
+    in
+    (match Texture.io_surface_backing io_view with
+     | Some backing when backing.surface == io_surface && backing.plane = 0 -> ()
+     | Some _ | None -> fail "IOSurface texture view lost its typed ancestry");
+    ignore
+      (expect_error Parent_has_dependents
+         (Texture.Io_surface.destroy io_surface));
+    ignore (expect_error Parent_has_dependents (Texture.destroy io_texture));
+    get (Texture.destroy io_view);
+    get (Texture.destroy io_texture);
+    get (Texture.Io_surface.destroy io_surface);
+    get (Texture.Io_surface.destroy io_surface);
+    ignore
+      (expect_error Destroyed (Texture.Io_surface.label io_surface));
+    ignore
+      (expect_error Destroyed (Texture.Io_surface.plane io_surface 0));
+    let planar_surface =
+      get
+        (Texture.Io_surface.create_planar ~label:"Metal planar IOSurface"
+           [ Texture.Io_surface.plane_descriptor ~width:4 ~height:4
+               ~bytes_per_element:1
+           ; Texture.Io_surface.plane_descriptor ~width:2 ~height:2
+               ~bytes_per_element:2
+           ])
+    in
+    if not (Texture.Io_surface.planar planar_surface)
+       || Texture.Io_surface.plane_count planar_surface <> 2
+    then fail "planar IOSurface cardinality is wrong";
+    let planar_first = get (Texture.Io_surface.plane planar_surface 0) in
+    let planar_second = get (Texture.Io_surface.plane planar_surface 1) in
+    get
+      (Texture.Io_surface.write_bytes planar_surface ~plane:0 ~dst_offset:0L
+         (Bytes.make (Int64.to_int planar_first.size) '\017'));
+    get
+      (Texture.Io_surface.write_bytes planar_surface ~plane:1 ~dst_offset:0L
+         (Bytes.make (Int64.to_int planar_second.size) '\034'));
+    let planar_first_texture =
+      get
+        (Texture.create_from_io_surface ~device ~surface:planar_surface ~plane:0
+           (Texture.descriptor_2d ~storage:Buffer.Shared
+              ~format:Texture.R8_unorm ~width:4 ~height:4 ()))
+    in
+    let planar_second_texture =
+      get
+        (Texture.create_from_io_surface ~device ~surface:planar_surface ~plane:1
+           (Texture.descriptor_2d ~storage:Buffer.Shared
+              ~format:Texture.Rg8_unorm ~width:2 ~height:2 ()))
+    in
+    let planar_first_region : Texture.region =
+      { x = 0; y = 0; z = 0; width = 4; height = 4; depth = 1 }
+    in
+    let planar_second_region : Texture.region =
+      { x = 0; y = 0; z = 0; width = 2; height = 2; depth = 1 }
+    in
+    if
+      get
+        (Texture.read_bytes planar_first_texture ~region:planar_first_region
+           ~mip_level:0 ~slice:0 ~bytes_per_row:4 ~bytes_per_image:16)
+      <> Bytes.make 16 '\017'
+      || get
+           (Texture.read_bytes planar_second_texture ~region:planar_second_region
+              ~mip_level:0 ~slice:0 ~bytes_per_row:4 ~bytes_per_image:8)
+         <> Bytes.make 8 '\034'
+    then fail "planar IOSurface textures did not expose their selected planes";
+    ignore
+      (expect_error Parent_has_dependents
+         (Texture.Io_surface.destroy planar_surface));
+    get (Texture.destroy planar_second_texture);
+    get (Texture.destroy planar_first_texture);
+    get (Texture.Io_surface.destroy planar_surface);
+    let before_io_finalizer = get (Release_queue.stats ()) in
+    let allocate_unreleased_io_surface_graph () =
+      let surface =
+        get
+          (Texture.Io_surface.create ~width:1 ~height:1 ~bytes_per_element:4
+             ())
+      in
+      ignore
+        (get
+           (Texture.create_from_io_surface ~device ~surface ~plane:0
+              (Texture.descriptor_2d ~storage:Buffer.Shared
+                 ~format:Texture.Rgba8_unorm ~width:1 ~height:1 ())))
+    in
+    allocate_unreleased_io_surface_graph ();
+    let after_io_finalizer =
+      settle_finalizers ~expected_live:before_io_finalizer.live_handles
+    in
+    if
+      Int64.sub after_io_finalizer.total_created
+        before_io_finalizer.total_created
+      <> 2L
+      || Int64.sub after_io_finalizer.total_released
+           before_io_finalizer.total_released
+         <> 2L
+    then fail "IOSurface texture finalization did not release both handles";
     let heap_buffer_layout =
       get
         (Heap.buffer_size_and_align ~device ~length:64L

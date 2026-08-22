@@ -244,6 +244,27 @@ external texture_shared_import :
   handle -> handle -> (handle, string) result
   = "caml_prismel_metal_texture_shared_import"
 
+external io_surface_create :
+  bool -> int array -> string option -> (handle, string) result
+  = "caml_prismel_metal_io_surface_create"
+
+external io_surface_info : handle -> int64 * int64 * bool * int array =
+  "caml_prismel_metal_io_surface_info"
+
+external io_surface_write :
+  handle -> int -> int64 -> bytes -> int -> (unit, string) result
+  = "caml_prismel_metal_io_surface_write"
+
+external io_surface_read :
+  handle -> int -> int64 -> int -> (bytes, string) result
+  = "caml_prismel_metal_io_surface_read"
+
+external texture_io_surface_create :
+  handle -> handle -> int ->
+  (int * int * int * int * int * int * int * int * int * int * int * int * bool) ->
+  string option -> (handle, string) result
+  = "caml_prismel_metal_texture_io_surface_create"
+
 external texture_set_label : handle -> string -> (unit, string) result =
   "caml_prismel_metal_texture_set_label"
 

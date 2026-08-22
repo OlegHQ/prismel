@@ -137,6 +137,7 @@ let bound_identifiers =
           ; "newSamplerStateWithDescriptor:"
           ; "newSharedTextureWithDescriptor:"
           ; "newSharedTextureWithHandle:"
+          ; "newTextureWithDescriptor:iosurface:plane:"
           ; "newTextureWithDescriptor:"
           ; "recommendedMaxWorkingSetSize"; "registryID"
           ; "supportsDynamicLibraries"; "supportsFamily:"
@@ -192,7 +193,8 @@ let bound_identifiers =
         , [ "arrayLength"; "buffer"; "bufferBytesPerRow"; "bufferOffset"
           ; "depth"
           ; "getBytes:bytesPerRow:bytesPerImage:fromRegion:mipmapLevel:slice:"
-          ; "height"; "isShareable"; "mipmapLevelCount"
+          ; "height"; "iosurface"; "iosurfacePlane"; "isShareable"
+          ; "mipmapLevelCount"
           ; "newSharedTextureHandle"
           ; "newTextureViewWithPixelFormat:textureType:levels:slices:"
           ; "pixelFormat"
@@ -255,8 +257,9 @@ let bound_identifiers =
       ; "MTLSamplerState", [ "label" ]
       ; "MTLSharedTextureHandle", [ "device"; "label" ]
       ; ( "MTLTexture"
-        , [ "arrayLength"; "depth"; "height"; "mipmapLevelCount"
-          ; "pixelFormat"; "sampleCount"; "textureType"; "usage"; "width"
+        , [ "arrayLength"; "depth"; "height"; "iosurface"; "iosurfacePlane"
+          ; "mipmapLevelCount"; "pixelFormat"; "sampleCount"; "textureType"
+          ; "usage"; "width"
           ] )
       ; ( "MTLTextureDescriptor"
         , [ "allowGPUOptimizedContents"; "arrayLength"; "cpuCacheMode"

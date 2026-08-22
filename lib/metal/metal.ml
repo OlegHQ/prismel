@@ -261,6 +261,24 @@ type heap_allocation =
   ; active : bool Atomic.t
   }
 
+type io_surface_plane =
+  { width : int
+  ; height : int
+  ; bytes_per_element : int
+  ; bytes_per_row : int
+  ; size : int64
+  }
+
+type io_surface =
+  { raw : Metal_raw.handle
+  ; lifetime : lifetime
+  ; id : int64
+  ; allocation_size : int64
+  ; planar : bool
+  ; planes : io_surface_plane array
+  ; label : string option
+  }
+
 type heap =
   { raw : Metal_raw.handle
   ; lifetime : lifetime
@@ -314,9 +332,15 @@ and buffer_texture_backing =
   ; bytes_per_row : int
   }
 
+and texture_io_surface_backing =
+  { surface : io_surface
+  ; plane : int
+  }
+
 and texture_parent =
   | Texture_resource of resource_parent
   | Texture_buffer_resource of buffer_texture_backing
+  | Texture_io_surface_resource of texture_io_surface_backing
   | Texture_view of texture
 
 type shared_texture_handle =
@@ -546,10 +570,12 @@ let resource_parent_extra_device (device : device) = function
 let texture_parent_lifetime = function
   | Texture_resource parent -> resource_parent_lifetime parent
   | Texture_buffer_resource backing -> backing.buffer.lifetime
+  | Texture_io_surface_resource backing -> backing.surface.lifetime
   | Texture_view texture -> texture.lifetime
 
 let texture_parent_extra_device (device : device) = function
   | Texture_resource parent -> resource_parent_extra_device device parent
+  | Texture_io_surface_resource _ -> Some device.lifetime
   | Texture_buffer_resource _ | Texture_view _ -> None
 
 let resource_state () =
@@ -595,6 +621,7 @@ let rec texture_heap (value : texture) =
   match value.parent with
   | Texture_resource parent -> parent_heap parent
   | Texture_buffer_resource backing -> parent_heap backing.buffer.parent
+  | Texture_io_surface_resource _ -> None
   | Texture_view parent -> texture_heap parent
 
 let ensure_heap_nonvolatile operation = function
@@ -1423,6 +1450,234 @@ module Texture = struct
     ; bytes_per_row : int
     }
 
+  module Io_surface = struct
+    type t = io_surface
+
+    type plane_descriptor =
+      { width : int
+      ; height : int
+      ; bytes_per_element : int
+      }
+
+    type plane = io_surface_plane =
+      { width : int
+      ; height : int
+      ; bytes_per_element : int
+      ; bytes_per_row : int
+      ; size : int64
+      }
+
+    let plane_descriptor ~width ~height ~bytes_per_element =
+      { width; height; bytes_per_element }
+
+    let validate_plane operation index (plane : plane_descriptor) =
+      let invalid message =
+        error operation Invalid_argument
+          (Printf.sprintf "IOSurface plane %d %s" index message)
+      in
+      if plane.width <= 0 || plane.height <= 0 then
+        invalid "dimensions must be positive"
+      else if
+        not
+          (List.mem plane.bytes_per_element [ 1; 2; 4; 8; 16 ])
+      then
+        invalid "element width must be 1, 2, 4, 8, or 16 bytes"
+      else if plane.width > max_int / plane.bytes_per_element then
+        invalid "row cardinality overflows an OCaml integer"
+      else
+        let minimum_row = plane.width * plane.bytes_per_element in
+        if plane.height > max_int / minimum_row then
+          invalid "plane cardinality overflows an OCaml integer"
+        else Ok ()
+
+    let finish_create operation ~requested_planar
+        ~(requested_planes : plane_descriptor array) ~label raw =
+      let id, allocation_size, planar, layout =
+        Metal_raw.io_surface_info raw
+      in
+      let count = Array.length requested_planes in
+      if id <= 0L || allocation_size <= 0L then begin
+        ignore (Metal_raw.destroy raw);
+        native_error operation "IOSurface returned an invalid identity or size"
+      end
+      else if planar <> requested_planar || Array.length layout <> count * 4 then begin
+        ignore (Metal_raw.destroy raw);
+        native_error operation "IOSurface changed its checked plane cardinality"
+      end
+      else begin
+        let rec collect index total reversed =
+          if index = count then Ok (Array.of_list (List.rev reversed), total)
+          else
+            let requested = requested_planes.(index) in
+            let offset = index * 4 in
+            let width = layout.(offset) in
+            let height = layout.(offset + 1) in
+            let bytes_per_element = layout.(offset + 2) in
+            let bytes_per_row = layout.(offset + 3) in
+            if
+              width <> requested.width || height <> requested.height
+              || bytes_per_element <> requested.bytes_per_element
+              || bytes_per_row < width * bytes_per_element
+              || bytes_per_row mod bytes_per_element <> 0
+              || height > max_int / bytes_per_row
+            then Error "IOSurface changed its checked plane layout"
+            else
+              let size = Int64.of_int (height * bytes_per_row) in
+              if Int64.sub Int64.max_int total < size then
+                Error "IOSurface plane cardinality exceeds 64 bits"
+              else
+                collect (index + 1) (Int64.add total size)
+                  ({ width; height; bytes_per_element; bytes_per_row; size }
+                   :: reversed)
+        in
+        match collect 0 0L [] with
+        | Error message ->
+            ignore (Metal_raw.destroy raw);
+            native_error operation message
+        | Ok (_, total) when allocation_size < total ->
+            ignore (Metal_raw.destroy raw);
+            native_error operation
+              "IOSurface allocation is smaller than its checked plane layout"
+        | Ok (actual, _) ->
+            Ok
+              { raw
+              ; lifetime = lifetime ()
+              ; id
+              ; allocation_size
+              ; planar
+              ; planes = actual
+              ; label
+              }
+      end
+
+    let create_internal operation ~planar
+        ~(planes : plane_descriptor list) ~label =
+      on_main operation (fun () ->
+        if planes = [] then
+          error operation Invalid_argument
+            "IOSurface requires at least one image plane"
+        else if option_exists contains_nul label then
+          error operation Invalid_argument "IOSurface label contains a NUL byte"
+        else if List.length planes > Sys.max_array_length / 3 then
+          error operation Invalid_argument "IOSurface has too many planes"
+        else
+          let requested_planes = Array.of_list planes in
+          let rec validate index =
+            if index = Array.length requested_planes then Ok ()
+            else
+              match validate_plane operation index requested_planes.(index) with
+              | Error _ as failure -> failure
+              | Ok () -> validate (index + 1)
+          in
+          match validate 0 with
+          | Error _ as failure -> failure
+          | Ok () ->
+              let layout = Array.make (Array.length requested_planes * 3) 0 in
+              Array.iteri
+                (fun index (plane : plane_descriptor) ->
+                  let offset = index * 3 in
+                  layout.(offset) <- plane.width;
+                  layout.(offset + 1) <- plane.height;
+                  layout.(offset + 2) <- plane.bytes_per_element)
+                requested_planes;
+              (match Metal_raw.io_surface_create planar layout label with
+               | Error message -> native_error operation message
+               | Ok raw ->
+                   finish_create operation ~requested_planar:planar
+                     ~requested_planes ~label raw))
+
+    let create ?label ~width ~height ~bytes_per_element () =
+      create_internal "Metal.Texture.Io_surface.create" ~planar:false
+        ~planes:
+          [ ({ width; height; bytes_per_element } : plane_descriptor) ]
+        ~label
+
+    let create_planar ?label planes =
+      create_internal "Metal.Texture.Io_surface.create_planar" ~planar:true
+        ~planes ~label
+
+    let id (value : t) = value.id
+    let allocation_size (value : t) = value.allocation_size
+    let planar (value : t) = value.planar
+    let plane_count (value : t) = Array.length value.planes
+    let generation (value : t) = Metal_raw.generation value.raw
+    let destroyed (value : t) = is_destroyed value.lifetime
+
+    let plane (value : t) index =
+      let operation = "Metal.Texture.Io_surface.plane" in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () when index < 0 || index >= Array.length value.planes ->
+            error operation Invalid_argument "IOSurface plane index is out of range"
+        | Ok () -> Ok value.planes.(index))
+
+    let label (value : t) =
+      on_main "Metal.Texture.Io_surface.label" (fun () ->
+        match
+          ensure_live "Metal.Texture.Io_surface.label" value.lifetime
+        with
+        | Error _ as failure -> failure
+        | Ok () -> Ok value.label)
+
+    let validate_range operation (value : t) ~plane ~offset ~length =
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when plane < 0 || plane >= Array.length value.planes ->
+          error operation Invalid_argument "IOSurface plane index is out of range"
+      | Ok () when offset < 0L || length < 0 ->
+          error operation Invalid_argument "IOSurface range is negative"
+      | Ok () ->
+          let size = value.planes.(plane).size in
+          let length64 = Int64.of_int length in
+          if offset > size || length64 > Int64.sub size offset then
+            error operation Invalid_argument
+              "IOSurface range exceeds the selected plane"
+          else Ok ()
+
+    let write_bytes (value : t) ~plane ?(src_offset = 0) ~dst_offset bytes =
+      let operation = "Metal.Texture.Io_surface.write_bytes" in
+      on_main operation (fun () ->
+        let source_length = Bytes.length bytes in
+        if src_offset < 0 || src_offset > source_length then
+          error operation Invalid_argument
+            "source offset is outside the byte buffer"
+        else
+          let length = source_length - src_offset in
+          match validate_range operation value ~plane ~offset:dst_offset ~length with
+          | Error _ as failure -> failure
+          | Ok () ->
+              (match
+                 Metal_raw.io_surface_write value.raw plane dst_offset bytes
+                   src_offset
+               with
+               | Ok () -> Ok ()
+               | Error message -> native_error operation message))
+
+    let read_bytes (value : t) ~plane ~offset ~length =
+      let operation = "Metal.Texture.Io_surface.read_bytes" in
+      on_main operation (fun () ->
+        if length > Sys.max_string_length then
+          error operation Invalid_argument
+            "read length exceeds the maximum OCaml byte-buffer size"
+        else
+          match validate_range operation value ~plane ~offset ~length with
+          | Error _ as failure -> failure
+          | Ok () ->
+              (match Metal_raw.io_surface_read value.raw plane offset length with
+               | Ok bytes -> Ok bytes
+               | Error message -> native_error operation message))
+
+    let destroy (value : t) =
+      destroy_parent "Metal.Texture.Io_surface.destroy" value.lifetime value.raw
+        (fun () -> ())
+  end
+
+  type io_surface_backing = texture_io_surface_backing =
+    { surface : Io_surface.t
+    ; plane : int
+    }
+
   module Shared_handle = struct
     type t = shared_texture_handle
 
@@ -1693,6 +1948,7 @@ module Texture = struct
       match parent with
       | Texture_resource (Heap_resource _) -> true
       | Texture_resource (Device_resource _ | External_resource _)
+      | Texture_io_surface_resource _
       | Texture_view _ -> false
       | Texture_buffer_resource backing ->
           Option.is_some (parent_heap backing.buffer.parent)
@@ -1713,6 +1969,7 @@ module Texture = struct
           match parent with
           | Texture_resource _ -> resource_state ()
           | Texture_buffer_resource backing -> backing.buffer.state
+          | Texture_io_surface_resource _ -> resource_state ()
           | Texture_view texture -> texture.state
         in
         let value : t =
@@ -1796,7 +2053,13 @@ module Texture = struct
     match value.parent with
     | Texture_buffer_resource backing -> Some backing
     | Texture_view parent -> buffer_backing parent
-    | Texture_resource _ -> None
+    | Texture_resource _ | Texture_io_surface_resource _ -> None
+
+  let rec io_surface_backing (value : t) =
+    match value.parent with
+    | Texture_io_surface_resource backing -> Some backing
+    | Texture_view parent -> io_surface_backing parent
+    | Texture_resource _ | Texture_buffer_resource _ -> None
 
   let is_shareable (value : t) =
     on_main "Metal.Texture.is_shareable" (fun () ->
@@ -1891,6 +2154,67 @@ module Texture = struct
     if left = 0 || right = 0 then Some 0
     else if left > max_int / right then None
     else Some (left * right)
+
+  let validate_io_surface_descriptor operation (surface : Io_surface.t) ~plane
+      (descriptor : descriptor) =
+    let invalid message = error operation Invalid_argument message in
+    if plane < 0 || plane >= Array.length surface.planes then
+      invalid "IOSurface plane index is out of range"
+    else if descriptor.kind <> Texture_2d then
+      invalid "IOSurface-backed textures must be two-dimensional"
+    else if not (supports_buffer_backing descriptor.format) then
+      invalid "IOSurface-backed textures require an ordinary color format"
+    else if
+      descriptor.depth <> 1 || descriptor.array_length <> 1
+      || descriptor.mip_levels <> 1 || descriptor.sample_count <> 1
+    then
+      invalid
+        "IOSurface-backed textures require depth, array length, mip count, and sample count equal to one"
+    else if descriptor.storage <> Buffer.Shared then
+      invalid "IOSurface-backed textures require shared storage"
+    else if descriptor.cpu_cache <> Default_cache then
+      invalid "IOSurface-backed textures require the default CPU cache mode"
+    else
+      let layout = surface.planes.(plane) in
+      if descriptor.width <> layout.width || descriptor.height <> layout.height then
+        invalid "texture dimensions must match the selected IOSurface plane"
+      else if bytes_per_pixel descriptor.format <> layout.bytes_per_element then
+        invalid "texture pixel width must match the selected IOSurface plane"
+      else Ok ()
+
+  let create_from_io_surface ~(device : Device.t) ~(surface : Io_surface.t)
+      ~plane descriptor =
+    let operation = "Metal.Texture.create_from_io_surface" in
+    on_main operation (fun () ->
+      match ensure_live operation device.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match ensure_live operation surface.lifetime with
+           | Error _ as failure -> failure
+           | Ok () ->
+               (match validate_descriptor operation device descriptor with
+                | Error _ as failure -> failure
+                | Ok () ->
+                    (match
+                       validate_io_surface_descriptor operation surface ~plane
+                         descriptor
+                     with
+                     | Error _ as failure -> failure
+                     | Ok () ->
+                         match
+                           Metal_raw.texture_io_surface_create device.raw
+                             surface.raw plane (descriptor_tuple descriptor)
+                             descriptor.label
+                         with
+                         | Error message -> native_error operation message
+                         | Ok raw ->
+                             let backing : io_surface_backing =
+                               { surface; plane }
+                             in
+                             finish_create ~expected_shareable:false operation
+                               ~device ~descriptor
+                               ~parent:(Texture_io_surface_resource backing)
+                               ~heap_offset:None ~allocation:None raw))))
 
   let validate_buffer_descriptor operation (buffer : Buffer.t)
       (descriptor : descriptor) =
@@ -2185,9 +2509,14 @@ module Texture = struct
           (match buffer_backing value with
            | Some backing -> Buffer.purgeable_state backing.buffer
            | None ->
-               query_purgeable_state "Metal.Texture.purgeable_state"
-                 (Metal_raw.resource_set_purgeable_state value.raw)
-                 value.state.purgeable))
+               (match io_surface_backing value with
+                | Some _ ->
+                    error "Metal.Texture.purgeable_state" Invalid_state
+                      "IOSurface controls the backing allocation's purgeability"
+                | None ->
+                    query_purgeable_state "Metal.Texture.purgeable_state"
+                      (Metal_raw.resource_set_purgeable_state value.raw)
+                      value.state.purgeable)))
 
   let set_purgeable_state (value : t) state =
     on_main "Metal.Texture.set_purgeable_state" (fun () ->
@@ -2207,6 +2536,9 @@ module Texture = struct
            | Texture_buffer_resource _ ->
                error "Metal.Texture.set_purgeable_state" Invalid_state
                  "set purgeability on the backing buffer"
+           | Texture_io_surface_resource _ ->
+               error "Metal.Texture.set_purgeable_state" Invalid_state
+                 "IOSurface controls the backing allocation's purgeability"
            | Texture_resource parent ->
                (match
                   ensure_heap_nonvolatile "Metal.Texture.set_purgeable_state"
@@ -2247,6 +2579,9 @@ module Texture = struct
            | Texture_buffer_resource _ ->
                error "Metal.Texture.make_aliasable" Invalid_state
                  "make the backing buffer aliasable"
+           | Texture_io_surface_resource _ ->
+               error "Metal.Texture.make_aliasable" Invalid_state
+                 "IOSurface-backed textures cannot become aliasable"
            | Texture_resource (Device_resource _) ->
                error "Metal.Texture.make_aliasable" Invalid_state
                  "only heap-backed textures can become aliasable"

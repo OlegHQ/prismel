@@ -55,8 +55,8 @@ hard typed error rather than silent reclamation on a GC domain.
 The current safe slices cover device enumeration and capabilities; shared,
 managed, and private buffers; copied and page-aligned no-copy buffer creation;
 CPU range transfer and lexical mapped-range handles; textures, shareable private
-textures and opaque shared handles, buffer-backed linear textures, texture
-buffers, and views; samplers; labels; runtime MSL
+textures and opaque shared handles, IOSurface-backed textures, buffer-backed
+linear textures, texture buffers, and views; samplers; labels; runtime MSL
 library compilation
 with full `NSError` diagnostics; automatic and placement heaps; macOS-15
 residency sets; function lookup; compute-pipeline creation and limits; command
@@ -140,6 +140,23 @@ destruction prevents later imports but does not invalidate imports that already
 succeeded. The handle is deliberately opaque; NSSecureCoding/XPC transport is
 not yet exposed, so this slice does not claim cross-process sharing.
 
+`Texture.Io_surface` is a narrow ownership helper rather than a second general
+IOSurface binding. The existing OCaml build helper links IOSurface.framework
+directly through Dune. It creates checked, automatically aligned single- or
+multi-plane surfaces, records the returned allocation and per-plane row layout,
+and exposes only lock-bounded byte copies; no native base address escapes into
+OCaml. `Texture.create_from_io_surface` accepts one matching ordinary-color 2D
+plane in shared/default-cache storage and rejects plane, dimension, pixel-width,
+shape, and mode mismatches before Metal. The bridge repeats those checks and
+verifies the returned texture's `iosurface` identity and `iosurfacePlane`.
+
+An IOSurface texture retains both its surface owner and creating device, while
+views preserve that typed ancestry. The surface therefore cannot be destroyed
+while any base texture is live, and purgeability or aliasing cannot be changed
+through a texture that does not own its allocation. IOSurface lock/unlock bounds
+CPU access but does not replace Metal command synchronization; callers must
+still complete or otherwise synchronize GPU use before concurrent CPU access.
+
 `Heap` exposes device size/alignment queries, automatic and explicit-placement
 descriptors, live allocation/usage facts, fragmentation queries, and checked
 buffer/texture allocation. Heap storage and cache modes must match each child;
@@ -205,15 +222,15 @@ address modes and border colors, normalized coordinates, finite float32 LOD
 clamps, comparison, LOD averaging, and argument-buffer support. Invalid
 anisotropy, non-finite or inverted clamps, illegal unnormalized-coordinate
 combinations, and malformed labels fail before sampler creation. Sparse
-resources, IOSurface-backed texture ownership, cross-process shared-handle
-transport, and the remaining pixel-format capability matrix are still pending;
-this resource slice is therefore progress toward M3, not an M3 completion
-claim.
+resources, cross-process IOSurface/shared-handle transport, and the remaining
+pixel-format capability matrix are still pending; this resource slice is
+therefore progress toward M3, not an M3 completion claim.
 
 `test_metal.exe` runs a real M1 compute kernel, wrong-domain and invalid-state
 cases, shader diagnostics, copied/no-copy external buffer ownership,
-shareable texture/handle/import lifetimes, buffer-backed 2D/texture-buffer
-creation across shared/managed/private storage,
+shareable texture/handle/import lifetimes, single- and multi-plane IOSurface
+ownership and byte visibility, buffer-backed 2D/texture-buffer creation across
+shared/managed/private storage,
 configured cache/hazard modes, and shared transfer, buffer and texture bounds,
 stride, and cardinality checks, texture mip transfer and views, sampler
 validation, multisample capability gating, heap alignment and placement,
@@ -228,8 +245,9 @@ cycles covering 30,000 measured heap/child-resource handles, and 10,000
 residency add/commit/remove/commit cycles covering 20,000 measured
 set/resource handles. Another 10,000 buffer/linear-texture ownership cycles
 cover 20,000 handles; 10,000 shareable-source/handle/import cycles cover 30,000
-handles; and 10,000 external-memory/no-copy cycles cover 20,000 handles and
-exact deferred-deallocator layout. Each lane requires exact
+handles; 10,000 IOSurface/texture cycles cover 20,000 handles; and 10,000
+external-memory/no-copy cycles cover 20,000 handles and exact
+deferred-deallocator layout. Each lane requires exact
 created/released balance, zero pending or dropped releases, stable live-handle
 count, and bounded settled RSS growth.
 

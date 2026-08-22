@@ -19,6 +19,12 @@ let () =
   then fail "combined sanitizer flags are incomplete";
   if profile_compile_flags "release" <> [ "-O3"; "-DNDEBUG" ] then
     fail "release bridge optimization flags changed";
+  if
+    not
+      (List.exists
+         (fun framework -> framework = "IOSurface")
+         framework_link_flags)
+  then fail "IOSurface framework link flag is missing";
   (match parse_sanitizers "thread,address" with
    | Error _ -> ()
    | Ok _ -> fail "incompatible sanitizer combination was accepted");

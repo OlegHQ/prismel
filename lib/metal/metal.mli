@@ -269,6 +269,51 @@ module Texture : sig
     ; bytes_per_row : int
     }
 
+  module Io_surface : sig
+    type t
+
+    type plane_descriptor =
+      { width : int
+      ; height : int
+      ; bytes_per_element : int
+      }
+
+    type plane =
+      { width : int
+      ; height : int
+      ; bytes_per_element : int
+      ; bytes_per_row : int
+      ; size : int64
+      }
+
+    val plane_descriptor :
+      width:int -> height:int -> bytes_per_element:int -> plane_descriptor
+    val create :
+      ?label:string -> width:int -> height:int -> bytes_per_element:int ->
+      unit -> (t, error) result
+    val create_planar :
+      ?label:string -> plane_descriptor list -> (t, error) result
+    val id : t -> int64
+    val allocation_size : t -> int64
+    val planar : t -> bool
+    val plane_count : t -> int
+    val plane : t -> int -> (plane, error) result
+    val generation : t -> int64
+    val destroyed : t -> bool
+    val label : t -> (string option, error) result
+    val write_bytes :
+      t -> plane:int -> ?src_offset:int -> dst_offset:int64 -> bytes ->
+      (unit, error) result
+    val read_bytes :
+      t -> plane:int -> offset:int64 -> length:int -> (bytes, error) result
+    val destroy : t -> (unit, error) result
+  end
+
+  type io_surface_backing =
+    { surface : Io_surface.t
+    ; plane : int
+    }
+
   module Shared_handle : sig
     type t
 
@@ -290,6 +335,9 @@ module Texture : sig
   val create_from_buffer :
     buffer:Buffer.t -> offset:int64 -> bytes_per_row:int -> descriptor ->
     (t, error) result
+  val create_from_io_surface :
+    device:Device.t -> surface:Io_surface.t -> plane:int -> descriptor ->
+    (t, error) result
   val create_view :
     t -> format:format -> base_mip:int -> mip_count:int -> base_slice:int ->
     slice_count:int -> ?label:string -> unit -> (t, error) result
@@ -297,6 +345,7 @@ module Texture : sig
   val descriptor : t -> descriptor
   val heap_offset : t -> int64 option
   val buffer_backing : t -> buffer_backing option
+  val io_surface_backing : t -> io_surface_backing option
   val is_shareable : t -> (bool, error) result
   val shared_handle : t -> (Shared_handle.t, error) result
   val import_shared :

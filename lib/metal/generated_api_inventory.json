@@ -2,11 +2,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 0,
-    "bound": 455,
+    "bound": 460,
     "scope-excluded": 7,
-    "unreviewed": 4824
+    "unreviewed": 4819
   },
-  "classification_source_sha256": "75d72d8331ca23ec08ed4038b282c62bdf3ac4f066bf890eb8fec6d467c41f29",
+  "classification_source_sha256": "111a1e7eb4cd2df8cd211192b081388e85f8383d54b52e3e373a89523cab2efe",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "header_aggregate_sha256": "c2ee1e44c76606cf05fa81d1a8314dadfa49efe900342e8bcb3670363c16f0d1",
@@ -35446,14 +35446,14 @@
         "AvailabilityAttr",
         "NSReturnsRetainedAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newTextureWithDescriptor:iosurface:plane:]",
       "kind": "method",
       "line": 716,
       "name": "newTextureWithDescriptor:iosurface:plane:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLTextureDescriptor * _Nonnull __strong, IOSurfaceRef _Nonnull, NSUInteger) -> id<MTLTexture> _Nullable"
     },
     {
@@ -48568,28 +48568,28 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTexture iosurfacePlane]",
       "kind": "method",
       "line": 368,
       "name": "iosurfacePlane",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSUInteger"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTexture iosurface]",
       "kind": "method",
       "line": 362,
       "name": "iosurface",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> IOSurfaceRef _Nullable"
     },
     {
@@ -62517,28 +62517,28 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLTexture:iosurface",
       "kind": "property",
       "line": 362,
       "name": "iosurface",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "IOSurfaceRef _Nullable"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLTexture:iosurfacePlane",
       "kind": "property",
       "line": 368,
       "name": "iosurfacePlane",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {

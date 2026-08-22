@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <mutex>
 #include <vector>
 
@@ -22,6 +23,7 @@
 #include <mach/mach.h>
 
 #import <Foundation/Foundation.h>
+#import <IOSurface/IOSurfaceObjC.h>
 #import <Metal/Metal.h>
 #import <QuartzCore/CAMetalLayer.h>
 
@@ -86,6 +88,7 @@ enum class Handle_kind : std::uint32_t {
   Compute_encoder,
   Residency_set,
   External_memory,
+  Io_surface,
   Shared_texture_handle,
 };
 
@@ -211,6 +214,10 @@ id<MTLAllocation> allocation_of_handle(value raw) {
 
 PrismelMetalExternalMemory *external_memory_of_handle(value raw) {
   return object_of_handle(raw, Handle_kind::External_memory);
+}
+
+IOSurface *io_surface_of_handle(value raw) {
+  return object_of_handle(raw, Handle_kind::Io_surface);
 }
 
 MTLSharedTextureHandle *shared_texture_handle_of_handle(value raw) {
@@ -507,6 +514,48 @@ bool texture_transfer_range(id<MTLTexture> texture, value raw_transfer,
   }
   *total_bytes = *bytes_per_image * depth;
   *region = MTLRegionMake3D(ux, uy, uz, uw, uh, ud);
+  return true;
+}
+
+bool io_surface_plane_range(IOSurface *surface, intnat signed_plane,
+                            std::int64_t signed_offset, intnat signed_length,
+                            std::size_t *plane, std::size_t *offset,
+                            std::size_t *length) {
+  if (signed_plane < 0 || signed_offset < 0 || signed_length < 0) {
+    return false;
+  }
+  IOSurfaceRef surface_ref = (__bridge IOSurfaceRef)surface;
+  const std::size_t native_plane_count = IOSurfaceGetPlaneCount(surface_ref);
+  const std::size_t usable_plane_count =
+      native_plane_count == 0 ? 1 : native_plane_count;
+  const auto selected_plane = static_cast<std::size_t>(signed_plane);
+  if (selected_plane >= usable_plane_count) {
+    return false;
+  }
+  const std::size_t bytes_per_row =
+      IOSurfaceGetBytesPerRowOfPlane(surface_ref, selected_plane);
+  const std::size_t height =
+      IOSurfaceGetHeightOfPlane(surface_ref, selected_plane);
+  if (bytes_per_row == 0 || height == 0 ||
+      bytes_per_row > std::numeric_limits<std::size_t>::max() / height) {
+    return false;
+  }
+  const std::size_t plane_size = bytes_per_row * height;
+  const auto unsigned_offset = static_cast<std::uint64_t>(signed_offset);
+  const auto unsigned_length = static_cast<std::uint64_t>(signed_length);
+  if (unsigned_offset > std::numeric_limits<std::size_t>::max() ||
+      unsigned_length > std::numeric_limits<std::size_t>::max()) {
+    return false;
+  }
+  const auto checked_offset = static_cast<std::size_t>(unsigned_offset);
+  const auto checked_length = static_cast<std::size_t>(unsigned_length);
+  if (checked_offset > plane_size ||
+      checked_length > plane_size - checked_offset) {
+    return false;
+  }
+  *plane = selected_plane;
+  *offset = checked_offset;
+  *length = checked_length;
   return true;
 }
 
@@ -1766,6 +1815,256 @@ extern "C" CAMLprim value caml_prismel_metal_residency_set_end(value raw) {
     }
     CAMLreturn(result_error_text("residency sets require macOS 15"));
   }
+}
+
+extern "C" CAMLprim value caml_prismel_metal_io_surface_create(
+    value raw_planar, value raw_layout, value raw_label) {
+  CAMLparam3(raw_planar, raw_layout, raw_label);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    @try {
+      const bool planar = Bool_val(raw_planar);
+      const mlsize_t item_count = Wosize_val(raw_layout);
+      if (item_count == 0 || item_count % 3 != 0 ||
+          (!planar && item_count != 3)) {
+        CAMLreturn(result_error_text("invalid IOSurface plane layout"));
+      }
+      NSString *label = nil;
+      if (Is_block(raw_label)) {
+        label = string_from_ocaml(Field(raw_label, 0));
+        if (label == nil) {
+          CAMLreturn(result_error_text("IOSurface label is not valid UTF-8"));
+        }
+      }
+      NSMutableArray<NSDictionary<IOSurfacePropertyKey, id> *> *plane_info =
+          [[NSMutableArray alloc] initWithCapacity:item_count / 3];
+      for (mlsize_t index = 0; index < item_count; index += 3) {
+        const intnat width = Long_val(Field(raw_layout, index));
+        const intnat height = Long_val(Field(raw_layout, index + 1));
+        const intnat bytes_per_element = Long_val(Field(raw_layout, index + 2));
+        if (width <= 0 || height <= 0 || bytes_per_element <= 0) {
+          CAMLreturn(result_error_text(
+              "IOSurface plane dimensions must be positive"));
+        }
+        [plane_info addObject:@{
+          IOSurfacePropertyKeyPlaneWidth : @(width),
+          IOSurfacePropertyKeyPlaneHeight : @(height),
+          IOSurfacePropertyKeyPlaneBytesPerElement : @(bytes_per_element),
+        }];
+      }
+      NSMutableDictionary<IOSurfacePropertyKey, id> *properties =
+          [[NSMutableDictionary alloc] init];
+      NSDictionary<IOSurfacePropertyKey, id> *first = plane_info[0];
+      properties[IOSurfacePropertyKeyWidth] =
+          first[IOSurfacePropertyKeyPlaneWidth];
+      properties[IOSurfacePropertyKeyHeight] =
+          first[IOSurfacePropertyKeyPlaneHeight];
+      if (planar) {
+        properties[IOSurfacePropertyKeyPlaneInfo] = plane_info;
+      } else {
+        properties[IOSurfacePropertyKeyBytesPerElement] =
+            first[IOSurfacePropertyKeyPlaneBytesPerElement];
+      }
+      if (label != nil) {
+        properties[IOSurfacePropertyKeyName] = label;
+      }
+      IOSurface *surface =
+          [[IOSurface alloc] initWithProperties:properties];
+      if (surface == nil) {
+        CAMLreturn(result_error_text("IOSurface rejected the checked layout"));
+      }
+      raw = allocate_handle(surface, Handle_kind::Io_surface);
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+  CAMLreturn(result_ok(raw));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_io_surface_info(value raw) {
+  CAMLparam1(raw);
+  CAMLlocal5(result, surface_id, allocation_size, layout, item);
+  @autoreleasepool {
+    IOSurface *surface = io_surface_of_handle(raw);
+    IOSurfaceRef surface_ref = (__bridge IOSurfaceRef)surface;
+    const std::size_t native_plane_count = IOSurfaceGetPlaneCount(surface_ref);
+    const std::size_t plane_count =
+        native_plane_count == 0 ? 1 : native_plane_count;
+    if (plane_count > static_cast<std::size_t>(Max_long) / 4) {
+      caml_failwith("IOSurface plane count exceeds OCaml array limits");
+    }
+    layout = caml_alloc(static_cast<mlsize_t>(plane_count * 4), 0);
+    for (std::size_t index = 0; index < plane_count; ++index) {
+      const std::array<std::size_t, 4> values = {
+          IOSurfaceGetWidthOfPlane(surface_ref, index),
+          IOSurfaceGetHeightOfPlane(surface_ref, index),
+          IOSurfaceGetBytesPerElementOfPlane(surface_ref, index),
+          IOSurfaceGetBytesPerRowOfPlane(surface_ref, index),
+      };
+      for (std::size_t property = 0; property < values.size(); ++property) {
+        if (values[property] > static_cast<std::size_t>(Max_long)) {
+          caml_failwith("IOSurface layout exceeds OCaml integer limits");
+        }
+        Store_field(layout, static_cast<mlsize_t>(index * 4 + property),
+                    Val_long(values[property]));
+      }
+    }
+    surface_id = caml_copy_int64(
+        static_cast<std::int64_t>(IOSurfaceGetID(surface_ref)));
+    allocation_size = caml_copy_int64(
+        static_cast<std::int64_t>(IOSurfaceGetAllocSize(surface_ref)));
+    result = caml_alloc_tuple(4);
+    Store_field(result, 0, surface_id);
+    Store_field(result, 1, allocation_size);
+    Store_field(result, 2, Val_bool(native_plane_count != 0));
+    Store_field(result, 3, layout);
+    item = result;
+  }
+  CAMLreturn(item);
+}
+
+extern "C" CAMLprim value caml_prismel_metal_io_surface_write(
+    value raw_surface, value raw_plane, value raw_offset, value raw_bytes,
+    value raw_source_offset) {
+  CAMLparam5(raw_surface, raw_plane, raw_offset, raw_bytes, raw_source_offset);
+  @autoreleasepool {
+    IOSurface *surface = io_surface_of_handle(raw_surface);
+    const intnat source_offset = Long_val(raw_source_offset);
+    const intnat source_size = caml_string_length(raw_bytes);
+    if (source_offset < 0 || source_offset > source_size) {
+      CAMLreturn(result_error_text("IOSurface source range is invalid"));
+    }
+    std::size_t plane = 0;
+    std::size_t offset = 0;
+    std::size_t length = 0;
+    if (!io_surface_plane_range(surface, Long_val(raw_plane),
+                                Int64_val(raw_offset),
+                                source_size - source_offset, &plane, &offset,
+                                &length)) {
+      CAMLreturn(result_error_text("IOSurface write range is invalid"));
+    }
+    IOSurfaceRef surface_ref = (__bridge IOSurfaceRef)surface;
+    const kern_return_t lock_status = IOSurfaceLock(surface_ref, 0, nullptr);
+    if (lock_status != kIOSurfaceSuccess) {
+      CAMLreturn(result_error([NSString stringWithFormat:
+          @"IOSurface write lock failed (%d)", lock_status]));
+    }
+    void *base = IOSurfaceGetBaseAddressOfPlane(surface_ref, plane);
+    if (base == nullptr) {
+      (void)IOSurfaceUnlock(surface_ref, 0, nullptr);
+      CAMLreturn(result_error_text("IOSurface plane has no base address"));
+    }
+    std::memcpy(static_cast<std::uint8_t *>(base) + offset,
+                Bytes_val(raw_bytes) + source_offset, length);
+    const kern_return_t unlock_status = IOSurfaceUnlock(surface_ref, 0, nullptr);
+    if (unlock_status != kIOSurfaceSuccess) {
+      CAMLreturn(result_error([NSString stringWithFormat:
+          @"IOSurface write unlock failed (%d)", unlock_status]));
+    }
+  }
+  CAMLreturn(result_unit());
+}
+
+extern "C" CAMLprim value caml_prismel_metal_io_surface_read(
+    value raw_surface, value raw_plane, value raw_offset, value raw_length) {
+  CAMLparam4(raw_surface, raw_plane, raw_offset, raw_length);
+  CAMLlocal2(bytes, result);
+  @autoreleasepool {
+    IOSurface *surface = io_surface_of_handle(raw_surface);
+    std::size_t plane = 0;
+    std::size_t offset = 0;
+    std::size_t length = 0;
+    if (!io_surface_plane_range(surface, Long_val(raw_plane),
+                                Int64_val(raw_offset), Long_val(raw_length),
+                                &plane, &offset, &length)) {
+      CAMLreturn(result_error_text("IOSurface read range is invalid"));
+    }
+    bytes = caml_alloc_string(static_cast<mlsize_t>(length));
+    IOSurfaceRef surface_ref = (__bridge IOSurfaceRef)surface;
+    const kern_return_t lock_status =
+        IOSurfaceLock(surface_ref, kIOSurfaceLockReadOnly, nullptr);
+    if (lock_status != kIOSurfaceSuccess) {
+      CAMLreturn(result_error([NSString stringWithFormat:
+          @"IOSurface read lock failed (%d)", lock_status]));
+    }
+    void *base = IOSurfaceGetBaseAddressOfPlane(surface_ref, plane);
+    if (base == nullptr) {
+      (void)IOSurfaceUnlock(surface_ref, kIOSurfaceLockReadOnly, nullptr);
+      CAMLreturn(result_error_text("IOSurface plane has no base address"));
+    }
+    std::memcpy(Bytes_val(bytes),
+                static_cast<std::uint8_t *>(base) + offset, length);
+    const kern_return_t unlock_status =
+        IOSurfaceUnlock(surface_ref, kIOSurfaceLockReadOnly, nullptr);
+    if (unlock_status != kIOSurfaceSuccess) {
+      CAMLreturn(result_error([NSString stringWithFormat:
+          @"IOSurface read unlock failed (%d)", unlock_status]));
+    }
+    result = result_ok(bytes);
+  }
+  CAMLreturn(result);
+}
+
+extern "C" CAMLprim value caml_prismel_metal_texture_io_surface_create(
+    value raw_device, value raw_surface, value raw_plane,
+    value raw_descriptor, value raw_label) {
+  CAMLparam5(raw_device, raw_surface, raw_plane, raw_descriptor, raw_label);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    @try {
+      id<MTLDevice> device = object_of_handle(raw_device, Handle_kind::Device);
+      IOSurface *surface = io_surface_of_handle(raw_surface);
+      const intnat signed_plane = Long_val(raw_plane);
+      IOSurfaceRef surface_ref = (__bridge IOSurfaceRef)surface;
+      const std::size_t native_plane_count = IOSurfaceGetPlaneCount(surface_ref);
+      const std::size_t plane_count =
+          native_plane_count == 0 ? 1 : native_plane_count;
+      if (signed_plane < 0 ||
+          static_cast<std::size_t>(signed_plane) >= plane_count) {
+        CAMLreturn(result_error_text("IOSurface plane index is out of range"));
+      }
+      const auto plane = static_cast<std::size_t>(signed_plane);
+      MTLTextureDescriptor *descriptor = texture_descriptor(raw_descriptor);
+      if (descriptor.textureType != MTLTextureType2D ||
+          !texture_supports_buffer_backing(descriptor.pixelFormat) ||
+          descriptor.depth != 1 || descriptor.arrayLength != 1 ||
+          descriptor.mipmapLevelCount != 1 || descriptor.sampleCount != 1 ||
+          descriptor.storageMode != MTLStorageModeShared ||
+          descriptor.cpuCacheMode != MTLCPUCacheModeDefaultCache ||
+          descriptor.width != IOSurfaceGetWidthOfPlane(surface_ref, plane) ||
+          descriptor.height != IOSurfaceGetHeightOfPlane(surface_ref, plane) ||
+          texture_bytes_per_pixel(descriptor.pixelFormat) !=
+              IOSurfaceGetBytesPerElementOfPlane(surface_ref, plane)) {
+        CAMLreturn(result_error_text(
+            "texture descriptor does not match the IOSurface plane"));
+      }
+      NSString *label = nil;
+      if (Is_block(raw_label)) {
+        label = string_from_ocaml(Field(raw_label, 0));
+        if (label == nil) {
+          CAMLreturn(result_error_text("texture label is not valid UTF-8"));
+        }
+      }
+      id<MTLTexture> texture =
+          [device newTextureWithDescriptor:descriptor
+                                 iosurface:surface_ref
+                                     plane:plane];
+      IOSurfaceRef actual_surface = texture.iosurface;
+      if (texture == nil || actual_surface == nil ||
+          IOSurfaceGetID(actual_surface) != IOSurfaceGetID(surface_ref) ||
+          texture.iosurfacePlane != plane) {
+        CAMLreturn(result_error_text(
+            "Metal rejected or changed the IOSurface texture ancestry"));
+      }
+      if (label != nil) {
+        texture.label = label;
+      }
+      raw = allocate_handle(texture, Handle_kind::Texture);
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+  CAMLreturn(result_ok(raw));
 }
 
 extern "C" CAMLprim value caml_prismel_metal_texture_create(
