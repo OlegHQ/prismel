@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <cstring>
 #include <mutex>
+#include <vector>
 
 #include <caml/alloc.h>
 #include <caml/custom.h>
@@ -35,6 +36,7 @@ enum class Handle_kind : std::uint32_t {
   Command_queue,
   Command_buffer,
   Compute_encoder,
+  Residency_set,
 };
 
 struct Handle {
@@ -138,6 +140,44 @@ id<MTLResource> resource_of_handle(value raw,
     *actual_kind = handle->kind;
   }
   return (__bridge id<MTLResource>)handle->object;
+}
+
+API_AVAILABLE(macos(15.0))
+id<MTLAllocation> allocation_of_handle(value raw) {
+  auto *handle = handle_of_value(raw);
+  std::lock_guard<std::mutex> lock(handle_mutex);
+  if (handle->kind != Handle_kind::Heap &&
+      handle->kind != Handle_kind::Buffer &&
+      handle->kind != Handle_kind::Texture) {
+    caml_failwith("Metal custom handle is not an allocation");
+  }
+  if (handle->object == nullptr) {
+    caml_failwith("Metal custom handle is destroyed");
+  }
+  return (__bridge id<MTLAllocation>)handle->object;
+}
+
+API_AVAILABLE(macos(15.0))
+std::vector<id<MTLAllocation>> allocations_of_array(value raw_array) {
+  const mlsize_t count = Wosize_val(raw_array);
+  std::vector<id<MTLAllocation>> allocations;
+  allocations.reserve(count);
+  for (mlsize_t index = 0; index < count; ++index) {
+    allocations.push_back(allocation_of_handle(Field(raw_array, index)));
+  }
+  return allocations;
+}
+
+API_AVAILABLE(macos(15.0))
+std::vector<id<MTLResidencySet>> residency_sets_of_array(value raw_array) {
+  const mlsize_t count = Wosize_val(raw_array);
+  std::vector<id<MTLResidencySet>> residency_sets;
+  residency_sets.reserve(count);
+  for (mlsize_t index = 0; index < count; ++index) {
+    residency_sets.push_back(object_of_handle(Field(raw_array, index),
+                                               Handle_kind::Residency_set));
+  }
+  return residency_sets;
 }
 
 void release_pointer(void *pointer) {
@@ -619,6 +659,18 @@ caml_prismel_metal_device_supports_function_pointers(value raw) {
   CAMLreturn(Val_bool(device.supportsFunctionPointers));
 }
 
+extern "C" CAMLprim value
+caml_prismel_metal_device_supports_residency_sets(value raw) {
+  CAMLparam1(raw);
+  id<MTLDevice> device = object_of_handle(raw, Handle_kind::Device);
+  bool supported = false;
+  if (@available(macOS 15.0, *)) {
+    supported =
+        [device respondsToSelector:@selector(newResidencySetWithDescriptor:error:)];
+  }
+  CAMLreturn(Val_bool(supported));
+}
+
 extern "C" CAMLprim value caml_prismel_metal_buffer_create(
     value raw_device, value raw_length, value raw_options) {
   CAMLparam3(raw_device, raw_length, raw_options);
@@ -998,6 +1050,335 @@ extern "C" CAMLprim value caml_prismel_metal_heap_texture_create(
   CAMLreturn(result_ok(raw));
 }
 
+extern "C" CAMLprim value caml_prismel_metal_residency_set_create(
+    value raw_device, value raw_capacity, value raw_label) {
+  CAMLparam3(raw_device, raw_capacity, raw_label);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    if (@available(macOS 15.0, *)) {
+      @try {
+        id<MTLDevice> device = object_of_handle(raw_device, Handle_kind::Device);
+        const intnat capacity = Long_val(raw_capacity);
+        if (capacity < 0) {
+          CAMLreturn(result_error_text(
+              "residency-set initial capacity must be nonnegative"));
+        }
+        MTLResidencySetDescriptor *descriptor =
+            [[MTLResidencySetDescriptor alloc] init];
+        descriptor.initialCapacity = static_cast<NSUInteger>(capacity);
+        NSString *expected_label = nil;
+        if (Is_block(raw_label)) {
+          expected_label = string_from_ocaml(Field(raw_label, 0));
+          if (expected_label == nil) {
+            CAMLreturn(result_error_text(
+                "residency-set label is not valid UTF-8"));
+          }
+          descriptor.label = expected_label;
+        }
+        if (descriptor.initialCapacity != static_cast<NSUInteger>(capacity) ||
+            ((expected_label == nil) != (descriptor.label == nil)) ||
+            (expected_label != nil &&
+             ![descriptor.label isEqualToString:expected_label])) {
+          CAMLreturn(result_error_text(
+              "Metal changed checked residency-set descriptor properties"));
+        }
+        NSError *error = nil;
+        id<MTLResidencySet> residency_set =
+            [device newResidencySetWithDescriptor:descriptor error:&error];
+        if (residency_set == nil) {
+          CAMLreturn(result_error(error_description(
+              error, @"Metal residency-set creation failed without NSError")));
+        }
+        if (residency_set.device.registryID != device.registryID ||
+            (expected_label == nil && residency_set.label != nil) ||
+            (expected_label != nil && residency_set.label != nil &&
+             ![residency_set.label isEqualToString:expected_label])) {
+          CAMLreturn(result_error([NSString
+              stringWithFormat:
+                  @"Metal changed checked residency-set creation properties "
+                   "(expected device=%llu label=%@; actual device=%llu label=%@)",
+                  static_cast<unsigned long long>(device.registryID),
+                  expected_label ?: @"<nil>",
+                  static_cast<unsigned long long>(
+                      residency_set.device.registryID),
+                  residency_set.label ?: @"<nil>"]));
+        }
+        raw = allocate_handle(residency_set, Handle_kind::Residency_set);
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    } else {
+      CAMLreturn(result_error_text("residency sets require macOS 15"));
+    }
+  }
+  CAMLreturn(result_ok(raw));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_residency_set_label(value raw) {
+  CAMLparam1(raw);
+  CAMLlocal2(label, result);
+  @autoreleasepool {
+    if (@available(macOS 15.0, *)) {
+      @try {
+        id<MTLResidencySet> residency_set =
+            object_of_handle(raw, Handle_kind::Residency_set);
+        label = copy_optional_string(residency_set.label);
+        result = result_ok(label);
+        CAMLreturn(result);
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("residency sets require macOS 15"));
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_residency_set_allocated_size(value raw) {
+  CAMLparam1(raw);
+  CAMLlocal2(size, result);
+  @autoreleasepool {
+    if (@available(macOS 15.0, *)) {
+      @try {
+        id<MTLResidencySet> residency_set =
+            object_of_handle(raw, Handle_kind::Residency_set);
+        const std::uint64_t allocated_size = residency_set.allocatedSize;
+        if (allocated_size > static_cast<std::uint64_t>(INT64_MAX)) {
+          CAMLreturn(result_error_text(
+              "residency-set allocated size exceeds OCaml int64"));
+        }
+        size = caml_copy_int64(static_cast<std::int64_t>(allocated_size));
+        result = result_ok(size);
+        CAMLreturn(result);
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("residency sets require macOS 15"));
+  }
+}
+
+extern "C" CAMLprim value caml_prismel_metal_allocation_allocated_size(
+    value raw) {
+  CAMLparam1(raw);
+  CAMLlocal2(size, result);
+  @autoreleasepool {
+    if (@available(macOS 15.0, *)) {
+      @try {
+        const std::uint64_t allocated_size =
+            allocation_of_handle(raw).allocatedSize;
+        if (allocated_size > static_cast<std::uint64_t>(INT64_MAX)) {
+          CAMLreturn(result_error_text(
+              "allocation size exceeds OCaml int64"));
+        }
+        size = caml_copy_int64(static_cast<std::int64_t>(allocated_size));
+        result = result_ok(size);
+        CAMLreturn(result);
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("allocation size requires macOS 15"));
+  }
+}
+
+extern "C" CAMLprim value caml_prismel_metal_residency_set_counts(value raw) {
+  CAMLparam1(raw);
+  CAMLlocal4(count, all_count, counts, result);
+  @autoreleasepool {
+    if (@available(macOS 15.0, *)) {
+      @try {
+        id<MTLResidencySet> residency_set =
+            object_of_handle(raw, Handle_kind::Residency_set);
+        const std::uint64_t allocation_count = residency_set.allocationCount;
+        NSArray<id<MTLAllocation>> *all_allocations =
+            residency_set.allAllocations;
+        const std::uint64_t array_count = all_allocations.count;
+        if (allocation_count > static_cast<std::uint64_t>(INT64_MAX) ||
+            array_count > static_cast<std::uint64_t>(INT64_MAX)) {
+          CAMLreturn(result_error_text(
+              "residency allocation count exceeds OCaml int64"));
+        }
+        count = caml_copy_int64(static_cast<std::int64_t>(allocation_count));
+        all_count = caml_copy_int64(static_cast<std::int64_t>(array_count));
+        counts = caml_alloc_tuple(2);
+        Store_field(counts, 0, count);
+        Store_field(counts, 1, all_count);
+        result = result_ok(counts);
+        CAMLreturn(result);
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("residency sets require macOS 15"));
+  }
+}
+
+extern "C" CAMLprim value caml_prismel_metal_residency_set_add_allocation(
+    value raw_set, value raw_allocation) {
+  CAMLparam2(raw_set, raw_allocation);
+  @autoreleasepool {
+    if (@available(macOS 15.0, *)) {
+      @try {
+        id<MTLResidencySet> residency_set =
+            object_of_handle(raw_set, Handle_kind::Residency_set);
+        [residency_set addAllocation:allocation_of_handle(raw_allocation)];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("residency sets require macOS 15"));
+  }
+}
+
+extern "C" CAMLprim value caml_prismel_metal_residency_set_add_allocations(
+    value raw_set, value raw_allocations) {
+  CAMLparam2(raw_set, raw_allocations);
+  @autoreleasepool {
+    if (@available(macOS 15.0, *)) {
+      @try {
+        id<MTLResidencySet> residency_set =
+            object_of_handle(raw_set, Handle_kind::Residency_set);
+        auto allocations = allocations_of_array(raw_allocations);
+        [residency_set addAllocations:allocations.data()
+                                count:allocations.size()];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("residency sets require macOS 15"));
+  }
+}
+
+extern "C" CAMLprim value caml_prismel_metal_residency_set_remove_allocation(
+    value raw_set, value raw_allocation) {
+  CAMLparam2(raw_set, raw_allocation);
+  @autoreleasepool {
+    if (@available(macOS 15.0, *)) {
+      @try {
+        id<MTLResidencySet> residency_set =
+            object_of_handle(raw_set, Handle_kind::Residency_set);
+        [residency_set removeAllocation:allocation_of_handle(raw_allocation)];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("residency sets require macOS 15"));
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_residency_set_remove_allocations(
+    value raw_set, value raw_allocations) {
+  CAMLparam2(raw_set, raw_allocations);
+  @autoreleasepool {
+    if (@available(macOS 15.0, *)) {
+      @try {
+        id<MTLResidencySet> residency_set =
+            object_of_handle(raw_set, Handle_kind::Residency_set);
+        auto allocations = allocations_of_array(raw_allocations);
+        [residency_set removeAllocations:allocations.data()
+                                   count:allocations.size()];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("residency sets require macOS 15"));
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_residency_set_remove_all(value raw) {
+  CAMLparam1(raw);
+  @autoreleasepool {
+    if (@available(macOS 15.0, *)) {
+      @try {
+        id<MTLResidencySet> residency_set =
+            object_of_handle(raw, Handle_kind::Residency_set);
+        [residency_set removeAllAllocations];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("residency sets require macOS 15"));
+  }
+}
+
+extern "C" CAMLprim value caml_prismel_metal_residency_set_contains(
+    value raw_set, value raw_allocation) {
+  CAMLparam2(raw_set, raw_allocation);
+  @autoreleasepool {
+    if (@available(macOS 15.0, *)) {
+      @try {
+        id<MTLResidencySet> residency_set =
+            object_of_handle(raw_set, Handle_kind::Residency_set);
+        const bool contains =
+            [residency_set containsAllocation:allocation_of_handle(raw_allocation)];
+        CAMLreturn(result_ok(Val_bool(contains)));
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("residency sets require macOS 15"));
+  }
+}
+
+extern "C" CAMLprim value caml_prismel_metal_residency_set_commit(value raw) {
+  CAMLparam1(raw);
+  @autoreleasepool {
+    if (@available(macOS 15.0, *)) {
+      @try {
+        id<MTLResidencySet> residency_set =
+            object_of_handle(raw, Handle_kind::Residency_set);
+        [residency_set commit];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("residency sets require macOS 15"));
+  }
+}
+
+extern "C" CAMLprim value caml_prismel_metal_residency_set_request(value raw) {
+  CAMLparam1(raw);
+  @autoreleasepool {
+    if (@available(macOS 15.0, *)) {
+      @try {
+        id<MTLResidencySet> residency_set =
+            object_of_handle(raw, Handle_kind::Residency_set);
+        [residency_set requestResidency];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("residency sets require macOS 15"));
+  }
+}
+
+extern "C" CAMLprim value caml_prismel_metal_residency_set_end(value raw) {
+  CAMLparam1(raw);
+  @autoreleasepool {
+    if (@available(macOS 15.0, *)) {
+      @try {
+        id<MTLResidencySet> residency_set =
+            object_of_handle(raw, Handle_kind::Residency_set);
+        [residency_set endResidency];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("residency sets require macOS 15"));
+  }
+}
+
 extern "C" CAMLprim value caml_prismel_metal_texture_create(
     value raw_device, value raw_descriptor, value raw_label) {
   CAMLparam3(raw_device, raw_descriptor, raw_label);
@@ -1346,6 +1727,90 @@ extern "C" CAMLprim value caml_prismel_metal_command_queue_create(
   CAMLreturn(result_ok(raw));
 }
 
+extern "C" CAMLprim value
+caml_prismel_metal_command_queue_add_residency_set(
+    value raw_queue, value raw_set) {
+  CAMLparam2(raw_queue, raw_set);
+  @autoreleasepool {
+    if (@available(macOS 15.0, *)) {
+      @try {
+        id<MTLCommandQueue> queue =
+            object_of_handle(raw_queue, Handle_kind::Command_queue);
+        id<MTLResidencySet> residency_set =
+            object_of_handle(raw_set, Handle_kind::Residency_set);
+        [queue addResidencySet:residency_set];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("residency sets require macOS 15"));
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_command_queue_add_residency_sets(
+    value raw_queue, value raw_sets) {
+  CAMLparam2(raw_queue, raw_sets);
+  @autoreleasepool {
+    if (@available(macOS 15.0, *)) {
+      @try {
+        id<MTLCommandQueue> queue =
+            object_of_handle(raw_queue, Handle_kind::Command_queue);
+        auto residency_sets = residency_sets_of_array(raw_sets);
+        [queue addResidencySets:residency_sets.data()
+                            count:residency_sets.size()];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("residency sets require macOS 15"));
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_command_queue_remove_residency_set(
+    value raw_queue, value raw_set) {
+  CAMLparam2(raw_queue, raw_set);
+  @autoreleasepool {
+    if (@available(macOS 15.0, *)) {
+      @try {
+        id<MTLCommandQueue> queue =
+            object_of_handle(raw_queue, Handle_kind::Command_queue);
+        id<MTLResidencySet> residency_set =
+            object_of_handle(raw_set, Handle_kind::Residency_set);
+        [queue removeResidencySet:residency_set];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("residency sets require macOS 15"));
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_command_queue_remove_residency_sets(
+    value raw_queue, value raw_sets) {
+  CAMLparam2(raw_queue, raw_sets);
+  @autoreleasepool {
+    if (@available(macOS 15.0, *)) {
+      @try {
+        id<MTLCommandQueue> queue =
+            object_of_handle(raw_queue, Handle_kind::Command_queue);
+        auto residency_sets = residency_sets_of_array(raw_sets);
+        [queue removeResidencySets:residency_sets.data()
+                               count:residency_sets.size()];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("residency sets require macOS 15"));
+  }
+}
+
 extern "C" CAMLprim value caml_prismel_metal_command_buffer_create(
     value raw_queue) {
   CAMLparam1(raw_queue);
@@ -1375,6 +1840,48 @@ extern "C" CAMLprim value caml_prismel_metal_command_buffer_set_label(
     buffer.label = label;
   }
   CAMLreturn(result_unit());
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_command_buffer_use_residency_set(
+    value raw_buffer, value raw_set) {
+  CAMLparam2(raw_buffer, raw_set);
+  @autoreleasepool {
+    if (@available(macOS 15.0, *)) {
+      @try {
+        id<MTLCommandBuffer> buffer =
+            object_of_handle(raw_buffer, Handle_kind::Command_buffer);
+        id<MTLResidencySet> residency_set =
+            object_of_handle(raw_set, Handle_kind::Residency_set);
+        [buffer useResidencySet:residency_set];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("residency sets require macOS 15"));
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_command_buffer_use_residency_sets(
+    value raw_buffer, value raw_sets) {
+  CAMLparam2(raw_buffer, raw_sets);
+  @autoreleasepool {
+    if (@available(macOS 15.0, *)) {
+      @try {
+        id<MTLCommandBuffer> buffer =
+            object_of_handle(raw_buffer, Handle_kind::Command_buffer);
+        auto residency_sets = residency_sets_of_array(raw_sets);
+        [buffer useResidencySets:residency_sets.data()
+                             count:residency_sets.size()];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("residency sets require macOS 15"));
+  }
 }
 
 extern "C" CAMLprim value caml_prismel_metal_command_buffer_compute_encoder(

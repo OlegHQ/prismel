@@ -55,10 +55,10 @@ hard typed error rather than silent reclamation on a GC domain.
 The current safe slices cover device enumeration and capabilities; shared,
 managed, and private buffers; CPU range transfer and lexical mapped-range
 handles; textures and views; samplers; labels; runtime MSL library compilation
-with full `NSError` diagnostics; automatic and placement heaps; function lookup;
-compute-pipeline creation and limits; command queues and buffers; compute
-encoding and resource binding; checked thread dispatch; submission; blocking
-completion; and command status/errors.
+with full `NSError` diagnostics; automatic and placement heaps; macOS-15
+residency sets; function lookup; compute-pipeline creation and limits; command
+queues and buffers; compute encoding and resource binding; checked thread
+dispatch; submission; blocking completion; and command status/errors.
 
 A `Buffer.Mapping.t` is valid only inside `Buffer.with_mapping`. It exposes
 checked copy operations rather than a Bigarray backed by an escaping native
@@ -118,27 +118,57 @@ texture owner, so teardown with a live descendant is a deterministic
 `Parent_has_dependents` error. Automatic resources intentionally report no
 placement offset; placement resources round-trip Metal's actual offset.
 
+`Residency_set` availability-gates the macOS 15 API at runtime because the
+library deployment target remains macOS 14. A set accepts only typed `Buffer`,
+`Texture`, and `Heap` allocations from its creating device. Adds reject stale,
+discardable, or alias-relinquished allocations; duplicate bulk arguments fail
+before Objective-C. Every accepted member retains its safe owner and ancestor
+heap-use token. A pending removal therefore continues to block resource
+destruction and heap purge until `Residency_set.commit` applies the native
+change and releases that ownership.
+
+Membership queries cross-check the native `containsAllocation`,
+`allAllocations`, and `allocationCount` surfaces against the safe ledger. On
+the qualified Apple M1, `allAllocations` and `containsAllocation` reflect a
+pending removal immediately while `allocationCount` can retain the pre-removal
+count until `commit`; the safe `allocation_count` reports current membership
+from `allAllocations` and accepts only those two explained native counts. The
+same device also accepts a descriptor label but returns `nil` from the created
+set's read-only `label`; the binding exposes that observed native value rather
+than synthesizing a round trip.
+
+Command queues retain every attached residency set until explicit removal or
+queue teardown. Command buffers independently retain every set passed through
+`use_residency_set(s)` until terminal status, wait, destruction, or
+finalization, so removing a set from its queue cannot invalidate in-flight
+work. Single and bulk add/remove/use entry points, manual request/end residency,
+commits, allocation footprints, and set footprints are all availability
+guarded and exception-translated.
+
 `Sampler.descriptor` covers min/mag/mip filtering, anisotropy, all current
 address modes and border colors, normalized coordinates, finite float32 LOD
 clamps, comparison, LOD averaging, and argument-buffer support. Invalid
 anisotropy, non-finite or inverted clamps, illegal unnormalized-coordinate
 combinations, and malformed labels fail before sampler creation. Sparse
-resources, residency, buffer-backed textures, external ownership, and the
-remaining pixel-format capability matrix are still pending; this resource
-slice is therefore progress toward M3, not an M3 completion claim.
+resources, buffer-backed textures, external ownership, and the remaining
+pixel-format capability matrix are still pending; this resource slice is
+therefore progress toward M3, not an M3 completion claim.
 
 `test_metal.exe` runs a real M1 compute kernel, wrong-domain and invalid-state
 cases, shader diagnostics, buffer and texture bounds/stride/cardinality checks,
 texture mip transfer and views, sampler validation, multisample capability
-gating, heap alignment and placement, aliasing, purgeability, command-resource
-retention, parent ownership, idempotent destruction, stale access, and
-GC-finalizer release. The separate ownership stress performs
+gating, heap alignment and placement, aliasing, purgeability, residency
+membership/commit/queue/command retention, command-resource retention, parent
+ownership, idempotent destruction, stale access, and GC-finalizer release. The
+separate ownership stress performs
 warm-up followed
 by 100,000 measured buffer create/destroy cycles, 100,000 measured
-texture/sampler create/destroy cycles, and 10,000 heap/purge/alias/replacement
-cycles covering 30,000 measured heap/child-resource handles. Each lane requires
-exact created/released balance, zero pending or dropped releases, stable
-live-handle count, and bounded settled RSS growth.
+texture/sampler create/destroy cycles, 10,000 heap/purge/alias/replacement
+cycles covering 30,000 measured heap/child-resource handles, and 10,000
+residency add/commit/remove/commit cycles covering 20,000 measured
+set/resource handles. Each lane requires exact created/released balance, zero
+pending or dropped releases, stable live-handle count, and bounded settled RSS
+growth.
 
 `PRISMEL_METAL_SANITIZERS` is parsed by OCaml build configuration and accepts
 `address`, `undefined`, or `thread`; ThreadSanitizer is deliberately exclusive,

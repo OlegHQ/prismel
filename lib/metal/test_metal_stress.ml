@@ -68,6 +68,22 @@ let run_heap_cycles device count =
     get (Heap.destroy heap)
   done
 
+let run_residency_cycles device count =
+  let descriptor = Residency_set.make_descriptor ~initial_capacity:1 () in
+  for _ = 1 to count do
+    let buffer =
+      get (Buffer.create ~device ~length:16L ~storage:Buffer.Shared ())
+    in
+    let residency_set = get (Residency_set.create ~device descriptor) in
+    let allocation = Residency_set.Buffer buffer in
+    get (Residency_set.add_allocation residency_set allocation);
+    get (Residency_set.commit residency_set);
+    get (Residency_set.remove_allocation residency_set allocation);
+    get (Residency_set.commit residency_set);
+    get (Buffer.destroy buffer);
+    get (Residency_set.destroy residency_set)
+  done
+
 let check_cycles ~name ~expected (baseline : Release_queue.stats)
     (finished : Release_queue.stats) =
   let created = Int64.sub finished.total_created baseline.total_created in
@@ -118,11 +134,30 @@ let () =
       check_cycles ~name:"heaps/resources" ~expected:30_000L heap_baseline
         heap_finished
     in
+    let residency_rss_growth =
+      if get (Device.supports_residency_sets device) then begin
+        run_residency_cycles device 500;
+        let baseline = settle () in
+        run_residency_cycles device 10_000;
+        let finished = settle () in
+        Some
+          (check_cycles ~name:"residency sets/resources" ~expected:20_000L
+             baseline finished)
+      end
+      else None
+    in
     get (Device.destroy device);
     let final = settle () in
     if final.live_handles <> 0 then
       fail "%d Metal handles remain after stress teardown" final.live_handles;
-    Printf.printf
-      "Metal ownership stress passed: 100000 buffer, 100000 texture/sampler, and 30000 heap/resource handles, %Ld/%Ld/%Ld-byte settled RSS deltas\n%!"
-      buffer_rss_growth resource_rss_growth heap_rss_growth
+    (match residency_rss_growth with
+     | Some residency_rss_growth ->
+         Printf.printf
+           "Metal ownership stress passed: 100000 buffer, 100000 texture/sampler, 30000 heap/resource, and 20000 residency/resource handles, %Ld/%Ld/%Ld/%Ld-byte settled RSS deltas\n%!"
+           buffer_rss_growth resource_rss_growth heap_rss_growth
+           residency_rss_growth
+     | None ->
+         Printf.printf
+           "Metal ownership stress passed: 100000 buffer, 100000 texture/sampler, and 30000 heap/resource handles; residency unsupported, %Ld/%Ld/%Ld-byte settled RSS deltas\n%!"
+           buffer_rss_growth resource_rss_growth heap_rss_growth)
   end

@@ -58,6 +58,152 @@ let settle_finalizers ~expected_live =
   in
   loop 8
 
+let test_residency_set device =
+  let supported = get (Device.supports_residency_sets device) in
+  let descriptor =
+    Residency_set.make_descriptor ~label:"Metal residency conformance"
+      ~initial_capacity:3 ()
+  in
+  if not supported then begin
+    ignore
+      (expect_error Unsupported (Residency_set.create ~device descriptor));
+    false
+  end
+  else begin
+    ignore
+      (expect_error Invalid_argument
+         (Residency_set.create ~device
+            (Residency_set.make_descriptor ~initial_capacity:(-1) ())));
+    ignore
+      (expect_error Invalid_argument
+         (Residency_set.create ~device
+            (Residency_set.make_descriptor ~label:"invalid\000label" ())));
+    ignore
+      (expect_error Native_error
+         (Residency_set.create ~device
+            (Residency_set.make_descriptor ~label:"\255" ())));
+    let before_finalizer = get (Release_queue.stats ()) in
+    let allocate_unreleased_membership () =
+      let buffer =
+        get (Buffer.create ~device ~length:16L ~storage:Buffer.Shared ())
+      in
+      let residency_set =
+        get
+          (Residency_set.create ~device
+             (Residency_set.make_descriptor ~initial_capacity:1 ()))
+      in
+      get
+        (Residency_set.add_allocation residency_set
+           (Residency_set.Buffer buffer))
+    in
+    allocate_unreleased_membership ();
+    let after_finalizer =
+      settle_finalizers ~expected_live:before_finalizer.live_handles
+    in
+    if
+      Int64.sub after_finalizer.total_created before_finalizer.total_created <> 2L
+      || Int64.sub after_finalizer.total_released before_finalizer.total_released
+         <> 2L
+    then fail "residency finalization did not release its set and allocation";
+    let buffer =
+      get (Buffer.create ~device ~length:64L ~storage:Buffer.Shared ())
+    in
+    let texture =
+      get
+        (Texture.create ~device
+           (Texture.descriptor_2d ~storage:Buffer.Shared
+              ~format:Texture.Rgba8_unorm ~width:4 ~height:4 ()))
+    in
+    let heap_layout =
+      get
+        (Heap.buffer_size_and_align ~device ~length:64L
+           ~storage:Buffer.Private ())
+    in
+    let heap =
+      get
+        (Heap.create ~device
+           (Heap.make_descriptor ~size:heap_layout.size ()))
+    in
+    let residency_set = get (Residency_set.create ~device descriptor) in
+    if not (Device.same device (Residency_set.device residency_set)) then
+      fail "residency set lost its creating device";
+    let native_label = get (Residency_set.label residency_set) in
+    if
+      (native_label <> None
+       && native_label <> Some "Metal residency conformance")
+      || get (Residency_set.allocation_count residency_set) <> 0
+      || get (Residency_set.allocations residency_set) <> []
+    then fail "empty residency-set properties are wrong";
+    let buffer_allocation = Residency_set.Buffer buffer in
+    let texture_allocation = Residency_set.Texture texture in
+    let heap_allocation = Residency_set.Heap heap in
+    List.iter
+      (fun allocation ->
+        if get (Residency_set.allocation_size allocation) < 0L then
+          fail "Metal returned a negative allocation size")
+      [ buffer_allocation; texture_allocation; heap_allocation ];
+    get (Residency_set.add_allocation residency_set buffer_allocation);
+    get
+      (Residency_set.add_allocations residency_set
+         [ texture_allocation; heap_allocation ]);
+    if get (Residency_set.allocation_count residency_set) <> 3
+       || List.length (get (Residency_set.allocations residency_set)) <> 3
+       || not (get (Residency_set.contains residency_set buffer_allocation))
+       || not (get (Residency_set.contains residency_set texture_allocation))
+       || not (get (Residency_set.contains residency_set heap_allocation))
+    then fail "residency-set additions did not round-trip";
+    ignore
+      (expect_error Invalid_argument
+         (Residency_set.add_allocations residency_set
+            [ texture_allocation; texture_allocation ]));
+    ignore (expect_error Parent_has_dependents (Buffer.destroy buffer));
+    ignore
+      (expect_error Parent_has_dependents
+         (Buffer.set_purgeable_state buffer Volatile));
+    ignore (expect_error Parent_has_dependents (Texture.destroy texture));
+    ignore
+      (expect_error Parent_has_dependents
+         (Texture.set_purgeable_state texture Volatile));
+    ignore (expect_error Parent_has_dependents (Heap.destroy heap));
+    ignore
+      (expect_error Parent_has_dependents
+         (Heap.set_purgeable_state heap Volatile));
+    get (Residency_set.commit residency_set);
+    if get (Residency_set.allocated_size residency_set) < 0L then
+      fail "Metal returned a negative residency-set footprint";
+    get (Residency_set.request_residency residency_set);
+    get (Residency_set.end_residency residency_set);
+    get (Residency_set.remove_allocation residency_set buffer_allocation);
+    if get (Residency_set.contains residency_set buffer_allocation)
+       || get (Residency_set.allocation_count residency_set) <> 2
+    then fail "pending residency removal was not observable";
+    ignore (expect_error Parent_has_dependents (Buffer.destroy buffer));
+    get (Residency_set.add_allocation residency_set buffer_allocation);
+    if not (get (Residency_set.contains residency_set buffer_allocation)) then
+      fail "residency re-add did not cancel the pending removal";
+    get (Residency_set.commit residency_set);
+    get
+      (Residency_set.remove_allocations residency_set
+         [ buffer_allocation; texture_allocation ]);
+    if get (Residency_set.allocation_count residency_set) <> 1 then
+      fail "bulk residency removal count is wrong";
+    ignore (expect_error Parent_has_dependents (Buffer.destroy buffer));
+    ignore (expect_error Parent_has_dependents (Texture.destroy texture));
+    get (Residency_set.commit residency_set);
+    get (Buffer.destroy buffer);
+    get (Texture.destroy texture);
+    get (Residency_set.remove_all_allocations residency_set);
+    if get (Residency_set.allocation_count residency_set) <> 0 then
+      fail "remove-all residency membership is wrong";
+    ignore (expect_error Parent_has_dependents (Heap.destroy heap));
+    get (Residency_set.commit residency_set);
+    get (Heap.destroy heap);
+    get (Residency_set.destroy residency_set);
+    ignore
+      (expect_error Destroyed (Residency_set.label residency_set));
+    true
+  end
+
 let () =
   if Sys.os_type <> "Unix"
      || not (Sys.file_exists "/System/Library/Frameworks/Metal.framework")
@@ -72,6 +218,7 @@ let () =
     if info.name = "" || info.registry_id = 0L then
       fail "default device identity is incomplete";
     if info.max_buffer_length < 16L then fail "device buffer limit is invalid";
+    let residency_sets_supported = test_residency_set device in
     let before_finalizer = get (Release_queue.stats ()) in
     let allocate_unreleased_buffer () =
       ignore (get (Buffer.create ~device ~length:16L ~storage:Buffer.Shared ()))
@@ -669,9 +816,49 @@ let () =
        || Compute_pipeline.max_total_threads_per_threadgroup pipeline <= 0
     then fail "compute pipeline limits are invalid";
     let queue = get (Command_queue.create device) in
+    let queue_residency_sets =
+      if residency_sets_supported then begin
+        let first =
+          get
+            (Residency_set.create ~device
+               (Residency_set.make_descriptor ~label:"Queue residency one" ()))
+        in
+        let second =
+          get
+            (Residency_set.create ~device
+               (Residency_set.make_descriptor ~label:"Queue residency two" ()))
+        in
+        get (Command_queue.add_residency_set queue first);
+        get (Command_queue.add_residency_sets queue [ second ]);
+        ignore
+          (expect_error Invalid_argument
+             (Command_queue.add_residency_sets queue [ first; first ]));
+        ignore (expect_error Parent_has_dependents (Residency_set.destroy first));
+        ignore (expect_error Parent_has_dependents (Residency_set.destroy second));
+        get (Command_queue.remove_residency_set queue first);
+        get (Command_queue.remove_residency_sets queue [ second ]);
+        get (Command_queue.add_residency_set queue first);
+        get (Command_queue.add_residency_sets queue [ second ]);
+        Some (first, second)
+      end
+      else None
+    in
     let commands =
       get (Command_buffer.create queue ~label:"Metal compute conformance" ())
     in
+    Option.iter
+      (fun (first, second) ->
+        get (Command_buffer.use_residency_set commands first);
+        get (Command_buffer.use_residency_sets commands [ second ]);
+        ignore
+          (expect_error Invalid_argument
+             (Command_buffer.use_residency_sets commands [ first; first ]));
+        get (Command_queue.remove_residency_set queue first);
+        ignore
+          (expect_error Parent_has_dependents (Residency_set.destroy first));
+        ignore
+          (expect_error Parent_has_dependents (Residency_set.destroy second)))
+      queue_residency_sets;
     let encoder = get (Compute_encoder.create commands) in
     get (Compute_encoder.set_pipeline encoder pipeline);
     if get (Buffer.read_bytes buffer ~offset:0L ~length:16) <> input_values () then
@@ -695,10 +882,22 @@ let () =
     (match get (Command_buffer.status commands) with
      | Command_buffer.Completed -> ()
      | _ -> fail "command buffer did not complete");
+    Option.iter
+      (fun (first, second) ->
+        ignore
+          (expect_error Invalid_state
+             (Command_buffer.use_residency_set commands first));
+        get (Residency_set.destroy first);
+        ignore
+          (expect_error Parent_has_dependents (Residency_set.destroy second)))
+      queue_residency_sets;
     Buffer.read_bytes buffer ~offset:0L ~length:16 |> get |> check_values;
     get (Buffer.destroy buffer);
     get (Command_buffer.destroy commands);
     get (Command_queue.destroy queue);
+    Option.iter
+      (fun (_, second) -> get (Residency_set.destroy second))
+      queue_residency_sets;
     get (Compute_pipeline.destroy pipeline);
     get (Function.destroy function_);
     get (Library.destroy library);
@@ -713,6 +912,6 @@ let () =
       fail "Metal release accounting did not settle (%d pending, %d dropped, %d live)"
         stats.pending stats.dropped stats.live_handles;
     Printf.printf
-      "Metal ARC/device/heap/buffer/texture/sampler/runtime-shader/compute conformance passed on %s\n%!"
+      "Metal ARC/device/heap/buffer/texture/sampler/residency/runtime-shader/compute conformance passed on %s\n%!"
       info.name
   end

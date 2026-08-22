@@ -2,11 +2,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 0,
-    "bound": 401,
+    "bound": 438,
     "scope-excluded": 7,
-    "unreviewed": 4878
+    "unreviewed": 4841
   },
-  "classification_source_sha256": "d1a8346bcdf26773494a857892d0d440498ee5f2728a814b359b0b298d3c6de5",
+  "classification_source_sha256": "ffdd3e49765de9313ae76f14ebd97d15c8548c6f737e723744f03e555058e378",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "header_aggregate_sha256": "c2ee1e44c76606cf05fa81d1a8314dadfa49efe900342e8bcb3670363c16f0d1",
@@ -2315,14 +2315,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResidencySet.h",
       "id": "class:MTLResidencySetDescriptor",
       "kind": "class",
       "line": 23,
       "name": "MTLResidencySetDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -28598,14 +28598,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAllocation.h",
       "id": "method:-[MTLAllocation allocatedSize]",
       "kind": "method",
       "line": null,
       "name": "allocatedSize",
       "owner": "MTLAllocation",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -31402,28 +31402,28 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "method:-[MTLCommandBuffer useResidencySet:]",
       "kind": "method",
       "line": 447,
       "name": "useResidencySet:",
       "owner": "MTLCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (id<MTLResidencySet>  _Nonnull __strong) -> void"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "method:-[MTLCommandBuffer useResidencySets:count:]",
       "kind": "method",
       "line": 453,
       "name": "useResidencySets:count:",
       "owner": "MTLCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (id<MTLResidencySet>  _Nonnull const __unsafe_unretained * _Nonnull, NSUInteger) -> void"
     },
     {
@@ -31668,28 +31668,28 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandQueue.h",
       "id": "method:-[MTLCommandQueue addResidencySet:]",
       "kind": "method",
       "line": 61,
       "name": "addResidencySet:",
       "owner": "MTLCommandQueue",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (id<MTLResidencySet>  _Nonnull __strong) -> void"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandQueue.h",
       "id": "method:-[MTLCommandQueue addResidencySets:count:]",
       "kind": "method",
       "line": 67,
       "name": "addResidencySets:count:",
       "owner": "MTLCommandQueue",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (id<MTLResidencySet>  _Nonnull const __unsafe_unretained * _Nonnull, NSUInteger) -> void"
     },
     {
@@ -31772,28 +31772,28 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandQueue.h",
       "id": "method:-[MTLCommandQueue removeResidencySet:]",
       "kind": "method",
       "line": 75,
       "name": "removeResidencySet:",
       "owner": "MTLCommandQueue",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (id<MTLResidencySet>  _Nonnull __strong) -> void"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandQueue.h",
       "id": "method:-[MTLCommandQueue removeResidencySets:count:]",
       "kind": "method",
       "line": 82,
       "name": "removeResidencySets:count:",
       "owner": "MTLCommandQueue",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (id<MTLResidencySet>  _Nonnull const __unsafe_unretained * _Nonnull, NSUInteger) -> void"
     },
     {
@@ -35313,14 +35313,14 @@
         "AvailabilityAttr",
         "NSReturnsRetainedAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newResidencySetWithDescriptor:error:]",
       "kind": "method",
       "line": 1327,
       "name": "newResidencySetWithDescriptor:error:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLResidencySetDescriptor * _Nonnull __strong, NSError * _Nullable __autoreleasing * _Nullable) -> id<MTLResidencySet> _Nullable"
     },
     {
@@ -46194,218 +46194,218 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResidencySet.h",
       "id": "method:-[MTLResidencySet addAllocation:]",
       "kind": "method",
       "line": 82,
       "name": "addAllocation:",
       "owner": "MTLResidencySet",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (id<MTLAllocation>  _Nonnull __strong) -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResidencySet.h",
       "id": "method:-[MTLResidencySet addAllocations:count:]",
       "kind": "method",
       "line": 88,
       "name": "addAllocations:count:",
       "owner": "MTLResidencySet",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (id<MTLAllocation>  _Nonnull const __unsafe_unretained * _Nonnull, NSUInteger) -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResidencySet.h",
       "id": "method:-[MTLResidencySet allAllocations]",
       "kind": "method",
       "line": 122,
       "name": "allAllocations",
       "owner": "MTLResidencySet",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSArray<id<MTLAllocation>> * _Nonnull"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResidencySet.h",
       "id": "method:-[MTLResidencySet allocatedSize]",
       "kind": "method",
       "line": 64,
       "name": "allocatedSize",
       "owner": "MTLResidencySet",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> uint64_t"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResidencySet.h",
       "id": "method:-[MTLResidencySet allocationCount]",
       "kind": "method",
       "line": 129,
       "name": "allocationCount",
       "owner": "MTLResidencySet",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSUInteger"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResidencySet.h",
       "id": "method:-[MTLResidencySet commit]",
       "kind": "method",
       "line": 136,
       "name": "commit",
       "owner": "MTLResidencySet",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResidencySet.h",
       "id": "method:-[MTLResidencySet containsAllocation:]",
       "kind": "method",
       "line": 115,
       "name": "containsAllocation:",
       "owner": "MTLResidencySet",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (id<MTLAllocation>  _Nonnull __strong) -> BOOL"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResidencySet.h",
       "id": "method:-[MTLResidencySet device]",
       "kind": "method",
       "line": 52,
       "name": "device",
       "owner": "MTLResidencySet",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> id<MTLDevice> _Nonnull"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResidencySet.h",
       "id": "method:-[MTLResidencySet endResidency]",
       "kind": "method",
       "line": 76,
       "name": "endResidency",
       "owner": "MTLResidencySet",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResidencySet.h",
       "id": "method:-[MTLResidencySet label]",
       "kind": "method",
       "line": 58,
       "name": "label",
       "owner": "MTLResidencySet",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSString * _Nullable"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResidencySet.h",
       "id": "method:-[MTLResidencySet removeAllAllocations]",
       "kind": "method",
       "line": 108,
       "name": "removeAllAllocations",
       "owner": "MTLResidencySet",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResidencySet.h",
       "id": "method:-[MTLResidencySet removeAllocation:]",
       "kind": "method",
       "line": 95,
       "name": "removeAllocation:",
       "owner": "MTLResidencySet",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (id<MTLAllocation>  _Nonnull __strong) -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResidencySet.h",
       "id": "method:-[MTLResidencySet removeAllocations:count:]",
       "kind": "method",
       "line": 101,
       "name": "removeAllocations:count:",
       "owner": "MTLResidencySet",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (id<MTLAllocation>  _Nonnull const __unsafe_unretained * _Nonnull, NSUInteger) -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResidencySet.h",
       "id": "method:-[MTLResidencySet requestResidency]",
       "kind": "method",
       "line": 70,
       "name": "requestResidency",
       "owner": "MTLResidencySet",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResidencySet.h",
       "id": "method:-[MTLResidencySetDescriptor initialCapacity]",
       "kind": "method",
       "line": 34,
       "name": "initialCapacity",
       "owner": "MTLResidencySetDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSUInteger"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResidencySet.h",
       "id": "method:-[MTLResidencySetDescriptor label]",
       "kind": "method",
       "line": 28,
       "name": "label",
       "owner": "MTLResidencySetDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSString * _Nullable"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResidencySet.h",
       "id": "method:-[MTLResidencySetDescriptor setInitialCapacity:]",
       "kind": "method",
       "line": null,
       "name": "setInitialCapacity:",
       "owner": "MTLResidencySetDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResidencySet.h",
       "id": "method:-[MTLResidencySetDescriptor setLabel:]",
       "kind": "method",
       "line": null,
       "name": "setLabel:",
       "owner": "MTLResidencySetDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (NSString * _Nullable) -> void"
     },
     {
@@ -54511,14 +54511,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAllocation.h",
       "id": "property:MTLAllocation:allocatedSize",
       "kind": "property",
       "line": 20,
       "name": "allocatedSize",
       "owner": "MTLAllocation",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
@@ -61219,86 +61219,86 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResidencySet.h",
       "id": "property:MTLResidencySet:allAllocations",
       "kind": "property",
       "line": 122,
       "name": "allAllocations",
       "owner": "MTLResidencySet",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSArray<id<MTLAllocation>> * _Nonnull"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResidencySet.h",
       "id": "property:MTLResidencySet:allocatedSize",
       "kind": "property",
       "line": 64,
       "name": "allocatedSize",
       "owner": "MTLResidencySet",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "uint64_t"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResidencySet.h",
       "id": "property:MTLResidencySet:allocationCount",
       "kind": "property",
       "line": 129,
       "name": "allocationCount",
       "owner": "MTLResidencySet",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResidencySet.h",
       "id": "property:MTLResidencySet:device",
       "kind": "property",
       "line": 52,
       "name": "device",
       "owner": "MTLResidencySet",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "id<MTLDevice> _Nonnull"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResidencySet.h",
       "id": "property:MTLResidencySet:label",
       "kind": "property",
       "line": 58,
       "name": "label",
       "owner": "MTLResidencySet",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSString * _Nullable"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResidencySet.h",
       "id": "property:MTLResidencySetDescriptor:initialCapacity",
       "kind": "property",
       "line": 34,
       "name": "initialCapacity",
       "owner": "MTLResidencySetDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResidencySet.h",
       "id": "property:MTLResidencySetDescriptor:label",
       "kind": "property",
       "line": 28,
       "name": "label",
       "owner": "MTLResidencySetDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSString * _Nullable"
     },
     {
@@ -63831,14 +63831,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAllocation.h",
       "id": "protocol:MTLAllocation",
       "kind": "protocol",
       "line": 19,
       "name": "MTLAllocation",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -64517,14 +64517,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResidencySet.h",
       "id": "protocol:MTLResidencySet",
       "kind": "protocol",
       "line": 47,
       "name": "MTLResidencySet",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {

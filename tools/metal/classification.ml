@@ -25,6 +25,7 @@ let enum_cases owner names =
 let bound_identifiers =
   [ "class:MTLCompileOptions"
   ; "class:MTLHeapDescriptor"
+  ; "class:MTLResidencySetDescriptor"
   ; "class:MTLSamplerDescriptor"
   ; "class:MTLTextureDescriptor"
   ; "enum:MTLCommandBufferStatus"
@@ -62,6 +63,7 @@ let bound_identifiers =
   ; "field:MTLSizeAndAlign:align"
   ; "field:MTLSizeAndAlign:size"
   ; "protocol:MTLBuffer"
+  ; "protocol:MTLAllocation"
   ; "protocol:MTLCommandBuffer"
   ; "protocol:MTLCommandEncoder"
   ; "protocol:MTLCommandQueue"
@@ -72,6 +74,7 @@ let bound_identifiers =
   ; "protocol:MTLHeap"
   ; "protocol:MTLLibrary"
   ; "protocol:MTLResource"
+  ; "protocol:MTLResidencySet"
   ; "protocol:MTLSamplerState"
   ; "protocol:MTLTexture"
   ; "typedef:MTLCommandBufferStatus"
@@ -98,9 +101,11 @@ let bound_identifiers =
   @ methods
       [ ( "MTLBuffer"
         , [ "contents"; "didModifyRange:"; "length" ] )
+      ; "MTLAllocation", [ "allocatedSize" ]
       ; ( "MTLCommandBuffer"
         , [ "commit"; "computeCommandEncoder"; "error"; "label"; "setLabel:"
-          ; "status"; "waitUntilCompleted"
+          ; "status"; "useResidencySet:"; "useResidencySets:count:"
+          ; "waitUntilCompleted"
           ] )
       ; "MTLCommandEncoder", [ "endEncoding" ]
       ; ( "MTLCompileOptions"
@@ -121,6 +126,7 @@ let bound_identifiers =
           ; "newComputePipelineStateWithFunction:error:"
           ; "newLibraryWithSource:options:error:"
           ; "newHeapWithDescriptor:"
+          ; "newResidencySetWithDescriptor:error:"
           ; "newSamplerStateWithDescriptor:"
           ; "newTextureWithDescriptor:"
           ; "recommendedMaxWorkingSetSize"; "registryID"
@@ -145,6 +151,15 @@ let bound_identifiers =
           ; "setType:"; "size"; "storageMode"; "type"
           ] )
       ; "MTLLibrary", [ "newFunctionWithName:" ]
+      ; ( "MTLResidencySet"
+        , [ "addAllocation:"; "addAllocations:count:"; "allAllocations"
+          ; "allocatedSize"; "allocationCount"; "commit"
+          ; "containsAllocation:"; "device"; "endResidency"; "label"
+          ; "removeAllAllocations"; "removeAllocation:"
+          ; "removeAllocations:count:"; "requestResidency"
+          ] )
+      ; ( "MTLResidencySetDescriptor"
+        , [ "initialCapacity"; "label"; "setInitialCapacity:"; "setLabel:" ] )
       ; ( "MTLResource"
         , [ "cpuCacheMode"; "hazardTrackingMode"; "heapOffset"; "isAliasable"
           ; "label"; "makeAliasable"; "setLabel:"; "setPurgeableState:"
@@ -182,10 +197,14 @@ let bound_identifiers =
           ; "setStorageMode:"; "setTextureType:"; "setUsage:"; "setWidth:"
           ; "storageMode"; "textureType"; "usage"; "width"
           ] )
-      ; "MTLCommandQueue", [ "commandBuffer" ]
+      ; ( "MTLCommandQueue"
+        , [ "addResidencySet:"; "addResidencySets:count:"; "commandBuffer"
+          ; "removeResidencySet:"; "removeResidencySets:count:"
+          ] )
       ]
   @ properties
-      [ ( "MTLCommandBuffer", [ "error"; "label"; "status" ] )
+      [ "MTLAllocation", [ "allocatedSize" ]
+      ; ( "MTLCommandBuffer", [ "error"; "label"; "status" ] )
       ; "MTLCompileOptions", [ "fastMathEnabled" ]
       ; ( "MTLComputePipelineState"
         , [ "maxTotalThreadsPerThreadgroup"; "threadExecutionWidth" ] )
@@ -209,6 +228,11 @@ let bound_identifiers =
         , [ "cpuCacheMode"; "hazardTrackingMode"; "heapOffset"; "label"
           ; "storageMode"
           ] )
+      ; ( "MTLResidencySet"
+        , [ "allAllocations"; "allocatedSize"; "allocationCount"; "device"
+          ; "label"
+          ] )
+      ; ( "MTLResidencySetDescriptor", [ "initialCapacity"; "label" ] )
       ; ( "MTLSamplerDescriptor"
         , [ "borderColor"; "compareFunction"; "label"; "lodAverage"
           ; "lodMaxClamp"; "lodMinClamp"; "magFilter"; "maxAnisotropy"

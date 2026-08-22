@@ -59,6 +59,9 @@ external device_supports_dynamic_libraries : handle -> bool =
 external device_supports_function_pointers : handle -> bool =
   "caml_prismel_metal_device_supports_function_pointers"
 
+external device_supports_residency_sets : handle -> bool =
+  "caml_prismel_metal_device_supports_residency_sets"
+
 external buffer_create : handle -> int64 -> int -> (handle, string) result =
   "caml_prismel_metal_buffer_create"
 
@@ -126,6 +129,54 @@ external heap_texture_create :
   int64 option -> string option -> (handle, string) result
   = "caml_prismel_metal_heap_texture_create"
 
+external residency_set_create :
+  handle -> int -> string option -> (handle, string) result
+  = "caml_prismel_metal_residency_set_create"
+
+external residency_set_label : handle -> (string option, string) result =
+  "caml_prismel_metal_residency_set_label"
+
+external residency_set_allocated_size : handle -> (int64, string) result =
+  "caml_prismel_metal_residency_set_allocated_size"
+
+external allocation_allocated_size : handle -> (int64, string) result =
+  "caml_prismel_metal_allocation_allocated_size"
+
+external residency_set_counts :
+  handle -> (int64 * int64, string) result
+  = "caml_prismel_metal_residency_set_counts"
+
+external residency_set_add_allocation :
+  handle -> handle -> (unit, string) result
+  = "caml_prismel_metal_residency_set_add_allocation"
+
+external residency_set_add_allocations :
+  handle -> handle array -> (unit, string) result
+  = "caml_prismel_metal_residency_set_add_allocations"
+
+external residency_set_remove_allocation :
+  handle -> handle -> (unit, string) result
+  = "caml_prismel_metal_residency_set_remove_allocation"
+
+external residency_set_remove_allocations :
+  handle -> handle array -> (unit, string) result
+  = "caml_prismel_metal_residency_set_remove_allocations"
+
+external residency_set_remove_all : handle -> (unit, string) result =
+  "caml_prismel_metal_residency_set_remove_all"
+
+external residency_set_contains : handle -> handle -> (bool, string) result =
+  "caml_prismel_metal_residency_set_contains"
+
+external residency_set_commit : handle -> (unit, string) result =
+  "caml_prismel_metal_residency_set_commit"
+
+external residency_set_request : handle -> (unit, string) result =
+  "caml_prismel_metal_residency_set_request"
+
+external residency_set_end : handle -> (unit, string) result =
+  "caml_prismel_metal_residency_set_end"
+
 external texture_create :
   handle ->
   (int * int * int * int * int * int * int * int * int * int * int * int * bool) ->
@@ -186,11 +237,35 @@ external compute_pipeline_max_total_threads : handle -> int =
 external command_queue_create : handle -> (handle, string) result =
   "caml_prismel_metal_command_queue_create"
 
+external command_queue_add_residency_set :
+  handle -> handle -> (unit, string) result
+  = "caml_prismel_metal_command_queue_add_residency_set"
+
+external command_queue_add_residency_sets :
+  handle -> handle array -> (unit, string) result
+  = "caml_prismel_metal_command_queue_add_residency_sets"
+
+external command_queue_remove_residency_set :
+  handle -> handle -> (unit, string) result
+  = "caml_prismel_metal_command_queue_remove_residency_set"
+
+external command_queue_remove_residency_sets :
+  handle -> handle array -> (unit, string) result
+  = "caml_prismel_metal_command_queue_remove_residency_sets"
+
 external command_buffer_create : handle -> (handle, string) result =
   "caml_prismel_metal_command_buffer_create"
 
 external command_buffer_set_label : handle -> string -> (unit, string) result =
   "caml_prismel_metal_command_buffer_set_label"
+
+external command_buffer_use_residency_set :
+  handle -> handle -> (unit, string) result
+  = "caml_prismel_metal_command_buffer_use_residency_set"
+
+external command_buffer_use_residency_sets :
+  handle -> handle array -> (unit, string) result
+  = "caml_prismel_metal_command_buffer_use_residency_sets"
 
 external command_buffer_compute_encoder : handle -> (handle, string) result =
   "caml_prismel_metal_command_buffer_compute_encoder"

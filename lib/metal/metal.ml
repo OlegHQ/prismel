@@ -383,10 +383,33 @@ type compute_pipeline =
   ; max_total_threads : int
   }
 
+type residency_allocation =
+  | Buffer of buffer
+  | Texture of texture
+  | Heap of heap
+
+type residency_member =
+  { allocation : residency_allocation
+  ; mutable present : bool
+  }
+
+type residency_descriptor =
+  { label : string option
+  ; initial_capacity : int
+  }
+
+type residency_set =
+  { raw : Metal_raw.handle
+  ; lifetime : lifetime
+  ; device : device
+  ; members : (int64, residency_member) Hashtbl.t
+  }
+
 type command_queue =
   { raw : Metal_raw.handle
   ; lifetime : lifetime
   ; device : device
+  ; residency_sets : residency_set list ref
   }
 
 type command_phase =
@@ -395,6 +418,7 @@ type command_phase =
 
 type command_resource =
   | Command_buffer_buffer of buffer
+  | Command_residency_set of residency_set
 
 type command_buffer =
   { raw : Metal_raw.handle
@@ -420,10 +444,12 @@ let attach_finalizer ?(on_finalize = fun () -> ()) value lifetime parent =
 
 let command_resource_lifetime = function
   | Command_buffer_buffer buffer -> buffer.lifetime
+  | Command_residency_set residency_set -> residency_set.lifetime
 
 let command_resource_heap = function
   | Command_buffer_buffer { parent = Heap_resource heap; _ } -> Some heap
   | Command_buffer_buffer { parent = Device_resource _; _ } -> None
+  | Command_residency_set _ -> None
 
 let release_command_resources resources =
   let retained = !resources in
@@ -439,7 +465,8 @@ let retain_command_buffer_buffer (command_buffer : command_buffer) (buffer : buf
   let already_retained =
     List.exists
       (function
-        | Command_buffer_buffer retained -> retained.lifetime == buffer.lifetime)
+        | Command_buffer_buffer retained -> retained.lifetime == buffer.lifetime
+        | Command_residency_set _ -> false)
       !(command_buffer.resources)
   in
   if not already_retained then begin
@@ -451,6 +478,27 @@ let retain_command_buffer_buffer (command_buffer : command_buffer) (buffer : buf
     command_buffer.resources :=
       Command_buffer_buffer buffer :: !(command_buffer.resources)
   end
+
+let retain_command_buffer_residency_set (command_buffer : command_buffer)
+    (residency_set : residency_set) =
+  let already_retained =
+    List.exists
+      (function
+        | Command_residency_set retained ->
+            retained.lifetime == residency_set.lifetime
+        | Command_buffer_buffer _ -> false)
+      !(command_buffer.resources)
+  in
+  if not already_retained then begin
+    attach residency_set.lifetime;
+    command_buffer.resources :=
+      Command_residency_set residency_set :: !(command_buffer.resources)
+  end
+
+let release_queue_residency_sets residency_sets =
+  let retained = !residency_sets in
+  residency_sets := [];
+  List.iter (fun (value : residency_set) -> detach value.lifetime) retained
 
 let deactivate_allocation (value : heap_allocation option) =
   match value with
@@ -690,6 +738,12 @@ module Device = struct
       | Ok () ->
           Ok
             (Metal_raw.device_supports_texture_sample_count value.raw sample_count))
+
+  let supports_residency_sets (value : t) =
+    on_main "Metal.Device.supports_residency_sets" (fun () ->
+      match ensure_live "Metal.Device.supports_residency_sets" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () -> Ok (Metal_raw.device_supports_residency_sets value.raw))
 
   let destroy (value : t) =
     destroy_parent "Metal.Device.destroy" value.lifetime value.raw (fun () -> ())
@@ -2098,6 +2152,459 @@ module Heap = struct
       (fun () -> detach value.device.lifetime)
 end
 
+module Residency_set = struct
+  type t = residency_set
+
+  type allocation = residency_allocation =
+    | Buffer of Buffer.t
+    | Texture of Texture.t
+    | Heap of Heap.t
+
+  type descriptor = residency_descriptor =
+    { label : string option
+    ; initial_capacity : int
+    }
+
+  let make_descriptor ?label ?(initial_capacity = 0) () =
+    { label; initial_capacity }
+
+  let allocation_lifetime = function
+    | Buffer value -> value.lifetime
+    | Texture value -> value.lifetime
+    | Heap value -> value.lifetime
+
+  let allocation_device = function
+    | Buffer value -> value.device
+    | Texture value -> value.device
+    | Heap value -> value.device
+
+  let allocation_raw = function
+    | Buffer value -> value.raw
+    | Texture value -> value.raw
+    | Heap value -> value.raw
+
+  let allocation_generation allocation =
+    Metal_raw.generation (allocation_raw allocation)
+
+  let allocation_heap = function
+    | Buffer value -> parent_heap value.parent
+    | Texture value -> texture_heap value
+    | Heap value -> Some value
+
+  let attach_allocation allocation =
+    attach (allocation_lifetime allocation);
+    Option.iter (fun heap -> Atomic.incr heap.active_uses)
+      (allocation_heap allocation)
+
+  let detach_allocation allocation =
+    detach (allocation_lifetime allocation);
+    Option.iter (fun heap -> Atomic.decr heap.active_uses)
+      (allocation_heap allocation)
+
+  let release_members members =
+    Hashtbl.iter
+      (fun _ (member : residency_member) ->
+        detach_allocation member.allocation)
+      members;
+    Hashtbl.clear members
+
+  let ensure_allocation_live operation = function
+    | Buffer value -> ensure_live operation value.lifetime
+    | Texture value -> ensure_live operation value.lifetime
+    | Heap value -> ensure_live operation value.lifetime
+
+  let ensure_allocation_usable operation = function
+    | Buffer value -> ensure_buffer_usable operation value
+    | Texture value -> ensure_texture_usable operation value
+    | Heap value ->
+        (match ensure_live operation value.lifetime with
+         | Error _ as failure -> failure
+         | Ok () when Atomic.get value.purgeable <> Nonvolatile ->
+             error operation Invalid_state
+               "heap must be nonvolatile before entering a residency set"
+         | Ok () -> Ok ())
+
+  let validate_unique operation allocations =
+    let seen = Hashtbl.create (List.length allocations) in
+    let rec loop = function
+      | [] -> Ok ()
+      | allocation :: rest ->
+          let generation = allocation_generation allocation in
+          if Hashtbl.mem seen generation then
+            error operation Invalid_argument
+              "residency allocation list contains a duplicate handle"
+          else begin
+            Hashtbl.add seen generation ();
+            loop rest
+          end
+    in
+    loop allocations
+
+  let validate_allocations operation (value : t) ~usable allocations =
+    match validate_unique operation allocations with
+    | Error _ as failure -> failure
+    | Ok () ->
+        let rec loop = function
+          | [] -> Ok ()
+          | allocation :: rest ->
+              let live =
+                if usable then ensure_allocation_usable operation allocation
+                else ensure_allocation_live operation allocation
+              in
+              (match live with
+               | Error _ as failure -> failure
+               | Ok () ->
+                   (match
+                      ensure_same_device operation value.device
+                        (allocation_device allocation)
+                    with
+                    | Error _ as failure -> failure
+                    | Ok () -> loop rest))
+        in
+        loop allocations
+
+  let find_member (value : t) allocation =
+    Hashtbl.find_opt value.members (allocation_generation allocation)
+
+  let present_count (value : t) =
+    Hashtbl.fold
+      (fun _ (member : residency_member) count ->
+        if member.present then count + 1 else count)
+      value.members 0
+
+  let validate_native_count operation (value : t) =
+    match Metal_raw.residency_set_counts value.raw with
+    | Error message -> native_error operation message
+    | Ok (count, all_count) ->
+        let expected = Int64.of_int (present_count value) in
+        let retained = Int64.of_int (Hashtbl.length value.members) in
+        if count < 0L || all_count < 0L then
+          native_error operation
+            (Printf.sprintf
+               "Metal returned negative residency allocation counts (count=%Ld all=%Ld)"
+               count all_count)
+        else if all_count <> expected then
+          native_error operation
+            (Printf.sprintf
+               "Metal residency membership diverged from the safe ownership ledger (all=%Ld expected=%Ld)"
+               all_count expected)
+        else if count <> expected && count <> retained then
+          native_error operation
+            (Printf.sprintf
+               "Metal returned an unexplained residency allocation count (count=%Ld present=%Ld retained=%Ld)"
+               count expected retained)
+        else if all_count > Int64.of_int max_int then
+          native_error operation
+            "Metal residency allocation count exceeds an OCaml integer"
+        else Ok (Int64.to_int all_count)
+
+  let validate_descriptor operation (descriptor : descriptor) =
+    if descriptor.initial_capacity < 0 then
+      error operation Invalid_argument
+        "residency-set initial capacity must be nonnegative"
+    else if option_exists contains_nul descriptor.label then
+      error operation Invalid_argument
+        "residency-set label contains a NUL byte"
+    else Ok ()
+
+  let create ~(device : Device.t) descriptor =
+    on_main "Metal.Residency_set.create" (fun () ->
+      match ensure_live "Metal.Residency_set.create" device.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match
+             validate_descriptor "Metal.Residency_set.create" descriptor
+           with
+           | Error _ as failure -> failure
+           | Ok () when not (Metal_raw.device_supports_residency_sets device.raw) ->
+               error "Metal.Residency_set.create" Unsupported
+                 "residency sets require macOS 15 and device API support"
+           | Ok () ->
+               match
+                 Metal_raw.residency_set_create device.raw
+                   descriptor.initial_capacity descriptor.label
+               with
+               | Error message ->
+                   native_error "Metal.Residency_set.create" message
+               | Ok raw ->
+                   let members = Hashtbl.create descriptor.initial_capacity in
+                   let value : t =
+                     { raw; lifetime = lifetime (); device; members }
+                   in
+                   (match
+                      validate_native_count "Metal.Residency_set.create" value
+                    with
+                    | Error _ as failure ->
+                        ignore (Metal_raw.destroy raw);
+                        failure
+                    | Ok _ ->
+                        attach device.lifetime;
+                        attach_finalizer
+                          ~on_finalize:(fun () -> release_members members)
+                          value value.lifetime device.lifetime;
+                        Ok value)))
+
+  let device (value : t) = value.device
+  let generation (value : t) = Metal_raw.generation value.raw
+  let destroyed (value : t) = is_destroyed value.lifetime
+
+  let label (value : t) =
+    on_main "Metal.Residency_set.label" (fun () ->
+      match ensure_live "Metal.Residency_set.label" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match Metal_raw.residency_set_label value.raw with
+           | Ok label -> Ok label
+           | Error message -> native_error "Metal.Residency_set.label" message))
+
+  let allocated_size (value : t) =
+    on_main "Metal.Residency_set.allocated_size" (fun () ->
+      match ensure_live "Metal.Residency_set.allocated_size" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match Metal_raw.residency_set_allocated_size value.raw with
+           | Error message ->
+               native_error "Metal.Residency_set.allocated_size" message
+           | Ok size -> Ok size))
+
+  let allocation_size allocation =
+    on_main "Metal.Residency_set.allocation_size" (fun () ->
+      match
+        ensure_allocation_live "Metal.Residency_set.allocation_size" allocation
+      with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match
+             Metal_raw.allocation_allocated_size (allocation_raw allocation)
+           with
+           | Error message ->
+               native_error "Metal.Residency_set.allocation_size" message
+           | Ok size -> Ok size))
+
+  let allocation_count (value : t) =
+    on_main "Metal.Residency_set.allocation_count" (fun () ->
+      match ensure_live "Metal.Residency_set.allocation_count" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          validate_native_count "Metal.Residency_set.allocation_count" value)
+
+  let allocations (value : t) =
+    on_main "Metal.Residency_set.allocations" (fun () ->
+      match ensure_live "Metal.Residency_set.allocations" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match validate_native_count "Metal.Residency_set.allocations" value with
+           | Error _ as failure -> failure
+           | Ok _ ->
+               Ok
+                 (List.filter_map
+                    (fun (_, (member : residency_member)) ->
+                      if member.present then Some member.allocation else None)
+                    (Hashtbl.to_seq value.members |> List.of_seq))))
+
+  let add operation ~bulk (value : t) allocations =
+    match ensure_live operation value.lifetime with
+    | Error _ as failure -> failure
+    | Ok () ->
+        (match validate_allocations operation value ~usable:true allocations with
+         | Error _ as failure -> failure
+         | Ok () ->
+             let changes =
+               List.filter
+                 (fun allocation ->
+                   match find_member value allocation with
+                   | Some member -> not member.present
+                   | None -> true)
+                 allocations
+             in
+             if changes = [] then Ok ()
+             else
+               let raw_result =
+                 match bulk, changes with
+                 | false, [ allocation ] ->
+                     Metal_raw.residency_set_add_allocation value.raw
+                       (allocation_raw allocation)
+                 | false, _ -> assert false
+                 | true, _ ->
+                     Metal_raw.residency_set_add_allocations value.raw
+                       (Array.of_list (List.map allocation_raw changes))
+               in
+               match raw_result with
+               | Error message -> native_error operation message
+               | Ok () ->
+                   List.iter
+                     (fun allocation ->
+                       match find_member value allocation with
+                       | Some member -> member.present <- true
+                       | None ->
+                           attach_allocation allocation;
+                           Hashtbl.add value.members
+                             (allocation_generation allocation)
+                             { allocation; present = true })
+                     changes;
+                   (match validate_native_count operation value with
+                    | Error _ as failure -> failure
+                    | Ok _ -> Ok ()))
+
+  let add_allocation (value : t) allocation =
+    on_main "Metal.Residency_set.add_allocation" (fun () ->
+      add "Metal.Residency_set.add_allocation" ~bulk:false value [ allocation ])
+
+  let add_allocations (value : t) allocations =
+    on_main "Metal.Residency_set.add_allocations" (fun () ->
+      add "Metal.Residency_set.add_allocations" ~bulk:true value allocations)
+
+  let remove operation ~bulk (value : t) allocations =
+    match ensure_live operation value.lifetime with
+    | Error _ as failure -> failure
+    | Ok () ->
+        (match validate_allocations operation value ~usable:false allocations with
+         | Error _ as failure -> failure
+         | Ok () ->
+             let changes =
+               List.filter
+                 (fun allocation ->
+                   match find_member value allocation with
+                   | Some member -> member.present
+                   | None -> false)
+                 allocations
+             in
+             if changes = [] then Ok ()
+             else
+               let raw_result =
+                 match bulk, changes with
+                 | false, [ allocation ] ->
+                     Metal_raw.residency_set_remove_allocation value.raw
+                       (allocation_raw allocation)
+                 | false, _ -> assert false
+                 | true, _ ->
+                     Metal_raw.residency_set_remove_allocations value.raw
+                       (Array.of_list (List.map allocation_raw changes))
+               in
+               match raw_result with
+               | Error message -> native_error operation message
+               | Ok () ->
+                   List.iter
+                     (fun allocation ->
+                       match find_member value allocation with
+                       | Some member -> member.present <- false
+                       | None -> assert false)
+                     changes;
+                   (match validate_native_count operation value with
+                    | Error _ as failure -> failure
+                    | Ok _ -> Ok ()))
+
+  let remove_allocation (value : t) allocation =
+    on_main "Metal.Residency_set.remove_allocation" (fun () ->
+      remove "Metal.Residency_set.remove_allocation" ~bulk:false value
+        [ allocation ])
+
+  let remove_allocations (value : t) allocations =
+    on_main "Metal.Residency_set.remove_allocations" (fun () ->
+      remove "Metal.Residency_set.remove_allocations" ~bulk:true value
+        allocations)
+
+  let remove_all_allocations (value : t) =
+    on_main "Metal.Residency_set.remove_all_allocations" (fun () ->
+      match ensure_live "Metal.Residency_set.remove_all_allocations" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          if present_count value = 0 then Ok ()
+          else
+            match Metal_raw.residency_set_remove_all value.raw with
+            | Error message ->
+                native_error "Metal.Residency_set.remove_all_allocations" message
+            | Ok () ->
+                Hashtbl.iter
+                  (fun _ (member : residency_member) ->
+                    member.present <- false)
+                  value.members;
+                (match
+                   validate_native_count
+                     "Metal.Residency_set.remove_all_allocations" value
+                 with
+                 | Error _ as failure -> failure
+                 | Ok _ -> Ok ()))
+
+  let contains (value : t) allocation =
+    on_main "Metal.Residency_set.contains" (fun () ->
+      match ensure_live "Metal.Residency_set.contains" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match
+             validate_allocations "Metal.Residency_set.contains" value
+               ~usable:false [ allocation ]
+           with
+           | Error _ as failure -> failure
+           | Ok () ->
+               let expected =
+                 match find_member value allocation with
+                 | Some member -> member.present
+                 | None -> false
+               in
+               (match
+                  Metal_raw.residency_set_contains value.raw
+                    (allocation_raw allocation)
+                with
+                | Error message ->
+                    native_error "Metal.Residency_set.contains" message
+                | Ok actual ->
+                    if actual <> expected then
+                      native_error "Metal.Residency_set.contains"
+                        "Metal residency membership diverged from the safe ownership ledger"
+                    else Ok actual)))
+
+  let commit (value : t) =
+    on_main "Metal.Residency_set.commit" (fun () ->
+      match ensure_live "Metal.Residency_set.commit" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match Metal_raw.residency_set_commit value.raw with
+           | Error message -> native_error "Metal.Residency_set.commit" message
+           | Ok () ->
+               let removed =
+                 Hashtbl.fold
+                   (fun generation (member : residency_member) removed ->
+                     if member.present then removed
+                     else (generation, member) :: removed)
+                   value.members []
+               in
+               List.iter
+                 (fun (generation, (member : residency_member)) ->
+                   Hashtbl.remove value.members generation;
+                   detach_allocation member.allocation)
+                 removed;
+               (match validate_native_count "Metal.Residency_set.commit" value with
+                | Error _ as failure -> failure
+                | Ok _ -> Ok ())))
+
+  let request_residency (value : t) =
+    on_main "Metal.Residency_set.request_residency" (fun () ->
+      match ensure_live "Metal.Residency_set.request_residency" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match Metal_raw.residency_set_request value.raw with
+           | Ok () -> Ok ()
+           | Error message ->
+               native_error "Metal.Residency_set.request_residency" message))
+
+  let end_residency (value : t) =
+    on_main "Metal.Residency_set.end_residency" (fun () ->
+      match ensure_live "Metal.Residency_set.end_residency" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match Metal_raw.residency_set_end value.raw with
+           | Ok () -> Ok ()
+           | Error message ->
+               native_error "Metal.Residency_set.end_residency" message))
+
+  let destroy (value : t) =
+    destroy_parent "Metal.Residency_set.destroy" value.lifetime value.raw
+      (fun () ->
+        release_members value.members;
+        detach value.device.lifetime)
+end
+
 module Sampler = struct
   type t = sampler
   type filter = sampler_filter = Nearest | Linear
@@ -2378,6 +2885,36 @@ end
 module Command_queue = struct
   type t = command_queue
 
+  let same_residency_set (left : residency_set) (right : residency_set) =
+    left.lifetime == right.lifetime
+
+  let rec validate_unique operation seen = function
+    | [] -> Ok ()
+    | value :: rest ->
+        if List.exists (same_residency_set value) seen then
+          error operation Invalid_argument
+            "residency-set list contains a duplicate handle"
+        else validate_unique operation (value :: seen) rest
+
+  let validate_sets operation (value : t) residency_sets =
+    match validate_unique operation [] residency_sets with
+    | Error _ as failure -> failure
+    | Ok () ->
+        let rec loop = function
+          | [] -> Ok ()
+          | (residency_set : residency_set) :: rest ->
+              (match ensure_live operation residency_set.lifetime with
+               | Error _ as failure -> failure
+               | Ok () ->
+                   (match
+                      ensure_same_device operation value.device
+                        residency_set.device
+                    with
+                    | Error _ as failure -> failure
+                    | Ok () -> loop rest))
+        in
+        loop residency_sets
+
   let create (device : Device.t) =
     on_main "Metal.Command_queue.create" (fun () ->
       match ensure_live "Metal.Command_queue.create" device.lifetime with
@@ -2386,18 +2923,131 @@ module Command_queue = struct
           (match Metal_raw.command_queue_create device.raw with
            | Error message -> native_error "Metal.Command_queue.create" message
            | Ok raw ->
-               let value : t = { raw; lifetime = lifetime (); device } in
+               let residency_sets = ref [] in
+               let value : t =
+                 { raw; lifetime = lifetime (); device; residency_sets }
+               in
                attach device.lifetime;
-               attach_finalizer value value.lifetime device.lifetime;
+               attach_finalizer
+                 ~on_finalize:(fun () ->
+                   release_queue_residency_sets residency_sets)
+                 value value.lifetime device.lifetime;
                Ok value))
 
   let device (value : t) = value.device
   let generation (value : t) = Metal_raw.generation value.raw
   let destroyed (value : t) = is_destroyed value.lifetime
 
+  let add operation ~bulk (value : t) residency_sets =
+    match ensure_live operation value.lifetime with
+    | Error _ as failure -> failure
+    | Ok () ->
+        (match validate_sets operation value residency_sets with
+         | Error _ as failure -> failure
+         | Ok () ->
+             let changes =
+               List.filter
+                 (fun residency_set ->
+                   not
+                     (List.exists (same_residency_set residency_set)
+                        !(value.residency_sets)))
+                 residency_sets
+             in
+             if changes = [] then Ok ()
+             else
+               let raw_result =
+                 match bulk, changes with
+                 | false, [ residency_set ] ->
+                     Metal_raw.command_queue_add_residency_set value.raw
+                       residency_set.raw
+                 | false, _ -> assert false
+                 | true, _ ->
+                     Metal_raw.command_queue_add_residency_sets value.raw
+                       (Array.of_list
+                          (List.map
+                             (fun (set : residency_set) -> set.raw)
+                             changes))
+               in
+               match raw_result with
+               | Error message -> native_error operation message
+               | Ok () ->
+                   List.iter
+                     (fun (residency_set : residency_set) ->
+                       attach residency_set.lifetime)
+                     changes;
+                   value.residency_sets :=
+                     List.rev_append changes !(value.residency_sets);
+                   Ok ())
+
+  let add_residency_set (value : t) residency_set =
+    on_main "Metal.Command_queue.add_residency_set" (fun () ->
+      add "Metal.Command_queue.add_residency_set" ~bulk:false value
+        [ residency_set ])
+
+  let add_residency_sets (value : t) residency_sets =
+    on_main "Metal.Command_queue.add_residency_sets" (fun () ->
+      add "Metal.Command_queue.add_residency_sets" ~bulk:true value
+        residency_sets)
+
+  let remove operation ~bulk (value : t) residency_sets =
+    match ensure_live operation value.lifetime with
+    | Error _ as failure -> failure
+    | Ok () ->
+        (match validate_sets operation value residency_sets with
+         | Error _ as failure -> failure
+         | Ok () ->
+             let changes =
+               List.filter
+                 (fun residency_set ->
+                   List.exists (same_residency_set residency_set)
+                     !(value.residency_sets))
+                 residency_sets
+             in
+             if changes = [] then Ok ()
+             else
+               let raw_result =
+                 match bulk, changes with
+                 | false, [ residency_set ] ->
+                     Metal_raw.command_queue_remove_residency_set value.raw
+                       residency_set.raw
+                 | false, _ -> assert false
+                 | true, _ ->
+                     Metal_raw.command_queue_remove_residency_sets value.raw
+                       (Array.of_list
+                          (List.map
+                             (fun (set : residency_set) -> set.raw)
+                             changes))
+               in
+               match raw_result with
+               | Error message -> native_error operation message
+               | Ok () ->
+                   value.residency_sets :=
+                     List.filter
+                       (fun retained ->
+                         not
+                           (List.exists (same_residency_set retained) changes))
+                       !(value.residency_sets);
+                   List.iter
+                     (fun (residency_set : residency_set) ->
+                       detach residency_set.lifetime)
+                     changes;
+                   Ok ())
+
+  let remove_residency_set (value : t) residency_set =
+    on_main "Metal.Command_queue.remove_residency_set" (fun () ->
+      remove "Metal.Command_queue.remove_residency_set" ~bulk:false value
+        [ residency_set ])
+
+  let remove_residency_sets (value : t) residency_sets =
+    on_main "Metal.Command_queue.remove_residency_sets" (fun () ->
+      remove "Metal.Command_queue.remove_residency_sets" ~bulk:true value
+        residency_sets)
+
   let destroy (value : t) =
     destroy_parent "Metal.Command_queue.destroy" value.lifetime value.raw
-      (fun () -> detach value.device.lifetime)
+      (fun () ->
+        release_queue_residency_sets value.residency_sets;
+        detach value.device.lifetime)
 end
 
 module Command_buffer = struct
@@ -2453,6 +3103,63 @@ module Command_buffer = struct
   let device (value : t) = value.queue.device
   let generation (value : t) = Metal_raw.generation value.raw
   let destroyed (value : t) = is_destroyed value.lifetime
+
+  let retains_residency_set (value : t) (residency_set : residency_set) =
+    List.exists
+      (function
+        | Command_residency_set retained ->
+            retained.lifetime == residency_set.lifetime
+        | Command_buffer_buffer _ -> false)
+      !(value.resources)
+
+  let use operation ~bulk (value : t) residency_sets =
+    match ensure_live operation value.lifetime with
+    | Error _ as failure -> failure
+    | Ok () when value.phase <> Recording ->
+        error operation Invalid_state
+          "command buffer is no longer recording"
+    | Ok () ->
+        (match Command_queue.validate_sets operation value.queue residency_sets with
+         | Error _ as failure -> failure
+         | Ok () ->
+             let changes =
+               List.filter
+                 (fun residency_set ->
+                   not (retains_residency_set value residency_set))
+                 residency_sets
+             in
+             if changes = [] then Ok ()
+             else
+               let raw_result =
+                 match bulk, changes with
+                 | false, [ residency_set ] ->
+                     Metal_raw.command_buffer_use_residency_set value.raw
+                       residency_set.raw
+                 | false, _ -> assert false
+                 | true, _ ->
+                     Metal_raw.command_buffer_use_residency_sets value.raw
+                       (Array.of_list
+                          (List.map
+                             (fun (set : residency_set) -> set.raw)
+                             changes))
+               in
+               match raw_result with
+               | Error message -> native_error operation message
+               | Ok () ->
+                   List.iter
+                     (retain_command_buffer_residency_set value)
+                     changes;
+                   Ok ())
+
+  let use_residency_set (value : t) residency_set =
+    on_main "Metal.Command_buffer.use_residency_set" (fun () ->
+      use "Metal.Command_buffer.use_residency_set" ~bulk:false value
+        [ residency_set ])
+
+  let use_residency_sets (value : t) residency_sets =
+    on_main "Metal.Command_buffer.use_residency_sets" (fun () ->
+      use "Metal.Command_buffer.use_residency_sets" ~bulk:true value
+        residency_sets)
 
   let status (value : t) =
     on_main "Metal.Command_buffer.status" (fun () ->

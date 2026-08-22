@@ -97,6 +97,7 @@ module Device : sig
   val info : t -> (info, error) result
   val supports_family : t -> family -> (bool, error) result
   val supports_texture_sample_count : t -> int -> (bool, error) result
+  val supports_residency_sets : t -> (bool, error) result
   val destroy : t -> (unit, error) result
 end
 
@@ -328,6 +329,42 @@ module Heap : sig
   val destroy : t -> (unit, error) result
 end
 
+module Residency_set : sig
+  type t
+
+  type allocation =
+    | Buffer of Buffer.t
+    | Texture of Texture.t
+    | Heap of Heap.t
+
+  type descriptor =
+    { label : string option
+    ; initial_capacity : int
+    }
+
+  val make_descriptor :
+    ?label:string -> ?initial_capacity:int -> unit -> descriptor
+  val create : device:Device.t -> descriptor -> (t, error) result
+  val device : t -> Device.t
+  val generation : t -> int64
+  val destroyed : t -> bool
+  val label : t -> (string option, error) result
+  val allocated_size : t -> (int64, error) result
+  val allocation_size : allocation -> (int64, error) result
+  val allocation_count : t -> (int, error) result
+  val allocations : t -> (allocation list, error) result
+  val add_allocation : t -> allocation -> (unit, error) result
+  val add_allocations : t -> allocation list -> (unit, error) result
+  val remove_allocation : t -> allocation -> (unit, error) result
+  val remove_allocations : t -> allocation list -> (unit, error) result
+  val remove_all_allocations : t -> (unit, error) result
+  val contains : t -> allocation -> (bool, error) result
+  val commit : t -> (unit, error) result
+  val request_residency : t -> (unit, error) result
+  val end_residency : t -> (unit, error) result
+  val destroy : t -> (unit, error) result
+end
+
 module Sampler : sig
   type t
   type filter = Nearest | Linear
@@ -418,6 +455,10 @@ module Command_queue : sig
   val create : Device.t -> (t, error) result
   val device : t -> Device.t
   val generation : t -> int64
+  val add_residency_set : t -> Residency_set.t -> (unit, error) result
+  val add_residency_sets : t -> Residency_set.t list -> (unit, error) result
+  val remove_residency_set : t -> Residency_set.t -> (unit, error) result
+  val remove_residency_sets : t -> Residency_set.t list -> (unit, error) result
   val destroyed : t -> bool
   val destroy : t -> (unit, error) result
 end
@@ -437,6 +478,8 @@ module Command_buffer : sig
   val create : Command_queue.t -> ?label:string -> unit -> (t, error) result
   val device : t -> Device.t
   val generation : t -> int64
+  val use_residency_set : t -> Residency_set.t -> (unit, error) result
+  val use_residency_sets : t -> Residency_set.t list -> (unit, error) result
   val status : t -> (status, error) result
   val commit : t -> (unit, error) result
   val wait_until_completed : t -> (unit, error) result
