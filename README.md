@@ -141,7 +141,10 @@ cd prismel
 
 # Initialize opam once per computer, then create this repository's local switch
 opam init
-opam switch create . 5.3.0
+opam switch create . 5.3.0 --no-install
+
+# Register the checkout-local native SDL3 dependency probes
+opam pin add --no-action --yes --recursive ./packaging
 
 # Let .envrc activate the local switch and load the headless Linux defaults
 direnv allow

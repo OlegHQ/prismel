@@ -12,16 +12,20 @@ releases covered by the generated API/ABI inventories. They live outside the
 Dune package root so opam treats them as probe packages, not as Dune-built
 libraries.
 
-For a checkout whose opam repository does not yet contain these packages, pin
-the local definitions before installing Prismel dependencies:
+For a checkout whose opam repository does not yet contain these packages,
+create the local switch without auto-installing the project, then register all
+probe packages recursively before installing Prismel dependencies:
 
 ```sh
-opam pin add --no-action --yes conf-sdl3 ./packaging/conf-sdl3
-opam pin add --no-action --yes conf-sdl3-image ./packaging/conf-sdl3-image
-opam pin add --no-action --yes conf-sdl3-ttf ./packaging/conf-sdl3-ttf
-opam pin add --no-action --yes conf-sdl3-mixer ./packaging/conf-sdl3-mixer
+opam switch create . 5.3.0 --no-install
+opam pin add --no-action --yes --recursive ./packaging
 opam install . --deps-only --with-test --with-doc
 ```
+
+Without `--no-install`, `opam switch create` tries to resolve `prismel` before
+the checkout-local probe packages are known and correctly reports them as
+unknown. The ordering above is therefore part of the supported bootstrap, not
+an optional workaround.
 
 The package probes use `pkg-config --exact-version`. An OCaml/Dune repository
 test also compiles, links, and executes a version probe for each library, which

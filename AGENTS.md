@@ -549,10 +549,16 @@ Bootstrap a checkout with a repository-local OCaml 5 switch:
 
 ```sh
 opam init
-opam switch create . 5.3.0
+opam switch create . 5.3.0 --no-install
+opam pin add --no-action --yes --recursive ./packaging
 direnv allow
 opam install . --deps-only --with-test --with-doc
 ```
+
+`--no-install` prevents opam from resolving `prismel` before the checkout-local
+SDL3 `conf-*` packages have been registered. The packages below `packaging/`
+only probe native dependencies; all implementation code remains in the Dune
+libraries below `lib/`.
 
 The checked-in `.envrc` evaluates `opam env --switch=. --set-switch`. If
 direnv is unavailable, evaluate that command manually before using Dune.
