@@ -138,6 +138,15 @@
   (run %{exe:../tools/gpu_migration/fixture_manifest.exe}
    --root %{workspace_root} --check)))
 
+(rule
+ (alias runtest)
+ (deps ../NEW_GPU_STUFF.md
+  ../specification/evidence/gpu_migration/phase0_baseline.json
+  ../specification/evidence/gpu_migration/phase0_performance.json)
+ (action
+  (run %{exe:../tools/gpu_migration/run_baseline_benchmarks.exe}
+   --root %{workspace_root} --check)))
+
 (test
  (name procedural_render_smoke)
  (modules procedural_render_smoke)

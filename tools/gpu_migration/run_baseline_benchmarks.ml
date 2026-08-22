@@ -711,6 +711,12 @@ let validate root value =
     (member "new_gpu_stuff_sha256" value
      <> member "new_gpu_stuff_sha256" baseline)
     "performance evidence used a different migration plan";
+  let current_plan_hash =
+    sha256 (read_file (Filename.concat root "NEW_GPU_STUFF.md"))
+  in
+  reject
+    (member "new_gpu_stuff_sha256" value <> Some (`String current_plan_hash))
+    "NEW_GPU_STUFF.md changed after performance capture";
   let groups = Option.value (member_list "groups" value) ~default:[] in
   let by_key = Hashtbl.create 32 in
   List.iter
