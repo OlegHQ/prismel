@@ -2,8 +2,8 @@
   "classification_counts": {
     "not-applicable": 0,
     "platform-excluded": 0,
-    "raw-only": 3376,
-    "safe": 27,
+    "raw-only": 3371,
+    "safe": 32,
     "unreviewed": 0
   },
   "compiler": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
@@ -2365,11 +2365,11 @@
       "thread": "raw-only-not-reviewed"
     },
     {
-      "classification": "raw-only",
+      "classification": "safe",
       "header": "SDL3/<clang-elided-source>",
       "name": "SDL_ConvertSurface",
       "signature": "SDL_Surface *(SDL_Surface *, SDL_PixelFormat)",
-      "thread": "raw-only-not-reviewed"
+      "thread": "owned-surface"
     },
     {
       "classification": "raw-only",
@@ -2589,11 +2589,11 @@
       "thread": "raw-only-not-reviewed"
     },
     {
-      "classification": "raw-only",
+      "classification": "safe",
       "header": "SDL3/<clang-elided-source>",
       "name": "SDL_CreateProperties",
       "signature": "SDL_PropertiesID (void)",
-      "thread": "raw-only-not-reviewed"
+      "thread": "any-thread-owned-result"
     },
     {
       "classification": "raw-only",
@@ -2855,11 +2855,11 @@
       "thread": "raw-only-not-reviewed"
     },
     {
-      "classification": "raw-only",
+      "classification": "safe",
       "header": "SDL3/<clang-elided-source>",
       "name": "SDL_DestroyProperties",
       "signature": "void (SDL_PropertiesID)",
-      "thread": "raw-only-not-reviewed"
+      "thread": "owned-properties"
     },
     {
       "classification": "raw-only",
@@ -6138,11 +6138,11 @@
       "thread": "main-thread"
     },
     {
-      "classification": "raw-only",
+      "classification": "safe",
       "header": "SDL3/<clang-elided-source>",
       "name": "SDL_IOFromConstMem",
       "signature": "SDL_IOStream *(const void *, size_t)",
-      "thread": "raw-only-not-reviewed"
+      "thread": "lexical-buffer-borrow"
     },
     {
       "classification": "raw-only",
@@ -8091,11 +8091,11 @@
       "thread": "raw-only-not-reviewed"
     },
     {
-      "classification": "raw-only",
+      "classification": "safe",
       "header": "SDL3/<clang-elided-source>",
       "name": "SDL_SetNumberProperty",
       "signature": "_Bool (SDL_PropertiesID, const char *, Sint64)",
-      "thread": "raw-only-not-reviewed"
+      "thread": "owned-properties"
     },
     {
       "classification": "raw-only",

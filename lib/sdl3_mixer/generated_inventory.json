@@ -1,0 +1,1011 @@
+{
+  "classification_counts": {
+    "not-applicable": 0,
+    "platform-excluded": 0,
+    "raw-only": 121,
+    "safe": 30,
+    "unreviewed": 0
+  },
+  "compiler": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
+  "enums": [],
+  "extension": "mixer",
+  "functions": [
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_AudioFramesToMS",
+      "signature": "Sint64 (MIX_Audio *, Sint64)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_AudioMSToFrames",
+      "signature": "Sint64 (MIX_Audio *, Sint64)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_CreateAudioDecoder",
+      "signature": "MIX_AudioDecoder *(const char *, SDL_PropertiesID)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_CreateAudioDecoder_IO",
+      "signature": "MIX_AudioDecoder *(SDL_IOStream *, bool, SDL_PropertiesID)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_CreateGroup",
+      "signature": "MIX_Group *(MIX_Mixer *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_CreateMixer",
+      "signature": "MIX_Mixer *(const SDL_AudioSpec *)",
+      "thread": "owned-result"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_CreateMixerDevice",
+      "signature": "MIX_Mixer *(SDL_AudioDeviceID, const SDL_AudioSpec *)",
+      "thread": "main-thread-owned-result"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_CreateSineWaveAudio",
+      "signature": "MIX_Audio *(MIX_Mixer *, int, float, Sint64)",
+      "thread": "mixer-owner-thread-owned-result"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_CreateTrack",
+      "signature": "MIX_Track *(MIX_Mixer *)",
+      "thread": "mixer-owner-thread-owned-result"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_DecodeAudio",
+      "signature": "int (MIX_AudioDecoder *, void *, int, const SDL_AudioSpec *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_DestroyAudio",
+      "signature": "void (MIX_Audio *)",
+      "thread": "audio-owner-thread"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_DestroyAudioDecoder",
+      "signature": "void (MIX_AudioDecoder *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_DestroyGroup",
+      "signature": "void (MIX_Group *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_DestroyMixer",
+      "signature": "void (MIX_Mixer *)",
+      "thread": "owner-thread"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_DestroyTrack",
+      "signature": "void (MIX_Track *)",
+      "thread": "track-owner-thread"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_FramesToMS",
+      "signature": "Sint64 (int, Sint64)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_Generate",
+      "signature": "int (MIX_Mixer *, void *, int)",
+      "thread": "memory-mixer-owner-thread"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_GetAudioDecoder",
+      "signature": "const char *(int)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_GetAudioDecoderFormat",
+      "signature": "bool (MIX_AudioDecoder *, SDL_AudioSpec *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_GetAudioDecoderProperties",
+      "signature": "SDL_PropertiesID (MIX_AudioDecoder *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_GetAudioDuration",
+      "signature": "Sint64 (MIX_Audio *)",
+      "thread": "audio-owner-thread"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_GetAudioFormat",
+      "signature": "bool (MIX_Audio *, SDL_AudioSpec *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_GetAudioProperties",
+      "signature": "SDL_PropertiesID (MIX_Audio *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_GetGroupMixer",
+      "signature": "MIX_Mixer *(MIX_Group *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_GetGroupProperties",
+      "signature": "SDL_PropertiesID (MIX_Group *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_GetMixerFormat",
+      "signature": "bool (MIX_Mixer *, SDL_AudioSpec *)",
+      "thread": "mixer-owner-thread"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_GetMixerFrequencyRatio",
+      "signature": "float (MIX_Mixer *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_GetMixerGain",
+      "signature": "float (MIX_Mixer *)",
+      "thread": "mixer-owner-thread"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_GetMixerProperties",
+      "signature": "SDL_PropertiesID (MIX_Mixer *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_GetNumAudioDecoders",
+      "signature": "int (void)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_GetTaggedTracks",
+      "signature": "MIX_Track **(MIX_Mixer *, const char *, int *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_GetTrack3DPosition",
+      "signature": "bool (MIX_Track *, MIX_Point3D *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_GetTrackAudio",
+      "signature": "MIX_Audio *(MIX_Track *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_GetTrackAudioStream",
+      "signature": "SDL_AudioStream *(MIX_Track *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_GetTrackFadeFrames",
+      "signature": "Sint64 (MIX_Track *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_GetTrackFrequencyRatio",
+      "signature": "float (MIX_Track *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_GetTrackGain",
+      "signature": "float (MIX_Track *)",
+      "thread": "track-owner-thread"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_GetTrackLoops",
+      "signature": "int (MIX_Track *)",
+      "thread": "track-owner-thread"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_GetTrackMixer",
+      "signature": "MIX_Mixer *(MIX_Track *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_GetTrackPlaybackPosition",
+      "signature": "Sint64 (MIX_Track *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_GetTrackProperties",
+      "signature": "SDL_PropertiesID (MIX_Track *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_GetTrackRemaining",
+      "signature": "Sint64 (MIX_Track *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_GetTrackTags",
+      "signature": "char **(MIX_Track *, int *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_Init",
+      "signature": "bool (void)",
+      "thread": "initial-domain"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_LoadAudio",
+      "signature": "MIX_Audio *(MIX_Mixer *, const char *, bool)",
+      "thread": "mixer-owner-thread-owned-result"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_LoadAudioNoCopy",
+      "signature": "MIX_Audio *(MIX_Mixer *, const void *, size_t, bool)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_LoadAudioWithProperties",
+      "signature": "MIX_Audio *(SDL_PropertiesID)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_LoadAudio_IO",
+      "signature": "MIX_Audio *(MIX_Mixer *, SDL_IOStream *, bool, bool)",
+      "thread": "mixer-owner-thread-owned-result-closes-io"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_LoadRawAudio",
+      "signature": "MIX_Audio *(MIX_Mixer *, const void *, size_t, const SDL_AudioSpec *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_LoadRawAudioNoCopy",
+      "signature": "MIX_Audio *(MIX_Mixer *, const void *, size_t, const SDL_AudioSpec *, bool)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_LoadRawAudio_IO",
+      "signature": "MIX_Audio *(MIX_Mixer *, SDL_IOStream *, const SDL_AudioSpec *, bool)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_LockMixer",
+      "signature": "void (MIX_Mixer *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_MSToFrames",
+      "signature": "Sint64 (int, Sint64)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_PauseAllTracks",
+      "signature": "bool (MIX_Mixer *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_PauseTag",
+      "signature": "bool (MIX_Mixer *, const char *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_PauseTrack",
+      "signature": "bool (MIX_Track *)",
+      "thread": "track-owner-thread"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_PlayAudio",
+      "signature": "bool (MIX_Mixer *, MIX_Audio *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_PlayTag",
+      "signature": "bool (MIX_Mixer *, const char *, SDL_PropertiesID)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_PlayTrack",
+      "signature": "bool (MIX_Track *, SDL_PropertiesID)",
+      "thread": "track-owner-thread"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_Quit",
+      "signature": "void (void)",
+      "thread": "initial-domain"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_ResumeAllTracks",
+      "signature": "bool (MIX_Mixer *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_ResumeTag",
+      "signature": "bool (MIX_Mixer *, const char *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_ResumeTrack",
+      "signature": "bool (MIX_Track *)",
+      "thread": "track-owner-thread"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_SetGroupPostMixCallback",
+      "signature": "bool (MIX_Group *, MIX_GroupMixCallback, void *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_SetMixerFrequencyRatio",
+      "signature": "bool (MIX_Mixer *, float)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_SetMixerGain",
+      "signature": "bool (MIX_Mixer *, float)",
+      "thread": "mixer-owner-thread"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_SetPostMixCallback",
+      "signature": "bool (MIX_Mixer *, MIX_PostMixCallback, void *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_SetTagGain",
+      "signature": "bool (MIX_Mixer *, const char *, float)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_SetTrack3DPosition",
+      "signature": "bool (MIX_Track *, const MIX_Point3D *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_SetTrackAudio",
+      "signature": "bool (MIX_Track *, MIX_Audio *)",
+      "thread": "track-owner-thread"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_SetTrackAudioStream",
+      "signature": "bool (MIX_Track *, SDL_AudioStream *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_SetTrackCookedCallback",
+      "signature": "bool (MIX_Track *, MIX_TrackMixCallback, void *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_SetTrackFrequencyRatio",
+      "signature": "bool (MIX_Track *, float)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_SetTrackGain",
+      "signature": "bool (MIX_Track *, float)",
+      "thread": "track-owner-thread"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_SetTrackGroup",
+      "signature": "bool (MIX_Track *, MIX_Group *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_SetTrackIOStream",
+      "signature": "bool (MIX_Track *, SDL_IOStream *, bool)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_SetTrackLoops",
+      "signature": "bool (MIX_Track *, int)",
+      "thread": "track-owner-thread"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_SetTrackOutputChannelMap",
+      "signature": "bool (MIX_Track *, const int *, int)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_SetTrackPlaybackPosition",
+      "signature": "bool (MIX_Track *, Sint64)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_SetTrackRawCallback",
+      "signature": "bool (MIX_Track *, MIX_TrackMixCallback, void *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_SetTrackRawIOStream",
+      "signature": "bool (MIX_Track *, SDL_IOStream *, const SDL_AudioSpec *, bool)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_SetTrackStereo",
+      "signature": "bool (MIX_Track *, const MIX_StereoGains *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_SetTrackStoppedCallback",
+      "signature": "bool (MIX_Track *, MIX_TrackStoppedCallback, void *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_StopAllTracks",
+      "signature": "bool (MIX_Mixer *, Sint64)",
+      "thread": "mixer-owner-thread"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_StopTag",
+      "signature": "bool (MIX_Mixer *, const char *, Sint64)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_StopTrack",
+      "signature": "bool (MIX_Track *, Sint64)",
+      "thread": "track-owner-thread"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_TagTrack",
+      "signature": "bool (MIX_Track *, const char *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_TrackFramesToMS",
+      "signature": "Sint64 (MIX_Track *, Sint64)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_TrackMSToFrames",
+      "signature": "Sint64 (MIX_Track *, Sint64)",
+      "thread": "track-owner-thread"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_TrackPaused",
+      "signature": "bool (MIX_Track *)",
+      "thread": "track-owner-thread"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_TrackPlaying",
+      "signature": "bool (MIX_Track *)",
+      "thread": "track-owner-thread"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_UnlockMixer",
+      "signature": "void (MIX_Mixer *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_UntagTrack",
+      "signature": "void (MIX_Track *, const char *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_Version",
+      "signature": "int (void)",
+      "thread": "any-thread"
+    }
+  ],
+  "generator": "prismel-sdl3-extension-clang-inventory-v1",
+  "header_sha256": "77be3b4fc5156e63fdad4e71eebf2a80ab3fae27f07f7de79923257a909c69a5",
+  "header_version": {
+    "major": 3,
+    "minor": 2,
+    "patch": 4
+  },
+  "headers": [
+    {
+      "path": "SDL3_mixer/SDL_mixer.h",
+      "sha256": "4041e4b5d39e0751220541e2b460d62a5cd143b0f3192d792eef0d8e4243667a"
+    }
+  ],
+  "macros": [
+    {
+      "classification": "raw-only",
+      "name": "MIX_DURATION_INFINITE",
+      "value": "-2"
+    },
+    {
+      "classification": "raw-only",
+      "name": "MIX_DURATION_UNKNOWN",
+      "value": "-1"
+    },
+    {
+      "classification": "raw-only",
+      "name": "MIX_PROP_AUDIO_DECODER_STRING",
+      "value": "\"SDL_mixer.audio.decoder\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "MIX_PROP_AUDIO_LOAD_CLOSEIO_BOOLEAN",
+      "value": "\"SDL_mixer.audio.load.closeio\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "MIX_PROP_AUDIO_LOAD_IGNORE_LOOPS_BOOLEAN",
+      "value": "\"SDL_mixer.audio.load.ignore_loops\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "MIX_PROP_AUDIO_LOAD_IOSTREAM_POINTER",
+      "value": "\"SDL_mixer.audio.load.iostream\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "MIX_PROP_AUDIO_LOAD_PREDECODE_BOOLEAN",
+      "value": "\"SDL_mixer.audio.load.predecode\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "MIX_PROP_AUDIO_LOAD_PREFERRED_MIXER_POINTER",
+      "value": "\"SDL_mixer.audio.load.preferred_mixer\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "MIX_PROP_AUDIO_LOAD_SKIP_METADATA_TAGS_BOOLEAN",
+      "value": "\"SDL_mixer.audio.load.skip_metadata_tags\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "MIX_PROP_METADATA_ALBUM_STRING",
+      "value": "\"SDL_mixer.metadata.album\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "MIX_PROP_METADATA_ARTIST_STRING",
+      "value": "\"SDL_mixer.metadata.artist\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "MIX_PROP_METADATA_COPYRIGHT_STRING",
+      "value": "\"SDL_mixer.metadata.copyright\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "MIX_PROP_METADATA_DURATION_FRAMES_NUMBER",
+      "value": "\"SDL_mixer.metadata.duration_frames\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "MIX_PROP_METADATA_DURATION_INFINITE_BOOLEAN",
+      "value": "\"SDL_mixer.metadata.duration_infinite\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "MIX_PROP_METADATA_TITLE_STRING",
+      "value": "\"SDL_mixer.metadata.title\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "MIX_PROP_METADATA_TOTAL_TRACKS_NUMBER",
+      "value": "\"SDL_mixer.metadata.total_tracks\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "MIX_PROP_METADATA_TRACK_NUMBER",
+      "value": "\"SDL_mixer.metadata.track\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "MIX_PROP_METADATA_YEAR_NUMBER",
+      "value": "\"SDL_mixer.metadata.year\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "MIX_PROP_MIXER_DEVICE_NUMBER",
+      "value": "\"SDL_mixer.mixer.device\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "MIX_PROP_PLAY_APPEND_SILENCE_FRAMES_NUMBER",
+      "value": "\"SDL_mixer.play.append_silence_frames\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "MIX_PROP_PLAY_APPEND_SILENCE_MILLISECONDS_NUMBER",
+      "value": "\"SDL_mixer.play.append_silence_milliseconds\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "MIX_PROP_PLAY_FADE_IN_FRAMES_NUMBER",
+      "value": "\"SDL_mixer.play.fade_in_frames\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "MIX_PROP_PLAY_FADE_IN_MILLISECONDS_NUMBER",
+      "value": "\"SDL_mixer.play.fade_in_milliseconds\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "MIX_PROP_PLAY_FADE_IN_START_GAIN_FLOAT",
+      "value": "\"SDL_mixer.play.fade_in_start_gain\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "MIX_PROP_PLAY_HALT_WHEN_EXHAUSTED_BOOLEAN",
+      "value": "\"SDL_mixer.play.halt_when_exhausted\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "MIX_PROP_PLAY_LOOPS_NUMBER",
+      "value": "\"SDL_mixer.play.loops\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "MIX_PROP_PLAY_LOOP_START_FRAME_NUMBER",
+      "value": "\"SDL_mixer.play.loop_start_frame\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "MIX_PROP_PLAY_LOOP_START_MILLISECOND_NUMBER",
+      "value": "\"SDL_mixer.play.loop_start_millisecond\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "MIX_PROP_PLAY_MAX_FRAME_NUMBER",
+      "value": "\"SDL_mixer.play.max_frame\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "MIX_PROP_PLAY_MAX_MILLISECONDS_NUMBER",
+      "value": "\"SDL_mixer.play.max_milliseconds\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "MIX_PROP_PLAY_START_FRAME_NUMBER",
+      "value": "\"SDL_mixer.play.start_frame\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "MIX_PROP_PLAY_START_MILLISECOND_NUMBER",
+      "value": "\"SDL_mixer.play.start_millisecond\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "MIX_PROP_PLAY_START_ORDER_NUMBER",
+      "value": "\"SDL_mixer.play.start_order\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "SDL_MIXER_H_",
+      "value": ""
+    },
+    {
+      "classification": "raw-only",
+      "name": "SDL_MIXER_MAJOR_VERSION",
+      "value": "3"
+    },
+    {
+      "classification": "raw-only",
+      "name": "SDL_MIXER_MICRO_VERSION",
+      "value": "4"
+    },
+    {
+      "classification": "raw-only",
+      "name": "SDL_MIXER_MINOR_VERSION",
+      "value": "2"
+    },
+    {
+      "classification": "raw-only",
+      "name": "SDL_MIXER_VERSION",
+      "value": "SDL_VERSIONNUM(SDL_MIXER_MAJOR_VERSION, SDL_MIXER_MINOR_VERSION, SDL_MIXER_MICRO_VERSION)"
+    },
+    {
+      "classification": "raw-only",
+      "name": "SDL_MIXER_VERSION_ATLEAST(X,Y,Z)",
+      "value": "((SDL_MIXER_MAJOR_VERSION >= X) && (SDL_MIXER_MAJOR_VERSION > X || SDL_MIXER_MINOR_VERSION >= Y) && (SDL_MIXER_MAJOR_VERSION > X || SDL_MIXER_MINOR_VERSION > Y || SDL_MIXER_MICRO_VERSION >= Z))"
+    }
+  ],
+  "records": [
+    {
+      "classification": "raw-only",
+      "fields": [],
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "kind": "struct",
+      "name": "MIX_Audio"
+    },
+    {
+      "classification": "raw-only",
+      "fields": [],
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "kind": "struct",
+      "name": "MIX_AudioDecoder"
+    },
+    {
+      "classification": "raw-only",
+      "fields": [],
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "kind": "struct",
+      "name": "MIX_Group"
+    },
+    {
+      "classification": "raw-only",
+      "fields": [],
+      "header": "SDL3_mixer/SDL_mixer.h",
+      "kind": "struct",
+      "name": "MIX_Mixer"
+    },
+    {
+      "classification": "raw-only",
+      "fields": [
+        "x",
+        "y",
+        "z"
+      ],
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "kind": "struct",
+      "name": "MIX_Point3D"
+    },
+    {
+      "classification": "raw-only",
+      "fields": [
+        "left",
+        "right"
+      ],
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "kind": "struct",
+      "name": "MIX_StereoGains"
+    },
+    {
+      "classification": "raw-only",
+      "fields": [],
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "kind": "struct",
+      "name": "MIX_Track"
+    }
+  ],
+  "schema": 1,
+  "stable_headers": true,
+  "target_triple": "arm64-apple-darwin25.4.0",
+  "typedefs": [
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_Audio",
+      "underlying": "struct MIX_Audio"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_AudioDecoder",
+      "underlying": "struct MIX_AudioDecoder"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_Group",
+      "underlying": "struct MIX_Group"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_GroupMixCallback",
+      "underlying": "void (*)(void *, MIX_Group *, const SDL_AudioSpec *, float *, int)"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_Mixer",
+      "underlying": "struct MIX_Mixer"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_Point3D",
+      "underlying": "struct MIX_Point3D"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_PostMixCallback",
+      "underlying": "void (*)(void *, MIX_Mixer *, const SDL_AudioSpec *, float *, int)"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_StereoGains",
+      "underlying": "struct MIX_StereoGains"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_Track",
+      "underlying": "struct MIX_Track"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_TrackMixCallback",
+      "underlying": "void (*)(void *, MIX_Track *, const SDL_AudioSpec *, float *, int)"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_mixer/<clang-elided-source>",
+      "name": "MIX_TrackStoppedCallback",
+      "underlying": "void (*)(void *, MIX_Track *)"
+    }
+  ]
+}
