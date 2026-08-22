@@ -18,6 +18,32 @@
  (name bench_sdl3)
  (libraries prismel.sdl3 prismel.sdl3_mixer unix yojson))
 
+(rule
+ (targets bench_metal_ffi_bridge.o libbench_metal_ffi_stubs.a
+  dllbench_metal_ffi_stubs.so)
+ (deps bench_metal_ffi_bridge.mm)
+ (action
+  (run %{exe:../lib/metal/build_bridge.exe}
+   --sanitizers none
+   --profile %{profile}
+   --ocaml-include %{ocaml-config:standard_library}
+   --source %{dep:bench_metal_ffi_bridge.mm}
+   --object bench_metal_ffi_bridge.o
+   --archive libbench_metal_ffi_stubs.a
+   --shared dllbench_metal_ffi_stubs.so)))
+
+(executable
+ (name bench_metal_ffi)
+ (modules bench_metal_ffi)
+ (libraries prismel.metal unix yojson)
+ (foreign_archives bench_metal_ffi_stubs))
+
+(rule
+ (alias runtest)
+ (action
+  (run %{exe:bench_metal_ffi.exe} --iterations 1000000 --samples 5
+   --profile test --check)))
+
 (executable
  (name bench_instances)
  (libraries prismel unix))

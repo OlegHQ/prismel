@@ -54,6 +54,11 @@ let compile_flags sanitizers =
 let link_flags sanitizers =
   sanitizer_flag sanitizers @ undefined_flags sanitizers
 
+let profile_compile_flags = function
+  | "dev" -> [ "-O0"; "-g" ]
+  | "release" -> [ "-O3"; "-DNDEBUG" ]
+  | _ -> [ "-O2" ]
+
 let framework_link_flags =
   [ "-framework"; "Foundation"; "-framework"; "Metal"; "-framework"
   ; "QuartzCore"; "-lc++"

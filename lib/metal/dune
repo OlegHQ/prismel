@@ -25,6 +25,7 @@
  (action
   (run ./build_bridge.exe
    --sanitizers %{env:PRISMEL_METAL_SANITIZERS=}
+   --profile %{profile}
    --ocaml-include %{ocaml-config:standard_library}
    --source %{dep:metal_bridge.mm}
    --object metal_bridge.o

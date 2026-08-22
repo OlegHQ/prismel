@@ -83,6 +83,15 @@ queue, and sanitizer checks remain active. ThreadSanitizer uses a larger RSS
 tolerance for shadow-memory growth while retaining the same exact handle
 balance.
 
+`tools/bench_metal_ffi.exe` is the release-profile M9 baseline. It measures one
+Objective-C property query per OCaml call, one batched call containing the same
+number of queries, the equivalent loop timed inside Objective-C++, and the
+current ownership-aware `Device.info` path. Every sample records wall time,
+FFI-call count, minor/major/promoted allocation, collection count, and an exact
+checksum. The executable rejects a batched median more than 5% slower than the
+native loop. This makes the later descriptor/command batching decision
+measurable instead of applying `[@@noalloc]` or per-item calls speculatively.
+
 The currently selected Command Line Tools include SDK 26.5 headers but not the
 `metal` and `metallib` executables. Runtime source compilation is therefore
 covered locally; offline `.metallib`, Xcode validation, capture, and archive
@@ -100,4 +109,6 @@ PRISMEL_METAL_SANITIZERS=address opam exec -- dune build \
   lib/metal/test_metal.exe lib/metal/test_metal_stress.exe
 opam exec -- dune exec tools/metal/check_memory.exe -- \
   --mode address --artifacts /tmp/prismel-metal-asan/default
+opam exec -- dune exec --profile release tools/bench_metal_ffi.exe -- \
+  --iterations 1000000 --samples 7 --profile release
 ```

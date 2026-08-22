@@ -17,6 +17,8 @@ let () =
       (List.mem "-fsanitize=address,undefined" flags
        && List.mem "-fno-sanitize-recover=undefined" flags)
   then fail "combined sanitizer flags are incomplete";
+  if profile_compile_flags "release" <> [ "-O3"; "-DNDEBUG" ] then
+    fail "release bridge optimization flags changed";
   (match parse_sanitizers "thread,address" with
    | Error _ -> ()
    | Ok _ -> fail "incompatible sanitizer combination was accepted");

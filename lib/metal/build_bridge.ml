@@ -16,6 +16,7 @@ let run tool arguments =
 
 type arguments =
   { sanitizers : string
+  ; profile : string
   ; ocaml_include : string
   ; source : string
   ; object_file : string
@@ -25,6 +26,7 @@ type arguments =
 
 let parse () =
   let sanitizers = ref None in
+  let profile = ref None in
   let ocaml_include = ref None in
   let source = ref None in
   let object_file = ref None in
@@ -33,6 +35,7 @@ let parse () =
   let set target value = target := Some value in
   let options =
     [ "--sanitizers", Arg.String (set sanitizers), "LIST sanitizer list"
+    ; "--profile", Arg.String (set profile), "NAME Dune build profile"
     ; "--ocaml-include", Arg.String (set ocaml_include), "DIR OCaml include"
     ; "--source", Arg.String (set source), "FILE Objective-C++ source"
     ; "--object", Arg.String (set object_file), "FILE object output"
@@ -47,6 +50,7 @@ let parse () =
     | None -> fail "%s is required" name
   in
   { sanitizers = required "--sanitizers" !sanitizers
+  ; profile = required "--profile" !profile
   ; ocaml_include = required "--ocaml-include" !ocaml_include
   ; source = required "--source" !source
   ; object_file = required "--object" !object_file
@@ -62,13 +66,14 @@ let main () =
     | Error message -> fail "%s" message
   in
   let compile_flags = Metal_build_config.compile_flags sanitizers in
+  let profile_flags = Metal_build_config.profile_compile_flags arguments.profile in
   let link_flags = Metal_build_config.link_flags sanitizers in
   run "clang++"
     ([ "-x"; "objective-c++"; "-std=c++17"; "-fobjc-arc"; "-fblocks"
      ; "-mmacosx-version-min=14.0"; "-Wall"; "-Wextra"; "-Werror"; "-I"
      ; arguments.ocaml_include
      ]
-     @ compile_flags
+     @ profile_flags @ compile_flags
      @ [ "-c"; arguments.source; "-o"; arguments.object_file ]);
   run "ar" [ "rcs"; arguments.archive; arguments.object_file ];
   run "clang++"

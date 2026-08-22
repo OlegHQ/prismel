@@ -106,8 +106,18 @@
  (name gpu_dependency_direction)
  (modules gpu_dependency_direction)
  (deps ../lib/prismel/dune ../lib/runtime/dune ../lib/wap/dune
-  (glob_files ../lib/*/dune))
- (action (run %{test} %{workspace_root}/lib)))
+  ../lib/sdl3/dune ../lib/sdl3_image/dune ../lib/sdl3_ttf/dune
+  ../lib/sdl3_mixer/dune ../lib/metal/dune)
+ (action
+  (run %{test}
+   %{dep:../lib/prismel/dune}
+   %{dep:../lib/runtime/dune}
+   %{dep:../lib/wap/dune}
+   %{dep:../lib/sdl3/dune}
+   %{dep:../lib/sdl3_image/dune}
+   %{dep:../lib/sdl3_ttf/dune}
+   %{dep:../lib/sdl3_mixer/dune}
+   %{dep:../lib/metal/dune})))
 
 (test
  (name sdl3_platform_harness)
