@@ -95,14 +95,6 @@ CAMLprim value caml_sdl3_image_version(value unit)
   return Val_int(IMG_Version());
 }
 
-CAMLprim value caml_sdl3_image_decode_file(value path)
-{
-  SDL_Surface *surface;
-  CAMLparam1(path);
-  surface = IMG_Load(String_val(path));
-  CAMLreturn(decoded_surface(surface));
-}
-
 CAMLprim value caml_sdl3_image_decode_bytes(value bytes, value kind)
 {
   SDL_IOStream *stream;

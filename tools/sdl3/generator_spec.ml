@@ -279,7 +279,6 @@ let image =
   ; include_environment = "PRISMEL_SDL3_IMAGE_INCLUDE_DIR"
   ; safe_functions =
       [ "IMG_Version", "any-thread"
-      ; "IMG_Load", "owned-result"
       ; "IMG_Load_IO", "owned-result-closes-io"
       ; "IMG_LoadTyped_IO", "owned-result-closes-io"
       ]

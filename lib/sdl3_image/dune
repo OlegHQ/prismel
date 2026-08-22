@@ -23,9 +23,10 @@
  (name test_sdl3_image)
  (modules test_sdl3_image)
  (libraries sdl3 sdl3_image)
+ (deps (source_tree ../../test/sdl3_image_fixtures))
  (action
   (setenv SDL_VIDEODRIVER dummy
-   (run %{test} %{dep:../../test/gpu_migration/golden/renderer_headless.png}))))
+   (run %{test} %{workspace_root}/test/sdl3_image_fixtures))))
 
 (rule
  (alias runtest)

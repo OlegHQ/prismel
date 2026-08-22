@@ -2,8 +2,8 @@
   "classification_counts": {
     "not-applicable": 0,
     "platform-excluded": 0,
-    "raw-only": 141,
-    "safe": 4,
+    "raw-only": 142,
+    "safe": 3,
     "unreviewed": 0
   },
   "compiler": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
@@ -128,11 +128,11 @@
       "thread": "raw-only-not-reviewed"
     },
     {
-      "classification": "safe",
+      "classification": "raw-only",
       "header": "SDL3_image/<clang-elided-source>",
       "name": "IMG_Load",
       "signature": "SDL_Surface *(const char *)",
-      "thread": "owned-result"
+      "thread": "raw-only-not-reviewed"
     },
     {
       "classification": "raw-only",

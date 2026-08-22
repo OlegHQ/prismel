@@ -2,3 +2,7 @@
  (name generate)
  (modules generate generator_spec generator_support)
  (libraries digestif dune-configurator unix yojson))
+
+(executable
+ (name generate_image_fixtures)
+ (modules generate_image_fixtures))
