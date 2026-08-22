@@ -39,7 +39,7 @@
  (foreign_archives bench_metal_ffi_stubs))
 
 (rule
- (alias runtest)
+ (alias metal-bench)
  (action
   (run %{exe:bench_metal_ffi.exe} --iterations 1000000 --samples 5
    --profile test --check)))

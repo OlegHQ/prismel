@@ -145,8 +145,13 @@ number of queries, the equivalent loop timed inside Objective-C++, and the
 current ownership-aware `Device.info` path. Every sample records wall time,
 FFI-call count, minor/major/promoted allocation, collection count, and an exact
 checksum. The executable rejects a batched median more than 5% slower than the
-native loop. This makes the later descriptor/command batching decision
-measurable instead of applying `[@@noalloc]` or per-item calls speculatively.
+native loop. The live timing check runs through the explicit `@metal-bench`
+alias, outside Dune's parallel functional/stress suite; ordinary `@runtest`
+still validates the frozen machine-readable M9 evidence. This keeps the 5%
+comparison under controlled conditions instead of measuring contention from
+unrelated tests. The result makes the later descriptor/command batching
+decision measurable instead of applying `[@@noalloc]` or per-item calls
+speculatively.
 
 The currently selected Command Line Tools include SDK 26.5 headers but not the
 `metal` and `metallib` executables. Runtime source compilation is therefore
@@ -159,6 +164,7 @@ Run the current binding checks with:
 ```sh
 opam exec -- dune runtest lib/metal --force
 opam exec -- dune build @all @doc
+opam exec -- dune build @metal-bench
 
 PRISMEL_METAL_SANITIZERS=address opam exec -- dune build \
   --build-dir /tmp/prismel-metal-asan \
