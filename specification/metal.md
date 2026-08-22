@@ -57,11 +57,12 @@ managed, and private buffers; copied and page-aligned no-copy buffer creation;
 CPU range transfer and lexical mapped-range handles; textures, shareable private
 textures and opaque shared handles, IOSurface-backed textures, buffer-backed
 linear textures, texture buffers, and views; samplers; labels; runtime MSL
-library compilation
-with full `NSError` diagnostics; automatic and placement heaps; macOS-15
-residency sets; function lookup; compute-pipeline creation and limits; command
-queues and buffers; compute encoding and resource binding; checked thread
-dispatch; submission; blocking completion; and command status/errors.
+library compilation with full `NSError` diagnostics; automatic, placement, and
+established sparse heaps; macOS-15 residency sets; function lookup;
+compute-pipeline creation and limits; command queues and buffers; compute,
+resource-state, and narrow buffer-to-texture blit encoding; checked resource
+binding and thread dispatch; submission; blocking completion; and command
+status/errors.
 
 A `Buffer.Mapping.t` is valid only inside `Buffer.with_mapping`. It exposes
 checked copy operations rather than a Bigarray backed by an escaping native
@@ -190,6 +191,40 @@ with a live descendant is a deterministic
 `Parent_has_dependents` error. Automatic resources intentionally report no
 placement offset; placement resources round-trip Metal's actual offset.
 
+`Heap.Sparse` implements the established macOS sparse-texture model on macOS 13
+or newer devices that report Apple GPU family 6 support. The macOS 13 floor is
+required by the binding's explicit page-size query and heap descriptor rather
+than inferred from legacy sparse support alone. Sparse heaps require
+private/default-cache storage, an explicit 16, 64, or 256 KiB page size
+supported by the device, and a heap size that is an exact multiple of that
+page. Legacy sparse heaps reject buffers and placement offsets. The binding
+preflights each texture kind/format/sample/page
+combination through the device tile-layout query before allocation and verifies
+that a heap-created texture reports `isSparse`.
+
+`Texture.sparse_info` returns the exact device tile dimensions, page bytes,
+first mip in the packed tail, and tail bytes while retaining typed sparse-heap
+ancestry. `Resource_state_encoder.update_texture_mapping` accepts tile—not
+pixel—coordinates and checks positive cardinality, mip and slice bounds, tile
+bounds, packed-tail addressing, device identity, and whether one request can
+fit in the heap before Objective-C. A successful map or unmap retains the
+texture and ancestor heap until the command buffer reaches a terminal state.
+Metal can still fail a mapping silently when concurrent mappings exhaust the
+heap; callers that overcommit need a residency-map policy rather than a false
+success guarantee from this wrapper.
+
+The conformance path maps a base tile and mip tail, blits initialized bytes
+from a checked staging-buffer range into the mapped tile in the same command
+buffer, reads the authored texel through a compute shader, unmaps both regions,
+and verifies the same shader observes Metal's defined zero result. The narrow
+`Blit_encoder.copy_buffer_to_texture` entry point validates source offset,
+row/image pitch, total source span, destination mip/slice/region, format stride,
+sample count, and device identity before encoding; both resources remain owned
+through completion. Bulk/indirect mapping, access-counter residency maps,
+mapping moves, sparse depth/stencil, and macOS-26.4 placement-sparse buffers
+and textures remain unreviewed rather than being conflated with this qualified
+path.
+
 `Residency_set` availability-gates the macOS 15 API at runtime because the
 library deployment target remains macOS 14. A set accepts only typed `Buffer`,
 `Texture`, and `Heap` allocations from its creating device. Adds reject stale,
@@ -222,9 +257,10 @@ address modes and border colors, normalized coordinates, finite float32 LOD
 clamps, comparison, LOD averaging, and argument-buffer support. Invalid
 anisotropy, non-finite or inverted clamps, illegal unnormalized-coordinate
 combinations, and malformed labels fail before sampler creation. Sparse
-resources, cross-process IOSurface/shared-handle transport, and the remaining
-pixel-format capability matrix are still pending; this resource slice is
-therefore progress toward M3, not an M3 completion claim.
+depth/stencil and placement resources, cross-process IOSurface/shared-handle
+transport, and the remaining pixel-format capability matrix are still pending;
+this resource slice is therefore progress toward M3, not an M3 completion
+claim.
 
 `test_metal.exe` runs a real M1 compute kernel, wrong-domain and invalid-state
 cases, shader diagnostics, copied/no-copy external buffer ownership,
@@ -235,7 +271,8 @@ configured cache/hazard modes, and shared transfer, buffer and texture bounds,
 stride, and cardinality checks, texture mip transfer and views, sampler
 validation, multisample capability gating, heap alignment and placement,
 aliasing, purgeability, residency
-membership/commit/queue/command retention, command-resource retention, parent
+membership/commit/queue/command retention, sparse page and tile capability
+queries, map/blit/read/unmap behavior, command-resource retention, parent
 ownership, idempotent destruction, stale access, and GC-finalizer release. The
 separate ownership stress performs
 warm-up followed
@@ -243,13 +280,17 @@ by 100,000 measured buffer create/destroy cycles, 100,000 measured
 texture/sampler create/destroy cycles, 10,000 heap/purge/alias/replacement
 cycles covering 30,000 measured heap/child-resource handles, and 10,000
 residency add/commit/remove/commit cycles covering 20,000 measured
-set/resource handles. Another 10,000 buffer/linear-texture ownership cycles
+set/resource handles. Ten thousand sparse heap/texture cycles cover another
+20,000 measured handles. Another 10,000 buffer/linear-texture ownership cycles
 cover 20,000 handles; 10,000 shareable-source/handle/import cycles cover 30,000
 handles; 10,000 IOSurface/texture cycles cover 20,000 handles; and 10,000
 external-memory/no-copy cycles cover 20,000 handles and exact
 deferred-deallocator layout. Each lane requires exact
 created/released balance, zero pending or dropped releases, stable live-handle
-count, and bounded settled RSS growth.
+count, and bounded settled RSS growth. The stress executable launches each lane
+in a fresh OCaml worker process. This keeps the RSS baseline and Metal resource
+budget local to the resource kind under test; the Leaks qualification wraps
+each worker directly rather than inspecting only the coordinator process.
 
 `PRISMEL_METAL_SANITIZERS` is parsed by OCaml build configuration and accepts
 `address`, `undefined`, or `thread`; ThreadSanitizer is deliberately exclusive,
@@ -261,15 +302,14 @@ resource-stress tests. Guard Malloc runs the conformance subset because giving
 every stress allocation its own protected VM region would test the tool's
 intentional memory amplification rather than Metal lifetime settling.
 
-AddressSanitizer qualification disables its allocation quarantine for the
-ownership stress. This keeps the RSS assertion about live Metal/ARC resources
-instead of ASan's intentionally retained freed blocks; exact created/released,
-queue, and sanitizer checks remain active. ThreadSanitizer uses a 64 MiB RSS
-tolerance for ordinary Metal lanes and a separate 384 MiB tolerance only for
-the 10,000-cycle `mmap`/`munmap` external-memory lane, whose address churn
-retains substantially more TSan shadow metadata. The ordinary unsanitized lane
-keeps the default 8 MiB limit, and every mode retains exact handle balance,
-zero deallocator-layout mismatches, and sanitizer diagnostics.
+AddressSanitizer qualification disables its allocation quarantine and uses a
+256 MiB per-worker RSS ceiling for the ownership stress. ThreadSanitizer uses a
+384 MiB per-worker ceiling, including for the `mmap`/`munmap` external-memory
+lane. Those sanitizer ceilings cover measured allocator, shadow-memory, and
+Metal-driver metadata high-water marks; they are not the production memory
+budget. The ordinary unsanitized workers keep the default 8 MiB limit. Every
+mode retains exact handle balance, zero pending or dropped releases, zero
+deallocator-layout mismatches, and sanitizer diagnostics.
 
 `tools/bench_metal_ffi.exe` is the release-profile M9 baseline. It measures one
 Objective-C property query per OCaml call, one batched call containing the same

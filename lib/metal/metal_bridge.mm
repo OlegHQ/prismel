@@ -86,6 +86,8 @@ enum class Handle_kind : std::uint32_t {
   Command_queue,
   Command_buffer,
   Compute_encoder,
+  Resource_state_encoder,
+  Blit_encoder,
   Residency_set,
   External_memory,
   Io_surface,
@@ -324,6 +326,26 @@ MTLResourceOptions resource_options(int options) {
     caml_invalid_argument("invalid Metal resource options");
   }
   return static_cast<MTLResourceOptions>(options);
+}
+
+bool valid_sparse_page_size(int page_size) {
+  return page_size == MTLSparsePageSize16 ||
+         page_size == MTLSparsePageSize64 ||
+         page_size == MTLSparsePageSize256;
+}
+
+bool device_supports_sparse_textures(id<MTLDevice> device) {
+  if (@available(macOS 13.0, *)) {
+    return [device supportsFamily:MTLGPUFamilyApple6] &&
+           [device respondsToSelector:
+               @selector(sparseTileSizeInBytesForSparsePageSize:)] &&
+           [device respondsToSelector:
+               @selector(sparseTileSizeWithTextureType:pixelFormat:sampleCount:sparsePageSize:)] &&
+           [MTLHeapDescriptor instancesRespondToSelector:
+               @selector(setSparsePageSize:)] &&
+           device.sparseTileSizeInBytes > 0;
+  }
+  return false;
 }
 
 MTLPurgeableState purgeable_state(int state) {
@@ -853,6 +875,88 @@ caml_prismel_metal_device_supports_residency_sets(value raw) {
   CAMLreturn(Val_bool(supported));
 }
 
+extern "C" CAMLprim value
+caml_prismel_metal_device_supports_sparse_textures(value raw) {
+  CAMLparam1(raw);
+  id<MTLDevice> device = object_of_handle(raw, Handle_kind::Device);
+  CAMLreturn(Val_bool(device_supports_sparse_textures(device)));
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_device_sparse_tile_size_in_bytes(value raw,
+                                                     value raw_page_size) {
+  CAMLparam2(raw, raw_page_size);
+  CAMLlocal2(result, copied_size);
+  @autoreleasepool {
+    @try {
+      id<MTLDevice> device = object_of_handle(raw, Handle_kind::Device);
+      const int page_size = Int_val(raw_page_size);
+      if (!valid_sparse_page_size(page_size)) {
+        CAMLreturn(result_error_text("invalid sparse page size"));
+      }
+      if (!device_supports_sparse_textures(device)) {
+        CAMLreturn(result_error_text(
+            "device does not support sparse textures"));
+      }
+      const NSUInteger bytes = [device
+          sparseTileSizeInBytesForSparsePageSize:
+              static_cast<MTLSparsePageSize>(page_size)];
+      if (bytes == 0 || bytes > static_cast<NSUInteger>(INT64_MAX)) {
+        CAMLreturn(result_error_text(
+            "Metal returned an invalid sparse tile byte size"));
+      }
+      copied_size = caml_copy_int64(static_cast<std::int64_t>(bytes));
+      result = result_ok(copied_size);
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+  CAMLreturn(result);
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_device_sparse_texture_tile_size(
+    value raw, value raw_kind, value raw_format, value raw_sample_count,
+    value raw_page_size) {
+  CAMLparam5(raw, raw_kind, raw_format, raw_sample_count, raw_page_size);
+  CAMLlocal2(result, copied_size);
+  @autoreleasepool {
+    @try {
+      id<MTLDevice> device = object_of_handle(raw, Handle_kind::Device);
+      const int page_size = Int_val(raw_page_size);
+      const intnat sample_count = Long_val(raw_sample_count);
+      if (!valid_sparse_page_size(page_size) || sample_count <= 0 ||
+          !device_supports_sparse_textures(device)) {
+        CAMLreturn(result_error_text(
+            "sparse texture tile query is unsupported"));
+      }
+      const MTLSize size = [device
+          sparseTileSizeWithTextureType:
+              static_cast<MTLTextureType>(Long_val(raw_kind))
+                              pixelFormat:
+              static_cast<MTLPixelFormat>(Long_val(raw_format))
+                              sampleCount:static_cast<NSUInteger>(sample_count)
+                           sparsePageSize:
+              static_cast<MTLSparsePageSize>(page_size)];
+      if (size.width == 0 || size.height == 0 || size.depth == 0 ||
+          size.width > static_cast<NSUInteger>(Max_long) ||
+          size.height > static_cast<NSUInteger>(Max_long) ||
+          size.depth > static_cast<NSUInteger>(Max_long)) {
+        CAMLreturn(result_error_text(
+            "Metal does not support the sparse texture layout"));
+      }
+      copied_size = caml_alloc_tuple(3);
+      Store_field(copied_size, 0, Val_long(size.width));
+      Store_field(copied_size, 1, Val_long(size.height));
+      Store_field(copied_size, 2, Val_long(size.depth));
+      result = result_ok(copied_size);
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+  CAMLreturn(result);
+}
+
 extern "C" CAMLprim value caml_prismel_metal_buffer_create(
     value raw_device, value raw_length, value raw_options) {
   CAMLparam3(raw_device, raw_length, raw_options);
@@ -1318,6 +1422,7 @@ extern "C" CAMLprim value caml_prismel_metal_heap_create(
   CAMLparam3(raw_device, raw_descriptor, raw_label);
   CAMLlocal1(raw);
   @autoreleasepool {
+    @try {
     id<MTLDevice> device = object_of_handle(raw_device, Handle_kind::Device);
     const std::int64_t size = Int64_val(Field(raw_descriptor, 0));
     if (size <= 0) {
@@ -1331,8 +1436,37 @@ extern "C" CAMLprim value caml_prismel_metal_heap_create(
         static_cast<MTLCPUCacheMode>(Long_val(Field(raw_descriptor, 2)));
     descriptor.hazardTrackingMode =
         static_cast<MTLHazardTrackingMode>(Long_val(Field(raw_descriptor, 3)));
-    descriptor.type =
+    const auto heap_type =
         static_cast<MTLHeapType>(Long_val(Field(raw_descriptor, 4)));
+    const int sparse_page_size = Int_val(Field(raw_descriptor, 5));
+    descriptor.type = heap_type;
+    if (heap_type == MTLHeapTypeSparse) {
+      if (!device_supports_sparse_textures(device)) {
+        CAMLreturn(result_error_text(
+            "device does not support sparse textures"));
+      }
+      if (!valid_sparse_page_size(sparse_page_size)) {
+        CAMLreturn(result_error_text(
+            "sparse heaps require a valid sparse page size"));
+      }
+      if (descriptor.storageMode != MTLStorageModePrivate ||
+          descriptor.cpuCacheMode != MTLCPUCacheModeDefaultCache) {
+        CAMLreturn(result_error_text(
+            "sparse heaps require private default-cache storage"));
+      }
+      const NSUInteger page_bytes = [device
+          sparseTileSizeInBytesForSparsePageSize:
+              static_cast<MTLSparsePageSize>(sparse_page_size)];
+      if (page_bytes == 0 || descriptor.size % page_bytes != 0) {
+        CAMLreturn(result_error_text(
+            "sparse heap size is not a whole number of sparse pages"));
+      }
+      descriptor.sparsePageSize =
+          static_cast<MTLSparsePageSize>(sparse_page_size);
+    } else if (sparse_page_size != 0) {
+      CAMLreturn(result_error_text(
+          "only sparse heaps accept a sparse page size"));
+    }
     id<MTLHeap> heap = [device newHeapWithDescriptor:descriptor];
     if (heap == nil) {
       CAMLreturn(result_error_text("Metal rejected the heap descriptor"));
@@ -1345,6 +1479,9 @@ extern "C" CAMLprim value caml_prismel_metal_heap_create(
       heap.label = label;
     }
     raw = allocate_handle(heap, Handle_kind::Heap);
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
   }
   CAMLreturn(result_ok(raw));
 }
@@ -1460,6 +1597,7 @@ extern "C" CAMLprim value caml_prismel_metal_heap_texture_create(
   CAMLparam4(raw_heap, raw_descriptor, raw_offset, raw_label);
   CAMLlocal1(raw);
   @autoreleasepool {
+    @try {
     id<MTLHeap> heap = object_of_handle(raw_heap, Handle_kind::Heap);
     MTLTextureDescriptor *descriptor = texture_descriptor(raw_descriptor);
     id<MTLTexture> texture = nil;
@@ -1476,6 +1614,11 @@ extern "C" CAMLprim value caml_prismel_metal_heap_texture_create(
     if (texture == nil) {
       CAMLreturn(result_error_text("Metal failed to allocate the heap texture"));
     }
+    const bool expected_sparse = heap.type == MTLHeapTypeSparse;
+    if (texture.isSparse != expected_sparse) {
+      CAMLreturn(result_error_text(
+          "Metal changed the heap texture's sparse identity"));
+    }
     if (Is_block(raw_label)) {
       NSString *label = string_from_ocaml(Field(raw_label, 0));
       if (label == nil) {
@@ -1484,6 +1627,9 @@ extern "C" CAMLprim value caml_prismel_metal_heap_texture_create(
       texture.label = label;
     }
     raw = allocate_handle(texture, Handle_kind::Texture);
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
   }
   CAMLreturn(result_ok(raw));
 }
@@ -2146,6 +2292,78 @@ extern "C" CAMLprim value caml_prismel_metal_texture_info(value raw) {
   CAMLreturn(result);
 }
 
+extern "C" CAMLprim value caml_prismel_metal_texture_is_sparse(value raw) {
+  CAMLparam1(raw);
+  id<MTLTexture> texture = object_of_handle(raw, Handle_kind::Texture);
+  CAMLreturn(Val_bool(texture.isSparse));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_texture_sparse_info(
+    value raw_device, value raw_texture, value raw_page_size) {
+  CAMLparam3(raw_device, raw_texture, raw_page_size);
+  CAMLlocal3(result, info, item);
+  @autoreleasepool {
+    @try {
+      id<MTLDevice> device =
+          object_of_handle(raw_device, Handle_kind::Device);
+      id<MTLTexture> texture =
+          object_of_handle(raw_texture, Handle_kind::Texture);
+      const int page_size = Int_val(raw_page_size);
+      if (!texture.isSparse) {
+        CAMLreturn(result_error_text("texture is not sparse"));
+      }
+      if (!valid_sparse_page_size(page_size)) {
+        CAMLreturn(result_error_text("invalid sparse page size"));
+      }
+      if (texture.device.registryID != device.registryID) {
+        CAMLreturn(result_error_text(
+            "sparse texture belongs to a different device"));
+      }
+      const auto sparse_page_size =
+          static_cast<MTLSparsePageSize>(page_size);
+      const MTLSize tile = [device
+          sparseTileSizeWithTextureType:texture.textureType
+                              pixelFormat:texture.pixelFormat
+                              sampleCount:texture.sampleCount
+                           sparsePageSize:sparse_page_size];
+      const NSUInteger tile_bytes = [device
+          sparseTileSizeInBytesForSparsePageSize:sparse_page_size];
+      const NSUInteger first_tail = texture.firstMipmapInTail;
+      const NSUInteger tail_bytes = texture.tailSizeInBytes;
+      if (tile.width == 0 || tile.height == 0 || tile.depth == 0 ||
+          tile_bytes == 0 ||
+          tile.width > static_cast<NSUInteger>(INT64_MAX) ||
+          tile.height > static_cast<NSUInteger>(INT64_MAX) ||
+          tile.depth > static_cast<NSUInteger>(INT64_MAX) ||
+          tile_bytes > static_cast<NSUInteger>(INT64_MAX) ||
+          tail_bytes > static_cast<NSUInteger>(INT64_MAX)) {
+        CAMLreturn(result_error_text(
+            "Metal returned malformed sparse texture properties"));
+      }
+      info = caml_alloc(6, 0);
+      item = caml_copy_int64(static_cast<std::int64_t>(tile.width));
+      Store_field(info, 0, item);
+      item = caml_copy_int64(static_cast<std::int64_t>(tile.height));
+      Store_field(info, 1, item);
+      item = caml_copy_int64(static_cast<std::int64_t>(tile.depth));
+      Store_field(info, 2, item);
+      item = caml_copy_int64(static_cast<std::int64_t>(tile_bytes));
+      Store_field(info, 3, item);
+      item = caml_copy_int64(
+          first_tail > static_cast<NSUInteger>(INT64_MAX)
+              ? -1
+              : static_cast<std::int64_t>(first_tail));
+      Store_field(info, 4, item);
+      item = caml_copy_int64(static_cast<std::int64_t>(tail_bytes));
+      Store_field(info, 5, item);
+      result = result_ok(info);
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+  CAMLreturn(result);
+}
+
 extern "C" CAMLprim value caml_prismel_metal_texture_is_shareable(value raw) {
   CAMLparam1(raw);
   id<MTLTexture> texture = object_of_handle(raw, Handle_kind::Texture);
@@ -2699,6 +2917,40 @@ extern "C" CAMLprim value caml_prismel_metal_command_buffer_compute_encoder(
   CAMLreturn(result_ok(raw));
 }
 
+extern "C" CAMLprim value
+caml_prismel_metal_command_buffer_resource_state_encoder(value raw_buffer) {
+  CAMLparam1(raw_buffer);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    id<MTLCommandBuffer> buffer =
+        object_of_handle(raw_buffer, Handle_kind::Command_buffer);
+    id<MTLResourceStateCommandEncoder> encoder =
+        [buffer resourceStateCommandEncoder];
+    if (encoder == nil) {
+      CAMLreturn(result_error_text(
+          "Metal failed to create a resource-state encoder"));
+    }
+    raw = allocate_handle(encoder, Handle_kind::Resource_state_encoder);
+  }
+  CAMLreturn(result_ok(raw));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_command_buffer_blit_encoder(
+    value raw_buffer) {
+  CAMLparam1(raw_buffer);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    id<MTLCommandBuffer> buffer =
+        object_of_handle(raw_buffer, Handle_kind::Command_buffer);
+    id<MTLBlitCommandEncoder> encoder = [buffer blitCommandEncoder];
+    if (encoder == nil) {
+      CAMLreturn(result_error_text("Metal failed to create a blit encoder"));
+    }
+    raw = allocate_handle(encoder, Handle_kind::Blit_encoder);
+  }
+  CAMLreturn(result_ok(raw));
+}
+
 extern "C" CAMLprim value caml_prismel_metal_compute_encoder_set_pipeline(
     value raw_encoder, value raw_pipeline) {
   CAMLparam2(raw_encoder, raw_pipeline);
@@ -2728,6 +2980,21 @@ extern "C" CAMLprim value caml_prismel_metal_compute_encoder_set_buffer(
   CAMLreturn(result_unit());
 }
 
+extern "C" CAMLprim value caml_prismel_metal_compute_encoder_set_texture(
+    value raw_encoder, value raw_texture, value raw_index) {
+  CAMLparam3(raw_encoder, raw_texture, raw_index);
+  id<MTLComputeCommandEncoder> encoder =
+      object_of_handle(raw_encoder, Handle_kind::Compute_encoder);
+  id<MTLTexture> texture =
+      object_of_handle(raw_texture, Handle_kind::Texture);
+  const intnat index = Long_val(raw_index);
+  if (index < 0) {
+    CAMLreturn(result_error_text("compute texture index is negative"));
+  }
+  [encoder setTexture:texture atIndex:static_cast<NSUInteger>(index)];
+  CAMLreturn(result_unit());
+}
+
 extern "C" CAMLprim value caml_prismel_metal_compute_encoder_dispatch(
     value raw_encoder, value raw_threads, value raw_threadgroup) {
   CAMLparam3(raw_encoder, raw_threads, raw_threadgroup);
@@ -2749,6 +3016,165 @@ extern "C" CAMLprim value caml_prismel_metal_compute_encoder_end(value raw) {
   CAMLparam1(raw);
   id<MTLComputeCommandEncoder> encoder =
       object_of_handle(raw, Handle_kind::Compute_encoder);
+  [encoder endEncoding];
+  CAMLreturn(result_unit());
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_resource_state_encoder_update_texture_mapping(
+    value raw_encoder, value raw_texture, value raw_mode, value raw_region,
+    value raw_level, value raw_slice) {
+  CAMLparam5(raw_encoder, raw_texture, raw_mode, raw_region, raw_level);
+  CAMLxparam1(raw_slice);
+  @autoreleasepool {
+    @try {
+      id<MTLResourceStateCommandEncoder> encoder = object_of_handle(
+          raw_encoder, Handle_kind::Resource_state_encoder);
+      id<MTLTexture> texture =
+          object_of_handle(raw_texture, Handle_kind::Texture);
+      const intnat mode = Long_val(raw_mode);
+      const intnat x = Long_val(Field(raw_region, 0));
+      const intnat y = Long_val(Field(raw_region, 1));
+      const intnat z = Long_val(Field(raw_region, 2));
+      const intnat width = Long_val(Field(raw_region, 3));
+      const intnat height = Long_val(Field(raw_region, 4));
+      const intnat depth = Long_val(Field(raw_region, 5));
+      const intnat level = Long_val(raw_level);
+      const intnat slice = Long_val(raw_slice);
+      if (!texture.isSparse ||
+          (mode != MTLSparseTextureMappingModeMap &&
+           mode != MTLSparseTextureMappingModeUnmap) ||
+          x < 0 || y < 0 || z < 0 || width <= 0 || height <= 0 ||
+          depth <= 0 || level < 0 || slice < 0 ||
+          static_cast<NSUInteger>(level) >= texture.mipmapLevelCount ||
+          static_cast<NSUInteger>(slice) >= texture_slice_count(texture)) {
+        CAMLreturn(result_error_text(
+            "sparse texture mapping arguments are invalid"));
+      }
+      const MTLRegion region = MTLRegionMake3D(
+          static_cast<NSUInteger>(x), static_cast<NSUInteger>(y),
+          static_cast<NSUInteger>(z), static_cast<NSUInteger>(width),
+          static_cast<NSUInteger>(height), static_cast<NSUInteger>(depth));
+      [encoder updateTextureMapping:texture
+                               mode:static_cast<MTLSparseTextureMappingMode>(mode)
+                             region:region
+                           mipLevel:static_cast<NSUInteger>(level)
+                              slice:static_cast<NSUInteger>(slice)];
+      CAMLreturn(result_unit());
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_resource_state_encoder_update_texture_mapping_bytecode(
+    value *argv, int argn) {
+  (void)argn;
+  return caml_prismel_metal_resource_state_encoder_update_texture_mapping(
+      argv[0], argv[1], argv[2], argv[3], argv[4], argv[5]);
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_resource_state_encoder_end(value raw) {
+  CAMLparam1(raw);
+  id<MTLResourceStateCommandEncoder> encoder =
+      object_of_handle(raw, Handle_kind::Resource_state_encoder);
+  [encoder endEncoding];
+  CAMLreturn(result_unit());
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_blit_encoder_copy_buffer_to_texture(
+    value raw_encoder, value raw_buffer, value raw_texture, value raw_copy) {
+  CAMLparam4(raw_encoder, raw_buffer, raw_texture, raw_copy);
+  @autoreleasepool {
+    @try {
+      id<MTLBlitCommandEncoder> encoder =
+          object_of_handle(raw_encoder, Handle_kind::Blit_encoder);
+      id<MTLBuffer> buffer =
+          object_of_handle(raw_buffer, Handle_kind::Buffer);
+      id<MTLTexture> texture =
+          object_of_handle(raw_texture, Handle_kind::Texture);
+      const std::int64_t source_offset = Int64_val(Field(raw_copy, 0));
+      const intnat bytes_per_row = Long_val(Field(raw_copy, 1));
+      const intnat bytes_per_image = Long_val(Field(raw_copy, 2));
+      value raw_size = Field(raw_copy, 3);
+      const intnat width = Long_val(Field(raw_size, 0));
+      const intnat height = Long_val(Field(raw_size, 1));
+      const intnat depth = Long_val(Field(raw_size, 2));
+      const intnat slice = Long_val(Field(raw_copy, 4));
+      const intnat level = Long_val(Field(raw_copy, 5));
+      value raw_origin = Field(raw_copy, 6);
+      const intnat x = Long_val(Field(raw_origin, 0));
+      const intnat y = Long_val(Field(raw_origin, 1));
+      const intnat z = Long_val(Field(raw_origin, 2));
+      const NSUInteger pixel_bytes =
+          texture_bytes_per_pixel(texture.pixelFormat);
+      if (source_offset < 0 || bytes_per_row <= 0 || bytes_per_image <= 0 ||
+          width <= 0 || height <= 0 || depth <= 0 || slice < 0 || level < 0 ||
+          x < 0 || y < 0 || z < 0 || pixel_bytes == 0 ||
+          static_cast<NSUInteger>(slice) >= texture_slice_count(texture) ||
+          static_cast<NSUInteger>(level) >= texture.mipmapLevelCount ||
+          texture.sampleCount != 1 ||
+          buffer.device.registryID != texture.device.registryID) {
+        CAMLreturn(result_error_text("buffer-to-texture blit is invalid"));
+      }
+      const auto copy_width = static_cast<NSUInteger>(width);
+      const auto copy_height = static_cast<NSUInteger>(height);
+      const auto copy_depth = static_cast<NSUInteger>(depth);
+      const auto destination_x = static_cast<NSUInteger>(x);
+      const auto destination_y = static_cast<NSUInteger>(y);
+      const auto destination_z = static_cast<NSUInteger>(z);
+      const NSUInteger mip_width =
+          std::max<NSUInteger>(1, texture.width >> level);
+      const NSUInteger mip_height =
+          std::max<NSUInteger>(1, texture.height >> level);
+      const NSUInteger mip_depth =
+          std::max<NSUInteger>(1, texture.depth >> level);
+      if (copy_width > std::numeric_limits<NSUInteger>::max() / pixel_bytes ||
+          static_cast<NSUInteger>(bytes_per_row) < copy_width * pixel_bytes ||
+          static_cast<NSUInteger>(bytes_per_row) >
+              std::numeric_limits<NSUInteger>::max() / copy_height ||
+          static_cast<NSUInteger>(bytes_per_image) <
+              static_cast<NSUInteger>(bytes_per_row) * copy_height ||
+          static_cast<NSUInteger>(bytes_per_image) >
+              std::numeric_limits<NSUInteger>::max() / copy_depth ||
+          destination_x > mip_width || copy_width > mip_width - destination_x ||
+          destination_y > mip_height ||
+          copy_height > mip_height - destination_y ||
+          destination_z > mip_depth || copy_depth > mip_depth - destination_z) {
+        CAMLreturn(result_error_text("buffer-to-texture blit range is invalid"));
+      }
+      const NSUInteger required =
+          static_cast<NSUInteger>(bytes_per_image) * copy_depth;
+      const auto unsigned_offset = static_cast<std::uint64_t>(source_offset);
+      if (unsigned_offset > buffer.length || required > buffer.length - unsigned_offset) {
+        CAMLreturn(result_error_text(
+            "buffer-to-texture blit exceeds the source buffer"));
+      }
+      [encoder
+          copyFromBuffer:buffer
+             sourceOffset:static_cast<NSUInteger>(source_offset)
+        sourceBytesPerRow:static_cast<NSUInteger>(bytes_per_row)
+      sourceBytesPerImage:static_cast<NSUInteger>(bytes_per_image)
+               sourceSize:MTLSizeMake(copy_width, copy_height, copy_depth)
+                toTexture:texture
+         destinationSlice:static_cast<NSUInteger>(slice)
+         destinationLevel:static_cast<NSUInteger>(level)
+        destinationOrigin:MTLOriginMake(destination_x, destination_y,
+                                        destination_z)];
+      CAMLreturn(result_unit());
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+}
+
+extern "C" CAMLprim value caml_prismel_metal_blit_encoder_end(value raw) {
+  CAMLparam1(raw);
+  id<MTLBlitCommandEncoder> encoder =
+      object_of_handle(raw, Handle_kind::Blit_encoder);
   [encoder endEncoding];
   CAMLreturn(result_unit());
 }

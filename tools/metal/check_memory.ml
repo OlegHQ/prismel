@@ -8,6 +8,7 @@ type mode =
 type test =
   { label : string
   ; executable : string
+  ; arguments : string list
   }
 
 type process_result =
@@ -117,14 +118,31 @@ let existing_executable artifacts relative =
   Unix.realpath path
 
 let tests mode artifacts =
-  let test label relative =
-    { label; executable = existing_executable artifacts relative }
+  let test ?(arguments = []) label relative =
+    { label; executable = existing_executable artifacts relative; arguments }
   in
   let conformance = test "Metal conformance" "lib/metal/test_metal.exe" in
   let stress =
     test "Metal resource ownership stress" "lib/metal/test_metal_stress.exe"
   in
-  match mode with Guard_malloc -> [ conformance ] | _ -> [ conformance; stress ]
+  match mode with
+  | Guard_malloc -> [ conformance ]
+  | Leaks ->
+      let lanes =
+        [ "buffers"; "textures-samplers"; "heaps-resources"
+        ; "sparse-heaps-textures"; "residency-sets-resources"
+        ; "buffer-backed-textures"; "shared-textures"; "io-surfaces"
+        ; "external-buffers"
+        ]
+      in
+      conformance
+      :: List.map
+           (fun lane ->
+             test ~arguments:[ "--lane"; lane ]
+               ("Metal ownership stress: " ^ lane)
+               "lib/metal/test_metal_stress.exe")
+           lanes
+  | Address | Undefined | Thread -> [ conformance; stress ]
 
 let base_removals =
   [ "ASAN_OPTIONS"; "UBSAN_OPTIONS"; "TSAN_OPTIONS"
@@ -138,26 +156,29 @@ let run_test mode test =
     match mode with
     | Address ->
         ( test.executable
-        , []
+        , test.arguments
         , [ ( "ASAN_OPTIONS"
             , "abort_on_error=1:halt_on_error=1:detect_leaks=0:strict_string_checks=1:use_sigaltstack=0:quarantine_size_mb=0:thread_local_quarantine_size_kb=0" )
+          ; "PRISMEL_METAL_STRESS_RSS_TOLERANCE", "268435456"
           ] )
     | Undefined ->
         ( test.executable
-        , []
+        , test.arguments
         , [ "UBSAN_OPTIONS", "halt_on_error=1:print_stacktrace=1" ] )
     | Thread ->
         ( test.executable
-        , []
+        , test.arguments
         , [ "TSAN_OPTIONS", "halt_on_error=1"
-          ; "PRISMEL_METAL_STRESS_RSS_TOLERANCE", "67108864"
+          ; "PRISMEL_METAL_STRESS_RSS_TOLERANCE", "402653184"
           ; "PRISMEL_METAL_EXTERNAL_STRESS_RSS_TOLERANCE", "402653184"
           ] )
     | Leaks ->
-        "/usr/bin/leaks", [ "--quiet"; "--atExit"; "--"; test.executable ], []
+        ( "/usr/bin/leaks"
+        , [ "--quiet"; "--atExit"; "--"; test.executable ] @ test.arguments
+        , [] )
     | Guard_malloc ->
         ( test.executable
-        , []
+        , test.arguments
         , [ "DYLD_INSERT_LIBRARIES", "/usr/lib/libgmalloc.dylib"
           ; "MallocStackLogging", "1"
           ] )

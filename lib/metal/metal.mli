@@ -22,6 +22,15 @@ type purgeable_state =
   | Volatile
   | Empty
 
+module Sparse_page_size : sig
+  type t =
+    | Page_16_kib
+    | Page_64_kib
+    | Page_256_kib
+
+  val bytes : t -> int64
+end
+
 val pp_error : Format.formatter -> error -> unit
 
 module Provenance : sig
@@ -100,6 +109,7 @@ module Device : sig
   val supports_family : t -> family -> (bool, error) result
   val supports_texture_sample_count : t -> int -> (bool, error) result
   val supports_residency_sets : t -> (bool, error) result
+  val supports_sparse_textures : t -> (bool, error) result
   val destroy : t -> (unit, error) result
 end
 
@@ -263,6 +273,16 @@ module Texture : sig
     ; depth : int
     }
 
+  type sparse_info =
+    { page_size : Sparse_page_size.t
+    ; tile_width : int
+    ; tile_height : int
+    ; tile_depth : int
+    ; tile_size_in_bytes : int64
+    ; first_mip_in_tail : int option
+    ; tail_size_in_bytes : int64
+    }
+
   type buffer_backing =
     { buffer : Buffer.t
     ; offset : int64
@@ -346,6 +366,7 @@ module Texture : sig
   val heap_offset : t -> int64 option
   val buffer_backing : t -> buffer_backing option
   val io_surface_backing : t -> io_surface_backing option
+  val sparse_info : t -> (sparse_info option, error) result
   val is_shareable : t -> (bool, error) result
   val shared_handle : t -> (Shared_handle.t, error) result
   val import_shared :
@@ -370,7 +391,7 @@ end
 
 module Heap : sig
   type t
-  type kind = Automatic | Placement
+  type kind = Automatic | Placement | Sparse
   type cpu_cache_mode = Default_cache | Write_combined
   type hazard_tracking_mode =
     | Default_hazard_tracking
@@ -383,6 +404,7 @@ module Heap : sig
     ; cpu_cache : cpu_cache_mode
     ; hazard_tracking : hazard_tracking_mode
     ; kind : kind
+    ; sparse_page_size : Sparse_page_size.t option
     ; label : string option
     }
 
@@ -403,8 +425,11 @@ module Heap : sig
 
   val make_descriptor :
     ?storage:Buffer.storage_mode -> ?cpu_cache:cpu_cache_mode ->
-    ?hazard_tracking:hazard_tracking_mode -> ?kind:kind -> ?label:string ->
-    size:int64 -> unit -> descriptor
+    ?hazard_tracking:hazard_tracking_mode -> ?kind:kind ->
+    ?sparse_page_size:Sparse_page_size.t -> ?label:string -> size:int64 -> unit ->
+    descriptor
+  val sparse_tile_size_in_bytes :
+    device:Device.t -> Sparse_page_size.t -> (int64, error) result
   val buffer_size_and_align :
     device:Device.t -> length:int64 -> storage:Buffer.storage_mode ->
     ?cpu_cache:cpu_cache_mode -> ?hazard_tracking:hazard_tracking_mode ->
@@ -596,9 +621,47 @@ module Compute_encoder : sig
   val set_pipeline : t -> Compute_pipeline.t -> (unit, error) result
   val set_buffer :
     t -> index:int -> offset:int64 -> Buffer.t -> (unit, error) result
+  val set_texture : t -> index:int -> Texture.t -> (unit, error) result
   val dispatch_threads :
     t -> threads:int * int * int -> threadgroup:int * int * int ->
     (unit, error) result
+  val end_encoding : t -> (unit, error) result
+  val destroyed : t -> bool
+end
+
+module Resource_state_encoder : sig
+  type t
+
+  type mapping_mode =
+    | Map
+    | Unmap
+
+  type tile_region =
+    { x : int
+    ; y : int
+    ; z : int
+    ; width : int
+    ; height : int
+    ; depth : int
+    }
+
+  val create : Command_buffer.t -> (t, error) result
+  val update_texture_mapping :
+    t -> mode:mapping_mode -> Texture.t -> mip_level:int -> slice:int ->
+    region:tile_region -> (unit, error) result
+  val end_encoding : t -> (unit, error) result
+  val destroyed : t -> bool
+end
+
+module Blit_encoder : sig
+  type t
+
+  val create : Command_buffer.t -> (t, error) result
+  val copy_buffer_to_texture :
+    t -> source:Buffer.t -> source_offset:int64 -> source_bytes_per_row:int ->
+    source_bytes_per_image:int -> destination:Texture.t ->
+    destination_slice:int -> destination_level:int ->
+    destination_region:Texture.region -> (unit, error) result
   val end_encoding : t -> (unit, error) result
   val destroyed : t -> bool
 end

@@ -24,6 +24,17 @@ kernel void increment(device uint *values [[buffer(0)]],
 }
 |}
 
+let sparse_shader_source =
+  {|
+#include <metal_stdlib>
+using namespace metal;
+
+kernel void sparse_read(texture2d<uint, access::read> source [[texture(0)]],
+                        device uint *result [[buffer(0)]]) {
+  result[0] = source.read(uint2(0u, 0u)).x;
+}
+|}
+
 let input_values () =
   let bytes = Bytes.create 16 in
   [| 1l; 41l; 99l; -2l |]
@@ -57,6 +68,311 @@ let settle_finalizers ~expected_live =
     else loop (remaining - 1)
   in
   loop 8
+
+let complete_commands commands =
+  get (Command_buffer.commit commands);
+  get (Command_buffer.wait_until_completed commands);
+  (match get (Command_buffer.status commands) with
+   | Command_buffer.Completed -> ()
+   | _ -> fail "sparse conformance command buffer did not complete");
+  get (Command_buffer.destroy commands)
+
+let test_sparse_textures device =
+  if not (get (Device.supports_sparse_textures device)) then false
+  else begin
+    let page_sizes =
+      [ Sparse_page_size.Page_64_kib
+      ; Sparse_page_size.Page_16_kib
+      ; Sparse_page_size.Page_256_kib
+      ]
+    in
+    let supported_pages =
+      List.filter_map
+        (fun page_size ->
+          match Heap.sparse_tile_size_in_bytes ~device page_size with
+          | Ok bytes ->
+              if bytes <> Sparse_page_size.bytes page_size then
+                fail "sparse page size query changed its byte cardinality";
+              Some (page_size, bytes)
+          | Error { kind = Unsupported; _ } -> None
+          | Error error -> fail "%s" (Format.asprintf "%a" pp_error error))
+        page_sizes
+    in
+    let page_size, page_bytes =
+      match supported_pages with
+      | first :: _ -> first
+      | [] -> fail "device reports sparse textures but no supported page size"
+    in
+    List.iter
+      (fun (candidate, bytes) ->
+        let probe =
+          get
+            (Heap.create ~device
+               (Heap.make_descriptor ~kind:Heap.Sparse
+                  ~sparse_page_size:candidate ~size:bytes ()))
+        in
+        get (Heap.destroy probe))
+      supported_pages;
+    let before_invalid = get (Release_queue.stats ()) in
+    ignore
+      (expect_error Invalid_argument
+         (Heap.create ~device
+            (Heap.make_descriptor ~kind:Heap.Sparse ~size:page_bytes ())));
+    ignore
+      (expect_error Invalid_argument
+         (Heap.create ~device
+            (Heap.make_descriptor ~sparse_page_size:page_size
+               ~size:page_bytes ())));
+    ignore
+      (expect_error Invalid_argument
+         (Heap.create ~device
+            (Heap.make_descriptor ~kind:Heap.Sparse
+               ~sparse_page_size:page_size ~storage:Buffer.Shared
+               ~size:page_bytes ())));
+    ignore
+      (expect_error Invalid_argument
+         (Heap.create ~device
+            (Heap.make_descriptor ~kind:Heap.Sparse
+               ~sparse_page_size:page_size ~size:(Int64.pred page_bytes) ())));
+    let after_invalid = get (Release_queue.stats ()) in
+    if after_invalid.total_created <> before_invalid.total_created then
+      fail "invalid sparse heap descriptors allocated native handles";
+    let heap =
+      get
+        (Heap.create ~device
+           (Heap.make_descriptor ~kind:Heap.Sparse
+              ~sparse_page_size:page_size ~label:"Metal sparse heap"
+              ~size:(Int64.mul 4L page_bytes) ()))
+    in
+    let heap_info = get (Heap.info heap) in
+    if heap_info.kind <> Heap.Sparse || heap_info.storage <> Buffer.Private then
+      fail "sparse heap properties did not round-trip";
+    ignore
+      (expect_error Unsupported
+         (Heap.create_buffer heap ~length:page_bytes ()));
+    let descriptor =
+      Texture.descriptor_2d ~mipmapped:true ~storage:Buffer.Private
+        ~usage:[ Texture.Shader_read; Texture.Shader_write ]
+        ~label:"Metal sparse texture" ~format:Texture.R8_uint ~width:1024
+        ~height:1024 ()
+    in
+    ignore
+      (expect_error Invalid_argument
+         (Heap.create_texture heap ~offset:0L descriptor));
+    ignore
+      (expect_error Unsupported
+         (Heap.create_texture heap
+            { descriptor with
+              kind = Texture.Texture_1d
+            ; height = 1
+            }));
+    ignore
+      (expect_error Unsupported
+         (Heap.create_texture heap
+            { descriptor with format = Texture.Depth32_float }));
+    let texture = get (Heap.create_texture heap descriptor) in
+    if Texture.heap_offset texture <> None then
+      fail "sparse texture unexpectedly reports a placement offset";
+    let sparse_info =
+      match get (Texture.sparse_info texture) with
+      | Some info -> info
+      | None -> fail "sparse heap returned a non-sparse texture"
+    in
+    if sparse_info.page_size <> page_size
+       || sparse_info.tile_size_in_bytes <> page_bytes
+       || sparse_info.tile_width <= 0 || sparse_info.tile_height <= 0
+       || sparse_info.tile_depth <= 0
+    then fail "sparse texture metadata is inconsistent";
+    ignore (expect_error Invalid_state (Texture.purgeable_state texture));
+    ignore
+      (expect_error Invalid_state
+         (Texture.set_purgeable_state texture Volatile));
+    ignore (expect_error Invalid_state (Texture.make_aliasable texture));
+    let ordinary =
+      get
+        (Texture.create ~device
+           (Texture.descriptor_2d ~storage:Buffer.Private
+              ~usage:[ Texture.Shader_read; Texture.Shader_write ]
+              ~format:Texture.R8_uint ~width:4 ~height:4 ()))
+    in
+    if get (Texture.sparse_info ordinary) <> None then
+      fail "ordinary texture was reported as sparse";
+    let overflow_texture =
+      get
+        (Texture.create ~device
+           { (Texture.descriptor_2d ~storage:Buffer.Private
+                ~format:Texture.R8_uint ~width:1 ~height:1 ()) with
+             kind = Texture.Texture_3d
+           ; depth = 2
+           })
+    in
+    let staging_bytes = Bytes.make (Int64.to_int page_bytes) '\000' in
+    Bytes.set staging_bytes 0 (Char.chr 37);
+    let staging =
+      get
+        (Buffer.create_copy ~device ~storage:Buffer.Shared
+           ~label:"Metal sparse tile staging" staging_bytes)
+    in
+    let queue = get (Command_queue.create device) in
+    let tile : Resource_state_encoder.tile_region =
+      { x = 0; y = 0; z = 0; width = 1; height = 1; depth = 1 }
+    in
+    let map_commands = get (Command_buffer.create queue ()) in
+    let mapper = get (Resource_state_encoder.create map_commands) in
+    ignore
+      (expect_error Invalid_argument
+         (Resource_state_encoder.update_texture_mapping mapper
+            ~mode:Resource_state_encoder.Map ordinary ~mip_level:0 ~slice:0
+            ~region:tile));
+    ignore
+      (expect_error Invalid_argument
+         (Resource_state_encoder.update_texture_mapping mapper
+            ~mode:Resource_state_encoder.Map texture ~mip_level:(-1) ~slice:0
+            ~region:tile));
+    ignore
+      (expect_error Invalid_argument
+         (Resource_state_encoder.update_texture_mapping mapper
+            ~mode:Resource_state_encoder.Map texture ~mip_level:0 ~slice:1
+            ~region:tile));
+    ignore
+      (expect_error Invalid_argument
+         (Resource_state_encoder.update_texture_mapping mapper
+            ~mode:Resource_state_encoder.Map texture ~mip_level:0 ~slice:0
+            ~region:{ tile with x = max_int }));
+    get
+      (Resource_state_encoder.update_texture_mapping mapper
+         ~mode:Resource_state_encoder.Map texture ~mip_level:0 ~slice:0
+         ~region:tile);
+    Option.iter
+      (fun first_mip ->
+        get
+          (Resource_state_encoder.update_texture_mapping mapper
+             ~mode:Resource_state_encoder.Map texture ~mip_level:first_mip
+             ~slice:0 ~region:tile))
+      sparse_info.first_mip_in_tail;
+    ignore (expect_error Parent_has_dependents (Texture.destroy texture));
+    ignore (expect_error Parent_has_dependents (Heap.destroy heap));
+    ignore
+      (expect_error Parent_has_dependents
+         (Heap.set_purgeable_state heap Volatile));
+    ignore (expect_error Invalid_state (Command_buffer.commit map_commands));
+    get (Resource_state_encoder.end_encoding mapper);
+    if not (Resource_state_encoder.destroyed mapper) then
+      fail "ended resource-state encoder remained live";
+    ignore
+      (expect_error Destroyed
+         (Resource_state_encoder.update_texture_mapping mapper
+            ~mode:Resource_state_encoder.Map texture ~mip_level:0 ~slice:0
+            ~region:tile));
+    let blit = get (Blit_encoder.create map_commands) in
+    let destination_region : Texture.region =
+      { x = 0
+      ; y = 0
+      ; z = 0
+      ; width = sparse_info.tile_width
+      ; height = sparse_info.tile_height
+      ; depth = sparse_info.tile_depth
+      }
+    in
+    ignore
+      (expect_error Invalid_argument
+         (Blit_encoder.copy_buffer_to_texture blit ~source:staging
+            ~source_offset:(-1L)
+            ~source_bytes_per_row:sparse_info.tile_width
+            ~source_bytes_per_image:(Int64.to_int page_bytes)
+            ~destination:texture ~destination_slice:0 ~destination_level:0
+            ~destination_region));
+    ignore
+      (expect_error Invalid_argument
+         (Blit_encoder.copy_buffer_to_texture blit ~source:staging
+            ~source_offset:0L ~source_bytes_per_row:1
+            ~source_bytes_per_image:max_int ~destination:overflow_texture
+            ~destination_slice:0 ~destination_level:0
+            ~destination_region:
+              { x = 0; y = 0; z = 0; width = 1; height = 1; depth = 2 }));
+    get
+      (Blit_encoder.copy_buffer_to_texture blit ~source:staging
+         ~source_offset:0L ~source_bytes_per_row:sparse_info.tile_width
+         ~source_bytes_per_image:(Int64.to_int page_bytes)
+         ~destination:texture ~destination_slice:0 ~destination_level:0
+         ~destination_region);
+    ignore (expect_error Parent_has_dependents (Buffer.destroy staging));
+    get (Blit_encoder.end_encoding blit);
+    if not (Blit_encoder.destroyed blit) then
+      fail "ended blit encoder remained live";
+    ignore
+      (expect_error Destroyed
+         (Blit_encoder.copy_buffer_to_texture blit ~source:staging
+            ~source_offset:0L ~source_bytes_per_row:sparse_info.tile_width
+            ~source_bytes_per_image:(Int64.to_int page_bytes)
+            ~destination:texture ~destination_slice:0 ~destination_level:0
+            ~destination_region));
+    complete_commands map_commands;
+    let library = get (Library.compile_source ~device sparse_shader_source) in
+    let read_function = get (Function.find ~library "sparse_read") in
+    let read_pipeline = get (Compute_pipeline.create read_function) in
+    let output =
+      get (Buffer.create ~device ~length:4L ~storage:Buffer.Shared ())
+    in
+    let run_read source =
+      get (Buffer.write_bytes output ~dst_offset:0L (Bytes.make 4 '\000'));
+      let commands = get (Command_buffer.create queue ()) in
+      let encoder = get (Compute_encoder.create commands) in
+      get (Compute_encoder.set_pipeline encoder read_pipeline);
+      ignore
+        (expect_error Invalid_argument
+           (Compute_encoder.set_texture encoder ~index:(-1) source));
+      get (Compute_encoder.set_texture encoder ~index:0 source);
+      get (Compute_encoder.set_buffer encoder ~index:0 ~offset:0L output);
+      get
+        (Compute_encoder.dispatch_threads encoder ~threads:(1, 1, 1)
+           ~threadgroup:(1, 1, 1));
+      get (Compute_encoder.end_encoding encoder);
+      complete_commands commands;
+      Bytes.get_int32_le (get (Buffer.read_bytes output ~offset:0L ~length:4)) 0
+    in
+    let mapped_value = run_read texture in
+    if mapped_value <> 37l then begin
+      let mapped_heap = get (Heap.info heap) in
+      fail
+        "mapped sparse texture lost GPU writes (value=%ld used=%Ld allocated=%Ld page=%Ld tile=%dx%dx%d tail=%s/%Ld)"
+        mapped_value mapped_heap.used_size mapped_heap.current_allocated_size
+        page_bytes sparse_info.tile_width sparse_info.tile_height
+        sparse_info.tile_depth
+        (match sparse_info.first_mip_in_tail with
+         | None -> "none"
+         | Some level -> string_of_int level)
+        sparse_info.tail_size_in_bytes
+    end;
+    let unmap_commands = get (Command_buffer.create queue ()) in
+    let unmapper = get (Resource_state_encoder.create unmap_commands) in
+    get
+      (Resource_state_encoder.update_texture_mapping unmapper
+         ~mode:Resource_state_encoder.Unmap texture ~mip_level:0 ~slice:0
+         ~region:tile);
+    Option.iter
+      (fun first_mip ->
+        get
+          (Resource_state_encoder.update_texture_mapping unmapper
+             ~mode:Resource_state_encoder.Unmap texture ~mip_level:first_mip
+             ~slice:0 ~region:tile))
+      sparse_info.first_mip_in_tail;
+    get (Resource_state_encoder.end_encoding unmapper);
+    complete_commands unmap_commands;
+    if run_read texture <> 0l then
+      fail "unmapped sparse texture did not return defined zero data";
+    get (Buffer.destroy staging);
+    get (Buffer.destroy output);
+    get (Compute_pipeline.destroy read_pipeline);
+    get (Function.destroy read_function);
+    get (Library.destroy library);
+    get (Texture.destroy overflow_texture);
+    get (Texture.destroy ordinary);
+    get (Texture.destroy texture);
+    get (Heap.destroy heap);
+    get (Command_queue.destroy queue);
+    true
+  end
 
 let test_residency_set device =
   let supported = get (Device.supports_residency_sets device) in
@@ -219,6 +535,7 @@ let () =
       fail "default device identity is incomplete";
     if info.max_buffer_length < 16L then fail "device buffer limit is invalid";
     let residency_sets_supported = test_residency_set device in
+    ignore (test_sparse_textures device);
     let before_finalizer = get (Release_queue.stats ()) in
     let allocate_unreleased_buffer () =
       ignore (get (Buffer.create ~device ~length:16L ~storage:Buffer.Shared ()))
@@ -1729,6 +2046,6 @@ let () =
         stats.external_deallocations
         stats.external_deallocation_mismatches;
     Printf.printf
-      "Metal ARC/device/heap/buffer/texture/sampler/residency/runtime-shader/compute conformance passed on %s\n%!"
+      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/compute conformance passed on %s\n%!"
       info.name
   end

@@ -213,6 +213,11 @@ type purgeable_state =
   | Volatile
   | Empty
 
+type sparse_page_size =
+  | Page_16_kib
+  | Page_64_kib
+  | Page_256_kib
+
 type resource_state =
   { relinquished : bool Atomic.t
   ; purgeable : purgeable_state Atomic.t
@@ -245,6 +250,7 @@ type texture_descriptor =
 type heap_kind =
   | Automatic
   | Placement
+  | Sparse
 
 type heap_descriptor =
   { size : int64
@@ -252,6 +258,7 @@ type heap_descriptor =
   ; cpu_cache : resource_cpu_cache_mode
   ; hazard_tracking : resource_hazard_tracking_mode
   ; kind : heap_kind
+  ; sparse_page_size : sparse_page_size option
   ; label : string option
   }
 
@@ -470,6 +477,7 @@ type command_phase =
 
 type command_resource =
   | Command_buffer_buffer of buffer
+  | Command_buffer_texture of texture
   | Command_residency_set of residency_set
 
 type command_buffer =
@@ -487,6 +495,18 @@ type compute_encoder =
   ; mutable pipeline : compute_pipeline option
   }
 
+type resource_state_encoder =
+  { raw : Metal_raw.handle
+  ; lifetime : lifetime
+  ; command_buffer : command_buffer
+  }
+
+type blit_encoder =
+  { raw : Metal_raw.handle
+  ; lifetime : lifetime
+  ; command_buffer : command_buffer
+  }
+
 let make_device raw =
   ({ raw; lifetime = lifetime (); registry_id = Metal_raw.device_registry_id raw }
     : device)
@@ -496,12 +516,25 @@ let attach_finalizer ?(on_finalize = fun () -> ()) value lifetime parent =
 
 let command_resource_lifetime = function
   | Command_buffer_buffer buffer -> buffer.lifetime
+  | Command_buffer_texture texture -> texture.lifetime
   | Command_residency_set residency_set -> residency_set.lifetime
+
+let rec command_texture_heap (value : texture) =
+  match value.parent with
+  | Texture_resource (Heap_resource heap) -> Some heap
+  | Texture_resource (Device_resource _ | External_resource _)
+  | Texture_io_surface_resource _ -> None
+  | Texture_buffer_resource backing ->
+      (match backing.buffer.parent with
+       | Heap_resource heap -> Some heap
+       | Device_resource _ | External_resource _ -> None)
+  | Texture_view parent -> command_texture_heap parent
 
 let command_resource_heap = function
   | Command_buffer_buffer { parent = Heap_resource heap; _ } -> Some heap
   | Command_buffer_buffer
       { parent = (Device_resource _ | External_resource _); _ } -> None
+  | Command_buffer_texture texture -> command_texture_heap texture
   | Command_residency_set _ -> None
 
 let release_command_resources resources =
@@ -519,6 +552,7 @@ let retain_command_buffer_buffer (command_buffer : command_buffer) (buffer : buf
     List.exists
       (function
         | Command_buffer_buffer retained -> retained.lifetime == buffer.lifetime
+        | Command_buffer_texture _ -> false
         | Command_residency_set _ -> false)
       !(command_buffer.resources)
   in
@@ -532,6 +566,24 @@ let retain_command_buffer_buffer (command_buffer : command_buffer) (buffer : buf
       Command_buffer_buffer buffer :: !(command_buffer.resources)
   end
 
+let retain_command_buffer_texture (command_buffer : command_buffer)
+    (texture : texture) =
+  let already_retained =
+    List.exists
+      (function
+        | Command_buffer_texture retained ->
+            retained.lifetime == texture.lifetime
+        | Command_buffer_buffer _ | Command_residency_set _ -> false)
+      !(command_buffer.resources)
+  in
+  if not already_retained then begin
+    attach texture.lifetime;
+    Option.iter (fun heap -> Atomic.incr heap.active_uses)
+      (command_texture_heap texture);
+    command_buffer.resources :=
+      Command_buffer_texture texture :: !(command_buffer.resources)
+  end
+
 let retain_command_buffer_residency_set (command_buffer : command_buffer)
     (residency_set : residency_set) =
   let already_retained =
@@ -539,7 +591,7 @@ let retain_command_buffer_residency_set (command_buffer : command_buffer)
       (function
         | Command_residency_set retained ->
             retained.lifetime == residency_set.lifetime
-        | Command_buffer_buffer _ -> false)
+        | Command_buffer_buffer _ | Command_buffer_texture _ -> false)
       !(command_buffer.resources)
   in
   if not already_retained then begin
@@ -691,6 +743,23 @@ let hazard_mode_of_code operation = function
   | code ->
       native_error operation (Printf.sprintf "unknown hazard tracking mode %d" code)
 
+module Sparse_page_size = struct
+  type t = sparse_page_size =
+    | Page_16_kib
+    | Page_64_kib
+    | Page_256_kib
+
+  let bytes = function
+    | Page_16_kib -> 16_384L
+    | Page_64_kib -> 65_536L
+    | Page_256_kib -> 262_144L
+end
+
+let sparse_page_size_code = function
+  | Page_16_kib -> 101
+  | Page_64_kib -> 102
+  | Page_256_kib -> 103
+
 module Device = struct
   type t = device
 
@@ -811,6 +880,12 @@ module Device = struct
       match ensure_live "Metal.Device.supports_residency_sets" value.lifetime with
       | Error _ as failure -> failure
       | Ok () -> Ok (Metal_raw.device_supports_residency_sets value.raw))
+
+  let supports_sparse_textures (value : t) =
+    on_main "Metal.Device.supports_sparse_textures" (fun () ->
+      match ensure_live "Metal.Device.supports_sparse_textures" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () -> Ok (Metal_raw.device_supports_sparse_textures value.raw))
 
   let destroy (value : t) =
     destroy_parent "Metal.Device.destroy" value.lifetime value.raw (fun () -> ())
@@ -1444,6 +1519,16 @@ module Texture = struct
     ; depth : int
     }
 
+  type sparse_info =
+    { page_size : Sparse_page_size.t
+    ; tile_width : int
+    ; tile_height : int
+    ; tile_depth : int
+    ; tile_size_in_bytes : int64
+    ; first_mip_in_tail : int option
+    ; tail_size_in_bytes : int64
+    }
+
   type buffer_backing = buffer_texture_backing =
     { buffer : Buffer.t
     ; offset : int64
@@ -2061,6 +2146,69 @@ module Texture = struct
     | Texture_view parent -> io_surface_backing parent
     | Texture_resource _ | Texture_buffer_resource _ -> None
 
+  let decode_sparse_info operation page_size values =
+    if Array.length values <> 6 then
+      native_error operation "Metal returned malformed sparse texture metadata"
+    else
+      let integer index =
+        let value = values.(index) in
+        if value <= 0L || value > Int64.of_int max_int then None
+        else Some (Int64.to_int value)
+      in
+      match integer 0, integer 1, integer 2 with
+      | Some tile_width, Some tile_height, Some tile_depth ->
+          let tile_size_in_bytes = values.(3) in
+          let first_tail = values.(4) in
+          let tail_size_in_bytes = values.(5) in
+          if tile_size_in_bytes <> Sparse_page_size.bytes page_size
+             || tail_size_in_bytes < 0L
+             || first_tail < -1L || first_tail > Int64.of_int max_int
+          then
+            native_error operation
+              "Metal returned inconsistent sparse texture metadata"
+          else
+            Ok
+              { page_size
+              ; tile_width
+              ; tile_height
+              ; tile_depth
+              ; tile_size_in_bytes
+              ; first_mip_in_tail =
+                  (if first_tail < 0L then None
+                   else Some (Int64.to_int first_tail))
+              ; tail_size_in_bytes
+              }
+      | None, _, _ | _, None, _ | _, _, None ->
+          native_error operation
+            "Metal returned invalid sparse texture tile dimensions"
+
+  let sparse_info_raw operation (value : t) =
+    if not (Metal_raw.texture_is_sparse value.raw) then Ok None
+    else
+      match texture_heap value with
+      | Some
+          { descriptor =
+              { kind = Sparse; sparse_page_size = Some page_size; _ }
+          ; _ } ->
+          (match
+             Metal_raw.texture_sparse_info value.device.raw value.raw
+               (sparse_page_size_code page_size)
+           with
+           | Error message -> native_error operation message
+           | Ok values ->
+               (match decode_sparse_info operation page_size values with
+                | Error _ as failure -> failure
+                | Ok info -> Ok (Some info)))
+      | Some _ | None ->
+          native_error operation
+            "sparse texture has no matching typed sparse-heap ancestry"
+
+  let sparse_info (value : t) =
+    on_main "Metal.Texture.sparse_info" (fun () ->
+      match ensure_live "Metal.Texture.sparse_info" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () -> sparse_info_raw "Metal.Texture.sparse_info" value)
+
   let is_shareable (value : t) =
     on_main "Metal.Texture.is_shareable" (fun () ->
       match ensure_live "Metal.Texture.is_shareable" value.lifetime with
@@ -2505,6 +2653,12 @@ module Texture = struct
     on_main "Metal.Texture.purgeable_state" (fun () ->
       match ensure_live "Metal.Texture.purgeable_state" value.lifetime with
       | Error _ as failure -> failure
+      | Ok ()
+        when option_exists
+               (fun (heap : heap) -> heap.descriptor.kind = Sparse)
+               (texture_heap value) ->
+          error "Metal.Texture.purgeable_state" Invalid_state
+            "the sparse heap controls physical-page purgeability"
       | Ok () ->
           (match buffer_backing value with
            | Some backing -> Buffer.purgeable_state backing.buffer
@@ -2528,6 +2682,12 @@ module Texture = struct
       | Ok () when dependent_count value.lifetime <> 0 ->
           error "Metal.Texture.set_purgeable_state" Parent_has_dependents
             "texture has a live view or command dependency"
+      | Ok ()
+        when option_exists
+               (fun (heap : heap) -> heap.descriptor.kind = Sparse)
+               (texture_heap value) ->
+          error "Metal.Texture.set_purgeable_state" Invalid_state
+            "set purgeability on the sparse heap"
       | Ok () ->
           (match value.parent with
            | Texture_view _ ->
@@ -2589,7 +2749,10 @@ module Texture = struct
                error "Metal.Texture.make_aliasable" Invalid_state
                  "externally backed textures cannot become aliasable"
            | Texture_resource (Heap_resource heap) ->
-               (match
+               (if heap.descriptor.kind = Sparse then
+                  error "Metal.Texture.make_aliasable" Invalid_state
+                    "sparse texture mappings are released by unmapping tiles"
+                else match
                   ensure_heap_nonvolatile "Metal.Texture.make_aliasable"
                     (Some heap)
                 with
@@ -2619,7 +2782,7 @@ end
 
 module Heap = struct
   type t = heap
-  type kind = heap_kind = Automatic | Placement
+  type kind = heap_kind = Automatic | Placement | Sparse
   type cpu_cache_mode = resource_cpu_cache_mode = Default_cache | Write_combined
   type hazard_tracking_mode = resource_hazard_tracking_mode =
     | Default_hazard_tracking
@@ -2632,6 +2795,7 @@ module Heap = struct
     ; cpu_cache : cpu_cache_mode
     ; hazard_tracking : hazard_tracking_mode
     ; kind : kind
+    ; sparse_page_size : Sparse_page_size.t option
     ; label : string option
     }
 
@@ -2651,15 +2815,16 @@ module Heap = struct
     }
 
   let make_descriptor ?(storage = Private) ?(cpu_cache = Default_cache)
-      ?(hazard_tracking = Default_hazard_tracking) ?(kind = Automatic) ?label
-      ~size () =
-    { size; storage; cpu_cache; hazard_tracking; kind; label }
+      ?(hazard_tracking = Default_hazard_tracking) ?(kind = Automatic)
+      ?sparse_page_size ?label ~size () =
+    { size; storage; cpu_cache; hazard_tracking; kind; sparse_page_size; label }
 
-  let kind_code = function Automatic -> 0 | Placement -> 1
+  let kind_code = function Automatic -> 0 | Placement -> 1 | Sparse -> 2
 
   let kind_of_code operation = function
     | 0 -> Ok Automatic
     | 1 -> Ok Placement
+    | 2 -> Ok Sparse
     | code -> native_error operation (Printf.sprintf "unknown heap kind %d" code)
 
   let storage_of_code operation = function
@@ -2668,21 +2833,68 @@ module Heap = struct
     | 2 -> Ok Private
     | code -> native_error operation (Printf.sprintf "unknown storage mode %d" code)
 
-  let validate_descriptor operation (descriptor : descriptor) =
+  let sparse_tile_size_in_bytes_raw operation (device : Device.t) page_size =
+    if not (Metal_raw.device_supports_sparse_textures device.raw) then
+      error operation Unsupported "device does not support sparse textures"
+    else
+      match
+        Metal_raw.device_sparse_tile_size_in_bytes device.raw
+          (sparse_page_size_code page_size)
+      with
+      | Error message -> error operation Unsupported message
+      | Ok bytes when bytes <> Sparse_page_size.bytes page_size ->
+          native_error operation
+            "Metal changed the selected sparse page's byte cardinality"
+      | Ok bytes -> Ok bytes
+
+  let sparse_tile_size_in_bytes ~(device : Device.t) page_size =
+    on_main "Metal.Heap.sparse_tile_size_in_bytes" (fun () ->
+      match
+        ensure_live "Metal.Heap.sparse_tile_size_in_bytes" device.lifetime
+      with
+      | Error _ as failure -> failure
+      | Ok () ->
+          sparse_tile_size_in_bytes_raw
+            "Metal.Heap.sparse_tile_size_in_bytes" device page_size)
+
+  let validate_descriptor operation (device : Device.t)
+      (descriptor : descriptor) =
     if descriptor.size <= 0L then
       error operation Invalid_argument "heap size must be positive"
     else if descriptor.storage = Managed then
       error operation Unsupported "Metal heaps do not support managed storage"
     else if option_exists contains_nul descriptor.label then
       error operation Invalid_argument "heap label contains a NUL byte"
-    else Ok ()
+    else
+      match descriptor.kind, descriptor.sparse_page_size with
+      | (Automatic | Placement), Some _ ->
+          error operation Invalid_argument
+            "only sparse heaps accept a sparse page size"
+      | Sparse, None ->
+          error operation Invalid_argument
+            "sparse heaps require an explicit sparse page size"
+      | Sparse, Some _
+        when descriptor.storage <> Private
+             || descriptor.cpu_cache <> Default_cache ->
+          error operation Invalid_argument
+            "sparse heaps require private default-cache storage"
+      | (Automatic | Placement), None -> Ok ()
+      | Sparse, Some page_size ->
+          (match sparse_tile_size_in_bytes_raw operation device page_size with
+           | Error _ as failure -> failure
+           | Ok page_bytes when Int64.rem descriptor.size page_bytes <> 0L ->
+               error operation Invalid_argument
+                 "sparse heap size must be a whole number of sparse pages"
+           | Ok _ -> Ok ())
 
   let descriptor_tuple (descriptor : descriptor) =
     ( descriptor.size
     , storage_code descriptor.storage
     , cache_code descriptor.cpu_cache
     , hazard_code descriptor.hazard_tracking
-    , kind_code descriptor.kind )
+    , kind_code descriptor.kind
+    , Option.fold ~none:0 ~some:sparse_page_size_code
+        descriptor.sparse_page_size )
 
   let decode_info operation raw =
     let values = Metal_raw.heap_info raw in
@@ -2769,7 +2981,7 @@ module Heap = struct
       match ensure_live "Metal.Heap.create" device.lifetime with
       | Error _ as failure -> failure
       | Ok () ->
-          (match validate_descriptor "Metal.Heap.create" descriptor with
+          (match validate_descriptor "Metal.Heap.create" device descriptor with
            | Error _ as failure -> failure
            | Ok () ->
                match
@@ -2924,6 +3136,10 @@ module Heap = struct
           error operation Invalid_state
             "heap placement overlaps a live non-aliasable resource"
         else Ok ()
+    | Sparse, None -> Ok ()
+    | Sparse, Some _ ->
+        error operation Invalid_argument
+          "sparse heaps do not accept placement offsets"
 
   let make_allocation offset (required : size_and_align) =
     Option.map
@@ -2949,6 +3165,9 @@ module Heap = struct
       | Ok () when Atomic.get value.purgeable <> Nonvolatile ->
           error "Metal.Heap.create_buffer" Invalid_state
             "heap must be nonvolatile before allocating resources"
+      | Ok () when value.descriptor.kind = Sparse ->
+          error "Metal.Heap.create_buffer" Unsupported
+            "legacy sparse heaps allocate textures, not buffers"
       | Ok () ->
           match
             Buffer.validate_create "Metal.Heap.create_buffer" value.device
@@ -3024,37 +3243,101 @@ module Heap = struct
                let descriptor =
                  { descriptor with hazard_tracking = expected_hazard }
                in
-               match
-                 Metal_raw.heap_texture_size_and_align value.device.raw
-                   (Texture.descriptor_tuple descriptor)
-                 |> validate_size_and_align "Metal.Heap.create_texture"
-                      ~minimum:1L
-               with
-               | Error _ as failure -> failure
-               | Ok required ->
-                   match
-                     validate_placement "Metal.Heap.create_texture" value offset
-                       required
-                   with
-                   | Error _ as failure -> failure
-                   | Ok () ->
-                       let allocation = make_allocation offset required in
-                       let result =
-                         match
-                           Metal_raw.heap_texture_create value.raw
-                             (Texture.descriptor_tuple descriptor) offset
-                             descriptor.label
+               match value.descriptor.kind with
+               | Sparse ->
+                   (match offset, value.descriptor.sparse_page_size with
+                    | Some _, _ ->
+                        error "Metal.Heap.create_texture" Invalid_argument
+                          "sparse heaps do not accept placement offsets"
+                    | None, None ->
+                        native_error "Metal.Heap.create_texture"
+                          "sparse heap lost its checked page size"
+                    | None, Some page_size ->
+                        let sparse_kind_supported =
+                          match descriptor.kind with
+                          | Texture.Texture_2d | Texture.Texture_2d_array
+                          | Texture.Texture_cube | Texture.Texture_cube_array
+                          | Texture.Texture_3d -> true
+                          | Texture.Texture_1d | Texture.Texture_1d_array
+                          | Texture.Texture_2d_multisample
+                          | Texture.Texture_2d_multisample_array
+                          | Texture.Texture_buffer -> false
+                        in
+                        if not sparse_kind_supported then
+                          error "Metal.Heap.create_texture" Unsupported
+                            "sparse heaps support reviewed 2D, cube, and 3D texture kinds"
+                        else if
+                          not
+                            (Texture.supports_buffer_backing descriptor.format)
+                        then
+                          error "Metal.Heap.create_texture" Unsupported
+                            "sparse depth and stencil textures are not yet in the reviewed format matrix"
+                        else
+                          match
+                            Metal_raw.device_sparse_texture_tile_size
+                              value.device.raw
+                              (Texture.kind_code descriptor.kind)
+                              (Texture.format_code descriptor.format)
+                              descriptor.sample_count
+                              (sparse_page_size_code page_size)
+                          with
+                          | Error message ->
+                              error "Metal.Heap.create_texture" Unsupported
+                                message
+                          | Ok (width, height, depth)
+                            when width <= 0 || height <= 0 || depth <= 0 ->
+                              native_error "Metal.Heap.create_texture"
+                                "Metal returned invalid sparse tile dimensions"
+                          | Ok _ ->
+                              (match
+                                 Metal_raw.heap_texture_create value.raw
+                                   (Texture.descriptor_tuple descriptor) None
+                                   descriptor.label
+                               with
+                               | Error message ->
+                                   native_error "Metal.Heap.create_texture"
+                                     message
+                               | Ok raw ->
+                                   Texture.finish_create
+                                     "Metal.Heap.create_texture"
+                                     ~device:value.device ~descriptor
+                                     ~parent:
+                                       (Texture_resource (Heap_resource value))
+                                     ~heap_offset:None ~allocation:None raw))
+               | Automatic | Placement ->
+                   (match
+                      Metal_raw.heap_texture_size_and_align value.device.raw
+                        (Texture.descriptor_tuple descriptor)
+                      |> validate_size_and_align "Metal.Heap.create_texture"
+                           ~minimum:1L
+                    with
+                    | Error _ as failure -> failure
+                    | Ok required ->
+                        (match
+                           validate_placement "Metal.Heap.create_texture" value
+                             offset required
                          with
-                         | Error message ->
-                             native_error "Metal.Heap.create_texture" message
-                         | Ok raw ->
-                             Texture.finish_create "Metal.Heap.create_texture"
-                               ~device:value.device ~descriptor
-                               ~parent:
-                                 (Texture_resource (Heap_resource value))
-                               ~heap_offset:offset ~allocation raw
-                       in
-                       register_allocation value allocation result)
+                         | Error _ as failure -> failure
+                         | Ok () ->
+                             let allocation = make_allocation offset required in
+                             let result =
+                               match
+                                 Metal_raw.heap_texture_create value.raw
+                                   (Texture.descriptor_tuple descriptor) offset
+                                   descriptor.label
+                               with
+                               | Error message ->
+                                   native_error "Metal.Heap.create_texture"
+                                     message
+                               | Ok raw ->
+                                   Texture.finish_create
+                                     "Metal.Heap.create_texture"
+                                     ~device:value.device ~descriptor
+                                     ~parent:
+                                       (Texture_resource (Heap_resource value))
+                                     ~heap_offset:offset ~allocation raw
+                             in
+                             register_allocation value allocation result)))
 
   let destroy (value : t) =
     destroy_parent "Metal.Heap.destroy" value.lifetime value.raw
@@ -4018,7 +4301,7 @@ module Command_buffer = struct
       (function
         | Command_residency_set retained ->
             retained.lifetime == residency_set.lifetime
-        | Command_buffer_buffer _ -> false)
+        | Command_buffer_buffer _ | Command_buffer_texture _ -> false)
       !(value.resources)
 
   let use operation ~bulk (value : t) residency_sets =
@@ -4210,6 +4493,34 @@ module Compute_encoder = struct
                    | Error message ->
                        native_error "Metal.Compute_encoder.set_buffer" message))
 
+  let set_texture (value : t) ~index (texture : Texture.t) =
+    on_main "Metal.Compute_encoder.set_texture" (fun () ->
+      match ensure_live "Metal.Compute_encoder.set_texture" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match ensure_texture_usable "Metal.Compute_encoder.set_texture" texture with
+           | Error _ as failure -> failure
+           | Ok () when index < 0 || index >= 31 ->
+               error "Metal.Compute_encoder.set_texture" Invalid_argument
+                 "texture index must be in [0, 31)"
+           | Ok () ->
+               (match
+                  ensure_same_device "Metal.Compute_encoder.set_texture"
+                    value.command_buffer.queue.device texture.device
+                with
+                | Error _ as failure -> failure
+                | Ok () ->
+                    match
+                      Metal_raw.compute_encoder_set_texture value.raw texture.raw
+                        index
+                    with
+                    | Ok () ->
+                        retain_command_buffer_texture value.command_buffer texture;
+                        Ok ()
+                    | Error message ->
+                        native_error "Metal.Compute_encoder.set_texture"
+                          message)))
+
   let positive_size (x, y, z) = x > 0 && y > 0 && z > 0
 
   let product3 x y z =
@@ -4255,6 +4566,401 @@ module Compute_encoder = struct
            | Error message -> native_error "Metal.Compute_encoder.end_encoding" message
            | Ok () ->
                if Atomic.compare_and_set value.lifetime.destroyed false true then begin
+                 ignore (Metal_raw.destroy value.raw);
+                 detach value.command_buffer.lifetime
+               end;
+               Ok ()))
+end
+
+module Resource_state_encoder = struct
+  type t = resource_state_encoder
+
+  type mapping_mode =
+    | Map
+    | Unmap
+
+  type tile_region =
+    { x : int
+    ; y : int
+    ; z : int
+    ; width : int
+    ; height : int
+    ; depth : int
+    }
+
+  let create (command_buffer : Command_buffer.t) =
+    on_main "Metal.Resource_state_encoder.create" (fun () ->
+      match
+        ensure_live "Metal.Resource_state_encoder.create"
+          command_buffer.lifetime
+      with
+      | Error _ as failure -> failure
+      | Ok () when command_buffer.phase <> Recording ->
+          error "Metal.Resource_state_encoder.create" Invalid_state
+            "command buffer is no longer recording"
+      | Ok () when dependent_count command_buffer.lifetime <> 0 ->
+          error "Metal.Resource_state_encoder.create" Invalid_state
+            "command buffer already has an open encoder"
+      | Ok () ->
+          (match
+             Metal_raw.command_buffer_resource_state_encoder command_buffer.raw
+           with
+           | Error message ->
+               native_error "Metal.Resource_state_encoder.create" message
+           | Ok raw ->
+               let value : t =
+                 { raw; lifetime = lifetime (); command_buffer }
+               in
+               attach command_buffer.lifetime;
+               attach_finalizer value value.lifetime command_buffer.lifetime;
+               Ok value))
+
+  let destroyed (value : t) = is_destroyed value.lifetime
+  let mode_code = function Map -> 0 | Unmap -> 1
+
+  let ceil_div value divisor =
+    1 + ((value - 1) / divisor)
+
+  let region_tuple (region : tile_region) =
+    ( region.x
+    , region.y
+    , region.z
+    , region.width
+    , region.height
+    , region.depth )
+
+  let valid_axis origin length limit =
+    origin >= 0 && length > 0 && origin <= limit && length <= limit - origin
+
+  let tile_cardinality operation region =
+    if region.width > max_int / region.height then
+      error operation Invalid_argument
+        "sparse tile-region cardinality overflows an OCaml integer"
+    else
+      let area = region.width * region.height in
+      if area > max_int / region.depth then
+        error operation Invalid_argument
+          "sparse tile-region cardinality overflows an OCaml integer"
+      else Ok (area * region.depth)
+
+  let update_texture_mapping (value : t) ~mode (texture : Texture.t)
+      ~mip_level ~slice ~(region : tile_region) =
+    let operation = "Metal.Resource_state_encoder.update_texture_mapping" in
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match ensure_texture_usable operation texture with
+           | Error _ as failure -> failure
+           | Ok () ->
+               (match
+                  ensure_same_device operation
+                    value.command_buffer.queue.device texture.device
+                with
+                | Error _ as failure -> failure
+                | Ok () ->
+                    (match Texture.sparse_info_raw operation texture with
+                     | Error _ as failure -> failure
+                     | Ok None ->
+                         error operation Invalid_argument
+                           "texture is not sparse"
+                     | Ok (Some info) ->
+                         let descriptor = texture.descriptor in
+                         if mip_level < 0
+                            || mip_level >= descriptor.mip_levels
+                         then
+                           error operation Invalid_argument
+                             "sparse mapping mip level is outside the texture"
+                         else if slice < 0
+                                 || slice >= Texture.total_slices descriptor
+                         then
+                           error operation Invalid_argument
+                             "sparse mapping slice is outside the texture"
+                         else
+                           let mip_width =
+                             Texture.mip_dimension descriptor.width mip_level
+                           and mip_height =
+                             Texture.mip_dimension descriptor.height mip_level
+                           and mip_depth =
+                             Texture.mip_dimension descriptor.depth mip_level
+                           in
+                           let tile_width =
+                             ceil_div mip_width info.tile_width
+                           and tile_height =
+                             ceil_div mip_height info.tile_height
+                           and tile_depth =
+                             ceil_div mip_depth info.tile_depth
+                           in
+                           if
+                             not
+                               (valid_axis region.x region.width tile_width
+                                && valid_axis region.y region.height tile_height
+                                && valid_axis region.z region.depth tile_depth)
+                           then
+                             error operation Invalid_argument
+                               "sparse tile region exceeds the selected mip level"
+                           else
+                             let tail_error =
+                               match info.first_mip_in_tail with
+                               | Some first when mip_level > first ->
+                                   Some
+                                     "map a sparse mip tail through its first mip level"
+                               | Some first when mip_level = first
+                                                 && region <>
+                                                    { x = 0; y = 0; z = 0
+                                                    ; width = 1; height = 1
+                                                    ; depth = 1
+                                                    } ->
+                                   Some
+                                     "a sparse mip tail mapping must cover its single tail tile"
+                               | None | Some _ -> None
+                             in
+                             (match tail_error with
+                              | Some message ->
+                                  error operation Invalid_argument message
+                              | None ->
+                                  (match tile_cardinality operation region with
+                                   | Error _ as failure -> failure
+                                   | Ok tile_count ->
+                                       let required_bytes =
+                                         match info.first_mip_in_tail with
+                                         | Some first when mip_level = first ->
+                                             info.tail_size_in_bytes
+                                         | None | Some _ ->
+                                             Int64.mul
+                                               (Int64.of_int tile_count)
+                                               info.tile_size_in_bytes
+                                       in
+                                       let sparse_heap =
+                                         match texture_heap texture with
+                                         | Some heap -> heap
+                                         | None -> assert false
+                                       in
+                                       if required_bytes > sparse_heap.descriptor.size
+                                       then
+                                         error operation Invalid_argument
+                                           "mapping requires more physical pages than the sparse heap owns"
+                                       else
+                                         match
+                                           Metal_raw.resource_state_encoder_update_texture_mapping
+                                             value.raw texture.raw
+                                             (mode_code mode)
+                                             (region_tuple region) mip_level
+                                             slice
+                                         with
+                                         | Error message ->
+                                             native_error operation message
+                                         | Ok () ->
+                                             retain_command_buffer_texture
+                                               value.command_buffer texture;
+                                             Ok ()))))))
+
+  let end_encoding (value : t) =
+    on_main "Metal.Resource_state_encoder.end_encoding" (fun () ->
+      match ensure_live "Metal.Resource_state_encoder.end_encoding" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match Metal_raw.resource_state_encoder_end value.raw with
+           | Error message ->
+               native_error "Metal.Resource_state_encoder.end_encoding" message
+           | Ok () ->
+               if Atomic.compare_and_set value.lifetime.destroyed false true
+               then begin
+                 ignore (Metal_raw.destroy value.raw);
+                 detach value.command_buffer.lifetime
+               end;
+               Ok ()))
+end
+
+module Blit_encoder = struct
+  type t = blit_encoder
+
+  let create (command_buffer : Command_buffer.t) =
+    on_main "Metal.Blit_encoder.create" (fun () ->
+      match ensure_live "Metal.Blit_encoder.create" command_buffer.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when command_buffer.phase <> Recording ->
+          error "Metal.Blit_encoder.create" Invalid_state
+            "command buffer is no longer recording"
+      | Ok () when dependent_count command_buffer.lifetime <> 0 ->
+          error "Metal.Blit_encoder.create" Invalid_state
+            "command buffer already has an open encoder"
+      | Ok () ->
+          (match Metal_raw.command_buffer_blit_encoder command_buffer.raw with
+           | Error message -> native_error "Metal.Blit_encoder.create" message
+           | Ok raw ->
+               let value : t =
+                 { raw; lifetime = lifetime (); command_buffer }
+               in
+               attach command_buffer.lifetime;
+               attach_finalizer value value.lifetime command_buffer.lifetime;
+               Ok value))
+
+  let destroyed (value : t) = is_destroyed value.lifetime
+
+  let copy_buffer_to_texture (value : t) ~(source : Buffer.t) ~source_offset
+      ~source_bytes_per_row ~source_bytes_per_image ~(destination : Texture.t)
+      ~destination_slice ~destination_level
+      ~(destination_region : Texture.region) =
+    let operation = "Metal.Blit_encoder.copy_buffer_to_texture" in
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match ensure_buffer_usable operation source with
+           | Error _ as failure -> failure
+           | Ok () ->
+               (match ensure_texture_usable operation destination with
+                | Error _ as failure -> failure
+                | Ok () ->
+                    let descriptor = destination.descriptor in
+                    if source_offset < 0L
+                       || source_bytes_per_row <= 0
+                       || source_bytes_per_image <= 0
+                    then
+                      error operation Invalid_argument
+                        "blit source offset and pitches must be nonnegative and positive"
+                    else if descriptor.sample_count <> 1 then
+                      error operation Unsupported
+                        "multisample textures do not accept buffer blits"
+                    else if destination_level < 0
+                            || destination_level >= descriptor.mip_levels
+                    then
+                      error operation Invalid_argument
+                        "blit destination mip level is outside the texture"
+                    else if destination_slice < 0
+                            || destination_slice >=
+                               Texture.total_slices descriptor
+                    then
+                      error operation Invalid_argument
+                        "blit destination slice is outside the texture"
+                    else if destination_region.x < 0
+                            || destination_region.y < 0
+                            || destination_region.z < 0
+                            || destination_region.width <= 0
+                            || destination_region.height <= 0
+                            || destination_region.depth <= 0
+                    then
+                      error operation Invalid_argument
+                        "blit destination region is invalid"
+                    else
+                      let mip_width =
+                        Texture.mip_dimension descriptor.width destination_level
+                      and mip_height =
+                        Texture.mip_dimension descriptor.height destination_level
+                      and mip_depth =
+                        Texture.mip_dimension descriptor.depth destination_level
+                      in
+                      if destination_region.x > mip_width
+                         || destination_region.width
+                            > mip_width - destination_region.x
+                         || destination_region.y > mip_height
+                         || destination_region.height
+                            > mip_height - destination_region.y
+                         || destination_region.z > mip_depth
+                         || destination_region.depth
+                            > mip_depth - destination_region.z
+                      then
+                        error operation Invalid_argument
+                          "blit destination region exceeds the selected mip level"
+                      else
+                        let pixel_bytes =
+                          Texture.bytes_per_pixel descriptor.format
+                        in
+                        (match
+                           Texture.checked_mul destination_region.width
+                             pixel_bytes
+                         with
+                         | None ->
+                             error operation Invalid_argument
+                               "blit row cardinality overflows an OCaml integer"
+                         | Some minimum_row
+                           when source_bytes_per_row < minimum_row
+                                || source_bytes_per_row mod pixel_bytes <> 0 ->
+                             error operation Invalid_argument
+                               "blit source row pitch is too small or not pixel-aligned"
+                         | Some _ ->
+                             (match
+                                Texture.checked_mul source_bytes_per_row
+                                  destination_region.height
+                              with
+                              | None ->
+                                  error operation Invalid_argument
+                                    "blit image cardinality overflows an OCaml integer"
+                              | Some minimum_image
+                                when source_bytes_per_image < minimum_image ->
+                                  error operation Invalid_argument
+                                    "blit source image pitch is smaller than its rows"
+                              | Some _ ->
+                                  let image_bytes =
+                                    Int64.of_int source_bytes_per_image
+                                  and depth =
+                                    Int64.of_int destination_region.depth
+                                  in
+                                  if image_bytes > Int64.div Int64.max_int depth
+                                  then
+                                    error operation Invalid_argument
+                                      "blit source cardinality overflows 64 bits"
+                                  else
+                                    let total = Int64.mul image_bytes depth in
+                                    if source_offset > source.length
+                                       || total
+                                          > Int64.sub source.length source_offset
+                                    then
+                                      error operation Invalid_argument
+                                        "blit source range exceeds the buffer"
+                                    else (match
+                                       ensure_same_device operation
+                                         value.command_buffer.queue.device
+                                         source.device
+                                     with
+                                     | Error _ as failure -> failure
+                                     | Ok () ->
+                                         (match
+                                            ensure_same_device operation
+                                              value.command_buffer.queue.device
+                                              destination.device
+                                          with
+                                          | Error _ as failure -> failure
+                                          | Ok () ->
+                                              let copy =
+                                                ( source_offset
+                                                , source_bytes_per_row
+                                                , source_bytes_per_image
+                                                , (destination_region.width,
+                                                   destination_region.height,
+                                                   destination_region.depth)
+                                                , destination_slice
+                                                , destination_level
+                                                , (destination_region.x,
+                                                   destination_region.y,
+                                                   destination_region.z) )
+                                              in
+                                              match
+                                                Metal_raw.blit_encoder_copy_buffer_to_texture
+                                                  value.raw source.raw
+                                                  destination.raw copy
+                                              with
+                                              | Error message ->
+                                                  native_error operation message
+                                              | Ok () ->
+                                                  retain_command_buffer_buffer
+                                                    value.command_buffer source;
+                                                  retain_command_buffer_texture
+                                                    value.command_buffer
+                                                    destination;
+                                                  Ok ())))))))
+
+  let end_encoding (value : t) =
+    on_main "Metal.Blit_encoder.end_encoding" (fun () ->
+      match ensure_live "Metal.Blit_encoder.end_encoding" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match Metal_raw.blit_encoder_end value.raw with
+           | Error message -> native_error "Metal.Blit_encoder.end_encoding" message
+           | Ok () ->
+               if Atomic.compare_and_set value.lifetime.destroyed false true
+               then begin
                  ignore (Metal_raw.destroy value.raw);
                  detach value.command_buffer.lifetime
                end;

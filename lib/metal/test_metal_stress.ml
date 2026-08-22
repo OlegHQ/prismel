@@ -78,6 +78,34 @@ let run_heap_cycles device count =
     get (Heap.destroy heap)
   done
 
+let sparse_page device =
+  [ Sparse_page_size.Page_16_kib
+  ; Sparse_page_size.Page_64_kib
+  ; Sparse_page_size.Page_256_kib
+  ]
+  |> List.find_map (fun page_size ->
+    match Heap.sparse_tile_size_in_bytes ~device page_size with
+    | Ok bytes -> Some (page_size, bytes)
+    | Error { kind = Unsupported; _ } -> None
+    | Error error -> fail "%s" (Format.asprintf "%a" pp_error error))
+
+let run_sparse_cycles device ~page_size ~page_bytes count =
+  let heap_descriptor =
+    Heap.make_descriptor ~kind:Heap.Sparse ~sparse_page_size:page_size
+      ~size:page_bytes ()
+  in
+  let texture_descriptor =
+    Texture.descriptor_2d ~storage:Buffer.Private
+      ~usage:[ Texture.Shader_read ] ~format:Texture.R8_uint ~width:1
+      ~height:1 ()
+  in
+  for _ = 1 to count do
+    let heap = get (Heap.create ~device heap_descriptor) in
+    let texture = get (Heap.create_texture heap texture_descriptor) in
+    get (Texture.destroy texture);
+    get (Heap.destroy heap)
+  done
+
 let run_residency_cycles device count =
   let descriptor = Residency_set.make_descriptor ~initial_capacity:1 () in
   for _ = 1 to count do
@@ -197,102 +225,165 @@ let check_cycles ?rss_limit ~name ~expected (baseline : Release_queue.stats)
       rss_growth rss_tolerance;
   rss_growth
 
-let () =
-  if Sys.os_type <> "Unix"
-     || not (Sys.file_exists "/System/Library/Frameworks/Metal.framework")
-  then Printf.printf "Metal ownership stress skipped on this platform\n%!"
-  else begin
-    let device = get (Device.system_default ()) in
-    run_buffer_cycles device 5_000;
-    let buffer_baseline = settle () in
-    run_buffer_cycles device 100_000;
-    let buffer_finished = settle () in
-    let buffer_rss_growth =
-      check_cycles ~name:"buffers" ~expected:100_000L buffer_baseline
-        buffer_finished
-    in
-    run_texture_sampler_cycles device 2_500;
-    let resource_baseline = settle () in
-    run_texture_sampler_cycles device 50_000;
-    let resource_finished = settle () in
-    let resource_rss_growth =
-      check_cycles ~name:"textures/samplers" ~expected:100_000L
-        resource_baseline resource_finished
-    in
-    run_heap_cycles device 500;
-    let heap_baseline = settle () in
-    run_heap_cycles device 10_000;
-    let heap_finished = settle () in
-    let heap_rss_growth =
-      check_cycles ~name:"heaps/resources" ~expected:30_000L heap_baseline
-        heap_finished
-    in
-    let residency_rss_growth =
-      if get (Device.supports_residency_sets device) then begin
-        run_residency_cycles device 500;
-        let baseline = settle () in
-        run_residency_cycles device 10_000;
-        let finished = settle () in
-        Some
-          (check_cycles ~name:"residency sets/resources" ~expected:20_000L
-             baseline finished)
+type lane =
+  | Buffers
+  | Textures_and_samplers
+  | Heaps_and_resources
+  | Sparse_heaps_and_textures
+  | Residency_sets_and_resources
+  | Buffer_backed_textures
+  | Shared_textures
+  | Io_surfaces
+  | External_buffers
+
+let lane_name = function
+  | Buffers -> "buffers"
+  | Textures_and_samplers -> "textures-samplers"
+  | Heaps_and_resources -> "heaps-resources"
+  | Sparse_heaps_and_textures -> "sparse-heaps-textures"
+  | Residency_sets_and_resources -> "residency-sets-resources"
+  | Buffer_backed_textures -> "buffer-backed-textures"
+  | Shared_textures -> "shared-textures"
+  | Io_surfaces -> "io-surfaces"
+  | External_buffers -> "external-buffers"
+
+let lane_of_name = function
+  | "buffers" -> Buffers
+  | "textures-samplers" -> Textures_and_samplers
+  | "heaps-resources" -> Heaps_and_resources
+  | "sparse-heaps-textures" -> Sparse_heaps_and_textures
+  | "residency-sets-resources" -> Residency_sets_and_resources
+  | "buffer-backed-textures" -> Buffer_backed_textures
+  | "shared-textures" -> Shared_textures
+  | "io-surfaces" -> Io_surfaces
+  | "external-buffers" -> External_buffers
+  | name -> fail "unknown Metal ownership-stress lane %S" name
+
+let lanes =
+  [ Buffers
+  ; Textures_and_samplers
+  ; Heaps_and_resources
+  ; Sparse_heaps_and_textures
+  ; Residency_sets_and_resources
+  ; Buffer_backed_textures
+  ; Shared_textures
+  ; Io_surfaces
+  ; External_buffers
+  ]
+
+let destroy_device device =
+  get (Device.destroy device);
+  let final = settle () in
+  if final.live_handles <> 0 then
+    fail "%d Metal handles remain after stress teardown" final.live_handles;
+  final
+
+let finish_device device = ignore (destroy_device device)
+
+let measure device ~name ~warmup ~cycles ~expected run =
+  run device warmup;
+  let baseline = settle () in
+  run device cycles;
+  let finished = settle () in
+  let growth = check_cycles ~name ~expected baseline finished in
+  finish_device device;
+  Printf.printf
+    "Metal ownership lane %s passed: %Ld measured handles, %Ld-byte settled RSS delta\n%!"
+    name expected growth
+
+let run_lane lane =
+  let device = get (Device.system_default ()) in
+  match lane with
+  | Buffers ->
+      measure device ~name:"buffers" ~warmup:5_000 ~cycles:100_000
+        ~expected:100_000L run_buffer_cycles
+  | Textures_and_samplers ->
+      measure device ~name:"textures/samplers" ~warmup:2_500 ~cycles:50_000
+        ~expected:100_000L run_texture_sampler_cycles
+  | Heaps_and_resources ->
+      measure device ~name:"heaps/resources" ~warmup:500 ~cycles:10_000
+        ~expected:30_000L run_heap_cycles
+  | Sparse_heaps_and_textures ->
+      if not (get (Device.supports_sparse_textures device)) then begin
+        finish_device device;
+        Printf.printf "Metal ownership lane sparse heaps/textures skipped: unsupported\n%!"
       end
-      else None
-    in
-    run_buffer_texture_cycles device 500;
-    let buffer_texture_baseline = settle () in
-    run_buffer_texture_cycles device 10_000;
-    let buffer_texture_finished = settle () in
-    let buffer_texture_rss_growth =
-      check_cycles ~name:"buffer-backed textures" ~expected:20_000L
-        buffer_texture_baseline buffer_texture_finished
-    in
-    run_shared_texture_cycles device 500;
-    let shared_texture_baseline = settle () in
-    run_shared_texture_cycles device 10_000;
-    let shared_texture_finished = settle () in
-    let shared_texture_rss_growth =
-      check_cycles ~name:"shared textures/handles/imports" ~expected:30_000L
-        shared_texture_baseline shared_texture_finished
-    in
-    run_io_surface_cycles device 500;
-    let io_surface_baseline = settle () in
-    run_io_surface_cycles device 10_000;
-    let io_surface_finished = settle () in
-    let io_surface_rss_growth =
-      check_cycles ~name:"IOSurface/texture ownership" ~expected:20_000L
-        io_surface_baseline io_surface_finished
-    in
-    let page_size = get (Buffer.External.page_size ()) in
-    run_external_buffer_cycles device ~page_size 500;
-    let external_baseline = settle () in
-    run_external_buffer_cycles device ~page_size 10_000;
-    let external_finished = settle () in
-    let external_rss_growth =
-      check_cycles ~rss_limit:(external_rss_tolerance ())
-        ~name:"external/no-copy buffers" ~expected:20_000L
-        external_baseline external_finished
-    in
-    let external_deallocations =
-      Int64.sub external_finished.external_deallocations
-        external_baseline.external_deallocations
-    in
-    get (Device.destroy device);
-    let final = settle () in
-    if final.live_handles <> 0 then
-      fail "%d Metal handles remain after stress teardown" final.live_handles;
-    (match residency_rss_growth with
-     | Some residency_rss_growth ->
-         Printf.printf
-           "Metal ownership stress passed: 100000 buffer, 100000 texture/sampler, 30000 heap/resource, 20000 residency/resource, 20000 buffer/linear-texture, 30000 shared-texture/handle/import, 20000 IOSurface/texture, and 20000 external/no-copy handles, %Ld/%Ld/%Ld/%Ld/%Ld/%Ld/%Ld/%Ld-byte settled RSS deltas, %Ld deferred no-copy callbacks\n%!"
-           buffer_rss_growth resource_rss_growth heap_rss_growth
-           residency_rss_growth buffer_texture_rss_growth
-           shared_texture_rss_growth io_surface_rss_growth external_rss_growth
-           external_deallocations
-     | None ->
-         Printf.printf
-           "Metal ownership stress passed: 100000 buffer, 100000 texture/sampler, 30000 heap/resource, 20000 buffer/linear-texture, 30000 shared-texture/handle/import, 20000 IOSurface/texture, and 20000 external/no-copy handles; residency unsupported, %Ld/%Ld/%Ld/%Ld/%Ld/%Ld/%Ld-byte settled RSS deltas, %Ld deferred no-copy callbacks\n%!"
-           buffer_rss_growth resource_rss_growth heap_rss_growth
-           buffer_texture_rss_growth shared_texture_rss_growth
-           io_surface_rss_growth external_rss_growth external_deallocations)
-  end
+      else
+        (match sparse_page device with
+         | None -> fail "sparse device exposes no usable sparse page size"
+         | Some (page_size, page_bytes) ->
+             let run device count =
+               run_sparse_cycles device ~page_size ~page_bytes count
+             in
+             measure device ~name:"sparse heaps/textures" ~warmup:500
+               ~cycles:10_000 ~expected:20_000L run)
+  | Residency_sets_and_resources ->
+      if not (get (Device.supports_residency_sets device)) then begin
+        finish_device device;
+        Printf.printf "Metal ownership lane residency sets/resources skipped: unsupported\n%!"
+      end
+      else
+        measure device ~name:"residency sets/resources" ~warmup:500
+          ~cycles:10_000 ~expected:20_000L run_residency_cycles
+  | Buffer_backed_textures ->
+      measure device ~name:"buffer-backed textures" ~warmup:500
+        ~cycles:10_000 ~expected:20_000L run_buffer_texture_cycles
+  | Shared_textures ->
+      measure device ~name:"shared textures/handles/imports" ~warmup:500
+        ~cycles:10_000 ~expected:30_000L run_shared_texture_cycles
+  | Io_surfaces ->
+      measure device ~name:"IOSurface/texture ownership" ~warmup:500
+        ~cycles:10_000 ~expected:20_000L run_io_surface_cycles
+  | External_buffers ->
+      let page_size = get (Buffer.External.page_size ()) in
+      let run device count =
+        run_external_buffer_cycles device ~page_size count
+      in
+      run device 500;
+      let baseline = settle () in
+      run device 10_000;
+      let finished = settle () in
+      let growth =
+        check_cycles ~rss_limit:(external_rss_tolerance ())
+          ~name:"external/no-copy buffers" ~expected:20_000L baseline finished
+      in
+      let final = destroy_device device in
+      let deallocations =
+        Int64.sub final.external_deallocations
+          baseline.external_deallocations
+      in
+      Printf.printf
+        "Metal ownership lane external/no-copy buffers passed: 20000 measured handles, %Ld-byte settled RSS delta, %Ld deferred callbacks\n%!"
+        growth deallocations
+
+let status_text = function
+  | Unix.WEXITED code -> Printf.sprintf "exit %d" code
+  | Unix.WSIGNALED signal -> Printf.sprintf "signal %d" signal
+  | Unix.WSTOPPED signal -> Printf.sprintf "stopped %d" signal
+
+let run_worker lane =
+  let executable = Unix.realpath Sys.executable_name in
+  let name = lane_name lane in
+  let pid =
+    Unix.create_process executable [| executable; "--lane"; name |]
+      Unix.stdin Unix.stdout Unix.stderr
+  in
+  match snd (Unix.waitpid [] pid) with
+  | Unix.WEXITED 0 -> ()
+  | status -> fail "Metal ownership lane %s failed with %s" name (status_text status)
+
+let metal_available () =
+  Sys.os_type = "Unix"
+  && Sys.file_exists "/System/Library/Frameworks/Metal.framework"
+
+let () =
+  if not (metal_available ()) then
+    Printf.printf "Metal ownership stress skipped on this platform\n%!"
+  else
+    match Array.to_list Sys.argv with
+    | [ _ ] ->
+        List.iter run_worker lanes;
+        Printf.printf "%d isolated Metal ownership lanes passed\n%!"
+          (List.length lanes)
+    | [ _; "--lane"; name ] -> run_lane (lane_of_name name)
+    | _ -> fail "usage: test_metal_stress.exe [--lane LANE]"

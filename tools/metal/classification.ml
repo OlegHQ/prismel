@@ -42,11 +42,14 @@ let bound_identifiers =
   ; "enum:MTLSamplerBorderColor"
   ; "enum:MTLSamplerMinMagFilter"
   ; "enum:MTLSamplerMipFilter"
+  ; "enum:MTLSparsePageSize"
+  ; "enum:MTLSparseTextureMappingMode"
   ; "enum:MTLStorageMode"
   ; "enum:MTLTextureType"
   ; "enum:MTLTextureUsage"
   ; "function:MTLCopyAllDevices"
   ; "function:MTLCreateSystemDefaultDevice"
+  ; "function:MTLOriginMake"
   ; "function:MTLRegionMake3D"
   ; "function:MTLSizeMake"
   ; "record:MTLOrigin"
@@ -65,6 +68,7 @@ let bound_identifiers =
   ; "field:MTLSizeAndAlign:size"
   ; "protocol:MTLBuffer"
   ; "protocol:MTLAllocation"
+  ; "protocol:MTLBlitCommandEncoder"
   ; "protocol:MTLCommandBuffer"
   ; "protocol:MTLCommandEncoder"
   ; "protocol:MTLCommandQueue"
@@ -76,6 +80,7 @@ let bound_identifiers =
   ; "protocol:MTLLibrary"
   ; "protocol:MTLResource"
   ; "protocol:MTLResidencySet"
+  ; "protocol:MTLResourceStateCommandEncoder"
   ; "protocol:MTLSamplerState"
   ; "protocol:MTLTexture"
   ; "typedef:MTLCommandBufferStatus"
@@ -93,6 +98,8 @@ let bound_identifiers =
   ; "typedef:MTLSamplerBorderColor"
   ; "typedef:MTLSamplerMinMagFilter"
   ; "typedef:MTLSamplerMipFilter"
+  ; "typedef:MTLSparsePageSize"
+  ; "typedef:MTLSparseTextureMappingMode"
   ; "typedef:MTLSize"
   ; "typedef:MTLSizeAndAlign"
   ; "typedef:MTLStorageMode"
@@ -105,9 +112,13 @@ let bound_identifiers =
           ; "newTextureWithDescriptor:offset:bytesPerRow:"
           ] )
       ; "MTLAllocation", [ "allocatedSize" ]
+      ; ( "MTLBlitCommandEncoder"
+        , [ "copyFromBuffer:sourceOffset:sourceBytesPerRow:sourceBytesPerImage:sourceSize:toTexture:destinationSlice:destinationLevel:destinationOrigin:"
+          ] )
       ; ( "MTLCommandBuffer"
-        , [ "commit"; "computeCommandEncoder"; "error"; "label"; "setLabel:"
-          ; "status"; "useResidencySet:"; "useResidencySets:count:"
+        , [ "blitCommandEncoder"; "commit"; "computeCommandEncoder"; "error"
+          ; "label"; "resourceStateCommandEncoder"; "setLabel:"; "status"
+          ; "useResidencySet:"; "useResidencySets:count:"
           ; "waitUntilCompleted"
           ] )
       ; "MTLCommandEncoder", [ "endEncoding" ]
@@ -116,7 +127,7 @@ let bound_identifiers =
       ; ( "MTLComputeCommandEncoder"
         , [ "dispatchThreads:threadsPerThreadgroup:"
           ; "setBuffer:offset:atIndex:"
-          ; "setComputePipelineState:"
+          ; "setComputePipelineState:"; "setTexture:atIndex:"
           ] )
       ; ( "MTLComputePipelineState"
         , [ "maxTotalThreadsPerThreadgroup"; "threadExecutionWidth" ] )
@@ -140,6 +151,9 @@ let bound_identifiers =
           ; "newTextureWithDescriptor:iosurface:plane:"
           ; "newTextureWithDescriptor:"
           ; "recommendedMaxWorkingSetSize"; "registryID"
+          ; "sparseTileSizeInBytes"
+          ; "sparseTileSizeInBytesForSparsePageSize:"
+          ; "sparseTileSizeWithTextureType:pixelFormat:sampleCount:sparsePageSize:"
           ; "supportsDynamicLibraries"; "supportsFamily:"
           ; "supportsFunctionPointers"; "supportsRaytracing"
           ; "supportsRaytracingFromRender"; "supportsTextureSampleCount:"
@@ -158,7 +172,8 @@ let bound_identifiers =
       ; ( "MTLHeapDescriptor"
         , [ "cpuCacheMode"; "hazardTrackingMode"; "setCpuCacheMode:"
           ; "setHazardTrackingMode:"; "setSize:"; "setStorageMode:"
-          ; "setType:"; "size"; "storageMode"; "type"
+          ; "setSparsePageSize:"; "setType:"; "size"; "sparsePageSize"
+          ; "storageMode"; "type"
           ] )
       ; "MTLLibrary", [ "newFunctionWithName:" ]
       ; ( "MTLResidencySet"
@@ -170,6 +185,8 @@ let bound_identifiers =
           ] )
       ; ( "MTLResidencySetDescriptor"
         , [ "initialCapacity"; "label"; "setInitialCapacity:"; "setLabel:" ] )
+      ; ( "MTLResourceStateCommandEncoder"
+        , [ "updateTextureMapping:mode:region:mipLevel:slice:" ] )
       ; ( "MTLResource"
         , [ "cpuCacheMode"; "hazardTrackingMode"; "heapOffset"; "isAliasable"
           ; "label"; "makeAliasable"; "setLabel:"; "setPurgeableState:"
@@ -193,13 +210,13 @@ let bound_identifiers =
         , [ "arrayLength"; "buffer"; "bufferBytesPerRow"; "bufferOffset"
           ; "depth"
           ; "getBytes:bytesPerRow:bytesPerImage:fromRegion:mipmapLevel:slice:"
-          ; "height"; "iosurface"; "iosurfacePlane"; "isShareable"
-          ; "mipmapLevelCount"
+          ; "firstMipmapInTail"; "height"; "iosurface"; "iosurfacePlane"
+          ; "isShareable"; "isSparse"; "mipmapLevelCount"
           ; "newSharedTextureHandle"
           ; "newTextureViewWithPixelFormat:textureType:levels:slices:"
           ; "pixelFormat"
           ; "replaceRegion:mipmapLevel:slice:withBytes:bytesPerRow:bytesPerImage:"
-          ; "sampleCount"; "textureType"; "usage"; "width"
+          ; "sampleCount"; "tailSizeInBytes"; "textureType"; "usage"; "width"
           ] )
       ; ( "MTLTextureDescriptor"
         , [ "allowGPUOptimizedContents"; "arrayLength"; "cpuCacheMode"
@@ -227,7 +244,7 @@ let bound_identifiers =
           ; "maxBufferLength"; "name"; "recommendedMaxWorkingSetSize"
           ; "registryID"; "removable"; "supportsDynamicLibraries"
           ; "supportsFunctionPointers"; "supportsRaytracing"
-          ; "supportsRaytracingFromRender"
+          ; "supportsRaytracingFromRender"; "sparseTileSizeInBytes"
           ] )
       ; "MTLFunction", [ "name" ]
       ; ( "MTLHeap"
@@ -235,8 +252,8 @@ let bound_identifiers =
           ; "label"; "size"; "storageMode"; "type"; "usedSize"
           ] )
       ; ( "MTLHeapDescriptor"
-        , [ "cpuCacheMode"; "hazardTrackingMode"; "size"; "storageMode"
-          ; "type"
+        , [ "cpuCacheMode"; "hazardTrackingMode"; "size"; "sparsePageSize"
+          ; "storageMode"; "type"
           ] )
       ; ( "MTLResource"
         , [ "cpuCacheMode"; "hazardTrackingMode"; "heapOffset"; "label"
@@ -257,8 +274,9 @@ let bound_identifiers =
       ; "MTLSamplerState", [ "label" ]
       ; "MTLSharedTextureHandle", [ "device"; "label" ]
       ; ( "MTLTexture"
-        , [ "arrayLength"; "depth"; "height"; "iosurface"; "iosurfacePlane"
-          ; "mipmapLevelCount"; "pixelFormat"; "sampleCount"; "textureType"
+        , [ "arrayLength"; "depth"; "firstMipmapInTail"; "height"
+          ; "iosurface"; "iosurfacePlane"; "isSparse"; "mipmapLevelCount"
+          ; "pixelFormat"; "sampleCount"; "tailSizeInBytes"; "textureType"
           ; "usage"; "width"
           ] )
       ; ( "MTLTextureDescriptor"
@@ -301,7 +319,13 @@ let bound_identifiers =
       ; "MTLHazardTrackingModeTracked"
       ]
   @ enum_cases "MTLHeapType"
-      [ "MTLHeapTypeAutomatic"; "MTLHeapTypePlacement" ]
+      [ "MTLHeapTypeAutomatic"; "MTLHeapTypePlacement"; "MTLHeapTypeSparse" ]
+  @ enum_cases "MTLSparsePageSize"
+      [ "MTLSparsePageSize16"; "MTLSparsePageSize64"
+      ; "MTLSparsePageSize256"
+      ]
+  @ enum_cases "MTLSparseTextureMappingMode"
+      [ "MTLSparseTextureMappingModeMap"; "MTLSparseTextureMappingModeUnmap" ]
   @ enum_cases "MTLPixelFormat"
       [ "MTLPixelFormatA8Unorm"; "MTLPixelFormatR8Unorm"
       ; "MTLPixelFormatR8Unorm_sRGB"; "MTLPixelFormatR8Uint"

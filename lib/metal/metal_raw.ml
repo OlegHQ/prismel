@@ -66,6 +66,17 @@ external device_supports_function_pointers : handle -> bool =
 external device_supports_residency_sets : handle -> bool =
   "caml_prismel_metal_device_supports_residency_sets"
 
+external device_supports_sparse_textures : handle -> bool =
+  "caml_prismel_metal_device_supports_sparse_textures"
+
+external device_sparse_tile_size_in_bytes :
+  handle -> int -> (int64, string) result
+  = "caml_prismel_metal_device_sparse_tile_size_in_bytes"
+
+external device_sparse_texture_tile_size :
+  handle -> int -> int -> int -> int -> ((int * int * int), string) result
+  = "caml_prismel_metal_device_sparse_texture_tile_size"
+
 external device_minimum_texture_alignment :
   handle -> int -> int -> (int64, string) result
   = "caml_prismel_metal_device_minimum_texture_alignment"
@@ -142,7 +153,7 @@ external heap_texture_size_and_align :
   = "caml_prismel_metal_heap_texture_size_and_align"
 
 external heap_create :
-  handle -> (int64 * int * int * int * int) -> string option ->
+  handle -> (int64 * int * int * int * int * int) -> string option ->
   (handle, string) result
   = "caml_prismel_metal_heap_create"
 
@@ -229,6 +240,13 @@ external texture_shared_create :
   = "caml_prismel_metal_texture_shared_create"
 
 external texture_info : handle -> int array = "caml_prismel_metal_texture_info"
+
+external texture_is_sparse : handle -> bool =
+  "caml_prismel_metal_texture_is_sparse"
+
+external texture_sparse_info :
+  handle -> handle -> int -> (int64 array, string) result
+  = "caml_prismel_metal_texture_sparse_info"
 
 external texture_is_shareable : handle -> bool =
   "caml_prismel_metal_texture_is_shareable"
@@ -350,6 +368,13 @@ external command_buffer_use_residency_sets :
 external command_buffer_compute_encoder : handle -> (handle, string) result =
   "caml_prismel_metal_command_buffer_compute_encoder"
 
+external command_buffer_resource_state_encoder :
+  handle -> (handle, string) result
+  = "caml_prismel_metal_command_buffer_resource_state_encoder"
+
+external command_buffer_blit_encoder : handle -> (handle, string) result =
+  "caml_prismel_metal_command_buffer_blit_encoder"
+
 external compute_encoder_set_pipeline : handle -> handle -> (unit, string) result =
   "caml_prismel_metal_compute_encoder_set_pipeline"
 
@@ -357,12 +382,34 @@ external compute_encoder_set_buffer :
   handle -> handle -> int64 -> int -> (unit, string) result
   = "caml_prismel_metal_compute_encoder_set_buffer"
 
+external compute_encoder_set_texture :
+  handle -> handle -> int -> (unit, string) result
+  = "caml_prismel_metal_compute_encoder_set_texture"
+
 external compute_encoder_dispatch :
   handle -> (int * int * int) -> (int * int * int) -> (unit, string) result
   = "caml_prismel_metal_compute_encoder_dispatch"
 
 external compute_encoder_end : handle -> (unit, string) result =
   "caml_prismel_metal_compute_encoder_end"
+
+external resource_state_encoder_update_texture_mapping :
+  handle -> handle -> int -> (int * int * int * int * int * int) -> int -> int ->
+  (unit, string) result
+  = "caml_prismel_metal_resource_state_encoder_update_texture_mapping_bytecode"
+    "caml_prismel_metal_resource_state_encoder_update_texture_mapping"
+
+external resource_state_encoder_end : handle -> (unit, string) result =
+  "caml_prismel_metal_resource_state_encoder_end"
+
+external blit_encoder_copy_buffer_to_texture :
+  handle -> handle -> handle ->
+  (int64 * int * int * (int * int * int) * int * int * (int * int * int)) ->
+  (unit, string) result
+  = "caml_prismel_metal_blit_encoder_copy_buffer_to_texture"
+
+external blit_encoder_end : handle -> (unit, string) result =
+  "caml_prismel_metal_blit_encoder_end"
 
 external command_buffer_commit : handle -> (unit, string) result =
   "caml_prismel_metal_command_buffer_commit"

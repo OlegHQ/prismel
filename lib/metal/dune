@@ -53,7 +53,7 @@
 (test
  (name test_metal_stress)
  (modules test_metal_stress)
- (libraries metal))
+ (libraries metal unix))
 
 (rule
  (alias runtest)
