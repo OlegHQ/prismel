@@ -66,6 +66,10 @@ external device_supports_function_pointers : handle -> bool =
 external device_supports_residency_sets : handle -> bool =
   "caml_prismel_metal_device_supports_residency_sets"
 
+external device_minimum_texture_alignment :
+  handle -> int -> int -> (int64, string) result
+  = "caml_prismel_metal_device_minimum_texture_alignment"
+
 external buffer_create : handle -> int64 -> int -> (handle, string) result =
   "caml_prismel_metal_buffer_create"
 
@@ -93,6 +97,12 @@ external external_memory_read :
 external buffer_create_no_copy :
   handle -> handle -> int -> (handle, string) result
   = "caml_prismel_metal_buffer_create_no_copy"
+
+external buffer_texture_create :
+  handle ->
+  (int * int * int * int * int * int * int * int * int * int * int * int * bool) ->
+  int64 -> int -> string option -> (handle, string) result
+  = "caml_prismel_metal_buffer_texture_create"
 
 external buffer_info : handle -> int64 * int * int * int * int64 =
   "caml_prismel_metal_buffer_info"

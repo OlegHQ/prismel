@@ -2,11 +2,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 0,
-    "bound": 440,
+    "bound": 446,
     "scope-excluded": 7,
-    "unreviewed": 4839
+    "unreviewed": 4833
   },
-  "classification_source_sha256": "f8c1621592cd0f527e13ebd1f04b7d0498d25e5c8959bf74a5a13981f6b2fe69",
+  "classification_source_sha256": "6e193851ae6c8d10bfeda6c1f90589b82573c1ae0183ba4a24229cbbcd417dfe",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "header_aggregate_sha256": "c2ee1e44c76606cf05fa81d1a8314dadfa49efe900342e8bcb3670363c16f0d1",
@@ -30402,14 +30402,14 @@
         "AvailabilityAttr",
         "NSReturnsRetainedAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBuffer.h",
       "id": "method:-[MTLBuffer newTextureWithDescriptor:offset:bytesPerRow:]",
       "kind": "method",
       "line": 66,
       "name": "newTextureWithDescriptor:offset:bytesPerRow:",
       "owner": "MTLBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLTextureDescriptor * _Nonnull __strong, NSUInteger, NSUInteger) -> id<MTLTexture> _Nullable"
     },
     {
@@ -34404,28 +34404,28 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice minimumLinearTextureAlignmentForPixelFormat:]",
       "kind": "method",
       "line": 895,
       "name": "minimumLinearTextureAlignmentForPixelFormat:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLPixelFormat) -> NSUInteger"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice minimumTextureBufferAlignmentForPixelFormat:]",
       "kind": "method",
       "line": 901,
       "name": "minimumTextureBufferAlignmentForPixelFormat:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLPixelFormat) -> NSUInteger"
     },
     {
@@ -48436,42 +48436,42 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTexture bufferBytesPerRow]",
       "kind": "method",
       "line": 355,
       "name": "bufferBytesPerRow",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSUInteger"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTexture bufferOffset]",
       "kind": "method",
       "line": 349,
       "name": "bufferOffset",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSUInteger"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTexture buffer]",
       "kind": "method",
       "line": 343,
       "name": "buffer",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> id<MTLBuffer> _Nullable"
     },
     {

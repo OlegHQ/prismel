@@ -54,8 +54,9 @@ hard typed error rather than silent reclamation on a GC domain.
 
 The current safe slices cover device enumeration and capabilities; shared,
 managed, and private buffers; copied and page-aligned no-copy buffer creation;
-CPU range transfer and lexical mapped-range handles; textures and views;
-samplers; labels; runtime MSL library compilation
+CPU range transfer and lexical mapped-range handles; textures, buffer-backed
+linear textures, texture buffers, and views; samplers; labels; runtime MSL
+library compilation
 with full `NSError` diagnostics; automatic and placement heaps; macOS-15
 residency sets; function lookup; compute-pipeline creation and limits; command
 queues and buffers; compute encoding and resource binding; checked thread
@@ -77,12 +78,14 @@ region allocated with `mmap`. Lengths must be positive page multiples, and all
 copy access is range-checked in OCaml and again at the native boundary.
 `Buffer.create_no_copy` is exclusive: a second borrow, owner access, or owner
 destruction is rejected while the safe Metal buffer is live, and private
-storage is rejected before Objective-C. Metal's deallocator block strongly
-retains the VM owner until the native buffer actually relinquishes the borrow;
-this is necessary because the qualified M1 may defer the callback past safe
-handle destruction. The VM owner uses `munmap`, so 10,000 create/borrow/destroy
-cycles settle without allocator-retained page growth. Callback pointer/length
-mismatches are counted as a hard ownership failure.
+storage is rejected before Objective-C. The safe buffer retains both its
+originating device and VM owner, so neither can be destroyed while the borrow
+is live. Metal's deallocator block strongly retains the VM owner until the
+native buffer actually relinquishes the borrow; this is necessary because the
+qualified M1 may defer the callback past safe handle destruction. The VM owner
+uses `munmap`, so 10,000 create/borrow/destroy cycles settle without
+allocator-retained page growth. Callback pointer/length mismatches are counted
+as a hard ownership failure.
 
 `Texture.descriptor` models all current Metal texture kinds, explicit
 dimensions, mip/sample/array counts, storage/cache/hazard modes, usage, GPU
@@ -103,6 +106,27 @@ untouched pitch padding cannot expose native memory. Texture views require
 `Pixel_format_view` usage, preserve kind/slice shape, currently permit only the
 reviewed equal or linear/sRGB format pairs, and hold their parent alive until
 explicit destruction or finalization.
+
+`Texture.minimum_buffer_alignment` distinguishes ordinary 2D linear textures
+from the `Texture_buffer` kind and exposes Metal's per-device, per-format
+alignment as a checked positive power of two. `Texture.create_from_buffer`
+accepts only those two kinds and ordinary or packed color formats. It requires
+depth, array length, mip count, and sample count of one; normalizes and matches
+the buffer's storage/cache/hazard modes; gates render-target usage on Apple GPU
+family 1; and checks offset, aligned row pitch, pixel-row cardinality, 64-bit
+overflow, and the complete pitched span against the buffer before native
+creation. The bridge repeats the checks and verifies `buffer`, `bufferOffset`,
+and `bufferBytesPerRow`. Standalone device/heap creation rejects the
+`Texture_buffer` kind so it cannot silently take a semantically different
+allocation path.
+
+The returned texture retains its typed buffer parent, shares that buffer's
+purgeability/aliasing state, and preserves the buffer ancestor through texture
+views. Buffer destroy, purge, and alias transitions are rejected while any such
+texture is live. A texture cannot apply those transitions independently and
+directs the caller to its backing buffer. Heap and no-copy external-memory
+ancestry therefore remains intact through the complete
+texture-to-buffer-to-owner chain.
 
 `Heap` exposes device size/alignment queries, automatic and explicit-placement
 descriptors, live allocation/usage facts, fragmentation queries, and checked
@@ -131,8 +155,9 @@ command uses. Command buffers retain each bound resource exactly once until a
 terminal status, explicit destruction, or finalization, preventing destroy,
 purge, or alias transitions while the GPU may still use it.
 
-Heap children retain the typed heap owner, while views retain their typed
-texture owner, so teardown with a live descendant is a deterministic
+Heap children retain the typed heap owner, buffer-backed textures retain their
+typed buffer owner, and views retain their typed texture owner, so teardown
+with a live descendant is a deterministic
 `Parent_has_dependents` error. Automatic resources intentionally report no
 placement offset; placement resources round-trip Metal's actual offset.
 
@@ -168,15 +193,17 @@ address modes and border colors, normalized coordinates, finite float32 LOD
 clamps, comparison, LOD averaging, and argument-buffer support. Invalid
 anisotropy, non-finite or inverted clamps, illegal unnormalized-coordinate
 combinations, and malformed labels fail before sampler creation. Sparse
-resources, buffer-backed textures, IOSurface/shared-handle texture ownership,
-and the remaining pixel-format capability matrix are still pending; this
-resource slice is therefore progress toward M3, not an M3 completion claim.
+resources, IOSurface/shared-handle texture ownership, and the remaining
+pixel-format capability matrix are still pending; this resource slice is
+therefore progress toward M3, not an M3 completion claim.
 
 `test_metal.exe` runs a real M1 compute kernel, wrong-domain and invalid-state
-cases, shader diagnostics, copied/no-copy external buffer ownership, buffer and
-texture bounds/stride/cardinality checks, texture mip transfer and views,
-sampler validation, multisample capability gating, heap alignment and
-placement, aliasing, purgeability, residency
+cases, shader diagnostics, copied/no-copy external buffer ownership,
+buffer-backed 2D/texture-buffer creation across shared/managed/private storage,
+configured cache/hazard modes, and shared transfer, buffer and texture bounds,
+stride, and cardinality checks, texture mip transfer and views, sampler
+validation, multisample capability gating, heap alignment and placement,
+aliasing, purgeability, residency
 membership/commit/queue/command retention, command-resource retention, parent
 ownership, idempotent destruction, stale access, and GC-finalizer release. The
 separate ownership stress performs
@@ -185,10 +212,11 @@ by 100,000 measured buffer create/destroy cycles, 100,000 measured
 texture/sampler create/destroy cycles, 10,000 heap/purge/alias/replacement
 cycles covering 30,000 measured heap/child-resource handles, and 10,000
 residency add/commit/remove/commit cycles covering 20,000 measured
-set/resource handles. A further 10,000 external-memory/no-copy cycles cover
-20,000 measured handles and exact deferred-deallocator layout. Each lane
-requires exact created/released balance, zero pending or dropped releases,
-stable live-handle count, and bounded settled RSS growth.
+set/resource handles. Another 10,000 buffer/linear-texture ownership cycles
+cover 20,000 handles, while 10,000 external-memory/no-copy cycles cover 20,000
+handles and exact deferred-deallocator layout. Each lane requires exact
+created/released balance, zero pending or dropped releases, stable live-handle
+count, and bounded settled RSS growth.
 
 `PRISMEL_METAL_SANITIZERS` is parsed by OCaml build configuration and accepts
 `address`, `undefined`, or `thread`; ThreadSanitizer is deliberately exclusive,

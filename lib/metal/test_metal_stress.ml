@@ -106,6 +106,40 @@ let run_external_buffer_cycles device ~page_size count =
     get (Buffer.External.destroy memory)
   done
 
+let run_buffer_texture_cycles device count =
+  let alignment =
+    get
+      (Texture.minimum_buffer_alignment ~device ~kind:Texture.Texture_2d
+         ~format:Texture.Rgba8_unorm)
+  in
+  if alignment > Int64.of_int max_int then
+    fail "linear texture alignment exceeds an OCaml integer";
+  let minimum_row = 16L in
+  let remainder = Int64.rem minimum_row alignment in
+  let row_pitch =
+    (if remainder = 0L then minimum_row
+     else Int64.add minimum_row (Int64.sub alignment remainder))
+    |> Int64.to_int
+  in
+  let descriptor =
+    Texture.descriptor_2d ~storage:Buffer.Shared
+      ~format:Texture.Rgba8_unorm ~width:4 ~height:1 ()
+  in
+  for _ = 1 to count do
+    let buffer =
+      get
+        (Buffer.create ~device ~length:(Int64.of_int row_pitch)
+           ~storage:Buffer.Shared ())
+    in
+    let texture =
+      get
+        (Texture.create_from_buffer ~buffer ~offset:0L
+           ~bytes_per_row:row_pitch descriptor)
+    in
+    get (Texture.destroy texture);
+    get (Buffer.destroy buffer)
+  done
+
 let check_cycles ?rss_limit ~name ~expected (baseline : Release_queue.stats)
     (finished : Release_queue.stats) =
   let created = Int64.sub finished.total_created baseline.total_created in
@@ -173,6 +207,14 @@ let () =
       end
       else None
     in
+    run_buffer_texture_cycles device 500;
+    let buffer_texture_baseline = settle () in
+    run_buffer_texture_cycles device 10_000;
+    let buffer_texture_finished = settle () in
+    let buffer_texture_rss_growth =
+      check_cycles ~name:"buffer-backed textures" ~expected:20_000L
+        buffer_texture_baseline buffer_texture_finished
+    in
     let page_size = get (Buffer.External.page_size ()) in
     run_external_buffer_cycles device ~page_size 500;
     let external_baseline = settle () in
@@ -194,12 +236,13 @@ let () =
     (match residency_rss_growth with
      | Some residency_rss_growth ->
          Printf.printf
-           "Metal ownership stress passed: 100000 buffer, 100000 texture/sampler, 30000 heap/resource, 20000 residency/resource, and 20000 external/no-copy handles, %Ld/%Ld/%Ld/%Ld/%Ld-byte settled RSS deltas, %Ld deferred no-copy callbacks\n%!"
+           "Metal ownership stress passed: 100000 buffer, 100000 texture/sampler, 30000 heap/resource, 20000 residency/resource, 20000 buffer/linear-texture, and 20000 external/no-copy handles, %Ld/%Ld/%Ld/%Ld/%Ld/%Ld-byte settled RSS deltas, %Ld deferred no-copy callbacks\n%!"
            buffer_rss_growth resource_rss_growth heap_rss_growth
-           residency_rss_growth external_rss_growth external_deallocations
+           residency_rss_growth buffer_texture_rss_growth external_rss_growth
+           external_deallocations
      | None ->
          Printf.printf
-           "Metal ownership stress passed: 100000 buffer, 100000 texture/sampler, 30000 heap/resource, and 20000 external/no-copy handles; residency unsupported, %Ld/%Ld/%Ld/%Ld-byte settled RSS deltas, %Ld deferred no-copy callbacks\n%!"
+           "Metal ownership stress passed: 100000 buffer, 100000 texture/sampler, 30000 heap/resource, 20000 buffer/linear-texture, and 20000 external/no-copy handles; residency unsupported, %Ld/%Ld/%Ld/%Ld/%Ld-byte settled RSS deltas, %Ld deferred no-copy callbacks\n%!"
            buffer_rss_growth resource_rss_growth heap_rss_growth
-           external_rss_growth external_deallocations)
+           buffer_texture_rss_growth external_rss_growth external_deallocations)
   end

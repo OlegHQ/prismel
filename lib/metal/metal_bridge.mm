@@ -419,6 +419,32 @@ NSUInteger texture_bytes_per_pixel(MTLPixelFormat format) {
   }
 }
 
+bool texture_supports_buffer_backing(MTLPixelFormat format) {
+  switch (format) {
+  case MTLPixelFormatA8Unorm:
+  case MTLPixelFormatR8Unorm:
+  case MTLPixelFormatR8Unorm_sRGB:
+  case MTLPixelFormatR8Uint:
+  case MTLPixelFormatR16Float:
+  case MTLPixelFormatR32Float:
+  case MTLPixelFormatRG8Unorm:
+  case MTLPixelFormatRG8Unorm_sRGB:
+  case MTLPixelFormatRG16Float:
+  case MTLPixelFormatRG32Float:
+  case MTLPixelFormatRGBA8Unorm:
+  case MTLPixelFormatRGBA8Unorm_sRGB:
+  case MTLPixelFormatBGRA8Unorm:
+  case MTLPixelFormatBGRA8Unorm_sRGB:
+  case MTLPixelFormatRGB10A2Unorm:
+  case MTLPixelFormatRG11B10Float:
+  case MTLPixelFormatRGBA16Float:
+  case MTLPixelFormatRGBA32Float:
+    return true;
+  default:
+    return false;
+  }
+}
+
 bool texture_transfer_range(id<MTLTexture> texture, value raw_transfer,
                             MTLRegion *region, NSUInteger *level,
                             NSUInteger *slice, intnat *source_offset,
@@ -698,6 +724,39 @@ extern "C" CAMLprim value caml_prismel_metal_device_supports_family(
 }
 
 extern "C" CAMLprim value
+caml_prismel_metal_device_minimum_texture_alignment(
+    value raw, value raw_kind, value raw_format) {
+  CAMLparam3(raw, raw_kind, raw_format);
+  CAMLlocal2(result, copied_alignment);
+  @autoreleasepool {
+    @try {
+      id<MTLDevice> device = object_of_handle(raw, Handle_kind::Device);
+      const auto kind = static_cast<MTLTextureType>(Long_val(raw_kind));
+      const auto format = static_cast<MTLPixelFormat>(Long_val(raw_format));
+      if ((kind != MTLTextureType2D &&
+           kind != MTLTextureTypeTextureBuffer) ||
+          !texture_supports_buffer_backing(format)) {
+        CAMLreturn(result_error_text(
+            "texture alignment requires a 2D or texture-buffer ordinary color format"));
+      }
+      const NSUInteger alignment = kind == MTLTextureTypeTextureBuffer
+          ? [device minimumTextureBufferAlignmentForPixelFormat:format]
+          : [device minimumLinearTextureAlignmentForPixelFormat:format];
+      if (alignment == 0 || alignment > static_cast<NSUInteger>(INT64_MAX)) {
+        CAMLreturn(result_error_text(
+            "Metal returned an invalid buffer-backed texture alignment"));
+      }
+      copied_alignment =
+          caml_copy_int64(static_cast<std::int64_t>(alignment));
+      result = result_ok(copied_alignment);
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+  CAMLreturn(result);
+}
+
+extern "C" CAMLprim value
 caml_prismel_metal_device_supports_raytracing(value raw) {
   CAMLparam1(raw);
   id<MTLDevice> device = object_of_handle(raw, Handle_kind::Device);
@@ -928,6 +987,91 @@ extern "C" CAMLprim value caml_prismel_metal_buffer_create_no_copy(
           "Metal changed the checked no-copy buffer layout"));
     }
     raw = allocate_handle(buffer, Handle_kind::Buffer);
+  }
+  CAMLreturn(result_ok(raw));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_buffer_texture_create(
+    value raw_buffer, value raw_descriptor, value raw_offset,
+    value raw_bytes_per_row, value raw_label) {
+  CAMLparam5(raw_buffer, raw_descriptor, raw_offset, raw_bytes_per_row,
+             raw_label);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    @try {
+      id<MTLBuffer> buffer = object_of_handle(raw_buffer, Handle_kind::Buffer);
+      MTLTextureDescriptor *descriptor = texture_descriptor(raw_descriptor);
+      const std::int64_t signed_offset = Int64_val(raw_offset);
+      const intnat signed_bytes_per_row = Long_val(raw_bytes_per_row);
+      if (signed_offset < 0 || signed_bytes_per_row <= 0 ||
+          (descriptor.textureType != MTLTextureType2D &&
+           descriptor.textureType != MTLTextureTypeTextureBuffer) ||
+          descriptor.depth != 1 || descriptor.arrayLength != 1 ||
+          descriptor.mipmapLevelCount != 1 || descriptor.sampleCount != 1 ||
+          !texture_supports_buffer_backing(descriptor.pixelFormat) ||
+          descriptor.storageMode != buffer.storageMode ||
+          descriptor.cpuCacheMode != buffer.cpuCacheMode ||
+          descriptor.hazardTrackingMode != buffer.hazardTrackingMode) {
+        CAMLreturn(result_error_text(
+            "buffer-backed texture descriptor is invalid or does not match its buffer"));
+      }
+      id<MTLDevice> device = buffer.device;
+      if ((descriptor.usage & MTLTextureUsageRenderTarget) != 0 &&
+          ![device supportsFamily:MTLGPUFamilyApple1]) {
+        CAMLreturn(result_error_text(
+            "linear render-target textures require Apple GPU family 1 support"));
+      }
+      const NSUInteger alignment =
+          descriptor.textureType == MTLTextureTypeTextureBuffer
+              ? [device minimumTextureBufferAlignmentForPixelFormat:
+                            descriptor.pixelFormat]
+              : [device minimumLinearTextureAlignmentForPixelFormat:
+                            descriptor.pixelFormat];
+      const NSUInteger offset = static_cast<NSUInteger>(signed_offset);
+      const NSUInteger bytes_per_row =
+          static_cast<NSUInteger>(signed_bytes_per_row);
+      const NSUInteger bytes_per_pixel =
+          texture_bytes_per_pixel(descriptor.pixelFormat);
+      if (alignment == 0 || offset % alignment != 0 ||
+          bytes_per_row % alignment != 0 || bytes_per_pixel == 0 ||
+          descriptor.width > NSUIntegerMax / bytes_per_pixel ||
+          bytes_per_row < descriptor.width * bytes_per_pixel ||
+          descriptor.height > NSUIntegerMax / bytes_per_row) {
+        CAMLreturn(result_error_text(
+            "buffer-backed texture alignment or row cardinality is invalid"));
+      }
+      const NSUInteger required = bytes_per_row * descriptor.height;
+      if (offset > buffer.length || required > buffer.length - offset) {
+        CAMLreturn(result_error_text(
+            "buffer-backed texture storage exceeds the buffer"));
+      }
+      NSString *label = nil;
+      if (Is_block(raw_label)) {
+        label = string_from_ocaml(Field(raw_label, 0));
+        if (label == nil) {
+          CAMLreturn(result_error_text("texture label is not valid UTF-8"));
+        }
+      }
+      id<MTLTexture> texture =
+          [buffer newTextureWithDescriptor:descriptor
+                                    offset:offset
+                               bytesPerRow:bytes_per_row];
+      if (texture == nil) {
+        CAMLreturn(result_error_text(
+            "Metal rejected the buffer-backed texture"));
+      }
+      if (texture.buffer != buffer || texture.bufferOffset != offset ||
+          texture.bufferBytesPerRow != bytes_per_row) {
+        CAMLreturn(result_error_text(
+            "Metal changed the checked buffer-backed texture layout"));
+      }
+      if (label != nil) {
+        texture.label = label;
+      }
+      raw = allocate_handle(texture, Handle_kind::Texture);
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
   }
   CAMLreturn(result_ok(raw));
 }

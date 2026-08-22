@@ -100,7 +100,9 @@ let bound_identifiers =
   ]
   @ methods
       [ ( "MTLBuffer"
-        , [ "contents"; "didModifyRange:"; "length" ] )
+        , [ "contents"; "didModifyRange:"; "length"
+          ; "newTextureWithDescriptor:offset:bytesPerRow:"
+          ] )
       ; "MTLAllocation", [ "allocatedSize" ]
       ; ( "MTLCommandBuffer"
         , [ "commit"; "computeCommandEncoder"; "error"; "label"; "setLabel:"
@@ -122,6 +124,8 @@ let bound_identifiers =
           ; "heapBufferSizeAndAlignWithLength:options:"
           ; "heapTextureSizeAndAlignWithDescriptor:"
           ; "isLowPower"; "isRemovable"; "maxBufferLength"; "name"
+          ; "minimumLinearTextureAlignmentForPixelFormat:"
+          ; "minimumTextureBufferAlignmentForPixelFormat:"
           ; "newBufferWithBytes:length:options:"
           ; "newBufferWithBytesNoCopy:length:options:deallocator:"
           ; "newBufferWithLength:options:"; "newCommandQueue"
@@ -181,7 +185,8 @@ let bound_identifiers =
           ] )
       ; "MTLSamplerState", [ "label" ]
       ; ( "MTLTexture"
-        , [ "arrayLength"; "depth"
+        , [ "arrayLength"; "buffer"; "bufferBytesPerRow"; "bufferOffset"
+          ; "depth"
           ; "getBytes:bytesPerRow:bytesPerImage:fromRegion:mipmapLevel:slice:"
           ; "height"; "mipmapLevelCount"
           ; "newTextureViewWithPixelFormat:textureType:levels:slices:"

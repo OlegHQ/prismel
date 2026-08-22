@@ -382,6 +382,7 @@ let () =
     (match Buffer.external_memory no_copy_buffer with
      | Some owner when owner == external_memory -> ()
      | Some _ | None -> fail "no-copy buffer lost its external owner");
+    ignore (expect_error Parent_has_dependents (Device.destroy device));
     if get (Buffer.read_bytes no_copy_buffer ~offset:0L ~length:16)
        <> input_values ()
     then fail "no-copy buffer did not expose its external bytes";
@@ -453,6 +454,355 @@ let () =
     then
       fail
         "external/no-copy finalization did not release exactly two handles with a valid deallocator layout";
+    let linear_alignment =
+      get
+        (Texture.minimum_buffer_alignment ~device ~kind:Texture.Texture_2d
+           ~format:Texture.Rgba8_unorm)
+    in
+    let texture_buffer_alignment =
+      get
+        (Texture.minimum_buffer_alignment ~device
+           ~kind:Texture.Texture_buffer ~format:Texture.Rgba8_unorm)
+    in
+    if
+      linear_alignment <= 0L
+      || Int64.logand linear_alignment (Int64.pred linear_alignment) <> 0L
+      || texture_buffer_alignment <= 0L
+      || Int64.logand texture_buffer_alignment
+           (Int64.pred texture_buffer_alignment)
+         <> 0L
+      || linear_alignment > Int64.of_int max_int
+      || texture_buffer_alignment > Int64.of_int max_int
+    then fail "buffer-backed texture alignments are invalid";
+    ignore
+      (expect_error Invalid_argument
+         (Texture.minimum_buffer_alignment ~device ~kind:Texture.Texture_3d
+            ~format:Texture.Rgba8_unorm));
+    ignore
+      (expect_error Invalid_argument
+         (Texture.minimum_buffer_alignment ~device ~kind:Texture.Texture_2d
+            ~format:Texture.Depth32_float));
+    let linear_width = 4 in
+    let linear_height = 4 in
+    let linear_row_pitch =
+      align_up (Int64.of_int (linear_width * 4)) linear_alignment
+      |> Int64.to_int
+    in
+    let linear_offset = linear_alignment in
+    let linear_length =
+      Int64.add linear_offset
+        (Int64.mul (Int64.of_int linear_row_pitch)
+           (Int64.of_int linear_height))
+    in
+    let linear_buffer =
+      get
+        (Buffer.create ~device ~length:linear_length ~storage:Buffer.Shared
+           ~label:"Linear texture buffer" ())
+    in
+    let linear_descriptor =
+      Texture.descriptor_2d ~storage:Buffer.Shared
+        ~usage:[ Texture.Shader_read; Texture.Pixel_format_view ]
+        ~label:"Buffer-backed texture" ~format:Texture.Rgba8_unorm
+        ~width:linear_width ~height:linear_height ()
+    in
+    let linear_bytes = Bytes.make (linear_row_pitch * linear_height) '\000' in
+    for row = 0 to linear_height - 1 do
+      for column = 0 to (linear_width * 4) - 1 do
+        Bytes.set_uint8 linear_bytes ((row * linear_row_pitch) + column)
+          ((row * 31 + column) land 0xff)
+      done
+    done;
+    get (Buffer.write_bytes linear_buffer ~dst_offset:linear_offset linear_bytes);
+    let linear_texture =
+      get
+        (Texture.create_from_buffer ~buffer:linear_buffer ~offset:linear_offset
+           ~bytes_per_row:linear_row_pitch linear_descriptor)
+    in
+    (match Texture.buffer_backing linear_texture with
+     | Some backing
+       when backing.buffer == linear_buffer
+            && backing.offset = linear_offset
+            && backing.bytes_per_row = linear_row_pitch -> ()
+     | Some _ | None -> fail "buffer-backed texture lost its checked layout");
+    if Texture.heap_offset linear_texture <> None
+       || get (Texture.label linear_texture) <> Some "Buffer-backed texture"
+       || get (Texture.purgeable_state linear_texture) <> Nonvolatile
+       || get (Texture.is_aliasable linear_texture)
+    then fail "buffer-backed texture resource properties are wrong";
+    let linear_region : Texture.region =
+      { x = 0
+      ; y = 0
+      ; z = 0
+      ; width = linear_width
+      ; height = linear_height
+      ; depth = 1
+      }
+    in
+    if
+      get
+        (Texture.read_bytes linear_texture ~region:linear_region ~mip_level:0
+           ~slice:0 ~bytes_per_row:linear_row_pitch
+           ~bytes_per_image:(linear_row_pitch * linear_height))
+      <> linear_bytes
+    then fail "backing-buffer writes were not visible through the texture";
+    let replacement_linear_bytes = Bytes.copy linear_bytes in
+    for row = 0 to linear_height - 1 do
+      for column = 0 to (linear_width * 4) - 1 do
+        Bytes.set_uint8 replacement_linear_bytes
+          ((row * linear_row_pitch) + column)
+          ((255 - row - column) land 0xff)
+      done
+    done;
+    get
+      (Texture.write_bytes linear_texture ~region:linear_region ~mip_level:0
+         ~slice:0 ~bytes_per_row:linear_row_pitch
+         ~bytes_per_image:(linear_row_pitch * linear_height)
+         replacement_linear_bytes);
+    if
+      get
+        (Buffer.read_bytes linear_buffer ~offset:linear_offset
+           ~length:(Bytes.length replacement_linear_bytes))
+      <> replacement_linear_bytes
+    then fail "texture writes were not visible through the backing buffer";
+    let linear_view =
+      get
+        (Texture.create_view linear_texture
+           ~format:Texture.Rgba8_unorm_srgb ~base_mip:0 ~mip_count:1
+           ~base_slice:0 ~slice_count:1 ())
+    in
+    (match Texture.buffer_backing linear_view with
+     | Some backing when backing.buffer == linear_buffer -> ()
+     | Some _ | None -> fail "texture view lost its backing-buffer ancestry");
+    ignore (expect_error Parent_has_dependents (Buffer.destroy linear_buffer));
+    ignore
+      (expect_error Parent_has_dependents
+         (Buffer.set_purgeable_state linear_buffer Volatile));
+    ignore
+      (expect_error Parent_has_dependents (Buffer.make_aliasable linear_buffer));
+    ignore
+      (expect_error Parent_has_dependents (Texture.destroy linear_texture));
+    get (Texture.destroy linear_view);
+    ignore
+      (expect_error Invalid_state
+         (Texture.set_purgeable_state linear_texture Volatile));
+    ignore (expect_error Invalid_state (Texture.make_aliasable linear_texture));
+    let before_invalid_linear_textures = get (Release_queue.stats ()) in
+    ignore
+      (expect_error Invalid_argument
+         (Texture.create_from_buffer ~buffer:linear_buffer ~offset:1L
+            ~bytes_per_row:linear_row_pitch linear_descriptor));
+    ignore
+      (expect_error Invalid_argument
+         (Texture.create_from_buffer ~buffer:linear_buffer ~offset:linear_offset
+            ~bytes_per_row:(linear_row_pitch + 1) linear_descriptor));
+    ignore
+      (expect_error Invalid_argument
+         (Texture.create_from_buffer ~buffer:linear_buffer ~offset:linear_offset
+            ~bytes_per_row:linear_row_pitch
+            { linear_descriptor with height = linear_height + 1 }));
+    ignore
+      (expect_error Invalid_argument
+         (Texture.create_from_buffer ~buffer:linear_buffer ~offset:linear_offset
+            ~bytes_per_row:linear_row_pitch
+            { linear_descriptor with storage = Buffer.Private }));
+    ignore
+      (expect_error Invalid_argument
+         (Texture.create_from_buffer ~buffer:linear_buffer ~offset:linear_offset
+            ~bytes_per_row:linear_row_pitch
+            { linear_descriptor with format = Texture.Depth32_float }));
+    ignore
+      (expect_error Invalid_argument
+         (Texture.create_from_buffer ~buffer:linear_buffer ~offset:linear_offset
+            ~bytes_per_row:linear_row_pitch
+            { linear_descriptor with kind = Texture.Texture_3d }));
+    ignore
+      (expect_error Invalid_argument
+         (Texture.create_from_buffer ~buffer:linear_buffer ~offset:linear_offset
+            ~bytes_per_row:linear_row_pitch
+            { linear_descriptor with mip_levels = 2 }));
+    ignore
+      (expect_error Invalid_argument
+         (Texture.create_from_buffer ~buffer:linear_buffer ~offset:linear_offset
+            ~bytes_per_row:linear_row_pitch
+            { linear_descriptor with label = Some "invalid\000label" }));
+    ignore
+      (expect_error Native_error
+         (Texture.create_from_buffer ~buffer:linear_buffer ~offset:linear_offset
+            ~bytes_per_row:linear_row_pitch
+            { linear_descriptor with label = Some "\255" }));
+    let after_invalid_linear_textures = get (Release_queue.stats ()) in
+    if
+      after_invalid_linear_textures.total_created
+      <> before_invalid_linear_textures.total_created
+      || after_invalid_linear_textures.live_handles
+         <> before_invalid_linear_textures.live_handles
+    then fail "invalid buffer-backed textures allocated partial native handles";
+    let render_target_linear_descriptor : Texture.descriptor =
+      { linear_descriptor with
+        usage = [ Texture.Render_target ]
+      ; label = None
+      }
+    in
+    if get (Device.supports_family device Device.Apple1) then begin
+      let render_target_linear_texture =
+        get
+          (Texture.create_from_buffer ~buffer:linear_buffer
+             ~offset:linear_offset ~bytes_per_row:linear_row_pitch
+             render_target_linear_descriptor)
+      in
+      get (Texture.destroy render_target_linear_texture)
+    end
+    else
+      ignore
+        (expect_error Unsupported
+           (Texture.create_from_buffer ~buffer:linear_buffer
+              ~offset:linear_offset ~bytes_per_row:linear_row_pitch
+              render_target_linear_descriptor));
+    let texture_buffer_row_pitch =
+      align_up 16L texture_buffer_alignment |> Int64.to_int
+    in
+    let texture_buffer_source =
+      get
+        (Buffer.create ~device
+           ~length:(Int64.of_int texture_buffer_row_pitch)
+           ~storage:Buffer.Shared ())
+    in
+    let texture_buffer_descriptor : Texture.descriptor =
+      { linear_descriptor with
+        kind = Texture.Texture_buffer
+      ; width = 4
+      ; height = 1
+      ; usage = [ Texture.Shader_read ]
+      ; label = Some "Typed texture buffer"
+      }
+    in
+    ignore
+      (expect_error Invalid_argument
+         (Texture.create ~device texture_buffer_descriptor));
+    ignore
+      (expect_error Invalid_argument
+         (Heap.texture_size_and_align ~device texture_buffer_descriptor));
+    let texture_buffer =
+      get
+        (Texture.create_from_buffer ~buffer:texture_buffer_source ~offset:0L
+           ~bytes_per_row:texture_buffer_row_pitch texture_buffer_descriptor)
+    in
+    (match Texture.buffer_backing texture_buffer with
+     | Some backing
+       when backing.buffer == texture_buffer_source
+            && backing.bytes_per_row = texture_buffer_row_pitch -> ()
+     | Some _ | None -> fail "texture-buffer kind lost its backing layout");
+    get (Texture.destroy texture_buffer);
+    get (Buffer.destroy texture_buffer_source);
+    List.iter
+      (fun storage ->
+        let buffer =
+          get
+            (Buffer.create ~device ~length:(Int64.of_int linear_row_pitch)
+               ~storage ())
+        in
+        let descriptor : Texture.descriptor =
+          { linear_descriptor with
+            height = 1
+          ; storage
+          ; usage = [ Texture.Shader_read ]
+          ; label = None
+          }
+        in
+        let texture =
+          get
+            (Texture.create_from_buffer ~buffer ~offset:0L
+               ~bytes_per_row:linear_row_pitch descriptor)
+        in
+        (match storage with
+         | Buffer.Private ->
+             ignore
+               (expect_error Unsupported
+                  (Texture.read_bytes texture
+                     ~region:{ linear_region with height = 1 } ~mip_level:0
+                     ~slice:0 ~bytes_per_row:linear_row_pitch
+                     ~bytes_per_image:linear_row_pitch))
+         | Buffer.Shared | Buffer.Managed -> ());
+        get (Texture.destroy texture);
+        get (Buffer.destroy buffer))
+      [ Buffer.Managed; Buffer.Private ];
+    let configured_linear_buffer =
+      get
+        (Buffer.create ~device ~length:(Int64.of_int linear_row_pitch)
+           ~storage:Buffer.Shared ~cpu_cache:Buffer.Write_combined
+           ~hazard_tracking:Buffer.Untracked ())
+    in
+    let configured_linear_texture =
+      get
+        (Texture.create_from_buffer ~buffer:configured_linear_buffer ~offset:0L
+           ~bytes_per_row:linear_row_pitch
+           { linear_descriptor with
+             height = 1
+           ; cpu_cache = Texture.Write_combined
+           ; hazard_tracking = Texture.Untracked
+           ; label = None
+           })
+    in
+    if
+      (Texture.descriptor configured_linear_texture).cpu_cache
+      <> Texture.Write_combined
+      || (Texture.descriptor configured_linear_texture).hazard_tracking
+         <> Texture.Untracked
+    then fail "configured buffer-backed texture modes are wrong";
+    get (Texture.destroy configured_linear_texture);
+    get (Buffer.destroy configured_linear_buffer);
+    get (Texture.destroy linear_texture);
+    get (Buffer.destroy linear_buffer);
+    let external_texture_memory =
+      get (Buffer.External.create ~length:(Int64.of_int page_size))
+    in
+    let external_texture_buffer =
+      get
+        (Buffer.create_no_copy ~device ~memory:external_texture_memory
+           ~storage:Buffer.Shared ())
+    in
+    let external_linear_texture =
+      get
+        (Texture.create_from_buffer ~buffer:external_texture_buffer ~offset:0L
+           ~bytes_per_row:linear_row_pitch
+           { linear_descriptor with height = 1; label = None })
+    in
+    ignore
+      (expect_error Parent_has_dependents
+         (Buffer.External.destroy external_texture_memory));
+    ignore
+      (expect_error Parent_has_dependents
+         (Buffer.destroy external_texture_buffer));
+    get (Texture.destroy external_linear_texture);
+    get (Buffer.destroy external_texture_buffer);
+    get (Buffer.External.destroy external_texture_memory);
+    let before_linear_finalizer = get (Release_queue.stats ()) in
+    let allocate_unreleased_linear_texture () =
+      let buffer =
+        get
+          (Buffer.create ~device ~length:(Int64.of_int linear_row_pitch)
+             ~storage:Buffer.Shared ())
+      in
+      ignore
+        (get
+           (Texture.create_from_buffer ~buffer ~offset:0L
+              ~bytes_per_row:linear_row_pitch
+              { linear_descriptor with height = 1; label = None }))
+    in
+    allocate_unreleased_linear_texture ();
+    let after_linear_finalizer =
+      settle_finalizers ~expected_live:before_linear_finalizer.live_handles
+    in
+    if
+      Int64.sub after_linear_finalizer.total_created
+        before_linear_finalizer.total_created
+      <> 2L
+      || Int64.sub after_linear_finalizer.total_released
+           before_linear_finalizer.total_released
+         <> 2L
+    then
+      fail
+        "buffer-backed texture finalization did not release its texture and backing buffer";
     let texture_descriptor =
       Texture.descriptor_2d ~mipmapped:true ~storage:Buffer.Shared
         ~usage:[ Texture.Shader_read; Texture.Pixel_format_view ]
@@ -814,6 +1164,55 @@ let () =
     then fail "shared heap buffer transfer did not round-trip";
     get (Buffer.destroy shared_heap_buffer);
     get (Heap.destroy shared_heap);
+    let linear_heap_layout =
+      get
+        (Heap.buffer_size_and_align ~device ~length:(Int64.of_int linear_row_pitch)
+           ~storage:Buffer.Shared ())
+    in
+    let linear_heap =
+      get
+        (Heap.create ~device
+           (Heap.make_descriptor ~storage:Buffer.Shared
+              ~size:linear_heap_layout.size ()))
+    in
+    let linear_heap_buffer =
+      get
+        (Heap.create_buffer linear_heap ~length:(Int64.of_int linear_row_pitch)
+           ())
+    in
+    let linear_heap_descriptor : Texture.descriptor =
+      { linear_descriptor with
+        height = 1
+      ; usage = [ Texture.Shader_read ]
+      ; label = Some "Heap-buffer-backed texture"
+      }
+    in
+    let linear_heap_texture =
+      get
+        (Texture.create_from_buffer ~buffer:linear_heap_buffer ~offset:0L
+           ~bytes_per_row:linear_row_pitch linear_heap_descriptor)
+    in
+    if Texture.heap_offset linear_heap_texture <> None
+       || (Texture.descriptor linear_heap_texture).hazard_tracking
+          <> Texture.Untracked
+    then fail "heap-buffer-backed texture lost its heap resource properties";
+    ignore
+      (expect_error Parent_has_dependents (Buffer.destroy linear_heap_buffer));
+    ignore (expect_error Parent_has_dependents (Heap.destroy linear_heap));
+    ignore (get (Heap.set_purgeable_state linear_heap Volatile));
+    (match get (Heap.purgeable_state linear_heap) with
+     | Nonvolatile -> ()
+     | Volatile | Empty ->
+         ignore
+           (expect_error Invalid_state
+              (Texture.read_bytes linear_heap_texture
+                 ~region:{ linear_region with height = 1 } ~mip_level:0
+                 ~slice:0 ~bytes_per_row:linear_row_pitch
+                 ~bytes_per_image:linear_row_pitch));
+         ignore (get (Heap.set_purgeable_state linear_heap Nonvolatile)));
+    get (Texture.destroy linear_heap_texture);
+    get (Buffer.destroy linear_heap_buffer);
+    get (Heap.destroy linear_heap);
     ignore
       (expect_error Unsupported
          (Heap.create ~device

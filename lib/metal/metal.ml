@@ -308,8 +308,15 @@ and texture =
   ; state : resource_state
   }
 
+and buffer_texture_backing =
+  { buffer : buffer
+  ; offset : int64
+  ; bytes_per_row : int
+  }
+
 and texture_parent =
   | Texture_resource of resource_parent
+  | Texture_buffer_resource of buffer_texture_backing
   | Texture_view of texture
 
 type buffer_mapping =
@@ -524,9 +531,18 @@ let resource_parent_lifetime = function
   | Heap_resource heap -> heap.lifetime
   | External_resource memory -> memory.lifetime
 
+let resource_parent_extra_device (device : device) = function
+  | External_resource _ -> Some device.lifetime
+  | Device_resource _ | Heap_resource _ -> None
+
 let texture_parent_lifetime = function
   | Texture_resource parent -> resource_parent_lifetime parent
+  | Texture_buffer_resource backing -> backing.buffer.lifetime
   | Texture_view texture -> texture.lifetime
+
+let texture_parent_extra_device (device : device) = function
+  | Texture_resource parent -> resource_parent_extra_device device parent
+  | Texture_buffer_resource _ | Texture_view _ -> None
 
 let resource_state () =
   { relinquished = Atomic.make false; purgeable = Atomic.make Nonvolatile }
@@ -570,6 +586,7 @@ let parent_heap = function
 let rec texture_heap (value : texture) =
   match value.parent with
   | Texture_resource parent -> parent_heap parent
+  | Texture_buffer_resource backing -> parent_heap backing.buffer.parent
   | Texture_view parent -> texture_heap parent
 
 let ensure_heap_nonvolatile operation = function
@@ -946,8 +963,12 @@ module Buffer = struct
             }
           in
           attach parent_lifetime;
+          let extra_device = resource_parent_extra_device device parent in
+          Option.iter attach extra_device;
           attach_finalizer
-            ~on_finalize:(fun () -> deactivate_allocation allocation)
+            ~on_finalize:(fun () ->
+              deactivate_allocation allocation;
+              Option.iter detach extra_device)
             value value.lifetime parent_lifetime;
           Ok value
 
@@ -1244,7 +1265,7 @@ module Buffer = struct
             "an aliasable resource cannot change purgeability"
       | Ok () when dependent_count value.lifetime <> 0 ->
           error "Metal.Buffer.set_purgeable_state" Parent_has_dependents
-            "buffer has an active mapping or command dependency"
+            "buffer has an active mapping, texture, or command dependency"
       | Ok () ->
           (match
              ensure_heap_nonvolatile "Metal.Buffer.set_purgeable_state"
@@ -1272,7 +1293,7 @@ module Buffer = struct
             "buffer must be nonvolatile before becoming aliasable"
       | Ok () when dependent_count value.lifetime <> 0 ->
           error "Metal.Buffer.make_aliasable" Parent_has_dependents
-            "buffer has an active mapping or command dependency"
+            "buffer has an active mapping, texture, or command dependency"
       | Ok () ->
           (match value.parent with
            | Device_resource _ ->
@@ -1305,7 +1326,9 @@ module Buffer = struct
     destroy_parent "Metal.Buffer.destroy" value.lifetime value.raw
       (fun () ->
         deactivate_allocation value.allocation;
-        detach (resource_parent_lifetime value.parent))
+        detach (resource_parent_lifetime value.parent);
+        Option.iter detach
+          (resource_parent_extra_device value.device value.parent))
 end
 
 module Texture = struct
@@ -1386,6 +1409,12 @@ module Texture = struct
     ; depth : int
     }
 
+  type buffer_backing = buffer_texture_backing =
+    { buffer : Buffer.t
+    ; offset : int64
+    ; bytes_per_row : int
+    }
+
   let descriptor_2d ?(mipmapped = false) ?(storage = Private)
       ?(usage = [ Shader_read ]) ?label ~format ~width ~height () =
     let max_dimension = max width height in
@@ -1455,6 +1484,49 @@ module Texture = struct
     | Rg32_float | Rgba16_float | Depth32_float_stencil8 -> 8
     | Rgba32_float -> 16
 
+  let supports_buffer_backing = function
+    | A8_unorm | R8_unorm | R8_unorm_srgb | R8_uint | R16_float | R32_float
+    | Rg8_unorm | Rg8_unorm_srgb | Rg16_float | Rg32_float | Rgba8_unorm
+    | Rgba8_unorm_srgb | Bgra8_unorm | Bgra8_unorm_srgb | Rgb10a2_unorm
+    | Rg11b10_float | Rgba16_float | Rgba32_float -> true
+    | Depth16_unorm | Depth32_float | Stencil8 | Depth24_unorm_stencil8
+    | Depth32_float_stencil8 -> false
+
+  let validate_buffer_kind_format operation ~kind ~format =
+    if kind <> Texture_2d && kind <> Texture_buffer then
+      error operation Invalid_argument
+        "buffer-backed textures must use the 2D or texture-buffer kind"
+    else if not (supports_buffer_backing format) then
+      error operation Invalid_argument
+        "buffer-backed textures require an ordinary or packed color format"
+    else Ok ()
+
+  let minimum_buffer_alignment_raw operation (device : Device.t) ~kind ~format =
+    match validate_buffer_kind_format operation ~kind ~format with
+    | Error _ as failure -> failure
+    | Ok () ->
+        (match
+           Metal_raw.device_minimum_texture_alignment device.raw
+             (kind_code kind) (format_code format)
+         with
+         | Error message -> native_error operation message
+         | Ok alignment
+           when alignment <= 0L
+                || Int64.logand alignment (Int64.pred alignment) <> 0L ->
+             native_error operation
+               "Metal returned a non-positive or non-power-of-two texture alignment"
+         | Ok alignment -> Ok alignment)
+
+  let minimum_buffer_alignment ~(device : Device.t) ~kind ~format =
+    on_main "Metal.Texture.minimum_buffer_alignment" (fun () ->
+      match
+        ensure_live "Metal.Texture.minimum_buffer_alignment" device.lifetime
+      with
+      | Error _ as failure -> failure
+      | Ok () ->
+          minimum_buffer_alignment_raw
+            "Metal.Texture.minimum_buffer_alignment" device ~kind ~format)
+
   let usage_bit = function
     | Shader_read -> 0x1
     | Shader_write -> 0x2
@@ -1484,15 +1556,17 @@ module Texture = struct
     | Texture_1d | Texture_1d_array | Texture_2d | Texture_2d_array
     | Texture_cube | Texture_cube_array | Texture_3d | Texture_buffer -> false
 
-  let validate_descriptor device (descriptor : descriptor) =
-    let operation = "Metal.Texture.create" in
+  let validate_descriptor operation device (descriptor : descriptor) =
     let invalid message = error operation Invalid_argument message in
     if descriptor.width <= 0 || descriptor.height <= 0 || descriptor.depth <= 0
        || descriptor.mip_levels <= 0 || descriptor.sample_count <= 0
        || descriptor.array_length <= 0
     then invalid "texture dimensions and counts must be positive"
-    else if descriptor.width > 16_384 || descriptor.height > 16_384
-            || descriptor.depth > 2_048
+    else if
+      (descriptor.kind = Texture_buffer && descriptor.width > 268_435_456)
+      || (descriptor.kind <> Texture_buffer
+          && (descriptor.width > 16_384 || descriptor.height > 16_384
+              || descriptor.depth > 2_048))
     then invalid "texture dimensions exceed the binding's checked Metal limits"
     else if descriptor.mip_levels > max_mip_levels descriptor then
       invalid "texture mip count exceeds its dimensions"
@@ -1592,6 +1666,8 @@ module Texture = struct
       | Texture_resource (Heap_resource _) -> true
       | Texture_resource (Device_resource _ | External_resource _)
       | Texture_view _ -> false
+      | Texture_buffer_resource backing ->
+          Option.is_some (parent_heap backing.buffer.parent)
     in
     match verify_info operation raw descriptor ~heap with
     | Error _ as failure -> ignore (Metal_raw.destroy raw); failure
@@ -1600,6 +1676,7 @@ module Texture = struct
         let state =
           match parent with
           | Texture_resource _ -> resource_state ()
+          | Texture_buffer_resource backing -> backing.buffer.state
           | Texture_view texture -> texture.state
         in
         let value : t =
@@ -1614,8 +1691,12 @@ module Texture = struct
           }
         in
         attach parent_lifetime;
+        let extra_device = texture_parent_extra_device device parent in
+        Option.iter attach extra_device;
         attach_finalizer
-          ~on_finalize:(fun () -> deactivate_allocation allocation)
+          ~on_finalize:(fun () ->
+            deactivate_allocation allocation;
+            Option.iter detach extra_device)
           value value.lifetime parent_lifetime;
         Ok value
 
@@ -1624,8 +1705,13 @@ module Texture = struct
       match ensure_live "Metal.Texture.create" device.lifetime with
       | Error _ as failure -> failure
       | Ok () ->
-          (match validate_descriptor device descriptor with
+          (match
+             validate_descriptor "Metal.Texture.create" device descriptor
+           with
            | Error _ as failure -> failure
+           | Ok () when descriptor.kind = Texture_buffer ->
+               error "Metal.Texture.create" Invalid_argument
+                 "texture-buffer resources must be created from a buffer"
            | Ok () ->
                match
                  Metal_raw.texture_create device.raw (descriptor_tuple descriptor)
@@ -1642,6 +1728,12 @@ module Texture = struct
   let heap_offset (value : t) = value.heap_offset
   let generation (value : t) = Metal_raw.generation value.raw
   let destroyed (value : t) = is_destroyed value.lifetime
+
+  let rec buffer_backing (value : t) =
+    match value.parent with
+    | Texture_buffer_resource backing -> Some backing
+    | Texture_view parent -> buffer_backing parent
+    | Texture_resource _ -> None
 
   let label (value : t) =
     on_main "Metal.Texture.label" (fun () ->
@@ -1676,6 +1768,113 @@ module Texture = struct
     if left = 0 || right = 0 then Some 0
     else if left > max_int / right then None
     else Some (left * right)
+
+  let validate_buffer_descriptor operation (buffer : Buffer.t)
+      (descriptor : descriptor) =
+    let invalid message = error operation Invalid_argument message in
+    match
+      validate_buffer_kind_format operation ~kind:descriptor.kind
+        ~format:descriptor.format
+    with
+    | Error _ as failure -> failure
+    | Ok ()
+      when descriptor.depth <> 1 || descriptor.array_length <> 1
+           || descriptor.mip_levels <> 1 || descriptor.sample_count <> 1 ->
+        invalid
+          "buffer-backed textures require depth, array length, mip count, and sample count equal to one"
+    | Ok () ->
+        let heap = Option.is_some (parent_heap buffer.parent) in
+        let expected_hazard =
+          concrete_hazard_tracking ~heap descriptor.hazard_tracking
+        in
+        if
+          descriptor.storage <> buffer.storage
+          || descriptor.cpu_cache <> buffer.cpu_cache
+          || expected_hazard <> buffer.hazard_tracking
+        then
+          invalid
+            "texture storage, cache, and hazard modes must match the backing buffer"
+        else
+          (match validate_descriptor operation buffer.device descriptor with
+           | Error _ as failure -> failure
+           | Ok ()
+             when List.mem Render_target descriptor.usage
+                  && not
+                       (Metal_raw.device_supports_family buffer.device.raw
+                          (Device.family_code Device.Apple1)) ->
+               error operation Unsupported
+                 "linear render-target textures require Apple GPU family 1 support"
+           | Ok () -> Ok { descriptor with hazard_tracking = expected_hazard })
+
+  let validate_buffer_layout operation (buffer : Buffer.t)
+      (descriptor : descriptor) ~offset ~bytes_per_row =
+    let invalid message = error operation Invalid_argument message in
+    if offset < 0L then invalid "buffer-backed texture offset is negative"
+    else if bytes_per_row <= 0 then
+      invalid "buffer-backed texture row pitch must be positive"
+    else
+      match checked_mul descriptor.width (bytes_per_pixel descriptor.format) with
+      | None ->
+          invalid
+            "buffer-backed texture row cardinality overflows an OCaml integer"
+      | Some minimum_row when bytes_per_row < minimum_row ->
+          invalid "buffer-backed texture row pitch is smaller than one pixel row"
+      | Some _ ->
+          (match
+             minimum_buffer_alignment_raw operation buffer.device
+               ~kind:descriptor.kind ~format:descriptor.format
+           with
+           | Error _ as failure -> failure
+           | Ok alignment ->
+               let row_pitch = Int64.of_int bytes_per_row in
+               let height = Int64.of_int descriptor.height in
+               if Int64.rem offset alignment <> 0L
+                  || Int64.rem row_pitch alignment <> 0L
+               then
+                 invalid
+                   "buffer-backed texture offset and row pitch do not meet the device alignment"
+               else if row_pitch > Int64.div Int64.max_int height then
+                 invalid
+                   "buffer-backed texture storage cardinality overflows 64 bits"
+               else
+                 let required = Int64.mul row_pitch height in
+                 if
+                   offset > buffer.length
+                   || required > Int64.sub buffer.length offset
+                 then
+                   invalid
+                     "buffer-backed texture storage exceeds the backing buffer"
+                 else Ok ())
+
+  let create_from_buffer ~(buffer : Buffer.t) ~offset ~bytes_per_row
+      descriptor =
+    let operation = "Metal.Texture.create_from_buffer" in
+    on_main operation (fun () ->
+      match ensure_buffer_usable operation buffer with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match validate_buffer_descriptor operation buffer descriptor with
+           | Error _ as failure -> failure
+           | Ok descriptor ->
+               (match
+                  validate_buffer_layout operation buffer descriptor ~offset
+                    ~bytes_per_row
+                with
+                | Error _ as failure -> failure
+                | Ok () ->
+                    match
+                      Metal_raw.buffer_texture_create buffer.raw
+                        (descriptor_tuple descriptor) offset bytes_per_row
+                        descriptor.label
+                    with
+                    | Error message -> native_error operation message
+                    | Ok raw ->
+                        let backing : buffer_backing =
+                          { buffer; offset; bytes_per_row }
+                        in
+                        finish_create operation ~device:buffer.device ~descriptor
+                          ~parent:(Texture_buffer_resource backing)
+                          ~heap_offset:buffer.heap_offset ~allocation:None raw)))
 
   let validate_transfer operation (value : t) ~region ~mip_level ~slice ~bytes_per_row
       ~bytes_per_image =
@@ -1860,9 +2059,12 @@ module Texture = struct
       match ensure_live "Metal.Texture.purgeable_state" value.lifetime with
       | Error _ as failure -> failure
       | Ok () ->
-          query_purgeable_state "Metal.Texture.purgeable_state"
-            (Metal_raw.resource_set_purgeable_state value.raw)
-            value.state.purgeable)
+          (match buffer_backing value with
+           | Some backing -> Buffer.purgeable_state backing.buffer
+           | None ->
+               query_purgeable_state "Metal.Texture.purgeable_state"
+                 (Metal_raw.resource_set_purgeable_state value.raw)
+                 value.state.purgeable))
 
   let set_purgeable_state (value : t) state =
     on_main "Metal.Texture.set_purgeable_state" (fun () ->
@@ -1879,6 +2081,9 @@ module Texture = struct
            | Texture_view _ ->
                error "Metal.Texture.set_purgeable_state" Invalid_state
                  "set purgeability on the base texture rather than a view"
+           | Texture_buffer_resource _ ->
+               error "Metal.Texture.set_purgeable_state" Invalid_state
+                 "set purgeability on the backing buffer"
            | Texture_resource parent ->
                (match
                   ensure_heap_nonvolatile "Metal.Texture.set_purgeable_state"
@@ -1895,7 +2100,10 @@ module Texture = struct
     on_main "Metal.Texture.is_aliasable" (fun () ->
       match ensure_live "Metal.Texture.is_aliasable" value.lifetime with
       | Error _ as failure -> failure
-      | Ok () -> Ok (Metal_raw.resource_is_aliasable value.raw))
+      | Ok () ->
+          (match buffer_backing value with
+           | Some backing -> Buffer.is_aliasable backing.buffer
+           | None -> Ok (Metal_raw.resource_is_aliasable value.raw)))
 
   let make_aliasable (value : t) =
     on_main "Metal.Texture.make_aliasable" (fun () ->
@@ -1913,6 +2121,9 @@ module Texture = struct
            | Texture_view _ ->
                error "Metal.Texture.make_aliasable" Invalid_state
                  "texture views cannot become aliasable"
+           | Texture_buffer_resource _ ->
+               error "Metal.Texture.make_aliasable" Invalid_state
+                 "make the backing buffer aliasable"
            | Texture_resource (Device_resource _) ->
                error "Metal.Texture.make_aliasable" Invalid_state
                  "only heap-backed textures can become aliasable"
@@ -1943,7 +2154,9 @@ module Texture = struct
     destroy_parent "Metal.Texture.destroy" value.lifetime value.raw
       (fun () ->
         deactivate_allocation value.allocation;
-        detach (texture_parent_lifetime value.parent))
+        detach (texture_parent_lifetime value.parent);
+        Option.iter detach
+          (texture_parent_extra_device value.device value.parent))
 end
 
 module Heap = struct
@@ -2079,8 +2292,14 @@ module Heap = struct
           error "Metal.Heap.texture_size_and_align" Unsupported
             "Metal heaps do not support managed storage"
       | Ok () ->
-          (match Texture.validate_descriptor device descriptor with
+          (match
+             Texture.validate_descriptor "Metal.Heap.texture_size_and_align"
+               device descriptor
+           with
            | Error _ as failure -> failure
+           | Ok () when descriptor.kind = Texture.Texture_buffer ->
+               error "Metal.Heap.texture_size_and_align" Invalid_argument
+                 "texture-buffer resources must be created from a buffer"
            | Ok () ->
                Metal_raw.heap_texture_size_and_align device.raw
                  (Texture.descriptor_tuple descriptor)
@@ -2335,8 +2554,14 @@ module Heap = struct
             error "Metal.Heap.create_texture" Invalid_argument
               "texture storage, cache, and hazard modes must match the heap"
           else
-            match Texture.validate_descriptor value.device descriptor with
+            match
+              Texture.validate_descriptor "Metal.Heap.create_texture"
+                value.device descriptor
+            with
            | Error _ as failure -> failure
+           | Ok () when descriptor.kind = Texture.Texture_buffer ->
+               error "Metal.Heap.create_texture" Invalid_argument
+                 "texture-buffer resources must be created from a buffer"
            | Ok () ->
                let descriptor =
                  { descriptor with hazard_tracking = expected_hazard }

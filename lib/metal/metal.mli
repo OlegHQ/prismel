@@ -263,17 +263,29 @@ module Texture : sig
     ; depth : int
     }
 
+  type buffer_backing =
+    { buffer : Buffer.t
+    ; offset : int64
+    ; bytes_per_row : int
+    }
+
   val descriptor_2d :
     ?mipmapped:bool -> ?storage:Buffer.storage_mode -> ?usage:usage list ->
     ?label:string -> format:format -> width:int -> height:int -> unit ->
     descriptor
+  val minimum_buffer_alignment :
+    device:Device.t -> kind:kind -> format:format -> (int64, error) result
   val create : device:Device.t -> descriptor -> (t, error) result
+  val create_from_buffer :
+    buffer:Buffer.t -> offset:int64 -> bytes_per_row:int -> descriptor ->
+    (t, error) result
   val create_view :
     t -> format:format -> base_mip:int -> mip_count:int -> base_slice:int ->
     slice_count:int -> ?label:string -> unit -> (t, error) result
   val device : t -> Device.t
   val descriptor : t -> descriptor
   val heap_offset : t -> int64 option
+  val buffer_backing : t -> buffer_backing option
   val generation : t -> int64
   val destroyed : t -> bool
   val label : t -> (string option, error) result
