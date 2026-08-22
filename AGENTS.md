@@ -578,6 +578,13 @@ frame count for smoke testing.
 ## OCaml conventions
 
 - Add an `.mli` for public modules.
+- Write new repository-native build, code-generation, validation, migration,
+  and benchmark glue in OCaml and integrate it with Dune. Do not introduce
+  Python merely for process orchestration, file generation, parsing, or test
+  harnesses when OCaml can perform the work. Python is acceptable only when an
+  external toolchain requires its interpreter or Python API (for example,
+  SideFX `hython`); keep that exception isolated and document why it is
+  necessary.
 - Prefer explicit result/error handling at backend boundaries.
 - Avoid exposing additional SDL values in new public APIs.
 - Keep sibling libraries wrapped, so their modules remain namespaced.
