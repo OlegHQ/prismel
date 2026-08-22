@@ -332,13 +332,35 @@ let () =
     then fail "invalid browser asset byte range was accepted";
     if Option.is_some (register_file server ".") then
       fail "asset registration accepted a directory";
-    broadcast_audio server
-      (Audio_sample_volume { asset = "quoted\"asset"; volume = 0.5 });
-    let opcode, fin, audio_command = websocket_payload websocket in
-    if opcode <> 1 || not fin
-       || Bytes.to_string audio_command <>
-            {|{"op":"sample_volume","id":"quoted\"asset","volume":0.5}|}
-    then fail "typed browser audio command encoding changed";
+    let audio_commands =
+      [ Audio_master_volume 0.25,
+        {|{"op":"master_volume","volume":0.25}|}
+      ; Audio_stop_all, {|{"op":"stop_all"}|}
+      ; Audio_sample_play
+          { asset = "sample.wav"; channel = 7; loops = 2; volume = 0.75 },
+        {|{"op":"sample_play","id":"sample.wav","channel":7,"loops":2,"volume":0.75}|}
+      ; Audio_sample_volume { asset = "quoted\"asset"; volume = 0.5 },
+        {|{"op":"sample_volume","id":"quoted\"asset","volume":0.5}|}
+      ; Audio_sample_stop 7, {|{"op":"sample_stop","channel":7}|}
+      ; Audio_sample_pause 7, {|{"op":"sample_pause","channel":7}|}
+      ; Audio_sample_resume 7, {|{"op":"sample_resume","channel":7}|}
+      ; Audio_music_play { asset = "music.ogg"; loops = -1; fade_ms = 12 },
+        {|{"op":"music_play","id":"music.ogg","loops":-1,"fade":12}|}
+      ; Audio_music_volume 0.375,
+        {|{"op":"music_volume","volume":0.375}|}
+      ; Audio_music_pause, {|{"op":"music_pause"}|}
+      ; Audio_music_resume, {|{"op":"music_resume"}|}
+      ; Audio_music_stop 34, {|{"op":"music_stop","fade":34}|}
+      ; Audio_asset_remove "quoted\"asset",
+        {|{"op":"asset_remove","id":"quoted\"asset"}|}
+      ]
+    in
+    List.iter (fun (command, expected) ->
+      broadcast_audio server command;
+      let opcode, fin, audio_command = websocket_payload websocket in
+      if opcode <> 1 || not fin || Bytes.to_string audio_command <> expected
+      then fail ("typed browser audio command encoding changed: " ^ expected))
+      audio_commands;
     let text_region = { x = 4; y = 5; width = 60; height = 24; focused = false } in
     set_text_input_regions server [text_region];
     let opcode, fin, region_command = websocket_payload websocket in

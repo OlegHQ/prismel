@@ -52,3 +52,31 @@ probe, copied event traces, parent/child teardown, stale access, malformed
 input, and 100,000-cycle ownership stress.  `tools/bench_sdl3.exe` reports the
 FFI call count, wall time, OCaml allocation, collection counts, heap size, and
 dropped release tokens for the same lifecycle categories.
+
+## Extension parity fixtures
+
+SDL3_image conformance decodes all 19 still-image formats enabled by the pinned
+stable distribution: AVIF, BMP, CUR, GIF, ICO, JPEG, JPEG XL, ILBM, PCX, PNG,
+PNM, QOI, SVG, TGA, TIFF, WebP, XCF, XPM, and XV.  Each fixture is decoded by
+path and from copied bytes into tightly packed RGBA8.  Separate fixtures cover
+alpha, exact EXIF orientation, malformed input for every decoder, and the
+atomic watched-reload rule: failure preserves the borrowed wrapper, previous
+surface, pixels, and generation; success changes content and generation while
+preserving the borrowed wrapper.  Animation formats are outside Prismel's
+existing still-image API and are not silently advertised by this binding.
+
+SDL3_ttf conformance discovers an installed platform UI font with
+`PRISMEL_UI_FONT` override semantics, then covers empty text, UTF-8, family and
+style names, metrics, RGBA rasterization, mutation, and 72/144-DPI rendering.
+A Runtime-shaped CPU-raster cache proves borrowed identity, immediate mutation
+invalidation, and destructive least-recently-used eviction at exactly 256
+entries.  The renderer-local OGPU texture cache will retain the same key and
+bound when the high-level Font adapter switches.
+
+SDL3_mixer conformance covers copied-memory and file-backed sound/music loads,
+device and memory mixers, play, loops, gain, fades, pause/resume, stop, dummy
+headless playback, generated PCM, parent/child ownership, and an invalid-driver
+device failure.  Wap's integration test streams every typed sample/music
+command through an authenticated WebSocket and checks the exact bounded wire
+encoding, preserving web mirroring without putting protocol strings in the
+mixer or Runtime-facing audio API.

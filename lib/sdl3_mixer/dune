@@ -27,6 +27,14 @@
   (setenv SDL_AUDIODRIVER dummy
    (run %{test}))))
 
+(test
+ (name test_sdl3_mixer_device_failure)
+ (modules test_sdl3_mixer_device_failure)
+ (libraries sdl3_mixer)
+ (action
+  (setenv SDL_AUDIODRIVER prismel_missing_audio_driver
+   (run %{test}))))
+
 (rule
  (alias runtest)
  (deps generated_provenance.ml generated_inventory.json generated_abi.h)
