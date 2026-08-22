@@ -8,6 +8,11 @@
  (modules generate_inventory)
  (libraries gpu_migration_support metal_inventory_classification unix yojson))
 
+(executable
+ (name check_memory)
+ (modules check_memory)
+ (libraries unix))
+
 (rule
  (alias runtest)
  (deps

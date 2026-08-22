@@ -66,6 +66,23 @@ ownership stress performs 5,000 warm-up cycles and 100,000 measured buffer
 create/destroy cycles, requires exact created/released balance, zero pending or
 dropped releases, stable live-handle count, and bounded settled RSS growth.
 
+`PRISMEL_METAL_SANITIZERS` is parsed by OCaml build configuration and accepts
+`address`, `undefined`, or `thread`; ThreadSanitizer is deliberately exclusive,
+while AddressSanitizer and UndefinedBehaviorSanitizer may be combined. The same
+configuration instruments the ARC bridge, its dynamic bytecode stub, and the
+final executable link. `tools/metal/check_memory.exe` rejects sanitizer reports,
+nonzero Leaks summaries, and Guard Malloc errors for the conformance and
+100,000-cycle tests. Guard Malloc runs the conformance subset because giving
+every stress allocation its own protected VM region would test the tool's
+intentional memory amplification rather than Metal lifetime settling.
+
+AddressSanitizer qualification disables its allocation quarantine for the
+ownership stress. This keeps the RSS assertion about live Metal/ARC resources
+instead of ASan's intentionally retained freed blocks; exact created/released,
+queue, and sanitizer checks remain active. ThreadSanitizer uses a larger RSS
+tolerance for shadow-memory growth while retaining the same exact handle
+balance.
+
 The currently selected Command Line Tools include SDK 26.5 headers but not the
 `metal` and `metallib` executables. Runtime source compilation is therefore
 covered locally; offline `.metallib`, Xcode validation, capture, and archive
@@ -77,4 +94,10 @@ Run the current binding checks with:
 ```sh
 opam exec -- dune runtest lib/metal --force
 opam exec -- dune build @all @doc
+
+PRISMEL_METAL_SANITIZERS=address opam exec -- dune build \
+  --build-dir /tmp/prismel-metal-asan \
+  lib/metal/test_metal.exe lib/metal/test_metal_stress.exe
+opam exec -- dune exec tools/metal/check_memory.exe -- \
+  --mode address --artifacts /tmp/prismel-metal-asan/default
 ```

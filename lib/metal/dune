@@ -1,17 +1,35 @@
+(library
+ (name metal_build_config)
+ (wrapped false)
+ (modules Metal_build_config))
+
+(executable
+ (name discover)
+ (modules discover)
+ (libraries metal_build_config))
+
+(executable
+ (name build_bridge)
+ (modules build_bridge)
+ (libraries metal_build_config unix))
+
+(rule
+ (targets c_library_flags.sexp)
+ (action
+  (run ./discover.exe --sanitizers %{env:PRISMEL_METAL_SANITIZERS=}
+   --output %{targets})))
+
 (rule
  (targets metal_bridge.o libmetal_bridge_stubs.a dllmetal_bridge_stubs.so)
- (deps metal_bridge.mm)
+ (deps metal_bridge.mm c_library_flags.sexp)
  (action
-  (progn
-   (run clang++ -x objective-c++ -std=c++17 -fobjc-arc -fblocks
-    -mmacosx-version-min=14.0 -Wall -Wextra -Werror
-   -I %{ocaml-config:standard_library} -c %{dep:metal_bridge.mm}
-    -o metal_bridge.o)
-   (run ar rcs libmetal_bridge_stubs.a metal_bridge.o)
-   (run clang++ -dynamiclib -undefined dynamic_lookup
-    -mmacosx-version-min=14.0 metal_bridge.o -framework Foundation
-    -framework Metal -framework QuartzCore
-    -o dllmetal_bridge_stubs.so))))
+  (run ./build_bridge.exe
+   --sanitizers %{env:PRISMEL_METAL_SANITIZERS=}
+   --ocaml-include %{ocaml-config:standard_library}
+   --source %{dep:metal_bridge.mm}
+   --object metal_bridge.o
+   --archive libmetal_bridge_stubs.a
+   --shared dllmetal_bridge_stubs.so)))
 
 (library
  (name metal)
@@ -19,8 +37,12 @@
  (modules Metal Metal_raw Generated_provenance)
  (private_modules Metal_raw Generated_provenance)
  (foreign_archives metal_bridge_stubs)
- (c_library_flags -framework Foundation -framework Metal -framework QuartzCore
-  -lc++))
+ (c_library_flags (:include c_library_flags.sexp)))
+
+(test
+ (name test_metal_build_config)
+ (modules test_metal_build_config)
+ (libraries metal_build_config))
 
 (test
  (name test_metal)

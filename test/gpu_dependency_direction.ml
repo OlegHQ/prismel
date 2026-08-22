@@ -101,13 +101,12 @@ let rec atoms = function
   | Atom value -> [value]
   | List values -> List.concat_map atoms values
 
-let library_of_file path =
+let libraries_of_file path =
   let forms = read path |> tokenize |> parse in
-  match List.find_opt (function
-    | List (Atom "library" :: _) -> true
-    | _ -> false) forms with
-  | None -> None
-  | Some stanza ->
+  forms
+  |> List.filter_map (fun stanza ->
+    match stanza with
+    | List (Atom "library" :: _) ->
       let name = match field "name" stanza with
         | Some [Atom value] -> value
         | _ -> raise (Parse_error (path ^ ": library has no scalar name"))
@@ -117,6 +116,7 @@ let library_of_file path =
         | Some values -> List.concat_map atoms values
       in
       Some (name, dependencies)
+    | _ -> None)
 
 let forbidden = function
   | "sdl3" | "sdl3_image" | "sdl3_ttf" | "sdl3_mixer" ->
@@ -150,13 +150,31 @@ let violations graph =
       else None) dependencies) graph
 
 let verify_negative_test graph =
-  let injected = ("sdl3", ["prismel"]) :: graph in
-  match violations injected with
-  | [] -> failwith "injected sdl3 -> prismel reverse edge was not rejected"
-  | messages ->
-      if not (List.exists (( = )
-          "sdl3 imports forbidden foundational library prismel") messages)
-      then failwith "dependency checker rejected the wrong injected edge"
+  let check owner dependency =
+    let injected = (owner, [dependency]) :: graph in
+    let expected =
+      Printf.sprintf "%s imports forbidden foundational library %s" owner
+        dependency
+    in
+    match violations injected with
+    | [] ->
+        failwith
+          (Printf.sprintf "injected %s -> %s reverse edge was not rejected"
+             owner dependency)
+    | messages ->
+        if not (List.exists (( = ) expected) messages) then
+          failwith "dependency checker rejected the wrong injected edge"
+  in
+  check "sdl3" "prismel";
+  check "metal" "sdl3"
+
+let require_current_foundations graph =
+  [ "sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal"; "runtime"
+  ; "wap"
+  ]
+  |> List.iter (fun required ->
+    if not (List.exists (fun (name, _) -> name = required) graph) then
+      failwith ("dependency graph omitted required library " ^ required))
 
 let dune_files path =
   if Sys.is_directory path then
@@ -169,7 +187,8 @@ let dune_files path =
 let () =
   let paths = Array.to_list Sys.argv |> List.tl |> List.concat_map dune_files in
   if paths = [] then invalid_arg "gpu_dependency_direction: expected Dune files";
-  let graph = List.filter_map library_of_file paths in
+  let graph = List.concat_map libraries_of_file paths in
+  require_current_foundations graph;
   verify_negative_test graph;
   match violations graph with
   | [] ->

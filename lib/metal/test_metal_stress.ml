@@ -12,6 +12,15 @@ let settle () =
   ignore (get (Release_queue.drain ()));
   get (Release_queue.stats ())
 
+let rss_tolerance () =
+  match Sys.getenv_opt "PRISMEL_METAL_STRESS_RSS_TOLERANCE" with
+  | None -> 8_388_608L
+  | Some raw ->
+      (match Int64.of_string_opt raw with
+       | Some value when value >= 0L -> value
+       | Some _ | None ->
+           fail "PRISMEL_METAL_STRESS_RSS_TOLERANCE must be nonnegative")
+
 let run_cycles device count =
   for _ = 1 to count do
     let buffer =
@@ -42,7 +51,7 @@ let () =
     if finished.pending <> 0 || finished.dropped <> 0 then
       fail "release queue did not settle (%d pending, %d dropped)" finished.pending
         finished.dropped;
-    let rss_tolerance = 8_388_608L in
+    let rss_tolerance = rss_tolerance () in
     if rss_growth > rss_tolerance then
       fail "resident memory grew by %Ld bytes after settling (limit %Ld)"
         rss_growth rss_tolerance;
