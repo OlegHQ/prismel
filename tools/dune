@@ -15,6 +15,10 @@
  (libraries prismel pxui unix))
 
 (executable
+ (name bench_sdl3)
+ (libraries prismel.sdl3 prismel.sdl3_mixer unix yojson))
+
+(executable
  (name bench_instances)
  (libraries prismel unix))
 
