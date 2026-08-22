@@ -1,0 +1,137 @@
+{
+  "all_repeated_artifacts_byte_identical": true,
+  "artifacts": [
+    {
+      "bytes": 38396,
+      "command": "PRISMEL_RENDER_TARGET=headless dune exec --profile release test/gpu_baseline_renderer.exe -- <png> <trace>",
+      "comparison": "byte_exact",
+      "expected": "640x480 RGBA8 non-interlaced PNG; exact digest",
+      "height": 480,
+      "id": "renderer-headless",
+      "kind": "png",
+      "ownership": "Committed deterministic golden owned by renderer parity tests.",
+      "path": "test/gpu_migration/golden/renderer_headless.png",
+      "pixel_sha256": "832d51da2448d60b6749692298ae9b4e3d626d129d6b4568ff12e7e1f7bebce9",
+      "sha256": "8255490c9d95dc0955a379caa496f90626264bea245c1bfed404ea8972aaf92c",
+      "target": "headless",
+      "width": 640
+    },
+    {
+      "bytes": 38396,
+      "command": "PRISMEL_RENDER_TARGET=web PRISMEL_WEB_PORT=0 dune exec --profile release test/gpu_baseline_renderer.exe -- <png> <trace>",
+      "comparison": "byte_exact_and_equal_to_renderer-headless",
+      "expected": "Exact authoritative software framebuffer shared with headless.",
+      "height": 480,
+      "id": "renderer-web",
+      "kind": "png",
+      "ownership": "Committed deterministic golden owned by web target parity tests.",
+      "path": "test/gpu_migration/golden/renderer_web.png",
+      "pixel_sha256": "832d51da2448d60b6749692298ae9b4e3d626d129d6b4568ff12e7e1f7bebce9",
+      "sha256": "8255490c9d95dc0955a379caa496f90626264bea245c1bfed404ea8972aaf92c",
+      "target": "web",
+      "width": 640
+    },
+    {
+      "bytes": 37694,
+      "command": "PRISMEL_RENDER_TARGET=native dune exec --profile release test/gpu_baseline_renderer.exe -- <png> <trace>",
+      "comparison": "frozen_native_tolerance",
+      "expected": "640x480 M1 SDL/OpenGL reference; repeated legacy captures are exact.",
+      "height": 480,
+      "id": "renderer-native-m1",
+      "kind": "png",
+      "ownership": "Committed M1 reference owned by native renderer parity tests.",
+      "path": "test/gpu_migration/golden/renderer_native_m1.png",
+      "pixel_sha256": "f585b815c3aed9a4a126c996968c266625d8e22844b8075162bb35e765b28f6d",
+      "sha256": "bde861e55b139dca2181397da9ee561ad9e14dac83e65aec630c91082adf3562",
+      "target": "native",
+      "width": 640
+    },
+    {
+      "bytes": 373,
+      "command": "Emitted with renderer-headless.",
+      "comparison": "byte_exact",
+      "expected": "Ordered Canvas, capture, and Image teardown trace.",
+      "id": "renderer-headless-lifecycle",
+      "kind": "json",
+      "ownership": "Committed lifecycle trace owned by renderer resource tests.",
+      "path": "test/gpu_migration/traces/renderer_headless.json",
+      "sha256": "dd1937cca068180cd3e23a3fe478fa7a72e010ce2ec5f3d8ea9a9ef9cef1bdd9",
+      "target": "headless"
+    },
+    {
+      "bytes": 368,
+      "command": "Emitted with renderer-web.",
+      "comparison": "byte_exact",
+      "expected": "Ordered Canvas, capture, and Image teardown trace.",
+      "id": "renderer-web-lifecycle",
+      "kind": "json",
+      "ownership": "Committed lifecycle trace owned by web resource tests.",
+      "path": "test/gpu_migration/traces/renderer_web.json",
+      "sha256": "a5d394ec6086d57a838e897ecc442321870788bbaa21269d9df560ed8626f35f",
+      "target": "web"
+    },
+    {
+      "bytes": 371,
+      "command": "Emitted with renderer-native-m1.",
+      "comparison": "byte_exact",
+      "expected": "Ordered Canvas, capture, and Image teardown trace.",
+      "id": "renderer-native-m1-lifecycle",
+      "kind": "json",
+      "ownership": "Committed lifecycle trace owned by native resource tests.",
+      "path": "test/gpu_migration/traces/renderer_native_m1.json",
+      "sha256": "f3ce6b367a265ac4536bfecee9d6c6ff7572f7b0621090a42190591256f6f5fb",
+      "target": "native"
+    },
+    {
+      "bytes": 624,
+      "command": "PRISMEL_RENDER_TARGET=headless dune exec --profile release test/gpu_baseline_audio.exe -- <trace>",
+      "comparison": "byte_exact",
+      "expected": "Sample/music play-pause-resume-stop and idempotent destruction pass.",
+      "id": "audio-headless",
+      "kind": "json",
+      "ownership": "Committed SDL_mixer dummy-device trace owned by audio parity tests.",
+      "path": "test/gpu_migration/traces/audio_headless.json",
+      "sha256": "da480db1d5c651f012e3727d48981f12abd6d2bfeb6e06332a7def12c37a23f5",
+      "target": "headless"
+    },
+    {
+      "bytes": 735,
+      "command": "PRISMEL_RENDER_TARGET=web PRISMEL_WEB_PORT=0 PRISMEL_GPU_TRACE_OUTPUT=<trace> dune exec --profile release test/web_runtime_smoke.exe",
+      "comparison": "byte_exact",
+      "expected": "Ordered browser events, audio mirroring, and upload cleanup pass.",
+      "id": "web-runtime-events-audio-resources",
+      "kind": "json",
+      "ownership": "Committed transport trace owned jointly by Runtime and Wap tests.",
+      "path": "test/gpu_migration/traces/web_runtime.json",
+      "sha256": "f03cf3524d929e73bc15195b4afc16680f1203781ee1a6cef7236c2c0a2b0dff",
+      "target": "web"
+    }
+  ],
+  "baseline_commit": "4622091a65bc9a8816a1f10bcc83c1a625ca7522",
+  "capture_commit": "aab2337b6aab57b453514b4171bcc44a3dcaef37",
+  "capture_dirty": false,
+  "kind": "phase0_fixtures",
+  "native_environment": {
+    "display": "1x external 1920x1080 baseline display",
+    "gpu": "Apple M1",
+    "machine_model": "Macmini9,1",
+    "os": {
+      "build": "25E253",
+      "name": "macOS",
+      "version": "26.4.1"
+    }
+  },
+  "native_tolerance": {
+    "alpha_mismatch_fraction_max": 0.0,
+    "authority": "Frozen before any Metal-renderer output exists.",
+    "clear_and_axis_aligned_interior_regions": "exact",
+    "dimensions_must_match": true,
+    "mean_absolute_error_per_channel_max": 1.5,
+    "pixel_format": "RGBA8",
+    "pixels_with_any_rgb_error_over_16_fraction_max": 0.02,
+    "rasterized_edges": "measured by aggregate bounds above; thresholds may not be loosened"
+  },
+  "profile": "release",
+  "repeat_count": 2,
+  "schema": 1
+}

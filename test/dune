@@ -130,6 +130,17 @@
   (run python3 %{dep:../tools/gpu_migration/capture_environment.py}
    --root %{workspace_root} --check)))
 
+(rule
+ (alias runtest)
+ (deps ../tools/gpu_migration/fixture_manifest.py
+  ../specification/evidence/gpu_migration/phase0_environment.json
+  ../specification/evidence/gpu_migration/fixtures.json
+  (glob_files gpu_migration/golden/*.png)
+  (glob_files gpu_migration/traces/*.json))
+ (action
+  (run python3 %{dep:../tools/gpu_migration/fixture_manifest.py}
+   --root %{workspace_root} --check)))
+
 (test
  (name procedural_render_smoke)
  (modules procedural_render_smoke)
