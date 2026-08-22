@@ -113,8 +113,11 @@ let dependent_count lifetime = Atomic.get lifetime.dependents
 let attach lifetime = Atomic.incr lifetime.dependents
 let detach lifetime = Atomic.decr lifetime.dependents
 
-let finalize_child lifetime parent =
-  if Atomic.compare_and_set lifetime.destroyed false true then detach parent
+let finalize_child lifetime parent on_finalize =
+  if Atomic.compare_and_set lifetime.destroyed false true then begin
+    on_finalize ();
+    detach parent
+  end
 
 let ensure_live operation lifetime =
   if is_destroyed lifetime then error operation Destroyed "handle is destroyed"
@@ -149,25 +152,10 @@ type device =
   ; registry_id : int64
   }
 
-type buffer =
-  { raw : Metal_raw.handle
-  ; lifetime : lifetime
-  ; device : device
-  ; length : int64
-  ; storage : buffer_storage_mode
-  }
-
-and buffer_storage_mode =
+type buffer_storage_mode =
   | Shared
   | Managed
   | Private
-
-type buffer_mapping =
-  { buffer : buffer
-  ; offset : int64
-  ; length : int
-  ; active : bool Atomic.t
-  }
 
 type texture_kind =
   | Texture_1d
@@ -239,12 +227,69 @@ type texture_descriptor =
   ; label : string option
   }
 
-type texture =
+type heap_kind =
+  | Automatic
+  | Placement
+
+type heap_descriptor =
+  { size : int64
+  ; storage : buffer_storage_mode
+  ; cpu_cache : resource_cpu_cache_mode
+  ; hazard_tracking : resource_hazard_tracking_mode
+  ; kind : heap_kind
+  ; label : string option
+  }
+
+type heap_allocation =
+  { offset : int64
+  ; size : int64
+  ; active : bool Atomic.t
+  }
+
+type heap =
+  { raw : Metal_raw.handle
+  ; lifetime : lifetime
+  ; device : device
+  ; descriptor : heap_descriptor
+  ; allocations : heap_allocation list ref
+  }
+
+and resource_parent =
+  | Device_resource of device
+  | Heap_resource of heap
+
+and buffer =
+  { raw : Metal_raw.handle
+  ; lifetime : lifetime
+  ; device : device
+  ; length : int64
+  ; storage : buffer_storage_mode
+  ; cpu_cache : resource_cpu_cache_mode
+  ; hazard_tracking : resource_hazard_tracking_mode
+  ; parent : resource_parent
+  ; heap_offset : int64 option
+  ; allocation : heap_allocation option
+  }
+
+and texture =
   { raw : Metal_raw.handle
   ; lifetime : lifetime
   ; device : device
   ; descriptor : texture_descriptor
-  ; parent_lifetime : lifetime
+  ; parent : texture_parent
+  ; heap_offset : int64 option
+  ; allocation : heap_allocation option
+  }
+
+and texture_parent =
+  | Texture_resource of resource_parent
+  | Texture_view of texture
+
+type buffer_mapping =
+  { buffer : buffer
+  ; offset : int64
+  ; length : int
+  ; active : bool Atomic.t
   }
 
 type sampler_filter =
@@ -352,8 +397,21 @@ let make_device raw =
   ({ raw; lifetime = lifetime (); registry_id = Metal_raw.device_registry_id raw }
     : device)
 
-let attach_finalizer value lifetime parent =
-  Gc.finalise (fun _ -> finalize_child lifetime parent) value
+let attach_finalizer ?(on_finalize = fun () -> ()) value lifetime parent =
+  Gc.finalise (fun _ -> finalize_child lifetime parent on_finalize) value
+
+let deactivate_allocation (value : heap_allocation option) =
+  match value with
+  | None -> ()
+  | Some allocation -> Atomic.set allocation.active false
+
+let resource_parent_lifetime = function
+  | Device_resource device -> device.lifetime
+  | Heap_resource heap -> heap.lifetime
+
+let texture_parent_lifetime = function
+  | Texture_resource parent -> resource_parent_lifetime parent
+  | Texture_view texture -> texture.lifetime
 
 let same_device left right = Int64.equal left.registry_id right.registry_id
 
@@ -362,6 +420,34 @@ let ensure_same_device operation expected actual =
   else
     error operation Device_mismatch
       "resources belong to different Metal devices"
+
+let storage_code = function Shared -> 0 | Managed -> 1 | Private -> 2
+let cache_code = function Default_cache -> 0 | Write_combined -> 1
+
+let hazard_code = function
+  | Default_hazard_tracking -> 0
+  | Untracked -> 1
+  | Tracked -> 2
+
+let resource_options_code ~storage ~cpu_cache ~hazard_tracking =
+  cache_code cpu_cache lor (storage_code storage lsl 4)
+  lor (hazard_code hazard_tracking lsl 8)
+
+let concrete_hazard_tracking ~heap = function
+  | Default_hazard_tracking -> if heap then Untracked else Tracked
+  | (Untracked | Tracked) as mode -> mode
+
+let cache_mode_of_code operation = function
+  | 0 -> Ok Default_cache
+  | 1 -> Ok Write_combined
+  | code -> native_error operation (Printf.sprintf "unknown CPU cache mode %d" code)
+
+let hazard_mode_of_code operation = function
+  | 0 -> Ok Default_hazard_tracking
+  | 1 -> Ok Untracked
+  | 2 -> Ok Tracked
+  | code ->
+      native_error operation (Printf.sprintf "unknown hazard tracking mode %d" code)
 
 module Device = struct
   type t = device
@@ -485,48 +571,97 @@ end
 module Buffer = struct
   type t = buffer
   type storage_mode = buffer_storage_mode = Shared | Managed | Private
+  type cpu_cache_mode = resource_cpu_cache_mode = Default_cache | Write_combined
+  type hazard_tracking_mode = resource_hazard_tracking_mode =
+    | Default_hazard_tracking
+    | Untracked
+    | Tracked
 
-  let storage_code = function Shared -> 0 | Managed -> 1 | Private -> 2
+  let validate_create operation (device : Device.t) ~length ~label =
+    if length <= 0L then
+      error operation Invalid_argument "buffer length must be positive"
+    else if length > Metal_raw.device_max_buffer_length device.raw then
+      error operation Invalid_argument "buffer length exceeds the device limit"
+    else if option_exists contains_nul label then
+      error operation Invalid_argument "label contains a NUL byte"
+    else Ok ()
 
-  let create ~(device : Device.t) ~length ~storage ?label () =
+  let finish_create operation ~(device : Device.t) ~parent ~length ~storage
+      ~cpu_cache ~hazard_tracking ~heap_offset ~allocation ~label raw =
+    let actual_length, actual_storage, actual_cache, actual_hazard, actual_offset =
+      Metal_raw.buffer_info raw
+    in
+    let expected_hazard =
+      concrete_hazard_tracking
+        ~heap:(match parent with Heap_resource _ -> true | Device_resource _ -> false)
+        hazard_tracking
+    in
+    if actual_length <> length || actual_storage <> storage_code storage
+       || actual_cache <> cache_code cpu_cache
+       || actual_hazard <> hazard_code expected_hazard
+       || option_exists (fun expected -> expected <> actual_offset) heap_offset
+    then begin
+      ignore (Metal_raw.destroy raw);
+      native_error operation "Metal changed checked buffer properties during creation"
+    end
+    else
+      let label_result =
+        match label with
+        | None -> Ok ()
+        | Some label -> Metal_raw.buffer_set_label raw label
+      in
+      match label_result with
+      | Error message ->
+          ignore (Metal_raw.destroy raw);
+          native_error operation message
+      | Ok () ->
+          let parent_lifetime = resource_parent_lifetime parent in
+          let value : t =
+            { raw
+            ; lifetime = lifetime ()
+            ; device
+            ; length
+            ; storage
+            ; cpu_cache
+            ; hazard_tracking = expected_hazard
+            ; parent
+            ; heap_offset
+            ; allocation
+            }
+          in
+          attach parent_lifetime;
+          attach_finalizer
+            ~on_finalize:(fun () -> deactivate_allocation allocation)
+            value value.lifetime parent_lifetime;
+          Ok value
+
+  let create ~(device : Device.t) ~length ~storage ?(cpu_cache = Default_cache)
+      ?(hazard_tracking = Default_hazard_tracking) ?label () =
     on_main "Metal.Buffer.create" (fun () ->
       match ensure_live "Metal.Buffer.create" device.lifetime with
       | Error _ as failure -> failure
-      | Ok () when length <= 0L ->
-          error "Metal.Buffer.create" Invalid_argument
-            "buffer length must be positive"
-      | Ok () when length > Metal_raw.device_max_buffer_length device.raw ->
-          error "Metal.Buffer.create" Invalid_argument
-            "buffer length exceeds the device limit"
       | Ok () ->
-          (match label with
-           | Some label when contains_nul label ->
-               error "Metal.Buffer.create" Invalid_argument
-                 "label contains a NUL byte"
-           | _ ->
-               match Metal_raw.buffer_create device.raw length (storage_code storage) with
+          (match validate_create "Metal.Buffer.create" device ~length ~label with
+           | Error _ as failure -> failure
+           | Ok () ->
+               let options =
+                 resource_options_code ~storage ~cpu_cache ~hazard_tracking
+               in
+               match Metal_raw.buffer_create device.raw length options with
                | Error message -> native_error "Metal.Buffer.create" message
                | Ok raw ->
-                   let value : t =
-                     { raw; lifetime = lifetime (); device; length; storage }
-                   in
-                   attach device.lifetime;
-                   attach_finalizer value value.lifetime device.lifetime;
-                   (match label with
-                    | None -> Ok value
-                    | Some label ->
-                        (match Metal_raw.buffer_set_label raw label with
-                         | Ok () -> Ok value
-                         | Error message ->
-                             ignore (Metal_raw.destroy raw);
-                             if Atomic.compare_and_set value.lifetime.destroyed false true
-                             then detach device.lifetime;
-                             native_error "Metal.Buffer.create" message))))
+                   finish_create "Metal.Buffer.create" ~device
+                     ~parent:(Device_resource device) ~length ~storage ~cpu_cache
+                     ~hazard_tracking ~heap_offset:None ~allocation:None ~label
+                     raw))
 
   let device (value : t) = value.device
   let generation (value : t) = Metal_raw.generation value.raw
   let length (value : t) = value.length
   let storage_mode (value : t) = value.storage
+  let cpu_cache_mode (value : t) = value.cpu_cache
+  let hazard_tracking_mode (value : t) = value.hazard_tracking
+  let heap_offset (value : t) = value.heap_offset
   let destroyed (value : t) = is_destroyed value.lifetime
 
   let label (value : t) =
@@ -689,7 +824,9 @@ module Buffer = struct
 
   let destroy (value : t) =
     destroy_parent "Metal.Buffer.destroy" value.lifetime value.raw
-      (fun () -> detach value.device.lifetime)
+      (fun () ->
+        deactivate_allocation value.allocation;
+        detach (resource_parent_lifetime value.parent))
 end
 
 module Texture = struct
@@ -839,14 +976,6 @@ module Texture = struct
     | Rg32_float | Rgba16_float | Depth32_float_stencil8 -> 8
     | Rgba32_float -> 16
 
-  let storage_code = function Shared -> 0 | Managed -> 1 | Private -> 2
-  let cache_code = function Default_cache -> 0 | Write_combined -> 1
-
-  let hazard_code = function
-    | Default_hazard_tracking -> 0
-    | Untracked -> 1
-    | Tracked -> 2
-
   let usage_bit = function
     | Shader_read -> 0x1
     | Shader_write -> 0x2
@@ -954,9 +1083,12 @@ module Texture = struct
     , usage_bits descriptor.usage
     , descriptor.allow_gpu_optimized_contents )
 
-  let verify_info operation raw descriptor =
+  let verify_info operation raw descriptor ~heap =
     let info = Metal_raw.texture_info raw in
-    if Array.length info <> 10 then
+    let actual_hazard =
+      concrete_hazard_tracking ~heap descriptor.hazard_tracking
+    in
+    if Array.length info <> 12 then
       native_error operation "Metal returned malformed texture properties"
     else
       let expected =
@@ -965,22 +1097,40 @@ module Texture = struct
          ; descriptor.mip_levels; descriptor.sample_count
          ; descriptor.array_length; usage_bits descriptor.usage
          ; storage_code descriptor.storage
+         ; cache_code descriptor.cpu_cache; hazard_code actual_hazard
         |]
       in
-      if info = expected then Ok ()
+      if info = expected then
+        Ok { descriptor with hazard_tracking = actual_hazard }
       else
         native_error operation
           "Metal changed a checked texture descriptor during creation"
 
-  let finish_create operation ~device ~descriptor ~parent_lifetime raw =
-    match verify_info operation raw descriptor with
+  let finish_create operation ~device ~descriptor ~parent ~heap_offset ~allocation
+      raw =
+    let heap =
+      match parent with
+      | Texture_resource (Heap_resource _) -> true
+      | Texture_resource (Device_resource _) | Texture_view _ -> false
+    in
+    match verify_info operation raw descriptor ~heap with
     | Error _ as failure -> ignore (Metal_raw.destroy raw); failure
-    | Ok () ->
+    | Ok descriptor ->
+        let parent_lifetime = texture_parent_lifetime parent in
         let value : t =
-          { raw; lifetime = lifetime (); device; descriptor; parent_lifetime }
+          { raw
+          ; lifetime = lifetime ()
+          ; device
+          ; descriptor
+          ; parent
+          ; heap_offset
+          ; allocation
+          }
         in
         attach parent_lifetime;
-        attach_finalizer value value.lifetime parent_lifetime;
+        attach_finalizer
+          ~on_finalize:(fun () -> deactivate_allocation allocation)
+          value value.lifetime parent_lifetime;
         Ok value
 
   let create ~(device : Device.t) descriptor =
@@ -998,10 +1148,12 @@ module Texture = struct
                | Error message -> native_error "Metal.Texture.create" message
                | Ok raw ->
                    finish_create "Metal.Texture.create" ~device ~descriptor
-                     ~parent_lifetime:device.lifetime raw))
+                     ~parent:(Texture_resource (Device_resource device))
+                     ~heap_offset:None ~allocation:None raw))
 
   let device (value : t) = value.device
   let descriptor (value : t) = value.descriptor
+  let heap_offset (value : t) = value.heap_offset
   let generation (value : t) = Metal_raw.generation value.raw
   let destroyed (value : t) = is_destroyed value.lifetime
 
@@ -1214,11 +1366,417 @@ module Texture = struct
             | Error message -> native_error "Metal.Texture.create_view" message
             | Ok raw ->
                 finish_create "Metal.Texture.create_view" ~device:parent.device
-                  ~descriptor ~parent_lifetime:parent.lifetime raw)
+                  ~descriptor ~parent:(Texture_view parent)
+                  ~heap_offset:parent.heap_offset ~allocation:None raw)
 
   let destroy (value : t) =
     destroy_parent "Metal.Texture.destroy" value.lifetime value.raw
-      (fun () -> detach value.parent_lifetime)
+      (fun () ->
+        deactivate_allocation value.allocation;
+        detach (texture_parent_lifetime value.parent))
+end
+
+module Heap = struct
+  type t = heap
+  type kind = heap_kind = Automatic | Placement
+  type cpu_cache_mode = resource_cpu_cache_mode = Default_cache | Write_combined
+  type hazard_tracking_mode = resource_hazard_tracking_mode =
+    | Default_hazard_tracking
+    | Untracked
+    | Tracked
+
+  type descriptor = heap_descriptor =
+    { size : int64
+    ; storage : Buffer.storage_mode
+    ; cpu_cache : cpu_cache_mode
+    ; hazard_tracking : hazard_tracking_mode
+    ; kind : kind
+    ; label : string option
+    }
+
+  type size_and_align =
+    { size : int64
+    ; alignment : int64
+    }
+
+  type info =
+    { size : int64
+    ; used_size : int64
+    ; current_allocated_size : int64
+    ; storage : Buffer.storage_mode
+    ; cpu_cache : cpu_cache_mode
+    ; hazard_tracking : hazard_tracking_mode
+    ; kind : kind
+    }
+
+  let make_descriptor ?(storage = Private) ?(cpu_cache = Default_cache)
+      ?(hazard_tracking = Default_hazard_tracking) ?(kind = Automatic) ?label
+      ~size () =
+    { size; storage; cpu_cache; hazard_tracking; kind; label }
+
+  let kind_code = function Automatic -> 0 | Placement -> 1
+
+  let kind_of_code operation = function
+    | 0 -> Ok Automatic
+    | 1 -> Ok Placement
+    | code -> native_error operation (Printf.sprintf "unknown heap kind %d" code)
+
+  let storage_of_code operation = function
+    | 0 -> Ok Shared
+    | 1 -> Ok Managed
+    | 2 -> Ok Private
+    | code -> native_error operation (Printf.sprintf "unknown storage mode %d" code)
+
+  let validate_descriptor operation (descriptor : descriptor) =
+    if descriptor.size <= 0L then
+      error operation Invalid_argument "heap size must be positive"
+    else if descriptor.storage = Managed then
+      error operation Unsupported "Metal heaps do not support managed storage"
+    else if option_exists contains_nul descriptor.label then
+      error operation Invalid_argument "heap label contains a NUL byte"
+    else Ok ()
+
+  let descriptor_tuple (descriptor : descriptor) =
+    ( descriptor.size
+    , storage_code descriptor.storage
+    , cache_code descriptor.cpu_cache
+    , hazard_code descriptor.hazard_tracking
+    , kind_code descriptor.kind )
+
+  let decode_info operation raw =
+    let values = Metal_raw.heap_info raw in
+    if Array.length values <> 7 then
+      native_error operation "Metal returned malformed heap properties"
+    else
+      match
+        storage_of_code operation (Int64.to_int values.(3)),
+        cache_mode_of_code operation (Int64.to_int values.(4)),
+        hazard_mode_of_code operation (Int64.to_int values.(5)),
+        kind_of_code operation (Int64.to_int values.(6))
+      with
+      | Ok storage, Ok cpu_cache, Ok hazard_tracking, Ok kind ->
+          Ok
+            { size = values.(0)
+            ; used_size = values.(1)
+            ; current_allocated_size = values.(2)
+            ; storage
+            ; cpu_cache
+            ; hazard_tracking
+            ; kind
+            }
+      | (Error _ as failure), _, _, _
+      | _, (Error _ as failure), _, _
+      | _, _, (Error _ as failure), _
+      | _, _, _, (Error _ as failure) -> failure
+
+  let validate_size_and_align operation ~minimum (size, alignment) =
+    if size < minimum || alignment <= 0L
+       || Int64.logand alignment (Int64.pred alignment) <> 0L
+    then
+      native_error operation
+        "Metal returned an invalid heap resource size or alignment"
+    else Ok { size; alignment }
+
+  let buffer_size_and_align ~(device : Device.t) ~length ~storage
+      ?(cpu_cache = Default_cache)
+      ?(hazard_tracking = Default_hazard_tracking) () =
+    on_main "Metal.Heap.buffer_size_and_align" (fun () ->
+      match ensure_live "Metal.Heap.buffer_size_and_align" device.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when storage = Managed ->
+          error "Metal.Heap.buffer_size_and_align" Unsupported
+            "Metal heaps do not support managed storage"
+      | Ok () ->
+          (match
+             Buffer.validate_create "Metal.Heap.buffer_size_and_align" device
+               ~length ~label:None
+           with
+           | Error _ as failure -> failure
+           | Ok () ->
+               let options =
+                 resource_options_code ~storage ~cpu_cache ~hazard_tracking
+               in
+               Metal_raw.heap_buffer_size_and_align device.raw length options
+               |> validate_size_and_align "Metal.Heap.buffer_size_and_align"
+                    ~minimum:length))
+
+  let texture_size_and_align ~(device : Device.t)
+      (descriptor : Texture.descriptor) =
+    on_main "Metal.Heap.texture_size_and_align" (fun () ->
+      match ensure_live "Metal.Heap.texture_size_and_align" device.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when descriptor.storage = Managed ->
+          error "Metal.Heap.texture_size_and_align" Unsupported
+            "Metal heaps do not support managed storage"
+      | Ok () ->
+          (match Texture.validate_descriptor device descriptor with
+           | Error _ as failure -> failure
+           | Ok () ->
+               Metal_raw.heap_texture_size_and_align device.raw
+                 (Texture.descriptor_tuple descriptor)
+               |> validate_size_and_align "Metal.Heap.texture_size_and_align"
+                    ~minimum:1L))
+
+  let create ~(device : Device.t) descriptor =
+    on_main "Metal.Heap.create" (fun () ->
+      match ensure_live "Metal.Heap.create" device.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match validate_descriptor "Metal.Heap.create" descriptor with
+           | Error _ as failure -> failure
+           | Ok () ->
+               match
+                 Metal_raw.heap_create device.raw (descriptor_tuple descriptor)
+                   descriptor.label
+               with
+               | Error message -> native_error "Metal.Heap.create" message
+               | Ok raw ->
+                   (match decode_info "Metal.Heap.create" raw with
+                    | Error _ as failure -> ignore (Metal_raw.destroy raw); failure
+                    | Ok info ->
+                        let expected_hazard =
+                          concrete_hazard_tracking ~heap:true
+                            descriptor.hazard_tracking
+                        in
+                        if info.size < descriptor.size
+                           || info.storage <> descriptor.storage
+                           || info.cpu_cache <> descriptor.cpu_cache
+                           || info.hazard_tracking <> expected_hazard
+                           || info.kind <> descriptor.kind
+                        then begin
+                          ignore (Metal_raw.destroy raw);
+                          native_error "Metal.Heap.create"
+                            "Metal changed checked heap properties during creation"
+                        end
+                        else
+                          let descriptor =
+                            { descriptor with
+                              size = info.size
+                            ; hazard_tracking = info.hazard_tracking
+                            }
+                          in
+                          let value : t =
+                            { raw
+                            ; lifetime = lifetime ()
+                            ; device
+                            ; descriptor
+                            ; allocations = ref []
+                            }
+                          in
+                          attach device.lifetime;
+                          attach_finalizer value value.lifetime device.lifetime;
+                          Ok value)))
+
+  let device (value : t) = value.device
+  let descriptor (value : t) = value.descriptor
+  let generation (value : t) = Metal_raw.generation value.raw
+  let destroyed (value : t) = is_destroyed value.lifetime
+
+  let info (value : t) =
+    on_main "Metal.Heap.info" (fun () ->
+      match ensure_live "Metal.Heap.info" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () -> decode_info "Metal.Heap.info" value.raw)
+
+  let label (value : t) =
+    on_main "Metal.Heap.label" (fun () ->
+      match ensure_live "Metal.Heap.label" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () -> Ok (Metal_raw.heap_label value.raw))
+
+  let set_label (value : t) label =
+    on_main "Metal.Heap.set_label" (fun () ->
+      match ensure_live "Metal.Heap.set_label" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when contains_nul label ->
+          error "Metal.Heap.set_label" Invalid_argument
+            "heap label contains a NUL byte"
+      | Ok () ->
+          (match Metal_raw.heap_set_label value.raw label with
+           | Ok () -> Ok ()
+           | Error message -> native_error "Metal.Heap.set_label" message))
+
+  let valid_alignment value =
+    value = 0L
+    || value > 0L && Int64.logand value (Int64.pred value) = 0L
+
+  let max_available_size (value : t) ~alignment =
+    on_main "Metal.Heap.max_available_size" (fun () ->
+      match ensure_live "Metal.Heap.max_available_size" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when not (valid_alignment alignment) ->
+          error "Metal.Heap.max_available_size" Invalid_argument
+            "heap alignment must be zero or a power of two"
+      | Ok () -> Ok (Metal_raw.heap_max_available_size value.raw alignment))
+
+  let validate_placement operation (value : t) offset required =
+    match value.descriptor.kind, offset with
+    | Automatic, None ->
+        let available =
+          Metal_raw.heap_max_available_size value.raw required.alignment
+        in
+        if required.size > available then
+          error operation Invalid_state
+            "automatic heap has insufficient unfragmented capacity"
+        else Ok ()
+    | Automatic, Some _ ->
+        error operation Invalid_argument
+          "automatic heaps do not accept placement offsets"
+    | Placement, None ->
+        error operation Invalid_argument
+          "placement heaps require an explicit offset"
+    | Placement, Some offset when offset < 0L ->
+        error operation Invalid_argument "heap placement offset is negative"
+    | Placement, Some offset
+      when Int64.rem offset required.alignment <> 0L ->
+        error operation Invalid_argument
+          "heap placement offset does not meet resource alignment"
+    | Placement, Some offset
+      when offset > value.descriptor.size
+           || required.size > Int64.sub value.descriptor.size offset ->
+        error operation Invalid_argument "heap placement exceeds the heap"
+    | Placement, Some offset ->
+        let active =
+          List.filter
+            (fun (allocation : heap_allocation) ->
+              Atomic.get allocation.active)
+            !(value.allocations)
+        in
+        value.allocations := active;
+        let limit = Int64.add offset required.size in
+        if
+          List.exists
+            (fun (allocation : heap_allocation) ->
+              offset < Int64.add allocation.offset allocation.size
+              && allocation.offset < limit)
+            active
+        then
+          error operation Invalid_state
+            "heap placement overlaps a live non-aliasable resource"
+        else Ok ()
+
+  let make_allocation offset (required : size_and_align) =
+    Option.map
+      (fun offset ->
+        ({ offset; size = required.size; active = Atomic.make true }
+          : heap_allocation))
+      offset
+
+  let register_allocation value allocation result =
+    match result with
+    | Error _ as failure -> failure
+    | Ok resource ->
+        Option.iter
+          (fun allocation ->
+            value.allocations := allocation :: !(value.allocations))
+          allocation;
+        Ok resource
+
+  let create_buffer (value : t) ?offset ~length ?label () =
+    on_main "Metal.Heap.create_buffer" (fun () ->
+      match ensure_live "Metal.Heap.create_buffer" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          match
+            Buffer.validate_create "Metal.Heap.create_buffer" value.device
+              ~length ~label
+          with
+          | Error _ as failure -> failure
+          | Ok () ->
+              let descriptor = value.descriptor in
+              let options =
+                resource_options_code ~storage:descriptor.storage
+                  ~cpu_cache:descriptor.cpu_cache
+                  ~hazard_tracking:descriptor.hazard_tracking
+              in
+              match
+                Metal_raw.heap_buffer_size_and_align value.device.raw length
+                  options
+                |> validate_size_and_align "Metal.Heap.create_buffer"
+                     ~minimum:length
+              with
+              | Error _ as failure -> failure
+              | Ok required ->
+                  match
+                    validate_placement "Metal.Heap.create_buffer" value offset
+                      required
+                  with
+                  | Error _ as failure -> failure
+                  | Ok () ->
+                      let allocation = make_allocation offset required in
+                      let result =
+                        match
+                          Metal_raw.heap_buffer_create value.raw length options
+                            offset
+                        with
+                        | Error message ->
+                            native_error "Metal.Heap.create_buffer" message
+                        | Ok raw ->
+                            Buffer.finish_create "Metal.Heap.create_buffer"
+                              ~device:value.device ~parent:(Heap_resource value)
+                              ~length ~storage:descriptor.storage
+                              ~cpu_cache:descriptor.cpu_cache
+                              ~hazard_tracking:descriptor.hazard_tracking
+                              ~heap_offset:offset ~allocation ~label raw
+                      in
+                      register_allocation value allocation result)
+
+  let create_texture (value : t) ?offset (descriptor : Texture.descriptor) =
+    on_main "Metal.Heap.create_texture" (fun () ->
+      match ensure_live "Metal.Heap.create_texture" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          let expected_hazard =
+            concrete_hazard_tracking ~heap:true descriptor.hazard_tracking
+          in
+          if descriptor.storage <> value.descriptor.storage
+             || descriptor.cpu_cache <> value.descriptor.cpu_cache
+             || expected_hazard <> value.descriptor.hazard_tracking
+          then
+            error "Metal.Heap.create_texture" Invalid_argument
+              "texture storage, cache, and hazard modes must match the heap"
+          else
+            match Texture.validate_descriptor value.device descriptor with
+           | Error _ as failure -> failure
+           | Ok () ->
+               let descriptor =
+                 { descriptor with hazard_tracking = expected_hazard }
+               in
+               match
+                 Metal_raw.heap_texture_size_and_align value.device.raw
+                   (Texture.descriptor_tuple descriptor)
+                 |> validate_size_and_align "Metal.Heap.create_texture"
+                      ~minimum:1L
+               with
+               | Error _ as failure -> failure
+               | Ok required ->
+                   match
+                     validate_placement "Metal.Heap.create_texture" value offset
+                       required
+                   with
+                   | Error _ as failure -> failure
+                   | Ok () ->
+                       let allocation = make_allocation offset required in
+                       let result =
+                         match
+                           Metal_raw.heap_texture_create value.raw
+                             (Texture.descriptor_tuple descriptor) offset
+                             descriptor.label
+                         with
+                         | Error message ->
+                             native_error "Metal.Heap.create_texture" message
+                         | Ok raw ->
+                             Texture.finish_create "Metal.Heap.create_texture"
+                               ~device:value.device ~descriptor
+                               ~parent:
+                                 (Texture_resource (Heap_resource value))
+                               ~heap_offset:offset ~allocation raw
+                       in
+                       register_allocation value allocation result)
+
+  let destroy (value : t) =
+    destroy_parent "Metal.Heap.destroy" value.lifetime value.raw
+      (fun () -> detach value.device.lifetime)
 end
 
 module Sampler = struct

@@ -25,6 +25,7 @@ namespace {
 
 enum class Handle_kind : std::uint32_t {
   Device = 1,
+  Heap,
   Buffer,
   Texture,
   Sampler,
@@ -191,17 +192,14 @@ value copy_optional_string(NSString *text) {
 
 value result_unit() { return result_ok(Val_unit); }
 
-MTLResourceOptions resource_options(int storage) {
-  switch (storage) {
-  case 0:
-    return MTLResourceStorageModeShared;
-  case 1:
-    return MTLResourceStorageModeManaged;
-  case 2:
-    return MTLResourceStorageModePrivate;
-  default:
-    caml_invalid_argument("invalid Metal storage mode");
+MTLResourceOptions resource_options(int options) {
+  const int cache = options & 0xf;
+  const int storage = (options >> 4) & 0xf;
+  const int hazard = (options >> 8) & 0x3;
+  if ((options & ~0x3ff) != 0 || cache > 1 || storage > 2 || hazard > 2) {
+    caml_invalid_argument("invalid Metal resource options");
   }
+  return static_cast<MTLResourceOptions>(options);
 }
 
 std::size_t tuple_dimension(value tuple, mlsize_t index) {
@@ -210,6 +208,41 @@ std::size_t tuple_dimension(value tuple, mlsize_t index) {
     caml_invalid_argument("Metal dimensions must be positive");
   }
   return static_cast<std::size_t>(dimension);
+}
+
+MTLTextureDescriptor *texture_descriptor(value raw_descriptor) {
+  MTLTextureDescriptor *descriptor = [[MTLTextureDescriptor alloc] init];
+  descriptor.textureType =
+      static_cast<MTLTextureType>(Long_val(Field(raw_descriptor, 0)));
+  descriptor.pixelFormat =
+      static_cast<MTLPixelFormat>(Long_val(Field(raw_descriptor, 1)));
+  descriptor.width = tuple_dimension(raw_descriptor, 2);
+  descriptor.height = tuple_dimension(raw_descriptor, 3);
+  descriptor.depth = tuple_dimension(raw_descriptor, 4);
+  descriptor.mipmapLevelCount = tuple_dimension(raw_descriptor, 5);
+  descriptor.sampleCount = tuple_dimension(raw_descriptor, 6);
+  descriptor.arrayLength = tuple_dimension(raw_descriptor, 7);
+  descriptor.storageMode =
+      static_cast<MTLStorageMode>(Long_val(Field(raw_descriptor, 8)));
+  descriptor.cpuCacheMode =
+      static_cast<MTLCPUCacheMode>(Long_val(Field(raw_descriptor, 9)));
+  descriptor.hazardTrackingMode =
+      static_cast<MTLHazardTrackingMode>(Long_val(Field(raw_descriptor, 10)));
+  descriptor.usage =
+      static_cast<MTLTextureUsage>(Long_val(Field(raw_descriptor, 11)));
+  descriptor.allowGPUOptimizedContents = Bool_val(Field(raw_descriptor, 12));
+  return descriptor;
+}
+
+value copy_size_and_align(MTLSizeAndAlign size_and_align) {
+  CAMLparam0();
+  CAMLlocal3(result, size, alignment);
+  result = caml_alloc_tuple(2);
+  size = caml_copy_int64(static_cast<std::int64_t>(size_and_align.size));
+  alignment = caml_copy_int64(static_cast<std::int64_t>(size_and_align.align));
+  Store_field(result, 0, size);
+  Store_field(result, 1, alignment);
+  CAMLreturn(result);
 }
 
 NSUInteger texture_slice_count(id<MTLTexture> texture) {
@@ -558,8 +591,8 @@ caml_prismel_metal_device_supports_function_pointers(value raw) {
 }
 
 extern "C" CAMLprim value caml_prismel_metal_buffer_create(
-    value raw_device, value raw_length, value raw_storage) {
-  CAMLparam3(raw_device, raw_length, raw_storage);
+    value raw_device, value raw_length, value raw_options) {
+  CAMLparam3(raw_device, raw_length, raw_options);
   CAMLlocal1(raw);
   @autoreleasepool {
     id<MTLDevice> device = object_of_handle(raw_device, Handle_kind::Device);
@@ -569,7 +602,7 @@ extern "C" CAMLprim value caml_prismel_metal_buffer_create(
     }
     id<MTLBuffer> buffer = [device
         newBufferWithLength:static_cast<NSUInteger>(signed_length)
-                   options:resource_options(Int_val(raw_storage))];
+                   options:resource_options(Int_val(raw_options))];
     if (buffer == nil) {
       CAMLreturn(result_error_text("Metal failed to allocate the buffer"));
     }
@@ -578,16 +611,20 @@ extern "C" CAMLprim value caml_prismel_metal_buffer_create(
   CAMLreturn(result_ok(raw));
 }
 
-extern "C" CAMLprim value caml_prismel_metal_buffer_length(value raw) {
+extern "C" CAMLprim value caml_prismel_metal_buffer_info(value raw) {
   CAMLparam1(raw);
+  CAMLlocal3(result, length, heap_offset);
   id<MTLBuffer> buffer = object_of_handle(raw, Handle_kind::Buffer);
-  CAMLreturn(caml_copy_int64(static_cast<std::int64_t>(buffer.length)));
-}
-
-extern "C" CAMLprim value caml_prismel_metal_buffer_storage_mode(value raw) {
-  CAMLparam1(raw);
-  id<MTLBuffer> buffer = object_of_handle(raw, Handle_kind::Buffer);
-  CAMLreturn(Val_int(static_cast<int>(buffer.storageMode)));
+  result = caml_alloc_tuple(5);
+  length = caml_copy_int64(static_cast<std::int64_t>(buffer.length));
+  heap_offset =
+      caml_copy_int64(static_cast<std::int64_t>(buffer.heapOffset));
+  Store_field(result, 0, length);
+  Store_field(result, 1, Val_int(static_cast<int>(buffer.storageMode)));
+  Store_field(result, 2, Val_int(static_cast<int>(buffer.cpuCacheMode)));
+  Store_field(result, 3, Val_int(static_cast<int>(buffer.hazardTrackingMode)));
+  Store_field(result, 4, heap_offset);
+  CAMLreturn(result);
 }
 
 extern "C" CAMLprim value caml_prismel_metal_buffer_set_label(
@@ -683,42 +720,199 @@ caml_prismel_metal_device_supports_texture_sample_count(value raw,
       [device supportsTextureSampleCount:static_cast<NSUInteger>(count)]));
 }
 
+extern "C" CAMLprim value caml_prismel_metal_heap_buffer_size_and_align(
+    value raw_device, value raw_length, value raw_options) {
+  CAMLparam3(raw_device, raw_length, raw_options);
+  id<MTLDevice> device = object_of_handle(raw_device, Handle_kind::Device);
+  const std::int64_t length = Int64_val(raw_length);
+  if (length <= 0) {
+    caml_invalid_argument("heap buffer length must be positive");
+  }
+  const MTLSizeAndAlign result = [device
+      heapBufferSizeAndAlignWithLength:static_cast<NSUInteger>(length)
+                               options:resource_options(Int_val(raw_options))];
+  CAMLreturn(copy_size_and_align(result));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_heap_texture_size_and_align(
+    value raw_device, value raw_descriptor) {
+  CAMLparam2(raw_device, raw_descriptor);
+  @autoreleasepool {
+    id<MTLDevice> device = object_of_handle(raw_device, Handle_kind::Device);
+    MTLTextureDescriptor *descriptor = texture_descriptor(raw_descriptor);
+    const MTLSizeAndAlign result =
+        [device heapTextureSizeAndAlignWithDescriptor:descriptor];
+    CAMLreturn(copy_size_and_align(result));
+  }
+}
+
+extern "C" CAMLprim value caml_prismel_metal_heap_create(
+    value raw_device, value raw_descriptor, value raw_label) {
+  CAMLparam3(raw_device, raw_descriptor, raw_label);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    id<MTLDevice> device = object_of_handle(raw_device, Handle_kind::Device);
+    const std::int64_t size = Int64_val(Field(raw_descriptor, 0));
+    if (size <= 0) {
+      CAMLreturn(result_error_text("heap size must be positive"));
+    }
+    MTLHeapDescriptor *descriptor = [[MTLHeapDescriptor alloc] init];
+    descriptor.size = static_cast<NSUInteger>(size);
+    descriptor.storageMode =
+        static_cast<MTLStorageMode>(Long_val(Field(raw_descriptor, 1)));
+    descriptor.cpuCacheMode =
+        static_cast<MTLCPUCacheMode>(Long_val(Field(raw_descriptor, 2)));
+    descriptor.hazardTrackingMode =
+        static_cast<MTLHazardTrackingMode>(Long_val(Field(raw_descriptor, 3)));
+    descriptor.type =
+        static_cast<MTLHeapType>(Long_val(Field(raw_descriptor, 4)));
+    id<MTLHeap> heap = [device newHeapWithDescriptor:descriptor];
+    if (heap == nil) {
+      CAMLreturn(result_error_text("Metal rejected the heap descriptor"));
+    }
+    if (Is_block(raw_label)) {
+      NSString *label = string_from_ocaml(Field(raw_label, 0));
+      if (label == nil) {
+        CAMLreturn(result_error_text("heap label is not valid UTF-8"));
+      }
+      heap.label = label;
+    }
+    raw = allocate_handle(heap, Handle_kind::Heap);
+  }
+  CAMLreturn(result_ok(raw));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_heap_info(value raw) {
+  CAMLparam1(raw);
+  CAMLlocal2(result, item);
+  id<MTLHeap> heap = object_of_handle(raw, Handle_kind::Heap);
+  result = caml_alloc(7, 0);
+  item = caml_copy_int64(static_cast<std::int64_t>(heap.size));
+  Store_field(result, 0, item);
+  item = caml_copy_int64(static_cast<std::int64_t>(heap.usedSize));
+  Store_field(result, 1, item);
+  item = caml_copy_int64(static_cast<std::int64_t>(heap.currentAllocatedSize));
+  Store_field(result, 2, item);
+  item = caml_copy_int64(static_cast<std::int64_t>(heap.storageMode));
+  Store_field(result, 3, item);
+  item = caml_copy_int64(static_cast<std::int64_t>(heap.cpuCacheMode));
+  Store_field(result, 4, item);
+  item = caml_copy_int64(static_cast<std::int64_t>(heap.hazardTrackingMode));
+  Store_field(result, 5, item);
+  item = caml_copy_int64(static_cast<std::int64_t>(heap.type));
+  Store_field(result, 6, item);
+  CAMLreturn(result);
+}
+
+extern "C" CAMLprim value caml_prismel_metal_heap_max_available_size(
+    value raw, value raw_alignment) {
+  CAMLparam2(raw, raw_alignment);
+  id<MTLHeap> heap = object_of_handle(raw, Handle_kind::Heap);
+  const std::int64_t alignment = Int64_val(raw_alignment);
+  if (alignment < 0) {
+    caml_invalid_argument("heap alignment must be nonnegative");
+  }
+  const NSUInteger result = [heap
+      maxAvailableSizeWithAlignment:static_cast<NSUInteger>(alignment)];
+  CAMLreturn(caml_copy_int64(static_cast<std::int64_t>(result)));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_heap_set_label(
+    value raw, value raw_label) {
+  CAMLparam2(raw, raw_label);
+  @autoreleasepool {
+    id<MTLHeap> heap = object_of_handle(raw, Handle_kind::Heap);
+    NSString *label = string_from_ocaml(raw_label);
+    if (label == nil) {
+      CAMLreturn(result_error_text("heap label is not valid UTF-8"));
+    }
+    heap.label = label;
+  }
+  CAMLreturn(result_unit());
+}
+
+extern "C" CAMLprim value caml_prismel_metal_heap_label(value raw) {
+  CAMLparam1(raw);
+  CAMLlocal1(result);
+  @autoreleasepool {
+    id<MTLHeap> heap = object_of_handle(raw, Handle_kind::Heap);
+    result = copy_optional_string(heap.label);
+  }
+  CAMLreturn(result);
+}
+
+extern "C" CAMLprim value caml_prismel_metal_heap_buffer_create(
+    value raw_heap, value raw_length, value raw_options, value raw_offset) {
+  CAMLparam4(raw_heap, raw_length, raw_options, raw_offset);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    id<MTLHeap> heap = object_of_handle(raw_heap, Handle_kind::Heap);
+    const std::int64_t length = Int64_val(raw_length);
+    if (length <= 0) {
+      CAMLreturn(result_error_text("heap buffer length must be positive"));
+    }
+    const MTLResourceOptions options = resource_options(Int_val(raw_options));
+    id<MTLBuffer> buffer = nil;
+    if (Is_block(raw_offset)) {
+      const std::int64_t offset = Int64_val(Field(raw_offset, 0));
+      if (offset < 0) {
+        CAMLreturn(result_error_text("heap buffer offset is negative"));
+      }
+      buffer = [heap newBufferWithLength:static_cast<NSUInteger>(length)
+                                 options:options
+                                  offset:static_cast<NSUInteger>(offset)];
+    } else {
+      buffer = [heap newBufferWithLength:static_cast<NSUInteger>(length)
+                                 options:options];
+    }
+    if (buffer == nil) {
+      CAMLreturn(result_error_text("Metal failed to allocate the heap buffer"));
+    }
+    raw = allocate_handle(buffer, Handle_kind::Buffer);
+  }
+  CAMLreturn(result_ok(raw));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_heap_texture_create(
+    value raw_heap, value raw_descriptor, value raw_offset, value raw_label) {
+  CAMLparam4(raw_heap, raw_descriptor, raw_offset, raw_label);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    id<MTLHeap> heap = object_of_handle(raw_heap, Handle_kind::Heap);
+    MTLTextureDescriptor *descriptor = texture_descriptor(raw_descriptor);
+    id<MTLTexture> texture = nil;
+    if (Is_block(raw_offset)) {
+      const std::int64_t offset = Int64_val(Field(raw_offset, 0));
+      if (offset < 0) {
+        CAMLreturn(result_error_text("heap texture offset is negative"));
+      }
+      texture = [heap newTextureWithDescriptor:descriptor
+                                        offset:static_cast<NSUInteger>(offset)];
+    } else {
+      texture = [heap newTextureWithDescriptor:descriptor];
+    }
+    if (texture == nil) {
+      CAMLreturn(result_error_text("Metal failed to allocate the heap texture"));
+    }
+    if (Is_block(raw_label)) {
+      NSString *label = string_from_ocaml(Field(raw_label, 0));
+      if (label == nil) {
+        CAMLreturn(result_error_text("heap texture label is not valid UTF-8"));
+      }
+      texture.label = label;
+    }
+    raw = allocate_handle(texture, Handle_kind::Texture);
+  }
+  CAMLreturn(result_ok(raw));
+}
+
 extern "C" CAMLprim value caml_prismel_metal_texture_create(
     value raw_device, value raw_descriptor, value raw_label) {
   CAMLparam3(raw_device, raw_descriptor, raw_label);
   CAMLlocal1(raw);
   @autoreleasepool {
     id<MTLDevice> device = object_of_handle(raw_device, Handle_kind::Device);
-    const intnat width = Long_val(Field(raw_descriptor, 2));
-    const intnat height = Long_val(Field(raw_descriptor, 3));
-    const intnat depth = Long_val(Field(raw_descriptor, 4));
-    const intnat mip_levels = Long_val(Field(raw_descriptor, 5));
-    const intnat sample_count = Long_val(Field(raw_descriptor, 6));
-    const intnat array_length = Long_val(Field(raw_descriptor, 7));
-    if (width <= 0 || height <= 0 || depth <= 0 || mip_levels <= 0 ||
-        sample_count <= 0 || array_length <= 0) {
-      CAMLreturn(result_error_text("texture descriptor dimensions are invalid"));
-    }
-    MTLTextureDescriptor *descriptor = [[MTLTextureDescriptor alloc] init];
-    descriptor.textureType =
-        static_cast<MTLTextureType>(Long_val(Field(raw_descriptor, 0)));
-    descriptor.pixelFormat =
-        static_cast<MTLPixelFormat>(Long_val(Field(raw_descriptor, 1)));
-    descriptor.width = static_cast<NSUInteger>(width);
-    descriptor.height = static_cast<NSUInteger>(height);
-    descriptor.depth = static_cast<NSUInteger>(depth);
-    descriptor.mipmapLevelCount = static_cast<NSUInteger>(mip_levels);
-    descriptor.sampleCount = static_cast<NSUInteger>(sample_count);
-    descriptor.arrayLength = static_cast<NSUInteger>(array_length);
-    descriptor.storageMode =
-        static_cast<MTLStorageMode>(Long_val(Field(raw_descriptor, 8)));
-    descriptor.cpuCacheMode =
-        static_cast<MTLCPUCacheMode>(Long_val(Field(raw_descriptor, 9)));
-    descriptor.hazardTrackingMode =
-        static_cast<MTLHazardTrackingMode>(Long_val(Field(raw_descriptor, 10)));
-    descriptor.usage =
-        static_cast<MTLTextureUsage>(Long_val(Field(raw_descriptor, 11)));
-    descriptor.allowGPUOptimizedContents = Bool_val(Field(raw_descriptor, 12));
+    MTLTextureDescriptor *descriptor = texture_descriptor(raw_descriptor);
     id<MTLTexture> texture = [device newTextureWithDescriptor:descriptor];
     if (texture == nil) {
       CAMLreturn(result_error_text("Metal rejected the texture descriptor"));
@@ -739,7 +933,7 @@ extern "C" CAMLprim value caml_prismel_metal_texture_info(value raw) {
   CAMLparam1(raw);
   CAMLlocal1(result);
   id<MTLTexture> texture = object_of_handle(raw, Handle_kind::Texture);
-  result = caml_alloc(10, 0);
+  result = caml_alloc(12, 0);
   Store_field(result, 0, Val_long(texture.textureType));
   Store_field(result, 1, Val_long(texture.pixelFormat));
   Store_field(result, 2, Val_long(texture.width));
@@ -750,6 +944,8 @@ extern "C" CAMLprim value caml_prismel_metal_texture_info(value raw) {
   Store_field(result, 7, Val_long(texture.arrayLength));
   Store_field(result, 8, Val_long(texture.usage));
   Store_field(result, 9, Val_long(texture.storageMode));
+  Store_field(result, 10, Val_long(texture.cpuCacheMode));
+  Store_field(result, 11, Val_long(texture.hazardTrackingMode));
   CAMLreturn(result);
 }
 

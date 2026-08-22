@@ -2,11 +2,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 0,
-    "bound": 330,
+    "bound": 391,
     "scope-excluded": 7,
-    "unreviewed": 4949
+    "unreviewed": 4888
   },
-  "classification_source_sha256": "56d138bc0ac879550bec256b43ada757fe20dcbd522d66e92ffc2a8c73d95df3",
+  "classification_source_sha256": "4d9ba7189a84d3b65c917a2315e05276df5e39997397913c4383d64a30420460",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "header_aggregate_sha256": "c2ee1e44c76606cf05fa81d1a8314dadfa49efe900342e8bcb3670363c16f0d1",
@@ -1821,14 +1821,14 @@
         "AvailabilityAttr",
         "VisibilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "class:MTLHeapDescriptor",
       "kind": "class",
       "line": 42,
       "name": "MTLHeapDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -8231,26 +8231,26 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "enum-case:MTLHeapType:MTLHeapTypeAutomatic",
       "kind": "enum-case",
       "line": 33,
       "name": "MTLHeapTypeAutomatic",
       "owner": "MTLHeapType",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLHeapType"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "enum-case:MTLHeapType:MTLHeapTypePlacement",
       "kind": "enum-case",
       "line": 34,
       "name": "MTLHeapTypePlacement",
       "owner": "MTLHeapType",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLHeapType"
     },
     {
@@ -11611,68 +11611,68 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResource.h",
       "id": "enum-case:MTLResourceOptions:MTLResourceCPUCacheModeDefaultCache",
       "kind": "enum-case",
       "line": 173,
       "name": "MTLResourceCPUCacheModeDefaultCache",
       "owner": "MTLResourceOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "(unnamed enum at /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Metal.framework/Headers/MTLResource.h:171:9)"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResource.h",
       "id": "enum-case:MTLResourceOptions:MTLResourceCPUCacheModeWriteCombined",
       "kind": "enum-case",
       "line": 174,
       "name": "MTLResourceCPUCacheModeWriteCombined",
       "owner": "MTLResourceOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "(unnamed enum at /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Metal.framework/Headers/MTLResource.h:171:9)"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResource.h",
       "id": "enum-case:MTLResourceOptions:MTLResourceHazardTrackingModeDefault",
       "kind": "enum-case",
       "line": 181,
       "name": "MTLResourceHazardTrackingModeDefault",
       "owner": "MTLResourceOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "(unnamed enum at /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Metal.framework/Headers/MTLResource.h:171:9)"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResource.h",
       "id": "enum-case:MTLResourceOptions:MTLResourceHazardTrackingModeTracked",
       "kind": "enum-case",
       "line": 183,
       "name": "MTLResourceHazardTrackingModeTracked",
       "owner": "MTLResourceOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "(unnamed enum at /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Metal.framework/Headers/MTLResource.h:171:9)"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResource.h",
       "id": "enum-case:MTLResourceOptions:MTLResourceHazardTrackingModeUntracked",
       "kind": "enum-case",
       "line": 182,
       "name": "MTLResourceHazardTrackingModeUntracked",
       "owner": "MTLResourceOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "(unnamed enum at /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Metal.framework/Headers/MTLResource.h:171:9)"
     },
     {
@@ -15090,14 +15090,14 @@
         "AvailabilityAttr",
         "EnumExtensibilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "enum:MTLHeapType",
       "kind": "enum",
       "line": 31,
       "name": "MTLHeapType",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -17751,26 +17751,26 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "field:MTLSizeAndAlign:align",
       "kind": "field",
       "line": 382,
       "name": "align",
       "owner": "MTLSizeAndAlign",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "field:MTLSizeAndAlign:size",
       "kind": "field",
       "line": 381,
       "name": "size",
       "owner": "MTLSizeAndAlign",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
@@ -34208,28 +34208,28 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice heapBufferSizeAndAlignWithLength:options:]",
       "kind": "method",
       "line": 670,
       "name": "heapBufferSizeAndAlignWithLength:options:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (NSUInteger, MTLResourceOptions) -> MTLSizeAndAlign"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice heapTextureSizeAndAlignWithDescriptor:]",
       "kind": "method",
       "line": 663,
       "name": "heapTextureSizeAndAlignWithDescriptor:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLTextureDescriptor * _Nonnull __strong) -> MTLSizeAndAlign"
     },
     {
@@ -34924,14 +34924,14 @@
         "AvailabilityAttr",
         "NSReturnsRetainedAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newHeapWithDescriptor:]",
       "kind": "method",
       "line": 676,
       "name": "newHeapWithDescriptor:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLHeapDescriptor * _Nonnull __strong) -> id<MTLHeap> _Nullable"
     },
     {
@@ -36979,28 +36979,28 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "method:-[MTLHeap cpuCacheMode]",
       "kind": "method",
       "line": 148,
       "name": "cpuCacheMode",
       "owner": "MTLHeap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLCPUCacheMode"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "method:-[MTLHeap currentAllocatedSize]",
       "kind": "method",
       "line": 185,
       "name": "currentAllocatedSize",
       "owner": "MTLHeap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -37019,38 +37019,38 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "method:-[MTLHeap hazardTrackingMode]",
       "kind": "method",
       "line": 160,
       "name": "hazardTrackingMode",
       "owner": "MTLHeap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLHazardTrackingMode"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "method:-[MTLHeap label]",
       "kind": "method",
       "line": 128,
       "name": "label",
       "owner": "MTLHeap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSString * _Nullable"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "method:-[MTLHeap maxAvailableSizeWithAlignment:]",
       "kind": "method",
       "line": 192,
       "name": "maxAvailableSizeWithAlignment:",
       "owner": "MTLHeap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (NSUInteger) -> NSUInteger"
     },
     {
@@ -37117,14 +37117,14 @@
       "attributes": [
         "NSReturnsRetainedAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "method:-[MTLHeap newBufferWithLength:options:]",
       "kind": "method",
       "line": 200,
       "name": "newBufferWithLength:options:",
       "owner": "MTLHeap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (NSUInteger, MTLResourceOptions) -> id<MTLBuffer> _Nullable"
     },
     {
@@ -37132,28 +37132,28 @@
         "AvailabilityAttr",
         "NSReturnsRetainedAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "method:-[MTLHeap newBufferWithLength:options:offset:]",
       "kind": "method",
       "line": 235,
       "name": "newBufferWithLength:options:offset:",
       "owner": "MTLHeap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (NSUInteger, MTLResourceOptions, NSUInteger) -> id<MTLBuffer> _Nullable"
     },
     {
       "attributes": [
         "NSReturnsRetainedAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "method:-[MTLHeap newTextureWithDescriptor:]",
       "kind": "method",
       "line": 209,
       "name": "newTextureWithDescriptor:",
       "owner": "MTLHeap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLTextureDescriptor * _Nonnull __strong) -> id<MTLTexture> _Nullable"
     },
     {
@@ -37161,14 +37161,14 @@
         "AvailabilityAttr",
         "NSReturnsRetainedAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "method:-[MTLHeap newTextureWithDescriptor:offset:]",
       "kind": "method",
       "line": 249,
       "name": "newTextureWithDescriptor:offset:",
       "owner": "MTLHeap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLTextureDescriptor * _Nonnull __strong, NSUInteger) -> id<MTLTexture> _Nullable"
     },
     {
@@ -37187,14 +37187,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "method:-[MTLHeap setLabel:]",
       "kind": "method",
       "line": null,
       "name": "setLabel:",
       "owner": "MTLHeap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (NSString * _Nullable) -> void"
     },
     {
@@ -37211,78 +37211,78 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "method:-[MTLHeap size]",
       "kind": "method",
       "line": 172,
       "name": "size",
       "owner": "MTLHeap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSUInteger"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "method:-[MTLHeap storageMode]",
       "kind": "method",
       "line": 141,
       "name": "storageMode",
       "owner": "MTLHeap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLStorageMode"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "method:-[MTLHeap type]",
       "kind": "method",
       "line": 222,
       "name": "type",
       "owner": "MTLHeap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLHeapType"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "method:-[MTLHeap usedSize]",
       "kind": "method",
       "line": 179,
       "name": "usedSize",
       "owner": "MTLHeap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSUInteger"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "method:-[MTLHeapDescriptor cpuCacheMode]",
       "kind": "method",
       "line": 65,
       "name": "cpuCacheMode",
       "owner": "MTLHeapDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLCPUCacheMode"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "method:-[MTLHeapDescriptor hazardTrackingMode]",
       "kind": "method",
       "line": 86,
       "name": "hazardTrackingMode",
       "owner": "MTLHeapDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLHazardTrackingMode"
     },
     {
@@ -37315,28 +37315,28 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "method:-[MTLHeapDescriptor setCpuCacheMode:]",
       "kind": "method",
       "line": null,
       "name": "setCpuCacheMode:",
       "owner": "MTLHeapDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLCPUCacheMode) -> void"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "method:-[MTLHeapDescriptor setHazardTrackingMode:]",
       "kind": "method",
       "line": null,
       "name": "setHazardTrackingMode:",
       "owner": "MTLHeapDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLHazardTrackingMode) -> void"
     },
     {
@@ -37369,14 +37369,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "method:-[MTLHeapDescriptor setSize:]",
       "kind": "method",
       "line": null,
       "name": "setSize:",
       "owner": "MTLHeapDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -37395,40 +37395,40 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "method:-[MTLHeapDescriptor setStorageMode:]",
       "kind": "method",
       "line": null,
       "name": "setStorageMode:",
       "owner": "MTLHeapDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLStorageMode) -> void"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "method:-[MTLHeapDescriptor setType:]",
       "kind": "method",
       "line": null,
       "name": "setType:",
       "owner": "MTLHeapDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLHeapType) -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "method:-[MTLHeapDescriptor size]",
       "kind": "method",
       "line": 49,
       "name": "size",
       "owner": "MTLHeapDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -37447,28 +37447,28 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "method:-[MTLHeapDescriptor storageMode]",
       "kind": "method",
       "line": 57,
       "name": "storageMode",
       "owner": "MTLHeapDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLStorageMode"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "method:-[MTLHeapDescriptor type]",
       "kind": "method",
       "line": 100,
       "name": "type",
       "owner": "MTLHeapDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLHeapType"
     },
     {
@@ -46424,14 +46424,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResource.h",
       "id": "method:-[MTLResource cpuCacheMode]",
       "kind": "method",
       "line": 279,
       "name": "cpuCacheMode",
       "owner": "MTLResource",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLCPUCacheMode"
     },
     {
@@ -46450,28 +46450,28 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResource.h",
       "id": "method:-[MTLResource hazardTrackingMode]",
       "kind": "method",
       "line": 293,
       "name": "hazardTrackingMode",
       "owner": "MTLResource",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLHazardTrackingMode"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResource.h",
       "id": "method:-[MTLResource heapOffset]",
       "kind": "method",
       "line": 321,
       "name": "heapOffset",
       "owner": "MTLResource",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -57839,28 +57839,28 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "property:MTLHeap:cpuCacheMode",
       "kind": "property",
       "line": 148,
       "name": "cpuCacheMode",
       "owner": "MTLHeap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLCPUCacheMode"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "property:MTLHeap:currentAllocatedSize",
       "kind": "property",
       "line": 185,
       "name": "currentAllocatedSize",
       "owner": "MTLHeap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
@@ -57879,26 +57879,26 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "property:MTLHeap:hazardTrackingMode",
       "kind": "property",
       "line": 160,
       "name": "hazardTrackingMode",
       "owner": "MTLHeap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLHazardTrackingMode"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "property:MTLHeap:label",
       "kind": "property",
       "line": 128,
       "name": "label",
       "owner": "MTLHeap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSString * _Nullable"
     },
     {
@@ -57917,78 +57917,78 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "property:MTLHeap:size",
       "kind": "property",
       "line": 172,
       "name": "size",
       "owner": "MTLHeap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "property:MTLHeap:storageMode",
       "kind": "property",
       "line": 141,
       "name": "storageMode",
       "owner": "MTLHeap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLStorageMode"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "property:MTLHeap:type",
       "kind": "property",
       "line": 222,
       "name": "type",
       "owner": "MTLHeap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLHeapType"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "property:MTLHeap:usedSize",
       "kind": "property",
       "line": 179,
       "name": "usedSize",
       "owner": "MTLHeap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "property:MTLHeapDescriptor:cpuCacheMode",
       "kind": "property",
       "line": 65,
       "name": "cpuCacheMode",
       "owner": "MTLHeapDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLCPUCacheMode"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "property:MTLHeapDescriptor:hazardTrackingMode",
       "kind": "property",
       "line": 86,
       "name": "hazardTrackingMode",
       "owner": "MTLHeapDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLHazardTrackingMode"
     },
     {
@@ -58021,14 +58021,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "property:MTLHeapDescriptor:size",
       "kind": "property",
       "line": 49,
       "name": "size",
       "owner": "MTLHeapDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
@@ -58047,28 +58047,28 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "property:MTLHeapDescriptor:storageMode",
       "kind": "property",
       "line": 57,
       "name": "storageMode",
       "owner": "MTLHeapDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLStorageMode"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "property:MTLHeapDescriptor:type",
       "kind": "property",
       "line": 100,
       "name": "type",
       "owner": "MTLHeapDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLHeapType"
     },
     {
@@ -61317,14 +61317,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResource.h",
       "id": "property:MTLResource:cpuCacheMode",
       "kind": "property",
       "line": 279,
       "name": "cpuCacheMode",
       "owner": "MTLResource",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLCPUCacheMode"
     },
     {
@@ -61343,14 +61343,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResource.h",
       "id": "property:MTLResource:hazardTrackingMode",
       "kind": "property",
       "line": 293,
       "name": "hazardTrackingMode",
       "owner": "MTLResource",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLHazardTrackingMode"
     },
     {
@@ -61371,14 +61371,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResource.h",
       "id": "property:MTLResource:heapOffset",
       "kind": "property",
       "line": 321,
       "name": "heapOffset",
       "owner": "MTLResource",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
@@ -64241,14 +64241,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "protocol:MTLHeap",
       "kind": "protocol",
       "line": 122,
       "name": "MTLHeap",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -65121,14 +65121,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "record:MTLSizeAndAlign",
       "kind": "record",
       "line": 380,
       "name": "MTLSizeAndAlign",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "struct"
     },
     {
@@ -66432,14 +66432,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "typedef:MTLHeapType",
       "kind": "typedef",
       "line": 31,
       "name": "MTLHeapType",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "enum MTLHeapType"
     },
     {
@@ -67220,14 +67220,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "typedef:MTLSizeAndAlign",
       "kind": "typedef",
       "line": 383,
       "name": "MTLSizeAndAlign",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "struct MTLSizeAndAlign"
     },
     {

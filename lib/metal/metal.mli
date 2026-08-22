@@ -103,13 +103,26 @@ module Buffer : sig
     | Managed
     | Private
 
+  type cpu_cache_mode =
+    | Default_cache
+    | Write_combined
+
+  type hazard_tracking_mode =
+    | Default_hazard_tracking
+    | Untracked
+    | Tracked
+
   val create :
     device:Device.t -> length:int64 -> storage:storage_mode ->
+    ?cpu_cache:cpu_cache_mode -> ?hazard_tracking:hazard_tracking_mode ->
     ?label:string -> unit -> (t, error) result
   val device : t -> Device.t
   val generation : t -> int64
   val length : t -> int64
   val storage_mode : t -> storage_mode
+  val cpu_cache_mode : t -> cpu_cache_mode
+  val hazard_tracking_mode : t -> hazard_tracking_mode
+  val heap_offset : t -> int64 option
   val destroyed : t -> bool
   val label : t -> (string option, error) result
   val set_label : t -> string -> (unit, error) result
@@ -223,6 +236,7 @@ module Texture : sig
     slice_count:int -> ?label:string -> unit -> (t, error) result
   val device : t -> Device.t
   val descriptor : t -> descriptor
+  val heap_offset : t -> int64 option
   val generation : t -> int64
   val destroyed : t -> bool
   val label : t -> (string option, error) result
@@ -233,6 +247,66 @@ module Texture : sig
   val read_bytes :
     t -> region:region -> mip_level:int -> slice:int -> bytes_per_row:int ->
     bytes_per_image:int -> (bytes, error) result
+  val destroy : t -> (unit, error) result
+end
+
+module Heap : sig
+  type t
+  type kind = Automatic | Placement
+  type cpu_cache_mode = Default_cache | Write_combined
+  type hazard_tracking_mode =
+    | Default_hazard_tracking
+    | Untracked
+    | Tracked
+
+  type descriptor =
+    { size : int64
+    ; storage : Buffer.storage_mode
+    ; cpu_cache : cpu_cache_mode
+    ; hazard_tracking : hazard_tracking_mode
+    ; kind : kind
+    ; label : string option
+    }
+
+  type size_and_align =
+    { size : int64
+    ; alignment : int64
+    }
+
+  type info =
+    { size : int64
+    ; used_size : int64
+    ; current_allocated_size : int64
+    ; storage : Buffer.storage_mode
+    ; cpu_cache : cpu_cache_mode
+    ; hazard_tracking : hazard_tracking_mode
+    ; kind : kind
+    }
+
+  val make_descriptor :
+    ?storage:Buffer.storage_mode -> ?cpu_cache:cpu_cache_mode ->
+    ?hazard_tracking:hazard_tracking_mode -> ?kind:kind -> ?label:string ->
+    size:int64 -> unit -> descriptor
+  val buffer_size_and_align :
+    device:Device.t -> length:int64 -> storage:Buffer.storage_mode ->
+    ?cpu_cache:cpu_cache_mode -> ?hazard_tracking:hazard_tracking_mode ->
+    unit -> (size_and_align, error) result
+  val texture_size_and_align :
+    device:Device.t -> Texture.descriptor -> (size_and_align, error) result
+  val create : device:Device.t -> descriptor -> (t, error) result
+  val create_buffer :
+    t -> ?offset:int64 -> length:int64 -> ?label:string -> unit ->
+    (Buffer.t, error) result
+  val create_texture :
+    t -> ?offset:int64 -> Texture.descriptor -> (Texture.t, error) result
+  val device : t -> Device.t
+  val descriptor : t -> descriptor
+  val generation : t -> int64
+  val destroyed : t -> bool
+  val info : t -> (info, error) result
+  val label : t -> (string option, error) result
+  val set_label : t -> string -> (unit, error) result
+  val max_available_size : t -> alignment:int64 -> (int64, error) result
   val destroy : t -> (unit, error) result
 end
 

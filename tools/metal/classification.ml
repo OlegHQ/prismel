@@ -24,6 +24,7 @@ let enum_cases owner names =
 
 let bound_identifiers =
   [ "class:MTLCompileOptions"
+  ; "class:MTLHeapDescriptor"
   ; "class:MTLSamplerDescriptor"
   ; "class:MTLTextureDescriptor"
   ; "enum:MTLCommandBufferStatus"
@@ -31,6 +32,7 @@ let bound_identifiers =
   ; "enum:MTLCPUCacheMode"
   ; "enum:MTLGPUFamily"
   ; "enum:MTLHazardTrackingMode"
+  ; "enum:MTLHeapType"
   ; "enum:MTLPixelFormat"
   ; "enum:MTLResourceOptions"
   ; "enum:MTLSamplerAddressMode"
@@ -47,6 +49,7 @@ let bound_identifiers =
   ; "record:MTLOrigin"
   ; "record:MTLRegion"
   ; "record:MTLSize"
+  ; "record:MTLSizeAndAlign"
   ; "field:MTLOrigin:x"
   ; "field:MTLOrigin:y"
   ; "field:MTLOrigin:z"
@@ -55,6 +58,8 @@ let bound_identifiers =
   ; "field:MTLSize:width"
   ; "field:MTLSize:height"
   ; "field:MTLSize:depth"
+  ; "field:MTLSizeAndAlign:align"
+  ; "field:MTLSizeAndAlign:size"
   ; "protocol:MTLBuffer"
   ; "protocol:MTLCommandBuffer"
   ; "protocol:MTLCommandEncoder"
@@ -63,6 +68,7 @@ let bound_identifiers =
   ; "protocol:MTLComputePipelineState"
   ; "protocol:MTLDevice"
   ; "protocol:MTLFunction"
+  ; "protocol:MTLHeap"
   ; "protocol:MTLLibrary"
   ; "protocol:MTLResource"
   ; "protocol:MTLSamplerState"
@@ -72,6 +78,7 @@ let bound_identifiers =
   ; "typedef:MTLCPUCacheMode"
   ; "typedef:MTLGPUFamily"
   ; "typedef:MTLHazardTrackingMode"
+  ; "typedef:MTLHeapType"
   ; "typedef:MTLOrigin"
   ; "typedef:MTLPixelFormat"
   ; "typedef:MTLRegion"
@@ -81,6 +88,7 @@ let bound_identifiers =
   ; "typedef:MTLSamplerMinMagFilter"
   ; "typedef:MTLSamplerMipFilter"
   ; "typedef:MTLSize"
+  ; "typedef:MTLSizeAndAlign"
   ; "typedef:MTLStorageMode"
   ; "typedef:MTLTextureType"
   ; "typedef:MTLTextureUsage"
@@ -104,10 +112,13 @@ let bound_identifiers =
         , [ "maxTotalThreadsPerThreadgroup"; "threadExecutionWidth" ] )
       ; ( "MTLDevice"
         , [ "currentAllocatedSize"; "hasUnifiedMemory"; "isHeadless"
+          ; "heapBufferSizeAndAlignWithLength:options:"
+          ; "heapTextureSizeAndAlignWithDescriptor:"
           ; "isLowPower"; "isRemovable"; "maxBufferLength"; "name"
           ; "newBufferWithLength:options:"; "newCommandQueue"
           ; "newComputePipelineStateWithFunction:error:"
           ; "newLibraryWithSource:options:error:"
+          ; "newHeapWithDescriptor:"
           ; "newSamplerStateWithDescriptor:"
           ; "newTextureWithDescriptor:"
           ; "recommendedMaxWorkingSetSize"; "registryID"
@@ -116,8 +127,25 @@ let bound_identifiers =
           ; "supportsRaytracingFromRender"; "supportsTextureSampleCount:"
           ] )
       ; "MTLFunction", [ "name" ]
+      ; ( "MTLHeap"
+        , [ "cpuCacheMode"; "currentAllocatedSize"; "hazardTrackingMode"
+          ; "label"; "maxAvailableSizeWithAlignment:"
+          ; "newBufferWithLength:options:"
+          ; "newBufferWithLength:options:offset:"
+          ; "newTextureWithDescriptor:"
+          ; "newTextureWithDescriptor:offset:"; "setLabel:"; "size"
+          ; "storageMode"; "type"; "usedSize"
+          ] )
+      ; ( "MTLHeapDescriptor"
+        , [ "cpuCacheMode"; "hazardTrackingMode"; "setCpuCacheMode:"
+          ; "setHazardTrackingMode:"; "setSize:"; "setStorageMode:"
+          ; "setType:"; "size"; "storageMode"; "type"
+          ] )
       ; "MTLLibrary", [ "newFunctionWithName:" ]
-      ; "MTLResource", [ "label"; "setLabel:"; "storageMode" ]
+      ; ( "MTLResource"
+        , [ "cpuCacheMode"; "hazardTrackingMode"; "heapOffset"; "label"
+          ; "setLabel:"; "storageMode"
+          ] )
       ; ( "MTLSamplerDescriptor"
         , [ "borderColor"; "compareFunction"; "label"; "lodAverage"
           ; "lodMaxClamp"; "lodMinClamp"; "magFilter"; "maxAnisotropy"
@@ -165,7 +193,18 @@ let bound_identifiers =
           ; "supportsRaytracingFromRender"
           ] )
       ; "MTLFunction", [ "name" ]
-      ; "MTLResource", [ "label"; "storageMode" ]
+      ; ( "MTLHeap"
+        , [ "cpuCacheMode"; "currentAllocatedSize"; "hazardTrackingMode"
+          ; "label"; "size"; "storageMode"; "type"; "usedSize"
+          ] )
+      ; ( "MTLHeapDescriptor"
+        , [ "cpuCacheMode"; "hazardTrackingMode"; "size"; "storageMode"
+          ; "type"
+          ] )
+      ; ( "MTLResource"
+        , [ "cpuCacheMode"; "hazardTrackingMode"; "heapOffset"; "label"
+          ; "storageMode"
+          ] )
       ; ( "MTLSamplerDescriptor"
         , [ "borderColor"; "compareFunction"; "label"; "lodAverage"
           ; "lodMaxClamp"; "lodMinClamp"; "magFilter"; "maxAnisotropy"
@@ -217,6 +256,8 @@ let bound_identifiers =
       [ "MTLHazardTrackingModeDefault"; "MTLHazardTrackingModeUntracked"
       ; "MTLHazardTrackingModeTracked"
       ]
+  @ enum_cases "MTLHeapType"
+      [ "MTLHeapTypeAutomatic"; "MTLHeapTypePlacement" ]
   @ enum_cases "MTLPixelFormat"
       [ "MTLPixelFormatA8Unorm"; "MTLPixelFormatR8Unorm"
       ; "MTLPixelFormatR8Unorm_sRGB"; "MTLPixelFormatR8Uint"
@@ -258,6 +299,13 @@ let bound_identifiers =
       [ "MTLTextureUsageUnknown"; "MTLTextureUsageShaderRead"
       ; "MTLTextureUsageShaderWrite"; "MTLTextureUsageRenderTarget"
       ; "MTLTextureUsagePixelFormatView"; "MTLTextureUsageShaderAtomic"
+      ]
+  @ enum_cases "MTLResourceOptions"
+      [ "MTLResourceCPUCacheModeDefaultCache"
+      ; "MTLResourceCPUCacheModeWriteCombined"
+      ; "MTLResourceHazardTrackingModeDefault"
+      ; "MTLResourceHazardTrackingModeUntracked"
+      ; "MTLResourceHazardTrackingModeTracked"
       ]
 
 let bound_identifier_set = String_set.of_list bound_identifiers

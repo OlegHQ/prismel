@@ -30,6 +30,11 @@ let input_values () =
   |> Array.iteri (fun index value -> Bytes.set_int32_le bytes (index * 4) value);
   bytes
 
+let align_up value alignment =
+  let remainder = Int64.rem value alignment in
+  if remainder = 0L then value
+  else Int64.add value (Int64.sub alignment remainder)
+
 let expected_values = [| 2l; 42l; 100l; Int32.minus_one |]
 
 let check_values bytes =
@@ -88,6 +93,10 @@ let () =
         (Buffer.create ~device ~length:16L ~storage:Buffer.Shared
            ~label:"Metal conformance values" ())
     in
+    if Buffer.cpu_cache_mode buffer <> Buffer.Default_cache
+       || Buffer.hazard_tracking_mode buffer <> Buffer.Tracked
+       || Buffer.heap_offset buffer <> None
+    then fail "direct buffer resource properties are wrong";
     if get (Buffer.label buffer) <> Some "Metal conformance values" then
       fail "buffer label did not round-trip";
     get (Buffer.write_bytes buffer ~dst_offset:0L (input_values ()));
@@ -125,6 +134,16 @@ let () =
       (expect_error Unsupported
          (Buffer.read_bytes private_buffer ~offset:0L ~length:4));
     get (Buffer.destroy private_buffer);
+    let configured_buffer =
+      get
+        (Buffer.create ~device ~length:16L ~storage:Buffer.Shared
+           ~cpu_cache:Buffer.Write_combined
+           ~hazard_tracking:Buffer.Untracked ())
+    in
+    if Buffer.cpu_cache_mode configured_buffer <> Buffer.Write_combined
+       || Buffer.hazard_tracking_mode configured_buffer <> Buffer.Untracked
+    then fail "explicit buffer resource options did not round-trip";
+    get (Buffer.destroy configured_buffer);
     let texture_descriptor =
       Texture.descriptor_2d ~mipmapped:true ~storage:Buffer.Shared
         ~usage:[ Texture.Shader_read; Texture.Pixel_format_view ]
@@ -140,6 +159,9 @@ let () =
     let texture = get (Texture.create ~device texture_descriptor) in
     if (Texture.descriptor texture).mip_levels <> 3 then
       fail "2D texture mip cardinality is wrong";
+    if (Texture.descriptor texture).hazard_tracking <> Texture.Tracked
+       || Texture.heap_offset texture <> None
+    then fail "direct texture resource properties are wrong";
     if get (Texture.label texture) <> Some "Metal conformance texture" then
       fail "texture label did not round-trip";
     get (Texture.set_label texture "Metal renamed texture");
@@ -251,6 +273,116 @@ let () =
          (Texture.read_bytes private_texture ~region:full_region ~mip_level:0
             ~slice:0 ~bytes_per_row:16 ~bytes_per_image:64));
     get (Texture.destroy private_texture);
+    let heap_buffer_layout =
+      get
+        (Heap.buffer_size_and_align ~device ~length:64L
+           ~storage:Buffer.Private ())
+    in
+    let heap_texture_descriptor =
+      Texture.descriptor_2d ~storage:Buffer.Private
+        ~usage:[ Texture.Shader_read ] ~label:"Heap texture"
+        ~format:Texture.Rgba8_unorm ~width:8 ~height:8 ()
+    in
+    let heap_texture_layout =
+      get (Heap.texture_size_and_align ~device heap_texture_descriptor)
+    in
+    let heap_texture_offset =
+      align_up heap_buffer_layout.size heap_texture_layout.alignment
+    in
+    let placement_size =
+      Int64.add heap_texture_offset heap_texture_layout.size
+    in
+    let placement_heap =
+      get
+        (Heap.create ~device
+           (Heap.make_descriptor ~kind:Heap.Placement
+              ~label:"Metal placement heap" ~size:placement_size ()))
+    in
+    if get (Heap.label placement_heap) <> Some "Metal placement heap" then
+      fail "heap label did not round-trip";
+    get (Heap.set_label placement_heap "Metal renamed heap");
+    if get (Heap.label placement_heap) <> Some "Metal renamed heap" then
+      fail "heap label mutation did not round-trip";
+    let placement_info = get (Heap.info placement_heap) in
+    if placement_info.size < placement_size
+       || placement_info.storage <> Buffer.Private
+       || placement_info.hazard_tracking <> Heap.Untracked
+       || placement_info.kind <> Heap.Placement
+    then fail "placement heap properties are wrong";
+    ignore
+      (expect_error Invalid_argument
+         (Heap.max_available_size placement_heap ~alignment:3L));
+    ignore
+      (expect_error Invalid_argument
+         (Heap.create_buffer placement_heap ~length:64L ()));
+    ignore
+      (expect_error Invalid_argument
+         (Heap.create_buffer placement_heap ~offset:placement_info.size
+            ~length:64L ()));
+    let heap_buffer =
+      get
+        (Heap.create_buffer placement_heap ~offset:0L ~length:64L
+           ~label:"Heap buffer" ())
+    in
+    if Buffer.heap_offset heap_buffer <> Some 0L
+       || Buffer.storage_mode heap_buffer <> Buffer.Private
+       || Buffer.hazard_tracking_mode heap_buffer <> Buffer.Untracked
+    then fail "heap buffer properties are wrong";
+    ignore
+      (expect_error Invalid_state
+         (Heap.create_buffer placement_heap ~offset:0L ~length:64L ()));
+    let heap_texture =
+      get
+        (Heap.create_texture placement_heap ~offset:heap_texture_offset
+           heap_texture_descriptor)
+    in
+    if Texture.heap_offset heap_texture <> Some heap_texture_offset
+       || (Texture.descriptor heap_texture).hazard_tracking <> Texture.Untracked
+    then fail "heap texture properties are wrong";
+    ignore (expect_error Parent_has_dependents (Heap.destroy placement_heap));
+    get (Texture.destroy heap_texture);
+    get (Buffer.destroy heap_buffer);
+    let reused_heap_buffer =
+      get (Heap.create_buffer placement_heap ~offset:0L ~length:64L ())
+    in
+    get (Buffer.destroy reused_heap_buffer);
+    get (Heap.destroy placement_heap);
+    let automatic_heap =
+      get
+        (Heap.create ~device
+           (Heap.make_descriptor ~label:"Metal automatic heap"
+              ~size:heap_buffer_layout.size ()))
+    in
+    ignore
+      (expect_error Invalid_argument
+         (Heap.create_buffer automatic_heap ~offset:0L ~length:64L ()));
+    let automatic_buffer =
+      get (Heap.create_buffer automatic_heap ~length:64L ())
+    in
+    if Buffer.heap_offset automatic_buffer <> None then
+      fail "automatic heap buffer reported a placement offset";
+    let automatic_info = get (Heap.info automatic_heap) in
+    ignore
+      (expect_error Invalid_state
+         (Heap.create_buffer automatic_heap
+            ~length:(Int64.succ automatic_info.size) ()));
+    get (Buffer.destroy automatic_buffer);
+    get (Heap.destroy automatic_heap);
+    ignore
+      (expect_error Unsupported
+         (Heap.create ~device
+            (Heap.make_descriptor ~storage:Buffer.Managed ~size:4096L ())));
+    ignore
+      (expect_error Invalid_argument
+         (Heap.create ~device (Heap.make_descriptor ~size:0L ())));
+    ignore
+      (expect_error Invalid_argument
+         (Heap.create ~device
+            (Heap.make_descriptor ~label:"invalid\000label" ~size:4096L ())));
+    ignore
+      (expect_error Native_error
+         (Heap.create ~device
+            (Heap.make_descriptor ~label:"\255" ~size:4096L ())));
     ignore
       (expect_error Invalid_argument
          (Texture.create ~device { texture_descriptor with width = 0 }));
@@ -402,6 +534,6 @@ let () =
       fail "Metal release accounting did not settle (%d pending, %d dropped, %d live)"
         stats.pending stats.dropped stats.live_handles;
     Printf.printf
-      "Metal ARC/device/buffer/texture/sampler/runtime-shader/compute conformance passed on %s\n%!"
+      "Metal ARC/device/heap/buffer/texture/sampler/runtime-shader/compute conformance passed on %s\n%!"
       info.name
   end

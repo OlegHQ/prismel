@@ -62,9 +62,8 @@ external device_supports_function_pointers : handle -> bool =
 external buffer_create : handle -> int64 -> int -> (handle, string) result =
   "caml_prismel_metal_buffer_create"
 
-external buffer_length : handle -> int64 = "caml_prismel_metal_buffer_length"
-external buffer_storage_mode : handle -> int =
-  "caml_prismel_metal_buffer_storage_mode"
+external buffer_info : handle -> int64 * int * int * int * int64 =
+  "caml_prismel_metal_buffer_info"
 
 external buffer_set_label : handle -> string -> (unit, string) result =
   "caml_prismel_metal_buffer_set_label"
@@ -81,6 +80,39 @@ external buffer_read : handle -> int64 -> int -> (bytes, string) result =
 
 external device_supports_texture_sample_count : handle -> int -> bool =
   "caml_prismel_metal_device_supports_texture_sample_count"
+
+external heap_buffer_size_and_align : handle -> int64 -> int -> int64 * int64 =
+  "caml_prismel_metal_heap_buffer_size_and_align"
+
+external heap_texture_size_and_align :
+  handle ->
+  (int * int * int * int * int * int * int * int * int * int * int * int * bool) ->
+  int64 * int64
+  = "caml_prismel_metal_heap_texture_size_and_align"
+
+external heap_create :
+  handle -> (int64 * int * int * int * int) -> string option ->
+  (handle, string) result
+  = "caml_prismel_metal_heap_create"
+
+external heap_info : handle -> int64 array = "caml_prismel_metal_heap_info"
+external heap_max_available_size : handle -> int64 -> int64 =
+  "caml_prismel_metal_heap_max_available_size"
+
+external heap_set_label : handle -> string -> (unit, string) result =
+  "caml_prismel_metal_heap_set_label"
+
+external heap_label : handle -> string option = "caml_prismel_metal_heap_label"
+
+external heap_buffer_create :
+  handle -> int64 -> int -> int64 option -> (handle, string) result
+  = "caml_prismel_metal_heap_buffer_create"
+
+external heap_texture_create :
+  handle ->
+  (int * int * int * int * int * int * int * int * int * int * int * int * bool) ->
+  int64 option -> string option -> (handle, string) result
+  = "caml_prismel_metal_heap_texture_create"
 
 external texture_create :
   handle ->

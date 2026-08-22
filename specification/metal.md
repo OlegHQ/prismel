@@ -55,10 +55,10 @@ hard typed error rather than silent reclamation on a GC domain.
 The current safe slices cover device enumeration and capabilities; shared,
 managed, and private buffers; CPU range transfer and lexical mapped-range
 handles; textures and views; samplers; labels; runtime MSL library compilation
-with full `NSError` diagnostics; function lookup; compute-pipeline creation and
-limits; command queues and buffers; compute encoding and resource binding;
-checked thread dispatch; submission; blocking completion; and command
-status/errors.
+with full `NSError` diagnostics; automatic and placement heaps; function lookup;
+compute-pipeline creation and limits; command queues and buffers; compute
+encoding and resource binding; checked thread dispatch; submission; blocking
+completion; and command status/errors.
 
 A `Buffer.Mapping.t` is valid only inside `Buffer.with_mapping`. It exposes
 checked copy operations rather than a Bigarray backed by an escaping native
@@ -86,11 +86,25 @@ untouched pitch padding cannot expose native memory. Texture views require
 reviewed equal or linear/sRGB format pairs, and hold their parent alive until
 explicit destruction or finalization.
 
+`Heap` exposes device size/alignment queries, automatic and explicit-placement
+descriptors, live allocation/usage facts, fragmentation queries, and checked
+buffer/texture allocation. Heap storage and cache modes must match each child;
+the binding normalizes Metal's documented default heap hazard mode to
+`Untracked`. Placement offsets are required only for placement heaps and are
+checked for negativity, power-of-two alignment, addition overflow, and heap
+bounds before Objective-C. A bounded live-allocation ledger rejects overlapping
+placement resources until the older resource is destroyed; the aliasability
+slice will make deliberate overlap explicit. Heap children retain the typed
+heap owner, while views retain their typed texture owner, so teardown with a
+live descendant is a deterministic `Parent_has_dependents` error. Automatic
+resources intentionally report no placement offset; placement resources
+round-trip Metal's actual offset.
+
 `Sampler.descriptor` covers min/mag/mip filtering, anisotropy, all current
 address modes and border colors, normalized coordinates, finite float32 LOD
 clamps, comparison, LOD averaging, and argument-buffer support. Invalid
 anisotropy, non-finite or inverted clamps, illegal unnormalized-coordinate
-combinations, and malformed labels fail before sampler creation. Heaps, sparse
+combinations, and malformed labels fail before sampler creation. Sparse
 resources, aliasing, purgeability, residency, buffer-backed textures, external
 ownership, and the remaining pixel-format capability matrix are still pending;
 this resource slice is therefore progress toward M3, not an M3 completion
@@ -99,12 +113,14 @@ claim.
 `test_metal.exe` runs a real M1 compute kernel, wrong-domain and invalid-state
 cases, shader diagnostics, buffer and texture bounds/stride/cardinality checks,
 texture mip transfer and views, sampler validation, multisample capability
-gating, parent ownership, idempotent destruction, stale access, and
-GC-finalizer release. The separate ownership stress performs warm-up followed
-by 100,000 measured buffer create/destroy cycles and 100,000 measured
-texture/sampler create/destroy cycles. Each lane requires exact
-created/released balance, zero pending or dropped releases, stable live-handle
-count, and bounded settled RSS growth.
+gating, heap alignment and placement, parent ownership, idempotent destruction,
+stale access, and GC-finalizer release. The separate ownership stress performs
+warm-up followed
+by 100,000 measured buffer create/destroy cycles, 100,000 measured
+texture/sampler create/destroy cycles, and 20,000 measured heap/child-resource
+create/destroy cycles. Each lane requires exact created/released balance, zero
+pending or dropped releases, stable live-handle count, and bounded settled RSS
+growth.
 
 `PRISMEL_METAL_SANITIZERS` is parsed by OCaml build configuration and accepts
 `address`, `undefined`, or `thread`; ThreadSanitizer is deliberately exclusive,
@@ -112,7 +128,7 @@ while AddressSanitizer and UndefinedBehaviorSanitizer may be combined. The same
 configuration instruments the ARC bridge, its dynamic bytecode stub, and the
 final executable link. `tools/metal/check_memory.exe` rejects sanitizer reports,
 nonzero Leaks summaries, and Guard Malloc errors for the conformance and
-100,000-cycle tests. Guard Malloc runs the conformance subset because giving
+resource-stress tests. Guard Malloc runs the conformance subset because giving
 every stress allocation its own protected VM region would test the tool's
 intentional memory amplification rather than Metal lifetime settling.
 
