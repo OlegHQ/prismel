@@ -1,0 +1,3 @@
+(executable
+ (name check_sdl3_conf)
+ (libraries dune-configurator unix))

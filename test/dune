@@ -343,3 +343,20 @@
   (setenv PRISMEL_RENDER_TARGET web
    (setenv PRISMEL_WEB_PORT 0
     (run %{test})))))
+
+(rule
+ (alias runtest)
+ (deps
+  ../packaging/conf-sdl3/conf-sdl3.opam
+  ../packaging/conf-sdl3-image/conf-sdl3-image.opam
+  ../packaging/conf-sdl3-ttf/conf-sdl3-ttf.opam
+  ../packaging/conf-sdl3-mixer/conf-sdl3-mixer.opam)
+ (action
+  (progn
+   (run %{exe:../tools/packaging/check_sdl3_conf.exe} sdl3 3.4.14)
+   (run %{exe:../tools/packaging/check_sdl3_conf.exe}
+    sdl3-image 3.4.4)
+   (run %{exe:../tools/packaging/check_sdl3_conf.exe}
+    sdl3-ttf 3.2.2)
+   (run %{exe:../tools/packaging/check_sdl3_conf.exe}
+    sdl3-mixer 3.2.4))))
