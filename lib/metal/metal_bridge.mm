@@ -123,6 +123,23 @@ id object_of_handle(value raw, Handle_kind expected) {
   return (__bridge id)handle->object;
 }
 
+id<MTLResource> resource_of_handle(value raw,
+                                   Handle_kind *actual_kind = nullptr) {
+  auto *handle = handle_of_value(raw);
+  std::lock_guard<std::mutex> lock(handle_mutex);
+  if (handle->kind != Handle_kind::Buffer &&
+      handle->kind != Handle_kind::Texture) {
+    caml_failwith("Metal custom handle is not a resource");
+  }
+  if (handle->object == nullptr) {
+    caml_failwith("Metal custom handle is destroyed");
+  }
+  if (actual_kind != nullptr) {
+    *actual_kind = handle->kind;
+  }
+  return (__bridge id<MTLResource>)handle->object;
+}
+
 void release_pointer(void *pointer) {
   if (pointer == nullptr) {
     return;
@@ -200,6 +217,18 @@ MTLResourceOptions resource_options(int options) {
     caml_invalid_argument("invalid Metal resource options");
   }
   return static_cast<MTLResourceOptions>(options);
+}
+
+MTLPurgeableState purgeable_state(int state) {
+  switch (state) {
+  case MTLPurgeableStateKeepCurrent:
+  case MTLPurgeableStateNonVolatile:
+  case MTLPurgeableStateVolatile:
+  case MTLPurgeableStateEmpty:
+    return static_cast<MTLPurgeableState>(state);
+  default:
+    caml_invalid_argument("invalid Metal purgeable state");
+  }
 }
 
 std::size_t tuple_dimension(value tuple, mlsize_t index) {
@@ -707,6 +736,54 @@ extern "C" CAMLprim value caml_prismel_metal_buffer_read(
   CAMLreturn(result);
 }
 
+extern "C" CAMLprim value caml_prismel_metal_resource_set_purgeable_state(
+    value raw, value raw_state) {
+  CAMLparam2(raw, raw_state);
+  @autoreleasepool {
+    @try {
+      id<MTLResource> resource = resource_of_handle(raw);
+      const MTLPurgeableState previous =
+          [resource setPurgeableState:purgeable_state(Int_val(raw_state))];
+      CAMLreturn(result_ok(Val_int(static_cast<int>(previous))));
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_resource_make_aliasable(value raw) {
+  CAMLparam1(raw);
+  @autoreleasepool {
+    @try {
+      Handle_kind kind = Handle_kind::Buffer;
+      id<MTLResource> resource = resource_of_handle(raw, &kind);
+      if (resource.heap == nil) {
+        CAMLreturn(result_error_text(
+            "only heap-backed resources can become aliasable"));
+      }
+      if (kind == Handle_kind::Texture) {
+        id<MTLTexture> texture = static_cast<id<MTLTexture>>(resource);
+        if (texture.parentTexture != nil) {
+          CAMLreturn(result_error_text(
+              "heap-backed texture views cannot become aliasable"));
+        }
+      }
+      [resource makeAliasable];
+      CAMLreturn(result_unit());
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_resource_is_aliasable(value raw) {
+  CAMLparam1(raw);
+  id<MTLResource> resource = resource_of_handle(raw);
+  CAMLreturn(Val_bool(resource.isAliasable));
+}
+
 extern "C" CAMLprim value
 caml_prismel_metal_device_supports_texture_sample_count(value raw,
                                                          value raw_count) {
@@ -839,6 +916,21 @@ extern "C" CAMLprim value caml_prismel_metal_heap_label(value raw) {
     result = copy_optional_string(heap.label);
   }
   CAMLreturn(result);
+}
+
+extern "C" CAMLprim value caml_prismel_metal_heap_set_purgeable_state(
+    value raw, value raw_state) {
+  CAMLparam2(raw, raw_state);
+  @autoreleasepool {
+    @try {
+      id<MTLHeap> heap = object_of_handle(raw, Handle_kind::Heap);
+      const MTLPurgeableState previous =
+          [heap setPurgeableState:purgeable_state(Int_val(raw_state))];
+      CAMLreturn(result_ok(Val_int(static_cast<int>(previous))));
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
 }
 
 extern "C" CAMLprim value caml_prismel_metal_heap_buffer_create(

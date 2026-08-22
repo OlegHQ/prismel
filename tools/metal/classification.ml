@@ -34,6 +34,7 @@ let bound_identifiers =
   ; "enum:MTLHazardTrackingMode"
   ; "enum:MTLHeapType"
   ; "enum:MTLPixelFormat"
+  ; "enum:MTLPurgeableState"
   ; "enum:MTLResourceOptions"
   ; "enum:MTLSamplerAddressMode"
   ; "enum:MTLSamplerBorderColor"
@@ -81,6 +82,7 @@ let bound_identifiers =
   ; "typedef:MTLHeapType"
   ; "typedef:MTLOrigin"
   ; "typedef:MTLPixelFormat"
+  ; "typedef:MTLPurgeableState"
   ; "typedef:MTLRegion"
   ; "typedef:MTLResourceOptions"
   ; "typedef:MTLSamplerAddressMode"
@@ -133,8 +135,9 @@ let bound_identifiers =
           ; "newBufferWithLength:options:"
           ; "newBufferWithLength:options:offset:"
           ; "newTextureWithDescriptor:"
-          ; "newTextureWithDescriptor:offset:"; "setLabel:"; "size"
-          ; "storageMode"; "type"; "usedSize"
+          ; "newTextureWithDescriptor:offset:"; "setLabel:"
+          ; "setPurgeableState:"; "size"; "storageMode"; "type"
+          ; "usedSize"
           ] )
       ; ( "MTLHeapDescriptor"
         , [ "cpuCacheMode"; "hazardTrackingMode"; "setCpuCacheMode:"
@@ -143,8 +146,9 @@ let bound_identifiers =
           ] )
       ; "MTLLibrary", [ "newFunctionWithName:" ]
       ; ( "MTLResource"
-        , [ "cpuCacheMode"; "hazardTrackingMode"; "heapOffset"; "label"
-          ; "setLabel:"; "storageMode"
+        , [ "cpuCacheMode"; "hazardTrackingMode"; "heapOffset"; "isAliasable"
+          ; "label"; "makeAliasable"; "setLabel:"; "setPurgeableState:"
+          ; "storageMode"
           ] )
       ; ( "MTLSamplerDescriptor"
         , [ "borderColor"; "compareFunction"; "label"; "lodAverage"
@@ -271,6 +275,10 @@ let bound_identifiers =
       ; "MTLPixelFormatDepth16Unorm"; "MTLPixelFormatDepth32Float"
       ; "MTLPixelFormatStencil8"; "MTLPixelFormatDepth24Unorm_Stencil8"
       ; "MTLPixelFormatDepth32Float_Stencil8"
+      ]
+  @ enum_cases "MTLPurgeableState"
+      [ "MTLPurgeableStateKeepCurrent"; "MTLPurgeableStateNonVolatile"
+      ; "MTLPurgeableStateVolatile"; "MTLPurgeableStateEmpty"
       ]
   @ enum_cases "MTLSamplerAddressMode"
       [ "MTLSamplerAddressModeClampToEdge"

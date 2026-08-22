@@ -50,7 +50,20 @@ let run_heap_cycles device count =
   let descriptor = Heap.make_descriptor ~size:layout.size () in
   for _ = 1 to count do
     let heap = get (Heap.create ~device descriptor) in
+    ignore (get (Heap.set_purgeable_state heap Volatile));
+    (match get (Heap.purgeable_state heap) with
+     | Nonvolatile -> ()
+     | Volatile | Empty ->
+         ignore (get (Heap.set_purgeable_state heap Nonvolatile)));
     let buffer = get (Heap.create_buffer heap ~length:16L ()) in
+    ignore (get (Buffer.set_purgeable_state buffer Volatile));
+    (match get (Buffer.purgeable_state buffer) with
+     | Nonvolatile -> ()
+     | Volatile | Empty ->
+         ignore (get (Buffer.set_purgeable_state buffer Nonvolatile)));
+    get (Buffer.make_aliasable buffer);
+    let replacement = get (Heap.create_buffer heap ~length:16L ()) in
+    get (Buffer.destroy replacement);
     get (Buffer.destroy buffer);
     get (Heap.destroy heap)
   done
@@ -102,7 +115,7 @@ let () =
     run_heap_cycles device 10_000;
     let heap_finished = settle () in
     let heap_rss_growth =
-      check_cycles ~name:"heaps/resources" ~expected:20_000L heap_baseline
+      check_cycles ~name:"heaps/resources" ~expected:30_000L heap_baseline
         heap_finished
     in
     get (Device.destroy device);
@@ -110,6 +123,6 @@ let () =
     if final.live_handles <> 0 then
       fail "%d Metal handles remain after stress teardown" final.live_handles;
     Printf.printf
-      "Metal ownership stress passed: 100000 buffer, 100000 texture/sampler, and 20000 heap/resource cycles, %Ld/%Ld/%Ld-byte settled RSS deltas\n%!"
+      "Metal ownership stress passed: 100000 buffer, 100000 texture/sampler, and 30000 heap/resource handles, %Ld/%Ld/%Ld-byte settled RSS deltas\n%!"
       buffer_rss_growth resource_rss_growth heap_rss_growth
   end

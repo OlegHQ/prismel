@@ -203,6 +203,16 @@ type resource_hazard_tracking_mode =
   | Untracked
   | Tracked
 
+type purgeable_state =
+  | Nonvolatile
+  | Volatile
+  | Empty
+
+type resource_state =
+  { relinquished : bool Atomic.t
+  ; purgeable : purgeable_state Atomic.t
+  }
+
 type texture_usage =
   | Shader_read
   | Shader_write
@@ -252,6 +262,8 @@ type heap =
   ; device : device
   ; descriptor : heap_descriptor
   ; allocations : heap_allocation list ref
+  ; purgeable : purgeable_state Atomic.t
+  ; active_uses : int Atomic.t
   }
 
 and resource_parent =
@@ -269,6 +281,7 @@ and buffer =
   ; parent : resource_parent
   ; heap_offset : int64 option
   ; allocation : heap_allocation option
+  ; state : resource_state
   }
 
 and texture =
@@ -279,6 +292,7 @@ and texture =
   ; parent : texture_parent
   ; heap_offset : int64 option
   ; allocation : heap_allocation option
+  ; state : resource_state
   }
 
 and texture_parent =
@@ -379,11 +393,15 @@ type command_phase =
   | Recording
   | Submitted
 
+type command_resource =
+  | Command_buffer_buffer of buffer
+
 type command_buffer =
   { raw : Metal_raw.handle
   ; lifetime : lifetime
   ; queue : command_queue
   ; mutable phase : command_phase
+  ; resources : command_resource list ref
   }
 
 type compute_encoder =
@@ -400,6 +418,40 @@ let make_device raw =
 let attach_finalizer ?(on_finalize = fun () -> ()) value lifetime parent =
   Gc.finalise (fun _ -> finalize_child lifetime parent on_finalize) value
 
+let command_resource_lifetime = function
+  | Command_buffer_buffer buffer -> buffer.lifetime
+
+let command_resource_heap = function
+  | Command_buffer_buffer { parent = Heap_resource heap; _ } -> Some heap
+  | Command_buffer_buffer { parent = Device_resource _; _ } -> None
+
+let release_command_resources resources =
+  let retained = !resources in
+  resources := [];
+  List.iter
+    (fun resource ->
+      detach (command_resource_lifetime resource);
+      Option.iter (fun heap -> Atomic.decr heap.active_uses)
+        (command_resource_heap resource))
+    retained
+
+let retain_command_buffer_buffer (command_buffer : command_buffer) (buffer : buffer) =
+  let already_retained =
+    List.exists
+      (function
+        | Command_buffer_buffer retained -> retained.lifetime == buffer.lifetime)
+      !(command_buffer.resources)
+  in
+  if not already_retained then begin
+    attach buffer.lifetime;
+    Option.iter (fun heap -> Atomic.incr heap.active_uses)
+      (match buffer.parent with
+       | Device_resource _ -> None
+       | Heap_resource heap -> Some heap);
+    command_buffer.resources :=
+      Command_buffer_buffer buffer :: !(command_buffer.resources)
+  end
+
 let deactivate_allocation (value : heap_allocation option) =
   match value with
   | None -> ()
@@ -412,6 +464,81 @@ let resource_parent_lifetime = function
 let texture_parent_lifetime = function
   | Texture_resource parent -> resource_parent_lifetime parent
   | Texture_view texture -> texture.lifetime
+
+let resource_state () =
+  { relinquished = Atomic.make false; purgeable = Atomic.make Nonvolatile }
+
+let purgeable_code = function
+  | Nonvolatile -> 2
+  | Volatile -> 3
+  | Empty -> 4
+
+let purgeable_state_of_code operation = function
+  | 2 -> Ok Nonvolatile
+  | 3 -> Ok Volatile
+  | 4 -> Ok Empty
+  | code ->
+      native_error operation (Printf.sprintf "unknown purgeable state %d" code)
+
+let query_purgeable_state operation call tracked =
+  match call 1 with
+  | Error message -> native_error operation message
+  | Ok code ->
+      (match purgeable_state_of_code operation code with
+       | Error _ as failure -> failure
+       | Ok state -> Atomic.set tracked state; Ok state)
+
+let apply_purgeable_state operation call tracked state =
+  match call (purgeable_code state) with
+  | Error message -> native_error operation message
+  | Ok code ->
+      (match purgeable_state_of_code operation code with
+       | Error _ as failure -> failure
+       | Ok previous ->
+           Atomic.set tracked state;
+           (match query_purgeable_state operation call tracked with
+            | Error _ as failure -> failure
+            | Ok _current -> Ok previous))
+
+let parent_heap = function
+  | Device_resource _ -> None
+  | Heap_resource heap -> Some heap
+
+let rec texture_heap (value : texture) =
+  match value.parent with
+  | Texture_resource parent -> parent_heap parent
+  | Texture_view parent -> texture_heap parent
+
+let ensure_heap_nonvolatile operation = function
+  | Some heap when Atomic.get heap.purgeable <> Nonvolatile ->
+      error operation Invalid_state "resource heap must be nonvolatile"
+  | None | Some _ -> Ok ()
+
+let ensure_resource_usable operation state heap =
+  if Atomic.get state.relinquished then
+    error operation Invalid_state "resource has relinquished its storage for aliasing"
+  else
+    match Atomic.get state.purgeable with
+    | Volatile ->
+        error operation Invalid_state
+          "resource is volatile and must be restored before access"
+    | Empty ->
+        error operation Invalid_state
+          "resource contents are empty and must be restored before access"
+    | Nonvolatile ->
+        (match ensure_heap_nonvolatile operation heap with
+         | Error _ as failure -> failure
+         | Ok () -> Ok ())
+
+let ensure_buffer_usable operation (value : buffer) =
+  match ensure_live operation value.lifetime with
+  | Error _ as failure -> failure
+  | Ok () -> ensure_resource_usable operation value.state (parent_heap value.parent)
+
+let ensure_texture_usable operation (value : texture) =
+  match ensure_live operation value.lifetime with
+  | Error _ as failure -> failure
+  | Ok () -> ensure_resource_usable operation value.state (texture_heap value)
 
 let same_device left right = Int64.equal left.registry_id right.registry_id
 
@@ -627,6 +754,7 @@ module Buffer = struct
             ; parent
             ; heap_offset
             ; allocation
+            ; state = resource_state ()
             }
           in
           attach parent_lifetime;
@@ -693,7 +821,7 @@ module Buffer = struct
 
   let write_bytes (value : t) ?(src_offset = 0) ~dst_offset bytes =
     on_main "Metal.Buffer.write_bytes" (fun () ->
-      match ensure_live "Metal.Buffer.write_bytes" value.lifetime with
+      match ensure_buffer_usable "Metal.Buffer.write_bytes" value with
       | Error _ as failure -> failure
       | Ok () when value.storage = Private ->
           error "Metal.Buffer.write_bytes" Unsupported
@@ -720,7 +848,7 @@ module Buffer = struct
 
   let read_bytes (value : t) ~offset ~length =
     on_main "Metal.Buffer.read_bytes" (fun () ->
-      match ensure_live "Metal.Buffer.read_bytes" value.lifetime with
+      match ensure_buffer_usable "Metal.Buffer.read_bytes" value with
       | Error _ as failure -> failure
       | Ok () when value.storage = Private ->
           error "Metal.Buffer.read_bytes" Unsupported
@@ -747,7 +875,7 @@ module Buffer = struct
       | Error _ as failure -> failure
       | Ok () when not (Atomic.get value.active) ->
           error operation Destroyed "mapped range has left its lexical scope"
-      | Ok () -> ensure_live operation value.buffer.lifetime
+      | Ok () -> ensure_buffer_usable operation value.buffer
 
     let length value =
       match ensure_active "Metal.Buffer.Mapping.length" value with
@@ -796,7 +924,7 @@ module Buffer = struct
 
   let with_mapping (value : t) ~offset ~length callback =
     on_main "Metal.Buffer.with_mapping" (fun () ->
-      match ensure_live "Metal.Buffer.with_mapping" value.lifetime with
+      match ensure_buffer_usable "Metal.Buffer.with_mapping" value with
       | Error _ as failure -> failure
       | Ok () when value.storage = Private ->
           error "Metal.Buffer.with_mapping" Unsupported
@@ -816,11 +944,86 @@ module Buffer = struct
                  }
                in
                attach value.lifetime;
+               let heap = parent_heap value.parent in
+               Option.iter (fun heap -> Atomic.incr heap.active_uses) heap;
                Fun.protect
                  ~finally:(fun () ->
                    Atomic.set mapping.active false;
-                   detach value.lifetime)
+                   detach value.lifetime;
+                   Option.iter (fun heap -> Atomic.decr heap.active_uses) heap)
                  (fun () -> Ok (callback mapping))))
+
+  let purgeable_state (value : t) =
+    on_main "Metal.Buffer.purgeable_state" (fun () ->
+      match ensure_live "Metal.Buffer.purgeable_state" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          query_purgeable_state "Metal.Buffer.purgeable_state"
+            (Metal_raw.resource_set_purgeable_state value.raw)
+            value.state.purgeable)
+
+  let set_purgeable_state (value : t) state =
+    on_main "Metal.Buffer.set_purgeable_state" (fun () ->
+      match ensure_live "Metal.Buffer.set_purgeable_state" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when Atomic.get value.state.relinquished ->
+          error "Metal.Buffer.set_purgeable_state" Invalid_state
+            "an aliasable resource cannot change purgeability"
+      | Ok () when dependent_count value.lifetime <> 0 ->
+          error "Metal.Buffer.set_purgeable_state" Parent_has_dependents
+            "buffer has an active mapping or command dependency"
+      | Ok () ->
+          (match
+             ensure_heap_nonvolatile "Metal.Buffer.set_purgeable_state"
+               (parent_heap value.parent)
+           with
+           | Error _ as failure -> failure
+           | Ok () ->
+               apply_purgeable_state "Metal.Buffer.set_purgeable_state"
+                 (Metal_raw.resource_set_purgeable_state value.raw)
+                 value.state.purgeable state))
+
+  let is_aliasable (value : t) =
+    on_main "Metal.Buffer.is_aliasable" (fun () ->
+      match ensure_live "Metal.Buffer.is_aliasable" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () -> Ok (Metal_raw.resource_is_aliasable value.raw))
+
+  let make_aliasable (value : t) =
+    on_main "Metal.Buffer.make_aliasable" (fun () ->
+      match ensure_live "Metal.Buffer.make_aliasable" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when Atomic.get value.state.relinquished -> Ok ()
+      | Ok () when Atomic.get value.state.purgeable <> Nonvolatile ->
+          error "Metal.Buffer.make_aliasable" Invalid_state
+            "buffer must be nonvolatile before becoming aliasable"
+      | Ok () when dependent_count value.lifetime <> 0 ->
+          error "Metal.Buffer.make_aliasable" Parent_has_dependents
+            "buffer has an active mapping or command dependency"
+      | Ok () ->
+          (match value.parent with
+           | Device_resource _ ->
+               error "Metal.Buffer.make_aliasable" Invalid_state
+                 "only heap-backed buffers can become aliasable"
+           | Heap_resource heap ->
+               (match
+                  ensure_heap_nonvolatile "Metal.Buffer.make_aliasable"
+                    (Some heap)
+                with
+                | Error _ as failure -> failure
+                | Ok () ->
+                    match Metal_raw.resource_make_aliasable value.raw with
+                    | Error message ->
+                        native_error "Metal.Buffer.make_aliasable" message
+                    | Ok () ->
+                        if not (Metal_raw.resource_is_aliasable value.raw) then
+                          native_error "Metal.Buffer.make_aliasable"
+                            "Metal did not make the heap buffer aliasable"
+                        else begin
+                          Atomic.set value.state.relinquished true;
+                          deactivate_allocation value.allocation;
+                          Ok ()
+                        end)))
 
   let destroy (value : t) =
     destroy_parent "Metal.Buffer.destroy" value.lifetime value.raw
@@ -1117,6 +1320,11 @@ module Texture = struct
     | Error _ as failure -> ignore (Metal_raw.destroy raw); failure
     | Ok descriptor ->
         let parent_lifetime = texture_parent_lifetime parent in
+        let state =
+          match parent with
+          | Texture_resource _ -> resource_state ()
+          | Texture_view texture -> texture.state
+        in
         let value : t =
           { raw
           ; lifetime = lifetime ()
@@ -1125,6 +1333,7 @@ module Texture = struct
           ; parent
           ; heap_offset
           ; allocation
+          ; state
           }
         in
         attach parent_lifetime;
@@ -1245,7 +1454,7 @@ module Texture = struct
   let write_bytes (value : t) ~region ~mip_level ~slice ?(src_offset = 0)
       ~bytes_per_row ~bytes_per_image bytes =
     on_main "Metal.Texture.write_bytes" (fun () ->
-      match ensure_live "Metal.Texture.write_bytes" value.lifetime with
+      match ensure_texture_usable "Metal.Texture.write_bytes" value with
       | Error _ as failure -> failure
       | Ok () ->
           (match
@@ -1273,7 +1482,7 @@ module Texture = struct
   let read_bytes (value : t) ~region ~mip_level ~slice ~bytes_per_row
       ~bytes_per_image =
     on_main "Metal.Texture.read_bytes" (fun () ->
-      match ensure_live "Metal.Texture.read_bytes" value.lifetime with
+      match ensure_texture_usable "Metal.Texture.read_bytes" value with
       | Error _ as failure -> failure
       | Ok () ->
           (match
@@ -1303,7 +1512,7 @@ module Texture = struct
   let create_view (parent : t) ~format ~base_mip ~mip_count ~base_slice
       ~slice_count ?label () =
     on_main "Metal.Texture.create_view" (fun () ->
-      match ensure_live "Metal.Texture.create_view" parent.lifetime with
+      match ensure_texture_usable "Metal.Texture.create_view" parent with
       | Error _ as failure -> failure
       | Ok () when not (List.mem Pixel_format_view parent.descriptor.usage) ->
           error "Metal.Texture.create_view" Invalid_argument
@@ -1368,6 +1577,87 @@ module Texture = struct
                 finish_create "Metal.Texture.create_view" ~device:parent.device
                   ~descriptor ~parent:(Texture_view parent)
                   ~heap_offset:parent.heap_offset ~allocation:None raw)
+
+  let purgeable_state (value : t) =
+    on_main "Metal.Texture.purgeable_state" (fun () ->
+      match ensure_live "Metal.Texture.purgeable_state" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          query_purgeable_state "Metal.Texture.purgeable_state"
+            (Metal_raw.resource_set_purgeable_state value.raw)
+            value.state.purgeable)
+
+  let set_purgeable_state (value : t) state =
+    on_main "Metal.Texture.set_purgeable_state" (fun () ->
+      match ensure_live "Metal.Texture.set_purgeable_state" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when Atomic.get value.state.relinquished ->
+          error "Metal.Texture.set_purgeable_state" Invalid_state
+            "an aliasable resource cannot change purgeability"
+      | Ok () when dependent_count value.lifetime <> 0 ->
+          error "Metal.Texture.set_purgeable_state" Parent_has_dependents
+            "texture has a live view or command dependency"
+      | Ok () ->
+          (match value.parent with
+           | Texture_view _ ->
+               error "Metal.Texture.set_purgeable_state" Invalid_state
+                 "set purgeability on the base texture rather than a view"
+           | Texture_resource parent ->
+               (match
+                  ensure_heap_nonvolatile "Metal.Texture.set_purgeable_state"
+                    (parent_heap parent)
+                with
+                | Error _ as failure -> failure
+                | Ok () ->
+                    apply_purgeable_state
+                      "Metal.Texture.set_purgeable_state"
+                      (Metal_raw.resource_set_purgeable_state value.raw)
+                      value.state.purgeable state)))
+
+  let is_aliasable (value : t) =
+    on_main "Metal.Texture.is_aliasable" (fun () ->
+      match ensure_live "Metal.Texture.is_aliasable" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () -> Ok (Metal_raw.resource_is_aliasable value.raw))
+
+  let make_aliasable (value : t) =
+    on_main "Metal.Texture.make_aliasable" (fun () ->
+      match ensure_live "Metal.Texture.make_aliasable" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when Atomic.get value.state.relinquished -> Ok ()
+      | Ok () when Atomic.get value.state.purgeable <> Nonvolatile ->
+          error "Metal.Texture.make_aliasable" Invalid_state
+            "texture must be nonvolatile before becoming aliasable"
+      | Ok () when dependent_count value.lifetime <> 0 ->
+          error "Metal.Texture.make_aliasable" Parent_has_dependents
+            "texture has a live view or command dependency"
+      | Ok () ->
+          (match value.parent with
+           | Texture_view _ ->
+               error "Metal.Texture.make_aliasable" Invalid_state
+                 "texture views cannot become aliasable"
+           | Texture_resource (Device_resource _) ->
+               error "Metal.Texture.make_aliasable" Invalid_state
+                 "only heap-backed textures can become aliasable"
+           | Texture_resource (Heap_resource heap) ->
+               (match
+                  ensure_heap_nonvolatile "Metal.Texture.make_aliasable"
+                    (Some heap)
+                with
+                | Error _ as failure -> failure
+                | Ok () ->
+                    match Metal_raw.resource_make_aliasable value.raw with
+                    | Error message ->
+                        native_error "Metal.Texture.make_aliasable" message
+                    | Ok () ->
+                        if not (Metal_raw.resource_is_aliasable value.raw) then
+                          native_error "Metal.Texture.make_aliasable"
+                            "Metal did not make the heap texture aliasable"
+                        else begin
+                          Atomic.set value.state.relinquished true;
+                          deactivate_allocation value.allocation;
+                          Ok ()
+                        end)))
 
   let destroy (value : t) =
     destroy_parent "Metal.Texture.destroy" value.lifetime value.raw
@@ -1561,6 +1851,8 @@ module Heap = struct
                             ; device
                             ; descriptor
                             ; allocations = ref []
+                            ; purgeable = Atomic.make Nonvolatile
+                            ; active_uses = Atomic.make 0
                             }
                           in
                           attach device.lifetime;
@@ -1595,6 +1887,27 @@ module Heap = struct
           (match Metal_raw.heap_set_label value.raw label with
            | Ok () -> Ok ()
            | Error message -> native_error "Metal.Heap.set_label" message))
+
+  let purgeable_state (value : t) =
+    on_main "Metal.Heap.purgeable_state" (fun () ->
+      match ensure_live "Metal.Heap.purgeable_state" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          query_purgeable_state "Metal.Heap.purgeable_state"
+            (Metal_raw.heap_set_purgeable_state value.raw)
+            value.purgeable)
+
+  let set_purgeable_state (value : t) state =
+    on_main "Metal.Heap.set_purgeable_state" (fun () ->
+      match ensure_live "Metal.Heap.set_purgeable_state" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when Atomic.get value.active_uses <> 0 ->
+          error "Metal.Heap.set_purgeable_state" Parent_has_dependents
+            "heap has an active CPU mapping or command dependency"
+      | Ok () ->
+          apply_purgeable_state "Metal.Heap.set_purgeable_state"
+            (Metal_raw.heap_set_purgeable_state value.raw)
+            value.purgeable state)
 
   let valid_alignment value =
     value = 0L
@@ -1676,6 +1989,9 @@ module Heap = struct
     on_main "Metal.Heap.create_buffer" (fun () ->
       match ensure_live "Metal.Heap.create_buffer" value.lifetime with
       | Error _ as failure -> failure
+      | Ok () when Atomic.get value.purgeable <> Nonvolatile ->
+          error "Metal.Heap.create_buffer" Invalid_state
+            "heap must be nonvolatile before allocating resources"
       | Ok () ->
           match
             Buffer.validate_create "Metal.Heap.create_buffer" value.device
@@ -1725,6 +2041,9 @@ module Heap = struct
     on_main "Metal.Heap.create_texture" (fun () ->
       match ensure_live "Metal.Heap.create_texture" value.lifetime with
       | Error _ as failure -> failure
+      | Ok () when Atomic.get value.purgeable <> Nonvolatile ->
+          error "Metal.Heap.create_texture" Invalid_state
+            "heap must be nonvolatile before allocating resources"
       | Ok () ->
           let expected_hazard =
             concrete_hazard_tracking ~heap:true descriptor.hazard_tracking
@@ -2108,10 +2427,18 @@ module Command_buffer = struct
                    native_error "Metal.Command_buffer.create" message
                | Ok raw ->
                    let value : t =
-                     { raw; lifetime = lifetime (); queue; phase = Recording }
+                     { raw
+                     ; lifetime = lifetime ()
+                     ; queue
+                     ; phase = Recording
+                     ; resources = ref []
+                     }
                    in
                    attach queue.lifetime;
-                   attach_finalizer value value.lifetime queue.lifetime;
+                   let resources = value.resources in
+                   attach_finalizer
+                     ~on_finalize:(fun () -> release_command_resources resources)
+                     value value.lifetime queue.lifetime;
                    (match label with
                     | None -> Ok value
                     | Some label ->
@@ -2133,6 +2460,8 @@ module Command_buffer = struct
       | Error _ as failure -> failure
       | Ok () ->
           let status = Metal_raw.command_buffer_status value.raw in
+          if status = 4 || status = 5 then
+            release_command_resources value.resources;
           Ok
             (match status with
              | 0 -> Not_enqueued
@@ -2171,8 +2500,9 @@ module Command_buffer = struct
       | Ok () ->
           Metal_raw.command_buffer_wait value.raw;
           let status = Metal_raw.command_buffer_status value.raw in
-          if status = 4 then Ok ()
-          else
+          if status = 4 || status = 5 then
+            release_command_resources value.resources;
+          if status = 4 then Ok () else
             native_error "Metal.Command_buffer.wait_until_completed"
               (Option.value (Metal_raw.command_buffer_error value.raw)
                  ~default:
@@ -2180,7 +2510,9 @@ module Command_buffer = struct
 
   let destroy (value : t) =
     destroy_parent "Metal.Command_buffer.destroy" value.lifetime value.raw
-      (fun () -> detach value.queue.lifetime)
+      (fun () ->
+        release_command_resources value.resources;
+        detach value.queue.lifetime)
 end
 
 module Compute_encoder = struct
@@ -2237,7 +2569,7 @@ module Compute_encoder = struct
       match ensure_live "Metal.Compute_encoder.set_buffer" value.lifetime with
       | Error _ as failure -> failure
       | Ok () ->
-          (match ensure_live "Metal.Compute_encoder.set_buffer" buffer.lifetime with
+          (match ensure_buffer_usable "Metal.Compute_encoder.set_buffer" buffer with
            | Error _ as failure -> failure
            | Ok () when index < 0 || index >= 31 ->
                error "Metal.Compute_encoder.set_buffer" Invalid_argument
@@ -2256,7 +2588,9 @@ module Compute_encoder = struct
                      Metal_raw.compute_encoder_set_buffer value.raw buffer.raw offset
                        index
                    with
-                   | Ok () -> Ok ()
+                   | Ok () ->
+                       retain_command_buffer_buffer value.command_buffer buffer;
+                       Ok ()
                    | Error message ->
                        native_error "Metal.Compute_encoder.set_buffer" message))
 

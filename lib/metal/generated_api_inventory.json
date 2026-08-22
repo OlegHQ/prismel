@@ -2,11 +2,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 0,
-    "bound": 391,
+    "bound": 401,
     "scope-excluded": 7,
-    "unreviewed": 4888
+    "unreviewed": 4878
   },
-  "classification_source_sha256": "4d9ba7189a84d3b65c917a2315e05276df5e39997397913c4383d64a30420460",
+  "classification_source_sha256": "d1a8346bcdf26773494a857892d0d440498ee5f2728a814b359b0b298d3c6de5",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "header_aggregate_sha256": "c2ee1e44c76606cf05fa81d1a8314dadfa49efe900342e8bcb3670363c16f0d1",
@@ -11461,50 +11461,50 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResource.h",
       "id": "enum-case:MTLPurgeableState:MTLPurgeableStateEmpty",
       "kind": "enum-case",
       "line": 36,
       "name": "MTLPurgeableStateEmpty",
       "owner": "MTLPurgeableState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPurgeableState"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResource.h",
       "id": "enum-case:MTLPurgeableState:MTLPurgeableStateKeepCurrent",
       "kind": "enum-case",
       "line": 32,
       "name": "MTLPurgeableStateKeepCurrent",
       "owner": "MTLPurgeableState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPurgeableState"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResource.h",
       "id": "enum-case:MTLPurgeableState:MTLPurgeableStateNonVolatile",
       "kind": "enum-case",
       "line": 34,
       "name": "MTLPurgeableStateNonVolatile",
       "owner": "MTLPurgeableState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPurgeableState"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResource.h",
       "id": "enum-case:MTLPurgeableState:MTLPurgeableStateVolatile",
       "kind": "enum-case",
       "line": 35,
       "name": "MTLPurgeableStateVolatile",
       "owner": "MTLPurgeableState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPurgeableState"
     },
     {
@@ -15526,14 +15526,14 @@
         "AvailabilityAttr",
         "EnumExtensibilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResource.h",
       "id": "enum:MTLPurgeableState",
       "kind": "enum",
       "line": 30,
       "name": "MTLPurgeableState",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -37199,14 +37199,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "method:-[MTLHeap setPurgeableState:]",
       "kind": "method",
       "line": 215,
       "name": "setPurgeableState:",
       "owner": "MTLHeap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLPurgeableState) -> MTLPurgeableState"
     },
     {
@@ -46492,14 +46492,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResource.h",
       "id": "method:-[MTLResource isAliasable]",
       "kind": "method",
       "line": 347,
       "name": "isAliasable",
       "owner": "MTLResource",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -46518,14 +46518,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResource.h",
       "id": "method:-[MTLResource makeAliasable]",
       "kind": "method",
       "line": 338,
       "name": "makeAliasable",
       "owner": "MTLResource",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> void"
     },
     {
@@ -46570,14 +46570,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResource.h",
       "id": "method:-[MTLResource setPurgeableState:]",
       "kind": "method",
       "line": 307,
       "name": "setPurgeableState:",
       "owner": "MTLResource",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLPurgeableState) -> MTLPurgeableState"
     },
     {
@@ -66996,14 +66996,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResource.h",
       "id": "typedef:MTLPurgeableState",
       "kind": "typedef",
       "line": 30,
       "name": "MTLPurgeableState",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "enum MTLPurgeableState"
     },
     {

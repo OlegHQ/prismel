@@ -107,6 +107,9 @@ let () =
          if get (Buffer.Mapping.length mapping) <> 8 then
            fail "mapped range length changed";
          ignore (expect_error Parent_has_dependents (Buffer.destroy buffer));
+         ignore
+           (expect_error Parent_has_dependents
+              (Buffer.set_purgeable_state buffer Volatile));
          let mapped = get (Buffer.Mapping.read_bytes mapping ~offset:0 ~length:8) in
          if Bytes.get_int32_le mapped 0 <> 41l then
            fail "mapped range read the wrong buffer offset";
@@ -120,6 +123,11 @@ let () =
     if Bytes.get_int32_le updated 0 <> 50l then
       fail "mapped range write did not update the Metal buffer";
     get (Buffer.write_bytes buffer ~dst_offset:0L (input_values ()));
+    if get (Buffer.purgeable_state buffer) <> Nonvolatile then
+      fail "new buffer is not nonvolatile";
+    if get (Buffer.is_aliasable buffer) then
+      fail "direct buffer unexpectedly reports aliasable";
+    ignore (expect_error Invalid_state (Buffer.make_aliasable buffer));
     ignore (expect_error Parent_has_dependents (Device.destroy device));
     ignore
       (expect_error Invalid_argument
@@ -143,6 +151,34 @@ let () =
     if Buffer.cpu_cache_mode configured_buffer <> Buffer.Write_combined
        || Buffer.hazard_tracking_mode configured_buffer <> Buffer.Untracked
     then fail "explicit buffer resource options did not round-trip";
+    if get (Buffer.set_purgeable_state configured_buffer Volatile) <> Nonvolatile
+    then fail "buffer volatile transition did not return its prior state";
+    let volatile_state = get (Buffer.purgeable_state configured_buffer) in
+    (match volatile_state with
+     | Nonvolatile -> ()
+     | Volatile | Empty ->
+         ignore
+           (expect_error Invalid_state
+              (Buffer.read_bytes configured_buffer ~offset:0L ~length:4));
+         let prior =
+           get (Buffer.set_purgeable_state configured_buffer Nonvolatile)
+         in
+         if prior <> Volatile && prior <> Empty then
+           fail "buffer restore did not report its discardable state");
+    if get (Buffer.set_purgeable_state configured_buffer Empty) <> Nonvolatile
+    then fail "buffer empty transition did not return nonvolatile";
+    (match get (Buffer.purgeable_state configured_buffer) with
+     | Nonvolatile -> ()
+     | Volatile -> fail "empty buffer unexpectedly became volatile"
+     | Empty ->
+         ignore
+           (expect_error Invalid_state
+              (Buffer.write_bytes configured_buffer ~dst_offset:0L
+                 (input_values ())));
+         if
+           get (Buffer.set_purgeable_state configured_buffer Nonvolatile)
+           <> Empty
+         then fail "empty buffer restore did not report discarded contents");
     get (Buffer.destroy configured_buffer);
     let texture_descriptor =
       Texture.descriptor_2d ~mipmapped:true ~storage:Buffer.Shared
@@ -162,6 +198,9 @@ let () =
     if (Texture.descriptor texture).hazard_tracking <> Texture.Tracked
        || Texture.heap_offset texture <> None
     then fail "direct texture resource properties are wrong";
+    if get (Texture.purgeable_state texture) <> Nonvolatile
+       || get (Texture.is_aliasable texture)
+    then fail "direct texture resource state is wrong";
     if get (Texture.label texture) <> Some "Metal conformance texture" then
       fail "texture label did not round-trip";
     get (Texture.set_label texture "Metal renamed texture");
@@ -240,6 +279,17 @@ let () =
     in
     if get (Texture.label texture_view) <> Some "Metal sRGB view" then
       fail "texture-view label did not round-trip";
+    if get (Texture.purgeable_state texture_view) <> Nonvolatile
+       || get (Texture.is_aliasable texture_view)
+    then fail "texture view did not share its base resource state";
+    ignore
+      (expect_error Invalid_state
+         (Texture.set_purgeable_state texture_view Volatile));
+    ignore
+      (expect_error Parent_has_dependents
+         (Texture.set_purgeable_state texture Volatile));
+    ignore
+      (expect_error Parent_has_dependents (Texture.make_aliasable texture));
     ignore
       (expect_error Invalid_argument
          (Texture.create_view texture ~format:Texture.Rgba16_float ~base_mip:0
@@ -250,6 +300,22 @@ let () =
             ~mip_count:1 ~base_slice:0 ~slice_count:1 ()));
     ignore (expect_error Parent_has_dependents (Texture.destroy texture));
     get (Texture.destroy texture_view);
+    if get (Texture.set_purgeable_state texture Volatile) <> Nonvolatile then
+      fail "texture volatile transition did not return its prior state";
+    let texture_volatile = get (Texture.purgeable_state texture) in
+    (match texture_volatile with
+     | Nonvolatile -> ()
+     | Volatile | Empty ->
+         ignore
+           (expect_error Invalid_state
+              (Texture.read_bytes texture ~region:full_region ~mip_level:0
+                 ~slice:0 ~bytes_per_row:20 ~bytes_per_image:80));
+         let texture_prior =
+           get (Texture.set_purgeable_state texture Nonvolatile)
+         in
+         if texture_prior <> Volatile && texture_prior <> Empty then
+           fail "texture restore did not report its discardable state");
+    ignore (expect_error Invalid_state (Texture.make_aliasable texture));
     let no_view_texture =
       get
         (Texture.create ~device
@@ -303,6 +369,30 @@ let () =
     get (Heap.set_label placement_heap "Metal renamed heap");
     if get (Heap.label placement_heap) <> Some "Metal renamed heap" then
       fail "heap label mutation did not round-trip";
+    if get (Heap.purgeable_state placement_heap) <> Nonvolatile then
+      fail "new heap is not nonvolatile";
+    if get (Heap.set_purgeable_state placement_heap Volatile) <> Nonvolatile then
+      fail "heap volatile transition did not return its prior state";
+    let heap_volatile = get (Heap.purgeable_state placement_heap) in
+    (match heap_volatile with
+     | Nonvolatile -> ()
+     | Volatile | Empty ->
+         ignore
+           (expect_error Invalid_state
+              (Heap.create_buffer placement_heap ~offset:0L ~length:64L ()));
+         let heap_prior =
+           get (Heap.set_purgeable_state placement_heap Nonvolatile)
+         in
+         if heap_prior <> Volatile && heap_prior <> Empty then
+           fail "heap restore did not report its discardable state");
+    if get (Heap.set_purgeable_state placement_heap Empty) <> Nonvolatile then
+      fail "heap empty transition did not return nonvolatile";
+    (match get (Heap.purgeable_state placement_heap) with
+     | Nonvolatile -> ()
+     | Volatile -> fail "empty heap unexpectedly became volatile"
+     | Empty ->
+         if get (Heap.set_purgeable_state placement_heap Nonvolatile) <> Empty then
+           fail "empty heap restore did not report discarded contents");
     let placement_info = get (Heap.info placement_heap) in
     if placement_info.size < placement_size
        || placement_info.storage <> Buffer.Private
@@ -328,6 +418,8 @@ let () =
        || Buffer.storage_mode heap_buffer <> Buffer.Private
        || Buffer.hazard_tracking_mode heap_buffer <> Buffer.Untracked
     then fail "heap buffer properties are wrong";
+    if not (get (Buffer.is_aliasable heap_buffer)) then
+      fail "placement heap buffer did not report native aliasability";
     ignore
       (expect_error Invalid_state
          (Heap.create_buffer placement_heap ~offset:0L ~length:64L ()));
@@ -339,8 +431,43 @@ let () =
     if Texture.heap_offset heap_texture <> Some heap_texture_offset
        || (Texture.descriptor heap_texture).hazard_tracking <> Texture.Untracked
     then fail "heap texture properties are wrong";
+    if not (get (Texture.is_aliasable heap_texture)) then
+      fail "placement heap texture did not report native aliasability";
+    ignore (get (Heap.set_purgeable_state placement_heap Volatile));
+    (match get (Heap.purgeable_state placement_heap) with
+     | Nonvolatile -> ()
+     | Volatile | Empty ->
+         ignore
+           (expect_error Invalid_state
+              (Heap.create_texture placement_heap ~offset:heap_texture_offset
+                 heap_texture_descriptor));
+         ignore (expect_error Invalid_state (Buffer.make_aliasable heap_buffer));
+         ignore (get (Heap.set_purgeable_state placement_heap Nonvolatile)));
+    get (Buffer.make_aliasable heap_buffer);
+    if not (get (Buffer.is_aliasable heap_buffer)) then
+      fail "heap buffer did not become aliasable";
+    ignore
+      (expect_error Invalid_state
+         (Buffer.with_mapping heap_buffer ~offset:0L ~length:1 (fun _ -> ())));
+    let aliased_heap_buffer =
+      get (Heap.create_buffer placement_heap ~offset:0L ~length:64L ())
+    in
+    get (Texture.make_aliasable heap_texture);
+    if not (get (Texture.is_aliasable heap_texture)) then
+      fail "heap texture did not become aliasable";
+    ignore
+      (expect_error Invalid_state
+         (Texture.create_view heap_texture ~format:Texture.Rgba8_unorm
+            ~base_mip:0 ~mip_count:1 ~base_slice:0 ~slice_count:1 ()));
+    let aliased_heap_texture =
+      get
+        (Heap.create_texture placement_heap ~offset:heap_texture_offset
+           heap_texture_descriptor)
+    in
     ignore (expect_error Parent_has_dependents (Heap.destroy placement_heap));
+    get (Texture.destroy aliased_heap_texture);
     get (Texture.destroy heap_texture);
+    get (Buffer.destroy aliased_heap_buffer);
     get (Buffer.destroy heap_buffer);
     let reused_heap_buffer =
       get (Heap.create_buffer placement_heap ~offset:0L ~length:64L ())
@@ -366,8 +493,54 @@ let () =
       (expect_error Invalid_state
          (Heap.create_buffer automatic_heap
             ~length:(Int64.succ automatic_info.size) ()));
+    get (Buffer.make_aliasable automatic_buffer);
+    if not (get (Buffer.is_aliasable automatic_buffer)) then
+      fail "automatic heap buffer did not become aliasable";
+    let replacement_buffer =
+      get (Heap.create_buffer automatic_heap ~length:64L ())
+    in
+    ignore
+      (expect_error Invalid_state
+         (Buffer.with_mapping automatic_buffer ~offset:0L ~length:1
+            (fun _ -> ())));
+    get (Buffer.destroy replacement_buffer);
     get (Buffer.destroy automatic_buffer);
     get (Heap.destroy automatic_heap);
+    let shared_heap_layout =
+      get
+        (Heap.buffer_size_and_align ~device ~length:16L
+           ~storage:Buffer.Shared ~cpu_cache:Heap.Write_combined
+           ~hazard_tracking:Heap.Tracked ())
+    in
+    let shared_heap =
+      get
+        (Heap.create ~device
+           (Heap.make_descriptor ~storage:Buffer.Shared
+              ~cpu_cache:Heap.Write_combined ~hazard_tracking:Heap.Tracked
+              ~size:shared_heap_layout.size ()))
+    in
+    let shared_heap_buffer =
+      get (Heap.create_buffer shared_heap ~length:16L ())
+    in
+    if Buffer.storage_mode shared_heap_buffer <> Buffer.Shared
+       || Buffer.cpu_cache_mode shared_heap_buffer <> Buffer.Write_combined
+       || Buffer.hazard_tracking_mode shared_heap_buffer <> Buffer.Tracked
+    then fail "configured shared heap resource properties are wrong";
+    get
+      (Buffer.with_mapping shared_heap_buffer ~offset:0L ~length:16
+         (fun mapping ->
+           ignore
+             (expect_error Parent_has_dependents
+                (Heap.set_purgeable_state shared_heap Volatile));
+           get
+             (Buffer.Mapping.write_bytes mapping ~dst_offset:0
+                (input_values ()))));
+    if
+      get (Buffer.read_bytes shared_heap_buffer ~offset:0L ~length:16)
+      <> input_values ()
+    then fail "shared heap buffer transfer did not round-trip";
+    get (Buffer.destroy shared_heap_buffer);
+    get (Heap.destroy shared_heap);
     ignore
       (expect_error Unsupported
          (Heap.create ~device
@@ -501,7 +674,13 @@ let () =
     in
     let encoder = get (Compute_encoder.create commands) in
     get (Compute_encoder.set_pipeline encoder pipeline);
+    if get (Buffer.read_bytes buffer ~offset:0L ~length:16) <> input_values () then
+      fail "compute input changed before command encoding";
     get (Compute_encoder.set_buffer encoder ~index:0 ~offset:0L buffer);
+    ignore (expect_error Parent_has_dependents (Buffer.destroy buffer));
+    ignore
+      (expect_error Parent_has_dependents
+         (Buffer.set_purgeable_state buffer Volatile));
     ignore
       (expect_error Invalid_argument
          (Compute_encoder.dispatch_threads encoder ~threads:(4, 1, 1)
@@ -517,12 +696,12 @@ let () =
      | Command_buffer.Completed -> ()
      | _ -> fail "command buffer did not complete");
     Buffer.read_bytes buffer ~offset:0L ~length:16 |> get |> check_values;
+    get (Buffer.destroy buffer);
     get (Command_buffer.destroy commands);
     get (Command_queue.destroy queue);
     get (Compute_pipeline.destroy pipeline);
     get (Function.destroy function_);
     get (Library.destroy library);
-    get (Buffer.destroy buffer);
     get (Buffer.destroy buffer);
     ignore
       (expect_error Destroyed

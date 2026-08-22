@@ -17,6 +17,11 @@ type error = private
   ; message : string
   }
 
+type purgeable_state =
+  | Nonvolatile
+  | Volatile
+  | Empty
+
 val pp_error : Format.formatter -> error -> unit
 
 module Provenance : sig
@@ -141,6 +146,11 @@ module Buffer : sig
 
   val with_mapping :
     t -> offset:int64 -> length:int -> (Mapping.t -> 'a) -> ('a, error) result
+  val purgeable_state : t -> (purgeable_state, error) result
+  val set_purgeable_state :
+    t -> purgeable_state -> (purgeable_state, error) result
+  val is_aliasable : t -> (bool, error) result
+  val make_aliasable : t -> (unit, error) result
   val destroy : t -> (unit, error) result
 end
 
@@ -247,6 +257,11 @@ module Texture : sig
   val read_bytes :
     t -> region:region -> mip_level:int -> slice:int -> bytes_per_row:int ->
     bytes_per_image:int -> (bytes, error) result
+  val purgeable_state : t -> (purgeable_state, error) result
+  val set_purgeable_state :
+    t -> purgeable_state -> (purgeable_state, error) result
+  val is_aliasable : t -> (bool, error) result
+  val make_aliasable : t -> (unit, error) result
   val destroy : t -> (unit, error) result
 end
 
@@ -306,6 +321,9 @@ module Heap : sig
   val info : t -> (info, error) result
   val label : t -> (string option, error) result
   val set_label : t -> string -> (unit, error) result
+  val purgeable_state : t -> (purgeable_state, error) result
+  val set_purgeable_state :
+    t -> purgeable_state -> (purgeable_state, error) result
   val max_available_size : t -> alignment:int64 -> (int64, error) result
   val destroy : t -> (unit, error) result
 end

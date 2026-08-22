@@ -93,34 +93,52 @@ the binding normalizes Metal's documented default heap hazard mode to
 `Untracked`. Placement offsets are required only for placement heaps and are
 checked for negativity, power-of-two alignment, addition overflow, and heap
 bounds before Objective-C. A bounded live-allocation ledger rejects overlapping
-placement resources until the older resource is destroyed; the aliasability
-slice will make deliberate overlap explicit. Heap children retain the typed
-heap owner, while views retain their typed texture owner, so teardown with a
-live descendant is a deterministic `Parent_has_dependents` error. Automatic
-resources intentionally report no placement offset; placement resources
-round-trip Metal's actual offset.
+placement resources until the older resource is destroyed or explicitly made
+aliasable. Although Metal reports placement resources as natively aliasable at
+creation, `Buffer.make_aliasable` and `Texture.make_aliasable` are the safe
+layer's irreversible storage-relinquishment boundary: the old handle rejects
+all later data access and its range may then be reused. Automatic-heap storage
+can likewise be reused only after that explicit transition. Direct resources,
+texture views, resources with live children/mappings/command dependencies, and
+resources on a discardable heap reject the transition before Objective-C.
+
+Buffers, base textures, and heaps expose synchronous purgeable-state query and
+transition. A transition returns Metal's prior state and immediately queries
+the resulting state; this matters because a device may keep a requested
+resource nonvolatile. Data access and command binding reject resources or
+ancestor heaps whose observed state is `Volatile` or `Empty`. Restoring an empty
+resource to `Nonvolatile` permits reinitialization but does not claim its old
+contents survived. Heap transitions reject active lexical mappings and tracked
+command uses. Command buffers retain each bound resource exactly once until a
+terminal status, explicit destruction, or finalization, preventing destroy,
+purge, or alias transitions while the GPU may still use it.
+
+Heap children retain the typed heap owner, while views retain their typed
+texture owner, so teardown with a live descendant is a deterministic
+`Parent_has_dependents` error. Automatic resources intentionally report no
+placement offset; placement resources round-trip Metal's actual offset.
 
 `Sampler.descriptor` covers min/mag/mip filtering, anisotropy, all current
 address modes and border colors, normalized coordinates, finite float32 LOD
 clamps, comparison, LOD averaging, and argument-buffer support. Invalid
 anisotropy, non-finite or inverted clamps, illegal unnormalized-coordinate
 combinations, and malformed labels fail before sampler creation. Sparse
-resources, aliasing, purgeability, residency, buffer-backed textures, external
-ownership, and the remaining pixel-format capability matrix are still pending;
-this resource slice is therefore progress toward M3, not an M3 completion
-claim.
+resources, residency, buffer-backed textures, external ownership, and the
+remaining pixel-format capability matrix are still pending; this resource
+slice is therefore progress toward M3, not an M3 completion claim.
 
 `test_metal.exe` runs a real M1 compute kernel, wrong-domain and invalid-state
 cases, shader diagnostics, buffer and texture bounds/stride/cardinality checks,
 texture mip transfer and views, sampler validation, multisample capability
-gating, heap alignment and placement, parent ownership, idempotent destruction,
-stale access, and GC-finalizer release. The separate ownership stress performs
+gating, heap alignment and placement, aliasing, purgeability, command-resource
+retention, parent ownership, idempotent destruction, stale access, and
+GC-finalizer release. The separate ownership stress performs
 warm-up followed
 by 100,000 measured buffer create/destroy cycles, 100,000 measured
-texture/sampler create/destroy cycles, and 20,000 measured heap/child-resource
-create/destroy cycles. Each lane requires exact created/released balance, zero
-pending or dropped releases, stable live-handle count, and bounded settled RSS
-growth.
+texture/sampler create/destroy cycles, and 10,000 heap/purge/alias/replacement
+cycles covering 30,000 measured heap/child-resource handles. Each lane requires
+exact created/released balance, zero pending or dropped releases, stable
+live-handle count, and bounded settled RSS growth.
 
 `PRISMEL_METAL_SANITIZERS` is parsed by OCaml build configuration and accepts
 `address`, `undefined`, or `thread`; ThreadSanitizer is deliberately exclusive,

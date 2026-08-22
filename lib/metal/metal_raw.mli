@@ -78,6 +78,15 @@ external buffer_write :
 external buffer_read : handle -> int64 -> int -> (bytes, string) result =
   "caml_prismel_metal_buffer_read"
 
+external resource_set_purgeable_state : handle -> int -> (int, string) result =
+  "caml_prismel_metal_resource_set_purgeable_state"
+
+external resource_make_aliasable : handle -> (unit, string) result =
+  "caml_prismel_metal_resource_make_aliasable"
+
+external resource_is_aliasable : handle -> bool =
+  "caml_prismel_metal_resource_is_aliasable"
+
 external device_supports_texture_sample_count : handle -> int -> bool =
   "caml_prismel_metal_device_supports_texture_sample_count"
 
@@ -103,6 +112,9 @@ external heap_set_label : handle -> string -> (unit, string) result =
   "caml_prismel_metal_heap_set_label"
 
 external heap_label : handle -> string option = "caml_prismel_metal_heap_label"
+
+external heap_set_purgeable_state : handle -> int -> (int, string) result =
+  "caml_prismel_metal_heap_set_purgeable_state"
 
 external heap_buffer_create :
   handle -> int64 -> int -> int64 option -> (handle, string) result
