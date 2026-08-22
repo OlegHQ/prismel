@@ -93,6 +93,13 @@
    %{dep:../lib/sketch_ui/dune})))
 
 (test
+ (name gpu_dependency_direction)
+ (modules gpu_dependency_direction)
+ (deps ../lib/prismel/dune ../lib/runtime/dune ../lib/wap/dune
+  (glob_files ../lib/*/dune))
+ (action (run %{test} %{workspace_root}/lib)))
+
+(test
  (name procedural_render_smoke)
  (modules procedural_render_smoke)
  (libraries prismel procedural unix)

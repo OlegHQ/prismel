@@ -67,6 +67,39 @@ sketches/examples ──> sop_ui ──> pxui
 
 Never introduce a dependency from `prismel` to `pxui` or to an example.
 
+The GPU migration defined by `NEW_GPU_STUFF.md` adds foundational libraries
+below `runtime` and `prismel`. During the side-by-side qualification phases the
+legacy SDL2/OpenGL edges remain temporarily present, but every new edge must
+already follow this final graph:
+
+```text
+examples / sketches / pxui / procedural / pdk
+                         |
+                         v
+                      prismel ----------------> ogpu
+                         |                        ^
+                         |                        |
+                         v                        |
+                      runtime -----------> ogpu_metal --------> metal
+                         |
+                         +----> sdl3 / sdl3_image / sdl3_ttf / sdl3_mixer
+                         |
+                         +----> wap
+
+prismel ----------------> raster2
+```
+
+`sdl3`, its extension bindings, `metal`, `metal_fx`, `ogpu`, `ogpu_metal`, and
+`raster2` are foundational libraries rather than ordinary sibling feature
+libraries. `sdl3` must not import Metal, OGPU, Runtime, Prismel, PXUI, or Wap;
+`metal` must not import SDL3, OGPU, Runtime, Prismel, PXUI, or Wap; `ogpu` must
+not import SDL3, Metal, Runtime, Prismel, PXUI, or Wap; `ogpu_metal` may import
+only `ogpu` and `metal`; and `raster2` must remain independent of SDL3, Metal,
+OGPU, Runtime, Prismel, and PXUI. Wap remains independent of every platform and
+renderer library. Runtime alone combines the SDL3 Metal view with an
+`ogpu_metal` surface, while Prismel records through `ogpu` and renders the
+deterministic targets through `raster2` without receiving raw native pointers.
+
 Geometry libraries follow this additional direction:
 
 ```text

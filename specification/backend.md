@@ -59,6 +59,44 @@ use Prismel's reusable `Parallel` pool over disjoint packed ranges, but all SDL
 and renderer work still joins on the initial domain. There is no headless- or
 web-specific procedural renderer and no geometry protocol in Wap.
 
+## Qualified GPU migration boundary
+
+`NEW_GPU_STUFF.md` is the authority for the in-progress renderer migration.
+Until its atomic switch gate passes, the SDL2/OpenGL architecture documented
+below remains the active implementation and the replacement is built beside
+it for comparison. New migration code must nevertheless use the final
+dependency direction from its first commit:
+
+```text
+prismel ──────────────► ogpu ◄────────────── ogpu_metal ──► metal
+   │                                             ▲
+   ├───────────────► raster2                     │
+   ▼                                             │
+runtime ──► sdl3 / sdl3_image / sdl3_ttf / sdl3_mixer
+   │
+   └───────────────► wap
+```
+
+Runtime is the only adapter allowed to combine an SDL3 window and Metal layer
+with an `ogpu_metal` device/surface. Prismel receives abstract OGPU handles and
+records target-neutral render work; Raster2 owns the deterministic packed
+software framebuffer. The foundational libraries have these enforced
+boundaries:
+
+- `sdl3` and its extensions have no Metal, OGPU, Runtime, Prismel, PXUI, or Wap
+  dependency;
+- `metal` and optional `metal_fx` have no SDL3, OGPU, Runtime, Prismel, PXUI, or
+  Wap dependency;
+- `ogpu` has no SDL3, Metal, Runtime, Prismel, PXUI, or Wap dependency;
+- `ogpu_metal` depends only on `ogpu` and `metal`;
+- `raster2` has no SDL3, Metal, OGPU, Runtime, Prismel, or PXUI dependency;
+- Wap imports no platform or renderer library.
+
+`test/gpu_dependency_direction.ml` checks these edges from the Dune library
+stanzas and proves the check itself with an injected forbidden reverse edge.
+The older target details below are retained deliberately as Phase 0 baseline
+evidence, not as the intended post-migration architecture.
+
 ## Target selection
 
 `PRISMEL_RENDER_TARGET` is authoritative. The accepted values are:
