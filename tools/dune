@@ -11,6 +11,10 @@
  (libraries prismel prismel.geom unix))
 
 (executable
+ (name bench_renderer)
+ (libraries prismel pxui unix))
+
+(executable
  (name bench_instances)
  (libraries prismel unix))
 
