@@ -1,0 +1,36 @@
+(executable
+ (name discover)
+ (modules discover)
+ (libraries dune-configurator))
+
+(rule
+ (targets c_flags.sexp c_library_flags.sexp)
+ (action (run ./discover.exe)))
+
+(library
+ (name sdl3_image)
+ (public_name prismel.sdl3_image)
+ (modules Sdl3_image Generated_provenance)
+ (private_modules Generated_provenance)
+ (foreign_stubs
+  (language c)
+  (names sdl3_image_stubs)
+  (flags (:include c_flags.sexp)))
+ (c_library_flags (:include c_library_flags.sexp))
+ (libraries sdl3))
+
+(test
+ (name test_sdl3_image)
+ (modules test_sdl3_image)
+ (libraries sdl3 sdl3_image)
+ (action
+  (setenv SDL_VIDEODRIVER dummy
+   (run %{test} %{dep:../../test/gpu_migration/golden/renderer_headless.png}))))
+
+(rule
+ (alias runtest)
+ (deps ../../tools/sdl3/generate_extension.py generated_provenance.ml
+  generated_inventory.json generated_abi.h)
+ (action
+  (run python3 %{dep:../../tools/sdl3/generate_extension.py}
+   --root %{workspace_root} --extension image --check)))

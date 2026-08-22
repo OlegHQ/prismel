@@ -1,0 +1,988 @@
+{
+  "classification_counts": {
+    "not-applicable": 0,
+    "platform-excluded": 0,
+    "raw-only": 141,
+    "safe": 4,
+    "unreviewed": 0
+  },
+  "compiler": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
+  "enums": [
+    {
+      "classification": "raw-only",
+      "constants": [
+        "IMG_DECODER_STATUS_INVALID",
+        "IMG_DECODER_STATUS_OK",
+        "IMG_DECODER_STATUS_FAILED",
+        "IMG_DECODER_STATUS_COMPLETE"
+      ],
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_AnimationDecoderStatus"
+    }
+  ],
+  "extension": "image",
+  "functions": [
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_AddAnimationEncoderFrame",
+      "signature": "bool (IMG_AnimationEncoder *, SDL_Surface *, Uint64)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_CloseAnimationDecoder",
+      "signature": "bool (IMG_AnimationDecoder *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_CloseAnimationEncoder",
+      "signature": "bool (IMG_AnimationEncoder *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_CreateAnimatedCursor",
+      "signature": "SDL_Cursor *(IMG_Animation *, int, int)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_CreateAnimationDecoder",
+      "signature": "IMG_AnimationDecoder *(const char *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_CreateAnimationDecoderWithProperties",
+      "signature": "IMG_AnimationDecoder *(SDL_PropertiesID)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_CreateAnimationDecoder_IO",
+      "signature": "IMG_AnimationDecoder *(SDL_IOStream *, bool, const char *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_CreateAnimationEncoder",
+      "signature": "IMG_AnimationEncoder *(const char *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_CreateAnimationEncoderWithProperties",
+      "signature": "IMG_AnimationEncoder *(SDL_PropertiesID)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_CreateAnimationEncoder_IO",
+      "signature": "IMG_AnimationEncoder *(SDL_IOStream *, bool, const char *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_FreeAnimation",
+      "signature": "void (IMG_Animation *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_GetAnimationDecoderFrame",
+      "signature": "bool (IMG_AnimationDecoder *, SDL_Surface **, Uint64 *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_GetAnimationDecoderProperties",
+      "signature": "SDL_PropertiesID (IMG_AnimationDecoder *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_GetAnimationDecoderStatus",
+      "signature": "IMG_AnimationDecoderStatus (IMG_AnimationDecoder *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_GetClipboardImage",
+      "signature": "SDL_Surface *(void)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_Load",
+      "signature": "SDL_Surface *(const char *)",
+      "thread": "owned-result"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_LoadANIAnimation_IO",
+      "signature": "IMG_Animation *(SDL_IOStream *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_LoadAPNGAnimation_IO",
+      "signature": "IMG_Animation *(SDL_IOStream *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_LoadAVIFAnimation_IO",
+      "signature": "IMG_Animation *(SDL_IOStream *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_LoadAVIF_IO",
+      "signature": "SDL_Surface *(SDL_IOStream *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_LoadAnimation",
+      "signature": "IMG_Animation *(const char *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_LoadAnimationTyped_IO",
+      "signature": "IMG_Animation *(SDL_IOStream *, bool, const char *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_LoadAnimation_IO",
+      "signature": "IMG_Animation *(SDL_IOStream *, bool)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_LoadBMP_IO",
+      "signature": "SDL_Surface *(SDL_IOStream *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_LoadCUR_IO",
+      "signature": "SDL_Surface *(SDL_IOStream *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_LoadGIFAnimation_IO",
+      "signature": "IMG_Animation *(SDL_IOStream *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_LoadGIF_IO",
+      "signature": "SDL_Surface *(SDL_IOStream *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_LoadGPUTexture",
+      "signature": "SDL_GPUTexture *(SDL_GPUDevice *, SDL_GPUCopyPass *, const char *, int *, int *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_LoadGPUTextureTyped_IO",
+      "signature": "SDL_GPUTexture *(SDL_GPUDevice *, SDL_GPUCopyPass *, SDL_IOStream *, bool, const char *, int *, int *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_LoadGPUTexture_IO",
+      "signature": "SDL_GPUTexture *(SDL_GPUDevice *, SDL_GPUCopyPass *, SDL_IOStream *, bool, int *, int *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_LoadICO_IO",
+      "signature": "SDL_Surface *(SDL_IOStream *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_LoadJPG_IO",
+      "signature": "SDL_Surface *(SDL_IOStream *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_LoadJXL_IO",
+      "signature": "SDL_Surface *(SDL_IOStream *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_LoadLBM_IO",
+      "signature": "SDL_Surface *(SDL_IOStream *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_LoadPCX_IO",
+      "signature": "SDL_Surface *(SDL_IOStream *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_LoadPNG_IO",
+      "signature": "SDL_Surface *(SDL_IOStream *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_LoadPNM_IO",
+      "signature": "SDL_Surface *(SDL_IOStream *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_LoadQOI_IO",
+      "signature": "SDL_Surface *(SDL_IOStream *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_LoadSVG_IO",
+      "signature": "SDL_Surface *(SDL_IOStream *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_LoadSizedSVG_IO",
+      "signature": "SDL_Surface *(SDL_IOStream *, int, int)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_LoadTGA_IO",
+      "signature": "SDL_Surface *(SDL_IOStream *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_LoadTIF_IO",
+      "signature": "SDL_Surface *(SDL_IOStream *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_LoadTexture",
+      "signature": "SDL_Texture *(SDL_Renderer *, const char *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_LoadTextureTyped_IO",
+      "signature": "SDL_Texture *(SDL_Renderer *, SDL_IOStream *, bool, const char *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_LoadTexture_IO",
+      "signature": "SDL_Texture *(SDL_Renderer *, SDL_IOStream *, bool)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_LoadTyped_IO",
+      "signature": "SDL_Surface *(SDL_IOStream *, bool, const char *)",
+      "thread": "owned-result-closes-io"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_LoadWEBPAnimation_IO",
+      "signature": "IMG_Animation *(SDL_IOStream *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_LoadWEBP_IO",
+      "signature": "SDL_Surface *(SDL_IOStream *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_LoadXCF_IO",
+      "signature": "SDL_Surface *(SDL_IOStream *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_LoadXPM_IO",
+      "signature": "SDL_Surface *(SDL_IOStream *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_LoadXV_IO",
+      "signature": "SDL_Surface *(SDL_IOStream *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_Load_IO",
+      "signature": "SDL_Surface *(SDL_IOStream *, bool)",
+      "thread": "owned-result-closes-io"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_ReadXPMFromArray",
+      "signature": "SDL_Surface *(char **)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_ReadXPMFromArrayToRGB888",
+      "signature": "SDL_Surface *(char **)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_ResetAnimationDecoder",
+      "signature": "bool (IMG_AnimationDecoder *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_Save",
+      "signature": "bool (SDL_Surface *, const char *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_SaveANIAnimation_IO",
+      "signature": "bool (IMG_Animation *, SDL_IOStream *, bool)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_SaveAPNGAnimation_IO",
+      "signature": "bool (IMG_Animation *, SDL_IOStream *, bool)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_SaveAVIF",
+      "signature": "bool (SDL_Surface *, const char *, int)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_SaveAVIFAnimation_IO",
+      "signature": "bool (IMG_Animation *, SDL_IOStream *, bool, int)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_SaveAVIF_IO",
+      "signature": "bool (SDL_Surface *, SDL_IOStream *, bool, int)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_SaveAnimation",
+      "signature": "bool (IMG_Animation *, const char *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_SaveAnimationTyped_IO",
+      "signature": "bool (IMG_Animation *, SDL_IOStream *, bool, const char *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_SaveBMP",
+      "signature": "bool (SDL_Surface *, const char *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_SaveBMP_IO",
+      "signature": "bool (SDL_Surface *, SDL_IOStream *, bool)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_SaveCUR",
+      "signature": "bool (SDL_Surface *, const char *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_SaveCUR_IO",
+      "signature": "bool (SDL_Surface *, SDL_IOStream *, bool)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_SaveGIF",
+      "signature": "bool (SDL_Surface *, const char *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_SaveGIFAnimation_IO",
+      "signature": "bool (IMG_Animation *, SDL_IOStream *, bool)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_SaveGIF_IO",
+      "signature": "bool (SDL_Surface *, SDL_IOStream *, bool)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_SaveICO",
+      "signature": "bool (SDL_Surface *, const char *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_SaveICO_IO",
+      "signature": "bool (SDL_Surface *, SDL_IOStream *, bool)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_SaveJPG",
+      "signature": "bool (SDL_Surface *, const char *, int)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_SaveJPG_IO",
+      "signature": "bool (SDL_Surface *, SDL_IOStream *, bool, int)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_SavePNG",
+      "signature": "bool (SDL_Surface *, const char *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_SavePNG_IO",
+      "signature": "bool (SDL_Surface *, SDL_IOStream *, bool)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_SaveTGA",
+      "signature": "bool (SDL_Surface *, const char *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_SaveTGA_IO",
+      "signature": "bool (SDL_Surface *, SDL_IOStream *, bool)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_SaveTyped_IO",
+      "signature": "bool (SDL_Surface *, SDL_IOStream *, bool, const char *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_SaveWEBP",
+      "signature": "bool (SDL_Surface *, const char *, float)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_SaveWEBPAnimation_IO",
+      "signature": "bool (IMG_Animation *, SDL_IOStream *, bool, int)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_SaveWEBP_IO",
+      "signature": "bool (SDL_Surface *, SDL_IOStream *, bool, float)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_image/SDL_image.h",
+      "name": "IMG_Version",
+      "signature": "int (void)",
+      "thread": "any-thread"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_isANI",
+      "signature": "bool (SDL_IOStream *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_isAVIF",
+      "signature": "bool (SDL_IOStream *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_isBMP",
+      "signature": "bool (SDL_IOStream *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_isCUR",
+      "signature": "bool (SDL_IOStream *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_isGIF",
+      "signature": "bool (SDL_IOStream *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_isICO",
+      "signature": "bool (SDL_IOStream *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_isJPG",
+      "signature": "bool (SDL_IOStream *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_isJXL",
+      "signature": "bool (SDL_IOStream *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_isLBM",
+      "signature": "bool (SDL_IOStream *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_isPCX",
+      "signature": "bool (SDL_IOStream *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_isPNG",
+      "signature": "bool (SDL_IOStream *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_isPNM",
+      "signature": "bool (SDL_IOStream *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_isQOI",
+      "signature": "bool (SDL_IOStream *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_isSVG",
+      "signature": "bool (SDL_IOStream *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_isTIF",
+      "signature": "bool (SDL_IOStream *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_isWEBP",
+      "signature": "bool (SDL_IOStream *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_isXCF",
+      "signature": "bool (SDL_IOStream *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_isXPM",
+      "signature": "bool (SDL_IOStream *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_isXV",
+      "signature": "bool (SDL_IOStream *)",
+      "thread": "raw-only-not-reviewed"
+    }
+  ],
+  "generator": "prismel-sdl3-extension-clang-inventory-v1",
+  "header_sha256": "3d794e35279ffa3dc4131c907f5ba243036b62d4902d7a7863888769aa7d4356",
+  "header_version": {
+    "major": 3,
+    "minor": 4,
+    "patch": 4
+  },
+  "headers": [
+    {
+      "path": "SDL3_image/SDL_image.h",
+      "sha256": "1ded639ab7a8f2b605c655034df397307f0b21dba09696bfe8a02f3404a6705c"
+    }
+  ],
+  "macros": [
+    {
+      "classification": "raw-only",
+      "name": "IMG_PROP_ANIMATION_DECODER_CREATE_AVIF_ALLOW_INCREMENTAL_BOOLEAN",
+      "value": "\"SDL_image.animation_decoder.create.avif.allow_incremental\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "IMG_PROP_ANIMATION_DECODER_CREATE_AVIF_ALLOW_PROGRESSIVE_BOOLEAN",
+      "value": "\"SDL_image.animation_decoder.create.avif.allow_progressive\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "IMG_PROP_ANIMATION_DECODER_CREATE_AVIF_MAX_THREADS_NUMBER",
+      "value": "\"SDL_image.animation_decoder.create.avif.max_threads\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "IMG_PROP_ANIMATION_DECODER_CREATE_FILENAME_STRING",
+      "value": "\"SDL_image.animation_decoder.create.filename\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "IMG_PROP_ANIMATION_DECODER_CREATE_GIF_NUM_COLORS_NUMBER",
+      "value": "\"SDL_image.animation_encoder.create.gif.num_colors\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "IMG_PROP_ANIMATION_DECODER_CREATE_GIF_TRANSPARENT_COLOR_INDEX_NUMBER",
+      "value": "\"SDL_image.animation_encoder.create.gif.transparent_color_index\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "IMG_PROP_ANIMATION_DECODER_CREATE_IOSTREAM_AUTOCLOSE_BOOLEAN",
+      "value": "\"SDL_image.animation_decoder.create.iostream.autoclose\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "IMG_PROP_ANIMATION_DECODER_CREATE_IOSTREAM_POINTER",
+      "value": "\"SDL_image.animation_decoder.create.iostream\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "IMG_PROP_ANIMATION_DECODER_CREATE_TIMEBASE_DENOMINATOR_NUMBER",
+      "value": "\"SDL_image.animation_decoder.create.timebase.denominator\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "IMG_PROP_ANIMATION_DECODER_CREATE_TIMEBASE_NUMERATOR_NUMBER",
+      "value": "\"SDL_image.animation_decoder.create.timebase.numerator\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "IMG_PROP_ANIMATION_DECODER_CREATE_TYPE_STRING",
+      "value": "\"SDL_image.animation_decoder.create.type\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "IMG_PROP_ANIMATION_ENCODER_CREATE_AVIF_KEYFRAME_INTERVAL_NUMBER",
+      "value": "\"SDL_image.animation_encoder.create.avif.keyframe_interval\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "IMG_PROP_ANIMATION_ENCODER_CREATE_AVIF_MAX_THREADS_NUMBER",
+      "value": "\"SDL_image.animation_encoder.create.avif.max_threads\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "IMG_PROP_ANIMATION_ENCODER_CREATE_FILENAME_STRING",
+      "value": "\"SDL_image.animation_encoder.create.filename\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "IMG_PROP_ANIMATION_ENCODER_CREATE_GIF_USE_LUT_BOOLEAN",
+      "value": "\"SDL_image.animation_encoder.create.gif.use_lut\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "IMG_PROP_ANIMATION_ENCODER_CREATE_IOSTREAM_AUTOCLOSE_BOOLEAN",
+      "value": "\"SDL_image.animation_encoder.create.iostream.autoclose\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "IMG_PROP_ANIMATION_ENCODER_CREATE_IOSTREAM_POINTER",
+      "value": "\"SDL_image.animation_encoder.create.iostream\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "IMG_PROP_ANIMATION_ENCODER_CREATE_QUALITY_NUMBER",
+      "value": "\"SDL_image.animation_encoder.create.quality\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "IMG_PROP_ANIMATION_ENCODER_CREATE_TIMEBASE_DENOMINATOR_NUMBER",
+      "value": "\"SDL_image.animation_encoder.create.timebase.denominator\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "IMG_PROP_ANIMATION_ENCODER_CREATE_TIMEBASE_NUMERATOR_NUMBER",
+      "value": "\"SDL_image.animation_encoder.create.timebase.numerator\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "IMG_PROP_ANIMATION_ENCODER_CREATE_TYPE_STRING",
+      "value": "\"SDL_image.animation_encoder.create.type\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "IMG_PROP_METADATA_AUTHOR_STRING",
+      "value": "\"SDL_image.metadata.author\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "IMG_PROP_METADATA_COPYRIGHT_STRING",
+      "value": "\"SDL_image.metadata.copyright\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "IMG_PROP_METADATA_CREATION_TIME_STRING",
+      "value": "\"SDL_image.metadata.creation_time\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "IMG_PROP_METADATA_DESCRIPTION_STRING",
+      "value": "\"SDL_image.metadata.description\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "IMG_PROP_METADATA_FRAME_COUNT_NUMBER",
+      "value": "\"SDL_image.metadata.frame_count\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "IMG_PROP_METADATA_IGNORE_PROPS_BOOLEAN",
+      "value": "\"SDL_image.metadata.ignore_props\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "IMG_PROP_METADATA_LOOP_COUNT_NUMBER",
+      "value": "\"SDL_image.metadata.loop_count\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "IMG_PROP_METADATA_TITLE_STRING",
+      "value": "\"SDL_image.metadata.title\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "SDL_IMAGE_H_",
+      "value": ""
+    },
+    {
+      "classification": "raw-only",
+      "name": "SDL_IMAGE_MAJOR_VERSION",
+      "value": "3"
+    },
+    {
+      "classification": "raw-only",
+      "name": "SDL_IMAGE_MICRO_VERSION",
+      "value": "4"
+    },
+    {
+      "classification": "raw-only",
+      "name": "SDL_IMAGE_MINOR_VERSION",
+      "value": "4"
+    },
+    {
+      "classification": "raw-only",
+      "name": "SDL_IMAGE_VERSION",
+      "value": "SDL_VERSIONNUM(SDL_IMAGE_MAJOR_VERSION, SDL_IMAGE_MINOR_VERSION, SDL_IMAGE_MICRO_VERSION)"
+    },
+    {
+      "classification": "raw-only",
+      "name": "SDL_IMAGE_VERSION_ATLEAST(X,Y,Z)",
+      "value": "((SDL_IMAGE_MAJOR_VERSION >= X) && (SDL_IMAGE_MAJOR_VERSION > X || SDL_IMAGE_MINOR_VERSION >= Y) && (SDL_IMAGE_MAJOR_VERSION > X || SDL_IMAGE_MINOR_VERSION > Y || SDL_IMAGE_MICRO_VERSION >= Z))"
+    }
+  ],
+  "records": [
+    {
+      "classification": "raw-only",
+      "fields": [
+        "w",
+        "h",
+        "count",
+        "frames",
+        "delays"
+      ],
+      "header": "SDL3_image/<clang-elided-source>",
+      "kind": "struct",
+      "name": "IMG_Animation"
+    },
+    {
+      "classification": "raw-only",
+      "fields": [],
+      "header": "SDL3_image/<clang-elided-source>",
+      "kind": "struct",
+      "name": "IMG_AnimationDecoder"
+    },
+    {
+      "classification": "raw-only",
+      "fields": [],
+      "header": "SDL3_image/<clang-elided-source>",
+      "kind": "struct",
+      "name": "IMG_AnimationEncoder"
+    }
+  ],
+  "schema": 1,
+  "stable_headers": true,
+  "target_triple": "arm64-apple-darwin25.4.0",
+  "typedefs": [
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_Animation",
+      "underlying": "struct IMG_Animation"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_AnimationDecoder",
+      "underlying": "struct IMG_AnimationDecoder"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_AnimationDecoderStatus",
+      "underlying": "enum IMG_AnimationDecoderStatus"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_image/<clang-elided-source>",
+      "name": "IMG_AnimationEncoder",
+      "underlying": "struct IMG_AnimationEncoder"
+    }
+  ]
+}
