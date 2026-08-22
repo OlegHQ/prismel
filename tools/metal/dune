@@ -1,0 +1,18 @@
+(library
+ (name metal_inventory_classification)
+ (wrapped false)
+ (modules classification))
+
+(executable
+ (name generate_inventory)
+ (modules generate_inventory)
+ (libraries gpu_migration_support metal_inventory_classification unix yojson))
+
+(rule
+ (alias runtest)
+ (deps
+  generate_inventory.exe
+  classification.ml
+  ../../lib/metal/generated_api_inventory.json
+  ../../lib/metal/generated_provenance.ml)
+ (action (run %{dep:generate_inventory.exe} --root %{workspace_root} --check)))
