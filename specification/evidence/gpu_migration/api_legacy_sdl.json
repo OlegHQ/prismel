@@ -1,7 +1,7 @@
 {
   "baseline_commit": "4622091a65bc9a8816a1f10bcc83c1a625ca7522",
   "baseline_plan_sha256": "75cb47632aa2b26199677560c6382b8b94786af5f704867b40d306ccefbe19d3",
-  "generator": "tools/gpu_migration/api_manifest.py",
+  "generator": "tools/gpu_migration/api_manifest.exe",
   "kind": "declared_legacy_sdl",
   "schema": 1,
   "surface_count": 10,

@@ -1,0 +1,20 @@
+(library
+ (name gpu_migration_support)
+ (wrapped false)
+ (modules support)
+ (libraries digestif unix yojson))
+
+(executable
+ (name api_manifest)
+ (modules api_manifest)
+ (libraries gpu_migration_support))
+
+(executable
+ (name capture_environment)
+ (modules capture_environment)
+ (libraries gpu_migration_support))
+
+(executable
+ (name fixture_manifest)
+ (modules fixture_manifest)
+ (libraries gpu_migration_support sdl3_image))

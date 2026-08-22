@@ -111,34 +111,31 @@
 
 (rule
  (alias runtest)
- (deps ../tools/gpu_migration/api_manifest.py
-  ../specification/evidence/gpu_migration/phase0_baseline.json
+ (deps ../specification/evidence/gpu_migration/phase0_baseline.json
   ../specification/evidence/gpu_migration/api_stable.json
   ../specification/evidence/gpu_migration/api_legacy_sdl.json
   (glob_files ../lib/*/*.mli)
   (glob_files ../lib/*/dune))
  (action
-  (run python3 %{dep:../tools/gpu_migration/api_manifest.py}
+  (run %{exe:../tools/gpu_migration/api_manifest.exe}
    --root %{workspace_root} --check)))
 
 (rule
  (alias runtest)
- (deps ../tools/gpu_migration/capture_environment.py
-  ../specification/evidence/gpu_migration/phase0_baseline.json
+ (deps ../specification/evidence/gpu_migration/phase0_baseline.json
   ../specification/evidence/gpu_migration/phase0_environment.json)
  (action
-  (run python3 %{dep:../tools/gpu_migration/capture_environment.py}
+  (run %{exe:../tools/gpu_migration/capture_environment.exe}
    --root %{workspace_root} --check)))
 
 (rule
  (alias runtest)
- (deps ../tools/gpu_migration/fixture_manifest.py
-  ../specification/evidence/gpu_migration/phase0_environment.json
+ (deps ../specification/evidence/gpu_migration/phase0_environment.json
   ../specification/evidence/gpu_migration/fixtures.json
   (glob_files gpu_migration/golden/*.png)
   (glob_files gpu_migration/traces/*.json))
  (action
-  (run python3 %{dep:../tools/gpu_migration/fixture_manifest.py}
+  (run %{exe:../tools/gpu_migration/fixture_manifest.exe}
    --root %{workspace_root} --check)))
 
 (test
