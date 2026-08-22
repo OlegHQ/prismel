@@ -179,7 +179,7 @@ module rec Window : sig
     raw : nativeint;
     generation : int;
     mutable destroyed : bool;
-    mutable metal_views : int;
+    metal_views : int Atomic.t;
   }
   val create : title:string -> width:int -> height:int -> ?flags:flag list -> unit ->
     (t, error) result
@@ -200,7 +200,7 @@ end = struct
     raw : nativeint;
     generation : int;
     mutable destroyed : bool;
-    mutable metal_views : int;
+    metal_views : int Atomic.t;
   }
 
   let next_generation = Atomic.make 1
@@ -236,7 +236,7 @@ end = struct
       else
         let value = {
           raw; generation = Atomic.fetch_and_add next_generation 1;
-          destroyed = false; metal_views = 0;
+          destroyed = false; metal_views = Atomic.make 0;
         } in
         Gc.finalise (fun value ->
           if not value.destroyed then begin
@@ -272,9 +272,10 @@ end = struct
 
   let destroy value = on_main "SDL3.Window.destroy" (fun () ->
     if value.destroyed then Ok ()
-    else if value.metal_views <> 0 then
+    else if Atomic.get value.metal_views <> 0 then
       error "SDL3.Window.destroy" Parent_has_dependents
-        (Printf.sprintf "window still owns %d Metal view(s)" value.metal_views)
+        (Printf.sprintf "window still owns %d Metal view(s)"
+          (Atomic.get value.metal_views))
     else begin
       value.destroyed <- true;
       Private_raw.destroy_window value.raw;
@@ -311,7 +312,7 @@ end = struct
       let raw = Private_raw.create_metal_view window.raw in
       if raw = Nativeint.zero then sdl_error "SDL3.Metal_view.create"
       else begin
-        window.metal_views <- window.metal_views + 1;
+        Atomic.incr window.metal_views;
         let value = {
           raw; generation = Atomic.fetch_and_add next_generation 1;
           window; destroyed = false;
@@ -319,7 +320,7 @@ end = struct
         Gc.finalise (fun value ->
           if not value.destroyed then begin
             value.destroyed <- true;
-            value.window.metal_views <- max 0 (value.window.metal_views - 1);
+            Atomic.decr value.window.metal_views;
             Release_queue.metal_view value.raw
           end) value;
         Ok value
@@ -339,8 +340,558 @@ end = struct
     if value.destroyed then Ok ()
     else begin
       value.destroyed <- true;
-      value.window.metal_views <- max 0 (value.window.metal_views - 1);
+      Atomic.decr value.window.metal_views;
       Private_raw.destroy_metal_view value.raw;
       Ok ()
     end)
+end
+
+module Event = struct
+  type id = int64
+
+  type application_change =
+    | Terminating
+    | Low_memory
+    | Will_enter_background
+    | Did_enter_background
+    | Will_enter_foreground
+    | Did_enter_foreground
+    | Locale_changed
+    | System_theme_changed
+
+  type display_change =
+    | Orientation of int
+    | Added
+    | Removed
+    | Moved
+    | Desktop_mode_changed
+    | Current_mode_changed
+    | Content_scale_changed
+    | Usable_bounds_changed
+    | Other_display_change of int * int * int
+
+  type window_change =
+    | Shown
+    | Hidden
+    | Exposed
+    | Window_moved of int * int
+    | Resized of int * int
+    | Pixel_size_changed of int * int
+    | Metal_view_resized
+    | Minimized
+    | Maximized
+    | Restored
+    | Mouse_entered
+    | Mouse_left
+    | Focus_gained
+    | Focus_lost
+    | Close_requested
+    | Hit_test
+    | Icc_profile_changed
+    | Display_changed of id
+    | Display_scale_changed
+    | Safe_area_changed
+    | Occluded
+    | Entered_fullscreen
+    | Left_fullscreen
+    | Destroyed
+    | Hdr_state_changed
+    | Other_window_change of int * int * int
+
+  type device_change = Added | Removed
+  type wheel_direction = Normal | Flipped | Other_wheel_direction of int
+  type touch_phase = Down | Up | Motion | Cancelled
+  type pinch_phase = Began | Updated | Ended
+  type pen_proximity_change = Entered | Left
+
+  type gamepad_change =
+    | Gamepad_added
+    | Gamepad_removed
+    | Remapped
+    | Update_complete
+    | Steam_handle_updated
+    | Other_gamepad_change of int
+
+  type drop_change =
+    | File of string
+    | Text of string
+    | Drop_began
+    | Drop_complete
+    | Drop_position
+    | Other_drop_change of int
+
+  type audio_device_change =
+    | Audio_added
+    | Audio_removed
+    | Format_changed
+    | Other_audio_device_change of int
+
+  type t =
+    | Quit of { timestamp_ns : int64 }
+    | Application of { timestamp_ns : int64; change : application_change }
+    | Display of {
+        timestamp_ns : int64;
+        display_id : id;
+        change : display_change;
+      }
+    | Window of {
+        timestamp_ns : int64;
+        window_id : id;
+        change : window_change;
+      }
+    | Keyboard_device of {
+        timestamp_ns : int64;
+        which : id;
+        change : device_change;
+      }
+    | Key of {
+        timestamp_ns : int64;
+        window_id : id;
+        which : id;
+        scancode : int;
+        keycode : int;
+        modifiers : int;
+        raw_scancode : int;
+        down : bool;
+        repeat : bool;
+      }
+    | Keymap_changed of { timestamp_ns : int64 }
+    | Text_editing of {
+        timestamp_ns : int64;
+        window_id : id;
+        text : string;
+        start : int;
+        length : int;
+      }
+    | Text_editing_candidates of {
+        timestamp_ns : int64;
+        window_id : id;
+        candidates : string list;
+        selected : int option;
+        horizontal : bool;
+      }
+    | Text_input of {
+        timestamp_ns : int64;
+        window_id : id;
+        text : string;
+      }
+    | Screen_keyboard of { timestamp_ns : int64; shown : bool }
+    | Mouse_device of {
+        timestamp_ns : int64;
+        which : id;
+        change : device_change;
+      }
+    | Mouse_motion of {
+        timestamp_ns : int64;
+        window_id : id;
+        which : id;
+        buttons : int64;
+        x : float;
+        y : float;
+        dx : float;
+        dy : float;
+      }
+    | Mouse_button of {
+        timestamp_ns : int64;
+        window_id : id;
+        which : id;
+        button : int;
+        down : bool;
+        clicks : int;
+        x : float;
+        y : float;
+      }
+    | Mouse_wheel of {
+        timestamp_ns : int64;
+        window_id : id;
+        which : id;
+        x : float;
+        y : float;
+        direction : wheel_direction;
+        mouse_x : float;
+        mouse_y : float;
+        integer_x : int;
+        integer_y : int;
+      }
+    | Touch of {
+        timestamp_ns : int64;
+        window_id : id;
+        touch_id : id;
+        finger_id : id;
+        phase : touch_phase;
+        x : float;
+        y : float;
+        dx : float;
+        dy : float;
+        pressure : float;
+      }
+    | Pinch of {
+        timestamp_ns : int64;
+        window_id : id;
+        phase : pinch_phase;
+        scale : float;
+      }
+    | Pen_proximity of {
+        timestamp_ns : int64;
+        window_id : id;
+        which : id;
+        change : pen_proximity_change;
+      }
+    | Pen_motion of {
+        timestamp_ns : int64;
+        window_id : id;
+        which : id;
+        state : int64;
+        x : float;
+        y : float;
+      }
+    | Pen_touch of {
+        timestamp_ns : int64;
+        window_id : id;
+        which : id;
+        state : int64;
+        x : float;
+        y : float;
+        eraser : bool;
+        down : bool;
+      }
+    | Pen_button of {
+        timestamp_ns : int64;
+        window_id : id;
+        which : id;
+        state : int64;
+        x : float;
+        y : float;
+        button : int;
+        down : bool;
+      }
+    | Pen_axis of {
+        timestamp_ns : int64;
+        window_id : id;
+        which : id;
+        state : int64;
+        x : float;
+        y : float;
+        axis : int;
+        value : float;
+      }
+    | Gamepad_axis of {
+        timestamp_ns : int64;
+        which : id;
+        axis : int;
+        value : int;
+      }
+    | Gamepad_button of {
+        timestamp_ns : int64;
+        which : id;
+        button : int;
+        down : bool;
+      }
+    | Gamepad_device of {
+        timestamp_ns : int64;
+        which : id;
+        change : gamepad_change;
+      }
+    | Gamepad_touchpad of {
+        timestamp_ns : int64;
+        which : id;
+        touchpad : int;
+        finger : int;
+        phase : touch_phase;
+        x : float;
+        y : float;
+        pressure : float;
+      }
+    | Gamepad_sensor of {
+        timestamp_ns : int64;
+        sensor_timestamp_ns : int64;
+        which : id;
+        sensor : int;
+        data : float * float * float;
+      }
+    | Drop of {
+        timestamp_ns : int64;
+        window_id : id;
+        x : float;
+        y : float;
+        source : string option;
+        change : drop_change;
+      }
+    | Clipboard of {
+        timestamp_ns : int64;
+        owner : bool;
+        mime_types : string list;
+      }
+    | Audio_device of {
+        timestamp_ns : int64;
+        which : id;
+        recording : bool;
+        change : audio_device_change;
+      }
+    | Sensor of {
+        timestamp_ns : int64;
+        sensor_timestamp_ns : int64;
+        which : id;
+        data : float * float * float * float * float * float;
+      }
+    | Unknown of { timestamp_ns : int64; event_type : int }
+
+  let application_change = function
+    | 0x101 -> Some Terminating
+    | 0x102 -> Some Low_memory
+    | 0x103 -> Some Will_enter_background
+    | 0x104 -> Some Did_enter_background
+    | 0x105 -> Some Will_enter_foreground
+    | 0x106 -> Some Did_enter_foreground
+    | 0x107 -> Some Locale_changed
+    | 0x108 -> Some System_theme_changed
+    | _ -> None
+
+  let display_change event_type data1 data2 =
+    match event_type with
+    | 0x151 -> Orientation data1
+    | 0x152 -> Added
+    | 0x153 -> Removed
+    | 0x154 -> Moved
+    | 0x155 -> Desktop_mode_changed
+    | 0x156 -> Current_mode_changed
+    | 0x157 -> Content_scale_changed
+    | 0x158 -> Usable_bounds_changed
+    | value -> Other_display_change (value, data1, data2)
+
+  let window_change event_type data1 data2 =
+    match event_type with
+    | 0x202 -> Shown
+    | 0x203 -> Hidden
+    | 0x204 -> Exposed
+    | 0x205 -> Window_moved (data1, data2)
+    | 0x206 -> Resized (data1, data2)
+    | 0x207 -> Pixel_size_changed (data1, data2)
+    | 0x208 -> Metal_view_resized
+    | 0x209 -> Minimized
+    | 0x20a -> Maximized
+    | 0x20b -> Restored
+    | 0x20c -> Mouse_entered
+    | 0x20d -> Mouse_left
+    | 0x20e -> Focus_gained
+    | 0x20f -> Focus_lost
+    | 0x210 -> Close_requested
+    | 0x211 -> Hit_test
+    | 0x212 -> Icc_profile_changed
+    | 0x213 -> Display_changed (Int64.of_int data1)
+    | 0x214 -> Display_scale_changed
+    | 0x215 -> Safe_area_changed
+    | 0x216 -> Occluded
+    | 0x217 -> Entered_fullscreen
+    | 0x218 -> Left_fullscreen
+    | 0x219 -> Destroyed
+    | 0x21a -> Hdr_state_changed
+    | value -> Other_window_change (value, data1, data2)
+
+  let device_change ~added event_type =
+    if event_type = added then Added else Removed
+
+  let touch_phase event_type =
+    match event_type with
+    | 0x700 | 0x656 -> Down
+    | 0x701 | 0x658 -> Up
+    | 0x702 | 0x657 -> Motion
+    | 0x703 -> Cancelled
+    | _ -> Cancelled
+
+  let gamepad_change = function
+    | 0x653 -> Gamepad_added
+    | 0x654 -> Gamepad_removed
+    | 0x655 -> Remapped
+    | 0x65a -> Update_complete
+    | 0x65b -> Steam_handle_updated
+    | value -> Other_gamepad_change value
+
+  let drop_change event_type data =
+    match event_type, data with
+    | 0x1000, Some path -> File path
+    | 0x1001, Some text -> Text text
+    | 0x1002, _ -> Drop_began
+    | 0x1003, _ -> Drop_complete
+    | 0x1004, _ -> Drop_position
+    | value, _ -> Other_drop_change value
+
+  let audio_device_change = function
+    | 0x1100 -> Audio_added
+    | 0x1101 -> Audio_removed
+    | 0x1102 -> Format_changed
+    | value -> Other_audio_device_change value
+
+  let triple values = values.(0), values.(1), values.(2)
+  let sextuple values =
+    values.(0), values.(1), values.(2), values.(3), values.(4), values.(5)
+
+  let of_raw = function
+    | Private_raw.Application (0x100, timestamp_ns) -> Quit { timestamp_ns }
+    | Private_raw.Application (0x304, timestamp_ns) ->
+        Keymap_changed { timestamp_ns }
+    | Private_raw.Application (0x308, timestamp_ns) ->
+        Screen_keyboard { timestamp_ns; shown = true }
+    | Private_raw.Application (0x309, timestamp_ns) ->
+        Screen_keyboard { timestamp_ns; shown = false }
+    | Private_raw.Application (event_type, timestamp_ns) ->
+        (match application_change event_type with
+         | Some change -> Application { timestamp_ns; change }
+         | None -> Unknown { timestamp_ns; event_type })
+    | Private_raw.Display
+        (event_type, timestamp_ns, display_id, data1, data2) ->
+        Display {
+          timestamp_ns; display_id; change = display_change event_type data1 data2;
+        }
+    | Private_raw.Window (event_type, timestamp_ns, window_id, data1, data2) ->
+        Window {
+          timestamp_ns; window_id; change = window_change event_type data1 data2;
+        }
+    | Private_raw.Keyboard_device (event_type, timestamp_ns, which) ->
+        Keyboard_device {
+          timestamp_ns; which; change = device_change ~added:0x305 event_type;
+        }
+    | Private_raw.Key
+        (timestamp_ns, window_id, which, scancode, keycode, modifiers,
+         raw_scancode, down, repeat) ->
+        Key {
+          timestamp_ns; window_id; which; scancode; keycode; modifiers;
+          raw_scancode; down; repeat;
+        }
+    | Private_raw.Text_editing
+        (timestamp_ns, window_id, text, start, length) ->
+        Text_editing { timestamp_ns; window_id; text; start; length }
+    | Private_raw.Text_editing_candidates
+        (timestamp_ns, window_id, candidates, selected, horizontal) ->
+        Text_editing_candidates {
+          timestamp_ns; window_id; candidates = Array.to_list candidates;
+          selected = (if selected < 0 then None else Some selected); horizontal;
+        }
+    | Private_raw.Text_input (timestamp_ns, window_id, text) ->
+        Text_input { timestamp_ns; window_id; text }
+    | Private_raw.Mouse_device (event_type, timestamp_ns, which) ->
+        Mouse_device {
+          timestamp_ns; which; change = device_change ~added:0x404 event_type;
+        }
+    | Private_raw.Mouse_motion
+        (timestamp_ns, window_id, which, buttons, x, y, dx, dy) ->
+        Mouse_motion { timestamp_ns; window_id; which; buttons; x; y; dx; dy }
+    | Private_raw.Mouse_button
+        (timestamp_ns, window_id, which, button, down, clicks, x, y) ->
+        Mouse_button {
+          timestamp_ns; window_id; which; button; down; clicks; x; y;
+        }
+    | Private_raw.Mouse_wheel
+        (timestamp_ns, window_id, which, x, y, raw_direction, mouse_x,
+         mouse_y, integer_x, integer_y) ->
+        let direction = match raw_direction with
+          | 0 -> Normal
+          | 1 -> Flipped
+          | value -> Other_wheel_direction value
+        in
+        Mouse_wheel {
+          timestamp_ns; window_id; which; x; y; direction; mouse_x; mouse_y;
+          integer_x; integer_y;
+        }
+    | Private_raw.Gamepad_axis (timestamp_ns, which, axis, value) ->
+        Gamepad_axis { timestamp_ns; which; axis; value }
+    | Private_raw.Gamepad_button (timestamp_ns, which, button, down) ->
+        Gamepad_button { timestamp_ns; which; button; down }
+    | Private_raw.Gamepad_device (event_type, timestamp_ns, which) ->
+        Gamepad_device {
+          timestamp_ns; which; change = gamepad_change event_type;
+        }
+    | Private_raw.Gamepad_touchpad
+        (event_type, timestamp_ns, which, touchpad, finger, x, y, pressure) ->
+        Gamepad_touchpad {
+          timestamp_ns; which; touchpad; finger; phase = touch_phase event_type;
+          x; y; pressure;
+        }
+    | Private_raw.Gamepad_sensor
+        (timestamp_ns, which, sensor, data, sensor_timestamp_ns) ->
+        Gamepad_sensor {
+          timestamp_ns; sensor_timestamp_ns; which; sensor; data = triple data;
+        }
+    | Private_raw.Touch
+        (event_type, timestamp_ns, touch_id, finger_id, x, y, dx, dy,
+         pressure, window_id) ->
+        Touch {
+          timestamp_ns; window_id; touch_id; finger_id;
+          phase = touch_phase event_type; x; y; dx; dy; pressure;
+        }
+    | Private_raw.Pinch (event_type, timestamp_ns, scale, window_id) ->
+        let phase = match event_type with
+          | 0x710 -> Began
+          | 0x711 -> Updated
+          | _ -> Ended
+        in
+        Pinch { timestamp_ns; window_id; phase; scale }
+    | Private_raw.Pen_proximity
+        (event_type, timestamp_ns, window_id, which) ->
+        Pen_proximity {
+          timestamp_ns; window_id; which;
+          change = (if event_type = 0x1300 then Entered else Left);
+        }
+    | Private_raw.Pen_motion (timestamp_ns, window_id, which, state, x, y) ->
+        Pen_motion { timestamp_ns; window_id; which; state; x; y }
+    | Private_raw.Pen_touch
+        (timestamp_ns, window_id, which, state, x, y, eraser, down) ->
+        Pen_touch { timestamp_ns; window_id; which; state; x; y; eraser; down }
+    | Private_raw.Pen_button
+        (timestamp_ns, window_id, which, state, x, y, button, down) ->
+        Pen_button {
+          timestamp_ns; window_id; which; state; x; y; button; down;
+        }
+    | Private_raw.Pen_axis
+        (timestamp_ns, window_id, which, state, x, y, axis, value) ->
+        Pen_axis { timestamp_ns; window_id; which; state; x; y; axis; value }
+    | Private_raw.Drop
+        (event_type, timestamp_ns, window_id, x, y, source, data) ->
+        Drop {
+          timestamp_ns; window_id; x; y; source;
+          change = drop_change event_type data;
+        }
+    | Private_raw.Clipboard (timestamp_ns, owner, mime_types) ->
+        Clipboard { timestamp_ns; owner; mime_types = Array.to_list mime_types }
+    | Private_raw.Audio_device
+        (event_type, timestamp_ns, which, recording) ->
+        Audio_device {
+          timestamp_ns; which; recording;
+          change = audio_device_change event_type;
+        }
+    | Private_raw.Sensor (timestamp_ns, which, data, sensor_timestamp_ns) ->
+        Sensor {
+          timestamp_ns; sensor_timestamp_ns; which; data = sextuple data;
+        }
+    | Private_raw.Unknown (event_type, timestamp_ns) ->
+        Unknown { timestamp_ns; event_type }
+
+  let poll () = on_main "SDL3.Event.poll" (fun () ->
+    Ok (Option.map of_raw (Private_raw.poll_event ())))
+
+  let poll_all () = on_main "SDL3.Event.poll_all" (fun () ->
+    let rec loop events =
+      match Private_raw.poll_event () with
+      | None -> Ok (List.rev events)
+      | Some event -> loop (of_raw event :: events)
+    in
+    loop [])
+
+  let wait ~timeout_ms =
+    if timeout_ms < -1 || Int64.of_int timeout_ms > Int64.of_int32 Int32.max_int then
+      error "SDL3.Event.wait" Invalid_argument
+        "timeout must be -1 or fit in a signed 32-bit millisecond count"
+    else on_main "SDL3.Event.wait" (fun () ->
+      Private_raw.clear_error ();
+      match Private_raw.wait_event_timeout timeout_ms with
+      | Some event -> Ok (Some (of_raw event))
+      | None ->
+          let message = Private_raw.get_error () in
+          if message = "" then Ok None
+          else error "SDL3.Event.wait" Sdl_error message)
+
+  let mouse_delta events =
+    List.fold_left (fun (total_x, total_y) -> function
+      | Mouse_motion { dx; dy; _ } -> total_x +. dx, total_y +. dy
+      | _ -> total_x, total_y) (0., 0.) events
 end

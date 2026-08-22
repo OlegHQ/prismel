@@ -32,6 +32,18 @@
  (modules test_sdl3_metal)
  (libraries sdl3))
 
+(test
+ (name test_sdl3_events)
+ (modules test_sdl3_events)
+ (libraries sdl3)
+ (foreign_stubs
+  (language c)
+  (names test_sdl3_events_stubs)
+  (flags (:include c_flags.sexp)))
+ (action
+  (setenv SDL_VIDEODRIVER dummy
+   (run %{test}))))
+
 (rule
  (alias runtest)
  (deps ../../tools/sdl3/generate.py generated_provenance.ml

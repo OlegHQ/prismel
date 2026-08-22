@@ -2,33 +2,101 @@
   "callback_calling_convention": "default-c",
   "compiler": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "constants": {
+    "SDL_EVENT_AUDIO_DEVICE_ADDED": 4352,
+    "SDL_EVENT_AUDIO_DEVICE_FORMAT_CHANGED": 4354,
+    "SDL_EVENT_AUDIO_DEVICE_REMOVED": 4353,
+    "SDL_EVENT_CLIPBOARD_UPDATE": 2304,
+    "SDL_EVENT_DID_ENTER_BACKGROUND": 260,
+    "SDL_EVENT_DID_ENTER_FOREGROUND": 262,
+    "SDL_EVENT_DISPLAY_ADDED": 338,
+    "SDL_EVENT_DISPLAY_CONTENT_SCALE_CHANGED": 343,
+    "SDL_EVENT_DISPLAY_CURRENT_MODE_CHANGED": 342,
+    "SDL_EVENT_DISPLAY_DESKTOP_MODE_CHANGED": 341,
+    "SDL_EVENT_DISPLAY_MOVED": 340,
+    "SDL_EVENT_DISPLAY_ORIENTATION": 337,
+    "SDL_EVENT_DISPLAY_REMOVED": 339,
+    "SDL_EVENT_DISPLAY_USABLE_BOUNDS_CHANGED": 344,
     "SDL_EVENT_DROP_BEGIN": 4098,
     "SDL_EVENT_DROP_COMPLETE": 4099,
     "SDL_EVENT_DROP_FILE": 4096,
+    "SDL_EVENT_DROP_POSITION": 4100,
     "SDL_EVENT_DROP_TEXT": 4097,
+    "SDL_EVENT_FINGER_CANCELED": 1795,
     "SDL_EVENT_FINGER_DOWN": 1792,
     "SDL_EVENT_FINGER_MOTION": 1794,
     "SDL_EVENT_FINGER_UP": 1793,
+    "SDL_EVENT_GAMEPAD_ADDED": 1619,
     "SDL_EVENT_GAMEPAD_AXIS_MOTION": 1616,
     "SDL_EVENT_GAMEPAD_BUTTON_DOWN": 1617,
     "SDL_EVENT_GAMEPAD_BUTTON_UP": 1618,
+    "SDL_EVENT_GAMEPAD_REMAPPED": 1621,
+    "SDL_EVENT_GAMEPAD_REMOVED": 1620,
+    "SDL_EVENT_GAMEPAD_SENSOR_UPDATE": 1625,
+    "SDL_EVENT_GAMEPAD_STEAM_HANDLE_UPDATED": 1627,
+    "SDL_EVENT_GAMEPAD_TOUCHPAD_DOWN": 1622,
+    "SDL_EVENT_GAMEPAD_TOUCHPAD_MOTION": 1623,
+    "SDL_EVENT_GAMEPAD_TOUCHPAD_UP": 1624,
+    "SDL_EVENT_GAMEPAD_UPDATE_COMPLETE": 1626,
+    "SDL_EVENT_KEYBOARD_ADDED": 773,
+    "SDL_EVENT_KEYBOARD_REMOVED": 774,
+    "SDL_EVENT_KEYMAP_CHANGED": 772,
     "SDL_EVENT_KEY_DOWN": 768,
     "SDL_EVENT_KEY_UP": 769,
+    "SDL_EVENT_LOCALE_CHANGED": 263,
+    "SDL_EVENT_LOW_MEMORY": 258,
+    "SDL_EVENT_MOUSE_ADDED": 1028,
     "SDL_EVENT_MOUSE_BUTTON_DOWN": 1025,
     "SDL_EVENT_MOUSE_BUTTON_UP": 1026,
     "SDL_EVENT_MOUSE_MOTION": 1024,
+    "SDL_EVENT_MOUSE_REMOVED": 1029,
     "SDL_EVENT_MOUSE_WHEEL": 1027,
     "SDL_EVENT_PEN_AXIS": 4871,
     "SDL_EVENT_PEN_BUTTON_DOWN": 4868,
     "SDL_EVENT_PEN_BUTTON_UP": 4869,
     "SDL_EVENT_PEN_DOWN": 4866,
     "SDL_EVENT_PEN_MOTION": 4870,
+    "SDL_EVENT_PEN_PROXIMITY_IN": 4864,
+    "SDL_EVENT_PEN_PROXIMITY_OUT": 4865,
     "SDL_EVENT_PEN_UP": 4867,
+    "SDL_EVENT_PINCH_BEGIN": 1808,
+    "SDL_EVENT_PINCH_END": 1810,
+    "SDL_EVENT_PINCH_UPDATE": 1809,
     "SDL_EVENT_QUIT": 256,
+    "SDL_EVENT_SCREEN_KEYBOARD_HIDDEN": 777,
+    "SDL_EVENT_SCREEN_KEYBOARD_SHOWN": 776,
+    "SDL_EVENT_SENSOR_UPDATE": 4608,
+    "SDL_EVENT_SYSTEM_THEME_CHANGED": 264,
+    "SDL_EVENT_TERMINATING": 257,
     "SDL_EVENT_TEXT_EDITING": 770,
+    "SDL_EVENT_TEXT_EDITING_CANDIDATES": 775,
     "SDL_EVENT_TEXT_INPUT": 771,
+    "SDL_EVENT_WILL_ENTER_BACKGROUND": 259,
+    "SDL_EVENT_WILL_ENTER_FOREGROUND": 261,
+    "SDL_EVENT_WINDOW_CLOSE_REQUESTED": 528,
+    "SDL_EVENT_WINDOW_DESTROYED": 537,
+    "SDL_EVENT_WINDOW_DISPLAY_CHANGED": 531,
+    "SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED": 532,
+    "SDL_EVENT_WINDOW_ENTER_FULLSCREEN": 535,
+    "SDL_EVENT_WINDOW_EXPOSED": 516,
+    "SDL_EVENT_WINDOW_FOCUS_GAINED": 526,
+    "SDL_EVENT_WINDOW_FOCUS_LOST": 527,
+    "SDL_EVENT_WINDOW_HDR_STATE_CHANGED": 538,
+    "SDL_EVENT_WINDOW_HIDDEN": 515,
+    "SDL_EVENT_WINDOW_HIT_TEST": 529,
+    "SDL_EVENT_WINDOW_ICCPROF_CHANGED": 530,
+    "SDL_EVENT_WINDOW_LEAVE_FULLSCREEN": 536,
+    "SDL_EVENT_WINDOW_MAXIMIZED": 522,
+    "SDL_EVENT_WINDOW_METAL_VIEW_RESIZED": 520,
+    "SDL_EVENT_WINDOW_MINIMIZED": 521,
+    "SDL_EVENT_WINDOW_MOUSE_ENTER": 524,
+    "SDL_EVENT_WINDOW_MOUSE_LEAVE": 525,
+    "SDL_EVENT_WINDOW_MOVED": 517,
+    "SDL_EVENT_WINDOW_OCCLUDED": 534,
     "SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED": 519,
     "SDL_EVENT_WINDOW_RESIZED": 518,
+    "SDL_EVENT_WINDOW_RESTORED": 523,
+    "SDL_EVENT_WINDOW_SAFE_AREA_CHANGED": 533,
+    "SDL_EVENT_WINDOW_SHOWN": 514,
     "SDL_INIT_AUDIO": 16,
     "SDL_INIT_CAMERA": 65536,
     "SDL_INIT_EVENTS": 16384,
@@ -37,6 +105,8 @@
     "SDL_INIT_JOYSTICK": 512,
     "SDL_INIT_SENSOR": 32768,
     "SDL_INIT_VIDEO": 32,
+    "SDL_MOUSEWHEEL_FLIPPED": 1,
+    "SDL_MOUSEWHEEL_NORMAL": 0,
     "SDL_WINDOW_FULLSCREEN": 1,
     "SDL_WINDOW_HIDDEN": 8,
     "SDL_WINDOW_HIGH_PIXEL_DENSITY": 8192,
@@ -62,6 +132,17 @@
         "which": 16
       },
       "size": 24
+    },
+    "SDL_ClipboardEvent": {
+      "alignment": 8,
+      "offsets": {
+        "mime_types": 24,
+        "num_mime_types": 20,
+        "owner": 16,
+        "timestamp": 8,
+        "type": 0
+      },
+      "size": 32
     },
     "SDL_CommonEvent": {
       "alignment": 8,
@@ -122,6 +203,50 @@
       },
       "size": 24
     },
+    "SDL_GamepadDeviceEvent": {
+      "alignment": 8,
+      "offsets": {
+        "timestamp": 8,
+        "type": 0,
+        "which": 16
+      },
+      "size": 24
+    },
+    "SDL_GamepadSensorEvent": {
+      "alignment": 8,
+      "offsets": {
+        "data": 24,
+        "sensor": 20,
+        "sensor_timestamp": 40,
+        "timestamp": 8,
+        "type": 0,
+        "which": 16
+      },
+      "size": 48
+    },
+    "SDL_GamepadTouchpadEvent": {
+      "alignment": 8,
+      "offsets": {
+        "finger": 24,
+        "pressure": 36,
+        "timestamp": 8,
+        "touchpad": 20,
+        "type": 0,
+        "which": 16,
+        "x": 28,
+        "y": 32
+      },
+      "size": 40
+    },
+    "SDL_KeyboardDeviceEvent": {
+      "alignment": 8,
+      "offsets": {
+        "timestamp": 8,
+        "type": 0,
+        "which": 16
+      },
+      "size": 24
+    },
     "SDL_KeyboardEvent": {
       "alignment": 8,
       "offsets": {
@@ -152,6 +277,15 @@
         "y": 32
       },
       "size": 40
+    },
+    "SDL_MouseDeviceEvent": {
+      "alignment": 8,
+      "offsets": {
+        "timestamp": 8,
+        "type": 0,
+        "which": 16
+      },
+      "size": 24
     },
     "SDL_MouseMotionEvent": {
       "alignment": 8,
@@ -228,6 +362,16 @@
       },
       "size": 40
     },
+    "SDL_PenProximityEvent": {
+      "alignment": 8,
+      "offsets": {
+        "timestamp": 8,
+        "type": 0,
+        "which": 20,
+        "windowID": 16
+      },
+      "size": 24
+    },
     "SDL_PenTouchEvent": {
       "alignment": 8,
       "offsets": {
@@ -242,6 +386,40 @@
         "y": 32
       },
       "size": 40
+    },
+    "SDL_PinchFingerEvent": {
+      "alignment": 8,
+      "offsets": {
+        "scale": 16,
+        "timestamp": 8,
+        "type": 0,
+        "windowID": 20
+      },
+      "size": 24
+    },
+    "SDL_SensorEvent": {
+      "alignment": 8,
+      "offsets": {
+        "data": 20,
+        "sensor_timestamp": 48,
+        "timestamp": 8,
+        "type": 0,
+        "which": 16
+      },
+      "size": 56
+    },
+    "SDL_TextEditingCandidatesEvent": {
+      "alignment": 8,
+      "offsets": {
+        "candidates": 24,
+        "horizontal": 40,
+        "num_candidates": 32,
+        "selected_candidate": 36,
+        "timestamp": 8,
+        "type": 0,
+        "windowID": 16
+      },
+      "size": 48
     },
     "SDL_TextEditingEvent": {
       "alignment": 8,

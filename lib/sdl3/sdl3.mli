@@ -82,6 +82,307 @@ module Window : sig
   val destroy : t -> (unit, error) result
 end
 
+module Event : sig
+  type id = int64
+
+  type application_change =
+    | Terminating
+    | Low_memory
+    | Will_enter_background
+    | Did_enter_background
+    | Will_enter_foreground
+    | Did_enter_foreground
+    | Locale_changed
+    | System_theme_changed
+
+  type display_change =
+    | Orientation of int
+    | Added
+    | Removed
+    | Moved
+    | Desktop_mode_changed
+    | Current_mode_changed
+    | Content_scale_changed
+    | Usable_bounds_changed
+    | Other_display_change of int * int * int
+
+  type window_change =
+    | Shown
+    | Hidden
+    | Exposed
+    | Window_moved of int * int
+    | Resized of int * int
+    | Pixel_size_changed of int * int
+    | Metal_view_resized
+    | Minimized
+    | Maximized
+    | Restored
+    | Mouse_entered
+    | Mouse_left
+    | Focus_gained
+    | Focus_lost
+    | Close_requested
+    | Hit_test
+    | Icc_profile_changed
+    | Display_changed of id
+    | Display_scale_changed
+    | Safe_area_changed
+    | Occluded
+    | Entered_fullscreen
+    | Left_fullscreen
+    | Destroyed
+    | Hdr_state_changed
+    | Other_window_change of int * int * int
+
+  type device_change = Added | Removed
+  type wheel_direction = Normal | Flipped | Other_wheel_direction of int
+  type touch_phase = Down | Up | Motion | Cancelled
+  type pinch_phase = Began | Updated | Ended
+  type pen_proximity_change = Entered | Left
+
+  type gamepad_change =
+    | Gamepad_added
+    | Gamepad_removed
+    | Remapped
+    | Update_complete
+    | Steam_handle_updated
+    | Other_gamepad_change of int
+
+  type drop_change =
+    | File of string
+    | Text of string
+    | Drop_began
+    | Drop_complete
+    | Drop_position
+    | Other_drop_change of int
+
+  type audio_device_change =
+    | Audio_added
+    | Audio_removed
+    | Format_changed
+    | Other_audio_device_change of int
+
+  type t =
+    | Quit of { timestamp_ns : int64 }
+    | Application of { timestamp_ns : int64; change : application_change }
+    | Display of {
+        timestamp_ns : int64;
+        display_id : id;
+        change : display_change;
+      }
+    | Window of {
+        timestamp_ns : int64;
+        window_id : id;
+        change : window_change;
+      }
+    | Keyboard_device of {
+        timestamp_ns : int64;
+        which : id;
+        change : device_change;
+      }
+    | Key of {
+        timestamp_ns : int64;
+        window_id : id;
+        which : id;
+        scancode : int;
+        keycode : int;
+        modifiers : int;
+        raw_scancode : int;
+        down : bool;
+        repeat : bool;
+      }
+    | Keymap_changed of { timestamp_ns : int64 }
+    | Text_editing of {
+        timestamp_ns : int64;
+        window_id : id;
+        text : string;
+        start : int;
+        length : int;
+      }
+    | Text_editing_candidates of {
+        timestamp_ns : int64;
+        window_id : id;
+        candidates : string list;
+        selected : int option;
+        horizontal : bool;
+      }
+    | Text_input of {
+        timestamp_ns : int64;
+        window_id : id;
+        text : string;
+      }
+    | Screen_keyboard of { timestamp_ns : int64; shown : bool }
+    | Mouse_device of {
+        timestamp_ns : int64;
+        which : id;
+        change : device_change;
+      }
+    | Mouse_motion of {
+        timestamp_ns : int64;
+        window_id : id;
+        which : id;
+        buttons : int64;
+        x : float;
+        y : float;
+        dx : float;
+        dy : float;
+      }
+    | Mouse_button of {
+        timestamp_ns : int64;
+        window_id : id;
+        which : id;
+        button : int;
+        down : bool;
+        clicks : int;
+        x : float;
+        y : float;
+      }
+    | Mouse_wheel of {
+        timestamp_ns : int64;
+        window_id : id;
+        which : id;
+        x : float;
+        y : float;
+        direction : wheel_direction;
+        mouse_x : float;
+        mouse_y : float;
+        integer_x : int;
+        integer_y : int;
+      }
+    | Touch of {
+        timestamp_ns : int64;
+        window_id : id;
+        touch_id : id;
+        finger_id : id;
+        phase : touch_phase;
+        x : float;
+        y : float;
+        dx : float;
+        dy : float;
+        pressure : float;
+      }
+    | Pinch of {
+        timestamp_ns : int64;
+        window_id : id;
+        phase : pinch_phase;
+        scale : float;
+      }
+    | Pen_proximity of {
+        timestamp_ns : int64;
+        window_id : id;
+        which : id;
+        change : pen_proximity_change;
+      }
+    | Pen_motion of {
+        timestamp_ns : int64;
+        window_id : id;
+        which : id;
+        state : int64;
+        x : float;
+        y : float;
+      }
+    | Pen_touch of {
+        timestamp_ns : int64;
+        window_id : id;
+        which : id;
+        state : int64;
+        x : float;
+        y : float;
+        eraser : bool;
+        down : bool;
+      }
+    | Pen_button of {
+        timestamp_ns : int64;
+        window_id : id;
+        which : id;
+        state : int64;
+        x : float;
+        y : float;
+        button : int;
+        down : bool;
+      }
+    | Pen_axis of {
+        timestamp_ns : int64;
+        window_id : id;
+        which : id;
+        state : int64;
+        x : float;
+        y : float;
+        axis : int;
+        value : float;
+      }
+    | Gamepad_axis of {
+        timestamp_ns : int64;
+        which : id;
+        axis : int;
+        value : int;
+      }
+    | Gamepad_button of {
+        timestamp_ns : int64;
+        which : id;
+        button : int;
+        down : bool;
+      }
+    | Gamepad_device of {
+        timestamp_ns : int64;
+        which : id;
+        change : gamepad_change;
+      }
+    | Gamepad_touchpad of {
+        timestamp_ns : int64;
+        which : id;
+        touchpad : int;
+        finger : int;
+        phase : touch_phase;
+        x : float;
+        y : float;
+        pressure : float;
+      }
+    | Gamepad_sensor of {
+        timestamp_ns : int64;
+        sensor_timestamp_ns : int64;
+        which : id;
+        sensor : int;
+        data : float * float * float;
+      }
+    | Drop of {
+        timestamp_ns : int64;
+        window_id : id;
+        x : float;
+        y : float;
+        source : string option;
+        change : drop_change;
+      }
+    | Clipboard of {
+        timestamp_ns : int64;
+        owner : bool;
+        mime_types : string list;
+      }
+    | Audio_device of {
+        timestamp_ns : int64;
+        which : id;
+        recording : bool;
+        change : audio_device_change;
+      }
+    | Sensor of {
+        timestamp_ns : int64;
+        sensor_timestamp_ns : int64;
+        which : id;
+        data : float * float * float * float * float * float;
+      }
+    | Unknown of { timestamp_ns : int64; event_type : int }
+
+  val poll : unit -> (t option, error) result
+  val poll_all : unit -> (t list, error) result
+
+  (** [wait ~timeout_ms] uses [-1] for an unbounded wait. The OCaml runtime
+      lock is released only while SDL blocks on its independently owned event
+      storage. *)
+  val wait : timeout_ms:int -> (t option, error) result
+
+  val mouse_delta : t list -> float * float
+end
+
 module Metal_view : sig
   type t
   type layer
