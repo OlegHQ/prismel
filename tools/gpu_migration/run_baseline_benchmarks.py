@@ -274,6 +274,13 @@ def websocket_frame(channel: socket.socket) -> tuple[int, bool, bytes]:
     return opcode, final, payload
 
 
+def send_frame_ack(channel: socket.socket, frame_id: int) -> None:
+    payload = b"\x01\x0d" + frame_id.to_bytes(4, "little", signed=True)
+    mask = bytes(((frame_id + index * 37 + 19) & 0xFF) for index in range(4))
+    masked = bytes(value ^ mask[index & 3] for index, value in enumerate(payload))
+    channel.sendall(bytes((0x82, 0x80 | len(payload))) + mask + masked)
+
+
 def connect_websocket(port: int) -> socket.socket:
     with socket.create_connection(("127.0.0.1", port), timeout=5.0) as http:
         http.sendall(
@@ -310,13 +317,15 @@ def drain_websocket(
     result: dict[str, Any],
 ) -> None:
     frames = 0
+    acknowledgements = 0
     messages = 0
     payload_bytes = 0
     error: str | None = None
+    pending_frame_id: int | None = None
     try:
         while not stop.is_set():
             try:
-                opcode, _final, payload = websocket_frame(channel)
+                opcode, final, payload = websocket_frame(channel)
             except socket.timeout:
                 continue
             except EOFError:
@@ -325,6 +334,15 @@ def drain_websocket(
             payload_bytes += len(payload)
             if opcode == 2 and payload.startswith(b"PRSM"):
                 frames += 1
+                if final or len(payload) < 12:
+                    raise BenchmarkError("web frame metadata is malformed")
+                pending_frame_id = int.from_bytes(
+                    payload[8:12], "little", signed=True
+                )
+            elif opcode == 0 and final and pending_frame_id is not None:
+                send_frame_ack(channel, pending_frame_id)
+                acknowledgements += 1
+                pending_frame_id = None
             if opcode == 8:
                 break
     except Exception as caught:  # surfaced in the parent thread
@@ -334,6 +352,7 @@ def drain_websocket(
         result.update(
             {
                 "frames_received": frames,
+                "frame_acknowledgements_sent": acknowledgements,
                 "messages_received": messages,
                 "payload_bytes_received": payload_bytes,
                 "reader_error": error,
@@ -479,6 +498,10 @@ def run_one(
             raise BenchmarkError(f"web loopback reader failed: {loopback['reader_error']}")
         if loopback.get("frames_received", 0) < 1:
             raise BenchmarkError("web loopback received no framebuffer metadata")
+        if loopback.get("frame_acknowledgements_sent") != loopback.get(
+            "frames_received"
+        ):
+            raise BenchmarkError("web loopback did not acknowledge every framebuffer")
         value["web_loopback"] = loopback
     value["evidence"] = {
         "commit": commit,
@@ -606,6 +629,14 @@ def validate(root: Path, value: dict[str, Any]) -> list[str]:
                     "web_loopback", {}
                 ).get("frames_received", 0) < 1:
                     failures.append(f"{prefix} did not exercise web frame delivery")
+                if group.get("target") == "web":
+                    loopback = run.get("web_loopback", {})
+                    if loopback.get("frame_acknowledgements_sent") != loopback.get(
+                        "frames_received"
+                    ):
+                        failures.append(
+                            f"{prefix} did not acknowledge every delivered frame"
+                        )
             if group.get("benchmark") == "shattered_renderer":
                 expected = (18_278, 278_368, 835_104)
                 observed = (
