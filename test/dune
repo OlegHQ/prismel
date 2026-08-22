@@ -109,6 +109,11 @@
   (glob_files ../lib/*/dune))
  (action (run %{test} %{workspace_root}/lib)))
 
+(test
+ (name sdl3_platform_harness)
+ (modules sdl3_platform_harness)
+ (libraries prismel prismel.sdl3))
+
 (rule
  (alias runtest)
  (deps ../specification/evidence/gpu_migration/phase0_baseline.json
