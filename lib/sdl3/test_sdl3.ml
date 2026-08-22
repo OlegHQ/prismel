@@ -21,8 +21,18 @@ let () =
   get (Init.init [Init.Video; Init.Events]);
   if not (get (Init.initialized [Init.Video; Init.Events])) then
     fail "initialized subsystem mask was not retained";
+  (match Window.create ~title:"bad\x00title" ~width:8 ~height:8 () with
+   | Error { kind = Invalid_argument; _ } -> ()
+   | Ok window -> ignore (Window.destroy window); fail "NUL window title succeeded"
+   | Error _ -> fail "NUL window title returned the wrong error");
   let window = get (Window.create ~title:"SDL3 ownership test" ~width:96 ~height:64
       ~flags:[Window.Hidden; Window.Resizable] ()) in
+  (match Metal_view.create window with
+   | Error { kind = Sdl_error; message; _ } when message <> "" -> ()
+   | Ok view ->
+       get (Metal_view.destroy view);
+       fail "dummy-video window unexpectedly created a Metal view"
+   | Error _ -> fail "dummy Metal-view constructor returned the wrong error");
   if Window.destroyed window then fail "new window starts destroyed";
   let window_id = get (Window.id window) in
   if window_id = 0L then fail "window ID is zero";
@@ -152,6 +162,10 @@ let () =
    | Error { kind = Invalid_argument; _ } -> ()
    | Ok surface -> ignore (Surface.destroy surface); fail "short stride was accepted"
    | Error _ -> fail "short stride returned the wrong error");
+  (match Surface.create_rgba ~width:max_int ~height:max_int with
+   | Error { kind = Invalid_argument; _ } -> ()
+   | Ok surface -> ignore (Surface.destroy surface); fail "overflow surface succeeded"
+   | Error _ -> fail "overflow surface returned the wrong error");
   let wrong_domain_surface = Domain.spawn (fun () ->
     Surface.create_rgba ~width:2 ~height:2) |> Domain.join in
   (match wrong_domain_surface with

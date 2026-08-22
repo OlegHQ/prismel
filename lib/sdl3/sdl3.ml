@@ -19,6 +19,9 @@ let pp_error formatter error =
 
 let error operation kind message = Error { operation; kind; message }
 
+let contains_nul value =
+  try ignore (String.index value '\x00'); true with Not_found -> false
+
 let sdl_error operation =
   let message = Private_raw.get_error () in
   let message = if message = "" then "SDL call failed without an error" else message in
@@ -295,7 +298,10 @@ end = struct
       else callback value.raw)
 
   let create ~title ~width ~height ?(flags = []) () =
-    if width <= 0 || height <= 0 then
+    if contains_nul title then
+      error "SDL3.Window.create" Invalid_argument
+        "window title contains a NUL byte"
+    else if width <= 0 || height <= 0 then
       error "SDL3.Window.create" Invalid_argument "window dimensions must be positive"
     else on_main "SDL3.Window.create" (fun () ->
       Private_raw.clear_error ();
@@ -461,9 +467,6 @@ end = struct
 end
 
 module Clipboard = struct
-  let contains_nul value =
-    try ignore (String.index value '\x00'); true with Not_found -> false
-
   let set_text text =
     let operation = "SDL3.Clipboard.set_text" in
     if contains_nul text then

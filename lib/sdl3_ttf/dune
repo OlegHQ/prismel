@@ -27,6 +27,14 @@
   (setenv SDL_VIDEODRIVER dummy
    (run %{test}))))
 
+(test
+ (name test_sdl3_ttf_discovery_failure)
+ (modules test_sdl3_ttf_discovery_failure)
+ (libraries sdl3_ttf)
+ (action
+  (setenv PRISMEL_UI_FONT /definitely/missing/prismel-font.ttf
+   (run %{test}))))
+
 (rule
  (alias runtest)
  (deps generated_provenance.ml generated_inventory.json generated_abi.h)

@@ -41,6 +41,14 @@
    (run %{test}))))
 
 (test
+ (name test_sdl3_failure)
+ (modules test_sdl3_failure)
+ (libraries sdl3)
+ (action
+  (setenv SDL_VIDEODRIVER prismel_missing_video_driver
+   (run %{test}))))
+
+(test
  (name test_sdl3_events)
  (modules test_sdl3_events)
  (libraries sdl3)

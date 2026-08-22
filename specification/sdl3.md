@@ -47,6 +47,25 @@ result before the safe layer can issue another SDL call.  Dimension, stride,
 length, numeric-range, and embedded-NUL checks happen before native allocation
 or decoding.
 
+The constructor/decoder failure matrix is executable, not inferred from happy
+paths:
+
+| Boundary | Injected failure |
+| --- | --- |
+| `Init.init` | nonexistent SDL video driver in an isolated process |
+| `Window.create` | video subsystem absent, plus invalid dimensions and embedded-NUL title |
+| `Surface.create_rgba` / `of_rgba` | cardinality overflow, invalid dimensions, short stride, and short source |
+| `Metal_view.create` | dummy-video window without a native Metal layer |
+| SDL3_image file/byte decoders | missing file and malformed input with an explicit hint for every supported still format |
+| `Font.open_file` and system discovery | missing/empty font path, invalid size, and invalid `PRISMEL_UI_FONT` |
+| device/memory mixer creation | nonexistent audio driver and invalid sample-rate/channel facts |
+| audio file/byte/synthesis creation | missing/malformed/empty input and invalid frequency/amplitude/duration |
+| `Track.create` | destroyed parent mixer |
+
+Native error strings are copied into immutable OCaml error records before the
+next native call; the failure tests retain an error across a subsequent
+version query and compare it exactly.
+
 The binding tests run the wrong-domain matrix, a blocking-wait system-thread
 probe, copied event traces, parent/child teardown, stale access, malformed
 input, and 100,000-cycle ownership stress.  `tools/bench_sdl3.exe` reports the

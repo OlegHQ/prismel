@@ -58,6 +58,14 @@ let () =
   (match Domain.spawn Init.initialized |> Domain.join with
    | Error { kind = Wrong_domain; _ } -> ()
    | Ok _ | Error _ -> fail "wrong-domain mixer init query was not rejected");
+  (match Mixer.create_memory ~sample_rate:7_999 ~channels:2 with
+   | Error { kind = Invalid_argument; _ } -> ()
+   | Ok mixer -> ignore (Mixer.destroy mixer); fail "invalid sample rate succeeded"
+   | Error _ -> fail "invalid sample rate returned the wrong error");
+  (match Mixer.create_memory ~sample_rate:48_000 ~channels:0 with
+   | Error { kind = Invalid_argument; _ } -> ()
+   | Ok mixer -> ignore (Mixer.destroy mixer); fail "invalid channels succeeded"
+   | Error _ -> fail "invalid channels returned the wrong error");
 
   let mixer = get (Mixer.create_memory ~sample_rate:48_000 ~channels:2) in
   if Mixer.mode mixer <> Mixer.Memory
@@ -83,6 +91,18 @@ let () =
   let file_audio = get (Audio.load_file mixer ~path:temp ~predecode:false ()) in
   if get (Audio.duration_frames file_audio) <= 0L then
     fail "file WAV has no duration";
+  (match Audio.load_bytes mixer Bytes.empty with
+   | Error { kind = Invalid_argument; _ } -> ()
+   | Ok audio -> ignore (Audio.destroy audio); fail "empty audio bytes loaded"
+   | Error _ -> fail "empty audio bytes returned the wrong error");
+  (match Audio.load_file mixer ~path:"/definitely/missing/audio.wav" () with
+   | Error ({ kind = Mixer_error; message; _ } as captured) when message <> "" ->
+       let original = captured.message in
+       ignore (Version.linked ());
+       if captured.message <> original then
+         fail "mixer error text changed after a subsequent native call"
+   | Ok audio -> ignore (Audio.destroy audio); fail "missing audio loaded"
+   | Error _ -> fail "missing audio returned the wrong error");
   (match Audio.load_bytes mixer (Bytes.of_string "bad audio") with
    | Error { kind = Mixer_error; message; _ } when message <> "" -> ()
    | Ok audio -> ignore (Audio.destroy audio); fail "malformed audio loaded"
@@ -91,6 +111,18 @@ let () =
   let sine = get (Audio.create_sine mixer ~frequency:440 ~amplitude:0.25
       ~duration_ms:100) in
   if get (Audio.duration_frames sine) <= 0L then fail "sine has no duration";
+  (match Audio.create_sine mixer ~frequency:0 ~amplitude:0.25 ~duration_ms:1 with
+   | Error { kind = Invalid_argument; _ } -> ()
+   | Ok audio -> ignore (Audio.destroy audio); fail "zero-frequency sine succeeded"
+   | Error _ -> fail "zero-frequency sine returned the wrong error");
+  (match Audio.create_sine mixer ~frequency:440 ~amplitude:nan ~duration_ms:1 with
+   | Error { kind = Invalid_argument; _ } -> ()
+   | Ok audio -> ignore (Audio.destroy audio); fail "NaN-amplitude sine succeeded"
+   | Error _ -> fail "NaN-amplitude sine returned the wrong error");
+  (match Audio.create_sine mixer ~frequency:440 ~amplitude:0.1 ~duration_ms:0 with
+   | Error { kind = Invalid_argument; _ } -> ()
+   | Ok audio -> ignore (Audio.destroy audio); fail "zero-duration sine succeeded"
+   | Error _ -> fail "zero-duration sine returned the wrong error");
   let track = get (Track.create mixer) in
   get (Track.set_audio track sine);
   get (Track.set_gain track 0.5);
@@ -126,6 +158,10 @@ let () =
    | Ok _ | Error _ -> fail "stale track access was not rejected");
   get (Mixer.destroy mixer);
   get (Mixer.destroy mixer);
+  (match Track.create mixer with
+   | Error { kind = Destroyed; _ } -> ()
+   | Ok track -> ignore (Track.destroy track); fail "track used destroyed mixer"
+   | Error _ -> fail "destroyed-mixer track returned the wrong error");
 
   let device = get (Mixer.create_device ()) in
   if Mixer.mode device <> Mixer.Device then fail "device mixer mode changed";

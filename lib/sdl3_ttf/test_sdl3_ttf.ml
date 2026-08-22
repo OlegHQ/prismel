@@ -88,8 +88,16 @@ let () =
    | Error { kind = Invalid_argument; _ } -> ()
    | Ok font -> ignore (Font.destroy font); fail "NaN font size was accepted"
    | Error _ -> fail "NaN font size returned the wrong error");
+  (match Font.open_file ~path:"" ~size:18. with
+   | Error { kind = Invalid_argument; _ } -> ()
+   | Ok font -> ignore (Font.destroy font); fail "empty font path opened"
+   | Error _ -> fail "empty font path returned the wrong error");
   (match Font.open_file ~path:"/definitely/missing/font.ttf" ~size:18. with
-   | Error { kind = Ttf_error; message; _ } when message <> "" -> ()
+   | Error ({ kind = Ttf_error; message; _ } as captured) when message <> "" ->
+       let original = captured.message in
+       ignore (Version.linked ());
+       if captured.message <> original then
+         fail "TTF error text changed after a subsequent native call"
    | Ok font -> ignore (Font.destroy font); fail "missing font opened"
    | Error _ -> fail "missing font returned the wrong error");
 
@@ -105,6 +113,15 @@ let () =
   if width <= 0 || height <= 0 then fail "UTF-8 text metrics are empty";
   if get_ttf (Font.size_text font "") <> (0, 0) then
     fail "empty text metrics are not a safe no-op";
+  (match Font.size_text font "bad\x00text" with
+   | Error { kind = Invalid_argument; _ } -> ()
+   | Ok _ | Error _ -> fail "NUL text metrics were accepted");
+  (match Font.render_blended font ~color:(256, 0, 0, 255) "bad" with
+   | Error { kind = Invalid_argument; _ } -> ()
+   | Ok _ | Error _ -> fail "out-of-range text color was accepted");
+  (match Font.render_blended font ~color:(0, 0, 0, 255) "bad\x00text" with
+   | Error { kind = Invalid_argument; _ } -> ()
+   | Ok _ | Error _ -> fail "NUL raster text was accepted");
   (match get_ttf (Font.render_blended font ~color:(12, 34, 56, 200) "") with
    | None -> ()
    | Some surface -> ignore (Surface.destroy surface);
