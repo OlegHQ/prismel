@@ -1,0 +1,296 @@
+{
+  "callback_calling_convention": "default-c",
+  "compiler": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
+  "constants": {
+    "SDL_EVENT_DROP_BEGIN": 4098,
+    "SDL_EVENT_DROP_COMPLETE": 4099,
+    "SDL_EVENT_DROP_FILE": 4096,
+    "SDL_EVENT_DROP_TEXT": 4097,
+    "SDL_EVENT_FINGER_DOWN": 1792,
+    "SDL_EVENT_FINGER_MOTION": 1794,
+    "SDL_EVENT_FINGER_UP": 1793,
+    "SDL_EVENT_GAMEPAD_AXIS_MOTION": 1616,
+    "SDL_EVENT_GAMEPAD_BUTTON_DOWN": 1617,
+    "SDL_EVENT_GAMEPAD_BUTTON_UP": 1618,
+    "SDL_EVENT_KEY_DOWN": 768,
+    "SDL_EVENT_KEY_UP": 769,
+    "SDL_EVENT_MOUSE_BUTTON_DOWN": 1025,
+    "SDL_EVENT_MOUSE_BUTTON_UP": 1026,
+    "SDL_EVENT_MOUSE_MOTION": 1024,
+    "SDL_EVENT_MOUSE_WHEEL": 1027,
+    "SDL_EVENT_PEN_AXIS": 4871,
+    "SDL_EVENT_PEN_BUTTON_DOWN": 4868,
+    "SDL_EVENT_PEN_BUTTON_UP": 4869,
+    "SDL_EVENT_PEN_DOWN": 4866,
+    "SDL_EVENT_PEN_MOTION": 4870,
+    "SDL_EVENT_PEN_UP": 4867,
+    "SDL_EVENT_QUIT": 256,
+    "SDL_EVENT_TEXT_EDITING": 770,
+    "SDL_EVENT_TEXT_INPUT": 771,
+    "SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED": 519,
+    "SDL_EVENT_WINDOW_RESIZED": 518,
+    "SDL_INIT_AUDIO": 16,
+    "SDL_INIT_CAMERA": 65536,
+    "SDL_INIT_EVENTS": 16384,
+    "SDL_INIT_GAMEPAD": 8192,
+    "SDL_INIT_HAPTIC": 4096,
+    "SDL_INIT_JOYSTICK": 512,
+    "SDL_INIT_SENSOR": 32768,
+    "SDL_INIT_VIDEO": 32,
+    "SDL_WINDOW_FULLSCREEN": 1,
+    "SDL_WINDOW_HIDDEN": 8,
+    "SDL_WINDOW_HIGH_PIXEL_DENSITY": 8192,
+    "SDL_WINDOW_METAL": 536870912,
+    "SDL_WINDOW_RESIZABLE": 32
+  },
+  "generator": "prismel-sdl3-clang-inventory-v1",
+  "header_aggregate_sha256": "ae5110d736ba19ecda1f5113a976f7a00ef264a1160b287f4ff48b3dd9cee279",
+  "header_version": {
+    "major": 3,
+    "minor": 4,
+    "patch": 14
+  },
+  "schema": 1,
+  "target_triple": "arm64-apple-darwin25.4.0",
+  "types": {
+    "SDL_AudioDeviceEvent": {
+      "alignment": 8,
+      "offsets": {
+        "recording": 20,
+        "timestamp": 8,
+        "type": 0,
+        "which": 16
+      },
+      "size": 24
+    },
+    "SDL_CommonEvent": {
+      "alignment": 8,
+      "offsets": {
+        "timestamp": 8,
+        "type": 0
+      },
+      "size": 16
+    },
+    "SDL_DisplayEvent": {
+      "alignment": 8,
+      "offsets": {
+        "data1": 20,
+        "data2": 24,
+        "displayID": 16,
+        "timestamp": 8,
+        "type": 0
+      },
+      "size": 32
+    },
+    "SDL_DropEvent": {
+      "alignment": 8,
+      "offsets": {
+        "data": 40,
+        "source": 32,
+        "timestamp": 8,
+        "type": 0,
+        "windowID": 16,
+        "x": 20,
+        "y": 24
+      },
+      "size": 48
+    },
+    "SDL_Event": {
+      "alignment": 8,
+      "offsets": {},
+      "size": 128
+    },
+    "SDL_GamepadAxisEvent": {
+      "alignment": 8,
+      "offsets": {
+        "axis": 20,
+        "timestamp": 8,
+        "type": 0,
+        "value": 24,
+        "which": 16
+      },
+      "size": 32
+    },
+    "SDL_GamepadButtonEvent": {
+      "alignment": 8,
+      "offsets": {
+        "button": 20,
+        "down": 21,
+        "timestamp": 8,
+        "type": 0,
+        "which": 16
+      },
+      "size": 24
+    },
+    "SDL_KeyboardEvent": {
+      "alignment": 8,
+      "offsets": {
+        "down": 36,
+        "key": 28,
+        "mod": 32,
+        "raw": 34,
+        "repeat": 37,
+        "scancode": 24,
+        "timestamp": 8,
+        "type": 0,
+        "which": 20,
+        "windowID": 16
+      },
+      "size": 40
+    },
+    "SDL_MouseButtonEvent": {
+      "alignment": 8,
+      "offsets": {
+        "button": 24,
+        "clicks": 26,
+        "down": 25,
+        "timestamp": 8,
+        "type": 0,
+        "which": 20,
+        "windowID": 16,
+        "x": 28,
+        "y": 32
+      },
+      "size": 40
+    },
+    "SDL_MouseMotionEvent": {
+      "alignment": 8,
+      "offsets": {
+        "state": 24,
+        "timestamp": 8,
+        "type": 0,
+        "which": 20,
+        "windowID": 16,
+        "x": 28,
+        "xrel": 36,
+        "y": 32,
+        "yrel": 40
+      },
+      "size": 48
+    },
+    "SDL_MouseWheelEvent": {
+      "alignment": 8,
+      "offsets": {
+        "direction": 32,
+        "integer_x": 44,
+        "integer_y": 48,
+        "mouse_x": 36,
+        "mouse_y": 40,
+        "timestamp": 8,
+        "type": 0,
+        "which": 20,
+        "windowID": 16,
+        "x": 24,
+        "y": 28
+      },
+      "size": 56
+    },
+    "SDL_PenAxisEvent": {
+      "alignment": 8,
+      "offsets": {
+        "axis": 36,
+        "pen_state": 24,
+        "timestamp": 8,
+        "type": 0,
+        "value": 40,
+        "which": 20,
+        "windowID": 16,
+        "x": 28,
+        "y": 32
+      },
+      "size": 48
+    },
+    "SDL_PenButtonEvent": {
+      "alignment": 8,
+      "offsets": {
+        "button": 36,
+        "down": 37,
+        "pen_state": 24,
+        "timestamp": 8,
+        "type": 0,
+        "which": 20,
+        "windowID": 16,
+        "x": 28,
+        "y": 32
+      },
+      "size": 40
+    },
+    "SDL_PenMotionEvent": {
+      "alignment": 8,
+      "offsets": {
+        "pen_state": 24,
+        "timestamp": 8,
+        "type": 0,
+        "which": 20,
+        "windowID": 16,
+        "x": 28,
+        "y": 32
+      },
+      "size": 40
+    },
+    "SDL_PenTouchEvent": {
+      "alignment": 8,
+      "offsets": {
+        "down": 37,
+        "eraser": 36,
+        "pen_state": 24,
+        "timestamp": 8,
+        "type": 0,
+        "which": 20,
+        "windowID": 16,
+        "x": 28,
+        "y": 32
+      },
+      "size": 40
+    },
+    "SDL_TextEditingEvent": {
+      "alignment": 8,
+      "offsets": {
+        "length": 36,
+        "start": 32,
+        "text": 24,
+        "timestamp": 8,
+        "type": 0,
+        "windowID": 16
+      },
+      "size": 40
+    },
+    "SDL_TextInputEvent": {
+      "alignment": 8,
+      "offsets": {
+        "text": 24,
+        "timestamp": 8,
+        "type": 0,
+        "windowID": 16
+      },
+      "size": 32
+    },
+    "SDL_TouchFingerEvent": {
+      "alignment": 8,
+      "offsets": {
+        "dx": 40,
+        "dy": 44,
+        "fingerID": 24,
+        "pressure": 48,
+        "timestamp": 8,
+        "touchID": 16,
+        "type": 0,
+        "windowID": 52,
+        "x": 32,
+        "y": 36
+      },
+      "size": 56
+    },
+    "SDL_WindowEvent": {
+      "alignment": 8,
+      "offsets": {
+        "data1": 20,
+        "data2": 24,
+        "timestamp": 8,
+        "type": 0,
+        "windowID": 16
+      },
+      "size": 32
+    }
+  }
+}
