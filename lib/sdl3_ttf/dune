@@ -1,7 +1,7 @@
 (executable
  (name discover)
  (modules discover)
- (libraries dune-configurator))
+ (libraries sdl3_discovery))
 
 (rule
  (targets c_flags.sexp c_library_flags.sexp)

@@ -99,3 +99,27 @@ device failure.  Wap's integration test streams every typed sample/music
 command through an authenticated WebSocket and checks the exact bounded wire
 encoding, preserving web mirroring without putting protocol strings in the
 mixer or Runtime-facing audio API.
+
+## Packaging and discovery
+
+All four bindings are ordinary `prismel.*` Dune libraries.  The standalone
+`packaging/conf-sdl3*` opam definitions own only exact stable native dependency
+probes; they do not contain implementation or build glue.  Each probe checks
+pkg-config, while `tools/packaging/check_sdl3_conf.ml` additionally compiles,
+links, and runs a header/runtime version probe.
+
+One shared OCaml configurator implements discovery for the core and extension
+libraries.  Dynamic pkg-config linkage is the default.  With
+`PRISMEL_SDL3_LINK_MODE=static`, it requests private dependency flags and
+replaces the component's `-lSDL3*` flag with a resolved archive path.  Missing
+metadata or an absent archive is an error rather than a dynamic fallback.
+Component-specific `*_INCLUDE_DIR` and `*_LIB_DIR` variables provide validated
+explicit paths, with the explicit path ordered before pkg-config headers.
+
+The hermetic discovery test runs every component through dynamic, static, and
+explicit-path cases without depending on the host's Homebrew state, in both
+development and release profiles.  The installed-consumer checker installs a
+relocatable package prefix, confirms `ocamlfind` resolves every SDL3 package
+inside it, and builds and executes an independent Dune project outside the
+checkout.  This distinguishes source-tree success from a usable installed
+package.

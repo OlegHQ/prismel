@@ -1,3 +1,26 @@
+(library
+ (name sdl3_discovery)
+ (wrapped false)
+ (modules sdl3_discovery)
+ (libraries dune-configurator unix))
+
 (executable
  (name check_sdl3_conf)
+ (modules check_sdl3_conf)
  (libraries dune-configurator unix))
+
+(executable
+ (name check_installed_consumer)
+ (modules check_installed_consumer)
+ (libraries unix))
+
+(test
+ (name test_sdl3_discovery)
+ (modules test_sdl3_discovery)
+ (libraries unix)
+ (action
+  (run %{test}
+   %{exe:../../lib/sdl3/discover.exe}
+   %{exe:../../lib/sdl3_image/discover.exe}
+   %{exe:../../lib/sdl3_ttf/discover.exe}
+   %{exe:../../lib/sdl3_mixer/discover.exe})))
