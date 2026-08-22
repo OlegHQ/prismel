@@ -31,6 +31,12 @@ external window_position : nativeint -> (int * int) option
   = "caml_sdl3_window_position"
 external set_window_position : nativeint -> int -> int -> bool
   = "caml_sdl3_set_window_position"
+external set_window_size : nativeint -> int -> int -> bool
+  = "caml_sdl3_set_window_size"
+external maximize_window : nativeint -> bool = "caml_sdl3_maximize_window"
+external minimize_window : nativeint -> bool = "caml_sdl3_minimize_window"
+external restore_window : nativeint -> bool = "caml_sdl3_restore_window"
+external sync_window : nativeint -> bool = "caml_sdl3_sync_window"
 
 external displays : unit -> int64 array option = "caml_sdl3_displays"
 external primary_display : unit -> int64 = "caml_sdl3_primary_display"

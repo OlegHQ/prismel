@@ -95,10 +95,15 @@ module Window : sig
   val display_scale : t -> (float, error) result
   val position : t -> (int * int, error) result
   val set_position : t -> x:int -> y:int -> (unit, error) result
+  val set_size : t -> width:int -> height:int -> (unit, error) result
   val flags : t -> (int64, error) result
   val show : t -> (unit, error) result
   val hide : t -> (unit, error) result
+  val maximize : t -> (unit, error) result
+  val minimize : t -> (unit, error) result
+  val restore : t -> (unit, error) result
   val set_fullscreen : t -> bool -> (unit, error) result
+  val sync : t -> (unit, error) result
   val destroy : t -> (unit, error) result
 end
 

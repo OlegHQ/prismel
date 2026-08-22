@@ -1,3 +1,5 @@
+module System_thread = Thread
+
 open Sdl3
 
 let fail message = failwith ("SDL3 Metal test: " ^ message)
@@ -10,7 +12,8 @@ let () =
     get (Init.init [Init.Video; Init.Events]);
     let window = get (Window.create ~title:"SDL3 Metal bridge test"
         ~width:64 ~height:48
-        ~flags:[Window.Hidden; Window.High_pixel_density; Window.Metal] ()) in
+        ~flags:[Window.Hidden; Window.Resizable; Window.High_pixel_density;
+          Window.Metal] ()) in
     let logical_width, logical_height = get (Window.size window) in
     let pixel_width, pixel_height = get (Window.size_in_pixels window) in
     let density = get (Window.pixel_density window) in
@@ -21,6 +24,58 @@ let () =
       fail "logical/drawable sizes disagree with the reported pixel density";
     ignore (get (Window.display_scale window));
     ignore (get (Display.name (get (Window.display window))));
+    get (Window.set_size window ~width:80 ~height:60);
+    get (Window.sync window);
+    if get (Window.size window) <> (80, 60) then
+      fail "native synchronized resize changed logical dimensions";
+    let resized_pixel_width, resized_pixel_height =
+      get (Window.size_in_pixels window)
+    in
+    if abs_float ((float_of_int resized_pixel_width /. 80.) -. density) > 0.01
+        || abs_float ((float_of_int resized_pixel_height /. 60.) -. density)
+          > 0.01 then
+      fail "native resize double-scaled logical dimensions";
+    let has_flag flag bits = Int64.logand bits flag <> 0L in
+    let await_flag ~label flag expected =
+      let deadline = Unix.gettimeofday () +. 3. in
+      let rec loop () =
+        ignore (get (Event.poll_all ()));
+        let actual = has_flag flag (get (Window.flags window)) in
+        if actual = expected then ()
+        else if Unix.gettimeofday () >= deadline then
+          fail (label ^ " did not reach the requested native window state")
+        else begin
+          System_thread.delay 0.01;
+          loop ()
+        end
+      in
+      loop ()
+    in
+    get (Window.show window);
+    get (Window.sync window);
+    get (Window.minimize window);
+    get (Window.sync window);
+    await_flag ~label:"minimize" 0x40L true;
+    get (Window.restore window);
+    get (Window.sync window);
+    await_flag ~label:"restore from minimize" 0x40L false;
+    get (Window.maximize window);
+    get (Window.sync window);
+    await_flag ~label:"maximize" 0x80L true;
+    get (Window.restore window);
+    get (Window.sync window);
+    await_flag ~label:"restore from maximize" 0x80L false;
+    let displays = get (Display.all ()) in
+    (match displays with
+     | _current :: target :: _ ->
+         let bounds = get (Display.bounds target) in
+         get (Window.set_position window ~x:(bounds.x + 16) ~y:(bounds.y + 16));
+         get (Window.sync window);
+         if Display.id (get (Window.display window)) <> Display.id target then
+           fail "native monitor move did not update the window display"
+     | [] | [_] -> ());
+    get (Window.hide window);
+    get (Window.sync window);
     let view = get (Metal_view.create window) in
     ignore (get (Metal_view.layer view));
     (match Domain.spawn (fun () -> Metal_view.layer view) |> Domain.join with

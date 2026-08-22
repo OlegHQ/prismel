@@ -189,6 +189,39 @@ CAMLprim value caml_sdl3_set_window_position(value raw, value x, value y)
       window_of_value(raw), Int_val(x), Int_val(y)));
 }
 
+CAMLprim value caml_sdl3_set_window_size(value raw, value width, value height)
+{
+  return Val_bool(SDL_SetWindowSize(
+      window_of_value(raw), Int_val(width), Int_val(height)));
+}
+
+CAMLprim value caml_sdl3_maximize_window(value raw)
+{
+  return Val_bool(SDL_MaximizeWindow(window_of_value(raw)));
+}
+
+CAMLprim value caml_sdl3_minimize_window(value raw)
+{
+  return Val_bool(SDL_MinimizeWindow(window_of_value(raw)));
+}
+
+CAMLprim value caml_sdl3_restore_window(value raw)
+{
+  return Val_bool(SDL_RestoreWindow(window_of_value(raw)));
+}
+
+CAMLprim value caml_sdl3_sync_window(value raw)
+{
+  SDL_Window *window;
+  bool success;
+  CAMLparam1(raw);
+  window = window_of_value(raw);
+  caml_release_runtime_system();
+  success = SDL_SyncWindow(window);
+  caml_acquire_runtime_system();
+  CAMLreturn(Val_bool(success));
+}
+
 CAMLprim value caml_sdl3_displays(value unit)
 {
   SDL_DisplayID *displays;

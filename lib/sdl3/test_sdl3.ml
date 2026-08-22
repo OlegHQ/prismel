@@ -22,7 +22,7 @@ let () =
   if not (get (Init.initialized [Init.Video; Init.Events])) then
     fail "initialized subsystem mask was not retained";
   let window = get (Window.create ~title:"SDL3 ownership test" ~width:96 ~height:64
-      ~flags:[Window.Hidden] ()) in
+      ~flags:[Window.Hidden; Window.Resizable] ()) in
   if Window.destroyed window then fail "new window starts destroyed";
   let window_id = get (Window.id window) in
   if window_id = 0L then fail "window ID is zero";
@@ -33,6 +33,9 @@ let () =
   let display_scale = get (Window.display_scale window) in
   if pixel_density < 1. || display_scale <= 0. then
     fail "window DPI facts are invalid";
+  if abs_float (pixel_density -. 1.) > 0.000_001
+      || pixel_width <> 96 || pixel_height <> 64 then
+    fail "dummy-video window is not a 1x logical/drawable fixture";
   let displays = get (Display.all ()) in
   if displays = [] then fail "dummy video reported no displays";
   let primary = get (Display.primary ()) in
@@ -48,6 +51,34 @@ let () =
     fail "display bounds or scale are invalid";
   get (Window.set_position window ~x:11 ~y:13);
   ignore (get (Window.position window));
+  get (Window.set_size window ~width:112 ~height:72);
+  get (Window.sync window);
+  if get (Window.size window) <> (112, 72)
+      || get (Window.size_in_pixels window) <> (112, 72) then
+    fail "synchronized 1x window resize changed logical/drawable size";
+  (match Window.set_size window ~width:0 ~height:72 with
+   | Error { kind = Invalid_argument; _ } -> ()
+   | Ok () | Error _ -> fail "invalid window resize was not rejected");
+  let has_flag flag bits = Int64.logand bits flag <> 0L in
+  get (Window.show window);
+  get (Window.sync window);
+  if has_flag 0x8L (get (Window.flags window)) then
+    fail "shown window retained the hidden flag";
+  get (Window.set_fullscreen window true);
+  get (Window.sync window);
+  if not (has_flag 0x1L (get (Window.flags window))) then
+    fail "fullscreen transition did not update flags";
+  get (Window.set_fullscreen window false);
+  get (Window.sync window);
+  if has_flag 0x1L (get (Window.flags window)) then
+    fail "window did not leave fullscreen";
+  (match Window.minimize window with
+   | Error { kind = Sdl_error; message; _ } when message <> "" -> ()
+   | Ok () | Error _ -> fail "dummy driver did not report unsupported minimize");
+  get (Window.hide window);
+  get (Window.sync window);
+  if not (has_flag 0x8L (get (Window.flags window))) then
+    fail "hidden transition did not update flags";
   get (Text_input.set_area window
     (Some { x = 3; y = 4; width = 40; height = 16 }) ~cursor:7);
   (match get (Text_input.area window) with
@@ -93,6 +124,8 @@ let () =
     (Domain.spawn Clipboard.has_text |> Domain.join);
   expect_wrong_domain "text-input query"
     (Domain.spawn (fun () -> Text_input.active window) |> Domain.join);
+  expect_wrong_domain "window synchronization"
+    (Domain.spawn (fun () -> Window.sync window) |> Domain.join);
   let wrong_domain = Domain.spawn (fun () ->
     Window.create ~title:"wrong domain" ~width:8 ~height:8 ()) |> Domain.join in
   (match wrong_domain with

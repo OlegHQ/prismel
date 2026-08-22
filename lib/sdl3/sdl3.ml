@@ -250,10 +250,15 @@ module rec Window : sig
   val display_scale : t -> (float, error) result
   val position : t -> (int * int, error) result
   val set_position : t -> x:int -> y:int -> (unit, error) result
+  val set_size : t -> width:int -> height:int -> (unit, error) result
   val flags : t -> (int64, error) result
   val show : t -> (unit, error) result
   val hide : t -> (unit, error) result
+  val maximize : t -> (unit, error) result
+  val minimize : t -> (unit, error) result
+  val restore : t -> (unit, error) result
   val set_fullscreen : t -> bool -> (unit, error) result
+  val sync : t -> (unit, error) result
   val destroy : t -> (unit, error) result
 end = struct
   type flag =
@@ -351,6 +356,15 @@ end = struct
         if Private_raw.set_window_position raw x y then Ok ()
         else sdl_error "SDL3.Window.set_position")
 
+  let set_size value ~width ~height =
+    let operation = "SDL3.Window.set_size" in
+    if width <= 0 || height <= 0 then
+      error operation Invalid_argument "window dimensions must be positive"
+    else live operation value (fun raw ->
+      Private_raw.clear_error ();
+      if Private_raw.set_window_size raw width height then Ok ()
+      else sdl_error operation)
+
   let flags value = live "SDL3.Window.flags" value (fun raw ->
     Ok (Private_raw.window_flags raw))
 
@@ -360,11 +374,15 @@ end = struct
 
   let show = bool_call "SDL3.Window.show" Private_raw.show_window
   let hide = bool_call "SDL3.Window.hide" Private_raw.hide_window
+  let maximize = bool_call "SDL3.Window.maximize" Private_raw.maximize_window
+  let minimize = bool_call "SDL3.Window.minimize" Private_raw.minimize_window
+  let restore = bool_call "SDL3.Window.restore" Private_raw.restore_window
   let set_fullscreen value enabled = live "SDL3.Window.set_fullscreen" value
       (fun raw ->
         Private_raw.clear_error ();
         if Private_raw.set_window_fullscreen raw enabled then Ok ()
         else sdl_error "SDL3.Window.set_fullscreen")
+  let sync = bool_call "SDL3.Window.sync" Private_raw.sync_window
 
   let destroy value = on_main "SDL3.Window.destroy" (fun () ->
     if value.destroyed then Ok ()
