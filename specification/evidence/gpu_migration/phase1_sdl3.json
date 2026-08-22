@@ -1,0 +1,401 @@
+{
+  "captured_at": "2026-08-22T20:32:48+02:00",
+  "environment": {
+    "architecture": "arm64",
+    "clang": "Apple clang 21.0.0 (clang-2100.1.1.101)",
+    "gpu": "Apple M1",
+    "machine": "Macmini9,1",
+    "macos": "26.4.1 (25E253)",
+    "macos_sdk": "26.5",
+    "memory": "16 GB"
+  },
+  "fresh_bootstrap": {
+    "build_all": "pass",
+    "build_doc": "pass",
+    "checkout": "/private/tmp/prismel-sdl3-clean.OR9d4e",
+    "commands": [
+      "opam switch create . 5.3.0 --no-install",
+      "opam pin add --no-action --yes --recursive ./packaging",
+      "opam install . --deps-only --with-test --with-doc --assume-depexts --yes",
+      "opam exec -- dune build @all @doc",
+      "opam exec -- dune runtest --force",
+      "opam exec -- dune runtest --profile release tools/packaging --force",
+      "opam exec -- dune exec tools/packaging/check_installed_consumer.exe -- --root . --profile dev",
+      "opam exec -- dune exec --profile release tools/packaging/check_installed_consumer.exe -- --root . --profile release"
+    ],
+    "commit": "7a4ed29ca0e66f89d751d9acb03073fda0344cbf",
+    "consumer_dev": "pass",
+    "consumer_release": "pass",
+    "dirty": false,
+    "dune": "3.20.2",
+    "legacy_sdl2_depext_context": "The transitional SDL2 dependency asks Homebrew for sdl2 while the qualified host has sdl2-compat 2.32.70. The explicit opam depext bypass applies only to that legacy package; all four SDL3 conf packages executed their exact pkg-config probes. Phase 5 removes every SDL2 dependency.",
+    "ocaml": "5.3.0",
+    "packaging_release": "pass",
+    "result": "pass",
+    "runtest": "pass",
+    "switch": "/private/tmp/prismel-sdl3-clean.OR9d4e"
+  },
+  "gates": [
+    {
+      "artifacts": [
+        "lib/sdl3/generated_inventory.json",
+        "lib/sdl3_image/generated_inventory.json",
+        "lib/sdl3_ttf/generated_inventory.json",
+        "lib/sdl3_mixer/generated_inventory.json"
+      ],
+      "commands": [
+        "opam exec -- dune runtest lib/sdl3 lib/sdl3_image lib/sdl3_ttf lib/sdl3_mixer --force"
+      ],
+      "commit": "7a4ed29ca0e66f89d751d9acb03073fda0344cbf",
+      "dirty": false,
+      "gate": "S1",
+      "result": "pass",
+      "reviewer": "pending-independent-final-signoff",
+      "summary": "Pinned header, linked-library, provenance, and exact stable-version checks pass for SDL3 3.4.14, SDL3_image 3.4.4, SDL3_ttf 3.2.2, and SDL3_mixer 3.2.4."
+    },
+    {
+      "artifacts": [
+        "lib/sdl3/generated_layout.json",
+        "lib/sdl3/generated_abi.h",
+        "layout identity 52f1e8361d07b67fad925c1b7aee9303e50fd195a6673944a298249bda23d2b0"
+      ],
+      "commands": [
+        "opam exec -- dune runtest lib/sdl3 lib/sdl3_image lib/sdl3_ttf lib/sdl3_mixer --force",
+        "shasum -a 256 lib/sdl3/generated_layout.json",
+        "shasum -a 256 <dev|release|address|undefined>/lib/sdl3/generated_abi.h"
+      ],
+      "commit": "7a4ed29ca0e66f89d751d9acb03073fda0344cbf",
+      "dirty": false,
+      "gate": "S2",
+      "result": "pass",
+      "reviewer": "pending-independent-final-signoff",
+      "summary": "All four inventories contain zero unreviewed symbols; compiled ABI checks cover sizes, alignments, offsets, constants, callbacks, and the event union. Dev, release, ASan, and UBSan consume the identical generated layout and derived ABI header."
+    },
+    {
+      "artifacts": [
+        "tools/packaging/check_sdl3_memory.ml",
+        "10 ASan + 10 UBSan + 10 Instruments Leaks checks"
+      ],
+      "commands": [
+        "opam exec -- dune exec tools/packaging/check_sdl3_memory.exe -- --mode leaks --artifacts _build/default --fixtures test/sdl3_image_fixtures",
+        "ASAN_OPTIONS=use_sigaltstack=0:detect_leaks=0 /private/tmp/prismel-sdl3-asan-7a4ed29/default/tools/packaging/check_sdl3_memory.exe --mode address --artifacts /private/tmp/prismel-sdl3-asan-7a4ed29/default --fixtures /private/tmp/prismel-sdl3-clean.OR9d4e/test/sdl3_image_fixtures --asan-suppressions /private/tmp/prismel-sdl3-clean.OR9d4e/tools/packaging/sdl3_asan.supp",
+        "/private/tmp/prismel-sdl3-ubsan-7a4ed29/default/tools/packaging/check_sdl3_memory.exe --mode undefined --artifacts /private/tmp/prismel-sdl3-ubsan-7a4ed29/default --fixtures /private/tmp/prismel-sdl3-clean.OR9d4e/test/sdl3_image_fixtures"
+      ],
+      "commit": "7a4ed29ca0e66f89d751d9acb03073fda0344cbf",
+      "dirty": false,
+      "gate": "S3",
+      "result": "pass",
+      "reviewer": "pending-independent-final-signoff",
+      "summary": "Owned, borrowed, null, idempotent-destroy, stale-handle, captured-error, constructor/decoder failure, and 100,000-cycle ownership paths pass with zero reported sanitizer or leak diagnostics."
+    },
+    {
+      "artifacts": [
+        "lib/sdl3/test_sdl3_events.ml",
+        "33-event typed trace and Runtime-shaped Prismel trace"
+      ],
+      "commands": [
+        "SDL_VIDEODRIVER=dummy opam exec -- dune exec lib/sdl3/test_sdl3_events.exe",
+        "opam exec -- dune runtest lib/sdl3 --force"
+      ],
+      "commit": "7a4ed29ca0e66f89d751d9acb03073fda0344cbf",
+      "dirty": false,
+      "gate": "S4",
+      "result": "pass",
+      "reviewer": "pending-independent-final-signoff",
+      "summary": "Ordered key, UTF-8/IME, mouse, touch, pen, wheel, focus, cancel, resize/expose/display, gamepad, and copied file-drop payloads translate into the frozen logical-coordinate contract with summed frame mouse delta."
+    },
+    {
+      "artifacts": [
+        "lib/sdl3/test_sdl3.ml",
+        "lib/sdl3/sdl3.mli"
+      ],
+      "commands": [
+        "SDL_VIDEODRIVER=dummy opam exec -- dune exec lib/sdl3/test_sdl3.exe",
+        "opam exec -- dune runtest lib/sdl3 --force"
+      ],
+      "commit": "7a4ed29ca0e66f89d751d9acb03073fda0344cbf",
+      "dirty": false,
+      "gate": "S5",
+      "result": "pass",
+      "reviewer": "pending-independent-final-signoff",
+      "summary": "Runtime-used APIs have enforced main-domain classes, wrong-domain calls fail in validation, documented blocking waits release the runtime lock safely, and callback policy prevents OCaml execution on foreign threads."
+    },
+    {
+      "artifacts": [
+        "lib/sdl3/test_sdl3_metal.ml",
+        "lib/sdl3/test_sdl3_stress.ml"
+      ],
+      "commands": [
+        "opam exec -- dune exec lib/sdl3/test_sdl3_metal.exe",
+        "SDL_VIDEODRIVER=dummy opam exec -- dune exec lib/sdl3/test_sdl3_stress.exe"
+      ],
+      "commit": "7a4ed29ca0e66f89d751d9acb03073fda0344cbf",
+      "dirty": false,
+      "gate": "S6",
+      "result": "pass",
+      "reviewer": "pending-independent-final-signoff",
+      "summary": "Real Retina SDL3 window/CAMetalLayer ownership, logical/pixel dimensions, display-scale transitions, resize/fullscreen/minimize/restore/display movement, hidden/dummy modes, and repeated recreation pass."
+    },
+    {
+      "artifacts": [
+        "test/sdl3_image_fixtures",
+        "lib/sdl3_ttf/test_sdl3_ttf.ml",
+        "lib/sdl3_mixer/test_sdl3_mixer.ml"
+      ],
+      "commands": [
+        "SDL_VIDEODRIVER=dummy opam exec -- dune exec lib/sdl3_image/test_sdl3_image.exe -- test/sdl3_image_fixtures",
+        "SDL_VIDEODRIVER=dummy opam exec -- dune exec lib/sdl3_ttf/test_sdl3_ttf.exe",
+        "SDL_AUDIODRIVER=dummy opam exec -- dune exec lib/sdl3_mixer/test_sdl3_mixer.exe",
+        "opam exec -- dune runtest --force"
+      ],
+      "commit": "7a4ed29ca0e66f89d751d9acb03073fda0344cbf",
+      "dirty": false,
+      "gate": "S7",
+      "result": "pass",
+      "reviewer": "pending-independent-final-signoff",
+      "summary": "All 19 image formats plus alpha/orientation/reload failures, font discovery/UTF-8/metrics/density/cache mutation/256-entry LRU, and mixer file/memory/device/track lifecycle plus exact web mirroring pass."
+    },
+    {
+      "artifacts": [
+        "packaging/conf-sdl3*/conf-sdl3*.opam",
+        "tools/packaging/test_sdl3_discovery.ml",
+        "tools/packaging/check_installed_consumer.ml",
+        "/private/tmp/prismel-sdl3-clean.OR9d4e"
+      ],
+      "commands": [
+        "opam switch create . 5.3.0 --no-install",
+        "opam pin add --no-action --yes --recursive ./packaging",
+        "opam install . --deps-only --with-test --with-doc --assume-depexts --yes",
+        "opam exec -- dune build @all @doc",
+        "opam exec -- dune runtest --force",
+        "opam exec -- dune runtest --profile release tools/packaging --force",
+        "opam exec -- dune exec tools/packaging/check_installed_consumer.exe -- --root . --profile dev",
+        "opam exec -- dune exec --profile release tools/packaging/check_installed_consumer.exe -- --root . --profile release"
+      ],
+      "commit": "7a4ed29ca0e66f89d751d9acb03073fda0344cbf",
+      "dirty": false,
+      "gate": "S8",
+      "result": "pass",
+      "reviewer": "pending-independent-final-signoff",
+      "summary": "A clean detached checkout with its own OCaml 5.3 switch resolves the four exact conf probes, builds all code/docs, passes the full suite and both profiles' dynamic/static/explicit discovery, then installs and runs external consumers without source paths."
+    }
+  ],
+  "implementation_commit": "7a4ed29ca0e66f89d751d9acb03073fda0344cbf",
+  "implementation_dirty": false,
+  "inventories": [
+    {
+      "classification_counts": {
+        "not-applicable": 0,
+        "platform-excluded": 0,
+        "raw-only": 3345,
+        "safe": 58,
+        "unreviewed": 0
+      },
+      "function_count": 1246,
+      "header_version": {
+        "major": 3,
+        "minor": 4,
+        "patch": 14
+      },
+      "id": "sdl3",
+      "path": "lib/sdl3/generated_inventory.json"
+    },
+    {
+      "classification_counts": {
+        "not-applicable": 0,
+        "platform-excluded": 0,
+        "raw-only": 142,
+        "safe": 3,
+        "unreviewed": 0
+      },
+      "function_count": 102,
+      "header_version": {
+        "major": 3,
+        "minor": 4,
+        "patch": 4
+      },
+      "id": "sdl3_image",
+      "path": "lib/sdl3_image/generated_inventory.json"
+    },
+    {
+      "classification_counts": {
+        "not-applicable": 0,
+        "platform-excluded": 0,
+        "raw-only": 166,
+        "safe": 17,
+        "unreviewed": 0
+      },
+      "function_count": 117,
+      "header_version": {
+        "major": 3,
+        "minor": 2,
+        "patch": 2
+      },
+      "id": "sdl3_ttf",
+      "path": "lib/sdl3_ttf/generated_inventory.json"
+    },
+    {
+      "classification_counts": {
+        "not-applicable": 0,
+        "platform-excluded": 0,
+        "raw-only": 121,
+        "safe": 30,
+        "unreviewed": 0
+      },
+      "function_count": 94,
+      "header_version": {
+        "major": 3,
+        "minor": 2,
+        "patch": 4
+      },
+      "id": "sdl3_mixer",
+      "path": "lib/sdl3_mixer/generated_inventory.json"
+    }
+  ],
+  "kind": "phase1_sdl3",
+  "layering": {
+    "implementation_directories": [
+      "lib/sdl3",
+      "lib/sdl3_image",
+      "lib/sdl3_ttf",
+      "lib/sdl3_mixer"
+    ],
+    "native_probe_directories": [
+      "packaging/conf-sdl3",
+      "packaging/conf-sdl3-image",
+      "packaging/conf-sdl3-ttf",
+      "packaging/conf-sdl3-mixer"
+    ],
+    "python_glue_added": false,
+    "repository_tool_language": "OCaml"
+  },
+  "layout_identity": {
+    "address": "52f1e8361d07b67fad925c1b7aee9303e50fd195a6673944a298249bda23d2b0",
+    "derived_abi_sha256": "c2f13b2c39c54d6b7151322bb80c7a261aac327e240dcbc16e0837482cff10b3",
+    "dev": "52f1e8361d07b67fad925c1b7aee9303e50fd195a6673944a298249bda23d2b0",
+    "layout_sha256": "52f1e8361d07b67fad925c1b7aee9303e50fd195a6673944a298249bda23d2b0",
+    "release": "52f1e8361d07b67fad925c1b7aee9303e50fd195a6673944a298249bda23d2b0",
+    "undefined": "52f1e8361d07b67fad925c1b7aee9303e50fd195a6673944a298249bda23d2b0"
+  },
+  "memory_qualification": [
+    {
+      "build_directory": "/private/tmp/prismel-sdl3-asan-7a4ed29",
+      "build_switch": "/private/tmp/prismel-sdl3-asan-switch",
+      "command": "ASAN_OPTIONS=use_sigaltstack=0:detect_leaks=0 /private/tmp/prismel-sdl3-asan-7a4ed29/default/tools/packaging/check_sdl3_memory.exe --mode address --artifacts /private/tmp/prismel-sdl3-asan-7a4ed29/default --fixtures /private/tmp/prismel-sdl3-clean.OR9d4e/test/sdl3_image_fixtures --asan-suppressions /private/tmp/prismel-sdl3-clean.OR9d4e/tools/packaging/sdl3_asan.supp",
+      "diagnostic_count": 0,
+      "mode": "address",
+      "ocaml_compiler": "5.3.0+options with ocaml-option-address-sanitizer",
+      "result": "pass",
+      "suppression": {
+        "frames": [
+          "pdf_lexer_scan"
+        ],
+        "path": "tools/packaging/sdl3_asan.supp",
+        "reason": "macOS 26 CoreUI parses a system-owned theme PDF during native window resizing; Prismel does not call this function. The same native path runs unsuppressed under UBSan and Instruments Leaks.",
+        "sha256": "338d12183811a674658f40a3ac125b0ef4b4abc42bc2f120f9b73cfc832b5a39"
+      },
+      "test_count": 10
+    },
+    {
+      "build_directory": "/private/tmp/prismel-sdl3-ubsan-7a4ed29",
+      "command": "/private/tmp/prismel-sdl3-ubsan-7a4ed29/default/tools/packaging/check_sdl3_memory.exe --mode undefined --artifacts /private/tmp/prismel-sdl3-ubsan-7a4ed29/default --fixtures /private/tmp/prismel-sdl3-clean.OR9d4e/test/sdl3_image_fixtures",
+      "diagnostic_count": 0,
+      "mode": "undefined",
+      "result": "pass",
+      "test_count": 10
+    },
+    {
+      "build_directory": "/private/tmp/prismel-sdl3-clean.OR9d4e/_build/default",
+      "command": "opam exec -- dune exec tools/packaging/check_sdl3_memory.exe -- --mode leaks --artifacts _build/default --fixtures test/sdl3_image_fixtures",
+      "diagnostic_count": 0,
+      "mode": "leaks",
+      "result": "pass",
+      "test_count": 10,
+      "tool": "/usr/bin/leaks --quiet --atExit"
+    }
+  ],
+  "new_gpu_stuff_sha256": "75cb47632aa2b26199677560c6382b8b94786af5f704867b40d306ccefbe19d3",
+  "schema": 1,
+  "source_artifacts": [
+    {
+      "path": "specification/evidence/gpu_migration/phase0_environment.json",
+      "sha256": "9f56a47a2bcaa891eba307d4a549b25d0efb4cc0659dd2341140fdde38d1361a"
+    },
+    {
+      "path": "lib/sdl3/generated_inventory.json",
+      "sha256": "2f0a3386171209a39b0836d8a4a4712fc20e68fbd7e8f74978f3b23f5ebe6627"
+    },
+    {
+      "path": "lib/sdl3/generated_layout.json",
+      "sha256": "52f1e8361d07b67fad925c1b7aee9303e50fd195a6673944a298249bda23d2b0"
+    },
+    {
+      "path": "lib/sdl3/generated_abi.h",
+      "sha256": "c2f13b2c39c54d6b7151322bb80c7a261aac327e240dcbc16e0837482cff10b3"
+    },
+    {
+      "path": "lib/sdl3/generated_provenance.ml",
+      "sha256": "5fbfd0d2d2756103368f427b9a5b1ebc1596ee905f5f4f2dc148600b811b30e6"
+    },
+    {
+      "path": "lib/sdl3_image/generated_inventory.json",
+      "sha256": "83c7844f4c55a378f9585b545559519291f4b40b5f2c9d7f949e111fa1e151c6"
+    },
+    {
+      "path": "lib/sdl3_image/generated_abi.h",
+      "sha256": "c3f6ceaa889f9441ebf9f7fe95192cd8a0397c51c24b2410070fed92593a3b4b"
+    },
+    {
+      "path": "lib/sdl3_image/generated_provenance.ml",
+      "sha256": "7697d9cb4dc03013d684ceffbdf081b30c80abf11606bfff568798ca52d4795a"
+    },
+    {
+      "path": "lib/sdl3_ttf/generated_inventory.json",
+      "sha256": "0487a9d95b0383f19255deae4aa016325abe04c335eb4854a982d2983fd4a4a6"
+    },
+    {
+      "path": "lib/sdl3_ttf/generated_abi.h",
+      "sha256": "c8e10066b1e2e8b2b5ee7ab01b00c21a7d71fe5cdc4e1447373459b9f3d55941"
+    },
+    {
+      "path": "lib/sdl3_ttf/generated_provenance.ml",
+      "sha256": "9ac2d3b520d5c1a8963f3ec337338bcddd91244c16091c4d2732f0d1d48d9e8e"
+    },
+    {
+      "path": "lib/sdl3_mixer/generated_inventory.json",
+      "sha256": "5461469be14af736b715ddfce3b22d8a8a3a6d4c313af3a8a17bdd313d5ed8c0"
+    },
+    {
+      "path": "lib/sdl3_mixer/generated_abi.h",
+      "sha256": "8a244c6403280c97c90d443c311822ed120ad4c997fc382cb2f49c373d378672"
+    },
+    {
+      "path": "lib/sdl3_mixer/generated_provenance.ml",
+      "sha256": "8704587cce65aa49db310abf84f229a59e917a1f2a5560cb5ed5e4c9a12b3b7b"
+    },
+    {
+      "path": "tools/packaging/check_sdl3_memory.ml",
+      "sha256": "51bcd063686998ef6ec5baf7c7da27dc114258680d1a9709a41bf5176e267dc4"
+    },
+    {
+      "path": "tools/packaging/test_sdl3_discovery.ml",
+      "sha256": "679c49478ff23caa253416934fd59bfb8109ea715542ae600322f96c666eed63"
+    },
+    {
+      "path": "tools/packaging/check_installed_consumer.ml",
+      "sha256": "cff2ab5a13535a61bb790827f2742de8b3f80a47fd9138b0e8aed2f69d41a41c"
+    },
+    {
+      "path": "tools/packaging/sdl3_asan.supp",
+      "sha256": "338d12183811a674658f40a3ac125b0ef4b4abc42bc2f120f9b73cfc832b5a39"
+    }
+  ],
+  "versions": {
+    "dune": "3.20.2",
+    "ocaml": "5.3.0",
+    "sdl3": "3.4.14",
+    "sdl3_image": "3.4.4",
+    "sdl3_mixer": "3.2.4",
+    "sdl3_ttf": "3.2.2"
+  }
+}

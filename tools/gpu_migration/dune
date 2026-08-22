@@ -23,3 +23,30 @@
  (name run_baseline_benchmarks)
  (modules run_baseline_benchmarks)
  (libraries gpu_migration_support threads))
+
+(test
+ (name phase1_evidence)
+ (modules phase1_evidence)
+ (libraries gpu_migration_support)
+ (deps
+  ../../NEW_GPU_STUFF.md
+  ../../specification/evidence/gpu_migration/phase1_sdl3.json
+  ../../specification/evidence/gpu_migration/phase0_environment.json
+  ../../lib/sdl3/generated_inventory.json
+  ../../lib/sdl3/generated_layout.json
+  ../../lib/sdl3/generated_abi.h
+  ../../lib/sdl3/generated_provenance.ml
+  ../../lib/sdl3_image/generated_inventory.json
+  ../../lib/sdl3_image/generated_abi.h
+  ../../lib/sdl3_image/generated_provenance.ml
+  ../../lib/sdl3_ttf/generated_inventory.json
+  ../../lib/sdl3_ttf/generated_abi.h
+  ../../lib/sdl3_ttf/generated_provenance.ml
+  ../../lib/sdl3_mixer/generated_inventory.json
+  ../../lib/sdl3_mixer/generated_abi.h
+  ../../lib/sdl3_mixer/generated_provenance.ml
+  ../../tools/packaging/check_sdl3_memory.ml
+  ../../tools/packaging/test_sdl3_discovery.ml
+  ../../tools/packaging/check_installed_consumer.ml
+  ../../tools/packaging/sdl3_asan.supp)
+ (action (run %{test} --root %{workspace_root})))
