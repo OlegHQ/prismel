@@ -45,6 +45,16 @@
  (libraries prismel pdk procedural pxui pxui_graph sop_ui sketch_support
   sketch_ui))
 
+(executable
+ (name gpu_baseline_renderer)
+ (modules gpu_baseline_renderer)
+ (libraries prismel pxui unix))
+
+(executable
+ (name gpu_baseline_audio)
+ (modules gpu_baseline_audio)
+ (libraries prismel unix))
+
 (test
  (name test_sop_catalog)
  (modules test_sop_catalog)

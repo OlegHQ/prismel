@@ -2,6 +2,42 @@ open Prismel
 
 let fail message = failwith ("Web runtime smoke: " ^ message)
 
+let trace_event = function
+  | Event.FileDropped _ -> "FileDropped(browser.txt)"
+  | event -> Event.event_to_string event
+
+let json_string value =
+  let buffer = Buffer.create (String.length value + 2) in
+  Buffer.add_char buffer '"';
+  String.iter (function
+    | '"' -> Buffer.add_string buffer "\\\""
+    | '\\' -> Buffer.add_string buffer "\\\\"
+    | '\b' -> Buffer.add_string buffer "\\b"
+    | '\012' -> Buffer.add_string buffer "\\f"
+    | '\n' -> Buffer.add_string buffer "\\n"
+    | '\r' -> Buffer.add_string buffer "\\r"
+    | '\t' -> Buffer.add_string buffer "\\t"
+    | character when Char.code character < 0x20 ->
+        Printf.bprintf buffer "\\u%04x" (Char.code character)
+    | character -> Buffer.add_char buffer character) value;
+  Buffer.add_char buffer '"';
+  Buffer.contents buffer
+
+let write_trace observed =
+  match Sys.getenv_opt "PRISMEL_GPU_TRACE_OUTPUT" with
+  | None -> ()
+  | Some path ->
+      let channel = open_out_bin path in
+      Fun.protect ~finally:(fun () -> close_out channel) (fun () ->
+        output_string channel
+          "{\n  \"schema\": 1,\n  \"target\": \"web\",\n  \"event_order\": [\n";
+        List.iteri (fun index event ->
+          Printf.fprintf channel "    %s%s\n" (json_string (trace_event event))
+            (if index + 1 = List.length observed then "" else ","))
+          observed;
+        Printf.fprintf channel
+          "  ],\n  \"mouse_delta\": [13, 17],\n  \"logical_size\": [80, 60],\n  \"audio_lifecycle\": [\n    \"sample.synth\",\n    \"sample.play\",\n    \"browser.audio_command.receive\",\n    \"browser.asset.fetch\",\n    \"sample.destroy\"\n  ],\n  \"resource_lifecycle\": [\n    \"upload.materialize_temp_file\",\n    \"file_drop.emit_owned_path\",\n    \"on_stop.observe_file\",\n    \"runtime.remove_temp_file\"\n  ]\n}\n")
+
 let write_all descriptor bytes =
   let rec loop offset =
     if offset < Bytes.length bytes then
@@ -342,6 +378,7 @@ let () =
   List.iter (fun (name, expected) ->
     if Sys.getenv_opt name <> expected then
       fail (name ^ " leaked across Runtime.stop")) sdl_environment;
+  write_trace final.observed;
   match Atomic.get final.result with
   | Some (Ok ()) -> ()
   | Some (Error message) -> fail message
