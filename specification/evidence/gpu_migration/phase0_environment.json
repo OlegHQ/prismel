@@ -1,0 +1,125 @@
+{
+  "architecture": "arm64",
+  "baseline_commit": "4622091a65bc9a8816a1f10bcc83c1a625ca7522",
+  "benchmark_policy": {
+    "compiler_profile": "release",
+    "display_scale": "1x external 1920x1080 baseline display",
+    "domain_counts": [
+      1,
+      8
+    ],
+    "interactive_sample_seconds": 30,
+    "warm_samples_per_scenario": 5
+  },
+  "capture_commit": "62c69f7ec935b35b691858952be9545e2d604e48",
+  "capture_dirty": false,
+  "captured_at": "2026-08-22T14:47:47+02:00",
+  "hardware": {
+    "chip": "Apple M1",
+    "graphics": [
+      {
+        "bus": "spdisplays_builtin",
+        "cores": "8",
+        "displays": [
+          {
+            "main": "spdisplays_yes",
+            "mirror": "spdisplays_off",
+            "name": "spdisplays_display",
+            "online": "spdisplays_yes",
+            "pixels": "1920 x 1080",
+            "resolution": "1920 x 1080 @ 60.00Hz"
+          }
+        ],
+        "metal_family": "spdisplays_metal4",
+        "model": "Apple M1"
+      }
+    ],
+    "logical_cpu_count": "8",
+    "machine_model": "Macmini9,1",
+    "machine_name": "Mac mini",
+    "memory_bytes": "17179869184",
+    "physical_cpu_count": "8",
+    "physical_memory": "16 GB",
+    "processors": "proc 8:4:4:0"
+  },
+  "kind": "phase0_environment",
+  "local_modifications": [],
+  "operating_system": {
+    "build": "25E253",
+    "name": "macOS",
+    "version": "26.4.1"
+  },
+  "power_and_thermal": {
+    "power": [
+      "Now drawing from 'AC Power'"
+    ],
+    "thermal": [
+      "Note: No thermal warning level has been recorded",
+      "Note: No performance warning level has been recorded",
+      "Note: No CPU power status has been recorded"
+    ]
+  },
+  "render_target_environment": {
+    "baseline_commands_override_target_explicitly": true,
+    "captured_default": "native"
+  },
+  "schema": 1,
+  "software": {
+    "dune": "3.20.2",
+    "homebrew": {
+      "sdl2": "sdl2-compat 2.32.70",
+      "sdl2_gfx": "sdl2_gfx 1.0.4_1",
+      "sdl2_image": "sdl2_image 2.8.12_1",
+      "sdl2_mixer": "sdl2_mixer 2.8.2",
+      "sdl2_ttf": "sdl2_ttf 2.24.0",
+      "sdl3": "sdl3 3.4.14",
+      "sdl3_image": null,
+      "sdl3_mixer": null,
+      "sdl3_ttf": null
+    },
+    "ocaml": "5.3.0",
+    "opam_packages": {
+      "conf-sdl2": "1",
+      "conf-sdl2-image": "1",
+      "conf-sdl2-mixer": "1",
+      "conf-sdl2-ttf": "1",
+      "ctypes": "0.23.0",
+      "ctypes-foreign": "0.23.0",
+      "domainslib": "0.5.2",
+      "dune": "3.20.2",
+      "ocaml": "5.3.0",
+      "tsdl": "1.1.0",
+      "tsdl-image": "0.6",
+      "tsdl-mixer": "0.6",
+      "tsdl-ttf": "0.6"
+    },
+    "pkg_config": {
+      "SDL2_gfx": "1.0.2",
+      "SDL2_image": "2.8.12",
+      "SDL2_mixer": "2.8.2",
+      "SDL2_ttf": "2.24.0",
+      "SDL3_image": null,
+      "SDL3_mixer": null,
+      "SDL3_ttf": null,
+      "sdl2": "2.32.70",
+      "sdl3": "3.4.14"
+    },
+    "python": "3.14.6"
+  },
+  "toolchain": {
+    "clang": [
+      "Apple clang version 21.0.0 (clang-2100.1.1.101)",
+      "Target: arm64-apple-darwin25.4.0"
+    ],
+    "deployment_floor": "macOS 14",
+    "developer_directory": "/Library/Developer/CommandLineTools",
+    "full_xcode_available": false,
+    "macos_sdk_path": "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+    "macos_sdk_version": "26.5",
+    "metal_compiler_available": false,
+    "metal_compiler_diagnostic": "xcrun: error: unable to find utility \"metal\", not a developer tool or in PATH",
+    "metal_compiler_path": null,
+    "xcode_diagnostic": "xcode-select: error: tool 'xcodebuild' requires Xcode, but active developer directory '/Library/Developer/CommandLineTools' is a command line tools instance",
+    "xcode_version": null
+  }
+}
