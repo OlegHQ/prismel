@@ -1,0 +1,1268 @@
+{
+  "classification_counts": {
+    "not-applicable": 0,
+    "platform-excluded": 0,
+    "raw-only": 168,
+    "safe": 15,
+    "unreviewed": 0
+  },
+  "compiler": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
+  "enums": [
+    {
+      "classification": "raw-only",
+      "constants": [
+        "TTF_DIRECTION_INVALID",
+        "TTF_DIRECTION_LTR",
+        "TTF_DIRECTION_RTL",
+        "TTF_DIRECTION_TTB",
+        "TTF_DIRECTION_BTT"
+      ],
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_Direction"
+    },
+    {
+      "classification": "raw-only",
+      "constants": [
+        "TTF_GPU_TEXTENGINE_WINDING_INVALID",
+        "TTF_GPU_TEXTENGINE_WINDING_CLOCKWISE",
+        "TTF_GPU_TEXTENGINE_WINDING_COUNTER_CLOCKWISE"
+      ],
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GPUTextEngineWinding"
+    },
+    {
+      "classification": "raw-only",
+      "constants": [
+        "TTF_HINTING_INVALID",
+        "TTF_HINTING_NORMAL",
+        "TTF_HINTING_LIGHT",
+        "TTF_HINTING_MONO",
+        "TTF_HINTING_NONE",
+        "TTF_HINTING_LIGHT_SUBPIXEL"
+      ],
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_HintingFlags"
+    },
+    {
+      "classification": "raw-only",
+      "constants": [
+        "TTF_HORIZONTAL_ALIGN_INVALID",
+        "TTF_HORIZONTAL_ALIGN_LEFT",
+        "TTF_HORIZONTAL_ALIGN_CENTER",
+        "TTF_HORIZONTAL_ALIGN_RIGHT"
+      ],
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_HorizontalAlignment"
+    },
+    {
+      "classification": "raw-only",
+      "constants": [
+        "TTF_IMAGE_INVALID",
+        "TTF_IMAGE_ALPHA",
+        "TTF_IMAGE_COLOR",
+        "TTF_IMAGE_SDF"
+      ],
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_ImageType"
+    }
+  ],
+  "extension": "ttf",
+  "functions": [
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_AddFallbackFont",
+      "signature": "bool (TTF_Font *, TTF_Font *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_AppendTextString",
+      "signature": "bool (TTF_Text *, const char *, size_t)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_ClearFallbackFonts",
+      "signature": "void (TTF_Font *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_CloseFont",
+      "signature": "void (TTF_Font *)",
+      "thread": "font-owner-thread"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_CopyFont",
+      "signature": "TTF_Font *(TTF_Font *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_CreateGPUTextEngine",
+      "signature": "TTF_TextEngine *(SDL_GPUDevice *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_CreateGPUTextEngineWithProperties",
+      "signature": "TTF_TextEngine *(SDL_PropertiesID)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_CreateRendererTextEngine",
+      "signature": "TTF_TextEngine *(SDL_Renderer *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_CreateRendererTextEngineWithProperties",
+      "signature": "TTF_TextEngine *(SDL_PropertiesID)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_CreateSurfaceTextEngine",
+      "signature": "TTF_TextEngine *(void)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_CreateText",
+      "signature": "TTF_Text *(TTF_TextEngine *, TTF_Font *, const char *, size_t)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_DeleteTextString",
+      "signature": "bool (TTF_Text *, int, int)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_DestroyGPUTextEngine",
+      "signature": "void (TTF_TextEngine *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_DestroyRendererTextEngine",
+      "signature": "void (TTF_TextEngine *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_DestroySurfaceTextEngine",
+      "signature": "void (TTF_TextEngine *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_DestroyText",
+      "signature": "void (TTF_Text *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_DrawRendererText",
+      "signature": "bool (TTF_Text *, float, float)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_DrawSurfaceText",
+      "signature": "bool (TTF_Text *, int, int, SDL_Surface *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_FontHasGlyph",
+      "signature": "bool (TTF_Font *, Uint32)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_FontIsFixedWidth",
+      "signature": "bool (const TTF_Font *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_FontIsScalable",
+      "signature": "bool (const TTF_Font *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetFontAscent",
+      "signature": "int (const TTF_Font *)",
+      "thread": "font-owner-thread"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetFontDPI",
+      "signature": "bool (TTF_Font *, int *, int *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetFontDescent",
+      "signature": "int (const TTF_Font *)",
+      "thread": "font-owner-thread"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetFontDirection",
+      "signature": "TTF_Direction (TTF_Font *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetFontFamilyName",
+      "signature": "const char *(const TTF_Font *)",
+      "thread": "font-owner-thread-borrowed-string"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetFontGeneration",
+      "signature": "Uint32 (TTF_Font *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetFontHeight",
+      "signature": "int (const TTF_Font *)",
+      "thread": "font-owner-thread"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetFontHinting",
+      "signature": "TTF_HintingFlags (const TTF_Font *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetFontKerning",
+      "signature": "bool (const TTF_Font *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetFontLineSkip",
+      "signature": "int (const TTF_Font *)",
+      "thread": "font-owner-thread"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetFontOutline",
+      "signature": "int (const TTF_Font *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetFontProperties",
+      "signature": "SDL_PropertiesID (TTF_Font *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetFontSDF",
+      "signature": "bool (const TTF_Font *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetFontScript",
+      "signature": "Uint32 (TTF_Font *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetFontSize",
+      "signature": "float (TTF_Font *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetFontStyle",
+      "signature": "TTF_FontStyleFlags (const TTF_Font *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetFontStyleName",
+      "signature": "const char *(const TTF_Font *)",
+      "thread": "font-owner-thread-borrowed-string"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetFontWeight",
+      "signature": "int (const TTF_Font *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetFontWrapAlignment",
+      "signature": "TTF_HorizontalAlignment (const TTF_Font *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetFreeTypeVersion",
+      "signature": "void (int *, int *, int *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetGPUTextDrawData",
+      "signature": "TTF_GPUAtlasDrawSequence *(TTF_Text *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetGPUTextEngineWinding",
+      "signature": "TTF_GPUTextEngineWinding (const TTF_TextEngine *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetGlyphImage",
+      "signature": "SDL_Surface *(TTF_Font *, Uint32, TTF_ImageType *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetGlyphImageForIndex",
+      "signature": "SDL_Surface *(TTF_Font *, Uint32, TTF_ImageType *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetGlyphKerning",
+      "signature": "bool (TTF_Font *, Uint32, Uint32, int *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetGlyphMetrics",
+      "signature": "bool (TTF_Font *, Uint32, int *, int *, int *, int *, int *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetGlyphScript",
+      "signature": "Uint32 (Uint32)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetHarfBuzzVersion",
+      "signature": "void (int *, int *, int *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetNextTextSubString",
+      "signature": "bool (TTF_Text *, const TTF_SubString *, TTF_SubString *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetNumFontFaces",
+      "signature": "int (const TTF_Font *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetPreviousTextSubString",
+      "signature": "bool (TTF_Text *, const TTF_SubString *, TTF_SubString *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetStringSize",
+      "signature": "bool (TTF_Font *, const char *, size_t, int *, int *)",
+      "thread": "font-owner-thread"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetStringSizeWrapped",
+      "signature": "bool (TTF_Font *, const char *, size_t, int, int *, int *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetTextColor",
+      "signature": "bool (TTF_Text *, Uint8 *, Uint8 *, Uint8 *, Uint8 *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetTextColorFloat",
+      "signature": "bool (TTF_Text *, float *, float *, float *, float *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetTextDirection",
+      "signature": "TTF_Direction (TTF_Text *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetTextEngine",
+      "signature": "TTF_TextEngine *(TTF_Text *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetTextFont",
+      "signature": "TTF_Font *(TTF_Text *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetTextPosition",
+      "signature": "bool (TTF_Text *, int *, int *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetTextProperties",
+      "signature": "SDL_PropertiesID (TTF_Text *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetTextScript",
+      "signature": "Uint32 (TTF_Text *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetTextSize",
+      "signature": "bool (TTF_Text *, int *, int *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetTextSubString",
+      "signature": "bool (TTF_Text *, int, TTF_SubString *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetTextSubStringForLine",
+      "signature": "bool (TTF_Text *, int, TTF_SubString *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetTextSubStringForPoint",
+      "signature": "bool (TTF_Text *, int, int, TTF_SubString *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetTextSubStringsForRange",
+      "signature": "TTF_SubString **(TTF_Text *, int, int, int *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GetTextWrapWidth",
+      "signature": "bool (TTF_Text *, int *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_Init",
+      "signature": "bool (void)",
+      "thread": "initial-domain"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_InsertTextString",
+      "signature": "bool (TTF_Text *, int, const char *, size_t)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_MeasureString",
+      "signature": "bool (TTF_Font *, const char *, size_t, int, int *, size_t *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_OpenFont",
+      "signature": "TTF_Font *(const char *, float)",
+      "thread": "initial-domain-owned-result"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_OpenFontIO",
+      "signature": "TTF_Font *(SDL_IOStream *, bool, float)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_OpenFontWithProperties",
+      "signature": "TTF_Font *(SDL_PropertiesID)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_Quit",
+      "signature": "void (void)",
+      "thread": "initial-domain"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_RemoveFallbackFont",
+      "signature": "void (TTF_Font *, TTF_Font *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_RenderGlyph_Blended",
+      "signature": "SDL_Surface *(TTF_Font *, Uint32, SDL_Color)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_RenderGlyph_LCD",
+      "signature": "SDL_Surface *(TTF_Font *, Uint32, SDL_Color, SDL_Color)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_RenderGlyph_Shaded",
+      "signature": "SDL_Surface *(TTF_Font *, Uint32, SDL_Color, SDL_Color)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_RenderGlyph_Solid",
+      "signature": "SDL_Surface *(TTF_Font *, Uint32, SDL_Color)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_RenderText_Blended",
+      "signature": "SDL_Surface *(TTF_Font *, const char *, size_t, SDL_Color)",
+      "thread": "font-owner-thread-owned-result"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_RenderText_Blended_Wrapped",
+      "signature": "SDL_Surface *(TTF_Font *, const char *, size_t, SDL_Color, int)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_RenderText_LCD",
+      "signature": "SDL_Surface *(TTF_Font *, const char *, size_t, SDL_Color, SDL_Color)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_RenderText_LCD_Wrapped",
+      "signature": "SDL_Surface *(TTF_Font *, const char *, size_t, SDL_Color, SDL_Color, int)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_RenderText_Shaded",
+      "signature": "SDL_Surface *(TTF_Font *, const char *, size_t, SDL_Color, SDL_Color)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_RenderText_Shaded_Wrapped",
+      "signature": "SDL_Surface *(TTF_Font *, const char *, size_t, SDL_Color, SDL_Color, int)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_RenderText_Solid",
+      "signature": "SDL_Surface *(TTF_Font *, const char *, size_t, SDL_Color)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_RenderText_Solid_Wrapped",
+      "signature": "SDL_Surface *(TTF_Font *, const char *, size_t, SDL_Color, int)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_SetFontDirection",
+      "signature": "bool (TTF_Font *, TTF_Direction)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_SetFontHinting",
+      "signature": "void (TTF_Font *, TTF_HintingFlags)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_SetFontKerning",
+      "signature": "void (TTF_Font *, bool)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_SetFontLanguage",
+      "signature": "bool (TTF_Font *, const char *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_SetFontLineSkip",
+      "signature": "void (TTF_Font *, int)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_SetFontOutline",
+      "signature": "bool (TTF_Font *, int)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_SetFontSDF",
+      "signature": "bool (TTF_Font *, bool)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_SetFontScript",
+      "signature": "bool (TTF_Font *, Uint32)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_SetFontSize",
+      "signature": "bool (TTF_Font *, float)",
+      "thread": "font-owner-thread"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_SetFontSizeDPI",
+      "signature": "bool (TTF_Font *, float, int, int)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_SetFontStyle",
+      "signature": "void (TTF_Font *, TTF_FontStyleFlags)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_SetFontWrapAlignment",
+      "signature": "void (TTF_Font *, TTF_HorizontalAlignment)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_SetGPUTextEngineWinding",
+      "signature": "void (TTF_TextEngine *, TTF_GPUTextEngineWinding)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_SetTextColor",
+      "signature": "bool (TTF_Text *, Uint8, Uint8, Uint8, Uint8)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_SetTextColorFloat",
+      "signature": "bool (TTF_Text *, float, float, float, float)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_SetTextDirection",
+      "signature": "bool (TTF_Text *, TTF_Direction)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_SetTextEngine",
+      "signature": "bool (TTF_Text *, TTF_TextEngine *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_SetTextFont",
+      "signature": "bool (TTF_Text *, TTF_Font *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_SetTextPosition",
+      "signature": "bool (TTF_Text *, int, int)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_SetTextScript",
+      "signature": "bool (TTF_Text *, Uint32)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_SetTextString",
+      "signature": "bool (TTF_Text *, const char *, size_t)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_SetTextWrapWhitespaceVisible",
+      "signature": "bool (TTF_Text *, bool)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_SetTextWrapWidth",
+      "signature": "bool (TTF_Text *, int)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_StringToTag",
+      "signature": "Uint32 (const char *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_TagToString",
+      "signature": "void (Uint32, char *, size_t)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_TextWrapWhitespaceVisible",
+      "signature": "bool (TTF_Text *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_UpdateText",
+      "signature": "bool (TTF_Text *)",
+      "thread": "raw-only-not-reviewed"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_ttf/SDL_ttf.h",
+      "name": "TTF_Version",
+      "signature": "int (void)",
+      "thread": "any-thread"
+    },
+    {
+      "classification": "safe",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_WasInit",
+      "signature": "int (void)",
+      "thread": "any-thread"
+    }
+  ],
+  "generator": "prismel-sdl3-extension-clang-inventory-v1",
+  "header_sha256": "4cfa5c13c68e87de6d513b1ae297055c8877432aa140d49dbcb29252b87701ed",
+  "header_version": {
+    "major": 3,
+    "minor": 2,
+    "patch": 2
+  },
+  "headers": [
+    {
+      "path": "SDL3_ttf/SDL_textengine.h",
+      "sha256": "524dbb153cec5a86324a928cd60930081fecbd2c6c706562b8ccdc6bdde02cff"
+    },
+    {
+      "path": "SDL3_ttf/SDL_ttf.h",
+      "sha256": "e9bb02094a7751cded0a9fb45f1c3b4edd35f9457c6eb6b960dd5d163a5104bd"
+    }
+  ],
+  "macros": [
+    {
+      "classification": "raw-only",
+      "name": "SDL_TTF_H_",
+      "value": ""
+    },
+    {
+      "classification": "raw-only",
+      "name": "SDL_TTF_MAJOR_VERSION",
+      "value": "3"
+    },
+    {
+      "classification": "raw-only",
+      "name": "SDL_TTF_MICRO_VERSION",
+      "value": "2"
+    },
+    {
+      "classification": "raw-only",
+      "name": "SDL_TTF_MINOR_VERSION",
+      "value": "2"
+    },
+    {
+      "classification": "raw-only",
+      "name": "SDL_TTF_VERSION",
+      "value": "SDL_VERSIONNUM(SDL_TTF_MAJOR_VERSION, SDL_TTF_MINOR_VERSION, SDL_TTF_MICRO_VERSION)"
+    },
+    {
+      "classification": "raw-only",
+      "name": "SDL_TTF_VERSION_ATLEAST(X,Y,Z)",
+      "value": "((SDL_TTF_MAJOR_VERSION >= X) && (SDL_TTF_MAJOR_VERSION > X || SDL_TTF_MINOR_VERSION >= Y) && (SDL_TTF_MAJOR_VERSION > X || SDL_TTF_MINOR_VERSION > Y || SDL_TTF_MICRO_VERSION >= Z))"
+    },
+    {
+      "classification": "raw-only",
+      "name": "TTF_FONT_WEIGHT_BLACK",
+      "value": "900"
+    },
+    {
+      "classification": "raw-only",
+      "name": "TTF_FONT_WEIGHT_BOLD",
+      "value": "700"
+    },
+    {
+      "classification": "raw-only",
+      "name": "TTF_FONT_WEIGHT_EXTRA_BLACK",
+      "value": "950"
+    },
+    {
+      "classification": "raw-only",
+      "name": "TTF_FONT_WEIGHT_EXTRA_BOLD",
+      "value": "800"
+    },
+    {
+      "classification": "raw-only",
+      "name": "TTF_FONT_WEIGHT_EXTRA_LIGHT",
+      "value": "200"
+    },
+    {
+      "classification": "raw-only",
+      "name": "TTF_FONT_WEIGHT_LIGHT",
+      "value": "300"
+    },
+    {
+      "classification": "raw-only",
+      "name": "TTF_FONT_WEIGHT_MEDIUM",
+      "value": "500"
+    },
+    {
+      "classification": "raw-only",
+      "name": "TTF_FONT_WEIGHT_NORMAL",
+      "value": "400"
+    },
+    {
+      "classification": "raw-only",
+      "name": "TTF_FONT_WEIGHT_SEMI_BOLD",
+      "value": "600"
+    },
+    {
+      "classification": "raw-only",
+      "name": "TTF_FONT_WEIGHT_THIN",
+      "value": "100"
+    },
+    {
+      "classification": "raw-only",
+      "name": "TTF_PROP_FONT_CREATE_EXISTING_FONT",
+      "value": "\"SDL_ttf.font.create.existing_font\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "TTF_PROP_FONT_CREATE_FACE_NUMBER",
+      "value": "\"SDL_ttf.font.create.face\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "TTF_PROP_FONT_CREATE_FILENAME_STRING",
+      "value": "\"SDL_ttf.font.create.filename\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "TTF_PROP_FONT_CREATE_HORIZONTAL_DPI_NUMBER",
+      "value": "\"SDL_ttf.font.create.hdpi\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "TTF_PROP_FONT_CREATE_IOSTREAM_AUTOCLOSE_BOOLEAN",
+      "value": "\"SDL_ttf.font.create.iostream.autoclose\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "TTF_PROP_FONT_CREATE_IOSTREAM_OFFSET_NUMBER",
+      "value": "\"SDL_ttf.font.create.iostream.offset\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "TTF_PROP_FONT_CREATE_IOSTREAM_POINTER",
+      "value": "\"SDL_ttf.font.create.iostream\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "TTF_PROP_FONT_CREATE_SIZE_FLOAT",
+      "value": "\"SDL_ttf.font.create.size\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "TTF_PROP_FONT_CREATE_VERTICAL_DPI_NUMBER",
+      "value": "\"SDL_ttf.font.create.vdpi\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "TTF_PROP_FONT_OUTLINE_LINE_CAP_NUMBER",
+      "value": "\"SDL_ttf.font.outline.line_cap\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "TTF_PROP_FONT_OUTLINE_LINE_JOIN_NUMBER",
+      "value": "\"SDL_ttf.font.outline.line_join\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "TTF_PROP_FONT_OUTLINE_MITER_LIMIT_NUMBER",
+      "value": "\"SDL_ttf.font.outline.miter_limit\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "TTF_PROP_GPU_TEXT_ENGINE_ATLAS_TEXTURE_SIZE",
+      "value": "\"SDL_ttf.gpu_text_engine.create.atlas_texture_size\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "TTF_PROP_GPU_TEXT_ENGINE_DEVICE",
+      "value": "\"SDL_ttf.gpu_text_engine.create.device\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "TTF_PROP_RENDERER_TEXT_ENGINE_ATLAS_TEXTURE_SIZE",
+      "value": "\"SDL_ttf.renderer_text_engine.create.atlas_texture_size\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "TTF_PROP_RENDERER_TEXT_ENGINE_RENDERER",
+      "value": "\"SDL_ttf.renderer_text_engine.create.renderer\""
+    },
+    {
+      "classification": "raw-only",
+      "name": "TTF_STYLE_BOLD",
+      "value": "0x01"
+    },
+    {
+      "classification": "raw-only",
+      "name": "TTF_STYLE_ITALIC",
+      "value": "0x02"
+    },
+    {
+      "classification": "raw-only",
+      "name": "TTF_STYLE_NORMAL",
+      "value": "0x00"
+    },
+    {
+      "classification": "raw-only",
+      "name": "TTF_STYLE_STRIKETHROUGH",
+      "value": "0x08"
+    },
+    {
+      "classification": "raw-only",
+      "name": "TTF_STYLE_UNDERLINE",
+      "value": "0x04"
+    },
+    {
+      "classification": "raw-only",
+      "name": "TTF_SUBSTRING_DIRECTION_MASK",
+      "value": "0x000000FF"
+    },
+    {
+      "classification": "raw-only",
+      "name": "TTF_SUBSTRING_LINE_END",
+      "value": "0x00000400"
+    },
+    {
+      "classification": "raw-only",
+      "name": "TTF_SUBSTRING_LINE_START",
+      "value": "0x00000200"
+    },
+    {
+      "classification": "raw-only",
+      "name": "TTF_SUBSTRING_TEXT_END",
+      "value": "0x00000800"
+    },
+    {
+      "classification": "raw-only",
+      "name": "TTF_SUBSTRING_TEXT_START",
+      "value": "0x00000100"
+    }
+  ],
+  "records": [
+    {
+      "classification": "raw-only",
+      "fields": [],
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "kind": "struct",
+      "name": "TTF_Font"
+    },
+    {
+      "classification": "raw-only",
+      "fields": [
+        "atlas_texture",
+        "xy",
+        "uv",
+        "num_vertices",
+        "indices",
+        "num_indices",
+        "image_type",
+        "next"
+      ],
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "kind": "struct",
+      "name": "TTF_GPUAtlasDrawSequence"
+    },
+    {
+      "classification": "raw-only",
+      "fields": [
+        "flags",
+        "offset",
+        "length",
+        "line_index",
+        "cluster_index",
+        "rect"
+      ],
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "kind": "struct",
+      "name": "TTF_SubString"
+    },
+    {
+      "classification": "raw-only",
+      "fields": [
+        "text",
+        "num_lines",
+        "refcount",
+        "internal"
+      ],
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "kind": "struct",
+      "name": "TTF_Text"
+    },
+    {
+      "classification": "raw-only",
+      "fields": [],
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "kind": "struct",
+      "name": "TTF_TextData"
+    },
+    {
+      "classification": "raw-only",
+      "fields": [],
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "kind": "struct",
+      "name": "TTF_TextEngine"
+    }
+  ],
+  "schema": 1,
+  "stable_headers": true,
+  "target_triple": "arm64-apple-darwin25.4.0",
+  "typedefs": [
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_Direction",
+      "underlying": "enum TTF_Direction"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_Font",
+      "underlying": "struct TTF_Font"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_FontStyleFlags",
+      "underlying": "Uint32"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GPUAtlasDrawSequence",
+      "underlying": "struct TTF_GPUAtlasDrawSequence"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_GPUTextEngineWinding",
+      "underlying": "enum TTF_GPUTextEngineWinding"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_HintingFlags",
+      "underlying": "enum TTF_HintingFlags"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_HorizontalAlignment",
+      "underlying": "enum TTF_HorizontalAlignment"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_ImageType",
+      "underlying": "enum TTF_ImageType"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_SubString",
+      "underlying": "struct TTF_SubString"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_SubStringFlags",
+      "underlying": "Uint32"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_Text",
+      "underlying": "struct TTF_Text"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_TextData",
+      "underlying": "struct TTF_TextData"
+    },
+    {
+      "classification": "raw-only",
+      "header": "SDL3_ttf/<clang-elided-source>",
+      "name": "TTF_TextEngine",
+      "underlying": "struct TTF_TextEngine"
+    }
+  ]
+}
