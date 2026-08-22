@@ -13,6 +13,11 @@
  (modules check_memory)
  (libraries unix))
 
+(executable
+ (name validate_ffi_evidence)
+ (modules validate_ffi_evidence)
+ (libraries gpu_migration_support unix yojson))
+
 (rule
  (alias runtest)
  (deps
@@ -21,3 +26,10 @@
   ../../lib/metal/generated_api_inventory.json
   ../../lib/metal/generated_provenance.ml)
  (action (run %{dep:generate_inventory.exe} --root %{workspace_root} --check)))
+
+(rule
+ (alias runtest)
+ (deps ../../specification/evidence/gpu_migration/phase2_metal_ffi_baseline.json)
+ (action
+  (run %{exe:validate_ffi_evidence.exe} --root %{workspace_root}
+   --evidence %{dep:../../specification/evidence/gpu_migration/phase2_metal_ffi_baseline.json})))

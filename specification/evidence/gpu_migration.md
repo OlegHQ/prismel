@@ -2,9 +2,9 @@
 
 The frozen migration plan has SHA-256
 `75cb47632aa2b26199677560c6382b8b94786af5f704867b40d306ccefbe19d3`.
-Machine-readable Phase 0 and Phase 1 records live beside this file. Large
-machine-local build products and diagnostic traces are identified by command
-and content hash in those records.
+Machine-readable Phase 0, Phase 1, and incremental Phase 2 records live beside
+this file. Large machine-local build products and diagnostic traces are
+identified by command and content hash in those records.
 
 Phase 1 has passed its technical gates on the recorded M1 lane. Independent
 human review remains pending and must be repeated on the final all-gates commit;
@@ -20,3 +20,11 @@ these rows therefore do not constitute final release sign-off.
 | S6 | `7a4ed29ca0e66f89d751d9acb03073fda0344cbf` (clean) | `opam exec -- dune exec lib/sdl3/test_sdl3_metal.exe` and dummy 100,000-cycle stress | Retina Apple M1 native window plus dummy video | Pass: DPI, lifecycle, CAMetalLayer, resize/state transition, and recreation checks | `phase1_sdl3.json`; Metal/lifecycle tests | Pending independent final sign-off |
 | S7 | `7a4ed29ca0e66f89d751d9acb03073fda0344cbf` (clean) | image, TTF, mixer focused executables and `opam exec -- dune runtest --force` | SDL dummy video/audio plus native font/image decoders | Pass: image/font/audio/resource and exact web-mirroring parity | `phase1_sdl3.json`; 19 image fixtures; TTF/mixer tests | Pending independent final sign-off |
 | S8 | `7a4ed29ca0e66f89d751d9acb03073fda0344cbf` (clean) | fresh local switch bootstrap, `dune build @all @doc`, full tests, release packaging, dev/release installed consumers | detached clean checkout `/private/tmp/prismel-sdl3-clean.OR9d4e` | Pass: declared conf probes and Dune packages work without original-checkout paths | `phase1_sdl3.json`; four conf packages; discovery/consumer tests | Pending independent final sign-off |
+
+Phase 2 is in progress. The rows below are qualified partial evidence only; no
+M gate or Phase 2 completion is claimed while the SDK inventory still contains
+unreviewed in-scope declarations or any M1-M10 requirement remains open.
+
+| Gate slice | Commit | Command | Environment | Result | Artifact |
+| --- | --- | --- | --- | --- | --- |
+| M9 FFI baseline | `3d4671a08c297f04dca47fd704b224128346ce36` (clean) | `opam exec -- dune exec --profile release tools/bench_metal_ffi.exe -- --iterations 1000000 --samples 7 --profile release` | Apple M1, macOS 26.4.1, SDK 26.5, OCaml 5.3.0 | Pass: batched/native median ratio 1.000149; direct 24.000144 bytes/query; batched 0.000144 bytes/query | `phase2_metal_ffi_baseline.json` |
