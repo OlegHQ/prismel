@@ -1,0 +1,86 @@
+{
+  "baseline_commit": "4622091a65bc9a8816a1f10bcc83c1a625ca7522",
+  "baseline_plan_sha256": "75cb47632aa2b26199677560c6382b8b94786af5f704867b40d306ccefbe19d3",
+  "generator": "tools/gpu_migration/api_manifest.py",
+  "kind": "declared_legacy_sdl",
+  "schema": 1,
+  "surface_count": 10,
+  "surfaces": [
+    {
+      "api_sha256": "799516bafeca9cd1e7496b6311e91f91f30cfbd5c73568c26e698962f95a182f",
+      "selectors": [
+        "module:Private"
+      ],
+      "source": "lib/prismel/font.mli",
+      "source_sha256": "40308c5da4095e9001588e155bac3980df5e93f130b1289c71fc8f67b5c068ad",
+      "surface": "Prismel.Font.Private"
+    },
+    {
+      "api_sha256": "7d092e130f0b172a55829d0aa5fe0ce8048ec9775cacb2d3e2ccc0404293bf32",
+      "selectors": [
+        "value:release_renderer"
+      ],
+      "source": "lib/prismel/font.mli",
+      "source_sha256": "40308c5da4095e9001588e155bac3980df5e93f130b1289c71fc8f67b5c068ad",
+      "surface": "Prismel.Font.release_renderer"
+    },
+    {
+      "api_sha256": "7c2afee1feae6ebbbfb7fe85a31d0d83fffbc937c92583d7367a1eceab4c815b",
+      "selectors": [
+        "module:Private"
+      ],
+      "source": "lib/prismel/image.mli",
+      "source_sha256": "78fd8dbdc492aee8d3f0c11005969040de557470b10f7e6ebac95a7df5b81af3",
+      "surface": "Prismel.Image.Private"
+    },
+    {
+      "api_sha256": "cacd8e307d3842627729c96ba37930964ace143b5cd66464a67d82df7847bfa1",
+      "selectors": [],
+      "source": "lib/prismel/low.mli",
+      "source_sha256": "98535ccab7bd7e7a9b9726303b8da4c192b4645e95ae9cf5de43069aa77a6b34",
+      "surface": "Prismel.Low"
+    },
+    {
+      "api_sha256": "9225fcc2983d61b6cb76c5e7451ae26cdf19a0f07ca1fef9afde48fafe20881b",
+      "selectors": [],
+      "source": "lib/prismel/app.mli",
+      "source_sha256": "a375e0bdcfeae9c3eae5fee5efcaf839a50c7e37d453bfd7bf6b99862379652b",
+      "surface": "Prismel.Low.App"
+    },
+    {
+      "api_sha256": "e5aaebc258ae56c3f288b46cd367375d94066946a33511fc737796160c67e5ee",
+      "selectors": [],
+      "source": "lib/prismel/backend.mli",
+      "source_sha256": "370900cf0540a2fa1ae449f22d7a0afb80d8fd448e13150f64543b073c71cbbd",
+      "surface": "Prismel.Low.Backend"
+    },
+    {
+      "api_sha256": "a380af9b6bdace4689bdbdf484dc5a5783530b6ff96c1c2048d224fee78cce46",
+      "selectors": [],
+      "source": "lib/prismel/graphics.mli",
+      "source_sha256": "1321db4158edc5952781f5c33f1ba700fb978622ea2230f3b9daf87b875ed299",
+      "surface": "Prismel.Low.Graphics"
+    },
+    {
+      "api_sha256": "553dcf5fa3dee7f2ef8147db106750989b3dfb9c79f668e953b1dc3fd55143e4",
+      "selectors": [],
+      "source": "lib/prismel/window.mli",
+      "source_sha256": "6a1659409d84df8136abc829efe11994cf98a1f61d1d435d5918ea932bc72e27",
+      "surface": "Prismel.Low.Window"
+    },
+    {
+      "api_sha256": "2b418ac776326ee02bb272bff2527474f0dc771960132281a6cdc1fffbee1c7c",
+      "selectors": [],
+      "source": "lib/runtime/runtime.mli",
+      "source_sha256": "fbd5196fe4c04e7d94975765eb20c5ecadd04f728b10090a6ede59cc2cd4609b",
+      "surface": "Runtime.Runtime"
+    },
+    {
+      "api_sha256": "2d7afa0b394de6c69bf68786ed25631c159721a366e4bcc1e4af2ccc9852bd5e",
+      "selectors": [],
+      "source": "lib/runtime/target.mli",
+      "source_sha256": "2c5efc8c5e7feaf4ad6031f01ee21a83254ef2e348a70997c8949804974f43d3",
+      "surface": "Runtime.Target"
+    }
+  ]
+}

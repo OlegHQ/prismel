@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "baseline_commit": "4622091a65bc9a8816a1f10bcc83c1a625ca7522",
+  "baseline_dirty": false,
+  "local_modifications": [],
+  "new_gpu_stuff_sha256": "75cb47632aa2b26199677560c6382b8b94786af5f704867b40d306ccefbe19d3",
+  "baseline_adjustments": [
+    {
+      "commit": "46f301c",
+      "reason": "Restore compatibility with the installed Tsdl and Dune toolchain before measuring the legacy renderer."
+    },
+    {
+      "commit": "4622091",
+      "reason": "Keep App, Backend, Graphics, and Window private while structurally exposing the declared Low compatibility namespace."
+    }
+  ],
+  "validated_commands": [
+    "dune build @all",
+    "dune runtest"
+  ],
+  "acceptance_scope": {
+    "examples": [
+      "basic",
+      "particles",
+      "noise",
+      "canvas",
+      "audio",
+      "pxui",
+      "generative"
+    ],
+    "sketches": [
+      "shattered_cube"
+    ]
+  }
+}

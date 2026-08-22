@@ -99,6 +99,18 @@
   (glob_files ../lib/*/dune))
  (action (run %{test} %{workspace_root}/lib)))
 
+(rule
+ (alias runtest)
+ (deps ../tools/gpu_migration/api_manifest.py
+  ../specification/evidence/gpu_migration/phase0_baseline.json
+  ../specification/evidence/gpu_migration/api_stable.json
+  ../specification/evidence/gpu_migration/api_legacy_sdl.json
+  (glob_files ../lib/*/*.mli)
+  (glob_files ../lib/*/dune))
+ (action
+  (run python3 %{dep:../tools/gpu_migration/api_manifest.py}
+   --root %{workspace_root} --check)))
+
 (test
  (name procedural_render_smoke)
  (modules procedural_render_smoke)

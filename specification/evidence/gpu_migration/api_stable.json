@@ -1,0 +1,1185 @@
+{
+  "baseline_commit": "4622091a65bc9a8816a1f10bcc83c1a625ca7522",
+  "baseline_plan_sha256": "75cb47632aa2b26199677560c6382b8b94786af5f704867b40d306ccefbe19d3",
+  "generator": "tools/gpu_migration/api_manifest.py",
+  "kind": "stable_high_level",
+  "module_count": 130,
+  "modules": [
+    {
+      "api_sha256": "69403004e55a49667961f98b7879af4b3786d561307ea8812bb014b262ce5a72",
+      "excluded_legacy_symbols": [],
+      "library": "geom",
+      "module": "Affine2",
+      "source": "lib/geom/affine2.mli",
+      "source_bytes": 711,
+      "source_sha256": "a0ee2e3518536a01360f3df5d6bccf7cd199d310568719835574604876ae2a97"
+    },
+    {
+      "api_sha256": "c8543822aa98257d36553f8bf1edc1f577f9faea3f0e090820b4f9e0bd604600",
+      "excluded_legacy_symbols": [],
+      "library": "geom",
+      "module": "Bounds2",
+      "source": "lib/geom/bounds2.mli",
+      "source_bytes": 669,
+      "source_sha256": "c13f3a3caa581dba9531f501de76450bfbf3ffd51f6edca66effd4d04761e75b"
+    },
+    {
+      "api_sha256": "f49131530cc8e0bcc3823e24bf033399aadef38415c8c171097374f8b5e8a5e4",
+      "excluded_legacy_symbols": [],
+      "library": "geom",
+      "module": "Bounds3",
+      "source": "lib/geom/bounds3.mli",
+      "source_bytes": 734,
+      "source_sha256": "7cabf00c074b74a67778e65f89f690dbbf7c42ea4cf3eb5a9c1f6d5354fbd9b5"
+    },
+    {
+      "api_sha256": "f41f0606f0db95412cf6876e54e8baf4b9a1b6f68fac71497e49322c875b7068",
+      "excluded_legacy_symbols": [],
+      "library": "geom",
+      "module": "Circle2",
+      "source": "lib/geom/circle2.mli",
+      "source_bytes": 827,
+      "source_sha256": "62826f27f089adf8e0748a130ac152c1ce1da1cbe3f5cfdb28b7e80412f72f57"
+    },
+    {
+      "api_sha256": "2079794adaab52612e9852b1f0f58bbf77762fb122d6df8d50541def8199fd6d",
+      "excluded_legacy_symbols": [],
+      "library": "geom",
+      "module": "Contour2",
+      "source": "lib/geom/contour2.mli",
+      "source_bytes": 250,
+      "source_sha256": "d59ed52980fd15fe0fb9f50409f9a7da3630cd3a88f0e127067cd932fdb77117"
+    },
+    {
+      "api_sha256": "54ae9dbe3ed8564268f7ff8fdaa1d225a223c23bfcf2d67d14f24bb173e5c767",
+      "excluded_legacy_symbols": [],
+      "library": "geom",
+      "module": "Csg3",
+      "source": "lib/geom/csg3.mli",
+      "source_bytes": 521,
+      "source_sha256": "76183161c1445fa97f36e6f29f867b15af00e3acd3d724918aabfccd9b94650a"
+    },
+    {
+      "api_sha256": "e285dd95e972344f23469bcab96502bb38c7c34bad1cd744592aace1be20e114",
+      "excluded_legacy_symbols": [],
+      "library": "geom",
+      "module": "Curve2",
+      "source": "lib/geom/curve2.mli",
+      "source_bytes": 2449,
+      "source_sha256": "e87b3d35082c2d82274d65e895be19a01795d865dd62f66cccde8939c999f1c0"
+    },
+    {
+      "api_sha256": "d326efb5b8c743c20e1463df0a594e5a15059ae9227adf2fccd8831d9382e647",
+      "excluded_legacy_symbols": [],
+      "library": "geom",
+      "module": "Curve3",
+      "source": "lib/geom/curve3.mli",
+      "source_bytes": 1026,
+      "source_sha256": "8a4990c1f27d5eba55a883e0ecd01bf98055f161e593472889be3baacbb66b2c"
+    },
+    {
+      "api_sha256": "604532e69193afacb3a3daebdac786563e26b86a0b4f220557f1564431b90d55",
+      "excluded_legacy_symbols": [],
+      "library": "geom",
+      "module": "Delaunay2",
+      "source": "lib/geom/delaunay2.mli",
+      "source_bytes": 1179,
+      "source_sha256": "e3b8f28d808a0ececd3f834739a877812c1efebd2c1689b8c3d6dd238d5a7138"
+    },
+    {
+      "api_sha256": "749f08c463065dc2ddc8f11e0e28631822d1a8300c55c5918c7f75d5352836c7",
+      "excluded_legacy_symbols": [],
+      "library": "geom",
+      "module": "Frustum3",
+      "source": "lib/geom/frustum3.mli",
+      "source_bytes": 429,
+      "source_sha256": "0948b1398811eb7884f2724a3dc207b2e29f03897f95ab86faf1a46e22cdda51"
+    },
+    {
+      "api_sha256": "997cffdc37794f4c6a2b51d55b2834c8e5bd55b93a22a425c05347643ad05080",
+      "excluded_legacy_symbols": [],
+      "library": "geom",
+      "module": "Intersect2",
+      "source": "lib/geom/intersect2.mli",
+      "source_bytes": 774,
+      "source_sha256": "ab4aa8448cb254974a02efb80b619bdea8e595cd82af69166134ceb987b32944"
+    },
+    {
+      "api_sha256": "cf0528fd3550cc7aa72da1990504ab8f23699153a3f88e91628a5b43857a7582",
+      "excluded_legacy_symbols": [],
+      "library": "geom",
+      "module": "Intersect3",
+      "source": "lib/geom/intersect3.mli",
+      "source_bytes": 1000,
+      "source_sha256": "b6e2ceea9fcb4916daf3f11a8ac684d9c8a3cfccf554b925f1a8d9e20c5e39a9"
+    },
+    {
+      "api_sha256": "13be232a31bfb67a399c9a533c27a833dbff7ca616af15c6263af107ea148f58",
+      "excluded_legacy_symbols": [],
+      "library": "geom",
+      "module": "Iso3",
+      "source": "lib/geom/iso3.mli",
+      "source_bytes": 2312,
+      "source_sha256": "41aa77e2fce68894416140a29ed3c2e9dddd0ba68abe111d4b1581bb2b1425e1"
+    },
+    {
+      "api_sha256": "5cb90a9d859702c83c88b17a7d488300bcb973fdb300462d0b9f4dca74dfc039",
+      "excluded_legacy_symbols": [],
+      "library": "geom",
+      "module": "Mesh3",
+      "source": "lib/geom/mesh3.mli",
+      "source_bytes": 2109,
+      "source_sha256": "0faab120f09366fe0d946114f14be09a6acda02184980a2909feb8fed90e07ea"
+    },
+    {
+      "api_sha256": "7f74478035cacf6b18bbf3777d49a73dab7479466a95eeffe9444c9cfeda68ce",
+      "excluded_legacy_symbols": [],
+      "library": "geom",
+      "module": "Mesh_attrib",
+      "source": "lib/geom/mesh_attrib.mli",
+      "source_bytes": 955,
+      "source_sha256": "67036ce863fc239891133d9ff66f938cc117e9dafd80358c2ff78273bc6baa80"
+    },
+    {
+      "api_sha256": "c762d84e8eb606e3d675e886d294d016345e5dd96cb36830c27898991036cb0c",
+      "excluded_legacy_symbols": [],
+      "library": "geom",
+      "module": "Mesh_io",
+      "source": "lib/geom/mesh_io.mli",
+      "source_bytes": 561,
+      "source_sha256": "93c5d2d3e3e83e2387057184b940222e233fe3e5b292d9f168d169d3c94d7d59"
+    },
+    {
+      "api_sha256": "ea8818f72a5a8b9c6614ce5d612efd4f6fbb0cfc6f76d03772dd910cd2e2f6a4",
+      "excluded_legacy_symbols": [],
+      "library": "geom",
+      "module": "Mesh_repair",
+      "source": "lib/geom/mesh_repair.mli",
+      "source_bytes": 1655,
+      "source_sha256": "edda6c91b3a12c4557139c401965c4ab6430f85601bca8b4fb2382e1d453337b"
+    },
+    {
+      "api_sha256": "d7c460c8bc8d0c1f47a73a7eece7dfc8fd27dfaa48757bf94626c53985cbea5b",
+      "excluded_legacy_symbols": [],
+      "library": "geom",
+      "module": "Mesh_topology",
+      "source": "lib/geom/mesh_topology.mli",
+      "source_bytes": 642,
+      "source_sha256": "e9c059e85998abd7eb3ec428373d3178ba5b9f4ff7a918864a4c11c7312efdc5"
+    },
+    {
+      "api_sha256": "455d5649fbdefb5760c8eeb1f6b1f615f622480844bc5ea08ec379911a4ecfe3",
+      "excluded_legacy_symbols": [],
+      "library": "geom",
+      "module": "Octree",
+      "source": "lib/geom/octree.mli",
+      "source_bytes": 1044,
+      "source_sha256": "168dad0c7c8af0db275c8b166756b3c1ea340456c3668d5fd9369b30f333047d"
+    },
+    {
+      "api_sha256": "732900f297ae9f1fcb04d2dc3005985593174b87ef2e327849f22fdc43827516",
+      "excluded_legacy_symbols": [],
+      "library": "geom",
+      "module": "Plane3",
+      "source": "lib/geom/plane3.mli",
+      "source_bytes": 538,
+      "source_sha256": "f294832fc6f8f2ed32a17202f92a85c65a990e0e43bfdfeec20f6a1369cc612d"
+    },
+    {
+      "api_sha256": "0bdf25dbeccb2003c04571241e2e5a2abe2b100e3c34fb0f9fb03b39b80f83ed",
+      "excluded_legacy_symbols": [],
+      "library": "geom",
+      "module": "Polygon2",
+      "source": "lib/geom/polygon2.mli",
+      "source_bytes": 2110,
+      "source_sha256": "98b7a2664a2b5565e2803570a9b589a1a49166dc666b19a1ec253473acefc003"
+    },
+    {
+      "api_sha256": "eb6d6051e2bacfab47c8be653b093206d9b3c9b184f733fa9c14c1133f4a7984",
+      "excluded_legacy_symbols": [],
+      "library": "geom",
+      "module": "Polyhedra3",
+      "source": "lib/geom/polyhedra3.mli",
+      "source_bytes": 659,
+      "source_sha256": "3d5f4aefaefcc9444ef48dc3974c4d80f8a6f90b755f32525e274f5541388107"
+    },
+    {
+      "api_sha256": "28a7eca30fe65f808baedccf7eeb4078c27ab5a09a7eae1b85166aa610b2c991",
+      "excluded_legacy_symbols": [],
+      "library": "geom",
+      "module": "Quad3",
+      "source": "lib/geom/quad3.mli",
+      "source_bytes": 648,
+      "source_sha256": "612075cf5291da7f8a3afa2febc0a16d21cb27903ba7657475eebb1d40a9ed7f"
+    },
+    {
+      "api_sha256": "819b353c72ade9ef81899fafb2d55913fa077d7e9b94f6bdcf59c5c604c3b3bd",
+      "excluded_legacy_symbols": [],
+      "library": "geom",
+      "module": "Quadtree",
+      "source": "lib/geom/quadtree.mli",
+      "source_bytes": 1046,
+      "source_sha256": "0dc79d232e5b222a347f176dd4fded9e8e9bddf8b4dee4976c0c5a4b1a78081e"
+    },
+    {
+      "api_sha256": "681ca527e25c47d4dc5aee3788874cb657792b402d5db06c322b3be8b76e862d",
+      "excluded_legacy_symbols": [],
+      "library": "geom",
+      "module": "Ray2",
+      "source": "lib/geom/ray2.mli",
+      "source_bytes": 401,
+      "source_sha256": "98edef5443bd761ba0c15599d00b510853b0984985fe0630bafa869f8e83c700"
+    },
+    {
+      "api_sha256": "991e7f2e966e25acbe5b417bf88b06b4bc4802fa17e526e063dc05ed5a559c0a",
+      "excluded_legacy_symbols": [],
+      "library": "geom",
+      "module": "Ray3",
+      "source": "lib/geom/ray3.mli",
+      "source_bytes": 400,
+      "source_sha256": "f63ad55765cbb29988001d12f4dd908b243e4ea191829f9c453f0c99f79c0e15"
+    },
+    {
+      "api_sha256": "76594fb6ea2783c3022212745da7ca586a216546db26d8a5fa662ff87b887acc",
+      "excluded_legacy_symbols": [],
+      "library": "geom",
+      "module": "Render2",
+      "source": "lib/geom/render2.mli",
+      "source_bytes": 1131,
+      "source_sha256": "19204ea110bbc23a4fabd10239077eba3a96ebbebbeade4b886fcf9d6766f94e"
+    },
+    {
+      "api_sha256": "28a7a3b4b315af1dfd4d15ddf81a00fa5dc4b8673512c5d4160aa4279d298324",
+      "excluded_legacy_symbols": [],
+      "library": "geom",
+      "module": "Segment2",
+      "source": "lib/geom/segment2.mli",
+      "source_bytes": 887,
+      "source_sha256": "1c0a9702d16bffaa703c983fc60d77769d44b346cc8df592247ed8d1f38f7db4"
+    },
+    {
+      "api_sha256": "e8263753c2fd9f42089e79e5449da88d699b0d4478cb3c3246381565d08a5497",
+      "excluded_legacy_symbols": [],
+      "library": "geom",
+      "module": "Segment3",
+      "source": "lib/geom/segment3.mli",
+      "source_bytes": 600,
+      "source_sha256": "c74efe76b35480fedafea58ba8c1558ca8ddab0e2162eb15eb32163b1f5db55b"
+    },
+    {
+      "api_sha256": "44badf97c6fcc43da5fb59481905628c13b2b848538e2f818ff3b9b76bde7bcb",
+      "excluded_legacy_symbols": [],
+      "library": "geom",
+      "module": "Sphere3",
+      "source": "lib/geom/sphere3.mli",
+      "source_bytes": 411,
+      "source_sha256": "00303c69c30e0c25497dd21b18b82986fa4ddc4c10ea1298d773fa6ec2319ee3"
+    },
+    {
+      "api_sha256": "ff3ade42a7b1b730d089edfc1edfc1157da2bfb2f1c8176fc5ea98f516db4a87",
+      "excluded_legacy_symbols": [],
+      "library": "geom",
+      "module": "Svg",
+      "source": "lib/geom/svg.mli",
+      "source_bytes": 1697,
+      "source_sha256": "9cb8d06d491d75217c0ed95a73562d7af0a302b4b23febbdafd6421cae90b74c"
+    },
+    {
+      "api_sha256": "7049d3ab674ac42c8910c522d4815dbdb219afd7193ab98629319557e272c235",
+      "excluded_legacy_symbols": [],
+      "library": "geom",
+      "module": "Svg3",
+      "source": "lib/geom/svg3.mli",
+      "source_bytes": 539,
+      "source_sha256": "0983c5e8c2cc395bcd4a59f25ff1cd183a37a2dfa39a0f4e17564ef19f1d552b"
+    },
+    {
+      "api_sha256": "dae4240c56fc54aa7c64cd0240d78852c04e35e5d12dbf25439d96052ea020a0",
+      "excluded_legacy_symbols": [],
+      "library": "geom",
+      "module": "Svg_path",
+      "source": "lib/geom/svg_path.mli",
+      "source_bytes": 347,
+      "source_sha256": "425b7ce8a80d7a3f4a5f43b99b1d9040ba2a3be4b90998e4a53543b6f0d1e634"
+    },
+    {
+      "api_sha256": "23e44192a6ec3c0a95256f3c52ccb463cca93ccb610e39017fa729ecb3b087bc",
+      "excluded_legacy_symbols": [],
+      "library": "geom",
+      "module": "Svo3",
+      "source": "lib/geom/svo3.mli",
+      "source_bytes": 953,
+      "source_sha256": "b86503710055802e82ea67dfd8c141806c7704b26b531c0ef5ddecb616c4096f"
+    },
+    {
+      "api_sha256": "fba15ced9e10d795ece34d17e199038391ef88e5ea1656931b2c4b80dfa71a8a",
+      "excluded_legacy_symbols": [],
+      "library": "geom",
+      "module": "Tetrahedron3",
+      "source": "lib/geom/tetrahedron3.mli",
+      "source_bytes": 583,
+      "source_sha256": "f4b7d5063c9d2499f166f1b0ba7838ab2ef977bb756e70ca356540580e679a04"
+    },
+    {
+      "api_sha256": "53fa78dc1a28d380fd1fa4109459f656452ad50205e72ff3c4e73be942426121",
+      "excluded_legacy_symbols": [],
+      "library": "geom",
+      "module": "Transport3",
+      "source": "lib/geom/transport3.mli",
+      "source_bytes": 465,
+      "source_sha256": "d0f1bd478686a520902670b21c53dc0a0438b33a58d62cd15caa9e186c2b514d"
+    },
+    {
+      "api_sha256": "0638cd2efcfb204ad9aa8981f40106f09fd47a134eb1606e5de064d1fc61ea96",
+      "excluded_legacy_symbols": [],
+      "library": "geom",
+      "module": "Triangle2",
+      "source": "lib/geom/triangle2.mli",
+      "source_bytes": 769,
+      "source_sha256": "a0a0c117dddc080019f5ee5e1286938dfeaa562f90a62532a16fbc977ffe870c"
+    },
+    {
+      "api_sha256": "e1ef15bfc5a636d27368688aaed1469bc41507ef8c7c380cefb492d8d14bdb38",
+      "excluded_legacy_symbols": [],
+      "library": "geom",
+      "module": "Triangle3",
+      "source": "lib/geom/triangle3.mli",
+      "source_bytes": 622,
+      "source_sha256": "0cc9fc894b9afc140b0ca92a0f4a66267c4e758e4741e6e6b5085d3b6ab1e238"
+    },
+    {
+      "api_sha256": "738a8076ad19d0cc4a412dae3af9b35848ef1db3e2e5acba79ffa808da0f206d",
+      "excluded_legacy_symbols": [],
+      "library": "geom",
+      "module": "Util",
+      "source": "lib/geom/util.mli",
+      "source_bytes": 1061,
+      "source_sha256": "66e101323fefdab9563636d4cde0a9be545c21cc86df7e6b48ff2a55d4e1a7e9"
+    },
+    {
+      "api_sha256": "4d90fd4765b0778a1cbc6f26726dc5ad6b6d2182fc04bea534b073ac7d0c954d",
+      "excluded_legacy_symbols": [],
+      "library": "geom",
+      "module": "Verlet2",
+      "source": "lib/geom/verlet2.mli",
+      "source_bytes": 2067,
+      "source_sha256": "6ba1c0cc1b0483a9b6a9eb58232e4dd21a49fa5cc1cf851bda2dcca44fd39fe2"
+    },
+    {
+      "api_sha256": "b41761cfc8e24fafdd0ed15d47c722c6c5e9efe223a78f7bb0e3760a85979f7c",
+      "excluded_legacy_symbols": [],
+      "library": "geom",
+      "module": "Verlet3",
+      "source": "lib/geom/verlet3.mli",
+      "source_bytes": 2069,
+      "source_sha256": "51c834017bb8ab724bdcf5c48c135d8a6df33b368ee312af3d91a432705e9088"
+    },
+    {
+      "api_sha256": "6487315a114a0e113f78324e56a1bab20d26511a26511e2abc9c16f4f9fd163c",
+      "excluded_legacy_symbols": [],
+      "library": "geom",
+      "module": "Viz",
+      "source": "lib/geom/viz.mli",
+      "source_bytes": 2783,
+      "source_sha256": "d062403ab876fb7dadd54a32611ffa73e6252362a03f83a7ad6d45f22265be9f"
+    },
+    {
+      "api_sha256": "5696d87e724f5cbeae99bbdf195569e441fbd9072010b57644eecbfd3b33506e",
+      "excluded_legacy_symbols": [],
+      "library": "geom",
+      "module": "Voxel3",
+      "source": "lib/geom/voxel3.mli",
+      "source_bytes": 1988,
+      "source_sha256": "0fa7e86b83a3d85444929dbebdc9976a75badc3f47a95422693ed10cabdb905b"
+    },
+    {
+      "api_sha256": "0ea3d957c84c554f8bd09410342b1fbce38c19fa0ec208a5e5581110f2a29ece",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Analysis",
+      "source": "lib/pdk/analysis.mli",
+      "source_bytes": 4686,
+      "source_sha256": "c371d0294e6b0cbf98127e4e37b5d0fd539f03536aaa47c73004afdc6403a048"
+    },
+    {
+      "api_sha256": "7a2c526b30660ea21ffe84b0f228d81e60643007650aea3ba7cf72980a6b1c91",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Attribute",
+      "source": "lib/pdk/attribute.mli",
+      "source_bytes": 2031,
+      "source_sha256": "dd21dd6f29c66daee506134116484eab6139be21b8c8a49a34278275b3136726"
+    },
+    {
+      "api_sha256": "6c09f04143a34cad68fd10cec71aa57e47335b6ba20c6ed53a1b594275c1ead5",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Attribute_ops",
+      "source": "lib/pdk/attribute_ops.mli",
+      "source_bytes": 38084,
+      "source_sha256": "a4781314aa3f8578a7ed8144282925a7d5e41cbb113b188e03c1001e0b959990"
+    },
+    {
+      "api_sha256": "54b5847084b9905cf2e12e16ad9f7fc695b486f3fd22ef4bafd3ea89db0ccce9",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Attribute_pattern",
+      "source": "lib/pdk/attribute_pattern.mli",
+      "source_bytes": 2467,
+      "source_sha256": "70549976747f3ba274aa5ef28ba57fb40e761532e25dd43163c63230567eb6b6"
+    },
+    {
+      "api_sha256": "645bc4e12234bb7492adfc705105ea715da48d075067831cda841b070946f588",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Boolean",
+      "source": "lib/pdk/boolean.mli",
+      "source_bytes": 4757,
+      "source_sha256": "b16cef07e85b6f68d4e3ac5f35be557f5b3e7dbfeb63cd5a3cd3dcca64c42631"
+    },
+    {
+      "api_sha256": "7f6ad445211a115c05992ae8fa0eb21b4ee7a6aace6b41731be2c38f201f1ca9",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Boolean_kernel",
+      "source": "lib/pdk/boolean_kernel.mli",
+      "source_bytes": 20119,
+      "source_sha256": "e1c2b0032d6f0ba810769a2314445b03ea6ce820cb677887c01074f3ef4a14e8"
+    },
+    {
+      "api_sha256": "e5072e0fc2c715dc9ecfe063559b85257b4f9e31368632d7c136a45821be40f2",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Cancel",
+      "source": "lib/pdk/cancel.mli",
+      "source_bytes": 232,
+      "source_sha256": "c861d2e8253c3633abfa233f3eeb53247c01f3983e753f6b89a344d3d5870921"
+    },
+    {
+      "api_sha256": "74e4e7bcc7ffe2c1391f2c5b59891d76259dac8ce360f0588020a6fc91c2adb1",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Delaunay2",
+      "source": "lib/pdk/delaunay2.mli",
+      "source_bytes": 1017,
+      "source_sha256": "b11640496b0515056a8edba5073c15fa020540c08b30dbf7b4c6e8da929caf9b"
+    },
+    {
+      "api_sha256": "a2e46931007da7ede91f52647c940a33b9fd3f89dd49ca66a7a9adb9bbcec100",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Edge_group",
+      "source": "lib/pdk/edge_group.mli",
+      "source_bytes": 2960,
+      "source_sha256": "d7d1f51c14ff8e8890512fb1c01617a8e3adc1be36bf1a566aaf79127e2d3a47"
+    },
+    {
+      "api_sha256": "be06e0f6342e3ab019e419103f0b954011f0676a511e296fe179834479c03ece",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Error",
+      "source": "lib/pdk/error.mli",
+      "source_bytes": 360,
+      "source_sha256": "b670c21f8796ec81dc9b8e418b7d841eeaff5aceea0a95992519ff16ed999df9"
+    },
+    {
+      "api_sha256": "52bea6aae661344ae0ada5fbba95289009125abcea5f94c7ae398a8f38962908",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Geometry",
+      "source": "lib/pdk/geometry.mli",
+      "source_bytes": 3745,
+      "source_sha256": "1f9a38510d3db23516decfeff9eee3c7ec13b15252c70f4f305c7cd9dfdb14dc"
+    },
+    {
+      "api_sha256": "719b54b842c85fc6a14d55d77621d8d3329812491e078ed73b12347ab930a6f8",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Group",
+      "source": "lib/pdk/group.mli",
+      "source_bytes": 3260,
+      "source_sha256": "42613303db49fa0460ef215b59454f0c3e307a980ac7c905f9b447947afcd0d3"
+    },
+    {
+      "api_sha256": "21d7a8e41e1e5815b5507a9c9825c6e13d56fb32c36003cf59d5e3729a27ebc4",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Kernel",
+      "source": "lib/pdk/kernel.mli",
+      "source_bytes": 1894,
+      "source_sha256": "80b287c18538389a0dcedf0ef1fafe1333c493b64d6687fe376a706b52c1fcbf"
+    },
+    {
+      "api_sha256": "d6b09ace791ac26c4c8b69355fb10e99370eaa940ecfcf84dc66d81535ea089f",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Motion",
+      "source": "lib/pdk/motion.mli",
+      "source_bytes": 2631,
+      "source_sha256": "e8cba5d91cde8a8afcf00f729b25c60df77e32d6a94d7d8fabbce5981d12eb1d"
+    },
+    {
+      "api_sha256": "f37307ff955d1ebe9b9d8bf4f5af3aaab14f836b44c105ea78f7a0a51989196e",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Ops",
+      "source": "lib/pdk/ops.mli",
+      "source_bytes": 210817,
+      "source_sha256": "92908d33470a2b975e6049f63f4828ac170105243345a11f7af1404eecc58e25"
+    },
+    {
+      "api_sha256": "3ba66ff65661ee6b11ba869bb145c0a7cbfef9f6e1c77749e246c0ece72ae1af",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Packed",
+      "source": "lib/pdk/packed.mli",
+      "source_bytes": 3152,
+      "source_sha256": "ff808236c7a11f62b47a0d2085eaa7d8c760095341e9a846392752af0e9629e6"
+    },
+    {
+      "api_sha256": "3bed09c1189d49226fbb3a7e1e875f66162c96065882ceae41b0ef9915dd716a",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Planar_cdt",
+      "source": "lib/pdk/planar_cdt.mli",
+      "source_bytes": 2718,
+      "source_sha256": "c8f4c1c1b6d70a1c95312eb66291f7644be62c7167e85951f45838dca5286864"
+    },
+    {
+      "api_sha256": "1c9a830dad7b2d0e967f03c83f2b42c65f2f05b41cd0e5a4ed241a0a968a63da",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Planar_constraints",
+      "source": "lib/pdk/planar_constraints.mli",
+      "source_bytes": 2336,
+      "source_sha256": "efad3640df83bc0de9a24f4f5b578a65674f2dd90ef6f54cf04046ad4c20e0e8"
+    },
+    {
+      "api_sha256": "fab7e20852eeff48c8dce955597ea694be5b296eecfeaca86de96b56a3ef9adb",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Predicates",
+      "source": "lib/pdk/predicates.mli",
+      "source_bytes": 7451,
+      "source_sha256": "9156a4c04b815e693ef75c09cc0b16e8f86342ae43eede53fdc3d85ed29d5fc0"
+    },
+    {
+      "api_sha256": "a3496aa6f6fa2dafa21bab405b1e16511129185d2c5e671b4b18fa9c82be2818",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Prismel_mesh",
+      "source": "lib/pdk/prismel_mesh.mli",
+      "source_bytes": 545,
+      "source_sha256": "c1df0a05e9272342d4e57646258ee464ff3fdb1c88f547f10b9b2a9833552117"
+    },
+    {
+      "api_sha256": "32c3c01f6a422108e560db6f453ed7c8bfdf677410df9d3edd250d940508fe14",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Spatial_index",
+      "source": "lib/pdk/spatial_index.mli",
+      "source_bytes": 2573,
+      "source_sha256": "8d8183226fa0ef684bb739a59d830bda0636201c9faf07008171c6e881c3d75d"
+    },
+    {
+      "api_sha256": "ff6f960aefff95e00dbfb8fa62d429edfd27e88b7037590f09c41a29b3b43e94",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Surface_index",
+      "source": "lib/pdk/surface_index.mli",
+      "source_bytes": 8444,
+      "source_sha256": "53ca7f5fb3cfeaa5892193578853f031738e8cf04702e6440892583513394030"
+    },
+    {
+      "api_sha256": "283037da00b6f73314c37cbdcc133e9a326aa54fe343f649f8ccb77e97dc3645",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Topology",
+      "source": "lib/pdk/topology.mli",
+      "source_bytes": 2113,
+      "source_sha256": "68d88d770793e2645e6ac0b4950c4235118d63ad79f0e12f29526b31a03ddb9e"
+    },
+    {
+      "api_sha256": "8977efe757d3ddbb7fdfb7e4042bca574f1397c21841368d1f112a520bf5dedb",
+      "excluded_legacy_symbols": [],
+      "library": "pdk",
+      "module": "Topology_index",
+      "source": "lib/pdk/topology_index.mli",
+      "source_bytes": 3299,
+      "source_sha256": "4fb95b9a2f1bbca2cefd97a265f77510d0c1a5322b73c912050b963e112a5d30"
+    },
+    {
+      "api_sha256": "913a9f194a1370945e1156444bf365226f8c45c1ac74bade3d9c95d0d6f0b2de",
+      "excluded_legacy_symbols": [],
+      "library": "prismel",
+      "module": "Assets",
+      "source": "lib/prismel/assets.mli",
+      "source_bytes": 1588,
+      "source_sha256": "07af7d0fd95a987ecda7b4595a3df9ab7f0c0655d3c5c455ba1b42563fe987fb"
+    },
+    {
+      "api_sha256": "399584729103ced393197eb856d103e03674d718822802737328cdc94fc42bc1",
+      "excluded_legacy_symbols": [],
+      "library": "prismel",
+      "module": "Audio",
+      "source": "lib/prismel/audio.mli",
+      "source_bytes": 1286,
+      "source_sha256": "34062c36ab1804083dfc1d6fbde0686e27aefa2ae5ae7398f2ddc23d204d01d2"
+    },
+    {
+      "api_sha256": "1c39a36fe9f2b6afb6d2595517dc5dbebf1d97bfffe6249b5954d21491f7c3ba",
+      "excluded_legacy_symbols": [],
+      "library": "prismel",
+      "module": "Camera",
+      "source": "lib/prismel/camera.mli",
+      "source_bytes": 2784,
+      "source_sha256": "c16e0a991785bd39d2241f31b323aa79d12e38d621d7c57eb642716f8e375505"
+    },
+    {
+      "api_sha256": "61c982ef160f0c7b88976a014f09a95e85e0fac44d65d2b69df543899f596dba",
+      "excluded_legacy_symbols": [],
+      "library": "prismel",
+      "module": "Canvas",
+      "source": "lib/prismel/canvas.mli",
+      "source_bytes": 1609,
+      "source_sha256": "41dd11270c305c2fd01cbc70bc883bd928728b0868c673df7fc1d788bec57167"
+    },
+    {
+      "api_sha256": "79f27f4c6bfe422e1bccd3059d53bdc8dbd202cf0a304c97de5443247051a61f",
+      "excluded_legacy_symbols": [],
+      "library": "prismel",
+      "module": "Color",
+      "source": "lib/prismel/color.mli",
+      "source_bytes": 1380,
+      "source_sha256": "e748f19018d8e98170727ed1b2cecec58c4c11975685d598e7ddc8bf3c2b2572"
+    },
+    {
+      "api_sha256": "cd697d0490808818dba7076e93a74e07c8e33ca68389a8b4f13a88f79fa2878f",
+      "excluded_legacy_symbols": [],
+      "library": "prismel",
+      "module": "Compute3",
+      "source": "lib/prismel/compute3.mli",
+      "source_bytes": 703,
+      "source_sha256": "e4434ed7cb8495dccfdc6777f4543fdcaec49d0e992d487e22921ed758675b9c"
+    },
+    {
+      "api_sha256": "4d429f8315513b4e60edb76e40f6621221276a3e16063d8ea54d074a956ebadc",
+      "excluded_legacy_symbols": [],
+      "library": "prismel",
+      "module": "Easy_camera",
+      "source": "lib/prismel/easy_camera.mli",
+      "source_bytes": 2880,
+      "source_sha256": "c5d2a0cf82b6354e43c5a4e9316db3e8d31e903ec310aa9807723a861dba1e8a"
+    },
+    {
+      "api_sha256": "05e153d3a7cb467e297d1bca90b5b5871da0a8f15fb165863c31167084f408e4",
+      "excluded_legacy_symbols": [],
+      "library": "prismel",
+      "module": "Easy_camera2",
+      "source": "lib/prismel/easy_camera2.mli",
+      "source_bytes": 2173,
+      "source_sha256": "3d003d8e1a5eb9786ba600c61729604e516b4c7e182fa95b6b3f035c1a6b12eb"
+    },
+    {
+      "api_sha256": "1af9f5cce187bb25156b94fb77896d619dc92f2f1ef791447d32ac5f01661d73",
+      "excluded_legacy_symbols": [],
+      "library": "prismel",
+      "module": "Event",
+      "source": "lib/prismel/event.mli",
+      "source_bytes": 1343,
+      "source_sha256": "6707cf924f67e319973cb2b819e0ac55ab7b9c13be2299a5cfc7b717893bcdee"
+    },
+    {
+      "api_sha256": "ad62ad9ff4b2dc8aed9b97d9436ec5203c79f7a90d44504fb6a08416fe053e0a",
+      "excluded_legacy_symbols": [],
+      "library": "prismel",
+      "module": "Fog3",
+      "source": "lib/prismel/fog3.mli",
+      "source_bytes": 510,
+      "source_sha256": "c2f882087efb3d55d07d2be24227681c5a55b0efd289930b377c9458d591997a"
+    },
+    {
+      "api_sha256": "e2b4da2cf1fc0a9a4d9d2a5091c090cadf8f7404bcbb50dfe58ac8a23baa9381",
+      "excluded_legacy_symbols": [
+        "module:Private",
+        "value:release_renderer"
+      ],
+      "library": "prismel",
+      "module": "Font",
+      "source": "lib/prismel/font.mli",
+      "source_bytes": 5775,
+      "source_sha256": "40308c5da4095e9001588e155bac3980df5e93f130b1289c71fc8f67b5c068ad"
+    },
+    {
+      "api_sha256": "ffb3db727241e424d47e14f0583ea73e8954500728f48e06ab187153665d67eb",
+      "excluded_legacy_symbols": [],
+      "library": "prismel",
+      "module": "Frame",
+      "source": "lib/prismel/frame.mli",
+      "source_bytes": 800,
+      "source_sha256": "cf36ceb08ca95903aed480c8b687fd7bdc7b9c6a80b62e6a84c5f17f41c4edee"
+    },
+    {
+      "api_sha256": "56570c527f0f5804126122e49b789743a5eac12f480930a0748cc4aa898b0f84",
+      "excluded_legacy_symbols": [],
+      "library": "prismel",
+      "module": "Framebuffer3",
+      "source": "lib/prismel/framebuffer3.mli",
+      "source_bytes": 1131,
+      "source_sha256": "45dff8794de2570b441d110395003309b3356710e19f01f260f27dd0de01a4ac"
+    },
+    {
+      "api_sha256": "90735fabb728a8125fb90c689d5799d9acb8a6cff01c0e4111703d49f3c5332e",
+      "excluded_legacy_symbols": [
+        "module:Private"
+      ],
+      "library": "prismel",
+      "module": "Image",
+      "source": "lib/prismel/image.mli",
+      "source_bytes": 756,
+      "source_sha256": "78fd8dbdc492aee8d3f0c11005969040de557470b10f7e6ebac95a7df5b81af3"
+    },
+    {
+      "api_sha256": "4f0e4c89722aee961bf0e6357ef0174f0d930b0e120a69e39c258f278254f358",
+      "excluded_legacy_symbols": [],
+      "library": "prismel",
+      "module": "Input",
+      "source": "lib/prismel/input.mli",
+      "source_bytes": 1688,
+      "source_sha256": "6827ad1360b8de4b2dcc800bfd95a3c677a907e1cd23c12c96ef2e69281d76a2"
+    },
+    {
+      "api_sha256": "462469ed4e8b2ddd45acceb51d7e2603ea20a8bf448fac73c0e6794bd706116d",
+      "excluded_legacy_symbols": [],
+      "library": "prismel",
+      "module": "Light",
+      "source": "lib/prismel/light.mli",
+      "source_bytes": 1759,
+      "source_sha256": "572544e352109c4403182252f38dd2894f00035992986911ec7adf9965f64840"
+    },
+    {
+      "api_sha256": "800716ec3944adc38c92341986735476d76ba5f774da239383f37790c3de3d55",
+      "excluded_legacy_symbols": [],
+      "library": "prismel",
+      "module": "Mat3",
+      "source": "lib/prismel/mat3.mli",
+      "source_bytes": 804,
+      "source_sha256": "ffbdbe56d3dc894765a4d7d0eaf2e7230aa7dbe0554b92f14a001f8bbedec3d2"
+    },
+    {
+      "api_sha256": "369d0186abac17c6927f5e502f9a7cad25e642b92f0c2074c5c65695c1c4d5ed",
+      "excluded_legacy_symbols": [],
+      "library": "prismel",
+      "module": "Mat4",
+      "source": "lib/prismel/mat4.mli",
+      "source_bytes": 1543,
+      "source_sha256": "cd3922a7cf5937e84485e3baadc15f64cb7acfc902e8b1f251f134b4ad81ed0a"
+    },
+    {
+      "api_sha256": "64145efff6a64481ed5ad55dab5ee752212d7c8373f8bb7ab88d21bf8662cc63",
+      "excluded_legacy_symbols": [],
+      "library": "prismel",
+      "module": "Material",
+      "source": "lib/prismel/material.mli",
+      "source_bytes": 371,
+      "source_sha256": "eb84bc1a629370567f25a554798eee3e3f6f3caf345a621a23df5f0687067be7"
+    },
+    {
+      "api_sha256": "e909dcfb9b5dbe0265eef8a7b47a7289eb6e09ed457df840d30a2a27f078611a",
+      "excluded_legacy_symbols": [],
+      "library": "prismel",
+      "module": "Math",
+      "source": "lib/prismel/math.mli",
+      "source_bytes": 1316,
+      "source_sha256": "70a5005329a28a40da3b1ed5a7e529313a30fc4cc8e75f68d745b8c968f7be69"
+    },
+    {
+      "api_sha256": "3217996413b0df18ce9699456e0873a1fb0c8fcd67f9cea0d50333c8f7f6d20d",
+      "excluded_legacy_symbols": [],
+      "library": "prismel",
+      "module": "Mesh",
+      "source": "lib/prismel/mesh.mli",
+      "source_bytes": 8035,
+      "source_sha256": "9648cb01945a2d4a82ba26f9067b60c5a3bc7f58d33141ae411505640ad4833b"
+    },
+    {
+      "api_sha256": "afee297bd458b282b54bd1613fb81f0d6ad14d6a7a10bdad18f9dd9e02b1f29a",
+      "excluded_legacy_symbols": [],
+      "library": "prismel",
+      "module": "Node3",
+      "source": "lib/prismel/node3.mli",
+      "source_bytes": 1739,
+      "source_sha256": "f1a2587813eac50b299481c634c959ecd248ae0c8ecda94891fa144a7f629182"
+    },
+    {
+      "api_sha256": "263ea55aed3960d86f483aeac069001d11c35d6c6b4d90210227c563c68d3630",
+      "excluded_legacy_symbols": [],
+      "library": "prismel",
+      "module": "Noise",
+      "source": "lib/prismel/noise.mli",
+      "source_bytes": 1472,
+      "source_sha256": "15fefc7a7456e344d6a92e186aed0243fb943497497381c3116d67d847186ec1"
+    },
+    {
+      "api_sha256": "ee360c82b9272b640001a33c693358f289edbf61530556a0e9093b255edae5f2",
+      "excluded_legacy_symbols": [],
+      "library": "prismel",
+      "module": "Parallel",
+      "source": "lib/prismel/parallel.mli",
+      "source_bytes": 1779,
+      "source_sha256": "34fb43703458c5519dbd30919dbaff0a5fce194d1a574e0aaa2c02b6b721caa2"
+    },
+    {
+      "api_sha256": "af1b59bc799b96d40ba37db6d19f931536b32899c30bdb9dd20ee395af9f8e23",
+      "excluded_legacy_symbols": [],
+      "library": "prismel",
+      "module": "Path",
+      "source": "lib/prismel/path.mli",
+      "source_bytes": 903,
+      "source_sha256": "8879af83dfb28f56bd31a699d99f7f10b7949632cd33b685e93ffc123f3492b7"
+    },
+    {
+      "api_sha256": "b07615cefe30ef06a5a1961f7c9b7184dfc95393eba14ce2dab20b0f32b1434f",
+      "excluded_legacy_symbols": [],
+      "library": "prismel",
+      "module": "Preview",
+      "source": "lib/prismel/preview.mli",
+      "source_bytes": 560,
+      "source_sha256": "c704a70e2195fe5abedd7ba71976cf97ed15004fe96c9130364bb1134e851c3f"
+    },
+    {
+      "api_sha256": "26ebba2ff0f4069b78e36017852c09b8aba55f2969a72e363593100bf589e86b",
+      "excluded_legacy_symbols": [],
+      "library": "prismel",
+      "module": "Quat",
+      "source": "lib/prismel/quat.mli",
+      "source_bytes": 661,
+      "source_sha256": "8cc67a165571264744ed741afdad0712f4388daab33e578a488c6d155318de62"
+    },
+    {
+      "api_sha256": "68c408ef4f785150455d3cb6ad7d72efabc0fea7e8e5555e49cbcf1b47626fb1",
+      "excluded_legacy_symbols": [],
+      "library": "prismel",
+      "module": "Rand",
+      "source": "lib/prismel/rand.mli",
+      "source_bytes": 1179,
+      "source_sha256": "736e6f0f6c8779bfa67b1d0007005c821cc35ade01b467fd93c4e83374597ced"
+    },
+    {
+      "api_sha256": "8c4bde909119dc3392272f996380427a9cb8431c3becdaf57492ebcec95a7b92",
+      "excluded_legacy_symbols": [],
+      "library": "prismel",
+      "module": "Render2",
+      "source": "lib/prismel/render2.mli",
+      "source_bytes": 542,
+      "source_sha256": "9d54a3a58fd6dc486f22f113bce78313a1ee84c481275f21d6f8745abc192928"
+    },
+    {
+      "api_sha256": "d8ba318fcf44ff0ba518aba4b314ed43dc8a2bd7156c34ed2c97bd4dbbed60b6",
+      "excluded_legacy_symbols": [],
+      "library": "prismel",
+      "module": "Render3",
+      "source": "lib/prismel/render3.mli",
+      "source_bytes": 390,
+      "source_sha256": "885c7d2193d9218042f73e38013a7c2d58c68af1bb91d55169b7014cfc22c1af"
+    },
+    {
+      "api_sha256": "3d05f2ba0b9ad873493eb14fce6979c17294fe554c5befcc0e1ac2ae1bd3fc82",
+      "excluded_legacy_symbols": [],
+      "library": "prismel",
+      "module": "Scene",
+      "source": "lib/prismel/scene.mli",
+      "source_bytes": 3305,
+      "source_sha256": "60354c20dae455c7458e5b4f97cdcd305abb4ff254cc28c663abd94db74809a5"
+    },
+    {
+      "api_sha256": "838f3925623b5708ffbc449b2fb30d995bacb3ac609333749bbae6bcf4359019",
+      "excluded_legacy_symbols": [],
+      "library": "prismel",
+      "module": "Scene3",
+      "source": "lib/prismel/scene3.mli",
+      "source_bytes": 5308,
+      "source_sha256": "ba98de3d7c8b7fedcc888df9f50e7e91a0d55ec4545f3ddf9733a7316ef3c948"
+    },
+    {
+      "api_sha256": "95065cba582b65eb9f7700f8d67bac6c2152edbd7ad964fc0ed5e7eab58fc8ed",
+      "excluded_legacy_symbols": [],
+      "library": "prismel",
+      "module": "Shader3",
+      "source": "lib/prismel/shader3.mli",
+      "source_bytes": 3050,
+      "source_sha256": "b6d28dffa1907596782769016cee3362d06736e748ff24ae44dfdb56095880c4"
+    },
+    {
+      "api_sha256": "aac9f96dc0e54e193afdad99ade1f64463eabe5f1319d6aa065b5c1df804885b",
+      "excluded_legacy_symbols": [],
+      "library": "prismel",
+      "module": "Shadow3",
+      "source": "lib/prismel/shadow3.mli",
+      "source_bytes": 508,
+      "source_sha256": "11bbdb6c30c4351c018d87c3d6f07700a98cb4e5b9846899ea03b974cf5121ca"
+    },
+    {
+      "api_sha256": "94e33d828e978e885c97e1993654cdbe1ff569f9e4bed505118eda7cd6f415bc",
+      "excluded_legacy_symbols": [],
+      "library": "prismel",
+      "module": "Sketch",
+      "source": "lib/prismel/sketch.mli",
+      "source_bytes": 2075,
+      "source_sha256": "86124467f3f24812df37cc4c1b2bffeb6f62960ec0a4c8ba9412357654e42f9a"
+    },
+    {
+      "api_sha256": "f33205eec78844c79757591cad001194eda28cbd3942ee1aac0c255d8e7fc06f",
+      "excluded_legacy_symbols": [],
+      "library": "prismel",
+      "module": "Texture",
+      "source": "lib/prismel/texture.mli",
+      "source_bytes": 1841,
+      "source_sha256": "856a5d2923c5d2d304e7d23e3c9a9cb5ed437944735b4da0e653e6e4094e6773"
+    },
+    {
+      "api_sha256": "198f7da5ef5f3d5c149699105f58c8b4c311f7cbd641df2870f233bd227879df",
+      "excluded_legacy_symbols": [],
+      "library": "prismel",
+      "module": "Time",
+      "source": "lib/prismel/time.mli",
+      "source_bytes": 3879,
+      "source_sha256": "0b14ccfb85fbed453d9da9c1b51edee9eb4d81174d0133567176d2deb5e1ae4d"
+    },
+    {
+      "api_sha256": "a91c9d72869503c463f4e0316fa5ce7a3737baf3e84a926ea0c3e665c16f7650",
+      "excluded_legacy_symbols": [],
+      "library": "prismel",
+      "module": "Transform_feedback3",
+      "source": "lib/prismel/transform_feedback3.mli",
+      "source_bytes": 676,
+      "source_sha256": "4e1b81e5f42dd2d7b2fc5ab49db71c789d20b760300aca5a04a4f6757ecd7c60"
+    },
+    {
+      "api_sha256": "6a7c8f10ad5ab7d79039a5eba2701455af33eaf647ef268bf5903f467cb3b97b",
+      "excluded_legacy_symbols": [],
+      "library": "prismel",
+      "module": "Vec2",
+      "source": "lib/prismel/vec2.mli",
+      "source_bytes": 626,
+      "source_sha256": "315880090793645afb9f139bf7502404bb561c644c67a67842e0cf3b7efc2aa6"
+    },
+    {
+      "api_sha256": "44a0155f428327450c337aca672c7f78c667d03032153b8cf727678ea3cdcfda",
+      "excluded_legacy_symbols": [],
+      "library": "prismel",
+      "module": "Vec3",
+      "source": "lib/prismel/vec3.mli",
+      "source_bytes": 644,
+      "source_sha256": "f9d8c42990e392e9ee63f000a4c3fce8d0f1f9309bb699b59082dbc9ad17b21f"
+    },
+    {
+      "api_sha256": "ad853a15019a21eeda5459e3d5a85c29a36d26b54c2fbae89d60db8049e0f99b",
+      "excluded_legacy_symbols": [],
+      "library": "procedural",
+      "module": "Async_cook",
+      "source": "lib/procedural/async_cook.mli",
+      "source_bytes": 1345,
+      "source_sha256": "22b735d5e823832e034c514742c05ce877b71fba8ff6ab3cdbda94728a8b766e"
+    },
+    {
+      "api_sha256": "4f19defa2185d0a9a388b4b17d6bcd2fda5aa6e375207dd9721b22671d7040a2",
+      "excluded_legacy_symbols": [],
+      "library": "procedural",
+      "module": "Bridge",
+      "source": "lib/procedural/bridge.mli",
+      "source_bytes": 1251,
+      "source_sha256": "72f74d82e70ad281da0042667b90e922ad0ee69230ec63b2268f5f2280a0c926"
+    },
+    {
+      "api_sha256": "27f0aef78abfe3503fc1439cc5c9f9bee5fcfbbfb302db6d2f6194f604252e2f",
+      "excluded_legacy_symbols": [],
+      "library": "procedural",
+      "module": "Context",
+      "source": "lib/procedural/context.mli",
+      "source_bytes": 1148,
+      "source_sha256": "600a0257b7d6d246ba034b7e3d4229e7c4ca999d3468261e5d7caa99b87ac810"
+    },
+    {
+      "api_sha256": "5a4e8ca2e04e7a1da9cfef9c4164b98f6e5d44048267d43b36296e454f827545",
+      "excluded_legacy_symbols": [],
+      "library": "procedural",
+      "module": "Custom",
+      "source": "lib/procedural/custom.mli",
+      "source_bytes": 1943,
+      "source_sha256": "5058c30a5d8550edf530f4b09f6d3fcf721170e9eda6da2093b4e06982af5a2d"
+    },
+    {
+      "api_sha256": "a3da15752256a3ce20f6941a8fd8701da78ee556704853024ff9d3120d60fe17",
+      "excluded_legacy_symbols": [],
+      "library": "procedural",
+      "module": "Diagnostic",
+      "source": "lib/procedural/diagnostic.mli",
+      "source_bytes": 550,
+      "source_sha256": "d797796998ec4ac6fbd55753b0ded8f9b7df2750c5cef479a4b97a4acfe2a7b7"
+    },
+    {
+      "api_sha256": "9c21d7c5ff49964ffb638aafaf51b6283d831da43928e0b6c8787433cf18395d",
+      "excluded_legacy_symbols": [],
+      "library": "procedural",
+      "module": "Edit_graph",
+      "source": "lib/procedural/edit_graph.mli",
+      "source_bytes": 3371,
+      "source_sha256": "8866942642e07c428f1ef9f683640eefbee6d61796005bfe82696b270e6be148"
+    },
+    {
+      "api_sha256": "18eba87c3f33cde659ecd65ce3939dc04a92f6450c4fb2cf2960fa125ddc0fb2",
+      "excluded_legacy_symbols": [],
+      "library": "procedural",
+      "module": "Graph",
+      "source": "lib/procedural/graph.mli",
+      "source_bytes": 991,
+      "source_sha256": "e61e382c77d3e7008ebc551e544ade8180b79c8666adabee3c0e5efce5312c5d"
+    },
+    {
+      "api_sha256": "4dc1e85828fd27487cb2b4f4114d2246dba369f5db684446d7a9bfefc8008b68",
+      "excluded_legacy_symbols": [],
+      "library": "procedural",
+      "module": "Inspect",
+      "source": "lib/procedural/inspect.mli",
+      "source_bytes": 1047,
+      "source_sha256": "7e7ba89a2756ee06d50cd69d0ea88c1f5a520f66ee10d3c4c3de0c5cb6015c68"
+    },
+    {
+      "api_sha256": "dd9402ccfd52126d2421713d0f161332bd4389bdc6309bf83fe83c752ecbccf6",
+      "excluded_legacy_symbols": [],
+      "library": "procedural",
+      "module": "Instances",
+      "source": "lib/procedural/instances.mli",
+      "source_bytes": 1049,
+      "source_sha256": "dfd7179e1482ae5f37b7abec0b1a45b12863a523739eb073bed2b36d20299954"
+    },
+    {
+      "api_sha256": "077f949a43d84b84d0647362b36e2fc9431b58b25178ad449d1348a342698e7d",
+      "excluded_legacy_symbols": [],
+      "library": "procedural",
+      "module": "Node",
+      "source": "lib/procedural/node.mli",
+      "source_bytes": 2858,
+      "source_sha256": "8cb0ea2a0e3299d131326c06c2a663dcd47a250c4a340d05b050f8d821438b5c"
+    },
+    {
+      "api_sha256": "c4354ca2ab7388490f6ede43a98420f023f628279a920d38e9e6ff4ffa979d10",
+      "excluded_legacy_symbols": [],
+      "library": "procedural",
+      "module": "Parameter",
+      "source": "lib/procedural/parameter.mli",
+      "source_bytes": 4422,
+      "source_sha256": "096c2886e13971e2ca98593e450ea0d54b6da60c684bb673fc70cabc52b07714"
+    },
+    {
+      "api_sha256": "bb18dccd04e2bd4faaa1be2df95371cf02d6286e4630f922f8c39704c033a32f",
+      "excluded_legacy_symbols": [],
+      "library": "procedural",
+      "module": "Select",
+      "source": "lib/procedural/select.mli",
+      "source_bytes": 812,
+      "source_sha256": "2f5307040595a00bc34b2ae95e77bd11dce61c4cb764f33d46f486890de9a65c"
+    },
+    {
+      "api_sha256": "8b0b1e0d9dd87395c0fb6d3d644eb35e7604c77220738518a68546be143bb603",
+      "excluded_legacy_symbols": [],
+      "library": "procedural",
+      "module": "Session",
+      "source": "lib/procedural/session.mli",
+      "source_bytes": 1167,
+      "source_sha256": "a92f16eb22a0e72a2301656e1ecbb4052019b53bd815ae1497ec3e1056106fa1"
+    },
+    {
+      "api_sha256": "b7271553049cf7c90ab3c220a84d828c8a3279553c19b8e64a92f9e154eeab95",
+      "excluded_legacy_symbols": [],
+      "library": "procedural",
+      "module": "Sop",
+      "source": "lib/procedural/sop.mli",
+      "source_bytes": 100872,
+      "source_sha256": "85c5fc09b894b4a9f4534d0e4dc9fd268e657646bd2171a1f327aa5344d0d111"
+    },
+    {
+      "api_sha256": "f7219001f0b3d5bc6cb97be599e54d9829c2d316b32abddc0489b99a1daaaab4",
+      "excluded_legacy_symbols": [],
+      "library": "pxui",
+      "module": "Pxui",
+      "source": "lib/pxui/pxui.mli",
+      "source_bytes": 7984,
+      "source_sha256": "4698f1756a85dc2cad263651aca2dd9f36f9916bea0629a7942af316151b2821"
+    },
+    {
+      "api_sha256": "d2d8e8f8c6244b0fcbe26bc7a112eb1c891a4e22ac523643613be230b53c6f1d",
+      "excluded_legacy_symbols": [],
+      "library": "pxui_graph",
+      "module": "Pxui_graph",
+      "source": "lib/pxui_graph/pxui_graph.mli",
+      "source_bytes": 3803,
+      "source_sha256": "6437a610a3d4e7f900a96aab5da90360c654bb4fbb0e5454d7e2233d5be31c77"
+    },
+    {
+      "api_sha256": "8d4d7d634c1b362e582e6a485c8a7341f9151e5f34752d972f85db879693bdef",
+      "excluded_legacy_symbols": [],
+      "library": "sketch",
+      "module": "Packed_pieces",
+      "source": "lib/sketch/packed_pieces.mli",
+      "source_bytes": 1277,
+      "source_sha256": "b2932636f4208cd23ccc713d3fb16e674750769d864ca1d9831f4d11d8adac90"
+    },
+    {
+      "api_sha256": "0c7b6cf8d3fcf1e73c8f78eeb7c25f905ebc9a820f82b49db403aa48b1071671",
+      "excluded_legacy_symbols": [],
+      "library": "sketch",
+      "module": "Reactive_sop",
+      "source": "lib/sketch/reactive_sop.mli",
+      "source_bytes": 2126,
+      "source_sha256": "8001c047e36b3a0c10eb5d22ce5dae4b04459d663e1d2afb61ba6df0a0ddb642"
+    },
+    {
+      "api_sha256": "c15c1b454549833f6a6c975353116cb7cb3ea558777beb8282bf2d272493c42c",
+      "excluded_legacy_symbols": [],
+      "library": "sketch",
+      "module": "Timeline",
+      "source": "lib/sketch/timeline.mli",
+      "source_bytes": 943,
+      "source_sha256": "9e6c99b9c0354ef6543ce2634c687c08f04f4e48dd7d3e559db8041d5432c19a"
+    },
+    {
+      "api_sha256": "9bdf802690b61c4345a00113af95f0686b18116a4a2b873dd292da99dea8985a",
+      "excluded_legacy_symbols": [],
+      "library": "sketch_ui",
+      "module": "Sketch_ui",
+      "source": "lib/sketch_ui/sketch_ui.mli",
+      "source_bytes": 5665,
+      "source_sha256": "8cba1e89599225dd0c1804b67d1443273d593f3850c916e730e3ca62d9545c39"
+    },
+    {
+      "api_sha256": "5d8c652d71bb9e519ee99dd513327f27761aac103db134289a8c5f5c8d9732b1",
+      "excluded_legacy_symbols": [],
+      "library": "sop_catalog",
+      "module": "Sop_catalog",
+      "source": "lib/sop_catalog/sop_catalog.mli",
+      "source_bytes": 21596,
+      "source_sha256": "d8197fe3b7835b9811b5c594cde9f00c72254a94eb7c49d54efa9fc5c9ffd69d"
+    },
+    {
+      "api_sha256": "78cf04e34333c4952938e1cec63e05eab6ed1b2a589f12767430d522d673c914",
+      "excluded_legacy_symbols": [],
+      "library": "sop_ui",
+      "module": "Sop_ui",
+      "source": "lib/sop_ui/sop_ui.mli",
+      "source_bytes": 1372,
+      "source_sha256": "910369c3921294c59d9e43583a49bf149897f188dc5eceaf928b211612c912ae"
+    },
+    {
+      "api_sha256": "0693c5ac2f256b31e1a4b48dbe13ae946bc056872c130bbaed81e002ffc8b7e8",
+      "excluded_legacy_symbols": [],
+      "library": "wap",
+      "module": "Wap",
+      "source": "lib/wap/wap.mli",
+      "source_bytes": 4332,
+      "source_sha256": "fc9ba353f5fadb84f7d38ca6bf13da531d5d7b5c684071e0e16dcdaf461af6df"
+    }
+  ],
+  "schema": 1
+}
