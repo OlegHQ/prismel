@@ -161,6 +161,13 @@ and buffer_storage_mode =
   | Managed
   | Private
 
+type buffer_mapping =
+  { buffer : buffer
+  ; offset : int64
+  ; length : int
+  ; active : bool Atomic.t
+  }
+
 type library =
   { raw : Metal_raw.handle
   ; lifetime : lifetime
@@ -450,8 +457,91 @@ module Buffer = struct
                | Ok bytes -> Ok bytes
                | Error message -> native_error "Metal.Buffer.read_bytes" message))
 
+  module Mapping = struct
+    type t = buffer_mapping
+
+    let ensure_active operation value =
+      match Thread.require operation with
+      | Error _ as failure -> failure
+      | Ok () when not (Atomic.get value.active) ->
+          error operation Destroyed "mapped range has left its lexical scope"
+      | Ok () -> ensure_live operation value.buffer.lifetime
+
+    let length value =
+      match ensure_active "Metal.Buffer.Mapping.length" value with
+      | Error _ as failure -> failure
+      | Ok () -> Ok value.length
+
+    let validate_local operation value ~offset ~length =
+      if offset < 0 || length < 0 || offset > value.length
+         || length > value.length - offset
+      then error operation Invalid_argument "range exceeds the mapped buffer span"
+      else Ok ()
+
+    let read_bytes value ~offset ~length =
+      match ensure_active "Metal.Buffer.Mapping.read_bytes" value with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match
+             validate_local "Metal.Buffer.Mapping.read_bytes" value ~offset
+               ~length
+           with
+           | Error _ as failure -> failure
+           | Ok () ->
+               read_bytes value.buffer
+                 ~offset:(Int64.add value.offset (Int64.of_int offset)) ~length)
+
+    let write_bytes value ?(src_offset = 0) ~dst_offset bytes =
+      match ensure_active "Metal.Buffer.Mapping.write_bytes" value with
+      | Error _ as failure -> failure
+      | Ok () ->
+          let source_length = Bytes.length bytes in
+          if src_offset < 0 || src_offset > source_length then
+            error "Metal.Buffer.Mapping.write_bytes" Invalid_argument
+              "source offset is outside the byte buffer"
+          else
+            let length = source_length - src_offset in
+            match
+              validate_local "Metal.Buffer.Mapping.write_bytes" value
+                ~offset:dst_offset ~length
+            with
+            | Error _ as failure -> failure
+            | Ok () ->
+                write_bytes value.buffer ~src_offset
+                  ~dst_offset:(Int64.add value.offset (Int64.of_int dst_offset))
+                  bytes
+  end
+
+  let with_mapping (value : t) ~offset ~length callback =
+    on_main "Metal.Buffer.with_mapping" (fun () ->
+      match ensure_live "Metal.Buffer.with_mapping" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when value.storage = Private ->
+          error "Metal.Buffer.with_mapping" Unsupported
+            "private buffers have no CPU mapping"
+      | Ok () ->
+          (match
+             validate_range "Metal.Buffer.with_mapping" ~total:value.length
+               ~offset ~length
+           with
+           | Error _ as failure -> failure
+           | Ok () ->
+               let mapping : Mapping.t =
+                 { buffer = value
+                 ; offset
+                 ; length
+                 ; active = Atomic.make true
+                 }
+               in
+               attach value.lifetime;
+               Fun.protect
+                 ~finally:(fun () ->
+                   Atomic.set mapping.active false;
+                   detach value.lifetime)
+                 (fun () -> Ok (callback mapping))))
+
   let destroy (value : t) =
-    destroy_leaf "Metal.Buffer.destroy" value.lifetime value.raw
+    destroy_parent "Metal.Buffer.destroy" value.lifetime value.raw
       (fun () -> detach value.device.lifetime)
 end
 

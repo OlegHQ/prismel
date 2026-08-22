@@ -53,11 +53,18 @@ hard typed error rather than silent reclamation on a GC domain.
 ## Implemented vertical slice
 
 The initial safe slice covers device enumeration and capabilities; shared,
-managed, and private buffers; CPU range transfer; labels; runtime MSL library
-compilation with full `NSError` diagnostics; function lookup; compute-pipeline
+managed, and private buffers; CPU range transfer and lexical mapped-range
+handles; labels; runtime MSL library compilation with full `NSError`
+diagnostics; function lookup; compute-pipeline
 creation and limits; command queues and buffers; compute encoding and resource
 binding; checked thread dispatch; submission; blocking completion; and command
 status/errors.
+
+A `Buffer.Mapping.t` is valid only inside `Buffer.with_mapping`. It exposes
+checked copy operations rather than a Bigarray backed by an escaping native
+pointer. Retaining the opaque value is harmless: every operation returns
+`Destroyed` after the callback leaves, buffer teardown is rejected while the
+scope is active, and `Fun.protect` closes the scope on exceptions.
 
 `test_metal.exe` runs a real M1 compute kernel, wrong-domain and invalid-state
 cases, shader diagnostics, bounds and overflow checks, parent ownership,

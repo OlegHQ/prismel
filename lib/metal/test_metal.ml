@@ -91,6 +91,26 @@ let () =
     if get (Buffer.label buffer) <> Some "Metal conformance values" then
       fail "buffer label did not round-trip";
     get (Buffer.write_bytes buffer ~dst_offset:0L (input_values ()));
+    let escaped_mapping = ref None in
+    get
+      (Buffer.with_mapping buffer ~offset:4L ~length:8 (fun mapping ->
+         escaped_mapping := Some mapping;
+         if get (Buffer.Mapping.length mapping) <> 8 then
+           fail "mapped range length changed";
+         ignore (expect_error Parent_has_dependents (Buffer.destroy buffer));
+         let mapped = get (Buffer.Mapping.read_bytes mapping ~offset:0 ~length:8) in
+         if Bytes.get_int32_le mapped 0 <> 41l then
+           fail "mapped range read the wrong buffer offset";
+         Bytes.set_int32_le mapped 0 50l;
+         get (Buffer.Mapping.write_bytes mapping ~dst_offset:0 mapped)));
+    let escaped_mapping = Option.get !escaped_mapping in
+    ignore
+      (expect_error Destroyed
+         (Buffer.Mapping.read_bytes escaped_mapping ~offset:0 ~length:1));
+    let updated = get (Buffer.read_bytes buffer ~offset:4L ~length:4) in
+    if Bytes.get_int32_le updated 0 <> 50l then
+      fail "mapped range write did not update the Metal buffer";
+    get (Buffer.write_bytes buffer ~dst_offset:0L (input_values ()));
     ignore (expect_error Parent_has_dependents (Device.destroy device));
     ignore
       (expect_error Invalid_argument

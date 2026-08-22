@@ -115,6 +115,18 @@ module Buffer : sig
   val write_bytes :
     t -> ?src_offset:int -> dst_offset:int64 -> bytes -> (unit, error) result
   val read_bytes : t -> offset:int64 -> length:int -> (bytes, error) result
+
+  module Mapping : sig
+    type t
+
+    val length : t -> (int, error) result
+    val read_bytes : t -> offset:int -> length:int -> (bytes, error) result
+    val write_bytes :
+      t -> ?src_offset:int -> dst_offset:int -> bytes -> (unit, error) result
+  end
+
+  val with_mapping :
+    t -> offset:int64 -> length:int -> (Mapping.t -> 'a) -> ('a, error) result
   val destroy : t -> (unit, error) result
 end
 
