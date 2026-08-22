@@ -1,6 +1,7 @@
 open Support
 
 module String_map = Map.Make (String)
+module String_set = Set.Make (String)
 
 let expected_sdk_version = "26.5"
 let deployment_target = "14.0"
@@ -167,12 +168,32 @@ let signature kind value =
   | "CXXRecordDecl" -> object_string "tagUsed" value |> Option.value ~default:""
   | _ -> ""
 
+let method_owner value =
+  match object_string "mangledName" value with
+  | Some mangled
+    when String.length mangled > 3
+         && (String.starts_with ~prefix:"-[" mangled
+             || String.starts_with ~prefix:"+[" mangled) ->
+      (match String.index_from_opt mangled 2 ' ' with
+       | None -> None
+       | Some separator ->
+           let candidate = String.sub mangled 2 (separator - 2) in
+           let candidate =
+             match String.index_opt candidate '(' with
+             | Some category -> String.sub candidate 0 category
+             | None -> candidate
+           in
+           if candidate = "" then None else Some candidate)
+  | Some _ | None -> None
+
 let identifier ~kind ~owner ~name value =
   match kind with
   | "ObjCMethodDecl" ->
-      (match object_string "mangledName" value with
-       | Some mangled -> "method:" ^ mangled
-       | None ->
+      (match owner, object_bool "instance" value with
+       | Some owner, Some instance ->
+           Printf.sprintf "method:%c[%s %s]" (if instance then '-' else '+')
+             owner name
+       | _ ->
            Printf.sprintf "method:%s:%s"
              (Option.value owner ~default:"<unknown>") name)
   | "ObjCPropertyDecl" ->
@@ -221,18 +242,54 @@ let add_declaration declarations declaration =
         | Some existing -> Some (better_declaration existing declaration))
       !declarations
 
-let rec collect declarations ?owner ?header value =
+let rec owned_tag_ids value =
+  let own =
+    match object_member "ownedTagDecl" value with
+    | Some tag ->
+        (match object_string "id" tag with Some id -> [ id ] | None -> [])
+    | None -> []
+  in
+  own @ (object_list "inner" value |> List.concat_map owned_tag_ids)
+
+let rec collect_aliases aliases value =
+  (match object_string "kind" value, object_string "name" value with
+   | Some "TypedefDecl", Some name ->
+       owned_tag_ids value
+       |> List.iter (fun id -> Hashtbl.replace aliases id name)
+   | _ -> ());
+  object_list "inner" value |> List.iter (collect_aliases aliases)
+
+let rec collect declarations aliases ?owner ?header value =
   let ast_kind = object_string "kind" value in
   let own_header =
     match Option.bind (location_file value) normalize_header with
     | Some header -> Some header
     | None -> header
   in
-  let name = object_string "name" value in
+  let name =
+    match object_string "name" value with
+    | Some name when name <> "" -> Some name
+    | Some _ | None ->
+        (match ast_kind, object_string "id" value with
+         | Some "EnumDecl", _ ->
+             (match nested_string [ "fixedUnderlyingType"; "qualType" ] value with
+              | Some name when String.starts_with ~prefix:"MTL" name -> Some name
+              | Some _ | None ->
+                  Option.bind (object_string "id" value)
+                    (Hashtbl.find_opt aliases))
+         | Some "CXXRecordDecl", Some id ->
+             Hashtbl.find_opt aliases id
+         | _ -> None)
+  in
   let next_owner =
     match ast_kind, name with
     | (Some ("ObjCProtocolDecl" | "ObjCInterfaceDecl" | "EnumDecl"
-      | "CXXRecordDecl")), Some name -> Some name
+      | "CXXRecordDecl" | "TypedefDecl")), Some name -> Some name
+    | _ -> owner
+  in
+  let declaration_owner =
+    match owner, ast_kind with
+    | None, Some "ObjCMethodDecl" -> method_owner value
     | _ -> owner
   in
   (match ast_kind, name, own_header with
@@ -247,7 +304,9 @@ let rec collect declarations ?owner ?header value =
            List.mem "UnavailableAttr" attributes
            || contains ~needle:"API_UNAVAILABLE" signature
          in
-         let identifier = identifier ~kind:ast_kind ~owner ~name value in
+         let identifier =
+           identifier ~kind:ast_kind ~owner:declaration_owner ~name value
+         in
          let classification, reason =
            Classification.classify ~unavailable ~identifier
          in
@@ -255,7 +314,7 @@ let rec collect declarations ?owner ?header value =
            { identifier
            ; kind = Option.get (declaration_kind ast_kind)
            ; name
-           ; owner
+           ; owner = declaration_owner
            ; header
            ; line = location_line value
            ; signature
@@ -267,7 +326,8 @@ let rec collect declarations ?owner ?header value =
        end
    | _ -> ());
   object_list "inner" value
-  |> List.iter (collect declarations ?owner:next_owner ?header:own_header)
+  |> List.iter
+       (collect declarations aliases ?owner:next_owner ?header:own_header)
 
 let run_to_file program arguments output_path error_path =
   let flags = [ Unix.O_WRONLY; Unix.O_CREAT; Unix.O_TRUNC ] in
@@ -302,12 +362,15 @@ let clang_ast ~sdk ~source ~filter output error =
   run_to_file "clang++" arguments output error
 
 let parse_ast path declarations =
-  let input = open_in_bin path in
-  Fun.protect
-    ~finally:(fun () -> close_in_noerr input)
-    (fun () ->
-      Yojson.Safe.seq_from_channel input
-      |> Seq.iter (collect declarations))
+  let aliases = Hashtbl.create 256 in
+  let iter parse =
+    let input = open_in_bin path in
+    Fun.protect
+      ~finally:(fun () -> close_in_noerr input)
+      (fun () -> Yojson.Safe.seq_from_channel input |> Seq.iter parse)
+  in
+  iter (collect_aliases aliases);
+  iter (collect declarations aliases)
 
 let sorted_directory_files directory =
   Sys.readdir directory |> Array.to_list |> List.sort String.compare
@@ -384,6 +447,63 @@ let classification_counts declarations =
      |> List.map (fun (name, count) -> name, `Int count)
      |> List.sort (fun (left, _) (right, _) -> String.compare left right))
 
+let resolve_unknown_owners declarations =
+  let candidates declaration =
+    declarations
+    |> List.filter (fun candidate ->
+      candidate.kind = declaration.kind
+      && candidate.name = declaration.name
+      && candidate.header = declaration.header
+      && candidate.signature = declaration.signature
+      && Option.is_some candidate.owner)
+  in
+  let resolved = ref String_map.empty in
+  declarations
+  |> List.iter (fun declaration ->
+    let declaration =
+      match declaration.kind, declaration.owner, candidates declaration with
+      | "property", None, [ candidate ] ->
+          let owner = Option.get candidate.owner in
+          { declaration with
+            owner = Some owner
+          ; identifier = "property:" ^ owner ^ ":" ^ declaration.name
+          }
+      | _ -> declaration
+    in
+    add_declaration resolved declaration);
+  String_map.bindings !resolved |> List.map snd
+
+let validate_bound_identifiers declarations =
+  let inventory_identifiers =
+    declarations
+    |> List.fold_left
+         (fun identifiers declaration ->
+           String_set.add declaration.identifier identifiers)
+         String_set.empty
+  in
+  let duplicate_bound_identifiers =
+    Classification.bound_identifiers
+    |> List.sort String.compare
+    |> List.to_seq
+    |> Seq.group ( = )
+    |> Seq.filter_map (fun group ->
+      match List.of_seq group with
+      | identifier :: _ :: _ -> Some identifier
+      | _ -> None)
+    |> List.of_seq
+  in
+  if duplicate_bound_identifiers <> [] then
+    fail "duplicate bound Metal identifiers: %s"
+      (String.concat ", " duplicate_bound_identifiers);
+  let missing =
+    Classification.bound_identifiers
+    |> List.filter (fun identifier ->
+      not (String_set.mem identifier inventory_identifiers))
+  in
+  if missing <> [] then
+    fail "bound Metal identifiers missing from the pinned SDK inventory: %s"
+      (String.concat ", " missing)
+
 let generate root =
   let sdk = command_output "xcrun" [ "--sdk"; "macosx"; "--show-sdk-path" ] in
   let sdk_version =
@@ -406,8 +526,10 @@ let generate root =
       parse_ast output declarations));
   let declarations =
     String_map.bindings !declarations |> List.map snd
+    |> resolve_unknown_owners
     |> List.sort (fun left right -> String.compare left.identifier right.identifier)
   in
+  validate_bound_identifiers declarations;
   let header_hash = aggregate_headers headers in
   let classification_path = Filename.concat root "tools/metal/classification.ml" in
   let value =

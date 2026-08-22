@@ -1,0 +1,135 @@
+type handle
+
+external is_main_thread : unit -> bool = "caml_prismel_metal_is_main_thread"
+external generation : handle -> int64 = "caml_prismel_metal_generation"
+external destroyed : handle -> bool = "caml_prismel_metal_destroyed"
+external destroy : handle -> bool = "caml_prismel_metal_destroy"
+
+external drain_releases : unit -> int = "caml_prismel_metal_drain_releases"
+external pending_releases : unit -> int = "caml_prismel_metal_pending_releases"
+external dropped_releases : unit -> int = "caml_prismel_metal_dropped_releases"
+external live_handles : unit -> int = "caml_prismel_metal_live_handles"
+external total_created : unit -> int64 = "caml_prismel_metal_total_created"
+external total_released : unit -> int64 = "caml_prismel_metal_total_released"
+external resident_bytes : unit -> int64 = "caml_prismel_metal_resident_bytes"
+
+external default_device : unit -> (handle, string) result =
+  "caml_prismel_metal_default_device"
+
+external all_devices : unit -> (handle array, string) result =
+  "caml_prismel_metal_all_devices"
+
+external device_name : handle -> string = "caml_prismel_metal_device_name"
+external device_registry_id : handle -> int64 =
+  "caml_prismel_metal_device_registry_id"
+
+external device_is_low_power : handle -> bool =
+  "caml_prismel_metal_device_is_low_power"
+
+external device_is_removable : handle -> bool =
+  "caml_prismel_metal_device_is_removable"
+
+external device_is_headless : handle -> bool =
+  "caml_prismel_metal_device_is_headless"
+
+external device_has_unified_memory : handle -> bool =
+  "caml_prismel_metal_device_has_unified_memory"
+
+external device_recommended_max_working_set_size : handle -> int64 =
+  "caml_prismel_metal_device_recommended_max_working_set_size"
+
+external device_current_allocated_size : handle -> int64 =
+  "caml_prismel_metal_device_current_allocated_size"
+
+external device_max_buffer_length : handle -> int64 =
+  "caml_prismel_metal_device_max_buffer_length"
+
+external device_supports_family : handle -> int -> bool =
+  "caml_prismel_metal_device_supports_family"
+
+external device_supports_raytracing : handle -> bool =
+  "caml_prismel_metal_device_supports_raytracing"
+
+external device_supports_raytracing_from_render : handle -> bool =
+  "caml_prismel_metal_device_supports_raytracing_from_render"
+
+external device_supports_dynamic_libraries : handle -> bool =
+  "caml_prismel_metal_device_supports_dynamic_libraries"
+
+external device_supports_function_pointers : handle -> bool =
+  "caml_prismel_metal_device_supports_function_pointers"
+
+external buffer_create : handle -> int64 -> int -> (handle, string) result =
+  "caml_prismel_metal_buffer_create"
+
+external buffer_length : handle -> int64 = "caml_prismel_metal_buffer_length"
+external buffer_storage_mode : handle -> int =
+  "caml_prismel_metal_buffer_storage_mode"
+
+external buffer_set_label : handle -> string -> (unit, string) result =
+  "caml_prismel_metal_buffer_set_label"
+
+external buffer_label : handle -> string option =
+  "caml_prismel_metal_buffer_label"
+
+external buffer_write :
+  handle -> int64 -> bytes -> int -> int -> (unit, string) result
+  = "caml_prismel_metal_buffer_write"
+
+external buffer_read : handle -> int64 -> int -> (bytes, string) result =
+  "caml_prismel_metal_buffer_read"
+
+external library_compile : handle -> string -> (handle, string) result =
+  "caml_prismel_metal_library_compile"
+
+external function_find : handle -> string -> (handle, string) result =
+  "caml_prismel_metal_function_find"
+
+external function_name : handle -> string = "caml_prismel_metal_function_name"
+
+external compute_pipeline_create : handle -> handle -> (handle, string) result =
+  "caml_prismel_metal_compute_pipeline_create"
+
+external compute_pipeline_thread_execution_width : handle -> int =
+  "caml_prismel_metal_compute_pipeline_thread_execution_width"
+
+external compute_pipeline_max_total_threads : handle -> int =
+  "caml_prismel_metal_compute_pipeline_max_total_threads"
+
+external command_queue_create : handle -> (handle, string) result =
+  "caml_prismel_metal_command_queue_create"
+
+external command_buffer_create : handle -> (handle, string) result =
+  "caml_prismel_metal_command_buffer_create"
+
+external command_buffer_set_label : handle -> string -> (unit, string) result =
+  "caml_prismel_metal_command_buffer_set_label"
+
+external command_buffer_compute_encoder : handle -> (handle, string) result =
+  "caml_prismel_metal_command_buffer_compute_encoder"
+
+external compute_encoder_set_pipeline : handle -> handle -> (unit, string) result =
+  "caml_prismel_metal_compute_encoder_set_pipeline"
+
+external compute_encoder_set_buffer :
+  handle -> handle -> int64 -> int -> (unit, string) result
+  = "caml_prismel_metal_compute_encoder_set_buffer"
+
+external compute_encoder_dispatch :
+  handle -> (int * int * int) -> (int * int * int) -> (unit, string) result
+  = "caml_prismel_metal_compute_encoder_dispatch"
+
+external compute_encoder_end : handle -> (unit, string) result =
+  "caml_prismel_metal_compute_encoder_end"
+
+external command_buffer_commit : handle -> (unit, string) result =
+  "caml_prismel_metal_command_buffer_commit"
+
+external command_buffer_wait : handle -> unit =
+  "caml_prismel_metal_command_buffer_wait"
+
+external command_buffer_status : handle -> int =
+  "caml_prismel_metal_command_buffer_status"
+
+external command_buffer_error : handle -> string option =
+  "caml_prismel_metal_command_buffer_error"

@@ -1778,6 +1778,14 @@ dependency direction are documented in [`AGENTS.md`](./AGENTS.md).
 - **`Sketch_ui`** (`prismel.sketch_ui`): Reusable responsive three-column 2D
   and 3D SOP sketch environments over one shared lifecycle
 
+### Foundational Migration Libraries
+
+- **SDL3** (`prismel.sdl3`, `prismel.sdl3_image`, `prismel.sdl3_ttf`, and
+  `prismel.sdl3_mixer`): Audited platform and media bindings under `lib/sdl3*`
+- **Metal** (`prismel.metal`): Ownership-aware ARC binding under `lib/metal`,
+  generated and tested with OCaml/Dune; it is being qualified beside the active
+  renderer until the atomic GPU migration switch
+
 ### Input & Events
 
 - **`Event`**: Event type definitions and dispatch system
