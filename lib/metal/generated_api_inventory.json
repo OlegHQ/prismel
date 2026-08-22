@@ -2,11 +2,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 0,
-    "bound": 446,
+    "bound": 455,
     "scope-excluded": 7,
-    "unreviewed": 4833
+    "unreviewed": 4824
   },
-  "classification_source_sha256": "6e193851ae6c8d10bfeda6c1f90589b82573c1ae0183ba4a24229cbbcd417dfe",
+  "classification_source_sha256": "75d72d8331ca23ec08ed4038b282c62bdf3ac4f066bf890eb8fec6d467c41f29",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "header_aggregate_sha256": "c2ee1e44c76606cf05fa81d1a8314dadfa49efe900342e8bcb3670363c16f0d1",
@@ -2435,14 +2435,14 @@
         "AvailabilityAttr",
         "VisibilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "class:MTLSharedTextureHandle",
       "kind": "class",
       "line": 72,
       "name": "MTLSharedTextureHandle",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -35372,14 +35372,14 @@
         "AvailabilityAttr",
         "NSReturnsRetainedAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newSharedTextureWithDescriptor:]",
       "kind": "method",
       "line": 727,
       "name": "newSharedTextureWithDescriptor:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLTextureDescriptor * _Nonnull __strong) -> id<MTLTexture> _Nullable"
     },
     {
@@ -35387,14 +35387,14 @@
         "AvailabilityAttr",
         "NSReturnsRetainedAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newSharedTextureWithHandle:]",
       "kind": "method",
       "line": 739,
       "name": "newSharedTextureWithHandle:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLSharedTextureHandle * _Nonnull __strong) -> id<MTLTexture> _Nullable"
     },
     {
@@ -47489,26 +47489,26 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLSharedTextureHandle device]",
       "kind": "method",
       "line": 82,
       "name": "device",
       "owner": "MTLSharedTextureHandle",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> id<MTLDevice> _Nonnull"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLSharedTextureHandle label]",
       "kind": "method",
       "line": 88,
       "name": "label",
       "owner": "MTLSharedTextureHandle",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSString * _Nullable"
     },
     {
@@ -48608,14 +48608,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTexture isShareable]",
       "kind": "method",
       "line": 433,
       "name": "isShareable",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -48664,14 +48664,14 @@
         "AvailabilityAttr",
         "NSReturnsRetainedAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTexture newSharedTextureHandle]",
       "kind": "method",
       "line": 520,
       "name": "newSharedTextureHandle",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLSharedTextureHandle * _Nullable"
     },
     {
@@ -61835,26 +61835,26 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLSharedTextureHandle:device",
       "kind": "property",
       "line": 82,
       "name": "device",
       "owner": "MTLSharedTextureHandle",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "id<MTLDevice> _Nonnull"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLSharedTextureHandle:label",
       "kind": "property",
       "line": 88,
       "name": "label",
       "owner": "MTLSharedTextureHandle",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSString * _Nullable"
     },
     {

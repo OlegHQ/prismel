@@ -86,6 +86,7 @@ enum class Handle_kind : std::uint32_t {
   Compute_encoder,
   Residency_set,
   External_memory,
+  Shared_texture_handle,
 };
 
 struct Handle {
@@ -210,6 +211,10 @@ id<MTLAllocation> allocation_of_handle(value raw) {
 
 PrismelMetalExternalMemory *external_memory_of_handle(value raw) {
   return object_of_handle(raw, Handle_kind::External_memory);
+}
+
+MTLSharedTextureHandle *shared_texture_handle_of_handle(value raw) {
+  return object_of_handle(raw, Handle_kind::Shared_texture_handle);
 }
 
 API_AVAILABLE(macos(15.0))
@@ -1786,6 +1791,42 @@ extern "C" CAMLprim value caml_prismel_metal_texture_create(
   CAMLreturn(result_ok(raw));
 }
 
+extern "C" CAMLprim value caml_prismel_metal_texture_shared_create(
+    value raw_device, value raw_descriptor, value raw_label) {
+  CAMLparam3(raw_device, raw_descriptor, raw_label);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    @try {
+      id<MTLDevice> device = object_of_handle(raw_device, Handle_kind::Device);
+      MTLTextureDescriptor *descriptor = texture_descriptor(raw_descriptor);
+      if (descriptor.storageMode != MTLStorageModePrivate) {
+        CAMLreturn(result_error_text(
+            "shared textures require private storage"));
+      }
+      NSString *label = nil;
+      if (Is_block(raw_label)) {
+        label = string_from_ocaml(Field(raw_label, 0));
+        if (label == nil) {
+          CAMLreturn(result_error_text("texture label is not valid UTF-8"));
+        }
+      }
+      id<MTLTexture> texture =
+          [device newSharedTextureWithDescriptor:descriptor];
+      if (texture == nil || !texture.shareable) {
+        CAMLreturn(result_error_text(
+            "Metal rejected the shareable texture descriptor"));
+      }
+      if (label != nil) {
+        texture.label = label;
+      }
+      raw = allocate_handle(texture, Handle_kind::Texture);
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+  CAMLreturn(result_ok(raw));
+}
+
 extern "C" CAMLprim value caml_prismel_metal_texture_info(value raw) {
   CAMLparam1(raw);
   CAMLlocal1(result);
@@ -1804,6 +1845,81 @@ extern "C" CAMLprim value caml_prismel_metal_texture_info(value raw) {
   Store_field(result, 10, Val_long(texture.cpuCacheMode));
   Store_field(result, 11, Val_long(texture.hazardTrackingMode));
   CAMLreturn(result);
+}
+
+extern "C" CAMLprim value caml_prismel_metal_texture_is_shareable(value raw) {
+  CAMLparam1(raw);
+  id<MTLTexture> texture = object_of_handle(raw, Handle_kind::Texture);
+  CAMLreturn(Val_bool(texture.shareable));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_texture_shared_handle_create(
+    value raw_texture) {
+  CAMLparam1(raw_texture);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    @try {
+      id<MTLTexture> texture =
+          object_of_handle(raw_texture, Handle_kind::Texture);
+      if (!texture.shareable) {
+        CAMLreturn(result_error_text("texture is not shareable"));
+      }
+      MTLSharedTextureHandle *shared = [texture newSharedTextureHandle];
+      if (shared == nil || shared.device.registryID != texture.device.registryID) {
+        CAMLreturn(result_error_text(
+            "Metal failed to create a matching shared texture handle"));
+      }
+      raw = allocate_handle(shared, Handle_kind::Shared_texture_handle);
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+  CAMLreturn(result_ok(raw));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_shared_texture_handle_info(
+    value raw_handle) {
+  CAMLparam1(raw_handle);
+  CAMLlocal4(result, registry_id, label, info);
+  @autoreleasepool {
+    MTLSharedTextureHandle *shared =
+        shared_texture_handle_of_handle(raw_handle);
+    registry_id = caml_copy_int64(
+        static_cast<std::int64_t>(shared.device.registryID));
+    label = copy_optional_string(shared.label);
+    info = caml_alloc_tuple(2);
+    Store_field(info, 0, registry_id);
+    Store_field(info, 1, label);
+    result = info;
+  }
+  CAMLreturn(result);
+}
+
+extern "C" CAMLprim value caml_prismel_metal_texture_shared_import(
+    value raw_device, value raw_handle) {
+  CAMLparam2(raw_device, raw_handle);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    @try {
+      id<MTLDevice> device = object_of_handle(raw_device, Handle_kind::Device);
+      MTLSharedTextureHandle *shared =
+          shared_texture_handle_of_handle(raw_handle);
+      if (shared.device.registryID != device.registryID) {
+        CAMLreturn(result_error_text(
+            "shared texture handle belongs to a different device"));
+      }
+      id<MTLTexture> texture = [device newSharedTextureWithHandle:shared];
+      if (texture == nil || !texture.shareable ||
+          texture.device.registryID != device.registryID) {
+        CAMLreturn(result_error_text(
+            "Metal rejected the shared texture handle"));
+      }
+      raw = allocate_handle(texture, Handle_kind::Texture);
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+  CAMLreturn(result_ok(raw));
 }
 
 extern "C" CAMLprim value caml_prismel_metal_texture_set_label(

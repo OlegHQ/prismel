@@ -54,8 +54,9 @@ hard typed error rather than silent reclamation on a GC domain.
 
 The current safe slices cover device enumeration and capabilities; shared,
 managed, and private buffers; copied and page-aligned no-copy buffer creation;
-CPU range transfer and lexical mapped-range handles; textures, buffer-backed
-linear textures, texture buffers, and views; samplers; labels; runtime MSL
+CPU range transfer and lexical mapped-range handles; textures, shareable private
+textures and opaque shared handles, buffer-backed linear textures, texture
+buffers, and views; samplers; labels; runtime MSL
 library compilation
 with full `NSError` diagnostics; automatic and placement heaps; macOS-15
 residency sets; function lookup; compute-pipeline creation and limits; command
@@ -128,6 +129,17 @@ directs the caller to its backing buffer. Heap and no-copy external-memory
 ancestry therefore remains intact through the complete
 texture-to-buffer-to-owner chain.
 
+`Texture.create_shared` is a distinct private-storage allocation path and
+verifies Metal's `isShareable` result before exposing the texture. A
+`Texture.Shared_handle.t` records the originating device identity and native
+handle label, retains that device, and remains importable after the source
+texture is destroyed. `Texture.import_shared` accepts only a live handle on the
+same device and re-verifies the imported descriptor and sharing state. Source,
+handle, and every import have independent explicit/finalizer lifetimes: handle
+destruction prevents later imports but does not invalidate imports that already
+succeeded. The handle is deliberately opaque; NSSecureCoding/XPC transport is
+not yet exposed, so this slice does not claim cross-process sharing.
+
 `Heap` exposes device size/alignment queries, automatic and explicit-placement
 descriptors, live allocation/usage facts, fragmentation queries, and checked
 buffer/texture allocation. Heap storage and cache modes must match each child;
@@ -193,13 +205,15 @@ address modes and border colors, normalized coordinates, finite float32 LOD
 clamps, comparison, LOD averaging, and argument-buffer support. Invalid
 anisotropy, non-finite or inverted clamps, illegal unnormalized-coordinate
 combinations, and malformed labels fail before sampler creation. Sparse
-resources, IOSurface/shared-handle texture ownership, and the remaining
-pixel-format capability matrix are still pending; this resource slice is
-therefore progress toward M3, not an M3 completion claim.
+resources, IOSurface-backed texture ownership, cross-process shared-handle
+transport, and the remaining pixel-format capability matrix are still pending;
+this resource slice is therefore progress toward M3, not an M3 completion
+claim.
 
 `test_metal.exe` runs a real M1 compute kernel, wrong-domain and invalid-state
 cases, shader diagnostics, copied/no-copy external buffer ownership,
-buffer-backed 2D/texture-buffer creation across shared/managed/private storage,
+shareable texture/handle/import lifetimes, buffer-backed 2D/texture-buffer
+creation across shared/managed/private storage,
 configured cache/hazard modes, and shared transfer, buffer and texture bounds,
 stride, and cardinality checks, texture mip transfer and views, sampler
 validation, multisample capability gating, heap alignment and placement,
@@ -213,8 +227,9 @@ texture/sampler create/destroy cycles, 10,000 heap/purge/alias/replacement
 cycles covering 30,000 measured heap/child-resource handles, and 10,000
 residency add/commit/remove/commit cycles covering 20,000 measured
 set/resource handles. Another 10,000 buffer/linear-texture ownership cycles
-cover 20,000 handles, while 10,000 external-memory/no-copy cycles cover 20,000
-handles and exact deferred-deallocator layout. Each lane requires exact
+cover 20,000 handles; 10,000 shareable-source/handle/import cycles cover 30,000
+handles; and 10,000 external-memory/no-copy cycles cover 20,000 handles and
+exact deferred-deallocator layout. Each lane requires exact
 created/released balance, zero pending or dropped releases, stable live-handle
 count, and bounded settled RSS growth.
 

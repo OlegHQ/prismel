@@ -961,7 +961,76 @@ let () =
       (expect_error Unsupported
          (Texture.read_bytes private_texture ~region:full_region ~mip_level:0
             ~slice:0 ~bytes_per_row:16 ~bytes_per_image:64));
+    if get (Texture.is_shareable private_texture) then
+      fail "ordinary private texture unexpectedly became shareable";
+    ignore
+      (expect_error Invalid_state (Texture.shared_handle private_texture));
     get (Texture.destroy private_texture);
+    ignore
+      (expect_error Invalid_argument
+         (Texture.create_shared ~device
+            (Texture.descriptor_2d ~storage:Buffer.Shared
+               ~format:Texture.Rgba8_unorm ~width:4 ~height:4 ())));
+    let shared_texture_descriptor =
+      Texture.descriptor_2d ~storage:Buffer.Private
+        ~usage:[ Texture.Shader_read; Texture.Pixel_format_view ]
+        ~label:"Metal shared texture" ~format:Texture.Rgba8_unorm ~width:4
+        ~height:4 ()
+    in
+    let shared_texture =
+      get (Texture.create_shared ~device shared_texture_descriptor)
+    in
+    if not (get (Texture.is_shareable shared_texture))
+       || get (Texture.label shared_texture) <> Some "Metal shared texture"
+    then fail "shared texture properties are wrong";
+    let shared_texture_actual_descriptor = Texture.descriptor shared_texture in
+    let shared_handle = get (Texture.shared_handle shared_texture) in
+    if
+      not (Device.same (Texture.Shared_handle.device shared_handle) device)
+      || Texture.Shared_handle.generation shared_handle <= 0L
+      || get (Texture.Shared_handle.label shared_handle)
+         <> Some "Metal shared texture"
+    then fail "shared texture handle properties are wrong";
+    get (Texture.destroy shared_texture);
+    let imported_texture =
+      get (Texture.import_shared ~device shared_handle)
+    in
+    if not (get (Texture.is_shareable imported_texture))
+       || Texture.descriptor imported_texture <> shared_texture_actual_descriptor
+       || get (Texture.label imported_texture) <> Some "Metal shared texture"
+    then fail "imported shared texture properties are wrong";
+    get (Texture.Shared_handle.destroy shared_handle);
+    ignore
+      (expect_error Destroyed (Texture.Shared_handle.label shared_handle));
+    ignore
+      (expect_error Destroyed (Texture.import_shared ~device shared_handle));
+    let replacement_shared_handle =
+      get (Texture.shared_handle imported_texture)
+    in
+    get (Texture.Shared_handle.destroy replacement_shared_handle);
+    get (Texture.destroy imported_texture);
+    let before_shared_finalizer = get (Release_queue.stats ()) in
+    let allocate_unreleased_shared_texture_graph () =
+      let texture =
+        get (Texture.create_shared ~device shared_texture_descriptor)
+      in
+      let handle = get (Texture.shared_handle texture) in
+      ignore (get (Texture.import_shared ~device handle))
+    in
+    allocate_unreleased_shared_texture_graph ();
+    let after_shared_finalizer =
+      settle_finalizers ~expected_live:before_shared_finalizer.live_handles
+    in
+    if
+      Int64.sub after_shared_finalizer.total_created
+        before_shared_finalizer.total_created
+      <> 3L
+      || Int64.sub after_shared_finalizer.total_released
+           before_shared_finalizer.total_released
+         <> 3L
+    then
+      fail
+        "shared texture finalization did not release its source, handle, and import";
     let heap_buffer_layout =
       get
         (Heap.buffer_size_and_align ~device ~length:64L

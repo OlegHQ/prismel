@@ -319,6 +319,14 @@ and texture_parent =
   | Texture_buffer_resource of buffer_texture_backing
   | Texture_view of texture
 
+type shared_texture_handle =
+  { raw : Metal_raw.handle
+  ; lifetime : lifetime
+  ; device : device
+  ; descriptor : texture_descriptor
+  ; label : string option
+  }
+
 type buffer_mapping =
   { buffer : buffer
   ; offset : int64
@@ -1415,6 +1423,26 @@ module Texture = struct
     ; bytes_per_row : int
     }
 
+  module Shared_handle = struct
+    type t = shared_texture_handle
+
+    let device (value : t) = value.device
+    let generation (value : t) = Metal_raw.generation value.raw
+    let destroyed (value : t) = is_destroyed value.lifetime
+
+    let label (value : t) =
+      on_main "Metal.Texture.Shared_handle.label" (fun () ->
+        match
+          ensure_live "Metal.Texture.Shared_handle.label" value.lifetime
+        with
+        | Error _ as failure -> failure
+        | Ok () -> Ok value.label)
+
+    let destroy (value : t) =
+      destroy_leaf "Metal.Texture.Shared_handle.destroy" value.lifetime
+        value.raw (fun () -> detach value.device.lifetime)
+  end
+
   let descriptor_2d ?(mipmapped = false) ?(storage = Private)
       ?(usage = [ Shader_read ]) ?label ~format ~width ~height () =
     let max_dimension = max width height in
@@ -1659,8 +1687,8 @@ module Texture = struct
         native_error operation
           "Metal changed a checked texture descriptor during creation"
 
-  let finish_create operation ~device ~descriptor ~parent ~heap_offset ~allocation
-      raw =
+  let finish_create ?expected_shareable operation ~device ~descriptor ~parent
+      ~heap_offset ~allocation raw =
     let heap =
       match parent with
       | Texture_resource (Heap_resource _) -> true
@@ -1671,6 +1699,14 @@ module Texture = struct
     in
     match verify_info operation raw descriptor ~heap with
     | Error _ as failure -> ignore (Metal_raw.destroy raw); failure
+    | Ok _
+      when option_exists
+             (fun expected ->
+               expected <> Metal_raw.texture_is_shareable raw)
+             expected_shareable ->
+        ignore (Metal_raw.destroy raw);
+        native_error operation
+          "Metal changed the checked texture sharing mode during creation"
     | Ok descriptor ->
         let parent_lifetime = texture_parent_lifetime parent in
         let state =
@@ -1719,7 +1755,34 @@ module Texture = struct
                with
                | Error message -> native_error "Metal.Texture.create" message
                | Ok raw ->
-                   finish_create "Metal.Texture.create" ~device ~descriptor
+                   finish_create ~expected_shareable:false
+                     "Metal.Texture.create" ~device ~descriptor
+                     ~parent:(Texture_resource (Device_resource device))
+                     ~heap_offset:None ~allocation:None raw))
+
+  let create_shared ~(device : Device.t) descriptor =
+    let operation = "Metal.Texture.create_shared" in
+    on_main operation (fun () ->
+      match ensure_live operation device.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when descriptor.storage <> Private ->
+          error operation Invalid_argument
+            "shared textures require private storage"
+      | Ok () ->
+          (match validate_descriptor operation device descriptor with
+           | Error _ as failure -> failure
+           | Ok () when descriptor.kind = Texture_buffer ->
+               error operation Invalid_argument
+                 "texture-buffer resources must be created from a buffer"
+           | Ok () ->
+               match
+                 Metal_raw.texture_shared_create device.raw
+                   (descriptor_tuple descriptor) descriptor.label
+               with
+               | Error message -> native_error operation message
+               | Ok raw ->
+                   finish_create ~expected_shareable:true operation ~device
+                     ~descriptor
                      ~parent:(Texture_resource (Device_resource device))
                      ~heap_offset:None ~allocation:None raw))
 
@@ -1734,6 +1797,66 @@ module Texture = struct
     | Texture_buffer_resource backing -> Some backing
     | Texture_view parent -> buffer_backing parent
     | Texture_resource _ -> None
+
+  let is_shareable (value : t) =
+    on_main "Metal.Texture.is_shareable" (fun () ->
+      match ensure_live "Metal.Texture.is_shareable" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () -> Ok (Metal_raw.texture_is_shareable value.raw))
+
+  let shared_handle (value : t) =
+    let operation = "Metal.Texture.shared_handle" in
+    on_main operation (fun () ->
+      match ensure_texture_usable operation value with
+      | Error _ as failure -> failure
+      | Ok () when not (Metal_raw.texture_is_shareable value.raw) ->
+          error operation Invalid_state "texture is not shareable"
+      | Ok () ->
+          (match Metal_raw.texture_shared_handle_create value.raw with
+           | Error message -> native_error operation message
+           | Ok raw ->
+               let registry_id, label =
+                 Metal_raw.shared_texture_handle_info raw
+               in
+               if registry_id <> value.device.registry_id then begin
+                 ignore (Metal_raw.destroy raw);
+                 native_error operation
+                   "shared texture handle belongs to a different device"
+               end
+               else
+                 let handle : Shared_handle.t =
+                   { raw
+                   ; lifetime = lifetime ()
+                   ; device = value.device
+                   ; descriptor = { value.descriptor with label }
+                   ; label
+                   }
+                 in
+                 attach value.device.lifetime;
+                 attach_finalizer handle handle.lifetime value.device.lifetime;
+                 Ok handle))
+
+  let import_shared ~(device : Device.t) (handle : Shared_handle.t) =
+    let operation = "Metal.Texture.import_shared" in
+    on_main operation (fun () ->
+      match ensure_live operation device.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match ensure_live operation handle.lifetime with
+           | Error _ as failure -> failure
+           | Ok () ->
+               (match ensure_same_device operation device handle.device with
+                | Error _ as failure -> failure
+                | Ok () ->
+                    match
+                      Metal_raw.texture_shared_import device.raw handle.raw
+                    with
+                    | Error message -> native_error operation message
+                    | Ok raw ->
+                        finish_create ~expected_shareable:true operation ~device
+                          ~descriptor:handle.descriptor
+                          ~parent:(Texture_resource (Device_resource device))
+                          ~heap_offset:None ~allocation:None raw)))
 
   let label (value : t) =
     on_main "Metal.Texture.label" (fun () ->

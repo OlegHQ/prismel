@@ -222,7 +222,27 @@ external texture_create :
   string option -> (handle, string) result
   = "caml_prismel_metal_texture_create"
 
+external texture_shared_create :
+  handle ->
+  (int * int * int * int * int * int * int * int * int * int * int * int * bool) ->
+  string option -> (handle, string) result
+  = "caml_prismel_metal_texture_shared_create"
+
 external texture_info : handle -> int array = "caml_prismel_metal_texture_info"
+
+external texture_is_shareable : handle -> bool =
+  "caml_prismel_metal_texture_is_shareable"
+
+external texture_shared_handle_create :
+  handle -> (handle, string) result
+  = "caml_prismel_metal_texture_shared_handle_create"
+
+external shared_texture_handle_info : handle -> int64 * string option =
+  "caml_prismel_metal_shared_texture_handle_info"
+
+external texture_shared_import :
+  handle -> handle -> (handle, string) result
+  = "caml_prismel_metal_texture_shared_import"
 
 external texture_set_label : handle -> string -> (unit, string) result =
   "caml_prismel_metal_texture_set_label"

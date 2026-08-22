@@ -269,6 +269,16 @@ module Texture : sig
     ; bytes_per_row : int
     }
 
+  module Shared_handle : sig
+    type t
+
+    val device : t -> Device.t
+    val generation : t -> int64
+    val destroyed : t -> bool
+    val label : t -> (string option, error) result
+    val destroy : t -> (unit, error) result
+  end
+
   val descriptor_2d :
     ?mipmapped:bool -> ?storage:Buffer.storage_mode -> ?usage:usage list ->
     ?label:string -> format:format -> width:int -> height:int -> unit ->
@@ -276,6 +286,7 @@ module Texture : sig
   val minimum_buffer_alignment :
     device:Device.t -> kind:kind -> format:format -> (int64, error) result
   val create : device:Device.t -> descriptor -> (t, error) result
+  val create_shared : device:Device.t -> descriptor -> (t, error) result
   val create_from_buffer :
     buffer:Buffer.t -> offset:int64 -> bytes_per_row:int -> descriptor ->
     (t, error) result
@@ -286,6 +297,10 @@ module Texture : sig
   val descriptor : t -> descriptor
   val heap_offset : t -> int64 option
   val buffer_backing : t -> buffer_backing option
+  val is_shareable : t -> (bool, error) result
+  val shared_handle : t -> (Shared_handle.t, error) result
+  val import_shared :
+    device:Device.t -> Shared_handle.t -> (t, error) result
   val generation : t -> int64
   val destroyed : t -> bool
   val label : t -> (string option, error) result

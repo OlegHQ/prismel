@@ -27,6 +27,7 @@ let bound_identifiers =
   ; "class:MTLHeapDescriptor"
   ; "class:MTLResidencySetDescriptor"
   ; "class:MTLSamplerDescriptor"
+  ; "class:MTLSharedTextureHandle"
   ; "class:MTLTextureDescriptor"
   ; "enum:MTLCommandBufferStatus"
   ; "enum:MTLCompareFunction"
@@ -134,6 +135,8 @@ let bound_identifiers =
           ; "newHeapWithDescriptor:"
           ; "newResidencySetWithDescriptor:error:"
           ; "newSamplerStateWithDescriptor:"
+          ; "newSharedTextureWithDescriptor:"
+          ; "newSharedTextureWithHandle:"
           ; "newTextureWithDescriptor:"
           ; "recommendedMaxWorkingSetSize"; "registryID"
           ; "supportsDynamicLibraries"; "supportsFamily:"
@@ -184,11 +187,13 @@ let bound_identifiers =
           ; "setTAddressMode:"; "supportArgumentBuffers"; "tAddressMode"
           ] )
       ; "MTLSamplerState", [ "label" ]
+      ; "MTLSharedTextureHandle", [ "device"; "label" ]
       ; ( "MTLTexture"
         , [ "arrayLength"; "buffer"; "bufferBytesPerRow"; "bufferOffset"
           ; "depth"
           ; "getBytes:bytesPerRow:bytesPerImage:fromRegion:mipmapLevel:slice:"
-          ; "height"; "mipmapLevelCount"
+          ; "height"; "isShareable"; "mipmapLevelCount"
+          ; "newSharedTextureHandle"
           ; "newTextureViewWithPixelFormat:textureType:levels:slices:"
           ; "pixelFormat"
           ; "replaceRegion:mipmapLevel:slice:withBytes:bytesPerRow:bytesPerImage:"
@@ -248,6 +253,7 @@ let bound_identifiers =
           ; "tAddressMode"
           ] )
       ; "MTLSamplerState", [ "label" ]
+      ; "MTLSharedTextureHandle", [ "device"; "label" ]
       ; ( "MTLTexture"
         , [ "arrayLength"; "depth"; "height"; "mipmapLevelCount"
           ; "pixelFormat"; "sampleCount"; "textureType"; "usage"; "width"
