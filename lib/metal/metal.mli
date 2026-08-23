@@ -815,21 +815,169 @@ module Sampler : sig
   val destroy : t -> (unit, error) result
 end
 
+module Shader_type : sig
+  type scalar =
+    | Float
+    | Half
+    | Int
+    | Uint
+    | Short
+    | Ushort
+    | Char
+    | Uchar
+    | Bool
+    | Long
+    | Ulong
+    | Bfloat
+
+  type t =
+    | No_type
+    | Struct
+    | Array
+    | Scalar of scalar
+    | Vector of scalar * int
+    | Matrix of scalar * int * int
+    | Texture_type
+    | Sampler_type
+    | Pointer
+    | Other_data_type of int
+end
+
+module Binding : sig
+  type access =
+    | Read_only
+    | Read_write
+    | Write_only
+    | Unknown_access of int
+
+  type buffer =
+    { alignment : int64
+    ; data_size : int64
+    ; data_type : Shader_type.t
+    }
+
+  type texture =
+    { texture_kind : Texture.kind
+    ; data_type : Shader_type.t
+    ; depth : bool
+    ; array_length : int64
+    }
+
+  type sized =
+    { alignment : int64
+    ; data_size : int64
+    }
+
+  type kind =
+    | Buffer_binding of buffer
+    | Threadgroup_memory_binding of sized
+    | Texture_binding of texture
+    | Sampler_binding
+    | Imageblock_data_binding
+    | Imageblock_binding
+    | Visible_function_table_binding
+    | Primitive_acceleration_structure_binding
+    | Instance_acceleration_structure_binding
+    | Intersection_function_table_binding
+    | Object_payload_binding of sized
+    | Tensor_binding
+    | Unknown_binding of int
+
+  type t =
+    { name : string
+    ; index : int64
+    ; access : access
+    ; used : bool
+    ; argument : bool
+    ; kind : kind
+    }
+
+  type layout_kind =
+    | Buffer_layout
+    | Threadgroup_memory_layout
+    | Texture_layout
+    | Sampler_layout
+    | Imageblock_data_layout
+    | Imageblock_layout
+    | Visible_function_table_layout
+    | Primitive_acceleration_structure_layout
+    | Instance_acceleration_structure_layout
+    | Intersection_function_table_layout
+    | Object_payload_layout
+    | Tensor_layout
+    | Other_binding_layout of int
+
+  type layout =
+    { name : string
+    ; index : int64
+    ; access : access
+    ; kind : layout_kind
+    ; data_type : Shader_type.t option
+    }
+
+  val layout : t -> layout
+
+  (** Compares generated binding metadata with native Metal reflection. Order
+      is ignored; names, indices, access, resource classes, and reflected data
+      types must match exactly. *)
+  val validate_layout :
+    expected:layout list -> t list -> (unit, error) result
+end
+
 module Library : sig
   type t
 
-  val compile_source : device:Device.t -> string -> (t, error) result
+  val compile_source :
+    ?label:string -> device:Device.t -> string -> (t, error) result
   val device : t -> Device.t
   val generation : t -> int64
   val destroyed : t -> bool
+  val label : t -> (string option, error) result
   val destroy : t -> (unit, error) result
 end
 
 module Function : sig
   type t
 
+  type kind =
+    | Vertex
+    | Fragment
+    | Kernel
+    | Visible
+    | Intersection
+    | Mesh
+    | Object
+    | Unknown_function_kind of int
+
+  type constant_value =
+    | Bool_constant of bool
+    | Int8_constant of int
+    | Uint8_constant of int
+    | Int16_constant of int
+    | Uint16_constant of int
+    | Int32_constant of int32
+    | Uint32_constant of int64
+    | Int64_constant of int64
+    (** The [int64] bit pattern is reinterpreted as an unsigned Metal value. *)
+    | Uint64_bits_constant of int64
+    | Float16_constant of float
+    | Float32_constant of float
+
+  type constant =
+    { name : string
+    ; data_type : Shader_type.t
+    ; index : int64
+    ; required : bool
+    }
+
   val find : library:Library.t -> string -> (t, error) result
+  val specialize :
+    library:Library.t -> ?label:string ->
+    constants:(string * constant_value) list -> string -> (t, error) result
   val name : t -> (string, error) result
+  val label : t -> (string option, error) result
+  val kind : t -> (kind, error) result
+  val constants : t -> (constant list, error) result
   val device : t -> Device.t
   val generation : t -> int64
   val destroyed : t -> bool
@@ -839,9 +987,13 @@ end
 module Compute_pipeline : sig
   type t
 
-  val create : Function.t -> (t, error) result
+  val create :
+    ?label:string -> ?linked_functions:Function.t list -> ?reflection:bool ->
+    Function.t -> (t, error) result
   val device : t -> Device.t
   val generation : t -> int64
+  val label : t -> (string option, error) result
+  val bindings : t -> Binding.t list option
   val thread_execution_width : t -> int
   val max_total_threads_per_threadgroup : t -> int
   val destroyed : t -> bool

@@ -177,6 +177,133 @@ type texture_kind =
   | Texture_2d_multisample_array
   | Texture_buffer
 
+type shader_scalar_type =
+  | Float
+  | Half
+  | Int
+  | Uint
+  | Short
+  | Ushort
+  | Char
+  | Uchar
+  | Bool
+  | Long
+  | Ulong
+  | Bfloat
+
+type shader_data_type =
+  | No_type
+  | Struct
+  | Array
+  | Scalar of shader_scalar_type
+  | Vector of shader_scalar_type * int
+  | Matrix of shader_scalar_type * int * int
+  | Texture_type
+  | Sampler_type
+  | Pointer
+  | Other_data_type of int
+
+type shader_binding_access =
+  | Read_only
+  | Read_write
+  | Write_only
+  | Unknown_access of int
+
+type buffer_binding_layout =
+  { alignment : int64
+  ; data_size : int64
+  ; data_type : shader_data_type
+  }
+
+type texture_binding_layout =
+  { texture_kind : texture_kind
+  ; data_type : shader_data_type
+  ; depth : bool
+  ; array_length : int64
+  }
+
+type sized_binding_layout =
+  { alignment : int64
+  ; data_size : int64
+  }
+
+type shader_binding_kind =
+  | Buffer_binding of buffer_binding_layout
+  | Threadgroup_memory_binding of sized_binding_layout
+  | Texture_binding of texture_binding_layout
+  | Sampler_binding
+  | Imageblock_data_binding
+  | Imageblock_binding
+  | Visible_function_table_binding
+  | Primitive_acceleration_structure_binding
+  | Instance_acceleration_structure_binding
+  | Intersection_function_table_binding
+  | Object_payload_binding of sized_binding_layout
+  | Tensor_binding
+  | Unknown_binding of int
+
+type shader_binding =
+  { name : string
+  ; index : int64
+  ; access : shader_binding_access
+  ; used : bool
+  ; argument : bool
+  ; kind : shader_binding_kind
+  }
+
+type shader_binding_layout_kind =
+  | Buffer_layout
+  | Threadgroup_memory_layout
+  | Texture_layout
+  | Sampler_layout
+  | Imageblock_data_layout
+  | Imageblock_layout
+  | Visible_function_table_layout
+  | Primitive_acceleration_structure_layout
+  | Instance_acceleration_structure_layout
+  | Intersection_function_table_layout
+  | Object_payload_layout
+  | Tensor_layout
+  | Other_binding_layout of int
+
+type shader_binding_layout =
+  { name : string
+  ; index : int64
+  ; access : shader_binding_access
+  ; kind : shader_binding_layout_kind
+  ; data_type : shader_data_type option
+  }
+
+type function_kind =
+  | Vertex
+  | Fragment
+  | Kernel
+  | Visible
+  | Intersection
+  | Mesh
+  | Object
+  | Unknown_function_kind of int
+
+type function_constant_value =
+  | Bool_constant of bool
+  | Int8_constant of int
+  | Uint8_constant of int
+  | Int16_constant of int
+  | Uint16_constant of int
+  | Int32_constant of int32
+  | Uint32_constant of int64
+  | Int64_constant of int64
+  | Uint64_bits_constant of int64
+  | Float16_constant of float
+  | Float32_constant of float
+
+type function_constant =
+  { name : string
+  ; data_type : shader_data_type
+  ; index : int64
+  ; required : bool
+  }
+
 type pixel_format = Metal_format.t
 
 type resource_cpu_cache_mode =
@@ -481,6 +608,7 @@ type compute_pipeline =
   { raw : Metal_raw.handle
   ; lifetime : lifetime
   ; device : device
+  ; bindings : shader_binding array option
   ; thread_execution_width : int
   ; max_total_threads : int
   }
@@ -5551,10 +5679,305 @@ module Sampler = struct
       (fun () -> detach value.device.lifetime)
 end
 
+module Shader_type = struct
+  type scalar = shader_scalar_type =
+    | Float
+    | Half
+    | Int
+    | Uint
+    | Short
+    | Ushort
+    | Char
+    | Uchar
+    | Bool
+    | Long
+    | Ulong
+    | Bfloat
+
+  type t = shader_data_type =
+    | No_type
+    | Struct
+    | Array
+    | Scalar of scalar
+    | Vector of scalar * int
+    | Matrix of scalar * int * int
+    | Texture_type
+    | Sampler_type
+    | Pointer
+    | Other_data_type of int
+
+  let of_code = function
+    | 0 -> No_type
+    | 1 -> Struct
+    | 2 -> Array
+    | 3 -> Scalar Float
+    | 4 -> Vector (Float, 2)
+    | 5 -> Vector (Float, 3)
+    | 6 -> Vector (Float, 4)
+    | 7 -> Matrix (Float, 2, 2)
+    | 8 -> Matrix (Float, 2, 3)
+    | 9 -> Matrix (Float, 2, 4)
+    | 10 -> Matrix (Float, 3, 2)
+    | 11 -> Matrix (Float, 3, 3)
+    | 12 -> Matrix (Float, 3, 4)
+    | 13 -> Matrix (Float, 4, 2)
+    | 14 -> Matrix (Float, 4, 3)
+    | 15 -> Matrix (Float, 4, 4)
+    | 16 -> Scalar Half
+    | 17 -> Vector (Half, 2)
+    | 18 -> Vector (Half, 3)
+    | 19 -> Vector (Half, 4)
+    | 20 -> Matrix (Half, 2, 2)
+    | 21 -> Matrix (Half, 2, 3)
+    | 22 -> Matrix (Half, 2, 4)
+    | 23 -> Matrix (Half, 3, 2)
+    | 24 -> Matrix (Half, 3, 3)
+    | 25 -> Matrix (Half, 3, 4)
+    | 26 -> Matrix (Half, 4, 2)
+    | 27 -> Matrix (Half, 4, 3)
+    | 28 -> Matrix (Half, 4, 4)
+    | 29 -> Scalar Int
+    | 30 -> Vector (Int, 2)
+    | 31 -> Vector (Int, 3)
+    | 32 -> Vector (Int, 4)
+    | 33 -> Scalar Uint
+    | 34 -> Vector (Uint, 2)
+    | 35 -> Vector (Uint, 3)
+    | 36 -> Vector (Uint, 4)
+    | 37 -> Scalar Short
+    | 38 -> Vector (Short, 2)
+    | 39 -> Vector (Short, 3)
+    | 40 -> Vector (Short, 4)
+    | 41 -> Scalar Ushort
+    | 42 -> Vector (Ushort, 2)
+    | 43 -> Vector (Ushort, 3)
+    | 44 -> Vector (Ushort, 4)
+    | 45 -> Scalar Char
+    | 46 -> Vector (Char, 2)
+    | 47 -> Vector (Char, 3)
+    | 48 -> Vector (Char, 4)
+    | 49 -> Scalar Uchar
+    | 50 -> Vector (Uchar, 2)
+    | 51 -> Vector (Uchar, 3)
+    | 52 -> Vector (Uchar, 4)
+    | 53 -> Scalar Bool
+    | 54 -> Vector (Bool, 2)
+    | 55 -> Vector (Bool, 3)
+    | 56 -> Vector (Bool, 4)
+    | 58 -> Texture_type
+    | 59 -> Sampler_type
+    | 60 -> Pointer
+    | 81 -> Scalar Long
+    | 82 -> Vector (Long, 2)
+    | 83 -> Vector (Long, 3)
+    | 84 -> Vector (Long, 4)
+    | 85 -> Scalar Ulong
+    | 86 -> Vector (Ulong, 2)
+    | 87 -> Vector (Ulong, 3)
+    | 88 -> Vector (Ulong, 4)
+    | 121 -> Scalar Bfloat
+    | 122 -> Vector (Bfloat, 2)
+    | 123 -> Vector (Bfloat, 3)
+    | 124 -> Vector (Bfloat, 4)
+    | code -> Other_data_type code
+end
+
+module Binding = struct
+  type access = shader_binding_access =
+    | Read_only
+    | Read_write
+    | Write_only
+    | Unknown_access of int
+
+  type buffer = buffer_binding_layout =
+    { alignment : int64
+    ; data_size : int64
+    ; data_type : Shader_type.t
+    }
+
+  type texture = texture_binding_layout =
+    { texture_kind : Texture.kind
+    ; data_type : Shader_type.t
+    ; depth : bool
+    ; array_length : int64
+    }
+
+  type sized = sized_binding_layout =
+    { alignment : int64
+    ; data_size : int64
+    }
+
+  type kind = shader_binding_kind =
+    | Buffer_binding of buffer
+    | Threadgroup_memory_binding of sized
+    | Texture_binding of texture
+    | Sampler_binding
+    | Imageblock_data_binding
+    | Imageblock_binding
+    | Visible_function_table_binding
+    | Primitive_acceleration_structure_binding
+    | Instance_acceleration_structure_binding
+    | Intersection_function_table_binding
+    | Object_payload_binding of sized
+    | Tensor_binding
+    | Unknown_binding of int
+
+  type t = shader_binding =
+    { name : string
+    ; index : int64
+    ; access : access
+    ; used : bool
+    ; argument : bool
+    ; kind : kind
+    }
+
+  type layout_kind = shader_binding_layout_kind =
+    | Buffer_layout
+    | Threadgroup_memory_layout
+    | Texture_layout
+    | Sampler_layout
+    | Imageblock_data_layout
+    | Imageblock_layout
+    | Visible_function_table_layout
+    | Primitive_acceleration_structure_layout
+    | Instance_acceleration_structure_layout
+    | Intersection_function_table_layout
+    | Object_payload_layout
+    | Tensor_layout
+    | Other_binding_layout of int
+
+  type layout = shader_binding_layout =
+    { name : string
+    ; index : int64
+    ; access : access
+    ; kind : layout_kind
+    ; data_type : Shader_type.t option
+    }
+
+  let access_of_code = function
+    | 0 -> Read_only
+    | 1 -> Read_write
+    | 2 -> Write_only
+    | code -> Unknown_access code
+
+  let texture_kind_of_code = function
+    | 0 -> Some Texture.Texture_1d
+    | 1 -> Some Texture.Texture_1d_array
+    | 2 -> Some Texture.Texture_2d
+    | 3 -> Some Texture.Texture_2d_array
+    | 4 -> Some Texture.Texture_2d_multisample
+    | 5 -> Some Texture.Texture_cube
+    | 6 -> Some Texture.Texture_cube_array
+    | 7 -> Some Texture.Texture_3d
+    | 8 -> Some Texture.Texture_2d_multisample_array
+    | 9 -> Some Texture.Texture_buffer
+    | _ -> None
+
+  let of_raw
+      ( name
+      , kind_code
+      , access_code
+      , index
+      , used
+      , argument
+      , buffer_alignment
+      , buffer_data_size
+      , buffer_data_type
+      , texture_kind
+      , texture_data_type
+      , depth
+      , array_length
+      , threadgroup_alignment
+      , threadgroup_data_size
+      , object_alignment
+      , object_data_size ) =
+    let kind =
+      match kind_code with
+      | 0 ->
+          Buffer_binding
+            { alignment = buffer_alignment
+            ; data_size = buffer_data_size
+            ; data_type = Shader_type.of_code buffer_data_type
+            }
+      | 1 ->
+          Threadgroup_memory_binding
+            { alignment = threadgroup_alignment
+            ; data_size = threadgroup_data_size
+            }
+      | 2 ->
+          (match texture_kind_of_code texture_kind with
+           | Some texture_kind ->
+               Texture_binding
+                 { texture_kind
+                 ; data_type = Shader_type.of_code texture_data_type
+                 ; depth
+                 ; array_length
+                 }
+           | None -> Unknown_binding kind_code)
+      | 3 -> Sampler_binding
+      | 16 -> Imageblock_data_binding
+      | 17 -> Imageblock_binding
+      | 24 -> Visible_function_table_binding
+      | 25 -> Primitive_acceleration_structure_binding
+      | 26 -> Instance_acceleration_structure_binding
+      | 27 -> Intersection_function_table_binding
+      | 34 ->
+          Object_payload_binding
+            { alignment = object_alignment; data_size = object_data_size }
+      | 37 -> Tensor_binding
+      | code -> Unknown_binding code
+    in
+    { name; index; access = access_of_code access_code; used; argument; kind }
+
+  let layout (value : t) =
+    let kind, data_type =
+      match value.kind with
+      | Buffer_binding buffer -> Buffer_layout, Some buffer.data_type
+      | Threadgroup_memory_binding _ -> Threadgroup_memory_layout, None
+      | Texture_binding texture -> Texture_layout, Some texture.data_type
+      | Sampler_binding -> Sampler_layout, None
+      | Imageblock_data_binding -> Imageblock_data_layout, None
+      | Imageblock_binding -> Imageblock_layout, None
+      | Visible_function_table_binding -> Visible_function_table_layout, None
+      | Primitive_acceleration_structure_binding ->
+          Primitive_acceleration_structure_layout, None
+      | Instance_acceleration_structure_binding ->
+          Instance_acceleration_structure_layout, None
+      | Intersection_function_table_binding ->
+          Intersection_function_table_layout, None
+      | Object_payload_binding _ -> Object_payload_layout, None
+      | Tensor_binding -> Tensor_layout, None
+      | Unknown_binding code -> Other_binding_layout code, None
+    in
+    { name = value.name
+    ; index = value.index
+    ; access = value.access
+    ; kind
+    ; data_type
+    }
+
+  let layout_key (value : layout) = value.kind, value.index, value.name
+
+  let validate_layout ~expected reflected =
+    let sort values = List.sort (fun left right -> compare (layout_key left) (layout_key right)) values in
+    let expected = sort expected
+    and actual = sort (List.map layout reflected) in
+    if expected = actual then Ok ()
+    else
+      let summarize values =
+        values
+        |> List.map (fun value -> Printf.sprintf "%s@%Ld" value.name value.index)
+        |> String.concat ", "
+      in
+      error "Metal.Binding.validate_layout" Invalid_argument
+        (Printf.sprintf "shader bind layout mismatch (expected [%s], reflected [%s])"
+           (summarize expected) (summarize actual))
+end
+
 module Library = struct
   type t = library
 
-  let compile_source ~(device : Device.t) source =
+  let compile_source ?label ~(device : Device.t) source =
     on_main "Metal.Library.compile_source" (fun () ->
       match ensure_live "Metal.Library.compile_source" device.lifetime with
       | Error _ as failure -> failure
@@ -5564,8 +5987,11 @@ module Library = struct
       | Ok () when contains_nul source ->
           error "Metal.Library.compile_source" Invalid_argument
             "shader source contains a NUL byte"
+      | Ok () when option_exists contains_nul label ->
+          error "Metal.Library.compile_source" Invalid_argument
+            "library label contains a NUL byte"
       | Ok () ->
-          (match Metal_raw.library_compile device.raw source with
+          (match Metal_raw.library_compile device.raw source label with
            | Error message -> native_error "Metal.Library.compile_source" message
            | Ok raw ->
                let value : t = { raw; lifetime = lifetime (); device } in
@@ -5577,6 +6003,12 @@ module Library = struct
   let generation (value : t) = Metal_raw.generation value.raw
   let destroyed (value : t) = is_destroyed value.lifetime
 
+  let label (value : t) =
+    on_main "Metal.Library.label" (fun () ->
+      match ensure_live "Metal.Library.label" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () -> Ok (Metal_raw.library_label value.raw))
+
   let destroy (value : t) =
     destroy_parent "Metal.Library.destroy" value.lifetime value.raw
       (fun () -> detach value.device.lifetime)
@@ -5584,6 +6016,100 @@ end
 
 module Function = struct
   type t = function_handle
+
+  type kind = function_kind =
+    | Vertex
+    | Fragment
+    | Kernel
+    | Visible
+    | Intersection
+    | Mesh
+    | Object
+    | Unknown_function_kind of int
+
+  type constant_value = function_constant_value =
+    | Bool_constant of bool
+    | Int8_constant of int
+    | Uint8_constant of int
+    | Int16_constant of int
+    | Uint16_constant of int
+    | Int32_constant of int32
+    | Uint32_constant of int64
+    | Int64_constant of int64
+    | Uint64_bits_constant of int64
+    | Float16_constant of float
+    | Float32_constant of float
+
+  type constant = function_constant =
+    { name : string
+    ; data_type : Shader_type.t
+    ; index : int64
+    ; required : bool
+    }
+
+  let kind_of_code = function
+    | 1 -> Vertex
+    | 2 -> Fragment
+    | 3 -> Kernel
+    | 5 -> Visible
+    | 6 -> Intersection
+    | 7 -> Mesh
+    | 8 -> Object
+    | code -> Unknown_function_kind code
+
+  let validate_constant_name operation name =
+    if name = "" || contains_nul name then
+      error operation Invalid_argument
+        "function-constant names must be nonempty and contain no NUL byte"
+    else Ok ()
+
+  let raw_constant operation (name, value) =
+    match validate_constant_name operation name with
+    | Error _ as failure -> failure
+    | Ok () ->
+        let integral tag value = Ok (name, tag, value, 0.) in
+        (match value with
+         | Bool_constant value -> integral 0 (if value then 1L else 0L)
+         | Int8_constant value when value >= -128 && value <= 127 ->
+             integral 1 (Int64.of_int value)
+         | Uint8_constant value when value >= 0 && value <= 255 ->
+             integral 2 (Int64.of_int value)
+         | Int16_constant value when value >= -32_768 && value <= 32_767 ->
+             integral 3 (Int64.of_int value)
+         | Uint16_constant value when value >= 0 && value <= 65_535 ->
+             integral 4 (Int64.of_int value)
+         | Int32_constant value -> integral 5 (Int64.of_int32 value)
+         | Uint32_constant value
+           when value >= 0L && value <= 0xffff_ffffL ->
+             integral 6 value
+         | Int64_constant value -> integral 7 value
+         | Uint64_bits_constant value -> integral 8 value
+         | Float16_constant value -> Ok (name, 9, 0L, value)
+         | Float32_constant value -> Ok (name, 10, 0L, value)
+         | Int8_constant _ ->
+             error operation Invalid_argument "int8 function constant is out of range"
+         | Uint8_constant _ ->
+             error operation Invalid_argument "uint8 function constant is out of range"
+         | Int16_constant _ ->
+             error operation Invalid_argument "int16 function constant is out of range"
+         | Uint16_constant _ ->
+             error operation Invalid_argument "uint16 function constant is out of range"
+         | Uint32_constant _ ->
+             error operation Invalid_argument "uint32 function constant is out of range")
+
+  let raw_constants operation constants =
+    let rec loop seen reversed = function
+      | [] -> Ok (Array.of_list (List.rev reversed))
+      | (name, _) as constant :: rest ->
+          if List.mem name seen then
+            error operation Invalid_argument
+              "function-constant list contains a duplicate name"
+          else
+            (match raw_constant operation constant with
+             | Error _ as failure -> failure
+             | Ok raw -> loop (name :: seen) (raw :: reversed) rest)
+    in
+    loop [] [] constants
 
   let find ~(library : Library.t) name =
     on_main "Metal.Function.find" (fun () ->
@@ -5607,6 +6133,65 @@ module Function = struct
       | Error _ as failure -> failure
       | Ok () -> Ok (Metal_raw.function_name value.raw))
 
+  let label (value : t) =
+    on_main "Metal.Function.label" (fun () ->
+      match ensure_live "Metal.Function.label" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () -> Ok (Metal_raw.function_label value.raw))
+
+  let kind (value : t) =
+    on_main "Metal.Function.kind" (fun () ->
+      match ensure_live "Metal.Function.kind" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () -> Ok (kind_of_code (Metal_raw.function_kind value.raw)))
+
+  let constants (value : t) =
+    on_main "Metal.Function.constants" (fun () ->
+      match ensure_live "Metal.Function.constants" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          Metal_raw.function_constants value.raw
+          |> Array.to_list
+          |> List.map (fun (name, data_type, index, required) ->
+            { name
+            ; data_type = Shader_type.of_code data_type
+            ; index
+            ; required
+            })
+          |> List.sort (fun left right ->
+            match Int64.compare left.index right.index with
+            | 0 -> String.compare left.name right.name
+            | order -> order)
+          |> Result.ok)
+
+  let specialize ~(library : Library.t) ?label ~constants name =
+    let operation = "Metal.Function.specialize" in
+    on_main operation (fun () ->
+      match ensure_live operation library.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when name = "" || contains_nul name ->
+          error operation Invalid_argument
+            "function name must be nonempty and contain no NUL byte"
+      | Ok () when option_exists contains_nul label ->
+          error operation Invalid_argument
+            "function label contains a NUL byte"
+      | Ok () ->
+          (match raw_constants operation constants with
+           | Error _ as failure -> failure
+           | Ok raw_constants ->
+               match
+                 Metal_raw.function_specialize library.raw name raw_constants
+                   label
+               with
+               | Error message -> native_error operation message
+               | Ok raw ->
+                   let value : t =
+                     { raw; lifetime = lifetime (); library }
+                   in
+                   attach library.lifetime;
+                   attach_finalizer value value.lifetime library.lifetime;
+                   Ok value))
+
   let device (value : t) = value.library.device
   let generation (value : t) = Metal_raw.generation value.raw
   let destroyed (value : t) = is_destroyed value.lifetime
@@ -5619,36 +6204,109 @@ end
 module Compute_pipeline = struct
   type t = compute_pipeline
 
-  let create (function_value : Function.t) =
+  let validate_linked operation device linked_functions =
+    let rec loop names = function
+      | [] -> Ok ()
+      | (linked : Function.t) :: rest ->
+          (match ensure_live operation linked.lifetime with
+           | Error _ as failure -> failure
+           | Ok () ->
+               (match ensure_same_device operation device linked.library.device with
+                | Error _ as failure -> failure
+                | Ok () ->
+                    let name = Metal_raw.function_name linked.raw in
+                    if List.mem name names then
+                      error operation Invalid_argument
+                        "linked functions must have unique names"
+                    else
+                      match Function.kind_of_code (Metal_raw.function_kind linked.raw) with
+                      | Function.Visible -> loop (name :: names) rest
+                      | _ ->
+                          error operation Invalid_argument
+                            "linked functions must be visible Metal functions"))
+    in
+    loop [] linked_functions
+
+  let create ?label ?(linked_functions = []) ?(reflection = false)
+      (function_value : Function.t) =
     on_main "Metal.Compute_pipeline.create" (fun () ->
       match ensure_live "Metal.Compute_pipeline.create" function_value.lifetime with
       | Error _ as failure -> failure
+      | Ok () when option_exists contains_nul label ->
+          error "Metal.Compute_pipeline.create" Invalid_argument
+            "pipeline label contains a NUL byte"
       | Ok () ->
           let device = function_value.library.device in
-          (match
-             Metal_raw.compute_pipeline_create device.raw function_value.raw
-           with
-           | Error message -> native_error "Metal.Compute_pipeline.create" message
-           | Ok raw ->
-               let value : t =
-                 { raw
-                 ; lifetime = lifetime ()
-                 ; device
-                 ; thread_execution_width =
-                     Metal_raw.compute_pipeline_thread_execution_width raw
-                 ; max_total_threads =
-                     Metal_raw.compute_pipeline_max_total_threads raw
-                 }
-               in
-               attach device.lifetime;
-               attach_finalizer value value.lifetime device.lifetime;
-               Ok value))
+          (match Function.kind_of_code (Metal_raw.function_kind function_value.raw) with
+           | Function.Kernel ->
+               (match
+                  validate_linked "Metal.Compute_pipeline.create" device
+                    linked_functions
+                with
+                | Error _ as failure -> failure
+                | Ok ()
+                  when linked_functions <> []
+                       && not
+                            (Metal_raw.device_supports_function_pointers
+                               device.raw) ->
+                    error "Metal.Compute_pipeline.create" Unsupported
+                      "linked functions require Metal function-pointer support"
+                | Ok () ->
+                    let creation =
+                      if label = None && linked_functions = [] && not reflection
+                      then
+                        Result.map
+                          (fun raw -> raw, [||])
+                          (Metal_raw.compute_pipeline_create device.raw
+                             function_value.raw)
+                      else
+                        Metal_raw.compute_pipeline_create_descriptor device.raw
+                          function_value.raw label reflection
+                          (Array.of_list
+                             (List.map
+                                (fun (value : Function.t) -> value.raw)
+                                linked_functions))
+                    in
+                    (match creation with
+                     | Error message ->
+                         native_error "Metal.Compute_pipeline.create" message
+                     | Ok (raw, raw_bindings) ->
+                         let bindings =
+                           if reflection then
+                             Some (Array.map Binding.of_raw raw_bindings)
+                           else None
+                         in
+                         let value : t =
+                           { raw
+                           ; lifetime = lifetime ()
+                           ; device
+                           ; bindings
+                           ; thread_execution_width =
+                               Metal_raw.compute_pipeline_thread_execution_width
+                                 raw
+                           ; max_total_threads =
+                               Metal_raw.compute_pipeline_max_total_threads raw
+                           }
+                         in
+                         attach device.lifetime;
+                         attach_finalizer value value.lifetime device.lifetime;
+                         Ok value))
+           | _ ->
+               error "Metal.Compute_pipeline.create" Invalid_argument
+                 "the pipeline entry point must be a Metal kernel function"))
 
   let device (value : t) = value.device
   let generation (value : t) = Metal_raw.generation value.raw
+  let bindings (value : t) = Option.map Array.to_list value.bindings
   let thread_execution_width (value : t) = value.thread_execution_width
   let max_total_threads_per_threadgroup (value : t) = value.max_total_threads
   let destroyed (value : t) = is_destroyed value.lifetime
+
+  let label (value : t) =
+    on_main "Metal.Compute_pipeline.label" (fun () ->
+      match ensure_live "Metal.Compute_pipeline.label" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () -> Ok (Metal_raw.compute_pipeline_label value.raw))
 
   let destroy (value : t) =
     destroy_leaf "Metal.Compute_pipeline.destroy" value.lifetime value.raw

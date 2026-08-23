@@ -25,7 +25,12 @@ let enum_cases owner names =
 let bound_identifiers =
   [ "class:MTL4CommandQueueDescriptor"
   ; "class:MTLCompileOptions"
+  ; "class:MTLComputePipelineDescriptor"
+  ; "class:MTLComputePipelineReflection"
+  ; "class:MTLFunctionConstant"
+  ; "class:MTLFunctionConstantValues"
   ; "class:MTLHeapDescriptor"
+  ; "class:MTLLinkedFunctions"
   ; "class:MTLResidencySetDescriptor"
   ; "class:MTLSamplerDescriptor"
   ; "class:MTLSharedTextureHandle"
@@ -33,12 +38,15 @@ let bound_identifiers =
   ; "class:MTLTextureViewDescriptor"
   ; "enum:MTLCommandBufferStatus"
   ; "enum:MTL4VisibilityOptions"
+  ; "enum:MTLBindingAccess"
+  ; "enum:MTLBindingType"
   ; "enum:MTLCompareFunction"
   ; "enum:MTLBufferSparseTier"
   ; "enum:MTLCPUCacheMode"
   ; "enum:MTLGPUFamily"
   ; "enum:MTLHazardTrackingMode"
   ; "enum:MTLHeapType"
+  ; "enum:MTLFunctionType"
   ; "enum:MTLPixelFormat"
   ; "enum:MTLPurgeableState"
   ; "enum:MTLResourceOptions"
@@ -62,6 +70,7 @@ let bound_identifiers =
   ; "function:MTLRegionMake3D"
   ; "function:MTLSizeMake"
   ; "function:MTLTextureSwizzleChannelsMake"
+  ; "method:+[MTLLinkedFunctions linkedFunctions]"
   ; "record:MTLOrigin"
   ; "record:MTL4UpdateSparseBufferMappingOperation"
   ; "record:MTL4UpdateSparseTextureMappingOperation"
@@ -99,6 +108,8 @@ let bound_identifiers =
   ; "protocol:MTLBuffer"
   ; "protocol:MTLAllocation"
   ; "protocol:MTLBlitCommandEncoder"
+  ; "protocol:MTLBinding"
+  ; "protocol:MTLBufferBinding"
   ; "protocol:MTLCommandBuffer"
   ; "protocol:MTLCommandEncoder"
   ; "protocol:MTLCommandQueue"
@@ -109,22 +120,28 @@ let bound_identifiers =
   ; "protocol:MTLFunction"
   ; "protocol:MTLHeap"
   ; "protocol:MTLLibrary"
+  ; "protocol:MTLObjectPayloadBinding"
   ; "protocol:MTLResource"
   ; "protocol:MTLResidencySet"
   ; "protocol:MTLResourceStateCommandEncoder"
   ; "protocol:MTLSamplerState"
   ; "protocol:MTLSharedEvent"
   ; "protocol:MTLTexture"
+  ; "protocol:MTLTextureBinding"
+  ; "protocol:MTLThreadgroupBinding"
   ; "typedef:MTLCommandBufferStatus"
   ; "typedef:MTL4UpdateSparseBufferMappingOperation"
   ; "typedef:MTL4UpdateSparseTextureMappingOperation"
   ; "typedef:MTL4VisibilityOptions"
+  ; "typedef:MTLBindingAccess"
+  ; "typedef:MTLBindingType"
   ; "typedef:MTLCompareFunction"
   ; "typedef:MTLBufferSparseTier"
   ; "typedef:MTLCPUCacheMode"
   ; "typedef:MTLGPUFamily"
   ; "typedef:MTLHazardTrackingMode"
   ; "typedef:MTLHeapType"
+  ; "typedef:MTLFunctionType"
   ; "typedef:MTLOrigin"
   ; "typedef:MTLPixelFormat"
   ; "typedef:MTLPurgeableState"
@@ -188,8 +205,15 @@ let bound_identifiers =
           ; "setBuffer:offset:atIndex:"
           ; "setComputePipelineState:"; "setTexture:atIndex:"
           ] )
+      ; ( "MTLComputePipelineDescriptor"
+        , [ "computeFunction"; "label"; "linkedFunctions"
+          ; "setComputeFunction:"; "setLabel:"; "setLinkedFunctions:"
+          ] )
+      ; "MTLComputePipelineReflection", [ "bindings" ]
       ; ( "MTLComputePipelineState"
-        , [ "maxTotalThreadsPerThreadgroup"; "threadExecutionWidth" ] )
+        , [ "device"; "label"; "maxTotalThreadsPerThreadgroup"
+          ; "threadExecutionWidth"
+          ] )
       ; ( "MTLDevice"
         , [ "currentAllocatedSize"; "hasUnifiedMemory"; "isHeadless"
           ; "heapBufferSizeAndAlignWithLength:options:"
@@ -203,6 +227,7 @@ let bound_identifiers =
           ; "newBufferWithLength:options:placementSparsePageSize:"
           ; "newCommandAllocator"; "newCommandBuffer"
           ; "newCommandQueue"
+          ; "newComputePipelineStateWithDescriptor:options:reflection:error:"
           ; "newComputePipelineStateWithFunction:error:"
           ; "newLibraryWithSource:options:error:"
           ; "newHeapWithDescriptor:"
@@ -225,7 +250,14 @@ let bound_identifiers =
           ; "supportsRaytracingFromRender"; "supportsTextureSampleCount:"
           ; "supportsPlacementSparse"
           ] )
-      ; "MTLFunction", [ "name" ]
+      ; ( "MTLFunction"
+        , [ "device"; "functionConstantsDictionary"; "functionType"; "label"
+          ; "name"; "setLabel:"
+          ] )
+      ; ( "MTLFunctionConstant"
+        , [ "index"; "name"; "required"; "type" ] )
+      ; ( "MTLFunctionConstantValues"
+        , [ "setConstantValue:type:withName:" ] )
       ; ( "MTLHeap"
         , [ "cpuCacheMode"; "currentAllocatedSize"; "hazardTrackingMode"
           ; "label"; "maxAvailableSizeWithAlignment:"
@@ -244,7 +276,24 @@ let bound_identifiers =
           ; "setSparsePageSize:"; "setType:"; "size"; "sparsePageSize"
           ; "storageMode"; "type"
           ] )
-      ; "MTLLibrary", [ "newFunctionWithName:" ]
+      ; ( "MTLLibrary"
+        , [ "device"; "label"; "newFunctionWithName:"
+          ; "newFunctionWithName:constantValues:error:"; "setLabel:"
+          ] )
+      ; ( "MTLLinkedFunctions"
+        , [ "functions"; "setFunctions:" ] )
+      ; ( "MTLBinding"
+        , [ "access"; "index"; "isArgument"; "isUsed"; "name"; "type" ] )
+      ; ( "MTLBufferBinding"
+        , [ "bufferAlignment"; "bufferDataSize"; "bufferDataType" ] )
+      ; ( "MTLThreadgroupBinding"
+        , [ "threadgroupMemoryAlignment"; "threadgroupMemoryDataSize" ] )
+      ; ( "MTLTextureBinding"
+        , [ "arrayLength"; "isDepthTexture"; "textureDataType"
+          ; "textureType"
+          ] )
+      ; ( "MTLObjectPayloadBinding"
+        , [ "objectPayloadAlignment"; "objectPayloadDataSize" ] )
       ; ( "MTLResidencySet"
         , [ "addAllocation:"; "addAllocations:count:"; "allAllocations"
           ; "allocatedSize"; "allocationCount"; "commit"
@@ -325,8 +374,13 @@ let bound_identifiers =
       ; "MTLAllocation", [ "allocatedSize" ]
       ; ( "MTLCommandBuffer", [ "error"; "label"; "status" ] )
       ; "MTLCompileOptions", [ "fastMathEnabled" ]
+      ; ( "MTLComputePipelineDescriptor"
+        , [ "computeFunction"; "label"; "linkedFunctions" ] )
+      ; "MTLComputePipelineReflection", [ "bindings" ]
       ; ( "MTLComputePipelineState"
-        , [ "maxTotalThreadsPerThreadgroup"; "threadExecutionWidth" ] )
+        , [ "device"; "label"; "maxTotalThreadsPerThreadgroup"
+          ; "threadExecutionWidth"
+          ] )
       ; ( "MTLDevice"
         , [ "currentAllocatedSize"; "depth24Stencil8PixelFormatSupported"
           ; "hasUnifiedMemory"; "headless"; "lowPower"; "maxBufferLength"
@@ -336,7 +390,12 @@ let bound_identifiers =
           ; "supportsPlacementSparse"; "supportsRaytracingFromRender"
           ; "sparseTileSizeInBytes"
           ] )
-      ; "MTLFunction", [ "name" ]
+      ; ( "MTLFunction"
+        , [ "device"; "functionConstantsDictionary"; "functionType"; "label"
+          ; "name"
+          ] )
+      ; ( "MTLFunctionConstant"
+        , [ "index"; "name"; "required"; "type" ] )
       ; ( "MTLHeap"
         , [ "cpuCacheMode"; "currentAllocatedSize"; "hazardTrackingMode"
           ; "label"; "size"; "storageMode"; "type"; "usedSize"
@@ -346,6 +405,18 @@ let bound_identifiers =
           ; "maxCompatiblePlacementSparsePageSize"; "size"
           ; "sparsePageSize"; "storageMode"; "type"
           ] )
+      ; "MTLLibrary", [ "device"; "label" ]
+      ; "MTLLinkedFunctions", [ "functions" ]
+      ; ( "MTLBinding"
+        , [ "access"; "argument"; "index"; "name"; "type"; "used" ] )
+      ; ( "MTLBufferBinding"
+        , [ "bufferAlignment"; "bufferDataSize"; "bufferDataType" ] )
+      ; ( "MTLThreadgroupBinding"
+        , [ "threadgroupMemoryAlignment"; "threadgroupMemoryDataSize" ] )
+      ; ( "MTLTextureBinding"
+        , [ "arrayLength"; "depthTexture"; "textureDataType"; "textureType" ] )
+      ; ( "MTLObjectPayloadBinding"
+        , [ "objectPayloadAlignment"; "objectPayloadDataSize" ] )
       ; ( "MTLResource"
         , [ "cpuCacheMode"; "hazardTrackingMode"; "heapOffset"; "label"
           ; "storageMode"
@@ -388,6 +459,60 @@ let bound_identifiers =
       ]
   @ enum_cases "MTL4VisibilityOptions"
       [ "MTL4VisibilityOptionResourceAlias" ]
+  @ enum_cases "MTLBindingAccess"
+      [ "MTLArgumentAccessReadOnly"; "MTLArgumentAccessReadWrite"
+      ; "MTLArgumentAccessWriteOnly"; "MTLBindingAccessReadOnly"
+      ; "MTLBindingAccessReadWrite"; "MTLBindingAccessWriteOnly"
+      ]
+  @ enum_cases "MTLBindingType"
+      [ "MTLBindingTypeBuffer"; "MTLBindingTypeThreadgroupMemory"
+      ; "MTLBindingTypeTexture"; "MTLBindingTypeSampler"
+      ; "MTLBindingTypeImageblockData"; "MTLBindingTypeImageblock"
+      ; "MTLBindingTypeVisibleFunctionTable"
+      ; "MTLBindingTypePrimitiveAccelerationStructure"
+      ; "MTLBindingTypeInstanceAccelerationStructure"
+      ; "MTLBindingTypeIntersectionFunctionTable"
+      ; "MTLBindingTypeObjectPayload"; "MTLBindingTypeTensor"
+      ]
+  @ enum_cases "MTLFunctionType"
+      [ "MTLFunctionTypeVertex"; "MTLFunctionTypeFragment"
+      ; "MTLFunctionTypeKernel"; "MTLFunctionTypeVisible"
+      ; "MTLFunctionTypeIntersection"; "MTLFunctionTypeMesh"
+      ; "MTLFunctionTypeObject"
+      ]
+  @ enum_cases "MTLPipelineOption"
+      [ "MTLPipelineOptionNone"; "MTLPipelineOptionArgumentInfo"
+      ; "MTLPipelineOptionBindingInfo"; "MTLPipelineOptionBufferTypeInfo"
+      ]
+  @ enum_cases "MTLDataType"
+      [ "MTLDataTypeNone"; "MTLDataTypeStruct"; "MTLDataTypeArray"
+      ; "MTLDataTypeFloat"; "MTLDataTypeFloat2"; "MTLDataTypeFloat3"
+      ; "MTLDataTypeFloat4"; "MTLDataTypeFloat2x2"
+      ; "MTLDataTypeFloat2x3"; "MTLDataTypeFloat2x4"
+      ; "MTLDataTypeFloat3x2"; "MTLDataTypeFloat3x3"
+      ; "MTLDataTypeFloat3x4"; "MTLDataTypeFloat4x2"
+      ; "MTLDataTypeFloat4x3"; "MTLDataTypeFloat4x4"
+      ; "MTLDataTypeHalf"; "MTLDataTypeHalf2"; "MTLDataTypeHalf3"
+      ; "MTLDataTypeHalf4"; "MTLDataTypeHalf2x2"; "MTLDataTypeHalf2x3"
+      ; "MTLDataTypeHalf2x4"; "MTLDataTypeHalf3x2"
+      ; "MTLDataTypeHalf3x3"; "MTLDataTypeHalf3x4"
+      ; "MTLDataTypeHalf4x2"; "MTLDataTypeHalf4x3"
+      ; "MTLDataTypeHalf4x4"; "MTLDataTypeInt"; "MTLDataTypeInt2"
+      ; "MTLDataTypeInt3"; "MTLDataTypeInt4"; "MTLDataTypeUInt"
+      ; "MTLDataTypeUInt2"; "MTLDataTypeUInt3"; "MTLDataTypeUInt4"
+      ; "MTLDataTypeShort"; "MTLDataTypeShort2"; "MTLDataTypeShort3"
+      ; "MTLDataTypeShort4"; "MTLDataTypeUShort"; "MTLDataTypeUShort2"
+      ; "MTLDataTypeUShort3"; "MTLDataTypeUShort4"; "MTLDataTypeChar"
+      ; "MTLDataTypeChar2"; "MTLDataTypeChar3"; "MTLDataTypeChar4"
+      ; "MTLDataTypeUChar"; "MTLDataTypeUChar2"; "MTLDataTypeUChar3"
+      ; "MTLDataTypeUChar4"; "MTLDataTypeBool"; "MTLDataTypeBool2"
+      ; "MTLDataTypeBool3"; "MTLDataTypeBool4"; "MTLDataTypeTexture"
+      ; "MTLDataTypeSampler"; "MTLDataTypePointer"; "MTLDataTypeLong"
+      ; "MTLDataTypeLong2"; "MTLDataTypeLong3"; "MTLDataTypeLong4"
+      ; "MTLDataTypeULong"; "MTLDataTypeULong2"; "MTLDataTypeULong3"
+      ; "MTLDataTypeULong4"; "MTLDataTypeBFloat"; "MTLDataTypeBFloat2"
+      ; "MTLDataTypeBFloat3"; "MTLDataTypeBFloat4"
+      ]
   @ enum_cases "MTLStages"
       [ "MTLStageAll"; "MTLStageResourceState" ]
   @ enum_cases "MTLGPUFamily"

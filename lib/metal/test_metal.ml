@@ -13,6 +13,17 @@ let expect_error kind = function
         (Format.asprintf "%a" pp_error error)
   | Ok _ -> fail "operation unexpectedly succeeded"
 
+let contains_substring text pattern =
+  let text_length = String.length text
+  and pattern_length = String.length pattern in
+  let rec search offset =
+    if pattern_length = 0 then true
+    else if offset > text_length - pattern_length then false
+    else if String.sub text offset pattern_length = pattern then true
+    else search (offset + 1)
+  in
+  pattern_length <= text_length && search 0
+
 let shader_source =
   {|
 #include <metal_stdlib>
@@ -21,6 +32,37 @@ using namespace metal;
 kernel void increment(device uint *values [[buffer(0)]],
                       uint index [[thread_position_in_grid]]) {
   values[index] += 1;
+}
+
+constant uint increment_amount [[function_constant(0)]];
+constant bool apply_twice [[function_constant(1)]];
+
+kernel void specialized_increment(device uint *values [[buffer(0)]],
+                                  uint index [[thread_position_in_grid]]) {
+  values[index] += apply_twice ? increment_amount * 2u : increment_amount;
+}
+
+[[visible]] uint linked_identity(uint value) {
+  return value;
+}
+
+constant char scalar_i8 [[function_constant(2)]];
+constant uchar scalar_u8 [[function_constant(3)]];
+constant short scalar_i16 [[function_constant(4)]];
+constant ushort scalar_u16 [[function_constant(5)]];
+constant int scalar_i32 [[function_constant(6)]];
+constant uint scalar_u32 [[function_constant(7)]];
+constant long scalar_i64 [[function_constant(8)]];
+constant ulong scalar_u64 [[function_constant(9)]];
+constant half scalar_f16 [[function_constant(10)]];
+constant float scalar_f32 [[function_constant(11)]];
+constant bool scalar_bool [[function_constant(12)]];
+
+kernel void scalar_constant_sum(device uint *result [[buffer(0)]]) {
+  result[0] = uint(scalar_i8) + uint(scalar_u8) + uint(scalar_i16)
+      + uint(scalar_u16) + uint(scalar_i32) + scalar_u32
+      + uint(scalar_i64) + uint(scalar_u64) + uint(scalar_f16)
+      + uint(scalar_f32) + uint(scalar_bool);
 }
 |}
 
@@ -3187,19 +3229,230 @@ let () =
     get (Texture.destroy texture);
     let invalid_shader =
       expect_error Native_error
-        (Library.compile_source ~device "not a Metal program")
+        (Library.compile_source ~device ~label:"invalid shader diagnostic"
+           "not a Metal program")
     in
-    if invalid_shader.message = "" then
-      fail "shader compilation lost its diagnostic";
-    let library = get (Library.compile_source ~device shader_source) in
+    if invalid_shader.message = ""
+       || not
+            (contains_substring invalid_shader.message
+               "invalid shader diagnostic")
+    then fail "shader compilation lost its full labeled diagnostic";
+    let library =
+      get
+        (Library.compile_source ~device ~label:"Metal conformance library"
+           shader_source)
+    in
+    if get (Library.label library) <> Some "Metal conformance library" then
+      fail "Metal library label did not round-trip";
     let function_ = get (Function.find ~library "increment") in
     if get (Function.name function_) <> "increment" then
       fail "Metal function name did not round-trip";
+    if get (Function.kind function_) <> Function.Kernel
+       || get (Function.constants function_) <> []
+    then fail "ordinary kernel metadata is wrong";
+    let specializable =
+      get (Function.find ~library "specialized_increment")
+    in
+    let constants = get (Function.constants specializable) in
+    let expected_constants : Function.constant list =
+      [ { name = "increment_amount"
+        ; data_type = Shader_type.Scalar Shader_type.Uint
+        ; index = 0L
+        ; required = true
+        }
+      ; { name = "apply_twice"
+        ; data_type = Shader_type.Scalar Shader_type.Bool
+        ; index = 1L
+        ; required = true
+        }
+      ]
+    in
+    if constants <> expected_constants then
+      fail "function-constant metadata did not round-trip";
+    let before_invalid_constants = get (Release_queue.stats ()) in
+    ignore
+      (expect_error Invalid_argument
+         (Function.specialize ~library "specialized_increment"
+            ~constants:
+              [ "increment_amount", Function.Uint32_constant 1L
+              ; "increment_amount", Function.Uint32_constant 2L
+              ]));
+    ignore
+      (expect_error Invalid_argument
+         (Function.specialize ~library "specialized_increment"
+            ~constants:
+              [ "increment_amount", Function.Uint32_constant 0x1_0000_0000L
+              ]));
+    ignore
+      (expect_error Invalid_argument
+         (Function.specialize ~library ~label:"invalid\000label"
+            "specialized_increment" ~constants:[]));
+    let after_invalid_constants = get (Release_queue.stats ()) in
+    if after_invalid_constants.total_created
+       <> before_invalid_constants.total_created
+    then fail "invalid function constants allocated native handles";
+    let invalid_constant_type =
+      expect_error Native_error
+        (Function.specialize ~library ~label:"constant type diagnostic"
+           "specialized_increment"
+           ~constants:[ "increment_amount", Function.Bool_constant true ])
+    in
+    if not
+         (contains_substring invalid_constant_type.message
+            "constant type diagnostic")
+    then fail "function specialization lost its labeled diagnostic";
+    let specialized_function =
+      get
+        (Function.specialize ~library ~label:"seven twice"
+           "specialized_increment"
+           ~constants:
+             [ "increment_amount", Function.Uint32_constant 7L
+             ; "apply_twice", Function.Bool_constant true
+             ])
+    in
+    if get (Function.label specialized_function) <> Some "seven twice"
+       || get (Function.kind specialized_function) <> Function.Kernel
+    then fail "specialized function metadata did not round-trip";
+    let scalar_constant_base =
+      get (Function.find ~library "scalar_constant_sum")
+    in
+    let expected_scalar_types =
+      [ "scalar_i8", Shader_type.Char
+      ; "scalar_u8", Shader_type.Uchar
+      ; "scalar_i16", Shader_type.Short
+      ; "scalar_u16", Shader_type.Ushort
+      ; "scalar_i32", Shader_type.Int
+      ; "scalar_u32", Shader_type.Uint
+      ; "scalar_i64", Shader_type.Long
+      ; "scalar_u64", Shader_type.Ulong
+      ; "scalar_f16", Shader_type.Half
+      ; "scalar_f32", Shader_type.Float
+      ; "scalar_bool", Shader_type.Bool
+      ]
+    in
+    let scalar_constant_metadata =
+      get (Function.constants scalar_constant_base)
+    in
+    List.iteri
+      (fun offset (expected_name, expected_type) ->
+        let expected_index = Int64.of_int (offset + 2) in
+        match List.nth_opt scalar_constant_metadata offset with
+        | Some (constant : Function.constant)
+          when constant.name = expected_name
+               && constant.data_type = Shader_type.Scalar expected_type
+               && constant.index = expected_index && constant.required -> ()
+        | _ -> fail "scalar function-constant metadata is wrong at index %Ld"
+                 expected_index)
+      expected_scalar_types;
+    if List.length scalar_constant_metadata <> List.length expected_scalar_types
+    then fail "scalar function-constant metadata cardinality is wrong";
+    let scalar_constant_function =
+      get
+        (Function.specialize ~library "scalar_constant_sum"
+           ~constants:
+             [ "scalar_i8", Function.Int8_constant (-2)
+             ; "scalar_u8", Function.Uint8_constant 3
+             ; "scalar_i16", Function.Int16_constant (-4)
+             ; "scalar_u16", Function.Uint16_constant 5
+             ; "scalar_i32", Function.Int32_constant (-6l)
+             ; "scalar_u32", Function.Uint32_constant 7L
+             ; "scalar_i64", Function.Int64_constant (-8L)
+             ; "scalar_u64", Function.Uint64_bits_constant 9L
+             ; "scalar_f16", Function.Float16_constant 10.
+             ; "scalar_f32", Function.Float32_constant 11.
+             ; "scalar_bool", Function.Bool_constant true
+             ])
+    in
+    let linked_function =
+      if info.function_pointers then begin
+        let linked = get (Function.find ~library "linked_identity") in
+        if get (Function.kind linked) <> Function.Visible then
+          fail "linked function kind is not visible";
+        Some linked
+      end
+      else None
+    in
+    ignore
+      (expect_error Wrong_domain
+         (Domain.spawn (fun () -> Function.constants specializable)
+          |> Domain.join));
+    let stale_function = get (Function.find ~library "increment") in
+    get (Function.destroy stale_function);
+    ignore (expect_error Destroyed (Function.constants stale_function));
+    ignore
+      (expect_error Destroyed (Compute_pipeline.create stale_function));
+    let before_invalid_pipeline = get (Release_queue.stats ()) in
+    ignore
+      (expect_error Invalid_argument
+         (Compute_pipeline.create ~label:"invalid\000label"
+            specialized_function));
+    ignore
+      (expect_error Invalid_argument
+         (Compute_pipeline.create ~linked_functions:[ function_ ]
+            specialized_function));
+    Option.iter
+      (fun linked ->
+        ignore
+          (expect_error Invalid_argument
+             (Compute_pipeline.create ~linked_functions:[ linked; linked ]
+                specialized_function)))
+      linked_function;
+    let after_invalid_pipeline = get (Release_queue.stats ()) in
+    if after_invalid_pipeline.total_created
+       <> before_invalid_pipeline.total_created
+    then fail "invalid compute descriptors allocated native handles";
     ignore (expect_error Parent_has_dependents (Library.destroy library));
     let pipeline = get (Compute_pipeline.create function_) in
     if Compute_pipeline.thread_execution_width pipeline <= 0
        || Compute_pipeline.max_total_threads_per_threadgroup pipeline <= 0
     then fail "compute pipeline limits are invalid";
+    let specialized_pipeline =
+      get
+        (Compute_pipeline.create ~label:"specialized reflected pipeline"
+           ~linked_functions:(Option.to_list linked_function) ~reflection:true
+           specialized_function)
+    in
+    let scalar_constant_pipeline =
+      get (Compute_pipeline.create scalar_constant_function)
+    in
+    if get (Compute_pipeline.label specialized_pipeline)
+       <> Some "specialized reflected pipeline"
+    then fail "compute pipeline label did not round-trip";
+    let reflected_bindings =
+      match Compute_pipeline.bindings specialized_pipeline with
+      | Some bindings -> bindings
+      | None -> fail "requested compute pipeline reflection is missing"
+    in
+    get
+      (Binding.validate_layout reflected_bindings
+         ~expected:
+           [ { name = "values"
+             ; index = 0L
+             ; access = Binding.Read_write
+             ; kind = Binding.Buffer_layout
+             ; data_type = Some (Shader_type.Scalar Shader_type.Uint)
+             }
+           ]);
+    ignore
+      (expect_error Invalid_argument
+         (Binding.validate_layout reflected_bindings
+            ~expected:
+              [ { name = "values"
+                ; index = 1L
+                ; access = Binding.Read_write
+                ; kind = Binding.Buffer_layout
+                ; data_type = Some (Shader_type.Scalar Shader_type.Uint)
+                }
+              ]));
+    let specialized_buffer =
+      get (Buffer.create ~device ~length:4L ~storage:Buffer.Shared ())
+    in
+    let specialized_input = Bytes.create 4 in
+    Bytes.set_int32_le specialized_input 0 10l;
+    get (Buffer.write_bytes specialized_buffer ~dst_offset:0L specialized_input);
+    let scalar_constant_buffer =
+      get (Buffer.create ~device ~length:4L ~storage:Buffer.Shared ())
+    in
     let queue = get (Command_queue.create device) in
     let queue_residency_sets =
       if residency_sets_supported then begin
@@ -3260,6 +3513,18 @@ let () =
     get
       (Compute_encoder.dispatch_threads encoder ~threads:(4, 1, 1)
          ~threadgroup:(4, 1, 1));
+    get (Compute_encoder.set_pipeline encoder specialized_pipeline);
+    get (Compute_encoder.set_buffer encoder ~index:0 ~offset:0L specialized_buffer);
+    get
+      (Compute_encoder.dispatch_threads encoder ~threads:(1, 1, 1)
+         ~threadgroup:(1, 1, 1));
+    get (Compute_encoder.set_pipeline encoder scalar_constant_pipeline);
+    get
+      (Compute_encoder.set_buffer encoder ~index:0 ~offset:0L
+         scalar_constant_buffer);
+    get
+      (Compute_encoder.dispatch_threads encoder ~threads:(1, 1, 1)
+         ~threadgroup:(1, 1, 1));
     ignore (expect_error Invalid_state (Command_buffer.commit commands));
     get (Compute_encoder.end_encoding encoder);
     get (Command_buffer.commit commands);
@@ -3277,13 +3542,32 @@ let () =
           (expect_error Parent_has_dependents (Residency_set.destroy second)))
       queue_residency_sets;
     Buffer.read_bytes buffer ~offset:0L ~length:16 |> get |> check_values;
+    let specialized_output =
+      get (Buffer.read_bytes specialized_buffer ~offset:0L ~length:4)
+    in
+    if Bytes.get_int32_le specialized_output 0 <> 24l then
+      fail "specialized function constants did not execute on the GPU";
+    let scalar_constant_output =
+      get (Buffer.read_bytes scalar_constant_buffer ~offset:0L ~length:4)
+    in
+    if Bytes.get_int32_le scalar_constant_output 0 <> 26l then
+      fail "typed scalar function constants did not round-trip to the GPU";
+    get (Buffer.destroy scalar_constant_buffer);
+    get (Buffer.destroy specialized_buffer);
     get (Buffer.destroy buffer);
     get (Command_buffer.destroy commands);
     get (Command_queue.destroy queue);
     Option.iter
       (fun (_, second) -> get (Residency_set.destroy second))
       queue_residency_sets;
+    get (Compute_pipeline.destroy scalar_constant_pipeline);
+    get (Compute_pipeline.destroy specialized_pipeline);
     get (Compute_pipeline.destroy pipeline);
+    Option.iter (fun value -> get (Function.destroy value)) linked_function;
+    get (Function.destroy scalar_constant_function);
+    get (Function.destroy scalar_constant_base);
+    get (Function.destroy specialized_function);
+    get (Function.destroy specializable);
     get (Function.destroy function_);
     get (Library.destroy library);
     get (Buffer.destroy buffer);
@@ -3302,6 +3586,6 @@ let () =
         stats.external_deallocations
         stats.external_deallocation_mismatches;
     Printf.printf
-      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/compute conformance passed on %s\n%!"
+      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/reflection/compute conformance passed on %s\n%!"
       info.name
   end

@@ -41,6 +41,18 @@ type texture_view_descriptor =
   ; effective_swizzle_alpha : int
   }
 
+(** Positional native ABI value for one function-constant specialization. *)
+type function_constant_value = string * int * int64 * float
+
+(** Name, Metal data-type code, index, and required flag. *)
+type function_constant_info = string * int * int64 * bool
+
+(** Positional native ABI value for one reflected pipeline binding. Keep this
+    synchronized with [copy_pipeline_bindings] in [metal_bridge.mm]. *)
+type pipeline_binding_info =
+  string * int * int * int64 * bool * bool * int64 * int64 * int * int * int
+  * bool * int64 * int64 * int64 * int64 * int64
+
 external is_main_thread : unit -> bool = "caml_prismel_metal_is_main_thread"
 external generation : handle -> int64 = "caml_prismel_metal_generation"
 external destroyed : handle -> bool = "caml_prismel_metal_destroyed"
@@ -413,16 +425,41 @@ external sampler_create :
 external sampler_label : handle -> string option =
   "caml_prismel_metal_sampler_label"
 
-external library_compile : handle -> string -> (handle, string) result =
+external library_compile :
+  handle -> string -> string option -> (handle, string) result =
   "caml_prismel_metal_library_compile"
+
+external library_label : handle -> string option =
+  "caml_prismel_metal_library_label"
 
 external function_find : handle -> string -> (handle, string) result =
   "caml_prismel_metal_function_find"
 
 external function_name : handle -> string = "caml_prismel_metal_function_name"
 
+external function_label : handle -> string option =
+  "caml_prismel_metal_function_label"
+
+external function_kind : handle -> int = "caml_prismel_metal_function_kind"
+
+external function_constants : handle -> function_constant_info array =
+  "caml_prismel_metal_function_constants"
+
+external function_specialize :
+  handle -> string -> function_constant_value array -> string option ->
+  (handle, string) result
+  = "caml_prismel_metal_function_specialize"
+
 external compute_pipeline_create : handle -> handle -> (handle, string) result =
   "caml_prismel_metal_compute_pipeline_create"
+
+external compute_pipeline_create_descriptor :
+  handle -> handle -> string option -> bool -> handle array ->
+  ((handle * pipeline_binding_info array), string) result
+  = "caml_prismel_metal_compute_pipeline_create_descriptor"
+
+external compute_pipeline_label : handle -> string option =
+  "caml_prismel_metal_compute_pipeline_label"
 
 external compute_pipeline_thread_execution_width : handle -> int =
   "caml_prismel_metal_compute_pipeline_thread_execution_width"

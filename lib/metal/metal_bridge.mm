@@ -748,6 +748,150 @@ std::vector<id<MTLResidencySet>> residency_sets_of_array(value raw_array) {
   return residency_sets;
 }
 
+std::vector<id<MTLFunction>> functions_of_array(value raw_array) {
+  const mlsize_t count = Wosize_val(raw_array);
+  std::vector<id<MTLFunction>> functions;
+  functions.reserve(count);
+  for (mlsize_t index = 0; index < count; ++index) {
+    functions.push_back(
+        object_of_handle(Field(raw_array, index), Handle_kind::Function));
+  }
+  return functions;
+}
+
+value copy_function_constants(id<MTLFunction> function) {
+  CAMLparam0();
+  CAMLlocal4(array, tuple, name, index_value);
+  NSDictionary<NSString *, MTLFunctionConstant *> *dictionary =
+      function.functionConstantsDictionary;
+  NSArray<MTLFunctionConstant *> *constants = dictionary.allValues;
+  if (constants.count > static_cast<NSUInteger>(Max_wosize)) {
+    caml_failwith("Metal function-constant metadata exceeds OCaml limits");
+  }
+  array = caml_alloc(static_cast<mlsize_t>(constants.count), 0);
+  for (NSUInteger index = 0; index < constants.count; ++index) {
+    MTLFunctionConstant *constant = constants[index];
+    if (constant.index >
+        static_cast<NSUInteger>(std::numeric_limits<std::int64_t>::max())) {
+      caml_failwith("Metal function-constant index exceeds int64");
+    }
+    tuple = caml_alloc_tuple(4);
+    name = caml_copy_string(constant.name.UTF8String ?: "");
+    Store_field(tuple, 0, name);
+    Store_field(tuple, 1, Val_long(static_cast<intnat>(constant.type)));
+    index_value =
+        caml_copy_int64(static_cast<std::int64_t>(constant.index));
+    Store_field(tuple, 2, index_value);
+    Store_field(tuple, 3, Val_bool(constant.required));
+    Store_field(array, static_cast<mlsize_t>(index), tuple);
+  }
+  CAMLreturn(array);
+}
+
+value copy_pipeline_bindings(MTLComputePipelineReflection *reflection) {
+  CAMLparam0();
+  CAMLlocal4(array, tuple, name, item);
+  NSArray<id<MTLBinding>> *bindings = reflection.bindings;
+  if (bindings.count > static_cast<NSUInteger>(Max_wosize)) {
+    caml_failwith("Metal pipeline reflection exceeds OCaml limits");
+  }
+  array = caml_alloc(static_cast<mlsize_t>(bindings.count), 0);
+  for (NSUInteger index = 0; index < bindings.count; ++index) {
+    id<MTLBinding> binding = bindings[index];
+    NSUInteger buffer_alignment = 0;
+    NSUInteger buffer_data_size = 0;
+    MTLDataType buffer_data_type = MTLDataTypeNone;
+    MTLTextureType texture_type = MTLTextureType1D;
+    MTLDataType texture_data_type = MTLDataTypeNone;
+    BOOL depth = NO;
+    NSUInteger array_length = 0;
+    NSUInteger threadgroup_alignment = 0;
+    NSUInteger threadgroup_data_size = 0;
+    NSUInteger object_alignment = 0;
+    NSUInteger object_data_size = 0;
+    switch (binding.type) {
+    case MTLBindingTypeBuffer: {
+      id<MTLBufferBinding> buffer = (id<MTLBufferBinding>)binding;
+      buffer_alignment = buffer.bufferAlignment;
+      buffer_data_size = buffer.bufferDataSize;
+      buffer_data_type = buffer.bufferDataType;
+      break;
+    }
+    case MTLBindingTypeThreadgroupMemory: {
+      id<MTLThreadgroupBinding> threadgroup =
+          (id<MTLThreadgroupBinding>)binding;
+      threadgroup_alignment = threadgroup.threadgroupMemoryAlignment;
+      threadgroup_data_size = threadgroup.threadgroupMemoryDataSize;
+      break;
+    }
+    case MTLBindingTypeTexture: {
+      id<MTLTextureBinding> texture = (id<MTLTextureBinding>)binding;
+      texture_type = texture.textureType;
+      texture_data_type = texture.textureDataType;
+      depth = texture.depthTexture;
+      array_length = texture.arrayLength;
+      break;
+    }
+    case MTLBindingTypeObjectPayload: {
+      id<MTLObjectPayloadBinding> object =
+          (id<MTLObjectPayloadBinding>)binding;
+      object_alignment = object.objectPayloadAlignment;
+      object_data_size = object.objectPayloadDataSize;
+      break;
+    }
+    default:
+      break;
+    }
+    const NSUInteger unsigned_values[] = {
+        binding.index,
+        buffer_alignment,
+        buffer_data_size,
+        array_length,
+        threadgroup_alignment,
+        threadgroup_data_size,
+        object_alignment,
+        object_data_size,
+    };
+    for (NSUInteger value : unsigned_values) {
+      if (value > static_cast<NSUInteger>(
+                      std::numeric_limits<std::int64_t>::max())) {
+        caml_failwith("Metal reflected binding value exceeds int64");
+      }
+    }
+    tuple = caml_alloc_tuple(17);
+    name = caml_copy_string(binding.name.UTF8String ?: "");
+    Store_field(tuple, 0, name);
+    Store_field(tuple, 1, Val_long(static_cast<intnat>(binding.type)));
+    Store_field(tuple, 2, Val_long(static_cast<intnat>(binding.access)));
+    item = caml_copy_int64(static_cast<std::int64_t>(binding.index));
+    Store_field(tuple, 3, item);
+    Store_field(tuple, 4, Val_bool(binding.used));
+    Store_field(tuple, 5, Val_bool(binding.argument));
+    item = caml_copy_int64(static_cast<std::int64_t>(buffer_alignment));
+    Store_field(tuple, 6, item);
+    item = caml_copy_int64(static_cast<std::int64_t>(buffer_data_size));
+    Store_field(tuple, 7, item);
+    Store_field(tuple, 8,
+                Val_long(static_cast<intnat>(buffer_data_type)));
+    Store_field(tuple, 9, Val_long(static_cast<intnat>(texture_type)));
+    Store_field(tuple, 10,
+                Val_long(static_cast<intnat>(texture_data_type)));
+    Store_field(tuple, 11, Val_bool(depth));
+    item = caml_copy_int64(static_cast<std::int64_t>(array_length));
+    Store_field(tuple, 12, item);
+    item = caml_copy_int64(static_cast<std::int64_t>(threadgroup_alignment));
+    Store_field(tuple, 13, item);
+    item = caml_copy_int64(static_cast<std::int64_t>(threadgroup_data_size));
+    Store_field(tuple, 14, item);
+    item = caml_copy_int64(static_cast<std::int64_t>(object_alignment));
+    Store_field(tuple, 15, item);
+    item = caml_copy_int64(static_cast<std::int64_t>(object_data_size));
+    Store_field(tuple, 16, item);
+    Store_field(array, static_cast<mlsize_t>(index), tuple);
+  }
+  CAMLreturn(array);
+}
+
 void release_pointer(void *pointer) {
   if (pointer == nullptr) {
     return;
@@ -787,9 +931,19 @@ NSString *error_description(NSError *error, NSString *fallback) {
     return fallback;
   }
   return [NSString
-      stringWithFormat:@"%@ (domain=%@ code=%ld)",
+      stringWithFormat:@"%@ (domain=%@ code=%ld userInfo=%@)",
                        error.localizedDescription ?: error.description,
-                       error.domain, static_cast<long>(error.code)];
+                       error.domain, static_cast<long>(error.code),
+                       error.userInfo ?: @{}];
+}
+
+NSString *labeled_error_description(NSString *label, NSError *error,
+                                    NSString *fallback) {
+  NSString *description = error_description(error, fallback);
+  if (label == nil) {
+    return description;
+  }
+  return [NSString stringWithFormat:@"%@: %@", label, description];
 }
 
 NSString *string_from_ocaml(value text) {
@@ -4131,28 +4285,58 @@ extern "C" CAMLprim value caml_prismel_metal_sampler_label(value raw) {
 }
 
 extern "C" CAMLprim value caml_prismel_metal_library_compile(
-    value raw_device, value raw_source) {
-  CAMLparam2(raw_device, raw_source);
+    value raw_device, value raw_source, value raw_label) {
+  CAMLparam3(raw_device, raw_source, raw_label);
   CAMLlocal1(raw);
   @autoreleasepool {
-    id<MTLDevice> device = object_of_handle(raw_device, Handle_kind::Device);
-    NSString *source = string_from_ocaml(raw_source);
-    if (source == nil) {
-      CAMLreturn(result_error_text("Metal source is not valid UTF-8"));
+    @try {
+      id<MTLDevice> device = object_of_handle(raw_device, Handle_kind::Device);
+      NSString *source = string_from_ocaml(raw_source);
+      if (source == nil) {
+        CAMLreturn(result_error_text("Metal source is not valid UTF-8"));
+      }
+      NSString *expected_label = nil;
+      if (Is_block(raw_label)) {
+        expected_label = string_from_ocaml(Field(raw_label, 0));
+        if (expected_label == nil) {
+          CAMLreturn(result_error_text("Metal library label is not valid UTF-8"));
+        }
+      }
+      MTLCompileOptions *options = [[MTLCompileOptions alloc] init];
+      options.fastMathEnabled = NO;
+      NSError *error = nil;
+      id<MTLLibrary> library = [device newLibraryWithSource:source
+                                                    options:options
+                                                      error:&error];
+      if (library == nil) {
+        CAMLreturn(result_error(labeled_error_description(
+            expected_label, error,
+            @"Metal source compilation failed without NSError")));
+      }
+      library.label = expected_label;
+      if (library.device.registryID != device.registryID ||
+          ((expected_label == nil) != (library.label == nil)) ||
+          (expected_label != nil &&
+           ![library.label isEqualToString:expected_label])) {
+        CAMLreturn(result_error_text(
+            "Metal changed checked library creation properties"));
+      }
+      raw = allocate_handle(library, Handle_kind::Library);
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
     }
-    MTLCompileOptions *options = [[MTLCompileOptions alloc] init];
-    options.fastMathEnabled = NO;
-    NSError *error = nil;
-    id<MTLLibrary> library = [device newLibraryWithSource:source
-                                                  options:options
-                                                    error:&error];
-    if (library == nil) {
-      CAMLreturn(result_error(error_description(
-          error, @"Metal source compilation failed without NSError")));
-    }
-    raw = allocate_handle(library, Handle_kind::Library);
   }
   CAMLreturn(result_ok(raw));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_library_label(value raw) {
+  CAMLparam1(raw);
+  CAMLlocal1(result);
+  @autoreleasepool {
+    id<MTLLibrary> library = object_of_handle(raw, Handle_kind::Library);
+    result = copy_optional_string(library.label);
+  }
+  CAMLreturn(result);
 }
 
 extern "C" CAMLprim value caml_prismel_metal_function_find(
@@ -4170,6 +4354,11 @@ extern "C" CAMLprim value caml_prismel_metal_function_find(
       CAMLreturn(result_error(
           [NSString stringWithFormat:@"Metal library has no function named %@", name]));
     }
+    if (function.device.registryID != library.device.registryID ||
+        ![function.name isEqualToString:name]) {
+      CAMLreturn(result_error_text(
+          "Metal changed checked function lookup properties"));
+    }
     raw = allocate_handle(function, Handle_kind::Function);
   }
   CAMLreturn(result_ok(raw));
@@ -4183,6 +4372,182 @@ extern "C" CAMLprim value caml_prismel_metal_function_name(value raw) {
     result = caml_copy_string(function.name.UTF8String ?: "");
   }
   CAMLreturn(result);
+}
+
+extern "C" CAMLprim value caml_prismel_metal_function_label(value raw) {
+  CAMLparam1(raw);
+  CAMLlocal1(result);
+  @autoreleasepool {
+    id<MTLFunction> function = object_of_handle(raw, Handle_kind::Function);
+    result = copy_optional_string(function.label);
+  }
+  CAMLreturn(result);
+}
+
+extern "C" CAMLprim value caml_prismel_metal_function_kind(value raw) {
+  CAMLparam1(raw);
+  id<MTLFunction> function = object_of_handle(raw, Handle_kind::Function);
+  CAMLreturn(Val_long(static_cast<intnat>(function.functionType)));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_function_constants(value raw) {
+  CAMLparam1(raw);
+  CAMLlocal1(result);
+  @autoreleasepool {
+    id<MTLFunction> function = object_of_handle(raw, Handle_kind::Function);
+    result = copy_function_constants(function);
+  }
+  CAMLreturn(result);
+}
+
+extern "C" CAMLprim value caml_prismel_metal_function_specialize(
+    value raw_library, value raw_name, value raw_constants, value raw_label) {
+  CAMLparam4(raw_library, raw_name, raw_constants, raw_label);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    @try {
+      id<MTLLibrary> library =
+          object_of_handle(raw_library, Handle_kind::Library);
+      NSString *name = string_from_ocaml(raw_name);
+      if (name == nil) {
+        CAMLreturn(result_error_text("Metal function name is not valid UTF-8"));
+      }
+      NSString *expected_label = nil;
+      if (Is_block(raw_label)) {
+        expected_label = string_from_ocaml(Field(raw_label, 0));
+        if (expected_label == nil) {
+          CAMLreturn(result_error_text(
+              "Metal function label is not valid UTF-8"));
+        }
+      }
+      MTLFunctionConstantValues *constant_values =
+          [[MTLFunctionConstantValues alloc] init];
+      NSMutableSet<NSString *> *names = [NSMutableSet set];
+      const mlsize_t count = Wosize_val(raw_constants);
+      for (mlsize_t index = 0; index < count; ++index) {
+        value raw_constant = Field(raw_constants, index);
+        NSString *constant_name = string_from_ocaml(Field(raw_constant, 0));
+        if (constant_name == nil) {
+          CAMLreturn(result_error_text(
+              "Metal function-constant name is not valid UTF-8"));
+        }
+        if ([names containsObject:constant_name]) {
+          CAMLreturn(result_error_text(
+              "Metal function-constant list contains a duplicate name"));
+        }
+        [names addObject:constant_name];
+        const intnat tag = Long_val(Field(raw_constant, 1));
+        const std::int64_t integral = Int64_val(Field(raw_constant, 2));
+        const double floating = Double_val(Field(raw_constant, 3));
+        switch (tag) {
+        case 0: {
+          const bool constant = integral != 0;
+          [constant_values setConstantValue:&constant
+                                       type:MTLDataTypeBool
+                                   withName:constant_name];
+          break;
+        }
+        case 1: {
+          const std::int8_t constant = static_cast<std::int8_t>(integral);
+          [constant_values setConstantValue:&constant
+                                       type:MTLDataTypeChar
+                                   withName:constant_name];
+          break;
+        }
+        case 2: {
+          const std::uint8_t constant = static_cast<std::uint8_t>(integral);
+          [constant_values setConstantValue:&constant
+                                       type:MTLDataTypeUChar
+                                   withName:constant_name];
+          break;
+        }
+        case 3: {
+          const std::int16_t constant = static_cast<std::int16_t>(integral);
+          [constant_values setConstantValue:&constant
+                                       type:MTLDataTypeShort
+                                   withName:constant_name];
+          break;
+        }
+        case 4: {
+          const std::uint16_t constant = static_cast<std::uint16_t>(integral);
+          [constant_values setConstantValue:&constant
+                                       type:MTLDataTypeUShort
+                                   withName:constant_name];
+          break;
+        }
+        case 5: {
+          const std::int32_t constant = static_cast<std::int32_t>(integral);
+          [constant_values setConstantValue:&constant
+                                       type:MTLDataTypeInt
+                                   withName:constant_name];
+          break;
+        }
+        case 6: {
+          const std::uint32_t constant = static_cast<std::uint32_t>(integral);
+          [constant_values setConstantValue:&constant
+                                       type:MTLDataTypeUInt
+                                   withName:constant_name];
+          break;
+        }
+        case 7: {
+          const std::int64_t constant = integral;
+          [constant_values setConstantValue:&constant
+                                       type:MTLDataTypeLong
+                                   withName:constant_name];
+          break;
+        }
+        case 8: {
+          const std::uint64_t constant =
+              static_cast<std::uint64_t>(integral);
+          [constant_values setConstantValue:&constant
+                                       type:MTLDataTypeULong
+                                   withName:constant_name];
+          break;
+        }
+        case 9: {
+          const _Float16 constant = static_cast<_Float16>(floating);
+          [constant_values setConstantValue:&constant
+                                       type:MTLDataTypeHalf
+                                   withName:constant_name];
+          break;
+        }
+        case 10: {
+          const float constant = static_cast<float>(floating);
+          [constant_values setConstantValue:&constant
+                                       type:MTLDataTypeFloat
+                                   withName:constant_name];
+          break;
+        }
+        default:
+          CAMLreturn(result_error_text(
+              "Metal function-constant type tag is invalid"));
+        }
+      }
+      NSError *error = nil;
+      id<MTLFunction> function =
+          [library newFunctionWithName:name
+                        constantValues:constant_values
+                                 error:&error];
+      if (function == nil) {
+        CAMLreturn(result_error(labeled_error_description(
+            expected_label ?: name, error,
+            @"Metal function specialization failed without NSError")));
+      }
+      function.label = expected_label;
+      if (function.device.registryID != library.device.registryID ||
+          ![function.name isEqualToString:name] ||
+          ((expected_label == nil) != (function.label == nil)) ||
+          (expected_label != nil &&
+           ![function.label isEqualToString:expected_label])) {
+        CAMLreturn(result_error_text(
+            "Metal changed checked function specialization properties"));
+      }
+      raw = allocate_handle(function, Handle_kind::Function);
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+  CAMLreturn(result_ok(raw));
 }
 
 extern "C" CAMLprim value caml_prismel_metal_compute_pipeline_create(
@@ -4203,6 +4568,115 @@ extern "C" CAMLprim value caml_prismel_metal_compute_pipeline_create(
     raw = allocate_handle(pipeline, Handle_kind::Compute_pipeline);
   }
   CAMLreturn(result_ok(raw));
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_compute_pipeline_create_descriptor(
+    value raw_device, value raw_function, value raw_label,
+    value raw_reflection, value raw_linked_functions) {
+  CAMLparam5(raw_device, raw_function, raw_label, raw_reflection,
+             raw_linked_functions);
+  CAMLlocal3(raw, bindings, pair);
+  @autoreleasepool {
+    @try {
+      id<MTLDevice> device = object_of_handle(raw_device, Handle_kind::Device);
+      id<MTLFunction> function =
+          object_of_handle(raw_function, Handle_kind::Function);
+      if (function.device.registryID != device.registryID ||
+          function.functionType != MTLFunctionTypeKernel) {
+        CAMLreturn(result_error_text(
+            "Metal compute entry point is incompatible with the device"));
+      }
+      NSString *expected_label = nil;
+      if (Is_block(raw_label)) {
+        expected_label = string_from_ocaml(Field(raw_label, 0));
+        if (expected_label == nil) {
+          CAMLreturn(result_error_text(
+              "Metal compute-pipeline label is not valid UTF-8"));
+        }
+      }
+      std::vector<id<MTLFunction>> linked_functions =
+          functions_of_array(raw_linked_functions);
+      NSMutableSet<NSString *> *linked_names = [NSMutableSet set];
+      NSMutableArray<id<MTLFunction>> *linked_array =
+          [NSMutableArray arrayWithCapacity:linked_functions.size()];
+      for (id<MTLFunction> linked : linked_functions) {
+        if (linked.device.registryID != device.registryID ||
+            linked.functionType != MTLFunctionTypeVisible ||
+            [linked_names containsObject:linked.name]) {
+          CAMLreturn(result_error_text(
+              "Metal linked function is incompatible or duplicated"));
+        }
+        [linked_names addObject:linked.name];
+        [linked_array addObject:linked];
+      }
+      MTLComputePipelineDescriptor *descriptor =
+          [[MTLComputePipelineDescriptor alloc] init];
+      descriptor.computeFunction = function;
+      descriptor.label = expected_label;
+      if (linked_array.count != 0) {
+        MTLLinkedFunctions *linked = [MTLLinkedFunctions linkedFunctions];
+        linked.functions = linked_array;
+        descriptor.linkedFunctions = linked;
+      }
+      if (descriptor.computeFunction != function ||
+          ((expected_label == nil) != (descriptor.label == nil)) ||
+          (expected_label != nil &&
+           ![descriptor.label isEqualToString:expected_label])) {
+        CAMLreturn(result_error_text(
+            "Metal changed checked compute-pipeline descriptor properties"));
+      }
+      const bool reflection_requested = Bool_val(raw_reflection);
+      const MTLPipelineOption options = reflection_requested
+          ? static_cast<MTLPipelineOption>(MTLPipelineOptionBindingInfo |
+                                           MTLPipelineOptionBufferTypeInfo)
+          : MTLPipelineOptionNone;
+      MTLAutoreleasedComputePipelineReflection reflection = nil;
+      NSError *error = nil;
+      id<MTLComputePipelineState> pipeline =
+          [device newComputePipelineStateWithDescriptor:descriptor
+                                                options:options
+                                             reflection:&reflection
+                                                  error:&error];
+      if (pipeline == nil) {
+        CAMLreturn(result_error(labeled_error_description(
+            expected_label, error,
+            @"Metal compute pipeline creation failed without NSError")));
+      }
+      if (reflection_requested && reflection == nil) {
+        CAMLreturn(result_error_text(
+            "Metal omitted requested compute-pipeline reflection"));
+      }
+      if (pipeline.device.registryID != device.registryID ||
+          ((expected_label == nil) != (pipeline.label == nil)) ||
+          (expected_label != nil &&
+           ![pipeline.label isEqualToString:expected_label])) {
+        CAMLreturn(result_error_text(
+            "Metal changed checked compute-pipeline creation properties"));
+      }
+      raw = allocate_handle(pipeline, Handle_kind::Compute_pipeline);
+      bindings = reflection_requested ? copy_pipeline_bindings(reflection)
+                                      : caml_alloc(0, 0);
+      pair = caml_alloc_tuple(2);
+      Store_field(pair, 0, raw);
+      Store_field(pair, 1, bindings);
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+  CAMLreturn(result_ok(pair));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_compute_pipeline_label(
+    value raw) {
+  CAMLparam1(raw);
+  CAMLlocal1(result);
+  @autoreleasepool {
+    id<MTLComputePipelineState> pipeline =
+        object_of_handle(raw, Handle_kind::Compute_pipeline);
+    result = copy_optional_string(pipeline.label);
+  }
+  CAMLreturn(result);
 }
 
 extern "C" CAMLprim value

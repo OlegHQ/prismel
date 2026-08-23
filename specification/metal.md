@@ -409,8 +409,29 @@ unmap, barriers, and ownership on the qualified hardware. This completes the M3
 resource gate; the broader command and pipeline surfaces remain tracked by M4
 and M5 rather than being implied by that narrower gate.
 
+The first M4 shader slice keeps runtime MSL compilation explicit and
+deterministic (`fastMathEnabled = NO`), preserves the complete `NSError`
+description, domain, code, and `userInfo`, and prefixes compile,
+specialization, and link failures with the caller's label. Libraries,
+specialized functions, and compute pipelines expose their observed native
+labels. `Function.constants` returns sorted name/type/index/required metadata,
+while `Function.specialize` accepts checked bool, signed and unsigned
+8/16/32/64-bit, half, and float values and rejects malformed names,
+duplicates, and numeric ranges before native compilation. Compute descriptors
+accept same-device, unique visible linked functions and can request binding
+plus buffer-type reflection. `Binding.validate_layout` is the pure OCaml
+boundary used to compare generated metadata with reflected
+name/index/access/resource/data-type layouts without depending on Metal's
+returned array order. The M1 conformance path executes both a linked,
+reflected specialization and every supported scalar constant representation
+on the GPU. Dynamic libraries, binary archives and pipeline datasets,
+render/mesh/object pipelines, the Metal 4 compiler, and offline `.metallib`
+provenance remain open M4 work.
+
 `test_metal.exe` runs a real M1 compute kernel, wrong-domain and invalid-state
-cases, shader diagnostics, copied/no-copy external buffer ownership,
+cases, full labeled shader diagnostics, function-constant introspection and
+specialization, linked visible functions, reflected binding-layout validation,
+copied/no-copy external buffer ownership,
 shareable texture/handle/import lifetimes, single- and multi-plane IOSurface
 ownership and byte visibility, buffer-backed 2D/texture-buffer creation across
 shared/managed/private storage,
