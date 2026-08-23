@@ -1372,6 +1372,7 @@ type indirect_retained =
   | Indirect_buffer of buffer
   | Indirect_compute_pipeline of compute_pipeline
   | Indirect_render_pipeline of render_pipeline
+  | Indirect_depth_stencil of depth_stencil
 
 type indirect_command_buffer =
   { raw : Metal_raw.handle
@@ -1379,6 +1380,7 @@ type indirect_command_buffer =
   ; device : device
   ; max_command_count : int
   ; command_types : indirect_command_kind list
+  ; descriptor : indirect_command_buffer_descriptor
   ; retained : indirect_retained list ref
   }
 
@@ -13741,13 +13743,15 @@ module Indirect_command_buffer = struct
     List.iter (function
       | Indirect_buffer value -> detach value.lifetime
       | Indirect_compute_pipeline value -> detach value.lifetime
-      | Indirect_render_pipeline value -> detach value.lifetime) values
+      | Indirect_render_pipeline value -> detach value.lifetime
+      | Indirect_depth_stencil value -> detach value.lifetime) values
 
   let retain value retained =
     let lifetime = match retained with
       | Indirect_buffer value -> value.lifetime
       | Indirect_compute_pipeline value -> value.lifetime
       | Indirect_render_pipeline value -> value.lifetime
+      | Indirect_depth_stencil value -> value.lifetime
     in
     attach lifetime;
     value.retained := retained :: !(value.retained)
@@ -13805,7 +13809,7 @@ module Indirect_command_buffer = struct
           | Error message -> native_error operation message
           | Ok raw ->
               let value = { raw; lifetime = lifetime (); device; max_command_count;
-                command_types = descriptor.command_types; retained = ref [] } in
+                command_types = descriptor.command_types; descriptor; retained = ref [] } in
               attach device.lifetime;
               attach_finalizer ~on_finalize:(fun () -> release_retained value.retained)
                 value value.lifetime device.lifetime;
@@ -13857,6 +13861,25 @@ module Indirect_command_buffer = struct
               | Ok raw -> let command : t = { raw; lifetime = lifetime (); parent = value } in
                   attach value.lifetime; attach_finalizer command command.lifetime value.lifetime; Ok command))
     let destroyed (value : t) = is_destroyed value.lifetime
+    let call0 operation raw(value:t)=on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match raw value.raw with Error m->native_error operation m|Ok()->Ok())
+    let set_barrier value=call0 "Metal.Indirect_command_buffer.Render_command.set_barrier" Metal_raw.command_indirect_render_set_barrier value
+    let clear_barrier value=call0 "Metal.Indirect_command_buffer.Render_command.clear_barrier" Metal_raw.command_indirect_render_clear_barrier value
+    type cull_mode=No_cull|Cull_front|Cull_back
+    type depth_clip_mode=Clip|Clamp
+    type winding=Clockwise|Counter_clockwise
+    type fill_mode=Fill|Lines
+    let set_enum operation inherited raw code(value:t)arg=on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok() when inherited value.parent.descriptor->error operation Invalid_state "state is inherited by the indirect-command buffer"|Ok()->match raw value.raw(code arg)with Error m->native_error operation m|Ok()->Ok())
+    let set_cull_mode value mode=set_enum "Metal.Indirect_command_buffer.Render_command.set_cull_mode"(fun d->d.inherit_cull_mode)Metal_raw.command_indirect_render_set_cull(function No_cull->0|Cull_front->1|Cull_back->2)value mode
+    let set_depth_clip_mode value mode=set_enum "Metal.Indirect_command_buffer.Render_command.set_depth_clip_mode"(fun d->d.inherit_depth_clip_mode)Metal_raw.command_indirect_render_set_depth_clip(function Clip->0|Clamp->1)value mode
+    let set_front_facing_winding value mode=set_enum "Metal.Indirect_command_buffer.Render_command.set_front_facing_winding"(fun d->d.inherit_front_facing_winding)Metal_raw.command_indirect_render_set_front_winding(function Clockwise->0|Counter_clockwise->1)value mode
+    let set_triangle_fill_mode value mode=set_enum "Metal.Indirect_command_buffer.Render_command.set_triangle_fill_mode"(fun d->d.inherit_triangle_fill_mode)Metal_raw.command_indirect_render_set_fill(function Fill->0|Lines->1)value mode
+    let set_depth_bias(value:t)~bias~slope_scale~clamp=let operation="Metal.Indirect_command_buffer.Render_command.set_depth_bias"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok() when value.parent.descriptor.inherit_depth_bias->error operation Invalid_state "depth bias is inherited"|Ok() when not(List.for_all Float.is_finite[bias;slope_scale;clamp])->error operation Invalid_argument "depth bias values must be finite"|Ok()->match Metal_raw.command_indirect_render_depth_bias value.raw bias slope_scale clamp with Error m->native_error operation m|Ok()->Ok())
+    let set_depth_stencil_state(value:t)(state:Depth_stencil.t)=let operation="Metal.Indirect_command_buffer.Render_command.set_depth_stencil_state"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok() when value.parent.descriptor.inherit_depth_stencil_state->error operation Invalid_state "depth stencil state is inherited"|Ok()->Result.bind(ensure_live operation state.lifetime)(fun()->Result.bind(ensure_same_device operation value.parent.device state.device)(fun()->match Metal_raw.command_indirect_render_depth_stencil value.raw state.raw with Error m->native_error operation m|Ok()->attach state.lifetime;value.parent.retained:=Indirect_depth_stencil state::!(value.parent.retained);Ok())))
+    let set_object_threadgroup_memory_length(value:t)~index~length=let operation="Metal.Indirect_command_buffer.Render_command.set_object_threadgroup_memory_length"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok() when index<0||index>=value.parent.descriptor.max_object_threadgroup_memory_bind_count||length<0L->error operation Invalid_argument "object memory binding is outside descriptor limits"|Ok()->match Metal_raw.command_indirect_render_object_memory value.raw length(Int64.of_int index)with Error m->native_error operation m|Ok()->Ok())
+    let positive(a,b,c)=a>0L&&b>0L&&c>0L
+    let mesh_dispatch operation raw(value:t)~grid~object_threads~mesh_threads=on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok() when not(positive grid&&positive object_threads&&positive mesh_threads)->error operation Invalid_argument "mesh dispatch dimensions must be positive"|Ok()->match raw value.raw grid object_threads mesh_threads with Error m->native_error operation m|Ok()->Ok())
+    let draw_mesh_threadgroups value ~threadgroups ~object_threadgroup ~mesh_threadgroup=mesh_dispatch "Metal.Indirect_command_buffer.Render_command.draw_mesh_threadgroups" Metal_raw.command_indirect_render_mesh_groups value ~grid:threadgroups ~object_threads:object_threadgroup ~mesh_threads:mesh_threadgroup
+    let draw_mesh_threads value ~threads ~object_threadgroup ~mesh_threadgroup=mesh_dispatch "Metal.Indirect_command_buffer.Render_command.draw_mesh_threads" Metal_raw.command_indirect_render_mesh_threads value ~grid:threads ~object_threads:object_threadgroup ~mesh_threads:mesh_threadgroup
     let reset (value : t) = on_main "Metal.Indirect_command_buffer.Render_command.reset" (fun () ->
       match ensure_live "Metal.Indirect_command_buffer.Render_command.reset" value.lifetime with
       | Error _ as failure -> failure | Ok () -> Result.map_error
@@ -13899,6 +13922,14 @@ module Indirect_command_buffer = struct
         match Metal_raw.indirect_compute_command value.raw (Int64.of_int index) with Error message -> native_error operation message
         | Ok raw -> let command : t = {raw;lifetime=lifetime ();parent=value} in attach value.lifetime; attach_finalizer command command.lifetime value.lifetime; Ok command))
     let destroyed (value : t) = is_destroyed value.lifetime
+    let call0 operation raw(value:t)=on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match raw value.raw with Error m->native_error operation m|Ok()->Ok())
+    let set_barrier value=call0 "Metal.Indirect_command_buffer.Compute_command.set_barrier" Metal_raw.command_indirect_compute_set_barrier value
+    let clear_barrier value=call0 "Metal.Indirect_command_buffer.Compute_command.clear_barrier" Metal_raw.command_indirect_compute_clear_barrier value
+    let set_imageblock(value:t)~width~height=let operation="Metal.Indirect_command_buffer.Compute_command.set_imageblock"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok() when width<0L||height<0L->error operation Invalid_argument "imageblock dimensions must be nonnegative"|Ok()->match Metal_raw.command_indirect_compute_imageblock value.raw width height with Error m->native_error operation m|Ok()->Ok())
+    type region={x:int64;y:int64;z:int64;width:int64;height:int64;depth:int64}
+    let set_stage_in_region(value:t)(r:region)=let operation="Metal.Indirect_command_buffer.Compute_command.set_stage_in_region"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok() when List.exists((>)0L)[r.x;r.y;r.z;r.width;r.height;r.depth]||r.width=0L||r.height=0L||r.depth=0L->error operation Invalid_argument "stage region origin must be nonnegative and extent positive"|Ok()->match Metal_raw.command_indirect_compute_stage_region value.raw(r.x,r.y,r.z,r.width,r.height,r.depth)with Error m->native_error operation m|Ok()->Ok())
+    let set_threadgroup_memory_length(value:t)~index~length=let operation="Metal.Indirect_command_buffer.Compute_command.set_threadgroup_memory_length"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok() when index<0||index>=value.parent.descriptor.max_kernel_threadgroup_memory_bind_count||length<0L->error operation Invalid_argument "threadgroup memory binding is outside descriptor limits"|Ok()->match Metal_raw.command_indirect_compute_memory value.raw length(Int64.of_int index)with Error m->native_error operation m|Ok()->Ok())
+    let concurrent_dispatch_threadgroups(value:t)~threadgroups~threads_per_threadgroup=let operation="Metal.Indirect_command_buffer.Compute_command.concurrent_dispatch_threadgroups"in let positive(a,b,c)=a>0L&&b>0L&&c>0L in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok() when not(positive threadgroups&&positive threads_per_threadgroup)->error operation Invalid_argument "dispatch dimensions must be positive"|Ok()->match Metal_raw.command_indirect_compute_dispatch_groups value.raw threadgroups threads_per_threadgroup with Error m->native_error operation m|Ok()->Ok())
     let reset (value : t) = on_main "Metal.Indirect_command_buffer.Compute_command.reset" (fun () -> match ensure_live "Metal.Indirect_command_buffer.Compute_command.reset" value.lifetime with Error _ as e -> e | Ok () -> match Metal_raw.indirect_compute_command_reset value.raw with Error message -> native_error "Metal.Indirect_command_buffer.Compute_command.reset" message | Ok () -> Ok ())
     let set_pipeline (value : t) (pipeline : Compute_pipeline.t) = let operation="Metal.Indirect_command_buffer.Compute_command.set_pipeline" in on_main operation (fun () -> match ensure_live operation value.lifetime with Error _ as e -> e | Ok () -> match ensure_live operation pipeline.lifetime with Error _ as e -> e | Ok () -> match ensure_same_device operation value.parent.device pipeline.device with Error _ as e -> e | Ok () -> match Metal_raw.generated_mtl_compute_pipeline_state_support_indirect_command_buffers pipeline.raw with Error message -> native_error operation message | Ok false -> error operation Unsupported "pipeline was not compiled for indirect command buffers" | Ok true -> match Metal_raw.indirect_compute_command_set_pipeline value.raw pipeline.raw with Error message -> native_error operation message | Ok () -> retain value.parent (Indirect_compute_pipeline pipeline); Ok ())
     let set_kernel_buffer (value : t) ~index ~offset (buffer : Buffer.t) = let operation="Metal.Indirect_command_buffer.Compute_command.set_kernel_buffer" in on_main operation (fun () -> match ensure_live operation value.lifetime with Error _ as e -> e | Ok () -> match ensure_buffer_usable operation buffer with Error _ as e -> e | Ok () when index<0 || index>=31 -> error operation Invalid_argument "buffer index must be in [0, 31)" | Ok () when offset<0L || offset>buffer.length -> error operation Invalid_argument "buffer offset is outside the resource" | Ok () -> match ensure_same_device operation value.parent.device buffer.device with Error _ as e -> e | Ok () -> match Metal_raw.indirect_compute_command_set_kernel_buffer value.raw buffer.raw offset index with Error message -> native_error operation message | Ok () -> retain value.parent (Indirect_buffer buffer); Ok ())

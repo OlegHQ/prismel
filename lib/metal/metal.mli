@@ -2427,9 +2427,24 @@ module Indirect_command_buffer : sig
   module Render_command : sig
     type t
     type primitive = Point | Line | Line_strip | Triangle | Triangle_strip
+    type cull_mode=No_cull|Cull_front|Cull_back
+    type depth_clip_mode=Clip|Clamp
+    type winding=Clockwise|Counter_clockwise
+    type fill_mode=Fill|Lines
     val at : buffer -> int -> (t, error) result
     val destroyed : t -> bool
     val reset : t -> (unit, error) result
+    val set_barrier:t->(unit,error)result
+    val clear_barrier:t->(unit,error)result
+    val set_cull_mode:t->cull_mode->(unit,error)result
+    val set_depth_clip_mode:t->depth_clip_mode->(unit,error)result
+    val set_front_facing_winding:t->winding->(unit,error)result
+    val set_triangle_fill_mode:t->fill_mode->(unit,error)result
+    val set_depth_bias:t->bias:float->slope_scale:float->clamp:float->(unit,error)result
+    val set_depth_stencil_state:t->Depth_stencil.t->(unit,error)result
+    val set_object_threadgroup_memory_length:t->index:int->length:int64->(unit,error)result
+    val draw_mesh_threadgroups:t->threadgroups:(int64*int64*int64)->object_threadgroup:(int64*int64*int64)->mesh_threadgroup:(int64*int64*int64)->(unit,error)result
+    val draw_mesh_threads:t->threads:(int64*int64*int64)->object_threadgroup:(int64*int64*int64)->mesh_threadgroup:(int64*int64*int64)->(unit,error)result
     val set_pipeline : t -> Render_pipeline.t -> (unit, error) result
     val set_vertex_buffer : t -> index:int -> offset:int64 -> Buffer.t -> (unit, error) result
     val set_fragment_buffer : t -> index:int -> offset:int64 -> Buffer.t -> (unit, error) result
@@ -2441,9 +2456,16 @@ module Indirect_command_buffer : sig
 
   module Compute_command : sig
     type t
+    type region={x:int64;y:int64;z:int64;width:int64;height:int64;depth:int64}
     val at : buffer -> int -> (t, error) result
     val destroyed : t -> bool
     val reset : t -> (unit, error) result
+    val set_barrier:t->(unit,error)result
+    val clear_barrier:t->(unit,error)result
+    val set_imageblock:t->width:int64->height:int64->(unit,error)result
+    val set_stage_in_region:t->region->(unit,error)result
+    val set_threadgroup_memory_length:t->index:int->length:int64->(unit,error)result
+    val concurrent_dispatch_threadgroups:t->threadgroups:(int64*int64*int64)->threads_per_threadgroup:(int64*int64*int64)->(unit,error)result
     val set_pipeline : t -> Compute_pipeline.t -> (unit, error) result
     val set_kernel_buffer : t -> index:int -> offset:int64 -> Buffer.t -> (unit, error) result
     val dispatch_threads : t -> threads:(int * int * int) ->
