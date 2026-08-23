@@ -14281,8 +14281,44 @@ extern "C" CAMLprim value caml_prismel_metal_command_buffer_error(value raw) {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
 #pragma clang diagnostic ignored "-Wunguarded-availability-new"
+#pragma clang diagnostic ignored "-Wunused-function"
 #include "../../tools/metal/metal_render_command_mechanical_generated.inc"
 #include "../../tools/metal/metal_render_command_sample_descriptor.inc"
 #include "../../tools/metal/metal_render_command_stage_bindings.inc"
 #include "../../tools/metal/metal_render_command_draw_state.inc"
 #pragma clang diagnostic pop
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#pragma clang diagnostic ignored "-Wunguarded-availability-new"
+#pragma clang diagnostic ignored "-Wunused-function"
+#include "../../tools/metal/metal_pipeline_header_mechanical_generated.mm"
+#include "../../tools/metal/metal_pipeline_ownership_materializers.inc"
+#pragma clang diagnostic pop
+
+static value prismel_pipeline_size_value(MTLSize size) {
+  value result=caml_alloc_tuple(3);
+  Store_field(result,0,caml_copy_int64(size.width));
+  Store_field(result,1,caml_copy_int64(size.height));
+  Store_field(result,2,caml_copy_int64(size.depth));
+  return result;
+}
+#define PRISMEL_PIPELINE_STATE_INT(NAME,KIND,TYPE,CALL) extern "C" CAMLprim value NAME(value raw){CAMLparam1(raw);CAMLlocal2(v,result);@try{TYPE object=object_of_handle(raw,KIND);v=caml_copy_int64((int64_t)(CALL));result=result_ok(v);CAMLreturn(result);}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+#define PRISMEL_PIPELINE_STATE_BOOL(NAME,KIND,TYPE,CALL) extern "C" CAMLprim value NAME(value raw){CAMLparam1(raw);@try{TYPE object=object_of_handle(raw,KIND);CAMLreturn(result_ok(Val_bool((CALL))));}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+#define PRISMEL_PIPELINE_STATE_SIZE(NAME,KIND,TYPE,CALL) extern "C" CAMLprim value NAME(value raw){CAMLparam1(raw);CAMLlocal2(v,result);@try{TYPE object=object_of_handle(raw,KIND);v=prismel_pipeline_size_value((CALL));result=result_ok(v);CAMLreturn(result);}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+PRISMEL_PIPELINE_STATE_INT(caml_prismel_metal_pipeline_compute_resource_id,Handle_kind::Compute_pipeline,id<MTLComputePipelineState>,prismel_pipeline_mtlcomputepipelinestate_gpuresourceid(object)._impl)
+PRISMEL_PIPELINE_STATE_SIZE(caml_prismel_metal_pipeline_compute_required_threads,Handle_kind::Compute_pipeline,id<MTLComputePipelineState>,prismel_pipeline_mtlcomputepipelinestate_requiredthreadsperthreadgroup(object))
+PRISMEL_PIPELINE_STATE_INT(caml_prismel_metal_pipeline_compute_shader_validation,Handle_kind::Compute_pipeline,id<MTLComputePipelineState>,prismel_pipeline_mtlcomputepipelinestate_shadervalidation(object))
+PRISMEL_PIPELINE_STATE_BOOL(caml_prismel_metal_pipeline_compute_indirect,Handle_kind::Compute_pipeline,id<MTLComputePipelineState>,prismel_pipeline_mtlcomputepipelinestate_supportindirectcommandbuffers(object))
+PRISMEL_PIPELINE_STATE_INT(caml_prismel_metal_pipeline_render_resource_id,Handle_kind::Render_pipeline,id<MTLRenderPipelineState>,prismel_pipeline_mtlrenderpipelinestate_gpuresourceid(object)._impl)
+PRISMEL_PIPELINE_STATE_INT(caml_prismel_metal_pipeline_render_imageblock_sample_length,Handle_kind::Render_pipeline,id<MTLRenderPipelineState>,prismel_pipeline_mtlrenderpipelinestate_imageblocksamplelength(object))
+PRISMEL_PIPELINE_STATE_SIZE(caml_prismel_metal_pipeline_render_mesh_threads,Handle_kind::Render_pipeline,id<MTLRenderPipelineState>,prismel_pipeline_mtlrenderpipelinestate_requiredthreadspermeshthreadgroup(object))
+PRISMEL_PIPELINE_STATE_SIZE(caml_prismel_metal_pipeline_render_object_threads,Handle_kind::Render_pipeline,id<MTLRenderPipelineState>,prismel_pipeline_mtlrenderpipelinestate_requiredthreadsperobjectthreadgroup(object))
+PRISMEL_PIPELINE_STATE_SIZE(caml_prismel_metal_pipeline_render_tile_threads,Handle_kind::Render_pipeline,id<MTLRenderPipelineState>,prismel_pipeline_mtlrenderpipelinestate_requiredthreadspertilethreadgroup(object))
+PRISMEL_PIPELINE_STATE_INT(caml_prismel_metal_pipeline_render_shader_validation,Handle_kind::Render_pipeline,id<MTLRenderPipelineState>,prismel_pipeline_mtlrenderpipelinestate_shadervalidation(object))
+PRISMEL_PIPELINE_STATE_BOOL(caml_prismel_metal_pipeline_render_indirect,Handle_kind::Render_pipeline,id<MTLRenderPipelineState>,prismel_pipeline_mtlrenderpipelinestate_supportindirectcommandbuffers(object))
+extern "C" CAMLprim value caml_prismel_metal_pipeline_compute_imageblock_length(value raw,value dimensions){CAMLparam2(raw,dimensions);CAMLlocal2(v,result);@try{id<MTLComputePipelineState>object=object_of_handle(raw,Handle_kind::Compute_pipeline);MTLSize size=MTLSizeMake(Int64_val(Field(dimensions,0)),Int64_val(Field(dimensions,1)),Int64_val(Field(dimensions,2)));v=caml_copy_int64(prismel_pipeline_mtlcomputepipelinestate_imageblockmemorylengthfordimensions_(object,size));result=result_ok(v);CAMLreturn(result);}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+extern "C" CAMLprim value caml_prismel_metal_pipeline_render_imageblock_length(value raw,value dimensions){CAMLparam2(raw,dimensions);CAMLlocal2(v,result);@try{id<MTLRenderPipelineState>object=object_of_handle(raw,Handle_kind::Render_pipeline);MTLSize size=MTLSizeMake(Int64_val(Field(dimensions,0)),Int64_val(Field(dimensions,1)),Int64_val(Field(dimensions,2)));v=caml_copy_int64(prismel_pipeline_mtlrenderpipelinestate_imageblockmemorylengthfordimensions_(object,size));result=result_ok(v);CAMLreturn(result);}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+#undef PRISMEL_PIPELINE_STATE_INT
+#undef PRISMEL_PIPELINE_STATE_BOOL
+#undef PRISMEL_PIPELINE_STATE_SIZE
