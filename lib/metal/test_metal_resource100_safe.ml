@@ -45,6 +45,18 @@ let ()=
  reject(Resource100.Texture_ops.get_bytes texture~bytes~bytes_per_row:16~mip_level:0~region:{x=0;y=0;z=0;width=4;height=4;depth=2});
  reject(Resource100.Texture_ops.get_bytes texture~bytes~bytes_per_row:max_int~mip_level:0~region:{x=0;y=0;z=0;width=4;height=4;depth=1});
  reject(Resource100.Texture_ops.get_bytes texture~bytes:(Bytes.create 8)~bytes_per_row:16~mip_level:0~region:{x=0;y=0;z=0;width=4;height=1;depth=1});
+ let queue=get(Command_queue.create device)in
+ let commands=get(Command_buffer.create queue())in
+ let state_pass=get(Resource100.Resource_state_pass.create())in
+ let state_encoder=get(Resource100.Resource_state_pass.create_encoder commands state_pass)in
+ reject(Resource_state_encoder.move_texture_mappings state_encoder~source:texture
+   ~source_slice:0~source_level:0
+   ~source_region:{x=0;y=0;z=0;width=1;height=1;depth=1}
+   ~destination:texture~destination_slice:0~destination_level:0
+   ~destination_origin:(0,0,0));
+ get(Resource_state_encoder.end_encoding state_encoder);get(Command_buffer.commit commands);
+ get(Command_buffer.wait_until_completed commands);get(Command_buffer.destroy commands);
+ get(Resource100.Resource_state_pass.destroy state_pass);get(Command_queue.destroy queue);
  (match Resource100.Texture_view_pool.create device desc with Ok pool->if Resource100.Texture_view_pool.count pool<>4L then failwith"pool count";if get(Resource100.Texture_view_pool.checked_device pool)!=device then failwith"pool device";ignore(get(Resource100.Texture_view_pool.base_resource_id pool));ignore(get(Resource100.Texture_view_pool.label pool));reject(Resource100.Texture_view_pool.set_from_buffer pool~index:0 backing_buffer~offset:(-1L)~bytes_per_row:256(Texture.descriptor_2d~storage:Buffer.Shared~usage:[Texture.Shader_read]~format:Texture.Rgba8_unorm~width:4~height:1()));get(Resource100.Texture_view_pool.destroy pool)|Error _->());
  get(Texture.destroy backed);get(Buffer.destroy backing_buffer);
  get(Texture.destroy texture);get(Heap.destroy heap);get(Resource100.View_pool_descriptor.destroy desc);get(Device.destroy device)
