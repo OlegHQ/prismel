@@ -122,8 +122,10 @@ let () =
   done;
   ignore (get (Release_queue.drain ()));
   let after_reuse = get (Release_queue.stats ()) in
-  if after_reuse.live_handles <> before_reuse.live_handles then
-    fail "reused XPC calls leaked native client handles";
+  if after_reuse.live_handles <> before_reuse.live_handles
+     || Int64.sub after_reuse.total_created before_reuse.total_created <> 64L
+     || Int64.sub after_reuse.total_released before_reuse.total_released <> 64L
+  then fail "reused XPC calls did not balance exactly 64 client handles";
   get (Texture.Shared_handle.destroy source_handle);
   get (Texture.Shared_handle.Xpc.destroy_connection connection);
   get (Texture.Shared_handle.Xpc.destroy_connection connection);

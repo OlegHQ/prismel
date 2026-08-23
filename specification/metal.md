@@ -193,15 +193,30 @@ must call `reply` or `reject` before returning; a return without either, or an
 exception, is rejected automatically. Completion releases the incoming safe
 handle and a second completion deterministically returns `Destroyed`.
 
+`Texture.Io_surface.Xpc` uses that same bounded native connection, service,
+request, timeout, and one-shot completion core for cross-process IOSurface
+ownership. It transports the NSSecureCoding surface object rather than a
+process-local pointer or globally discoverable numeric ID. Versioned metadata
+records the stable IOSurface identity, allocation size, planar flag, and every
+plane's width, height, bytes per element, bytes per row, and exact span. The
+receiver bounds the plane count before cardinality arithmetic and requires the
+metadata to match the received native surface exactly. Debug labels are
+process-local and intentionally are not accepted from the peer. A returned
+surface retains the shared kernel allocation independently of the source
+process's local handle.
+
 `Xpc.serve` is intended as the terminal entry point of the separately launched
-service executable and does not normally return. The Dune conformance target
-constructs a real `.app/Contents/XPCServices/*.xpc` bundle using the OCaml
-`build_xpc_bundle` executable. Its OCaml client writes `37` into a private
-shareable texture, the separately launched OCaml service imports it and writes
-`91`, and the client imports the returned handle and observes `91`; the reply
-also carries a service PID distinct from the client. Missing-service,
-configuration, payload, timeout, rejection, ownership, and stale-handle paths
-are exercised without a Python orchestration layer.
+service executable and does not normally return. The Dune conformance targets
+construct real `.app/Contents/XPCServices/*.xpc` bundles using the reusable
+OCaml `build_xpc_bundle` executable. The shared-texture client writes `37` into
+a private shareable texture, the separately launched service imports it and
+writes `91`, and the client imports the returned handle and observes `91`.
+The IOSurface client sends a two-plane allocation, observes the service's write
+through the original handle, and verifies that the returned handle remains
+valid after destroying that original. Both replies carry a service PID
+distinct from the client. Missing-service, configuration, payload, timeout,
+rejection, ownership, and stale-handle paths are exercised without a Python
+orchestration layer.
 
 `Texture.Io_surface` is a narrow ownership helper rather than a second general
 IOSurface binding. The existing OCaml build helper links IOSurface.framework
@@ -354,11 +369,10 @@ The bridge reads every mutable descriptor
 property back before creation and verifies the resulting sampler's device and
 label. Invalid anisotropy, non-finite or inverted clamps, out-of-range bias,
 illegal unnormalized-coordinate combinations, and malformed labels fail before
-sampler creation. Sparse
-placement resource construction, sparse depth/stencil, and shared-handle XPC
-transport are covered. Metal 4 placement mapping plus a public cross-process
-IOSurface transport remain pending, so this resource slice stays progress
-toward M3 rather than an M3 completion claim until the explicit audit.
+sampler creation. Sparse placement resource construction, sparse depth/stencil,
+shared-handle XPC transport, and IOSurface XPC transport are covered. Metal 4
+placement mapping remains pending, so this resource slice stays progress toward
+M3 rather than an M3 completion claim until the explicit audit.
 
 `test_metal.exe` runs a real M1 compute kernel, wrong-domain and invalid-state
 cases, shader diagnostics, copied/no-copy external buffer ownership,
@@ -368,7 +382,8 @@ shared/managed/private storage,
 configured cache/hazard modes, and shared transfer, buffer and texture bounds,
 stride, and cardinality checks, texture mip transfer, effective channel-swizzle
 composition with GPU sampling, lossy-compression policy/capability gating,
-views, sampler validation, multisample capability gating, heap alignment and placement,
+views, sampler validation, multisample capability gating, heap alignment and
+placement,
 aliasing, purgeability, residency
 membership/commit/queue/command retention, the complete 130-format matrix,
 generic format-block transfers, encoded-block CPU round trips for all 66
@@ -381,8 +396,9 @@ views, sparse-compatible placement heaps, unmapped-state rejection,
 all sampler reduction modes and LOD-bias validation,
 command-resource retention, parent ownership, idempotent destruction, stale
 access, and GC-finalizer release. The
-separate XPC conformance app exercises a real cross-process shared-texture
-mutation and typed transport failures. The separate ownership stress performs
+separate XPC conformance apps exercise real cross-process shared-texture and
+two-plane IOSurface mutation, typed metadata, and transport failures. The
+separate ownership stress performs
 warm-up followed
 by 100,000 measured buffer create/destroy cycles, 100,000 measured
 texture/sampler create/destroy cycles, 10,000 heap/purge/alias/replacement
@@ -422,9 +438,10 @@ Metal-driver metadata high-water marks; they are not the production memory
 budget. The ordinary unsanitized workers keep the default 8 MiB limit. Every
 mode retains exact handle balance, zero pending or dropped releases, zero
 deallocator-layout mismatches, and sanitizer diagnostics.
-The separately launched XPC conformance bundle is also built and run under
+The separately launched XPC conformance bundles are also built and run under
 combined AddressSanitizer/UndefinedBehaviorSanitizer and under ThreadSanitizer;
-its 64-call reuse loop requires an exact client live-handle balance.
+each 64-call reuse loop requires exactly 64 created and 64 released client
+handles with no live-count drift.
 
 `tools/bench_metal_ffi.exe` is the release-profile M9 baseline. It measures one
 Objective-C property query per OCaml call, one batched call containing the same
@@ -465,15 +482,22 @@ opam exec -- dune exec tools/metal/check_memory.exe -- \
   --mode thread --artifacts /tmp/prismel-metal-tsan/default
 PRISMEL_METAL_SANITIZERS=address,undefined opam exec -- dune build \
   --build-dir /tmp/prismel-metal-xpc-asan \
-  lib/metal/metal_xpc_conformance.app
+  lib/metal/metal_xpc_conformance.app \
+  lib/metal/metal_io_surface_xpc_conformance.app
 ASAN_OPTIONS=abort_on_error=1:halt_on_error=1 \
 UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
   /tmp/prismel-metal-xpc-asan/default/lib/metal/metal_xpc_conformance.app/Contents/MacOS/test_metal_xpc_client
+ASAN_OPTIONS=abort_on_error=1:halt_on_error=1 \
+UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
+  /tmp/prismel-metal-xpc-asan/default/lib/metal/metal_io_surface_xpc_conformance.app/Contents/MacOS/test_metal_io_surface_xpc_client
 PRISMEL_METAL_SANITIZERS=thread opam exec -- dune build \
   --build-dir /tmp/prismel-metal-xpc-tsan \
-  lib/metal/metal_xpc_conformance.app
+  lib/metal/metal_xpc_conformance.app \
+  lib/metal/metal_io_surface_xpc_conformance.app
 TSAN_OPTIONS=abort_on_error=1:halt_on_error=1 \
   /tmp/prismel-metal-xpc-tsan/default/lib/metal/metal_xpc_conformance.app/Contents/MacOS/test_metal_xpc_client
+TSAN_OPTIONS=abort_on_error=1:halt_on_error=1 \
+  /tmp/prismel-metal-xpc-tsan/default/lib/metal/metal_io_surface_xpc_conformance.app/Contents/MacOS/test_metal_io_surface_xpc_client
 opam exec -- dune exec --profile release tools/bench_metal_ffi.exe -- \
   --iterations 1000000 --samples 7 --profile release
 ```

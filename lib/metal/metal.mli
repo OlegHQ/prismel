@@ -494,6 +494,45 @@ module Texture : sig
       (unit, error) result
     val read_bytes :
       t -> plane:int -> offset:int64 -> length:int -> (bytes, error) result
+
+    module Xpc : sig
+      (** Bounded cross-process IOSurface transport through an embedded macOS
+          XPC service. Numeric identity and every plane-layout field are
+          validated against the received native surface. Debug labels are
+          process-local and are not transported. *)
+
+      type connection
+      type request
+
+      val connect :
+        ?max_payload_bytes:int -> service_name:string -> unit ->
+        (connection, error) result
+      val service_name : connection -> string
+      val connection_destroyed : connection -> bool
+      val destroy_connection : connection -> (unit, error) result
+      val call :
+        ?timeout_ms:int -> connection -> operation:string -> surface:t ->
+        bytes -> (t * bytes, error) result
+
+      val request_operation : request -> (string, error) result
+      val request_surface : request -> (t, error) result
+      val request_data : request -> (bytes, error) result
+      val request_completed : request -> bool
+
+      (** Completing a request is one-shot. Its incoming surface is destroyed
+          unless a live texture still retains that surface. The surface
+          supplied to [reply] remains owned by the caller. *)
+      val reply : request -> surface:t -> bytes -> (unit, error) result
+      val reject : request -> string -> (unit, error) result
+
+      (** Installs the process's embedded XPC service listener. The handler
+          runs synchronously on OCaml domain zero's XPC main executor and must
+          reply or reject before returning. *)
+      val serve :
+        ?capacity:int -> ?max_payload_bytes:int -> (request -> unit) ->
+        (unit, error) result
+    end
+
     val destroy : t -> (unit, error) result
   end
 

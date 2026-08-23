@@ -1814,6 +1814,19 @@ module Texture = struct
       | Pixel_format_view | Shader_write | Shader_atomic -> true
       | Shader_read | Render_target -> false)
 
+  let valid_xpc_service_name value =
+    value <> "" && String.length value <= 255 && not (contains_nul value)
+
+  let valid_xpc_operation value =
+    value <> "" && String.length value <= 256 && not (contains_nul value)
+
+  let valid_xpc_payload_bound value =
+    value > 0 && value <= 67_108_864
+
+  let valid_xpc_timeout value = value > 0 && value <= 300_000
+
+  let valid_xpc_capacity value = value > 0 && value <= 1024
+
   type region =
     { x : int
     ; y : int
@@ -2060,6 +2073,419 @@ module Texture = struct
     let destroy (value : t) =
       destroy_parent "Metal.Texture.Io_surface.destroy" value.lifetime value.raw
         (fun () -> ())
+
+    module Xpc = struct
+      type connection =
+        { raw : Metal_raw.handle
+        ; lifetime : lifetime
+        ; service_name : string
+        ; max_payload_bytes : int
+        }
+
+      type service =
+        { raw : Metal_raw.handle
+        ; lifetime : lifetime
+        ; max_payload_bytes : int
+        }
+
+      type request =
+        { raw : Metal_raw.handle
+        ; lifetime : lifetime
+        ; service : service
+        ; operation : string
+        ; surface : t
+        ; data : bytes
+        }
+
+      let metadata_magic = "PMTLIOX1"
+      let metadata_header_fields = 4
+      let metadata_plane_fields = 5
+      let metadata_limit = 4096
+
+      let encode_metadata operation (surface : t) =
+        let plane_count = Array.length surface.planes in
+        let maximum_plane_count =
+          (metadata_limit - String.length metadata_magic
+           - (metadata_header_fields * 8))
+          / (metadata_plane_fields * 8)
+        in
+        if
+          plane_count > maximum_plane_count
+        then
+          error operation Invalid_argument
+            "IOSurface has too many planes for bounded XPC metadata"
+        else
+          let field_count =
+            metadata_header_fields + (plane_count * metadata_plane_fields)
+          in
+          let metadata =
+            Bytes.create (String.length metadata_magic + (field_count * 8))
+          in
+          Bytes.blit_string metadata_magic 0 metadata 0
+            (String.length metadata_magic);
+          let set_field index value =
+            Bytes.set_int64_le metadata
+              (String.length metadata_magic + (index * 8)) value
+          in
+          set_field 0 surface.id;
+          set_field 1 surface.allocation_size;
+          set_field 2 (if surface.planar then 1L else 0L);
+          set_field 3 (Int64.of_int plane_count);
+          Array.iteri
+            (fun index (plane : plane) ->
+              let offset =
+                metadata_header_fields + (index * metadata_plane_fields)
+              in
+              set_field offset (Int64.of_int plane.width);
+              set_field (offset + 1) (Int64.of_int plane.height);
+              set_field (offset + 2) (Int64.of_int plane.bytes_per_element);
+              set_field (offset + 3) (Int64.of_int plane.bytes_per_row);
+              set_field (offset + 4) plane.size)
+            surface.planes;
+          Ok metadata
+
+      let decode_metadata operation metadata =
+        let malformed detail =
+          native_error operation
+            ("malformed IOSurface XPC metadata: " ^ detail)
+        in
+        let magic_length = String.length metadata_magic in
+        let minimum_size = magic_length + (metadata_header_fields * 8) in
+        if Bytes.length metadata < minimum_size then malformed "wrong byte length"
+        else if Bytes.length metadata > metadata_limit then
+          malformed "metadata exceeds its protocol bound"
+        else if Bytes.sub_string metadata 0 magic_length <> metadata_magic then
+          malformed "wrong protocol/version marker"
+        else
+          let field index =
+            Bytes.get_int64_le metadata (magic_length + (index * 8))
+          in
+          let id = field 0 in
+          let allocation_size = field 1 in
+          let planar_value = field 2 in
+          let plane_count_value = field 3 in
+          if id <= 0L || allocation_size <= 0L then
+            malformed "invalid identity or allocation size"
+          else if planar_value <> 0L && planar_value <> 1L then
+            malformed "invalid planar flag"
+          else if
+            plane_count_value <= 0L
+            || plane_count_value > Int64.of_int max_int
+          then malformed "invalid plane count"
+          else
+            let plane_count = Int64.to_int plane_count_value in
+            let maximum_plane_count =
+              (Bytes.length metadata - minimum_size)
+              / (metadata_plane_fields * 8)
+            in
+            if plane_count > maximum_plane_count then
+              malformed "plane count does not match the byte length"
+            else
+              let expected_size =
+                minimum_size + (plane_count * metadata_plane_fields * 8)
+              in
+              if expected_size <> Bytes.length metadata then
+                malformed "plane count does not match the byte length"
+              else if planar_value = 0L && plane_count <> 1 then
+                malformed "non-planar surface has multiple planes"
+              else
+                let integer value =
+                  if value <= 0L || value > Int64.of_int max_int then None
+                  else Some (Int64.to_int value)
+                in
+                let rec collect index total reversed =
+                  if index = plane_count then
+                    if allocation_size < total then
+                      malformed "allocation is smaller than its plane layout"
+                    else
+                      Ok
+                        ( id
+                        , allocation_size
+                        , planar_value = 1L
+                        , Array.of_list (List.rev reversed) )
+                  else
+                    let offset =
+                      metadata_header_fields + (index * metadata_plane_fields)
+                    in
+                    match
+                      integer (field offset),
+                      integer (field (offset + 1)),
+                      integer (field (offset + 2)),
+                      integer (field (offset + 3))
+                    with
+                    | Some width, Some height, Some bytes_per_element,
+                      Some bytes_per_row
+                      when List.mem bytes_per_element [ 1; 2; 4; 8; 16 ]
+                           && width <= max_int / bytes_per_element
+                           && bytes_per_row >= width * bytes_per_element
+                           && bytes_per_row mod bytes_per_element = 0 ->
+                        let row64 = Int64.of_int bytes_per_row in
+                        let height64 = Int64.of_int height in
+                        if height64 > Int64.div Int64.max_int row64 then
+                          malformed "plane size overflows 64 bits"
+                        else
+                          let size = Int64.mul height64 row64 in
+                          if field (offset + 4) <> size then
+                            malformed
+                              "plane size does not match its row layout"
+                          else if Int64.sub Int64.max_int total < size then
+                            malformed "combined plane size overflows 64 bits"
+                          else
+                            collect (index + 1) (Int64.add total size)
+                              ({ width
+                               ; height
+                               ; bytes_per_element
+                               ; bytes_per_row
+                               ; size
+                               }
+                               :: reversed)
+                    | _ -> malformed "invalid plane layout"
+                in
+                collect 0 0L []
+
+      let wrap_received operation raw metadata =
+        let fail_with error_value =
+          ignore (Metal_raw.destroy raw);
+          error_value
+        in
+        match decode_metadata operation metadata with
+        | Error _ as failure -> fail_with failure
+        | Ok (id, allocation_size, planar, planes) ->
+            let actual_id, actual_allocation_size, actual_planar, layout =
+              Metal_raw.io_surface_info raw
+            in
+            if
+              actual_id <> id || actual_allocation_size <> allocation_size
+              || actual_planar <> planar
+              || Array.length layout <> Array.length planes * 4
+            then
+              fail_with
+                (native_error operation
+                   "received IOSurface does not match its typed XPC metadata")
+            else
+              let matches = ref true in
+              Array.iteri
+                (fun index (plane : plane) ->
+                  let offset = index * 4 in
+                  if
+                    layout.(offset) <> plane.width
+                    || layout.(offset + 1) <> plane.height
+                    || layout.(offset + 2) <> plane.bytes_per_element
+                    || layout.(offset + 3) <> plane.bytes_per_row
+                  then matches := false)
+                planes;
+              if not !matches then
+                fail_with
+                  (native_error operation
+                     "received IOSurface changed its checked plane layout")
+              else
+                Ok
+                  { raw
+                  ; lifetime = lifetime ()
+                  ; id
+                  ; allocation_size
+                  ; planar
+                  ; planes
+                  ; label = None
+                  }
+
+      let connect ?(max_payload_bytes = 1_048_576) ~service_name () =
+        let operation = "Metal.Texture.Io_surface.Xpc.connect" in
+        on_main operation (fun () ->
+          if not (valid_xpc_service_name service_name) then
+            error operation Invalid_argument
+              "XPC service name must contain 1-255 bytes and no NUL"
+          else if not (valid_xpc_payload_bound max_payload_bytes) then
+            error operation Invalid_argument
+              "XPC maximum payload must be between one byte and 64 MiB"
+          else
+            match Metal_raw.xpc_connect 1 service_name max_payload_bytes with
+            | Error message -> native_error operation message
+            | Ok raw ->
+                Ok
+                  { raw
+                  ; lifetime = lifetime ()
+                  ; service_name
+                  ; max_payload_bytes
+                  })
+
+      let service_name (value : connection) = value.service_name
+      let connection_destroyed (value : connection) =
+        is_destroyed value.lifetime
+
+      let destroy_connection (value : connection) =
+        destroy_leaf "Metal.Texture.Io_surface.Xpc.destroy_connection"
+          value.lifetime value.raw (fun () -> ())
+
+      let call ?(timeout_ms = 10_000) (connection : connection) ~operation
+          ~(surface : t) data =
+        let call_name = "Metal.Texture.Io_surface.Xpc.call" in
+        on_main call_name (fun () ->
+          match ensure_live call_name connection.lifetime with
+          | Error _ as failure -> failure
+          | Ok () ->
+              (match ensure_live call_name surface.lifetime with
+               | Error _ as failure -> failure
+               | Ok () when not (valid_xpc_operation operation) ->
+                   error call_name Invalid_argument
+                     "XPC operation must contain 1-256 bytes and no NUL"
+               | Ok () when Bytes.length data > connection.max_payload_bytes ->
+                   error call_name Invalid_argument
+                     "XPC payload exceeds the connection bound"
+               | Ok () when not (valid_xpc_timeout timeout_ms) ->
+                   error call_name Invalid_argument
+                     "XPC timeout must be between 1 and 300000 milliseconds"
+               | Ok () ->
+                   (match encode_metadata call_name surface with
+                    | Error _ as failure -> failure
+                    | Ok metadata ->
+                        match
+                          Metal_raw.xpc_call connection.raw operation
+                            surface.raw metadata data timeout_ms
+                        with
+                        | Error message -> native_error call_name message
+                        | Ok (raw, reply_metadata, reply_data) ->
+                            (match
+                               wrap_received call_name raw reply_metadata
+                             with
+                             | Error _ as failure -> failure
+                             | Ok reply_surface ->
+                                 Ok (reply_surface, reply_data)))))
+
+      let request_operation (value : request) =
+        let operation = "Metal.Texture.Io_surface.Xpc.request_operation" in
+        on_main operation (fun () ->
+          match ensure_live operation value.lifetime with
+          | Error _ as failure -> failure
+          | Ok () -> Ok value.operation)
+
+      let request_surface (value : request) =
+        let operation = "Metal.Texture.Io_surface.Xpc.request_surface" in
+        on_main operation (fun () ->
+          match ensure_live operation value.lifetime with
+          | Error _ as failure -> failure
+          | Ok () -> Ok value.surface)
+
+      let request_data (value : request) =
+        let operation = "Metal.Texture.Io_surface.Xpc.request_data" in
+        on_main operation (fun () ->
+          match ensure_live operation value.lifetime with
+          | Error _ as failure -> failure
+          | Ok () -> Ok (Bytes.copy value.data))
+
+      let request_completed (value : request) = is_destroyed value.lifetime
+
+      let complete_request operation (value : request) native_call =
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () ->
+            (match native_call () with
+             | Error message -> native_error operation message
+             | Ok () ->
+                 Atomic.set value.lifetime.destroyed true;
+                 ignore (Metal_raw.destroy value.raw);
+                 detach value.service.lifetime;
+                 if dependent_count value.surface.lifetime = 0 then
+                   ignore (destroy value.surface);
+                 Ok ())
+
+      let reply (value : request) ~(surface : t) data =
+        let operation = "Metal.Texture.Io_surface.Xpc.reply" in
+        on_main operation (fun () ->
+          match ensure_live operation surface.lifetime with
+          | Error _ as failure -> failure
+          | Ok () when Bytes.length data > value.service.max_payload_bytes ->
+              error operation Invalid_argument
+                "XPC reply payload exceeds the service bound"
+          | Ok () ->
+              (match encode_metadata operation surface with
+               | Error _ as failure -> failure
+               | Ok metadata ->
+                   complete_request operation value (fun () ->
+                     Metal_raw.xpc_request_reply value.raw surface.raw metadata
+                       data)))
+
+      let reject (value : request) message =
+        let operation = "Metal.Texture.Io_surface.Xpc.reject" in
+        on_main operation (fun () ->
+          if message = "" || String.length message > 4096 || contains_nul message
+          then
+            error operation Invalid_argument
+              "XPC rejection must contain 1-4096 bytes and no NUL"
+          else
+            complete_request operation value (fun () ->
+              Metal_raw.xpc_request_reject value.raw message))
+
+      let serve ?(capacity = 16) ?(max_payload_bytes = 1_048_576) handler =
+        let operation = "Metal.Texture.Io_surface.Xpc.serve" in
+        on_main operation (fun () ->
+          if not (valid_xpc_capacity capacity) then
+            error operation Invalid_argument
+              "XPC request capacity must be between 1 and 1024"
+          else if not (valid_xpc_payload_bound max_payload_bytes) then
+            error operation Invalid_argument
+              "XPC maximum payload must be between one byte and 64 MiB"
+          else
+            match Metal_raw.xpc_service_create 1 capacity max_payload_bytes with
+            | Error message -> native_error operation message
+            | Ok raw ->
+                let service =
+                  { raw; lifetime = lifetime (); max_payload_bytes }
+                in
+                let reject_raw raw_request raw_surface message =
+                  ignore (Metal_raw.xpc_request_reject raw_request message);
+                  ignore (Metal_raw.destroy raw_request);
+                  Option.iter
+                    (fun surface -> ignore (Metal_raw.destroy surface))
+                    raw_surface
+                in
+                let receive raw_request request_operation raw_surface metadata
+                    data =
+                  if not (valid_xpc_operation request_operation) then
+                    reject_raw raw_request (Some raw_surface)
+                      "IOSurface XPC operation is malformed"
+                  else if Bytes.length data > service.max_payload_bytes then
+                    reject_raw raw_request (Some raw_surface)
+                      "IOSurface XPC payload exceeds the service bound"
+                  else
+                    match wrap_received operation raw_surface metadata with
+                    | Error error_value ->
+                        reject_raw raw_request None error_value.message
+                    | Ok surface ->
+                        let request =
+                          { raw = raw_request
+                          ; lifetime = lifetime ()
+                          ; service
+                          ; operation = request_operation
+                          ; surface
+                          ; data
+                          }
+                        in
+                        attach service.lifetime;
+                        attach_finalizer request request.lifetime
+                          service.lifetime;
+                        let reject_pending message =
+                          if not (request_completed request) then
+                            ignore
+                              (complete_request operation request (fun () ->
+                                 Metal_raw.xpc_request_reject request.raw
+                                   message))
+                        in
+                        (try handler request with _ ->
+                           reject_pending
+                             "IOSurface XPC handler raised an exception");
+                        reject_pending
+                          "IOSurface XPC handler returned without a reply"
+                in
+                let result = Metal_raw.xpc_service_serve raw receive in
+                if
+                  Atomic.compare_and_set service.lifetime.destroyed false true
+                then ignore (Metal_raw.destroy service.raw);
+                match result with
+                | Ok () -> Ok ()
+                | Error message -> native_error operation message)
+    end
+
   end
 
   type io_surface_backing = texture_io_surface_backing =
@@ -2321,23 +2747,17 @@ module Texture = struct
               attach_finalizer handle handle.lifetime device.lifetime;
               Ok handle
 
-      let valid_name value =
-        value <> "" && String.length value <= 255 && not (contains_nul value)
-
-      let valid_operation value =
-        value <> "" && String.length value <= 256 && not (contains_nul value)
-
       let connect ?(max_payload_bytes = 1_048_576) ~(device : Device.t)
           ~service_name () =
         let operation = "Metal.Texture.Shared_handle.Xpc.connect" in
         on_main operation (fun () ->
           match ensure_live operation device.lifetime with
           | Error _ as failure -> failure
-          | Ok () when not (valid_name service_name) ->
+          | Ok () when not (valid_xpc_service_name service_name) ->
               error operation Invalid_argument
                 "XPC service name must contain 1-255 bytes and no NUL"
           | Ok ()
-            when max_payload_bytes <= 0 || max_payload_bytes > 67_108_864 ->
+            when not (valid_xpc_payload_bound max_payload_bytes) ->
               error operation Invalid_argument
                 "XPC maximum payload must be between one byte and 64 MiB"
           | Ok () ->
@@ -2382,13 +2802,13 @@ module Texture = struct
                         handle.device
                     with
                     | Error _ as failure -> failure
-                    | Ok () when not (valid_operation operation) ->
+                    | Ok () when not (valid_xpc_operation operation) ->
                         error call_name Invalid_argument
                           "XPC operation must contain 1-256 bytes and no NUL"
                     | Ok () when Bytes.length data > connection.max_payload_bytes ->
                         error call_name Invalid_argument
                           "XPC payload exceeds the connection bound"
-                    | Ok () when timeout_ms <= 0 || timeout_ms > 300_000 ->
+                    | Ok () when not (valid_xpc_timeout timeout_ms) ->
                         error call_name Invalid_argument
                           "XPC timeout must be between 1 and 300000 milliseconds"
                     | Ok () ->
@@ -2477,11 +2897,11 @@ module Texture = struct
         on_main operation (fun () ->
           match ensure_live operation device.lifetime with
           | Error _ as failure -> failure
-          | Ok () when capacity <= 0 || capacity > 1024 ->
+          | Ok () when not (valid_xpc_capacity capacity) ->
               error operation Invalid_argument
                 "XPC request capacity must be between 1 and 1024"
           | Ok ()
-            when max_payload_bytes <= 0 || max_payload_bytes > 67_108_864 ->
+            when not (valid_xpc_payload_bound max_payload_bytes) ->
               error operation Invalid_argument
                 "XPC maximum payload must be between one byte and 64 MiB"
           | Ok () ->
@@ -2510,7 +2930,7 @@ module Texture = struct
                    in
                    let receive raw_request request_operation raw_handle metadata
                        data =
-                     if not (valid_operation request_operation) then
+                     if not (valid_xpc_operation request_operation) then
                        reject_raw raw_request (Some raw_handle)
                          "shared-texture XPC operation is malformed"
                      else if Bytes.length data > service.max_payload_bytes then

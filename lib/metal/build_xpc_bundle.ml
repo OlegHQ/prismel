@@ -100,8 +100,14 @@ let () =
   and service = required "--service" !service
   and output_directory = required "--output" !output_directory
   and service_name = required "--service-name" !service_name in
-  let client_name = "test_metal_xpc_client"
-  and service_executable = "test_metal_xpc_service" in
+  let executable_name path =
+    let basename = Filename.basename path in
+    if Filename.extension basename = ".exe" then
+      Filename.remove_extension basename
+    else basename
+  in
+  let client_name = executable_name client
+  and service_executable = executable_name service in
   let contents = Filename.concat output_directory "Contents" in
   let host_bin = Filename.concat contents "MacOS" in
   let service_contents =
@@ -121,7 +127,7 @@ let () =
   write_file (Filename.concat contents "Info.plist")
     (plist
        [ "CFBundleExecutable", client_name
-       ; "CFBundleIdentifier", "org.prismel.metal.xpc-conformance-host"
+       ; "CFBundleIdentifier", service_name ^ ".host"
        ; "CFBundlePackageType", "APPL"
        ; "CFBundleVersion", "1"
        ]);
