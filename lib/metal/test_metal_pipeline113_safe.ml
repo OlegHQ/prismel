@@ -90,6 +90,20 @@ let () =
         |Compiler_task.Complete(Ok pipeline)->pipeline
         |Compiler_task.Complete(Error error)->fail_error error
         |Compiler_task.Pending->failwith"specialization task remained pending"in
+      let dataset=get(Pipeline_dataset.create~device[Pipeline_dataset.Binaries])in
+      let archive_compiler=get(Compiler.create~dataset device)in
+      let archived_compute_source=get(Compiler.create_compute_pipeline archive_compiler
+        ~library "pipeline113_compute")in
+      let archived_render_source=get(Compiler.create_render_pipeline archive_compiler
+        ~library~vertex:"pipeline113_vertex"~color_formats:[Texture.Bgra8_unorm])in
+      let archive_path=Filename.temp_file"metal-pipeline113-"".metallib"in
+      Sys.remove archive_path;
+      get(Pipeline_dataset.serialize_archive dataset archive_path);
+      let archive=get(Pipeline_archive.load_file~device archive_path)in
+      let archived_compute=get(Pipeline_archive.compile_compute archive~library
+        "pipeline113_compute")in
+      let archived_render=get(Pipeline_archive.compile_render archive~library
+        ~vertex:"pipeline113_vertex"~color_format:Texture.Bgra8_unorm())in
       if Render_pipeline.kind render_pipeline <> Render_pipeline.Render then
         failwith "render pipeline kind changed";
       get (Pipeline_descriptor.Render.reset render);
@@ -99,6 +113,10 @@ let () =
       get (Compute_pipeline.destroy compute_pipeline);
       get(Render_pipeline.destroy specialized);get(Render_pipeline.destroy specialized_async);
       get(Render_pipeline.destroy specialization_source);
+      get(Compute_pipeline.destroy archived_compute);get(Render_pipeline.destroy archived_render);
+      get(Compute_pipeline.destroy archived_compute_source);get(Render_pipeline.destroy archived_render_source);
+      get(Pipeline_archive.destroy archive);get(Compiler.destroy archive_compiler);
+      get(Pipeline_dataset.destroy dataset);Sys.remove archive_path;
       get(Compiler_task.destroy specialized_task);get(Compiler.destroy compiler);
       get (Render_pipeline.destroy render_pipeline);
       get (Library.destroy library);
