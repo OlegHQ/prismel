@@ -33,6 +33,7 @@
   binding_render_command_safe_reachability
   binding_pipeline_header_plan
   binding_pipeline_state_safe_reachability
+  binding_pipeline_expanded_reachability
   binding_shader_graph_manifest
   binding_shader_safe_reachability
   binding_mesh_tile_safe_reachability
@@ -449,6 +450,13 @@
 (test
  (name test_binding_pipeline_state_safe_reachability)
  (modules test_binding_pipeline_state_safe_reachability)
+ (libraries gpu_migration_support metal_inventory_classification yojson)
+ (deps ../../lib/metal/generated_api_inventory.json)
+ (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
+
+(test
+ (name test_binding_pipeline_expanded_reachability)
+ (modules test_binding_pipeline_expanded_reachability)
  (libraries gpu_migration_support metal_inventory_classification yojson)
  (deps ../../lib/metal/generated_api_inventory.json)
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
