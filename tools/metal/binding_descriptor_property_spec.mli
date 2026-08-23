@@ -4,6 +4,7 @@ type representation =
   | Enum of string
   | Flags of string
   | Resource_options
+  | Sample_index
 
 type default =
   | Default_bool of bool

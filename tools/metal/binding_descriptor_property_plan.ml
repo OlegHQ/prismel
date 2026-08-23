@@ -31,6 +31,8 @@ let entries =
   ; p "MTLComputePipelineDescriptor" "threadGroupSizeIsMultipleOfThreadExecutionWidth" "Metal/MTLComputePipeline.h" "BOOL" "10.11"
   ; p ~attributes:a ~default:32L "MTLHeapDescriptor" "resourceOptions" "Metal/MTLHeap.h" "MTLResourceOptions" "10.15"
   ; p "MTLRenderPassAttachmentDescriptor" "depthPlane" "Metal/MTLRenderPass.h" "NSUInteger" "10.11"
+  ; p ~default:(-1L) "MTLBlitPassSampleBufferAttachmentDescriptor" "startOfEncoderSampleIndex" "Metal/MTLBlitPass.h" "NSUInteger" "11.0"
+  ; p ~default:(-1L) "MTLBlitPassSampleBufferAttachmentDescriptor" "endOfEncoderSampleIndex" "Metal/MTLBlitPass.h" "NSUInteger" "11.0"
   ; p "MTLRenderPassAttachmentDescriptor" "level" "Metal/MTLRenderPass.h" "NSUInteger" "10.11"
   ; p "MTLRenderPassAttachmentDescriptor" "resolveDepthPlane" "Metal/MTLRenderPass.h" "NSUInteger" "10.11"
   ; p "MTLRenderPassAttachmentDescriptor" "resolveLevel" "Metal/MTLRenderPass.h" "NSUInteger" "10.11"
@@ -62,9 +64,9 @@ let entries =
   ; p ~attributes:a "MTLIndirectCommandBufferDescriptor" "supportRayTracing" "Metal/MTLIndirectCommandBuffer.h" "BOOL" "13.0"
   ]
 
-let expected_property_count = 54
-let expected_inventory_id_count = 162
-let expected_owner_count = 12
+let expected_property_count = 56
+let expected_inventory_id_count = 168
+let expected_owner_count = 13
 let source_paths =
   [ "tools/metal/binding_descriptor_property_spec.ml"
   ; "tools/metal/binding_descriptor_property_spec.mli"

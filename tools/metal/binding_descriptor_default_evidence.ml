@@ -4,10 +4,12 @@ let sdk_version = "26.5"
 let os_version = "26.4.1"
 let os_build = "25E253"
 let machine = "Macmini9,1 / Apple M1"
-let measured_property_count = 54
+let measured_property_count = 56
 
 let measured_nonzero =
   [ "property:MTLCompileOptions:languageVersion", 262144L
+  ; "property:MTLBlitPassSampleBufferAttachmentDescriptor:startOfEncoderSampleIndex", -1L
+  ; "property:MTLBlitPassSampleBufferAttachmentDescriptor:endOfEncoderSampleIndex", -1L
   ; "property:MTLCompileOptions:mathMode", 2L
   ; "property:MTLComputePipelineDescriptor:maxCallStackDepth", 1L
   ; "property:MTLHeapDescriptor:resourceOptions", 32L

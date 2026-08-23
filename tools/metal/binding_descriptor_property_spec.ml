@@ -4,6 +4,7 @@ type representation =
   | Enum of string
   | Flags of string
   | Resource_options
+  | Sample_index
 
 type default =
   | Default_bool of bool
@@ -33,11 +34,11 @@ let representation signature =
 
 let entry ?(attributes = []) ?(default_int64 = 0L) ?getter ~owner ~name ~header
     ~signature ~introduced () =
-  let representation = representation signature in
+  let representation = if String.equal owner "MTLBlitPassSampleBufferAttachmentDescriptor" then Sample_index else representation signature in
   let default =
     match representation with
     | Bool -> Default_bool (default_int64 <> 0L)
-    | Nsuint | Enum _ | Flags _ | Resource_options ->
+    | Nsuint | Enum _ | Flags _ | Resource_options | Sample_index ->
         Default_int64 default_int64
   in
   let getter_name = Option.value ~default:name getter in
@@ -97,6 +98,7 @@ let ocaml_type entry =
       "Metal_enum_generated." ^ String.capitalize_ascii (enum_module value)
       ^ ".t list"
   | Resource_options -> "Resource_options.t"
+  | Sample_index -> "Sample_index.t"
 
 let default_expression entry =
   match (entry.representation, entry.default) with
@@ -117,6 +119,7 @@ let default_expression entry =
            name)
   | Resource_options, Default_int64 value ->
       Printf.sprintf "Resource_options.of_bits_exn %LdL" value
+  | Sample_index, Default_int64 value -> Printf.sprintf "Sample_index.of_int64_exn %LdL" value
   | _ -> failwith "descriptor property default/representation mismatch"
 
 let fail format =
@@ -145,5 +148,6 @@ let validate entries =
       | Enum value when value = entry.signature -> ()
       | Flags value when value = entry.signature -> ()
       | Resource_options when entry.signature = "MTLResourceOptions" -> ()
+      | Sample_index when entry.signature = "NSUInteger" -> ()
       | _ -> fail "representation/signature mismatch for %s" (property_sdk_id entry))
     entries

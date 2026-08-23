@@ -1,11 +1,11 @@
 {
-  "binding_plan_source_sha256": "f1ddac03a5226bba9e6b118a49d45e5be3d7cf9b96c57e690370508f975b953c",
+  "binding_plan_source_sha256": "eaf809c5d9f126b370080e98f375f93a0ea553007c5ee75d8fdc81c39eb1e187",
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 3886,
+    "bound": 3892,
     "scope-excluded": 37,
-    "unreviewed": 1362
+    "unreviewed": 1356
   },
   "classification_source_sha256": "84542f6bcf061ac3842d6e2ffdb01e1a873602a5007f5e64baf66e61a2412a7c",
   "deployment_target": "14.0",
@@ -48451,7 +48451,7 @@
           "line": 18
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBlitPass.h",
       "id": "method:-[MTLBlitPassSampleBufferAttachmentDescriptor endOfEncoderSampleIndex]",
       "kind": "method",
@@ -48459,7 +48459,7 @@
       "macos_introduced": "11.0",
       "name": "endOfEncoderSampleIndex",
       "owner": "MTLBlitPassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -48489,7 +48489,7 @@
           "line": 18
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBlitPass.h",
       "id": "method:-[MTLBlitPassSampleBufferAttachmentDescriptor setEndOfEncoderSampleIndex:]",
       "kind": "method",
@@ -48497,7 +48497,7 @@
       "macos_introduced": "11.0",
       "name": "setEndOfEncoderSampleIndex:",
       "owner": "MTLBlitPassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -48527,7 +48527,7 @@
           "line": 18
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBlitPass.h",
       "id": "method:-[MTLBlitPassSampleBufferAttachmentDescriptor setStartOfEncoderSampleIndex:]",
       "kind": "method",
@@ -48535,7 +48535,7 @@
       "macos_introduced": "11.0",
       "name": "setStartOfEncoderSampleIndex:",
       "owner": "MTLBlitPassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -48546,7 +48546,7 @@
           "line": 18
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBlitPass.h",
       "id": "method:-[MTLBlitPassSampleBufferAttachmentDescriptor startOfEncoderSampleIndex]",
       "kind": "method",
@@ -48554,7 +48554,7 @@
       "macos_introduced": "11.0",
       "name": "startOfEncoderSampleIndex",
       "owner": "MTLBlitPassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -90045,7 +90045,7 @@
           "line": 18
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBlitPass.h",
       "id": "property:MTLBlitPassSampleBufferAttachmentDescriptor:endOfEncoderSampleIndex",
       "kind": "property",
@@ -90053,7 +90053,7 @@
       "macos_introduced": "11.0",
       "name": "endOfEncoderSampleIndex",
       "owner": "MTLBlitPassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -90083,7 +90083,7 @@
           "line": 18
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBlitPass.h",
       "id": "property:MTLBlitPassSampleBufferAttachmentDescriptor:startOfEncoderSampleIndex",
       "kind": "property",
@@ -90091,7 +90091,7 @@
       "macos_introduced": "11.0",
       "name": "startOfEncoderSampleIndex",
       "owner": "MTLBlitPassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "NSUInteger"
     },
     {

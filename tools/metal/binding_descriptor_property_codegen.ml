@@ -46,6 +46,8 @@ let add_make_arguments output entries =
 let render_public_mli entries =
   let output = Buffer.create 12288 in
   Buffer.add_string output
+    "module Sample_index : sig\n  type t = private int64\n  val dont_sample : t\n  val index : int64 -> (t, string) result\n  val to_int64 : t -> int64\nend\n\n";
+  Buffer.add_string output
     "module Storage_mode : sig\n  type t = private int64\n  val shared : t\n  val managed : t\n  val private_ : t\n  val memoryless : t\n  val to_int64 : t -> int64\nend\n\nmodule Resource_options : sig\n  type cpu_cache = Default_cache | Write_combined\n  type storage = Shared | Managed | Private | Memoryless\n  type hazard_tracking = Default | Tracked | Untracked\n  type t = private int64\n  val make : cpu_cache:cpu_cache -> storage:storage -> hazard_tracking:hazard_tracking -> t\n  val to_int64 : t -> int64\nend\n\n";
   group_by_owner entries
   |> List.iter (fun (owner, entries) ->
@@ -62,6 +64,8 @@ let render_public_mli entries =
 
 let render_public_ml entries =
   let output = Buffer.create 24576 in
+  Buffer.add_string output
+    "module Sample_index = struct\n  type t = int64\n  let dont_sample = -1L\n  let index value = if value < 0L then Error \"sample index must be nonnegative\" else Ok value\n  let to_int64 value = value\n  let of_int64_exn value = if value = -1L || value >= 0L then value else invalid_arg \"invalid sample index\"\nend\n\n";
   Buffer.add_string output
     "module Storage_mode = struct\n  type t = int64\n  let shared = 0L\n  let managed = 1L\n  let private_ = 2L\n  let memoryless = 3L\n  let to_int64 value = value\n  let of_int64_exn = function 0L | 1L | 2L | 3L as value -> value | value -> invalid_arg (Printf.sprintf \"invalid MTLStorageMode: %Ld\" value)\nend\n\nmodule Resource_options = struct\n  type cpu_cache = Default_cache | Write_combined\n  type storage = Shared | Managed | Private | Memoryless\n  type hazard_tracking = Default | Tracked | Untracked\n  type t = int64\n  let cpu_cache_bits = function Default_cache -> 0L | Write_combined -> 1L\n  let storage_bits = function Shared -> 0L | Managed -> 16L | Private -> 32L | Memoryless -> 48L\n  let hazard_bits = function Default -> 0L | Tracked -> 256L | Untracked -> 512L\n  let make ~cpu_cache ~storage ~hazard_tracking = Int64.logor (cpu_cache_bits cpu_cache) (Int64.logor (storage_bits storage) (hazard_bits hazard_tracking))\n  let to_int64 value = value\n  let of_bits_exn = function 0L | 1L | 16L | 17L | 32L | 33L | 48L | 49L | 256L | 257L | 272L | 273L | 288L | 289L | 304L | 305L | 512L | 513L | 528L | 529L | 544L | 545L | 560L | 561L as value -> value | value -> invalid_arg (Printf.sprintf \"invalid MTLResourceOptions bits: %Ld\" value)\nend\n\n";
   group_by_owner entries
@@ -128,7 +132,7 @@ let render_public_tests entries =
               "  (match %s.make ~%s:(-1L) () with Error _ -> () | Ok _ -> failwith %S);\n"
               module_name (field_name entry)
               ("descriptor range validation missing: " ^ property_sdk_id entry)
-        | Bool | Enum _ | Flags _ | Resource_options -> ())
+        | Bool | Enum _ | Flags _ | Resource_options | Sample_index -> ())
       entries;
     Buffer.add_string output "  ()\n\n");
   Buffer.add_string output "let () =\n";
@@ -148,6 +152,11 @@ let add_assignment output index entry =
       Printf.bprintf output "      NSUInteger converted_%d = 0;\n" index;
       Printf.bprintf output "      if (!nsuinteger_from_ocaml_int64(Field(raw_properties, %d), &converted_%d))\n" index index;
       Printf.bprintf output "        return result_error_text(\"Metal descriptor %s must be a nonnegative NSUInteger\");\n" entry.name;
+      Printf.bprintf output "      descriptor.%s = converted_%d;\n" entry.name index
+  | Sample_index ->
+      Printf.bprintf output "      int64_t raw_%d = Int64_val(Field(raw_properties, %d));\n" index index;
+      Printf.bprintf output "      if (raw_%d < -1) return result_error_text(\"invalid counter sample index\");\n" index;
+      Printf.bprintf output "      NSUInteger converted_%d = raw_%d == -1 ? NSUIntegerMax : (NSUInteger)raw_%d;\n" index index index;
       Printf.bprintf output "      descriptor.%s = converted_%d;\n" entry.name index
   | Enum signature ->
       Printf.bprintf output
@@ -171,7 +180,7 @@ let add_assignment output index entry =
       Printf.bprintf output
         "      if (descriptor.%s != (Bool_val(Field(raw_properties, %d)) != 0)) return result_error_text(\"Metal descriptor %s round-trip mismatch\");\n"
         entry.name index entry.name
-  | Nsuint | Enum _ | Flags _ ->
+  | Nsuint | Enum _ | Flags _ | Sample_index ->
       Printf.bprintf output
         "      if (descriptor.%s != converted_%d) return result_error_text(\"Metal descriptor %s round-trip mismatch\");\n"
         entry.name index entry.name
@@ -230,7 +239,7 @@ let render_native_roundtrip_tests entries =
               "    %s test_%s = original_%s == NSUIntegerMax ? 0 : original_%s + 1;\n"
               entry.signature (field_name entry) (field_name entry)
               (field_name entry)
-        | Enum _ | Flags _ | Resource_options ->
+        | Enum _ | Flags _ | Resource_options | Sample_index ->
             Printf.bprintf output "    %s test_%s = original_%s;\n"
               entry.signature (field_name entry) (field_name entry));
         Printf.bprintf output "    descriptor.%s = test_%s;\n" entry.name
