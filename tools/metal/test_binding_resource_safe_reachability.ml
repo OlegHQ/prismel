@@ -11,7 +11,7 @@ let () =
   in
   if Audit.promotable_ids <> expected then
     failwith "Resource100 exact promotable closure drift";
-  if List.length Audit.promotable_ids <> 64 || List.length Audit.blocked <> 36 then
+  if List.length Audit.promotable_ids <> 68 || List.length Audit.blocked <> 32 then
     failwith "Resource100 safe/gap partition drift";
   Printf.printf
     "Resource100 public audit: %d promotable, %d blocked; exact100 closed\n"

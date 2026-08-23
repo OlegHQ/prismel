@@ -46,7 +46,13 @@ let has_public_operation id =
   || mem id pool_core
 
 let public_operation id =
-  if contains id "MTLBufferLayoutDescriptor" then
+  if contains id "sampleBufferAttachments" then
+    "Metal.Resource100.Resource_state_pass.sample_attachment/set_sample_attachment"
+  else if contains id "AttachmentDescriptorArray object" then
+    "Metal.Resource100.Resource_state_pass.sample_attachment"
+  else if contains id "AttachmentDescriptorArray setObject" then
+    "Metal.Resource100.Resource_state_pass.set_sample_attachment"
+  else if contains id "MTLBufferLayoutDescriptor" then
     "Metal.Resource100.Buffer_layout.create/get/set/destroy"
   else if contains id "MTLResourceStatePassSampleBufferAttachmentDescriptor"
   then "Metal.Resource100.Sample_attachment.create/set_range/destroy"
