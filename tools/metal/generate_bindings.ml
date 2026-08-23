@@ -326,7 +326,8 @@ let validate_struct_native_output inventory
            && not (List.mem identifier
                      Binding_resource_safe_reachability.promotable_ids)
                && not (List.mem identifier
-                     Binding_pipeline_state_safe_reachability.promotable_ids))
+                     Binding_pipeline_state_safe_reachability.promotable_ids)
+               && not (List.mem identifier Binding_shader_safe_reachability.promotable_ids))
        || not (String_set.mem identifier planned)
     then fail "generated Metal struct-native inventory mismatch: %s" identifier
   in
@@ -347,7 +348,8 @@ let validate_string_entries inventory entries =
            && not (List.mem identifier
                      Binding_resource_safe_reachability.promotable_ids)
                && not (List.mem identifier
-                     Binding_pipeline_state_safe_reachability.promotable_ids))
+                     Binding_pipeline_state_safe_reachability.promotable_ids)
+               && not (List.mem identifier Binding_shader_safe_reachability.promotable_ids))
        ||
        (match declaration.macos_introduced with
         | Some version ->
@@ -572,6 +574,7 @@ let validate_direct_method inventory
     if Binding_direct_plan.is_safe_device_identifier entry.sdk_id
        || List.mem entry.sdk_id Binding_resource_safe_reachability.promotable_ids
        || List.mem entry.sdk_id Binding_pipeline_state_safe_reachability.promotable_ids
+       || List.mem entry.sdk_id Binding_shader_safe_reachability.promotable_ids
     then "bound"
     else "unreviewed"
   in
@@ -622,6 +625,7 @@ let validate_direct_property inventory
     if Binding_direct_plan.is_safe_device_identifier property.sdk_id
        || List.mem property.sdk_id Binding_resource_safe_reachability.promotable_ids
        || List.mem property.sdk_id Binding_pipeline_state_safe_reachability.promotable_ids
+       || List.mem property.sdk_id Binding_shader_safe_reachability.promotable_ids
     then "bound"
     else "unreviewed"
   in
@@ -2143,6 +2147,8 @@ let generator_source_paths =
   ; "tools/metal/binding_render_command_safe_reachability.mli"
   ; "tools/metal/binding_pipeline_state_safe_reachability.ml"
   ; "tools/metal/binding_pipeline_state_safe_reachability.mli"
+  ; "tools/metal/binding_shader_safe_reachability.ml"
+  ; "tools/metal/binding_shader_safe_reachability.mli"
   ; "tools/metal/binding_presentation_public_audit.ml"
   ; "tools/metal/binding_descriptor_default_evidence.ml"
   ; "tools/metal/binding_descriptor_default_evidence.mli"

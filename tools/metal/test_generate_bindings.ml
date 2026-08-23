@@ -975,6 +975,8 @@ let generator_source_sha256 entry_source =
   ; "tools/metal/binding_render_command_safe_reachability.mli"
   ; "tools/metal/binding_pipeline_state_safe_reachability.ml"
   ; "tools/metal/binding_pipeline_state_safe_reachability.mli"
+  ; "tools/metal/binding_shader_safe_reachability.ml"
+  ; "tools/metal/binding_shader_safe_reachability.mli"
   ; "tools/metal/render_encoder_resource_adapter.ml"
   ; "tools/metal/render_encoder_resource_adapter.mli"
   ; "tools/metal/binding_presentation_public_audit.ml"
@@ -1875,7 +1877,7 @@ let main () =
          ~field:"classification" (`String "availability-gated")
     |> pretty_json |> write_file direct_classification_drift_inventory;
     require_failure "direct-call classification drift test"
-      "generated Metal direct-call classification must be unreviewed"
+      "generated Metal direct-call classification must be bound"
       (run inputs ~inventory:direct_classification_drift_inventory
          ~manual_native:inputs.manual_native
          (outputs directory "direct-classification-drift"));

@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 3699,
+    "bound": 3736,
     "scope-excluded": 37,
-    "unreviewed": 1549
+    "unreviewed": 1512
   },
-  "classification_source_sha256": "3de08f742238e60c780d2e06f853915d2e057e27592511b8b38f4e79a28c06b6",
+  "classification_source_sha256": "fc5ba0ce3225805c921ec6b1e5e203c99d8b6203cf395920223ba7b8c646bf91",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -29851,7 +29851,7 @@
           "line": 143
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLStageInputOutputDescriptor.h",
       "id": "method:+[MTLStageInputOutputDescriptor stageInputOutputDescriptor]",
       "kind": "method",
@@ -29859,7 +29859,7 @@
       "macos_introduced": "10.12",
       "name": "stageInputOutputDescriptor",
       "owner": "MTLStageInputOutputDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe shader metadata and scalar descriptor operations with checked ownership, exact round trips, and native conformance.",
       "signature": "class () -> MTLStageInputOutputDescriptor * _Nonnull"
     },
     {
@@ -47300,7 +47300,7 @@
           "line": 127
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLStageInputOutputDescriptor.h",
       "id": "method:-[MTLAttributeDescriptor bufferIndex]",
       "kind": "method",
@@ -47308,7 +47308,7 @@
       "macos_introduced": "10.12",
       "name": "bufferIndex",
       "owner": "MTLAttributeDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe shader metadata and scalar descriptor operations with checked ownership, exact round trips, and native conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -47319,7 +47319,7 @@
           "line": 127
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLStageInputOutputDescriptor.h",
       "id": "method:-[MTLAttributeDescriptor format]",
       "kind": "method",
@@ -47327,7 +47327,7 @@
       "macos_introduced": "10.12",
       "name": "format",
       "owner": "MTLAttributeDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe shader metadata and scalar descriptor operations with checked ownership, exact round trips, and native conformance.",
       "signature": "instance () -> MTLAttributeFormat"
     },
     {
@@ -47338,7 +47338,7 @@
           "line": 127
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLStageInputOutputDescriptor.h",
       "id": "method:-[MTLAttributeDescriptor offset]",
       "kind": "method",
@@ -47346,7 +47346,7 @@
       "macos_introduced": "10.12",
       "name": "offset",
       "owner": "MTLAttributeDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe shader metadata and scalar descriptor operations with checked ownership, exact round trips, and native conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -47357,7 +47357,7 @@
           "line": 127
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLStageInputOutputDescriptor.h",
       "id": "method:-[MTLAttributeDescriptor setBufferIndex:]",
       "kind": "method",
@@ -47365,7 +47365,7 @@
       "macos_introduced": "10.12",
       "name": "setBufferIndex:",
       "owner": "MTLAttributeDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe shader metadata and scalar descriptor operations with checked ownership, exact round trips, and native conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -47376,7 +47376,7 @@
           "line": 127
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLStageInputOutputDescriptor.h",
       "id": "method:-[MTLAttributeDescriptor setFormat:]",
       "kind": "method",
@@ -47384,7 +47384,7 @@
       "macos_introduced": "10.12",
       "name": "setFormat:",
       "owner": "MTLAttributeDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe shader metadata and scalar descriptor operations with checked ownership, exact round trips, and native conformance.",
       "signature": "instance (MTLAttributeFormat) -> void"
     },
     {
@@ -47395,7 +47395,7 @@
           "line": 127
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLStageInputOutputDescriptor.h",
       "id": "method:-[MTLAttributeDescriptor setOffset:]",
       "kind": "method",
@@ -47403,7 +47403,7 @@
       "macos_introduced": "10.12",
       "name": "setOffset:",
       "owner": "MTLAttributeDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe shader metadata and scalar descriptor operations with checked ownership, exact round trips, and native conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -58798,7 +58798,7 @@
           "line": 202
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLFunction options]",
       "kind": "method",
@@ -58806,7 +58806,7 @@
       "macos_introduced": "11.0",
       "name": "options",
       "owner": "MTLFunction",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe shader metadata and scalar descriptor operations with checked ownership, exact round trips, and native conformance.",
       "signature": "instance () -> MTLFunctionOptions"
     },
     {
@@ -58823,7 +58823,7 @@
           "line": 160
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLFunction patchControlPointCount]",
       "kind": "method",
@@ -58831,7 +58831,7 @@
       "macos_introduced": "10.12",
       "name": "patchControlPointCount",
       "owner": "MTLFunction",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe shader metadata and scalar descriptor operations with checked ownership, exact round trips, and native conformance.",
       "signature": "instance () -> NSInteger"
     },
     {
@@ -58848,7 +58848,7 @@
           "line": 153
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLFunction patchType]",
       "kind": "method",
@@ -58856,7 +58856,7 @@
       "macos_introduced": "10.12",
       "name": "patchType",
       "owner": "MTLFunction",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe shader metadata and scalar descriptor operations with checked ownership, exact round trips, and native conformance.",
       "signature": "instance () -> MTLPatchType"
     },
     {
@@ -59878,7 +59878,7 @@
           "line": 70
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "method:-[MTLFunctionStitchingInputNode argumentIndex]",
       "kind": "method",
@@ -59886,7 +59886,7 @@
       "macos_introduced": "12.0",
       "name": "argumentIndex",
       "owner": "MTLFunctionStitchingInputNode",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe shader metadata and scalar descriptor operations with checked ownership, exact round trips, and native conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -59919,7 +59919,7 @@
           "line": 70
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "method:-[MTLFunctionStitchingInputNode setArgumentIndex:]",
       "kind": "method",
@@ -59927,7 +59927,7 @@
       "macos_introduced": "12.0",
       "name": "setArgumentIndex:",
       "owner": "MTLFunctionStitchingInputNode",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe shader metadata and scalar descriptor operations with checked ownership, exact round trips, and native conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -77718,7 +77718,7 @@
           "line": 143
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLStageInputOutputDescriptor.h",
       "id": "method:-[MTLStageInputOutputDescriptor indexBufferIndex]",
       "kind": "method",
@@ -77726,7 +77726,7 @@
       "macos_introduced": "10.12",
       "name": "indexBufferIndex",
       "owner": "MTLStageInputOutputDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe shader metadata and scalar descriptor operations with checked ownership, exact round trips, and native conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -77737,7 +77737,7 @@
           "line": 143
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLStageInputOutputDescriptor.h",
       "id": "method:-[MTLStageInputOutputDescriptor indexType]",
       "kind": "method",
@@ -77745,7 +77745,7 @@
       "macos_introduced": "10.12",
       "name": "indexType",
       "owner": "MTLStageInputOutputDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe shader metadata and scalar descriptor operations with checked ownership, exact round trips, and native conformance.",
       "signature": "instance () -> MTLIndexType"
     },
     {
@@ -77794,7 +77794,7 @@
           "line": 143
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLStageInputOutputDescriptor.h",
       "id": "method:-[MTLStageInputOutputDescriptor setIndexBufferIndex:]",
       "kind": "method",
@@ -77802,7 +77802,7 @@
       "macos_introduced": "10.12",
       "name": "setIndexBufferIndex:",
       "owner": "MTLStageInputOutputDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe shader metadata and scalar descriptor operations with checked ownership, exact round trips, and native conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -77813,7 +77813,7 @@
           "line": 143
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLStageInputOutputDescriptor.h",
       "id": "method:-[MTLStageInputOutputDescriptor setIndexType:]",
       "kind": "method",
@@ -77821,7 +77821,7 @@
       "macos_introduced": "10.12",
       "name": "setIndexType:",
       "owner": "MTLStageInputOutputDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe shader metadata and scalar descriptor operations with checked ownership, exact round trips, and native conformance.",
       "signature": "instance (MTLIndexType) -> void"
     },
     {
@@ -81918,7 +81918,7 @@
           "line": 60
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLVertexAttribute attributeIndex]",
       "kind": "method",
@@ -81926,7 +81926,7 @@
       "macos_introduced": "10.11",
       "name": "attributeIndex",
       "owner": "MTLVertexAttribute",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe shader metadata and scalar descriptor operations with checked ownership, exact round trips, and native conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -81943,7 +81943,7 @@
           "line": 65
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLVertexAttribute attributeType]",
       "kind": "method",
@@ -81951,7 +81951,7 @@
       "macos_introduced": "10.11",
       "name": "attributeType",
       "owner": "MTLVertexAttribute",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe shader metadata and scalar descriptor operations with checked ownership, exact round trips, and native conformance.",
       "signature": "instance () -> MTLDataType"
     },
     {
@@ -81962,7 +81962,7 @@
           "line": 60
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLVertexAttribute isActive]",
       "kind": "method",
@@ -81970,7 +81970,7 @@
       "macos_introduced": "10.11",
       "name": "isActive",
       "owner": "MTLVertexAttribute",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe shader metadata and scalar descriptor operations with checked ownership, exact round trips, and native conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -81987,7 +81987,7 @@
           "line": 68
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLVertexAttribute isPatchControlPointData]",
       "kind": "method",
@@ -81995,7 +81995,7 @@
       "macos_introduced": "10.12",
       "name": "isPatchControlPointData",
       "owner": "MTLVertexAttribute",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe shader metadata and scalar descriptor operations with checked ownership, exact round trips, and native conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -82012,7 +82012,7 @@
           "line": 67
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLVertexAttribute isPatchData]",
       "kind": "method",
@@ -82020,7 +82020,7 @@
       "macos_introduced": "10.12",
       "name": "isPatchData",
       "owner": "MTLVertexAttribute",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe shader metadata and scalar descriptor operations with checked ownership, exact round trips, and native conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -82031,7 +82031,7 @@
           "line": 60
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLVertexAttribute name]",
       "kind": "method",
@@ -82039,7 +82039,7 @@
       "macos_introduced": "10.11",
       "name": "name",
       "owner": "MTLVertexAttribute",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe shader metadata and scalar descriptor operations with checked ownership, exact round trips, and native conformance.",
       "signature": "instance () -> NSString * _Nonnull"
     },
     {
@@ -89798,7 +89798,7 @@
           "line": 127
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLStageInputOutputDescriptor.h",
       "id": "property:MTLAttributeDescriptor:bufferIndex",
       "kind": "property",
@@ -89806,7 +89806,7 @@
       "macos_introduced": "10.12",
       "name": "bufferIndex",
       "owner": "MTLAttributeDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe shader metadata and scalar descriptor operations with checked ownership, exact round trips, and native conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -89817,7 +89817,7 @@
           "line": 127
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLStageInputOutputDescriptor.h",
       "id": "property:MTLAttributeDescriptor:format",
       "kind": "property",
@@ -89825,7 +89825,7 @@
       "macos_introduced": "10.12",
       "name": "format",
       "owner": "MTLAttributeDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe shader metadata and scalar descriptor operations with checked ownership, exact round trips, and native conformance.",
       "signature": "MTLAttributeFormat"
     },
     {
@@ -89836,7 +89836,7 @@
           "line": 127
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLStageInputOutputDescriptor.h",
       "id": "property:MTLAttributeDescriptor:offset",
       "kind": "property",
@@ -89844,7 +89844,7 @@
       "macos_introduced": "10.12",
       "name": "offset",
       "owner": "MTLAttributeDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe shader metadata and scalar descriptor operations with checked ownership, exact round trips, and native conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -93918,7 +93918,7 @@
           "line": 202
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "property:MTLFunction:options",
       "kind": "property",
@@ -93926,7 +93926,7 @@
       "macos_introduced": "11.0",
       "name": "options",
       "owner": "MTLFunction",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe shader metadata and scalar descriptor operations with checked ownership, exact round trips, and native conformance.",
       "signature": "MTLFunctionOptions"
     },
     {
@@ -93943,7 +93943,7 @@
           "line": 160
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "property:MTLFunction:patchControlPointCount",
       "kind": "property",
@@ -93951,7 +93951,7 @@
       "macos_introduced": "10.12",
       "name": "patchControlPointCount",
       "owner": "MTLFunction",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe shader metadata and scalar descriptor operations with checked ownership, exact round trips, and native conformance.",
       "signature": "NSInteger"
     },
     {
@@ -93968,7 +93968,7 @@
           "line": 153
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "property:MTLFunction:patchType",
       "kind": "property",
@@ -93976,7 +93976,7 @@
       "macos_introduced": "10.12",
       "name": "patchType",
       "owner": "MTLFunction",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe shader metadata and scalar descriptor operations with checked ownership, exact round trips, and native conformance.",
       "signature": "MTLPatchType"
     },
     {
@@ -94619,7 +94619,7 @@
           "line": 70
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "property:MTLFunctionStitchingInputNode:argumentIndex",
       "kind": "property",
@@ -94627,7 +94627,7 @@
       "macos_introduced": "12.0",
       "name": "argumentIndex",
       "owner": "MTLFunctionStitchingInputNode",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe shader metadata and scalar descriptor operations with checked ownership, exact round trips, and native conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -101417,7 +101417,7 @@
           "line": 143
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLStageInputOutputDescriptor.h",
       "id": "property:MTLStageInputOutputDescriptor:indexBufferIndex",
       "kind": "property",
@@ -101425,7 +101425,7 @@
       "macos_introduced": "10.12",
       "name": "indexBufferIndex",
       "owner": "MTLStageInputOutputDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe shader metadata and scalar descriptor operations with checked ownership, exact round trips, and native conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -101436,7 +101436,7 @@
           "line": 143
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLStageInputOutputDescriptor.h",
       "id": "property:MTLStageInputOutputDescriptor:indexType",
       "kind": "property",
@@ -101444,7 +101444,7 @@
       "macos_introduced": "10.12",
       "name": "indexType",
       "owner": "MTLStageInputOutputDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe shader metadata and scalar descriptor operations with checked ownership, exact round trips, and native conformance.",
       "signature": "MTLIndexType"
     },
     {
@@ -103893,7 +103893,7 @@
           "line": 60
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "property:MTLVertexAttribute:active",
       "kind": "property",
@@ -103901,7 +103901,7 @@
       "macos_introduced": "10.11",
       "name": "active",
       "owner": "MTLVertexAttribute",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe shader metadata and scalar descriptor operations with checked ownership, exact round trips, and native conformance.",
       "signature": "BOOL"
     },
     {
@@ -103912,7 +103912,7 @@
           "line": 60
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "property:MTLVertexAttribute:attributeIndex",
       "kind": "property",
@@ -103920,7 +103920,7 @@
       "macos_introduced": "10.11",
       "name": "attributeIndex",
       "owner": "MTLVertexAttribute",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe shader metadata and scalar descriptor operations with checked ownership, exact round trips, and native conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -103937,7 +103937,7 @@
           "line": 65
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "property:MTLVertexAttribute:attributeType",
       "kind": "property",
@@ -103945,7 +103945,7 @@
       "macos_introduced": "10.11",
       "name": "attributeType",
       "owner": "MTLVertexAttribute",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe shader metadata and scalar descriptor operations with checked ownership, exact round trips, and native conformance.",
       "signature": "MTLDataType"
     },
     {
@@ -103956,7 +103956,7 @@
           "line": 60
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "property:MTLVertexAttribute:name",
       "kind": "property",
@@ -103964,7 +103964,7 @@
       "macos_introduced": "10.11",
       "name": "name",
       "owner": "MTLVertexAttribute",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe shader metadata and scalar descriptor operations with checked ownership, exact round trips, and native conformance.",
       "signature": "NSString * _Nonnull"
     },
     {
@@ -103981,7 +103981,7 @@
           "line": 68
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "property:MTLVertexAttribute:patchControlPointData",
       "kind": "property",
@@ -103989,7 +103989,7 @@
       "macos_introduced": "10.12",
       "name": "patchControlPointData",
       "owner": "MTLVertexAttribute",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe shader metadata and scalar descriptor operations with checked ownership, exact round trips, and native conformance.",
       "signature": "BOOL"
     },
     {
@@ -104006,7 +104006,7 @@
           "line": 67
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "property:MTLVertexAttribute:patchData",
       "kind": "property",
@@ -104014,7 +104014,7 @@
       "macos_introduced": "10.12",
       "name": "patchData",
       "owner": "MTLVertexAttribute",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe shader metadata and scalar descriptor operations with checked ownership, exact round trips, and native conformance.",
       "signature": "BOOL"
     },
     {
