@@ -2327,6 +2327,20 @@ module Acceleration_encoder : sig
     t -> destination:Acceleration_structure.t ->
     descriptor:Acceleration_structure.Triangle.t -> scratch:Buffer.t ->
     scratch_offset:int64 -> (unit, error) result
+  val refit :
+    t -> source:Acceleration_structure.t ->
+    destination:Acceleration_structure.t ->
+    descriptor:Acceleration_structure.Triangle.t -> scratch:Buffer.t ->
+    scratch_offset:int64 -> (unit, error) result
+  val copy :
+    t -> source:Acceleration_structure.t ->
+    destination:Acceleration_structure.t -> (unit, error) result
+  val write_compacted_size :
+    t -> source:Acceleration_structure.t -> destination:Buffer.t ->
+    offset:int64 -> (unit, error) result
+  val copy_and_compact :
+    t -> source:Acceleration_structure.t ->
+    destination:Acceleration_structure.t -> (unit, error) result
   val end_encoding : t -> (unit, error) result
   val destroyed : t -> bool
 end

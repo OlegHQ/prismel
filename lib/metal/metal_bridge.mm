@@ -13146,6 +13146,7 @@ acceleration_triangle_descriptor_of_ocaml(value raw_descriptor) {
   MTLPrimitiveAccelerationStructureDescriptor *descriptor =
       [MTLPrimitiveAccelerationStructureDescriptor descriptor];
   descriptor.geometryDescriptors = @[ geometry ];
+  descriptor.usage = MTLAccelerationStructureUsageRefit;
   return descriptor;
 }
 
@@ -13227,6 +13228,98 @@ extern "C" CAMLprim value caml_prismel_metal_acceleration_encoder_build(
                                descriptor:acceleration_triangle_descriptor_of_ocaml(raw_descriptor)
                             scratchBuffer:scratch
                       scratchBufferOffset:Int64_val(raw_scratch_offset)];
+      CAMLreturn(result_unit());
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+}
+
+extern "C" CAMLprim value caml_prismel_metal_acceleration_encoder_refit(
+    value raw_encoder, value raw_source, value raw_destination,
+    value raw_descriptor, value raw_scratch, value raw_scratch_offset) {
+  CAMLparam5(raw_encoder, raw_source, raw_destination, raw_descriptor,
+             raw_scratch);
+  CAMLxparam1(raw_scratch_offset);
+  @autoreleasepool {
+    @try {
+      id<MTLAccelerationStructureCommandEncoder> encoder =
+          object_of_handle(raw_encoder, Handle_kind::Acceleration_encoder);
+      id<MTLAccelerationStructure> source = object_of_handle(
+          raw_source, Handle_kind::Acceleration_structure);
+      id<MTLAccelerationStructure> destination = object_of_handle(
+          raw_destination, Handle_kind::Acceleration_structure);
+      id<MTLBuffer> scratch =
+          object_of_handle(raw_scratch, Handle_kind::Buffer);
+      [encoder refitAccelerationStructure:source
+                              descriptor:acceleration_triangle_descriptor_of_ocaml(raw_descriptor)
+                             destination:destination
+                           scratchBuffer:scratch
+                     scratchBufferOffset:Int64_val(raw_scratch_offset)];
+      CAMLreturn(result_unit());
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+}
+
+extern "C" CAMLprim value caml_prismel_metal_acceleration_encoder_refit_bytecode(
+    value *argv, int argn) {
+  (void)argn;
+  return caml_prismel_metal_acceleration_encoder_refit(
+      argv[0], argv[1], argv[2], argv[3], argv[4], argv[5]);
+}
+
+extern "C" CAMLprim value caml_prismel_metal_acceleration_encoder_copy(
+    value raw_encoder, value raw_source, value raw_destination) {
+  CAMLparam3(raw_encoder, raw_source, raw_destination);
+  @autoreleasepool {
+    @try {
+      id<MTLAccelerationStructureCommandEncoder> encoder =
+          object_of_handle(raw_encoder, Handle_kind::Acceleration_encoder);
+      [encoder copyAccelerationStructure:
+                   object_of_handle(raw_source, Handle_kind::Acceleration_structure)
+                toAccelerationStructure:
+                   object_of_handle(raw_destination, Handle_kind::Acceleration_structure)];
+      CAMLreturn(result_unit());
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_acceleration_encoder_write_compacted_size(
+    value raw_encoder, value raw_source, value raw_buffer, value raw_offset) {
+  CAMLparam4(raw_encoder, raw_source, raw_buffer, raw_offset);
+  @autoreleasepool {
+    @try {
+      id<MTLAccelerationStructureCommandEncoder> encoder =
+          object_of_handle(raw_encoder, Handle_kind::Acceleration_encoder);
+      [encoder writeCompactedAccelerationStructureSize:
+                   object_of_handle(raw_source, Handle_kind::Acceleration_structure)
+                                             toBuffer:
+                   object_of_handle(raw_buffer, Handle_kind::Buffer)
+                                               offset:Int64_val(raw_offset)];
+      CAMLreturn(result_unit());
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_acceleration_encoder_copy_and_compact(
+    value raw_encoder, value raw_source, value raw_destination) {
+  CAMLparam3(raw_encoder, raw_source, raw_destination);
+  @autoreleasepool {
+    @try {
+      id<MTLAccelerationStructureCommandEncoder> encoder =
+          object_of_handle(raw_encoder, Handle_kind::Acceleration_encoder);
+      [encoder copyAndCompactAccelerationStructure:
+                   object_of_handle(raw_source, Handle_kind::Acceleration_structure)
+                          toAccelerationStructure:
+                   object_of_handle(raw_destination, Handle_kind::Acceleration_structure)];
       CAMLreturn(result_unit());
     } @catch (NSException *exception) {
       CAMLreturn(result_error(exception.reason));

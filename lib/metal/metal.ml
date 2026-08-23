@@ -13619,16 +13619,135 @@ module Acceleration_encoder = struct
               match validate buffers with
               | Error _ as failure -> failure
               | Ok () ->
-                  match
-                    Metal_raw.acceleration_encoder_build value.raw destination.raw
-                      (Acceleration_structure.Triangle.raw descriptor) scratch.raw
-                      scratch_offset
-                  with
+                  match Metal_raw.acceleration_structure_sizes device.raw
+                          (Acceleration_structure.Triangle.raw descriptor) with
+                  | Error message -> native_error operation message
+                  | Ok (required_destination, _, _) when
+                      destination.size < required_destination ->
+                      error operation Invalid_argument "destination acceleration structure is too small"
+                  | Ok (_, required_scratch, _) when
+                      required_scratch > Int64.sub scratch.length scratch_offset ->
+                      error operation Invalid_argument "build scratch range is too small"
+                  | Ok _ ->
+                      match
+                        Metal_raw.acceleration_encoder_build value.raw destination.raw
+                          (Acceleration_structure.Triangle.raw descriptor) scratch.raw
+                          scratch_offset
+                      with
+                      | Error message -> native_error operation message
+                      | Ok () ->
+                          List.iter (retain_command_buffer_buffer value.command_buffer) buffers;
+                          retain_command_buffer_acceleration_structure value.command_buffer destination;
+                          Ok ()))
+
+  let validate_acceleration operation (device : device)
+      (value : acceleration_structure) =
+    match ensure_live operation value.lifetime with
+    | Error _ as failure -> failure
+    | Ok () when value.device.lifetime != device.lifetime ->
+        error operation Device_mismatch "acceleration structure belongs to another device"
+    | Ok () -> Ok ()
+
+  let refit (value : t) ~(source : acceleration_structure)
+      ~(destination : acceleration_structure)
+      ~(descriptor : Acceleration_structure.Triangle.t) ~(scratch : buffer)
+      ~scratch_offset =
+    let operation = "Metal.Acceleration_encoder.refit" in
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          let device = value.command_buffer.queue.device in
+          (match validate_acceleration operation device source with
+          | Error _ as failure -> failure
+          | Ok () ->
+              match validate_acceleration operation device destination with
+              | Error _ as failure -> failure
+              | Ok () when scratch_offset < 0L || scratch_offset > scratch.length ->
+                  error operation Invalid_argument "scratch offset exceeds its buffer"
+              | Ok () when scratch.device.lifetime != device.lifetime
+                           || descriptor.vertex_buffer.device.lifetime != device.lifetime ->
+                  error operation Device_mismatch "refit buffer belongs to another device"
+              | Ok () ->
+                  match Metal_raw.acceleration_structure_sizes device.raw
+                          (Acceleration_structure.Triangle.raw descriptor) with
+                  | Error message -> native_error operation message
+                  | Ok (required_destination, _, _)
+                    when destination.size < required_destination ->
+                      error operation Invalid_argument "refit destination is too small"
+                  | Ok (_, _, required_scratch)
+                    when required_scratch > Int64.sub scratch.length scratch_offset ->
+                      error operation Invalid_argument "refit scratch range is too small"
+                  | Ok _ ->
+                      match Metal_raw.acceleration_encoder_refit value.raw source.raw
+                              destination.raw
+                              (Acceleration_structure.Triangle.raw descriptor)
+                              scratch.raw scratch_offset with
+                      | Error message -> native_error operation message
+                      | Ok () ->
+                          retain_command_buffer_acceleration_structure value.command_buffer source;
+                          retain_command_buffer_acceleration_structure value.command_buffer destination;
+                          retain_command_buffer_buffer value.command_buffer descriptor.vertex_buffer;
+                          Option.iter (retain_command_buffer_buffer value.command_buffer)
+                            descriptor.index_buffer;
+                          retain_command_buffer_buffer value.command_buffer scratch;
+                          Ok ()))
+
+  let copy_common operation native (value : t) ~(source : acceleration_structure)
+      ~(destination : acceleration_structure) =
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          let device = value.command_buffer.queue.device in
+          (match validate_acceleration operation device source with
+          | Error _ as failure -> failure
+          | Ok () ->
+              match validate_acceleration operation device destination with
+              | Error _ as failure -> failure
+              | Ok () ->
+                  match native value.raw source.raw destination.raw with
                   | Error message -> native_error operation message
                   | Ok () ->
-                      List.iter (retain_command_buffer_buffer value.command_buffer) buffers;
+                      retain_command_buffer_acceleration_structure value.command_buffer source;
                       retain_command_buffer_acceleration_structure value.command_buffer destination;
                       Ok ()))
+
+  let copy value ~source ~destination =
+    if destination.size < source.size then
+      error "Metal.Acceleration_encoder.copy" Invalid_argument
+        "copy destination is smaller than source"
+    else copy_common "Metal.Acceleration_encoder.copy"
+      Metal_raw.acceleration_encoder_copy value ~source ~destination
+
+  let write_compacted_size (value : t) ~(source : acceleration_structure)
+      ~(destination : buffer) ~offset =
+    let operation = "Metal.Acceleration_encoder.write_compacted_size" in
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          let device = value.command_buffer.queue.device in
+          (match validate_acceleration operation device source with
+          | Error _ as failure -> failure
+          | Ok () when destination.device.lifetime != device.lifetime ->
+              error operation Device_mismatch "size buffer belongs to another device"
+          | Ok () when offset < 0L || Int64.rem offset 8L <> 0L
+                       || offset > destination.length
+                       || 8L > Int64.sub destination.length offset ->
+              error operation Invalid_argument "compacted-size output needs an aligned eight-byte range"
+          | Ok () ->
+              match Metal_raw.acceleration_encoder_write_compacted_size value.raw
+                      source.raw destination.raw offset with
+              | Error message -> native_error operation message
+              | Ok () ->
+                  retain_command_buffer_acceleration_structure value.command_buffer source;
+                  retain_command_buffer_buffer value.command_buffer destination;
+                  Ok ()))
+
+  let copy_and_compact value ~source ~destination =
+    copy_common "Metal.Acceleration_encoder.copy_and_compact"
+      Metal_raw.acceleration_encoder_copy_and_compact value ~source ~destination
 
   let destroyed value = is_destroyed value.lifetime
 

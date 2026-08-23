@@ -1295,6 +1295,24 @@ external acceleration_encoder_build :
   (unit, string) result
   = "caml_prismel_metal_acceleration_encoder_build"
 
+external acceleration_encoder_refit :
+  handle -> handle -> handle -> acceleration_triangle_descriptor -> handle ->
+  int64 -> (unit, string) result
+  = "caml_prismel_metal_acceleration_encoder_refit_bytecode"
+    "caml_prismel_metal_acceleration_encoder_refit"
+
+external acceleration_encoder_copy :
+  handle -> handle -> handle -> (unit, string) result
+  = "caml_prismel_metal_acceleration_encoder_copy"
+
+external acceleration_encoder_write_compacted_size :
+  handle -> handle -> handle -> int64 -> (unit, string) result
+  = "caml_prismel_metal_acceleration_encoder_write_compacted_size"
+
+external acceleration_encoder_copy_and_compact :
+  handle -> handle -> handle -> (unit, string) result
+  = "caml_prismel_metal_acceleration_encoder_copy_and_compact"
+
 external acceleration_encoder_end : handle -> (unit, string) result
   = "caml_prismel_metal_acceleration_encoder_end"
 

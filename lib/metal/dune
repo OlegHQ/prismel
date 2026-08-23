@@ -275,6 +275,11 @@
  (action (run ./test_metal_acceleration_scalar_native.exe)))
 
 (test
+ (name test_metal_acceleration_safe)
+ (modules test_metal_acceleration_safe)
+ (libraries metal))
+
+(test
  (name test_device_generated_capabilities)
  (modules test_device_generated_capabilities)
  (libraries metal))
