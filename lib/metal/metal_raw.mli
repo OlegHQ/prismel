@@ -1,5 +1,8 @@
 type handle
 
+type texture_descriptor =
+  int * int * int * int * int * int * int * int * int * int * int * int * bool
+
 external is_main_thread : unit -> bool = "caml_prismel_metal_is_main_thread"
 external generation : handle -> int64 = "caml_prismel_metal_generation"
 external destroyed : handle -> bool = "caml_prismel_metal_destroyed"
@@ -124,7 +127,7 @@ external buffer_create_no_copy :
 
 external buffer_texture_create :
   handle ->
-  (int * int * int * int * int * int * int * int * int * int * int * int * bool) ->
+  texture_descriptor ->
   int64 -> int -> string option -> (handle, string) result
   = "caml_prismel_metal_buffer_texture_create"
 
@@ -167,7 +170,7 @@ external heap_buffer_size_and_align : handle -> int64 -> int -> int64 * int64 =
 
 external heap_texture_size_and_align :
   handle ->
-  (int * int * int * int * int * int * int * int * int * int * int * int * bool) ->
+  texture_descriptor ->
   int64 * int64
   = "caml_prismel_metal_heap_texture_size_and_align"
 
@@ -194,7 +197,7 @@ external heap_buffer_create :
 
 external heap_texture_create :
   handle ->
-  (int * int * int * int * int * int * int * int * int * int * int * int * bool) ->
+  texture_descriptor ->
   int64 option -> string option -> (handle, string) result
   = "caml_prismel_metal_heap_texture_create"
 
@@ -248,19 +251,19 @@ external residency_set_end : handle -> (unit, string) result =
 
 external texture_create :
   handle ->
-  (int * int * int * int * int * int * int * int * int * int * int * int * bool) ->
+  texture_descriptor ->
   string option -> (handle, string) result
   = "caml_prismel_metal_texture_create"
 
 external texture_placement_sparse_create :
   handle ->
-  (int * int * int * int * int * int * int * int * int * int * int * int * bool) ->
+  texture_descriptor ->
   int -> (handle, string) result
   = "caml_prismel_metal_texture_placement_sparse_create"
 
 external texture_shared_create :
   handle ->
-  (int * int * int * int * int * int * int * int * int * int * int * int * bool) ->
+  texture_descriptor ->
   string option -> (handle, string) result
   = "caml_prismel_metal_texture_shared_create"
 
@@ -334,7 +337,7 @@ external io_surface_read :
 
 external texture_io_surface_create :
   handle -> handle -> int ->
-  (int * int * int * int * int * int * int * int * int * int * int * int * bool) ->
+  texture_descriptor ->
   string option -> (handle, string) result
   = "caml_prismel_metal_texture_io_surface_create"
 
