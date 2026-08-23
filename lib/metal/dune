@@ -195,6 +195,10 @@
   ../../tools/metal/metal_resource_descriptor_owned_generated.inc
   ../../tools/metal/metal_resource_ownership_generated.inc
   ../../tools/metal/metal_resource_scalar_generated.inc
+  ../../tools/metal/metal_render_command_mechanical_generated.inc
+  ../../tools/metal/metal_render_command_sample_descriptor.inc
+  ../../tools/metal/metal_render_command_stage_bindings.inc
+  ../../tools/metal/metal_render_command_draw_state.inc
   c_library_flags.sexp)
  (action
   (run ./build_bridge.exe
@@ -463,3 +467,18 @@
  (action
   (run %{exe:../../tools/metal/generate_inventory.exe}
    --root %{workspace_root} --check)))
+
+(rule
+ (targets test_metal_render_command102_native.exe)
+ (deps test_metal_render_command102_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -framework Foundation
+   -framework Metal %{dep:test_metal_render_command102_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_render_command102_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal_render_command102_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
