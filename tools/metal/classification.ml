@@ -1662,4 +1662,7 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier Binding_metal4_native32_reachability.promotable_ids then
     Bound,
       "Implemented by the safe Metal4 ML, specialized-function, and stitched-function surface with owned graphs, checked compilation, and native conformance."
+  else if List.mem identifier Binding_metal4_final9_reachability.promotable_ids then
+    Bound,
+      "Implemented by safe Metal4 queue-feedback snapshots with completed-submission validation and real native timing conformance."
   else Unreviewed, "Binding classification pending during Phase 2."

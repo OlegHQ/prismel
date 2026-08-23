@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4022,
+    "bound": 4029,
     "scope-excluded": 37,
-    "unreviewed": 1226
+    "unreviewed": 1219
   },
-  "classification_source_sha256": "af207823c612a2ab3a45a0f24c849413c3c08b0f5bb83c0a1b25249a85fa0738",
+  "classification_source_sha256": "2e8ac03cf269c69fef471ce0fb0a524f64d82a8dbe43492eef7ee1115bc169a5",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -34430,7 +34430,7 @@
           "line": 74
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "method:-[MTL4CommandQueueDescriptor feedbackQueue]",
       "kind": "method",
@@ -34438,7 +34438,7 @@
       "macos_introduced": "26.0",
       "name": "feedbackQueue",
       "owner": "MTL4CommandQueueDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe Metal4 queue-feedback snapshots with completed-submission validation and real native timing conformance.",
       "signature": "instance () -> dispatch_queue_t _Nullable"
     },
     {
@@ -34468,7 +34468,7 @@
           "line": 74
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "method:-[MTL4CommandQueueDescriptor setFeedbackQueue:]",
       "kind": "method",
@@ -34476,7 +34476,7 @@
       "macos_introduced": "26.0",
       "name": "setFeedbackQueue:",
       "owner": "MTL4CommandQueueDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe Metal4 queue-feedback snapshots with completed-submission validation and real native timing conformance.",
       "signature": "instance (dispatch_queue_t _Nullable) -> void"
     },
     {
@@ -34506,7 +34506,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommitFeedback.h",
       "id": "method:-[MTL4CommitFeedback GPUEndTime]",
       "kind": "method",
@@ -34514,7 +34514,7 @@
       "macos_introduced": "26.0",
       "name": "GPUEndTime",
       "owner": "MTL4CommitFeedback",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe Metal4 queue-feedback snapshots with completed-submission validation and real native timing conformance.",
       "signature": "instance () -> CFTimeInterval"
     },
     {
@@ -34525,7 +34525,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommitFeedback.h",
       "id": "method:-[MTL4CommitFeedback GPUStartTime]",
       "kind": "method",
@@ -34533,7 +34533,7 @@
       "macos_introduced": "26.0",
       "name": "GPUStartTime",
       "owner": "MTL4CommitFeedback",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe Metal4 queue-feedback snapshots with completed-submission validation and real native timing conformance.",
       "signature": "instance () -> CFTimeInterval"
     },
     {
@@ -84401,7 +84401,7 @@
           "line": 74
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "property:MTL4CommandQueueDescriptor:feedbackQueue",
       "kind": "property",
@@ -84409,7 +84409,7 @@
       "macos_introduced": "26.0",
       "name": "feedbackQueue",
       "owner": "MTL4CommandQueueDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe Metal4 queue-feedback snapshots with completed-submission validation and real native timing conformance.",
       "signature": "dispatch_queue_t _Nullable"
     },
     {
@@ -84439,7 +84439,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommitFeedback.h",
       "id": "property:MTL4CommitFeedback:GPUEndTime",
       "kind": "property",
@@ -84447,7 +84447,7 @@
       "macos_introduced": "26.0",
       "name": "GPUEndTime",
       "owner": "MTL4CommitFeedback",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe Metal4 queue-feedback snapshots with completed-submission validation and real native timing conformance.",
       "signature": "CFTimeInterval"
     },
     {
@@ -84458,7 +84458,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommitFeedback.h",
       "id": "property:MTL4CommitFeedback:GPUStartTime",
       "kind": "property",
@@ -84466,7 +84466,7 @@
       "macos_introduced": "26.0",
       "name": "GPUStartTime",
       "owner": "MTL4CommitFeedback",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe Metal4 queue-feedback snapshots with completed-submission validation and real native timing conformance.",
       "signature": "CFTimeInterval"
     },
     {

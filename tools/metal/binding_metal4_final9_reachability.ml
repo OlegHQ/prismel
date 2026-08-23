@@ -1,4 +1,4 @@
-type status = Native_pending_safe
+type status = Promotable | Native_pending_safe
 let queue_feedback_ids =
   [ "property:MTL4CommandQueueDescriptor:feedbackQueue"
   ; "method:-[MTL4CommandQueueDescriptor feedbackQueue]"
@@ -10,7 +10,8 @@ let queue_feedback_ids =
 let specialization_ids =
   [ "method:-[MTL4Compiler newRenderPipelineStateBySpecializationWithDescriptor:pipeline:error:]"
   ; "method:-[MTL4Compiler newRenderPipelineStateBySpecializationWithDescriptor:pipeline:completionHandler:]" ]
-let items = List.map (fun id -> id, Native_pending_safe) (queue_feedback_ids @ specialization_ids)
+let promotable_ids=queue_feedback_ids
+let items = List.map (fun id -> id, Promotable) queue_feedback_ids @ List.map(fun id->id,Native_pending_safe)specialization_ids
 let validate () =
   if List.length queue_feedback_ids <> 7 || List.length specialization_ids <> 2
      || List.length (List.sort_uniq String.compare (queue_feedback_ids @ specialization_ids)) <> 9
