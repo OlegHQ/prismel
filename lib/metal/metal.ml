@@ -2342,8 +2342,7 @@ module Texture = struct
                 "XPC maximum payload must be between one byte and 64 MiB"
           | Ok () ->
               (match
-                 Metal_raw.shared_texture_xpc_connect service_name
-                   max_payload_bytes
+                 Metal_raw.xpc_connect 0 service_name max_payload_bytes
                with
                | Error message -> native_error operation message
                | Ok raw ->
@@ -2395,7 +2394,7 @@ module Texture = struct
                     | Ok () ->
                         let metadata = encode_descriptor handle.descriptor in
                         (match
-                           Metal_raw.shared_texture_xpc_call connection.raw
+                           Metal_raw.xpc_call connection.raw
                              operation handle.raw metadata data timeout_ms
                          with
                          | Error message -> native_error call_name message
@@ -2458,7 +2457,7 @@ module Texture = struct
                | Ok () ->
                    let metadata = encode_descriptor handle.descriptor in
                    complete_request operation value (fun () ->
-                     Metal_raw.shared_texture_xpc_request_reply value.raw
+                     Metal_raw.xpc_request_reply value.raw
                        handle.raw metadata data)))
 
       let reject (value : request) message =
@@ -2470,7 +2469,7 @@ module Texture = struct
               "XPC rejection must contain 1-4096 bytes and no NUL"
           else
             complete_request operation value (fun () ->
-              Metal_raw.shared_texture_xpc_request_reject value.raw message))
+              Metal_raw.xpc_request_reject value.raw message))
 
       let serve ?(capacity = 16) ?(max_payload_bytes = 1_048_576)
           ~(device : Device.t) handler =
@@ -2487,8 +2486,7 @@ module Texture = struct
                 "XPC maximum payload must be between one byte and 64 MiB"
           | Ok () ->
               (match
-                 Metal_raw.shared_texture_xpc_service_create capacity
-                   max_payload_bytes
+                 Metal_raw.xpc_service_create 0 capacity max_payload_bytes
                with
                | Error message -> native_error operation message
                | Ok raw ->
@@ -2503,7 +2501,7 @@ module Texture = struct
                    attach_finalizer service service.lifetime device.lifetime;
                    let reject_raw raw_request raw_handle message =
                      ignore
-                       (Metal_raw.shared_texture_xpc_request_reject raw_request
+                       (Metal_raw.xpc_request_reject raw_request
                           message);
                      ignore (Metal_raw.destroy raw_request);
                      Option.iter
@@ -2542,7 +2540,7 @@ module Texture = struct
                              if not (request_completed request) then
                                ignore
                                  (complete_request operation request (fun () ->
-                                    Metal_raw.shared_texture_xpc_request_reject
+                                    Metal_raw.xpc_request_reject
                                       request.raw message))
                            in
                            (try handler request with _ ->
@@ -2552,7 +2550,7 @@ module Texture = struct
                              "shared-texture XPC handler returned without a reply"
                    in
                    let result =
-                     Metal_raw.shared_texture_xpc_service_serve raw receive
+                     Metal_raw.xpc_service_serve raw receive
                    in
                    if
                      Atomic.compare_and_set service.lifetime.destroyed false

@@ -73,40 +73,67 @@
 
 @end
 
-@protocol PrismelMetalSharedTextureXpc
+typedef NS_ENUM(NSUInteger, PrismelMetalXpcResourceKind) {
+  PrismelMetalXpcResourceKindSharedTexture = 0,
+  PrismelMetalXpcResourceKindIoSurface = 1,
+};
+
+static NSString *PrismelMetalXpcResourceName(
+    PrismelMetalXpcResourceKind kind) {
+  switch (kind) {
+  case PrismelMetalXpcResourceKindSharedTexture:
+    return @"shared-texture";
+  case PrismelMetalXpcResourceKindIoSurface:
+    return @"IOSurface";
+  }
+}
+
+static BOOL PrismelMetalXpcResourceMatchesKind(
+    id resource, PrismelMetalXpcResourceKind kind) {
+  switch (kind) {
+  case PrismelMetalXpcResourceKindSharedTexture:
+    return [resource isKindOfClass:[MTLSharedTextureHandle class]];
+  case PrismelMetalXpcResourceKindIoSurface:
+    return [resource isKindOfClass:[IOSurface class]];
+  }
+}
+
+@protocol PrismelMetalResourceXpc
 - (void)exchangeOperation:(NSString *)operation
-                   handle:(MTLSharedTextureHandle *)handle
+                 resource:(id)resource
                  metadata:(NSData *)metadata
                      data:(NSData *)data
-                withReply:(void (^)(MTLSharedTextureHandle *, NSData *,
-                                    NSData *, NSString *))reply;
+                withReply:(void (^)(id, NSData *, NSData *, NSString *))reply;
 @end
 
 using PrismelMetalXpcReply =
-    void (^)(MTLSharedTextureHandle *, NSData *, NSData *, NSString *);
+    void (^)(id, NSData *, NSData *, NSString *);
 
 static thread_local bool prismel_metal_xpc_main_executor = false;
 
 @interface PrismelMetalXpcRequest : NSObject
 @property(nonatomic, readonly) NSString *operation;
-@property(nonatomic, readonly) MTLSharedTextureHandle *handle;
+@property(nonatomic, readonly) id resource;
+@property(nonatomic, readonly) PrismelMetalXpcResourceKind resourceKind;
 @property(nonatomic, readonly) NSData *metadata;
 @property(nonatomic, readonly) NSData *data;
 @property(nonatomic, readonly, getter=isFinished) BOOL finished;
 - (instancetype)initWithOperation:(NSString *)operation
-                           handle:(MTLSharedTextureHandle *)handle
+                         resource:(id)resource
+                     resourceKind:(PrismelMetalXpcResourceKind)resourceKind
                          metadata:(NSData *)metadata
                              data:(NSData *)data
                             reply:(PrismelMetalXpcReply)reply;
-- (BOOL)replyWithHandle:(MTLSharedTextureHandle *)handle
-               metadata:(NSData *)metadata
-                   data:(NSData *)data;
+- (BOOL)replyWithResource:(id)resource
+                 metadata:(NSData *)metadata
+                     data:(NSData *)data;
 - (BOOL)rejectWithMessage:(NSString *)message;
 @end
 
 @implementation PrismelMetalXpcRequest {
   NSString *_operation;
-  MTLSharedTextureHandle *_handle;
+  id _resource;
+  PrismelMetalXpcResourceKind _resourceKind;
   NSData *_metadata;
   NSData *_data;
   PrismelMetalXpcReply _reply;
@@ -115,14 +142,16 @@ static thread_local bool prismel_metal_xpc_main_executor = false;
 }
 
 - (instancetype)initWithOperation:(NSString *)operation
-                           handle:(MTLSharedTextureHandle *)handle
+                         resource:(id)resource
+                     resourceKind:(PrismelMetalXpcResourceKind)resourceKind
                          metadata:(NSData *)metadata
                              data:(NSData *)data
                             reply:(PrismelMetalXpcReply)reply {
   self = [super init];
   if (self != nil) {
     _operation = [operation copy];
-    _handle = handle;
+    _resource = resource;
+    _resourceKind = resourceKind;
     _metadata = [metadata copy];
     _data = [data copy];
     _reply = [reply copy];
@@ -132,7 +161,8 @@ static thread_local bool prismel_metal_xpc_main_executor = false;
 }
 
 - (NSString *)operation { return _operation; }
-- (MTLSharedTextureHandle *)handle { return _handle; }
+- (id)resource { return _resource; }
+- (PrismelMetalXpcResourceKind)resourceKind { return _resourceKind; }
 - (NSData *)metadata { return _metadata; }
 - (NSData *)data { return _data; }
 
@@ -152,14 +182,17 @@ static thread_local bool prismel_metal_xpc_main_executor = false;
   return reply;
 }
 
-- (BOOL)replyWithHandle:(MTLSharedTextureHandle *)handle
-               metadata:(NSData *)metadata
-                   data:(NSData *)data {
+- (BOOL)replyWithResource:(id)resource
+                 metadata:(NSData *)metadata
+                     data:(NSData *)data {
+  if (!PrismelMetalXpcResourceMatchesKind(resource, _resourceKind)) {
+    return NO;
+  }
   PrismelMetalXpcReply reply = [self takeReply];
   if (reply == nil) {
     return NO;
   }
-  reply(handle, metadata, data, nil);
+  reply(resource, metadata, data, nil);
   return YES;
 }
 
@@ -173,27 +206,47 @@ static thread_local bool prismel_metal_xpc_main_executor = false;
 }
 
 - (void)dealloc {
-  (void)[self rejectWithMessage:@"shared-texture XPC request was abandoned"];
+  (void)[self rejectWithMessage:
+                  [NSString stringWithFormat:@"%@ XPC request was abandoned",
+                                             PrismelMetalXpcResourceName(
+                                                 _resourceKind)]];
 }
 
 @end
 
-static NSXPCInterface *PrismelMetalSharedTextureInterface(void) {
-  return [NSXPCInterface interfaceWithProtocol:
-                             @protocol(PrismelMetalSharedTextureXpc)];
+static NSXPCInterface *PrismelMetalResourceInterface(void) {
+  NSXPCInterface *interface =
+      [NSXPCInterface interfaceWithProtocol:@protocol(PrismelMetalResourceXpc)];
+  NSSet *resourceClasses = [NSSet setWithObjects:
+                                      [MTLSharedTextureHandle class],
+                                      [IOSurface class], nil];
+  SEL selector =
+      @selector(exchangeOperation:resource:metadata:data:withReply:);
+  [interface setClasses:resourceClasses
+             forSelector:selector
+           argumentIndex:1
+                 ofReply:NO];
+  [interface setClasses:resourceClasses
+             forSelector:selector
+           argumentIndex:0
+                 ofReply:YES];
+  return interface;
 }
 
 using PrismelMetalXpcHandler = void (^)(PrismelMetalXpcRequest *);
 
 @interface PrismelMetalXpcService
-    : NSObject <NSXPCListenerDelegate, PrismelMetalSharedTextureXpc>
-- (instancetype)initWithCapacity:(NSUInteger)capacity
+    : NSObject <NSXPCListenerDelegate, PrismelMetalResourceXpc>
+@property(nonatomic, readonly) PrismelMetalXpcResourceKind resourceKind;
+- (instancetype)initWithResourceKind:(PrismelMetalXpcResourceKind)resourceKind
+                            capacity:(NSUInteger)capacity
                   maxPayloadBytes:(NSUInteger)maxPayloadBytes;
 - (void)setRequestHandler:(PrismelMetalXpcHandler)handler;
 - (void)run;
 @end
 
 @implementation PrismelMetalXpcService {
+  PrismelMetalXpcResourceKind _resourceKind;
   NSUInteger _capacity;
   NSUInteger _activeRequests;
   NSUInteger _maxPayloadBytes;
@@ -204,10 +257,12 @@ using PrismelMetalXpcHandler = void (^)(PrismelMetalXpcRequest *);
   PrismelMetalXpcHandler _handler;
 }
 
-- (instancetype)initWithCapacity:(NSUInteger)capacity
+- (instancetype)initWithResourceKind:(PrismelMetalXpcResourceKind)resourceKind
+                            capacity:(NSUInteger)capacity
                   maxPayloadBytes:(NSUInteger)maxPayloadBytes {
   self = [super init];
   if (self != nil) {
+    _resourceKind = resourceKind;
     _capacity = capacity;
     _activeRequests = 0;
     _maxPayloadBytes = maxPayloadBytes;
@@ -224,6 +279,8 @@ using PrismelMetalXpcHandler = void (^)(PrismelMetalXpcRequest *);
   _handler = [handler copy];
 }
 
+- (PrismelMetalXpcResourceKind)resourceKind { return _resourceKind; }
+
 - (void)run { [_listener resume]; }
 
 - (BOOL)listener:(NSXPCListener *)listener
@@ -236,41 +293,52 @@ using PrismelMetalXpcHandler = void (^)(PrismelMetalXpcRequest *);
     }
     [_connections addObject:connection];
   }
-  connection.exportedInterface = PrismelMetalSharedTextureInterface();
+  connection.exportedInterface = PrismelMetalResourceInterface();
   connection.exportedObject = self;
   [connection activate];
   return YES;
 }
 
 - (void)exchangeOperation:(NSString *)operation
-                   handle:(MTLSharedTextureHandle *)handle
+                 resource:(id)resource
                  metadata:(NSData *)metadata
                      data:(NSData *)data
                 withReply:(PrismelMetalXpcReply)reply {
   NSString *validationError = nil;
+  NSString *resourceName = PrismelMetalXpcResourceName(_resourceKind);
   const NSUInteger operationBytes =
       [operation lengthOfBytesUsingEncoding:NSUTF8StringEncoding];
   if (operation == nil || operation.length == 0 || operationBytes == 0 ||
       operationBytes > 256) {
-    validationError = @"shared-texture XPC operation must contain 1-256 UTF-8 bytes";
+    validationError = [NSString
+        stringWithFormat:@"%@ XPC operation must contain 1-256 UTF-8 bytes",
+                         resourceName];
   } else {
     for (NSUInteger index = 0; index < operation.length; ++index) {
       if ([operation characterAtIndex:index] == 0) {
-        validationError = @"shared-texture XPC operation contains a NUL character";
+        validationError = [NSString
+            stringWithFormat:@"%@ XPC operation contains a NUL character",
+                             resourceName];
         break;
       }
     }
   }
-  if (validationError == nil && handle == nil) {
-    validationError = @"shared-texture XPC request has no handle";
+  if (validationError == nil &&
+      !PrismelMetalXpcResourceMatchesKind(resource, _resourceKind)) {
+    validationError = [NSString
+        stringWithFormat:@"%@ XPC request has the wrong resource type",
+                         resourceName];
   }
   if (validationError == nil &&
       (metadata == nil || metadata.length == 0 || metadata.length > 4096)) {
-    validationError = @"shared-texture XPC metadata is malformed";
+    validationError = [NSString
+        stringWithFormat:@"%@ XPC metadata is malformed", resourceName];
   }
   if (validationError == nil &&
       (data == nil || data.length > _maxPayloadBytes)) {
-    validationError = @"shared-texture XPC payload exceeds its configured bound";
+    validationError = [NSString
+        stringWithFormat:@"%@ XPC payload exceeds its configured bound",
+                         resourceName];
   }
   if (validationError != nil) {
     reply(nil, [NSData data], [NSData data], validationError);
@@ -278,7 +346,8 @@ using PrismelMetalXpcHandler = void (^)(PrismelMetalXpcRequest *);
   }
   PrismelMetalXpcRequest *request =
       [[PrismelMetalXpcRequest alloc] initWithOperation:operation
-                                                handle:handle
+                                              resource:resource
+                                          resourceKind:_resourceKind
                                               metadata:metadata
                                                   data:data
                                                  reply:reply];
@@ -286,13 +355,18 @@ using PrismelMetalXpcHandler = void (^)(PrismelMetalXpcRequest *);
   {
     std::lock_guard<std::mutex> lock(_mutex);
     if (_closed) {
-      validationError = @"shared-texture XPC service is closed";
+      validationError = [NSString stringWithFormat:@"%@ XPC service is closed",
+                                                    resourceName];
     } else if (_activeRequests >= _capacity) {
-      validationError = @"shared-texture XPC request capacity is exhausted";
+      validationError = [NSString
+          stringWithFormat:@"%@ XPC request capacity is exhausted",
+                           resourceName];
     } else {
       handler = _handler;
       if (handler == nil) {
-        validationError = @"shared-texture XPC service has no request handler";
+        validationError = [NSString
+            stringWithFormat:@"%@ XPC service has no request handler",
+                             resourceName];
       } else {
         ++_activeRequests;
       }
@@ -310,8 +384,9 @@ using PrismelMetalXpcHandler = void (^)(PrismelMetalXpcRequest *);
     });
   }
   if (!request.finished) {
-    (void)[request rejectWithMessage:
-                       @"shared-texture XPC handler returned without a reply"];
+    (void)[request rejectWithMessage:[NSString
+        stringWithFormat:@"%@ XPC handler returned without a reply",
+                         resourceName]];
   }
   {
     std::lock_guard<std::mutex> lock(_mutex);
@@ -342,24 +417,29 @@ using PrismelMetalXpcHandler = void (^)(PrismelMetalXpcRequest *);
 @interface PrismelMetalXpcConnection : NSObject
 @property(nonatomic, readonly) NSXPCConnection *connection;
 @property(nonatomic, readonly) NSUInteger maxPayloadBytes;
-- (instancetype)initWithServiceName:(NSString *)serviceName
+@property(nonatomic, readonly) PrismelMetalXpcResourceKind resourceKind;
+- (instancetype)initWithResourceKind:(PrismelMetalXpcResourceKind)resourceKind
+                         serviceName:(NSString *)serviceName
                      maxPayloadBytes:(NSUInteger)maxPayloadBytes;
 - (void)shutdown;
 @end
 
 @implementation PrismelMetalXpcConnection {
+  PrismelMetalXpcResourceKind _resourceKind;
   NSXPCConnection *_connection;
   NSUInteger _maxPayloadBytes;
 }
 
-- (instancetype)initWithServiceName:(NSString *)serviceName
+- (instancetype)initWithResourceKind:(PrismelMetalXpcResourceKind)resourceKind
+                         serviceName:(NSString *)serviceName
                      maxPayloadBytes:(NSUInteger)maxPayloadBytes {
   self = [super init];
   if (self != nil) {
+    _resourceKind = resourceKind;
     _maxPayloadBytes = maxPayloadBytes;
     _connection =
         [[NSXPCConnection alloc] initWithServiceName:serviceName];
-    _connection.remoteObjectInterface = PrismelMetalSharedTextureInterface();
+    _connection.remoteObjectInterface = PrismelMetalResourceInterface();
     [_connection activate];
   }
   return self;
@@ -367,17 +447,18 @@ using PrismelMetalXpcHandler = void (^)(PrismelMetalXpcRequest *);
 
 - (NSXPCConnection *)connection { return _connection; }
 - (NSUInteger)maxPayloadBytes { return _maxPayloadBytes; }
+- (PrismelMetalXpcResourceKind)resourceKind { return _resourceKind; }
 - (void)shutdown { [_connection invalidate]; }
 - (void)dealloc { [self shutdown]; }
 
 @end
 
 @interface PrismelMetalXpcCallState : NSObject
-@property(nonatomic, readonly) MTLSharedTextureHandle *handle;
+@property(nonatomic, readonly) id resource;
 @property(nonatomic, readonly) NSData *metadata;
 @property(nonatomic, readonly) NSData *data;
 @property(nonatomic, readonly) NSString *errorMessage;
-- (void)completeWithHandle:(MTLSharedTextureHandle *)handle
+- (void)completeWithResource:(id)resource
                   metadata:(NSData *)metadata
                       data:(NSData *)data
                      error:(NSString *)errorMessage;
@@ -387,7 +468,7 @@ using PrismelMetalXpcHandler = void (^)(PrismelMetalXpcRequest *);
 @implementation PrismelMetalXpcCallState {
   NSCondition *_condition;
   BOOL _completed;
-  MTLSharedTextureHandle *_handle;
+  id _resource;
   NSData *_metadata;
   NSData *_data;
   NSString *_errorMessage;
@@ -402,14 +483,14 @@ using PrismelMetalXpcHandler = void (^)(PrismelMetalXpcRequest *);
   return self;
 }
 
-- (void)completeWithHandle:(MTLSharedTextureHandle *)handle
+- (void)completeWithResource:(id)resource
                   metadata:(NSData *)metadata
                       data:(NSData *)data
                      error:(NSString *)errorMessage {
   [_condition lock];
   if (!_completed) {
     _completed = YES;
-    _handle = handle;
+    _resource = resource;
     _metadata = [metadata copy];
     _data = [data copy];
     _errorMessage = [errorMessage copy];
@@ -429,7 +510,7 @@ using PrismelMetalXpcHandler = void (^)(PrismelMetalXpcRequest *);
   return completed;
 }
 
-- (MTLSharedTextureHandle *)handle { return _handle; }
+- (id)resource { return _resource; }
 - (NSData *)metadata { return _metadata; }
 - (NSData *)data { return _data; }
 - (NSString *)errorMessage { return _errorMessage; }
@@ -456,9 +537,9 @@ enum class Handle_kind : std::uint32_t {
   External_memory,
   Io_surface,
   Shared_texture_handle,
-  Shared_texture_xpc_connection,
-  Shared_texture_xpc_service,
-  Shared_texture_xpc_request,
+  Xpc_connection,
+  Xpc_service,
+  Xpc_request,
 };
 
 struct Handle {
@@ -593,16 +674,48 @@ MTLSharedTextureHandle *shared_texture_handle_of_handle(value raw) {
   return object_of_handle(raw, Handle_kind::Shared_texture_handle);
 }
 
-PrismelMetalXpcConnection *shared_texture_xpc_connection_of_handle(value raw) {
-  return object_of_handle(raw, Handle_kind::Shared_texture_xpc_connection);
+Handle_kind xpc_resource_handle_kind(PrismelMetalXpcResourceKind kind) {
+  switch (kind) {
+  case PrismelMetalXpcResourceKindSharedTexture:
+    return Handle_kind::Shared_texture_handle;
+  case PrismelMetalXpcResourceKindIoSurface:
+    return Handle_kind::Io_surface;
+  }
 }
 
-PrismelMetalXpcService *shared_texture_xpc_service_of_handle(value raw) {
-  return object_of_handle(raw, Handle_kind::Shared_texture_xpc_service);
+id xpc_resource_of_handle(value raw, PrismelMetalXpcResourceKind kind) {
+  switch (kind) {
+  case PrismelMetalXpcResourceKindSharedTexture:
+    return shared_texture_handle_of_handle(raw);
+  case PrismelMetalXpcResourceKindIoSurface:
+    return io_surface_of_handle(raw);
+  }
 }
 
-PrismelMetalXpcRequest *shared_texture_xpc_request_of_handle(value raw) {
-  return object_of_handle(raw, Handle_kind::Shared_texture_xpc_request);
+bool xpc_resource_kind_of_code(intnat code,
+                               PrismelMetalXpcResourceKind *kind) {
+  switch (code) {
+  case PrismelMetalXpcResourceKindSharedTexture:
+    *kind = PrismelMetalXpcResourceKindSharedTexture;
+    return true;
+  case PrismelMetalXpcResourceKindIoSurface:
+    *kind = PrismelMetalXpcResourceKindIoSurface;
+    return true;
+  default:
+    return false;
+  }
+}
+
+PrismelMetalXpcConnection *xpc_connection_of_handle(value raw) {
+  return object_of_handle(raw, Handle_kind::Xpc_connection);
+}
+
+PrismelMetalXpcService *xpc_service_of_handle(value raw) {
+  return object_of_handle(raw, Handle_kind::Xpc_service);
+}
+
+PrismelMetalXpcRequest *xpc_request_of_handle(value raw) {
+  return object_of_handle(raw, Handle_kind::Xpc_request);
 }
 
 API_AVAILABLE(macos(15.0))
@@ -1263,37 +1376,38 @@ bool io_surface_plane_range(IOSurface *surface, intnat signed_plane,
 
 } // namespace
 
-static void invoke_ocaml_shared_texture_xpc_handler_with_runtime(
+static void invoke_ocaml_xpc_handler_with_runtime(
     value *callback_root, PrismelMetalXpcRequest *request) {
   CAMLparam0();
   CAMLlocal5(raw_request, operation, raw_handle, metadata, data);
   CAMLlocal1(callback_result);
-  raw_request = allocate_handle(request,
-                                Handle_kind::Shared_texture_xpc_request);
+  raw_request = allocate_handle(request, Handle_kind::Xpc_request);
   operation = caml_copy_string(request.operation.UTF8String);
-  raw_handle = allocate_handle(request.handle,
-                               Handle_kind::Shared_texture_handle);
+  raw_handle = allocate_handle(request.resource,
+                               xpc_resource_handle_kind(request.resourceKind));
   metadata = copy_data(request.metadata);
   data = copy_data(request.data);
   value arguments[5] = {raw_request, operation, raw_handle, metadata, data};
   callback_result = caml_callbackN_exn(*callback_root, 5, arguments);
   if (Is_exception_result(callback_result) && !request.finished) {
-    (void)[request rejectWithMessage:
-                       @"shared-texture XPC OCaml handler raised an exception"];
+    (void)[request rejectWithMessage:[NSString
+        stringWithFormat:@"%@ XPC OCaml handler raised an exception",
+                         PrismelMetalXpcResourceName(request.resourceKind)]];
   }
   CAMLreturn0;
 }
 
-static void invoke_ocaml_shared_texture_xpc_handler(
+static void invoke_ocaml_xpc_handler(
     value *callback_root, PrismelMetalXpcRequest *request) {
   if (caml_c_thread_register() == 0) {
-    (void)[request rejectWithMessage:
-                       @"shared-texture XPC could not register its callback thread"];
+    (void)[request rejectWithMessage:[NSString
+        stringWithFormat:@"%@ XPC could not register its callback thread",
+                         PrismelMetalXpcResourceName(request.resourceKind)]];
     return;
   }
   caml_acquire_runtime_system();
   prismel_metal_xpc_main_executor = true;
-  invoke_ocaml_shared_texture_xpc_handler_with_runtime(callback_root, request);
+  invoke_ocaml_xpc_handler_with_runtime(callback_root, request);
   prismel_metal_xpc_main_executor = false;
   caml_release_runtime_system();
   (void)caml_c_thread_unregister();
@@ -3335,30 +3449,34 @@ extern "C" CAMLprim value caml_prismel_metal_texture_shared_import(
   CAMLreturn(result_ok(raw));
 }
 
-extern "C" CAMLprim value caml_prismel_metal_shared_texture_xpc_connect(
-    value raw_service_name, value raw_max_payload_bytes) {
-  CAMLparam2(raw_service_name, raw_max_payload_bytes);
+extern "C" CAMLprim value caml_prismel_metal_xpc_connect(
+    value raw_resource_kind, value raw_service_name,
+    value raw_max_payload_bytes) {
+  CAMLparam3(raw_resource_kind, raw_service_name, raw_max_payload_bytes);
   CAMLlocal1(raw);
   @autoreleasepool {
     @try {
       NSString *service_name = string_from_ocaml(raw_service_name);
       const intnat max_payload_bytes = Long_val(raw_max_payload_bytes);
-      if (service_name == nil || service_name.length == 0 ||
+      PrismelMetalXpcResourceKind resource_kind{};
+      if (!xpc_resource_kind_of_code(Long_val(raw_resource_kind),
+                                     &resource_kind) ||
+          service_name == nil || service_name.length == 0 ||
           [service_name lengthOfBytesUsingEncoding:NSUTF8StringEncoding] > 255 ||
           max_payload_bytes <= 0 || max_payload_bytes > 64 * 1024 * 1024) {
         CAMLreturn(result_error_text(
-            "shared-texture XPC connection configuration is invalid"));
+            "Metal XPC connection configuration is invalid"));
       }
       PrismelMetalXpcConnection *connection =
           [[PrismelMetalXpcConnection alloc]
-              initWithServiceName:service_name
+              initWithResourceKind:resource_kind
+                       serviceName:service_name
                    maxPayloadBytes:static_cast<NSUInteger>(max_payload_bytes)];
       if (connection == nil || connection.connection == nil) {
         CAMLreturn(result_error_text(
-            "failed to create the shared-texture XPC connection"));
+            "failed to create the Metal XPC connection"));
       }
-      raw = allocate_handle(connection,
-                            Handle_kind::Shared_texture_xpc_connection);
+      raw = allocate_handle(connection, Handle_kind::Xpc_connection);
     } @catch (NSException *exception) {
       CAMLreturn(result_error(exception.reason));
     }
@@ -3366,7 +3484,7 @@ extern "C" CAMLprim value caml_prismel_metal_shared_texture_xpc_connect(
   CAMLreturn(result_ok(raw));
 }
 
-extern "C" CAMLprim value caml_prismel_metal_shared_texture_xpc_call(
+extern "C" CAMLprim value caml_prismel_metal_xpc_call(
     value raw_connection, value raw_operation, value raw_handle,
     value raw_metadata, value raw_data, value raw_timeout_milliseconds) {
   CAMLparam5(raw_connection, raw_operation, raw_handle, raw_metadata, raw_data);
@@ -3375,50 +3493,50 @@ extern "C" CAMLprim value caml_prismel_metal_shared_texture_xpc_call(
   @autoreleasepool {
     @try {
       PrismelMetalXpcConnection *connection =
-          shared_texture_xpc_connection_of_handle(raw_connection);
-      MTLSharedTextureHandle *handle =
-          shared_texture_handle_of_handle(raw_handle);
+          xpc_connection_of_handle(raw_connection);
+      id resource =
+          xpc_resource_of_handle(raw_handle, connection.resourceKind);
       NSString *operation = string_from_ocaml(raw_operation);
       NSData *request_metadata = data_from_ocaml(raw_metadata);
       NSData *request_data = data_from_ocaml(raw_data);
       const intnat timeout_milliseconds = Long_val(raw_timeout_milliseconds);
       if (operation == nil || operation.length == 0 ||
           [operation lengthOfBytesUsingEncoding:NSUTF8StringEncoding] > 256 ||
-          handle == nil || request_metadata.length == 0 ||
+          resource == nil || request_metadata.length == 0 ||
           request_metadata.length > 4096 ||
           request_data.length > connection.maxPayloadBytes ||
           timeout_milliseconds <= 0 || timeout_milliseconds > 300'000) {
         CAMLreturn(result_error_text(
-            "shared-texture XPC call arguments are invalid"));
+            "Metal XPC call arguments are invalid"));
       }
       PrismelMetalXpcCallState *state =
           [[PrismelMetalXpcCallState alloc] init];
-      id<PrismelMetalSharedTextureXpc> proxy =
+      id<PrismelMetalResourceXpc> proxy =
           [connection.connection
               remoteObjectProxyWithErrorHandler:^(NSError *error) {
-                [state completeWithHandle:nil
-                                 metadata:nil
-                                     data:nil
-                                    error:error_description(
-                                              error,
-                                              @"shared-texture XPC call failed")];
+                [state completeWithResource:nil
+                                   metadata:nil
+                                       data:nil
+                                      error:error_description(
+                                                error,
+                                                @"Metal XPC call failed")];
               }];
       if (proxy == nil) {
         CAMLreturn(result_error_text(
-            "shared-texture XPC could not create a remote proxy"));
+            "Metal XPC could not create a remote proxy"));
       }
       [proxy exchangeOperation:operation
-                        handle:handle
+                      resource:resource
                       metadata:request_metadata
                           data:request_data
-                     withReply:^(MTLSharedTextureHandle *reply_handle,
+                     withReply:^(id reply_resource,
                                  NSData *reply_metadata,
                                  NSData *reply_data,
                                  NSString *error_message) {
-                       [state completeWithHandle:reply_handle
-                                        metadata:reply_metadata
-                                            data:reply_data
-                                           error:error_message];
+                       [state completeWithResource:reply_resource
+                                          metadata:reply_metadata
+                                              data:reply_data
+                                             error:error_message];
                      }];
       BOOL completed = NO;
       NSString *wait_failure = nil;
@@ -3435,19 +3553,22 @@ extern "C" CAMLprim value caml_prismel_metal_shared_texture_xpc_call(
       }
       if (!completed) {
         [connection shutdown];
-        CAMLreturn(result_error_text("shared-texture XPC call timed out"));
+        CAMLreturn(result_error_text("Metal XPC call timed out"));
       }
       if (state.errorMessage != nil) {
         CAMLreturn(result_error(state.errorMessage));
       }
-      if (state.handle == nil || state.metadata == nil || state.data == nil ||
+      if (!PrismelMetalXpcResourceMatchesKind(
+              state.resource, connection.resourceKind) ||
+          state.metadata == nil || state.data == nil ||
           state.metadata.length == 0 || state.metadata.length > 4096 ||
           state.data.length > connection.maxPayloadBytes) {
         CAMLreturn(result_error_text(
-            "shared-texture XPC service returned a malformed reply"));
+            "Metal XPC service returned a malformed reply"));
       }
-      raw_reply = allocate_handle(state.handle,
-                                  Handle_kind::Shared_texture_handle);
+      raw_reply = allocate_handle(state.resource,
+                                  xpc_resource_handle_kind(
+                                      connection.resourceKind));
       metadata = copy_data(state.metadata);
       data = copy_data(state.data);
       tuple = caml_alloc_tuple(3);
@@ -3463,36 +3584,40 @@ extern "C" CAMLprim value caml_prismel_metal_shared_texture_xpc_call(
 }
 
 extern "C" CAMLprim value
-caml_prismel_metal_shared_texture_xpc_call_bytecode(value *argv, int argn) {
+caml_prismel_metal_xpc_call_bytecode(value *argv, int argn) {
   (void)argn;
-  return caml_prismel_metal_shared_texture_xpc_call(
+  return caml_prismel_metal_xpc_call(
       argv[0], argv[1], argv[2], argv[3], argv[4], argv[5]);
 }
 
 extern "C" CAMLprim value
-caml_prismel_metal_shared_texture_xpc_service_create(
-    value raw_capacity, value raw_max_payload_bytes) {
-  CAMLparam2(raw_capacity, raw_max_payload_bytes);
+caml_prismel_metal_xpc_service_create(
+    value raw_resource_kind, value raw_capacity,
+    value raw_max_payload_bytes) {
+  CAMLparam3(raw_resource_kind, raw_capacity, raw_max_payload_bytes);
   CAMLlocal1(raw);
   @autoreleasepool {
     @try {
       const intnat capacity = Long_val(raw_capacity);
       const intnat max_payload_bytes = Long_val(raw_max_payload_bytes);
-      if (capacity <= 0 || capacity > 1024 || max_payload_bytes <= 0 ||
+      PrismelMetalXpcResourceKind resource_kind{};
+      if (!xpc_resource_kind_of_code(Long_val(raw_resource_kind),
+                                     &resource_kind) ||
+          capacity <= 0 || capacity > 1024 || max_payload_bytes <= 0 ||
           max_payload_bytes > 64 * 1024 * 1024) {
         CAMLreturn(result_error_text(
-            "shared-texture XPC service configuration is invalid"));
+            "Metal XPC service configuration is invalid"));
       }
       PrismelMetalXpcService *service =
           [[PrismelMetalXpcService alloc]
-              initWithCapacity:static_cast<NSUInteger>(capacity)
+              initWithResourceKind:resource_kind
+                          capacity:static_cast<NSUInteger>(capacity)
                maxPayloadBytes:static_cast<NSUInteger>(max_payload_bytes)];
       if (service == nil) {
         CAMLreturn(result_error_text(
-            "failed to create the shared-texture XPC service"));
+            "failed to create the Metal XPC service"));
       }
-      raw = allocate_handle(service,
-                            Handle_kind::Shared_texture_xpc_service);
+      raw = allocate_handle(service, Handle_kind::Xpc_service);
     } @catch (NSException *exception) {
       CAMLreturn(result_error(exception.reason));
     }
@@ -3501,20 +3626,20 @@ caml_prismel_metal_shared_texture_xpc_service_create(
 }
 
 extern "C" CAMLprim value
-caml_prismel_metal_shared_texture_xpc_service_serve(
+caml_prismel_metal_xpc_service_serve(
     value raw_service, value raw_callback) {
   CAMLparam2(raw_service, raw_callback);
   CAMLlocal1(result);
   @autoreleasepool {
     PrismelMetalXpcService *service =
-        shared_texture_xpc_service_of_handle(raw_service);
+        xpc_service_of_handle(raw_service);
     value *callback_root = new value(raw_callback);
     caml_register_generational_global_root(callback_root);
     NSString *failure = nil;
     BOOL runtime_released = NO;
     @try {
       [service setRequestHandler:^(PrismelMetalXpcRequest *request) {
-        invoke_ocaml_shared_texture_xpc_handler(callback_root, request);
+        invoke_ocaml_xpc_handler(callback_root, request);
       }];
       caml_release_runtime_system();
       runtime_released = YES;
@@ -3538,24 +3663,24 @@ caml_prismel_metal_shared_texture_xpc_service_serve(
 }
 
 extern "C" CAMLprim value
-caml_prismel_metal_shared_texture_xpc_request_reply(
+caml_prismel_metal_xpc_request_reply(
     value raw_request, value raw_handle, value raw_metadata, value raw_data) {
   CAMLparam4(raw_request, raw_handle, raw_metadata, raw_data);
   @autoreleasepool {
     @try {
       PrismelMetalXpcRequest *request =
-          shared_texture_xpc_request_of_handle(raw_request);
-      MTLSharedTextureHandle *handle =
-          shared_texture_handle_of_handle(raw_handle);
+          xpc_request_of_handle(raw_request);
+      id resource =
+          xpc_resource_of_handle(raw_handle, request.resourceKind);
       NSData *metadata = data_from_ocaml(raw_metadata);
       NSData *data = data_from_ocaml(raw_data);
       if (metadata.length == 0 || metadata.length > 4096) {
         CAMLreturn(result_error_text(
-            "shared-texture XPC reply metadata is malformed"));
+            "Metal XPC reply metadata is malformed"));
       }
-      if (![request replyWithHandle:handle metadata:metadata data:data]) {
+      if (![request replyWithResource:resource metadata:metadata data:data]) {
         CAMLreturn(result_error_text(
-            "shared-texture XPC request was already completed"));
+            "Metal XPC request was already completed"));
       }
     } @catch (NSException *exception) {
       CAMLreturn(result_error(exception.reason));
@@ -3565,22 +3690,22 @@ caml_prismel_metal_shared_texture_xpc_request_reply(
 }
 
 extern "C" CAMLprim value
-caml_prismel_metal_shared_texture_xpc_request_reject(
+caml_prismel_metal_xpc_request_reject(
     value raw_request, value raw_message) {
   CAMLparam2(raw_request, raw_message);
   @autoreleasepool {
     @try {
       PrismelMetalXpcRequest *request =
-          shared_texture_xpc_request_of_handle(raw_request);
+          xpc_request_of_handle(raw_request);
       NSString *message = string_from_ocaml(raw_message);
       if (message == nil || message.length == 0 ||
           [message lengthOfBytesUsingEncoding:NSUTF8StringEncoding] > 4096) {
         CAMLreturn(result_error_text(
-            "shared-texture XPC rejection message is invalid"));
+            "Metal XPC rejection message is invalid"));
       }
       if (![request rejectWithMessage:message]) {
         CAMLreturn(result_error_text(
-            "shared-texture XPC request was already completed"));
+            "Metal XPC request was already completed"));
       }
     } @catch (NSException *exception) {
       CAMLreturn(result_error(exception.reason));
