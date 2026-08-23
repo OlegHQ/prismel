@@ -116,7 +116,8 @@ module Device : sig
   (** Runtime-gated macOS 26.4 placement-sparse capability. *)
   val supports_placement_sparse : t -> (bool, error) result
 
-  (** Runtime-gated macOS 26 sampler reduction modes and LOD bias. *)
+  (** Runtime- and Apple-GPU-family-10-gated sampler reduction modes and LOD
+      bias. *)
   val supports_sampler_reduction : t -> (bool, error) result
   val destroy : t -> (unit, error) result
 end

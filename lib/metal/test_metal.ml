@@ -2626,6 +2626,9 @@ let () =
     let sampler_reduction_supported =
       get (Device.supports_sampler_reduction device)
     in
+    if sampler_reduction_supported
+       && not (get (Device.supports_family device Device.Apple10))
+    then fail "sampler reduction support escaped its Apple10 hardware gate";
     if sampler_reduction_supported then
       List.iter
         (fun (reduction_mode, lod_bias) ->

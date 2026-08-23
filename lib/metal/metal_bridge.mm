@@ -764,9 +764,9 @@ bool device_supports_placement_sparse(id<MTLDevice> device) {
 }
 
 bool device_supports_sampler_reduction(id<MTLDevice> device) {
-  (void)device;
   if (@available(macOS 26.0, *)) {
-    return [MTLSamplerDescriptor instancesRespondToSelector:
+    return [device supportsFamily:MTLGPUFamilyApple10] &&
+           [MTLSamplerDescriptor instancesRespondToSelector:
                 @selector(reductionMode)] &&
            [MTLSamplerDescriptor instancesRespondToSelector:
                 @selector(setReductionMode:)] &&
@@ -3661,7 +3661,8 @@ extern "C" CAMLprim value caml_prismel_metal_sampler_create(
     if ((reduction_mode != 0 || lod_bias != 0.0) &&
         !sampler_reduction_supported) {
       CAMLreturn(result_error_text(
-          "sampler reduction modes and LOD bias require macOS 26"));
+          "sampler reduction modes and LOD bias require macOS 26 and Apple "
+          "GPU family 10"));
     }
     MTLSamplerDescriptor *descriptor = [[MTLSamplerDescriptor alloc] init];
     descriptor.minFilter = static_cast<MTLSamplerMinMagFilter>(

@@ -4794,7 +4794,7 @@ module Sampler = struct
                   && not
                        (Metal_raw.device_supports_sampler_reduction device.raw) ->
                error "Metal.Sampler.create" Unsupported
-                 "sampler reduction modes and LOD bias require macOS 26"
+                 "sampler reduction modes and LOD bias require macOS 26 and Apple GPU family 10"
            | Ok () ->
                match
                  Metal_raw.sampler_create device.raw (descriptor_tuple descriptor)

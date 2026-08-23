@@ -330,10 +330,11 @@ guarded and exception-translated.
 
 `Sampler.descriptor` covers min/mag/mip filtering, anisotropy, all current
 address modes and border colors, normalized coordinates, finite float32 LOD
-clamps, comparison, LOD averaging, argument-buffer support, and the macOS 26
-weighted/minimum/maximum reduction modes plus signed LOD bias. The latter two
-fields are runtime-gated together; non-default requests return `Unsupported`
-before allocation on older systems. The bridge reads every mutable descriptor
+clamps, comparison, LOD averaging, argument-buffer support, and the macOS 26,
+Apple-family-10 weighted/minimum/maximum reduction modes plus signed LOD bias.
+The latter two fields are runtime- and GPU-family-gated together; non-default
+requests return `Unsupported` before allocation on older hardware or systems.
+The bridge reads every mutable descriptor
 property back before creation and verifies the resulting sampler's device and
 label. Invalid anisotropy, non-finite or inverted clamps, out-of-range bias,
 illegal unnormalized-coordinate combinations, and malformed labels fail before
