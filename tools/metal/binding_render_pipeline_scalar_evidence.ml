@@ -16,7 +16,7 @@ let promotion_ids =
   Binding_render_pipeline_scalar_plan.entries
   |> List.concat_map inventory_ids |> List.sort String.compare
 
-let expected_bound_count = 126
+let expected_bound_count = 111
 
 let fail format =
   Printf.ksprintf
@@ -42,7 +42,7 @@ let validate_inventory symbols =
     let setter_name = "set" ^ capitalize entry.name ^ ":" in
     let expected =
       [ property_sdk_id entry, "property", entry.name, entry.signature
-      ; getter_sdk_id entry, "method", entry.name,
+      ; getter_sdk_id entry, "method", entry.getter_name,
         "instance () -> " ^ entry.signature
       ; setter_sdk_id entry, "method", setter_name,
         "instance (" ^ entry.signature ^ ") -> void"

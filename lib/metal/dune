@@ -94,6 +94,12 @@
   ../../tools/metal/binding_descriptor_property_evidence.mli
   ../../tools/metal/binding_descriptor_default_evidence.ml
   ../../tools/metal/binding_descriptor_default_evidence.mli
+  ../../tools/metal/binding_render_pipeline_scalar_plan.ml
+  ../../tools/metal/binding_render_pipeline_scalar_plan.mli
+  ../../tools/metal/binding_render_pipeline_scalar_codegen.ml
+  ../../tools/metal/binding_render_pipeline_scalar_codegen.mli
+  ../../tools/metal/binding_render_pipeline_scalar_evidence.ml
+  ../../tools/metal/binding_render_pipeline_scalar_evidence.mli
   ../../tools/metal/binding_struct_native_codegen.ml
   ../../tools/metal/binding_struct_native_codegen.mli
   ../../tools/metal/binding_struct_spec.ml
@@ -163,6 +169,19 @@
  (alias runtest)
  (deps test_metal_descriptor_native.exe)
  (action (run ./test_metal_descriptor_native.exe)))
+
+(rule
+ (targets test_metal_render_pipeline_scalar_native.exe)
+ (deps test_metal_render_pipeline_scalar_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -framework Foundation
+   -framework Metal %{dep:test_metal_render_pipeline_scalar_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_render_pipeline_scalar_native.exe)
+ (action (run ./test_metal_render_pipeline_scalar_native.exe)))
 
 (rule
  (targets metal_bridge.o libmetal_bridge_stubs.a dllmetal_bridge_stubs.so)

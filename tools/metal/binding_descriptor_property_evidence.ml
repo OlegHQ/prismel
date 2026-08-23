@@ -51,7 +51,7 @@ let validate_inventory symbols =
             symbol.classification
       in
       check (property_sdk_id entry) "property" entry.name entry.signature;
-      check (getter_sdk_id entry) "method" entry.name
+      check (getter_sdk_id entry) "method" entry.getter_name
         ("instance () -> " ^ entry.signature);
       let setter_name = "set" ^ String.init (String.length entry.name) (fun i -> if i = 0 then Char.uppercase_ascii entry.name.[i] else entry.name.[i]) ^ ":" in
       check (setter_sdk_id entry) "method" setter_name

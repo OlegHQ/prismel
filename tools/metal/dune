@@ -23,6 +23,9 @@
   binding_descriptor_property_codegen
   binding_descriptor_property_evidence
   binding_descriptor_default_evidence
+  binding_render_pipeline_scalar_plan
+  binding_render_pipeline_scalar_codegen
+  binding_render_pipeline_scalar_evidence
   binding_argument_reflection_plan
   binding_argument_reflection_codegen
   binding_argument_reflection_evidence
@@ -122,6 +125,12 @@
   binding_direct_properties.mli
   binding_direct_plan.ml
   binding_direct_plan.mli
+  binding_render_pipeline_scalar_plan.ml
+  binding_render_pipeline_scalar_plan.mli
+  binding_render_pipeline_scalar_codegen.ml
+  binding_render_pipeline_scalar_codegen.mli
+  binding_render_pipeline_scalar_evidence.ml
+  binding_render_pipeline_scalar_evidence.mli
   binding_argument_reflection_plan.ml
   binding_argument_reflection_plan.mli
   binding_argument_reflection_codegen.ml

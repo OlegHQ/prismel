@@ -12,6 +12,7 @@ type default =
 type entry =
   { owner : string
   ; name : string
+  ; getter_name : string
   ; header : string
   ; signature : string
   ; macos_introduced : string
@@ -23,6 +24,7 @@ type entry =
 val entry :
   ?attributes:string list ->
   ?default_int64:int64 ->
+  ?getter:string ->
   owner:string ->
   name:string ->
   header:string ->

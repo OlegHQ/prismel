@@ -2060,9 +2060,15 @@ let manifest ~sdk_version ~plan_sha256 ~generator_sha256 ~inventory_sha256
          , direct_batch_json direct_methods direct_properties )
        ; ( "generated_descriptor_property_batch"
          , `Assoc
-             [ "property_count", `Int Binding_descriptor_property_plan.expected_property_count
+             [ "property_count"
+             , `Int
+                 (Binding_descriptor_property_plan.expected_property_count
+                 + Binding_render_pipeline_scalar_plan.expected_property_count)
              ; "declaration_count", `Int (List.length descriptor_property_ids)
-             ; "safe_bound_count", `Int Binding_descriptor_property_evidence.expected_bound_count
+             ; "safe_bound_count"
+             , `Int
+                 (Binding_descriptor_property_evidence.expected_bound_count
+                 + Binding_render_pipeline_scalar_evidence.expected_bound_count)
              ; "pending_icb_count", `Int Binding_descriptor_property_evidence.expected_pending_count
              ; "identifiers", `List (List.map (fun id -> `String id) descriptor_property_ids)
              ] )
@@ -2104,6 +2110,12 @@ let generator_source_paths =
   ; "tools/metal/binding_descriptor_property_codegen.mli"
   ; "tools/metal/binding_descriptor_property_evidence.ml"
   ; "tools/metal/binding_descriptor_property_evidence.mli"
+  ; "tools/metal/binding_render_pipeline_scalar_plan.ml"
+  ; "tools/metal/binding_render_pipeline_scalar_plan.mli"
+  ; "tools/metal/binding_render_pipeline_scalar_codegen.ml"
+  ; "tools/metal/binding_render_pipeline_scalar_codegen.mli"
+  ; "tools/metal/binding_render_pipeline_scalar_evidence.ml"
+  ; "tools/metal/binding_render_pipeline_scalar_evidence.mli"
   ; "tools/metal/binding_descriptor_default_evidence.ml"
   ; "tools/metal/binding_descriptor_default_evidence.mli"
   ; "tools/metal/binding_argument_reflection_plan.ml"
@@ -2346,7 +2358,10 @@ let main () =
   validate_string_entries inventory string_entries;
   let global_string_entries = Binding_global_string_spec.entries in
   validate_global_string_entries inventory global_string_entries;
-  let descriptor_property_entries = Binding_descriptor_property_plan.entries in
+  let descriptor_property_entries =
+    Binding_descriptor_property_plan.entries
+    @ Binding_render_pipeline_scalar_plan.entries
+  in
   let descriptor_symbols =
     String_map.bindings inventory
     |> List.map (fun (_, declaration) ->
@@ -2364,6 +2379,23 @@ let main () =
       })
   in
   Binding_descriptor_property_evidence.validate_inventory descriptor_symbols;
+  let render_pipeline_scalar_symbols =
+    String_map.bindings inventory
+    |> List.map (fun (_, declaration) ->
+      { Binding_render_pipeline_scalar_evidence.id = declaration.identifier
+      ; kind = declaration.kind
+      ; owner = declaration.owner
+      ; name = declaration.name
+      ; header = declaration.header
+      ; signature = declaration.signature
+      ; macos_introduced =
+          Option.map Binding_availability.canonical declaration.macos_introduced
+      ; attributes = declaration.attributes
+      ; classification = declaration.classification
+      })
+  in
+  Binding_render_pipeline_scalar_evidence.validate_inventory
+    render_pipeline_scalar_symbols;
   Binding_descriptor_default_evidence.validate ();
   let reflection_symbols =
     String_map.bindings inventory
@@ -2415,7 +2447,8 @@ let main () =
       ~raw_ml_contents ~raw_mli_contents ~native_contents ~enum_selection
       ~implicit_enum_selection ~struct_output ~string_entries ~direct_methods
       ~descriptor_property_ids:
-        Binding_descriptor_property_evidence.promotion_ids
+        (Binding_descriptor_property_evidence.promotion_ids
+        @ Binding_render_pipeline_scalar_evidence.promotion_ids)
       ~direct_properties ~value_record_ids ~global_string_entries entries
   in
   write_file options.output_raw_ml raw_ml_contents;

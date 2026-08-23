@@ -2,8 +2,8 @@ open Binding_descriptor_property_spec
 
 let a = [ "AvailabilityAttr" ]
 
-let p ?(attributes = []) ?(default = 0L) owner name signature introduced =
-  entry ~attributes ~default_int64:default ~owner ~name
+let p ?(attributes = []) ?(default = 0L) ?getter owner name signature introduced =
+  entry ~attributes ~default_int64:default ?getter ~owner ~name
     ~header:"Metal/MTLRenderPipeline.h" ~signature ~introduced ()
 
 (* This is the complete non-deprecated, canonical-getter, non-bitmask,
@@ -13,7 +13,8 @@ let p ?(attributes = []) ?(default = 0L) owner name signature introduced =
    MTLColorWriteMask properties deliberately use their separate ownership,
    struct, and flags templates. *)
 let entries =
-  [ p "MTLMeshRenderPipelineDescriptor" "depthAttachmentPixelFormat" "MTLPixelFormat" "13.0"
+  [ p ~getter:"isAlphaToCoverageEnabled" "MTLMeshRenderPipelineDescriptor" "alphaToCoverageEnabled" "BOOL" "13.0"
+  ; p ~getter:"isAlphaToOneEnabled" "MTLMeshRenderPipelineDescriptor" "alphaToOneEnabled" "BOOL" "13.0"
   ; p "MTLMeshRenderPipelineDescriptor" "maxTotalThreadgroupsPerMeshGrid" "NSUInteger" "13.0"
   ; p "MTLMeshRenderPipelineDescriptor" "maxTotalThreadsPerMeshThreadgroup" "NSUInteger" "13.0"
   ; p "MTLMeshRenderPipelineDescriptor" "maxTotalThreadsPerObjectThreadgroup" "NSUInteger" "13.0"
@@ -22,34 +23,28 @@ let entries =
   ; p "MTLMeshRenderPipelineDescriptor" "objectThreadgroupSizeIsMultipleOfThreadExecutionWidth" "BOOL" "13.0"
   ; p "MTLMeshRenderPipelineDescriptor" "payloadMemoryLength" "NSUInteger" "13.0"
   ; p ~default:1L "MTLMeshRenderPipelineDescriptor" "rasterSampleCount" "NSUInteger" "13.0"
+  ; p ~default:1L ~getter:"isRasterizationEnabled" "MTLMeshRenderPipelineDescriptor" "rasterizationEnabled" "BOOL" "13.0"
   ; p ~attributes:a "MTLMeshRenderPipelineDescriptor" "shaderValidation" "MTLShaderValidation" "15.0"
-  ; p "MTLMeshRenderPipelineDescriptor" "stencilAttachmentPixelFormat" "MTLPixelFormat" "13.0"
   ; p ~attributes:a "MTLMeshRenderPipelineDescriptor" "supportIndirectCommandBuffers" "BOOL" "14.0"
 
-  ; p "MTLRenderPipelineColorAttachmentDescriptor" "alphaBlendOperation" "MTLBlendOperation" "10.11"
-  ; p "MTLRenderPipelineColorAttachmentDescriptor" "destinationAlphaBlendFactor" "MTLBlendFactor" "10.11"
-  ; p "MTLRenderPipelineColorAttachmentDescriptor" "destinationRGBBlendFactor" "MTLBlendFactor" "10.11"
-  ; p "MTLRenderPipelineColorAttachmentDescriptor" "pixelFormat" "MTLPixelFormat" "10.11"
-  ; p "MTLRenderPipelineColorAttachmentDescriptor" "rgbBlendOperation" "MTLBlendOperation" "10.11"
-  ; p ~default:1L "MTLRenderPipelineColorAttachmentDescriptor" "sourceAlphaBlendFactor" "MTLBlendFactor" "10.11"
-  ; p ~default:1L "MTLRenderPipelineColorAttachmentDescriptor" "sourceRGBBlendFactor" "MTLBlendFactor" "10.11"
+  ; p ~getter:"isBlendingEnabled" "MTLRenderPipelineColorAttachmentDescriptor" "blendingEnabled" "BOOL" "10.11"
 
-  ; p "MTLRenderPipelineDescriptor" "depthAttachmentPixelFormat" "MTLPixelFormat" "10.11"
-  ; p ~attributes:a "MTLRenderPipelineDescriptor" "inputPrimitiveTopology" "MTLPrimitiveTopologyClass" "10.11"
+  ; p ~getter:"isAlphaToCoverageEnabled" "MTLRenderPipelineDescriptor" "alphaToCoverageEnabled" "BOOL" "10.11"
+  ; p ~getter:"isAlphaToOneEnabled" "MTLRenderPipelineDescriptor" "alphaToOneEnabled" "BOOL" "10.11"
   ; p ~attributes:a ~default:1L "MTLRenderPipelineDescriptor" "maxFragmentCallStackDepth" "NSUInteger" "12.0"
   ; p ~attributes:a ~default:16L "MTLRenderPipelineDescriptor" "maxTessellationFactor" "NSUInteger" "10.12"
   ; p ~attributes:a ~default:1L "MTLRenderPipelineDescriptor" "maxVertexAmplificationCount" "NSUInteger" "10.15.4"
   ; p ~attributes:a ~default:1L "MTLRenderPipelineDescriptor" "maxVertexCallStackDepth" "NSUInteger" "12.0"
   ; p ~default:1L "MTLRenderPipelineDescriptor" "rasterSampleCount" "NSUInteger" "10.11"
+  ; p ~default:1L ~getter:"isRasterizationEnabled" "MTLRenderPipelineDescriptor" "rasterizationEnabled" "BOOL" "10.11"
   ; p ~attributes:a "MTLRenderPipelineDescriptor" "shaderValidation" "MTLShaderValidation" "15.0"
-  ; p "MTLRenderPipelineDescriptor" "stencilAttachmentPixelFormat" "MTLPixelFormat" "10.11"
   ; p ~attributes:a "MTLRenderPipelineDescriptor" "supportAddingFragmentBinaryFunctions" "BOOL" "12.0"
   ; p ~attributes:a "MTLRenderPipelineDescriptor" "supportAddingVertexBinaryFunctions" "BOOL" "12.0"
   ; p ~attributes:a "MTLRenderPipelineDescriptor" "supportIndirectCommandBuffers" "BOOL" "10.14"
   ; p ~attributes:a "MTLRenderPipelineDescriptor" "tessellationControlPointIndexType" "MTLTessellationControlPointIndexType" "10.12"
   ; p ~attributes:a "MTLRenderPipelineDescriptor" "tessellationFactorFormat" "MTLTessellationFactorFormat" "10.12"
+  ; p ~attributes:a ~getter:"isTessellationFactorScaleEnabled" "MTLRenderPipelineDescriptor" "tessellationFactorScaleEnabled" "BOOL" "10.12"
   ; p ~attributes:a "MTLRenderPipelineDescriptor" "tessellationFactorStepFunction" "MTLTessellationFactorStepFunction" "10.12"
-  ; p ~attributes:a "MTLRenderPipelineDescriptor" "tessellationOutputWindingOrder" "MTLWinding" "10.12"
   ; p ~attributes:a "MTLRenderPipelineDescriptor" "tessellationPartitionMode" "MTLTessellationPartitionMode" "10.12"
 
   ; p ~attributes:a ~default:1L "MTLTileRenderPipelineDescriptor" "maxCallStackDepth" "NSUInteger" "12.0"
@@ -60,8 +55,8 @@ let entries =
   ; p "MTLTileRenderPipelineDescriptor" "threadgroupSizeMatchesTileSize" "BOOL" "11.0"
   ]
 
-let expected_property_count = 42
-let expected_inventory_id_count = 126
+let expected_property_count = 37
+let expected_inventory_id_count = 111
 let expected_owner_count = 4
 
 let source_paths =

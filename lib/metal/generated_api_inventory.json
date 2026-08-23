@@ -1,13 +1,13 @@
 {
-  "binding_plan_source_sha256": "d6c74d03b932eb0716824494ac51d46cfec80f1c53882bbd902c05e8a6e72f3c",
+  "binding_plan_source_sha256": "f42d6662474e9f4624167808b1006bb135af0ce93f27edde434314737c8967d5",
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 2792,
+    "bound": 2903,
     "scope-excluded": 37,
-    "unreviewed": 2456
+    "unreviewed": 2345
   },
-  "classification_source_sha256": "35c83803f21b985f66bb74819907756bbbd5a0a16f541db58ff32f1c78af0492",
+  "classification_source_sha256": "ea8557dba1e47658d0cb5fce82a35cfad6fa9ede982784d598e402c3a2cec051",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "271bd5614a6f2ca840ce89a551c7fe0eff087fb6bd30e651d7acd230226f04a1",
@@ -65410,7 +65410,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLMeshRenderPipelineDescriptor isAlphaToCoverageEnabled]",
       "kind": "method",
@@ -65418,7 +65418,7 @@
       "macos_introduced": "13.0",
       "name": "isAlphaToCoverageEnabled",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -65429,7 +65429,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLMeshRenderPipelineDescriptor isAlphaToOneEnabled]",
       "kind": "method",
@@ -65437,7 +65437,7 @@
       "macos_introduced": "13.0",
       "name": "isAlphaToOneEnabled",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -65448,7 +65448,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLMeshRenderPipelineDescriptor isRasterizationEnabled]",
       "kind": "method",
@@ -65456,7 +65456,7 @@
       "macos_introduced": "13.0",
       "name": "isRasterizationEnabled",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -65486,7 +65486,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLMeshRenderPipelineDescriptor maxTotalThreadgroupsPerMeshGrid]",
       "kind": "method",
@@ -65494,7 +65494,7 @@
       "macos_introduced": "13.0",
       "name": "maxTotalThreadgroupsPerMeshGrid",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -65505,7 +65505,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLMeshRenderPipelineDescriptor maxTotalThreadsPerMeshThreadgroup]",
       "kind": "method",
@@ -65513,7 +65513,7 @@
       "macos_introduced": "13.0",
       "name": "maxTotalThreadsPerMeshThreadgroup",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -65524,7 +65524,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLMeshRenderPipelineDescriptor maxTotalThreadsPerObjectThreadgroup]",
       "kind": "method",
@@ -65532,7 +65532,7 @@
       "macos_introduced": "13.0",
       "name": "maxTotalThreadsPerObjectThreadgroup",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -65543,7 +65543,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLMeshRenderPipelineDescriptor maxVertexAmplificationCount]",
       "kind": "method",
@@ -65551,7 +65551,7 @@
       "macos_introduced": "13.0",
       "name": "maxVertexAmplificationCount",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -65625,7 +65625,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLMeshRenderPipelineDescriptor meshThreadgroupSizeIsMultipleOfThreadExecutionWidth]",
       "kind": "method",
@@ -65633,7 +65633,7 @@
       "macos_introduced": "13.0",
       "name": "meshThreadgroupSizeIsMultipleOfThreadExecutionWidth",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -65707,7 +65707,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLMeshRenderPipelineDescriptor objectThreadgroupSizeIsMultipleOfThreadExecutionWidth]",
       "kind": "method",
@@ -65715,7 +65715,7 @@
       "macos_introduced": "13.0",
       "name": "objectThreadgroupSizeIsMultipleOfThreadExecutionWidth",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -65726,7 +65726,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLMeshRenderPipelineDescriptor payloadMemoryLength]",
       "kind": "method",
@@ -65734,7 +65734,7 @@
       "macos_introduced": "13.0",
       "name": "payloadMemoryLength",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -65745,7 +65745,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLMeshRenderPipelineDescriptor rasterSampleCount]",
       "kind": "method",
@@ -65753,7 +65753,7 @@
       "macos_introduced": "13.0",
       "name": "rasterSampleCount",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -65833,7 +65833,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLMeshRenderPipelineDescriptor setAlphaToCoverageEnabled:]",
       "kind": "method",
@@ -65841,7 +65841,7 @@
       "macos_introduced": "13.0",
       "name": "setAlphaToCoverageEnabled:",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -65852,7 +65852,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLMeshRenderPipelineDescriptor setAlphaToOneEnabled:]",
       "kind": "method",
@@ -65860,7 +65860,7 @@
       "macos_introduced": "13.0",
       "name": "setAlphaToOneEnabled:",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -65978,7 +65978,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLMeshRenderPipelineDescriptor setMaxTotalThreadgroupsPerMeshGrid:]",
       "kind": "method",
@@ -65986,7 +65986,7 @@
       "macos_introduced": "13.0",
       "name": "setMaxTotalThreadgroupsPerMeshGrid:",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -65997,7 +65997,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLMeshRenderPipelineDescriptor setMaxTotalThreadsPerMeshThreadgroup:]",
       "kind": "method",
@@ -66005,7 +66005,7 @@
       "macos_introduced": "13.0",
       "name": "setMaxTotalThreadsPerMeshThreadgroup:",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -66016,7 +66016,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLMeshRenderPipelineDescriptor setMaxTotalThreadsPerObjectThreadgroup:]",
       "kind": "method",
@@ -66024,7 +66024,7 @@
       "macos_introduced": "13.0",
       "name": "setMaxTotalThreadsPerObjectThreadgroup:",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -66035,7 +66035,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLMeshRenderPipelineDescriptor setMaxVertexAmplificationCount:]",
       "kind": "method",
@@ -66043,7 +66043,7 @@
       "macos_introduced": "13.0",
       "name": "setMaxVertexAmplificationCount:",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -66098,7 +66098,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLMeshRenderPipelineDescriptor setMeshThreadgroupSizeIsMultipleOfThreadExecutionWidth:]",
       "kind": "method",
@@ -66106,7 +66106,7 @@
       "macos_introduced": "13.0",
       "name": "setMeshThreadgroupSizeIsMultipleOfThreadExecutionWidth:",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -66161,7 +66161,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLMeshRenderPipelineDescriptor setObjectThreadgroupSizeIsMultipleOfThreadExecutionWidth:]",
       "kind": "method",
@@ -66169,7 +66169,7 @@
       "macos_introduced": "13.0",
       "name": "setObjectThreadgroupSizeIsMultipleOfThreadExecutionWidth:",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -66180,7 +66180,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLMeshRenderPipelineDescriptor setPayloadMemoryLength:]",
       "kind": "method",
@@ -66188,7 +66188,7 @@
       "macos_introduced": "13.0",
       "name": "setPayloadMemoryLength:",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -66199,7 +66199,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLMeshRenderPipelineDescriptor setRasterSampleCount:]",
       "kind": "method",
@@ -66207,7 +66207,7 @@
       "macos_introduced": "13.0",
       "name": "setRasterSampleCount:",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -66218,7 +66218,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLMeshRenderPipelineDescriptor setRasterizationEnabled:]",
       "kind": "method",
@@ -66226,7 +66226,7 @@
       "macos_introduced": "13.0",
       "name": "setRasterizationEnabled:",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -66293,7 +66293,7 @@
           "line": 892
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLMeshRenderPipelineDescriptor setShaderValidation:]",
       "kind": "method",
@@ -66301,7 +66301,7 @@
       "macos_introduced": "15.0",
       "name": "setShaderValidation:",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance (MTLShaderValidation) -> void"
     },
     {
@@ -66337,7 +66337,7 @@
           "line": 849
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLMeshRenderPipelineDescriptor setSupportIndirectCommandBuffers:]",
       "kind": "method",
@@ -66345,7 +66345,7 @@
       "macos_introduced": "14.0",
       "name": "setSupportIndirectCommandBuffers:",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -66362,7 +66362,7 @@
           "line": 892
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLMeshRenderPipelineDescriptor shaderValidation]",
       "kind": "method",
@@ -66370,7 +66370,7 @@
       "macos_introduced": "15.0",
       "name": "shaderValidation",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance () -> MTLShaderValidation"
     },
     {
@@ -66406,7 +66406,7 @@
           "line": 849
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLMeshRenderPipelineDescriptor supportIndirectCommandBuffers]",
       "kind": "method",
@@ -66414,7 +66414,7 @@
       "macos_introduced": "14.0",
       "name": "supportIndirectCommandBuffers",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -72734,7 +72734,7 @@
           "line": 112
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineColorAttachmentDescriptor isBlendingEnabled]",
       "kind": "method",
@@ -72742,7 +72742,7 @@
       "macos_introduced": "10.11",
       "name": "isBlendingEnabled",
       "owner": "MTLRenderPipelineColorAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -72810,7 +72810,7 @@
           "line": 112
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineColorAttachmentDescriptor setBlendingEnabled:]",
       "kind": "method",
@@ -72818,7 +72818,7 @@
       "macos_introduced": "10.11",
       "name": "setBlendingEnabled:",
       "owner": "MTLRenderPipelineColorAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -73239,7 +73239,7 @@
           "line": 179
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor isAlphaToCoverageEnabled]",
       "kind": "method",
@@ -73247,7 +73247,7 @@
       "macos_introduced": "10.11",
       "name": "isAlphaToCoverageEnabled",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -73258,7 +73258,7 @@
           "line": 179
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor isAlphaToOneEnabled]",
       "kind": "method",
@@ -73266,7 +73266,7 @@
       "macos_introduced": "10.11",
       "name": "isAlphaToOneEnabled",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -73277,7 +73277,7 @@
           "line": 179
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor isRasterizationEnabled]",
       "kind": "method",
@@ -73285,7 +73285,7 @@
       "macos_introduced": "10.11",
       "name": "isRasterizationEnabled",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -73302,7 +73302,7 @@
           "line": 208
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor isTessellationFactorScaleEnabled]",
       "kind": "method",
@@ -73310,7 +73310,7 @@
       "macos_introduced": "10.12",
       "name": "isTessellationFactorScaleEnabled",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -73346,7 +73346,7 @@
           "line": 290
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor maxFragmentCallStackDepth]",
       "kind": "method",
@@ -73354,7 +73354,7 @@
       "macos_introduced": "12.0",
       "name": "maxFragmentCallStackDepth",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -73371,7 +73371,7 @@
           "line": 207
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor maxTessellationFactor]",
       "kind": "method",
@@ -73379,7 +73379,7 @@
       "macos_introduced": "10.12",
       "name": "maxTessellationFactor",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -73396,7 +73396,7 @@
           "line": 197
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor maxVertexAmplificationCount]",
       "kind": "method",
@@ -73404,7 +73404,7 @@
       "macos_introduced": "10.15.4",
       "name": "maxVertexAmplificationCount",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -73421,7 +73421,7 @@
           "line": 283
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor maxVertexCallStackDepth]",
       "kind": "method",
@@ -73429,7 +73429,7 @@
       "macos_introduced": "12.0",
       "name": "maxVertexCallStackDepth",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -73440,7 +73440,7 @@
           "line": 179
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor rasterSampleCount]",
       "kind": "method",
@@ -73448,7 +73448,7 @@
       "macos_introduced": "10.11",
       "name": "rasterSampleCount",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -73503,7 +73503,7 @@
           "line": 179
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor setAlphaToCoverageEnabled:]",
       "kind": "method",
@@ -73511,7 +73511,7 @@
       "macos_introduced": "10.11",
       "name": "setAlphaToCoverageEnabled:",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -73522,7 +73522,7 @@
           "line": 179
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor setAlphaToOneEnabled:]",
       "kind": "method",
@@ -73530,7 +73530,7 @@
       "macos_introduced": "10.11",
       "name": "setAlphaToOneEnabled:",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -73704,7 +73704,7 @@
           "line": 290
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor setMaxFragmentCallStackDepth:]",
       "kind": "method",
@@ -73712,7 +73712,7 @@
       "macos_introduced": "12.0",
       "name": "setMaxFragmentCallStackDepth:",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -73729,7 +73729,7 @@
           "line": 207
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor setMaxTessellationFactor:]",
       "kind": "method",
@@ -73737,7 +73737,7 @@
       "macos_introduced": "10.12",
       "name": "setMaxTessellationFactor:",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -73754,7 +73754,7 @@
           "line": 197
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor setMaxVertexAmplificationCount:]",
       "kind": "method",
@@ -73762,7 +73762,7 @@
       "macos_introduced": "10.15.4",
       "name": "setMaxVertexAmplificationCount:",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -73779,7 +73779,7 @@
           "line": 283
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor setMaxVertexCallStackDepth:]",
       "kind": "method",
@@ -73787,7 +73787,7 @@
       "macos_introduced": "12.0",
       "name": "setMaxVertexCallStackDepth:",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -73798,7 +73798,7 @@
           "line": 179
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor setRasterSampleCount:]",
       "kind": "method",
@@ -73806,7 +73806,7 @@
       "macos_introduced": "10.11",
       "name": "setRasterSampleCount:",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -73817,7 +73817,7 @@
           "line": 179
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor setRasterizationEnabled:]",
       "kind": "method",
@@ -73825,7 +73825,7 @@
       "macos_introduced": "10.11",
       "name": "setRasterizationEnabled:",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -73867,7 +73867,7 @@
           "line": 305
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor setShaderValidation:]",
       "kind": "method",
@@ -73875,7 +73875,7 @@
       "macos_introduced": "15.0",
       "name": "setShaderValidation:",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance (MTLShaderValidation) -> void"
     },
     {
@@ -73911,7 +73911,7 @@
           "line": 276
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor setSupportAddingFragmentBinaryFunctions:]",
       "kind": "method",
@@ -73919,7 +73919,7 @@
       "macos_introduced": "12.0",
       "name": "setSupportAddingFragmentBinaryFunctions:",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -73936,7 +73936,7 @@
           "line": 269
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor setSupportAddingVertexBinaryFunctions:]",
       "kind": "method",
@@ -73944,7 +73944,7 @@
       "macos_introduced": "12.0",
       "name": "setSupportAddingVertexBinaryFunctions:",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -73961,7 +73961,7 @@
           "line": 217
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor setSupportIndirectCommandBuffers:]",
       "kind": "method",
@@ -73969,7 +73969,7 @@
       "macos_introduced": "10.14",
       "name": "setSupportIndirectCommandBuffers:",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -73986,7 +73986,7 @@
           "line": 210
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor setTessellationControlPointIndexType:]",
       "kind": "method",
@@ -73994,7 +73994,7 @@
       "macos_introduced": "10.12",
       "name": "setTessellationControlPointIndexType:",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance (MTLTessellationControlPointIndexType) -> void"
     },
     {
@@ -74011,7 +74011,7 @@
           "line": 209
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor setTessellationFactorFormat:]",
       "kind": "method",
@@ -74019,7 +74019,7 @@
       "macos_introduced": "10.12",
       "name": "setTessellationFactorFormat:",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance (MTLTessellationFactorFormat) -> void"
     },
     {
@@ -74036,7 +74036,7 @@
           "line": 208
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor setTessellationFactorScaleEnabled:]",
       "kind": "method",
@@ -74044,7 +74044,7 @@
       "macos_introduced": "10.12",
       "name": "setTessellationFactorScaleEnabled:",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -74061,7 +74061,7 @@
           "line": 211
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor setTessellationFactorStepFunction:]",
       "kind": "method",
@@ -74069,7 +74069,7 @@
       "macos_introduced": "10.12",
       "name": "setTessellationFactorStepFunction:",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance (MTLTessellationFactorStepFunction) -> void"
     },
     {
@@ -74111,7 +74111,7 @@
           "line": 206
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor setTessellationPartitionMode:]",
       "kind": "method",
@@ -74119,7 +74119,7 @@
       "macos_introduced": "10.12",
       "name": "setTessellationPartitionMode:",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance (MTLTessellationPartitionMode) -> void"
     },
     {
@@ -74224,7 +74224,7 @@
           "line": 305
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor shaderValidation]",
       "kind": "method",
@@ -74232,7 +74232,7 @@
       "macos_introduced": "15.0",
       "name": "shaderValidation",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance () -> MTLShaderValidation"
     },
     {
@@ -74268,7 +74268,7 @@
           "line": 276
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor supportAddingFragmentBinaryFunctions]",
       "kind": "method",
@@ -74276,7 +74276,7 @@
       "macos_introduced": "12.0",
       "name": "supportAddingFragmentBinaryFunctions",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -74293,7 +74293,7 @@
           "line": 269
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor supportAddingVertexBinaryFunctions]",
       "kind": "method",
@@ -74301,7 +74301,7 @@
       "macos_introduced": "12.0",
       "name": "supportAddingVertexBinaryFunctions",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -74318,7 +74318,7 @@
           "line": 217
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor supportIndirectCommandBuffers]",
       "kind": "method",
@@ -74326,7 +74326,7 @@
       "macos_introduced": "10.14",
       "name": "supportIndirectCommandBuffers",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -74343,7 +74343,7 @@
           "line": 210
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor tessellationControlPointIndexType]",
       "kind": "method",
@@ -74351,7 +74351,7 @@
       "macos_introduced": "10.12",
       "name": "tessellationControlPointIndexType",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance () -> MTLTessellationControlPointIndexType"
     },
     {
@@ -74368,7 +74368,7 @@
           "line": 209
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor tessellationFactorFormat]",
       "kind": "method",
@@ -74376,7 +74376,7 @@
       "macos_introduced": "10.12",
       "name": "tessellationFactorFormat",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance () -> MTLTessellationFactorFormat"
     },
     {
@@ -74393,7 +74393,7 @@
           "line": 211
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor tessellationFactorStepFunction]",
       "kind": "method",
@@ -74401,7 +74401,7 @@
       "macos_introduced": "10.12",
       "name": "tessellationFactorStepFunction",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance () -> MTLTessellationFactorStepFunction"
     },
     {
@@ -74443,7 +74443,7 @@
           "line": 206
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor tessellationPartitionMode]",
       "kind": "method",
@@ -74451,7 +74451,7 @@
       "macos_introduced": "10.12",
       "name": "tessellationPartitionMode",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance () -> MTLTessellationPartitionMode"
     },
     {
@@ -81378,7 +81378,7 @@
           "line": 657
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLTileRenderPipelineDescriptor maxCallStackDepth]",
       "kind": "method",
@@ -81386,7 +81386,7 @@
       "macos_introduced": "12.0",
       "name": "maxCallStackDepth",
       "owner": "MTLTileRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -81403,7 +81403,7 @@
           "line": 616
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLTileRenderPipelineDescriptor maxTotalThreadsPerThreadgroup]",
       "kind": "method",
@@ -81411,7 +81411,7 @@
       "macos_introduced": "11.0",
       "name": "maxTotalThreadsPerThreadgroup",
       "owner": "MTLTileRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -81447,7 +81447,7 @@
           "line": 581
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLTileRenderPipelineDescriptor rasterSampleCount]",
       "kind": "method",
@@ -81455,7 +81455,7 @@
       "macos_introduced": "11.0",
       "name": "rasterSampleCount",
       "owner": "MTLTileRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -81585,7 +81585,7 @@
           "line": 657
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLTileRenderPipelineDescriptor setMaxCallStackDepth:]",
       "kind": "method",
@@ -81593,7 +81593,7 @@
       "macos_introduced": "12.0",
       "name": "setMaxCallStackDepth:",
       "owner": "MTLTileRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -81610,7 +81610,7 @@
           "line": 616
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLTileRenderPipelineDescriptor setMaxTotalThreadsPerThreadgroup:]",
       "kind": "method",
@@ -81618,7 +81618,7 @@
       "macos_introduced": "11.0",
       "name": "setMaxTotalThreadsPerThreadgroup:",
       "owner": "MTLTileRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -81654,7 +81654,7 @@
           "line": 581
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLTileRenderPipelineDescriptor setRasterSampleCount:]",
       "kind": "method",
@@ -81662,7 +81662,7 @@
       "macos_introduced": "11.0",
       "name": "setRasterSampleCount:",
       "owner": "MTLTileRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -81704,7 +81704,7 @@
           "line": 667
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLTileRenderPipelineDescriptor setShaderValidation:]",
       "kind": "method",
@@ -81712,7 +81712,7 @@
       "macos_introduced": "15.0",
       "name": "setShaderValidation:",
       "owner": "MTLTileRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance (MTLShaderValidation) -> void"
     },
     {
@@ -81729,7 +81729,7 @@
           "line": 650
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLTileRenderPipelineDescriptor setSupportAddingBinaryFunctions:]",
       "kind": "method",
@@ -81737,7 +81737,7 @@
       "macos_introduced": "12.0",
       "name": "setSupportAddingBinaryFunctions:",
       "owner": "MTLTileRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -81748,7 +81748,7 @@
           "line": 581
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLTileRenderPipelineDescriptor setThreadgroupSizeMatchesTileSize:]",
       "kind": "method",
@@ -81756,7 +81756,7 @@
       "macos_introduced": "11.0",
       "name": "setThreadgroupSizeMatchesTileSize:",
       "owner": "MTLTileRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -81792,7 +81792,7 @@
           "line": 667
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLTileRenderPipelineDescriptor shaderValidation]",
       "kind": "method",
@@ -81800,7 +81800,7 @@
       "macos_introduced": "15.0",
       "name": "shaderValidation",
       "owner": "MTLTileRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance () -> MTLShaderValidation"
     },
     {
@@ -81817,7 +81817,7 @@
           "line": 650
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLTileRenderPipelineDescriptor supportAddingBinaryFunctions]",
       "kind": "method",
@@ -81825,7 +81825,7 @@
       "macos_introduced": "12.0",
       "name": "supportAddingBinaryFunctions",
       "owner": "MTLTileRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -81836,7 +81836,7 @@
           "line": 581
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLTileRenderPipelineDescriptor threadgroupSizeMatchesTileSize]",
       "kind": "method",
@@ -81844,7 +81844,7 @@
       "macos_introduced": "11.0",
       "name": "threadgroupSizeMatchesTileSize",
       "owner": "MTLTileRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -96588,7 +96588,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLMeshRenderPipelineDescriptor:alphaToCoverageEnabled",
       "kind": "property",
@@ -96596,7 +96596,7 @@
       "macos_introduced": "13.0",
       "name": "alphaToCoverageEnabled",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "BOOL"
     },
     {
@@ -96607,7 +96607,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLMeshRenderPipelineDescriptor:alphaToOneEnabled",
       "kind": "property",
@@ -96615,7 +96615,7 @@
       "macos_introduced": "13.0",
       "name": "alphaToOneEnabled",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "BOOL"
     },
     {
@@ -96771,7 +96771,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLMeshRenderPipelineDescriptor:maxTotalThreadgroupsPerMeshGrid",
       "kind": "property",
@@ -96779,7 +96779,7 @@
       "macos_introduced": "13.0",
       "name": "maxTotalThreadgroupsPerMeshGrid",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -96790,7 +96790,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLMeshRenderPipelineDescriptor:maxTotalThreadsPerMeshThreadgroup",
       "kind": "property",
@@ -96798,7 +96798,7 @@
       "macos_introduced": "13.0",
       "name": "maxTotalThreadsPerMeshThreadgroup",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -96809,7 +96809,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLMeshRenderPipelineDescriptor:maxTotalThreadsPerObjectThreadgroup",
       "kind": "property",
@@ -96817,7 +96817,7 @@
       "macos_introduced": "13.0",
       "name": "maxTotalThreadsPerObjectThreadgroup",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -96828,7 +96828,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLMeshRenderPipelineDescriptor:maxVertexAmplificationCount",
       "kind": "property",
@@ -96836,7 +96836,7 @@
       "macos_introduced": "13.0",
       "name": "maxVertexAmplificationCount",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -96910,7 +96910,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLMeshRenderPipelineDescriptor:meshThreadgroupSizeIsMultipleOfThreadExecutionWidth",
       "kind": "property",
@@ -96918,7 +96918,7 @@
       "macos_introduced": "13.0",
       "name": "meshThreadgroupSizeIsMultipleOfThreadExecutionWidth",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "BOOL"
     },
     {
@@ -96992,7 +96992,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLMeshRenderPipelineDescriptor:objectThreadgroupSizeIsMultipleOfThreadExecutionWidth",
       "kind": "property",
@@ -97000,7 +97000,7 @@
       "macos_introduced": "13.0",
       "name": "objectThreadgroupSizeIsMultipleOfThreadExecutionWidth",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "BOOL"
     },
     {
@@ -97011,7 +97011,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLMeshRenderPipelineDescriptor:payloadMemoryLength",
       "kind": "property",
@@ -97019,7 +97019,7 @@
       "macos_introduced": "13.0",
       "name": "payloadMemoryLength",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -97030,7 +97030,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLMeshRenderPipelineDescriptor:rasterSampleCount",
       "kind": "property",
@@ -97038,7 +97038,7 @@
       "macos_introduced": "13.0",
       "name": "rasterSampleCount",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -97049,7 +97049,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLMeshRenderPipelineDescriptor:rasterizationEnabled",
       "kind": "property",
@@ -97057,7 +97057,7 @@
       "macos_introduced": "13.0",
       "name": "rasterizationEnabled",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "BOOL"
     },
     {
@@ -97124,7 +97124,7 @@
           "line": 892
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLMeshRenderPipelineDescriptor:shaderValidation",
       "kind": "property",
@@ -97132,7 +97132,7 @@
       "macos_introduced": "15.0",
       "name": "shaderValidation",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "MTLShaderValidation"
     },
     {
@@ -97168,7 +97168,7 @@
           "line": 849
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLMeshRenderPipelineDescriptor:supportIndirectCommandBuffers",
       "kind": "property",
@@ -97176,7 +97176,7 @@
       "macos_introduced": "14.0",
       "name": "supportIndirectCommandBuffers",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "BOOL"
     },
     {
@@ -98739,7 +98739,7 @@
           "line": 112
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineColorAttachmentDescriptor:blendingEnabled",
       "kind": "property",
@@ -98747,7 +98747,7 @@
       "macos_introduced": "10.11",
       "name": "blendingEnabled",
       "owner": "MTLRenderPipelineColorAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "BOOL"
     },
     {
@@ -98891,7 +98891,7 @@
           "line": 179
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineDescriptor:alphaToCoverageEnabled",
       "kind": "property",
@@ -98899,7 +98899,7 @@
       "macos_introduced": "10.11",
       "name": "alphaToCoverageEnabled",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "BOOL"
     },
     {
@@ -98910,7 +98910,7 @@
           "line": 179
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineDescriptor:alphaToOneEnabled",
       "kind": "property",
@@ -98918,7 +98918,7 @@
       "macos_introduced": "10.11",
       "name": "alphaToOneEnabled",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "BOOL"
     },
     {
@@ -99136,7 +99136,7 @@
           "line": 290
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineDescriptor:maxFragmentCallStackDepth",
       "kind": "property",
@@ -99144,7 +99144,7 @@
       "macos_introduced": "12.0",
       "name": "maxFragmentCallStackDepth",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -99161,7 +99161,7 @@
           "line": 207
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineDescriptor:maxTessellationFactor",
       "kind": "property",
@@ -99169,7 +99169,7 @@
       "macos_introduced": "10.12",
       "name": "maxTessellationFactor",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -99186,7 +99186,7 @@
           "line": 197
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineDescriptor:maxVertexAmplificationCount",
       "kind": "property",
@@ -99194,7 +99194,7 @@
       "macos_introduced": "10.15.4",
       "name": "maxVertexAmplificationCount",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -99211,7 +99211,7 @@
           "line": 283
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineDescriptor:maxVertexCallStackDepth",
       "kind": "property",
@@ -99219,7 +99219,7 @@
       "macos_introduced": "12.0",
       "name": "maxVertexCallStackDepth",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -99230,7 +99230,7 @@
           "line": 179
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineDescriptor:rasterSampleCount",
       "kind": "property",
@@ -99238,7 +99238,7 @@
       "macos_introduced": "10.11",
       "name": "rasterSampleCount",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -99249,7 +99249,7 @@
           "line": 179
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineDescriptor:rasterizationEnabled",
       "kind": "property",
@@ -99257,7 +99257,7 @@
       "macos_introduced": "10.11",
       "name": "rasterizationEnabled",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "BOOL"
     },
     {
@@ -99299,7 +99299,7 @@
           "line": 305
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineDescriptor:shaderValidation",
       "kind": "property",
@@ -99307,7 +99307,7 @@
       "macos_introduced": "15.0",
       "name": "shaderValidation",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "MTLShaderValidation"
     },
     {
@@ -99343,7 +99343,7 @@
           "line": 276
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineDescriptor:supportAddingFragmentBinaryFunctions",
       "kind": "property",
@@ -99351,7 +99351,7 @@
       "macos_introduced": "12.0",
       "name": "supportAddingFragmentBinaryFunctions",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "BOOL"
     },
     {
@@ -99368,7 +99368,7 @@
           "line": 269
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineDescriptor:supportAddingVertexBinaryFunctions",
       "kind": "property",
@@ -99376,7 +99376,7 @@
       "macos_introduced": "12.0",
       "name": "supportAddingVertexBinaryFunctions",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "BOOL"
     },
     {
@@ -99393,7 +99393,7 @@
           "line": 217
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineDescriptor:supportIndirectCommandBuffers",
       "kind": "property",
@@ -99401,7 +99401,7 @@
       "macos_introduced": "10.14",
       "name": "supportIndirectCommandBuffers",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "BOOL"
     },
     {
@@ -99418,7 +99418,7 @@
           "line": 210
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineDescriptor:tessellationControlPointIndexType",
       "kind": "property",
@@ -99426,7 +99426,7 @@
       "macos_introduced": "10.12",
       "name": "tessellationControlPointIndexType",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "MTLTessellationControlPointIndexType"
     },
     {
@@ -99443,7 +99443,7 @@
           "line": 209
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineDescriptor:tessellationFactorFormat",
       "kind": "property",
@@ -99451,7 +99451,7 @@
       "macos_introduced": "10.12",
       "name": "tessellationFactorFormat",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "MTLTessellationFactorFormat"
     },
     {
@@ -99468,7 +99468,7 @@
           "line": 208
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineDescriptor:tessellationFactorScaleEnabled",
       "kind": "property",
@@ -99476,7 +99476,7 @@
       "macos_introduced": "10.12",
       "name": "tessellationFactorScaleEnabled",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "BOOL"
     },
     {
@@ -99493,7 +99493,7 @@
           "line": 211
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineDescriptor:tessellationFactorStepFunction",
       "kind": "property",
@@ -99501,7 +99501,7 @@
       "macos_introduced": "10.12",
       "name": "tessellationFactorStepFunction",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "MTLTessellationFactorStepFunction"
     },
     {
@@ -99543,7 +99543,7 @@
           "line": 206
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineDescriptor:tessellationPartitionMode",
       "kind": "property",
@@ -99551,7 +99551,7 @@
       "macos_introduced": "10.12",
       "name": "tessellationPartitionMode",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "MTLTessellationPartitionMode"
     },
     {
@@ -103648,7 +103648,7 @@
           "line": 657
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLTileRenderPipelineDescriptor:maxCallStackDepth",
       "kind": "property",
@@ -103656,7 +103656,7 @@
       "macos_introduced": "12.0",
       "name": "maxCallStackDepth",
       "owner": "MTLTileRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -103673,7 +103673,7 @@
           "line": 616
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLTileRenderPipelineDescriptor:maxTotalThreadsPerThreadgroup",
       "kind": "property",
@@ -103681,7 +103681,7 @@
       "macos_introduced": "11.0",
       "name": "maxTotalThreadsPerThreadgroup",
       "owner": "MTLTileRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -103717,7 +103717,7 @@
           "line": 581
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLTileRenderPipelineDescriptor:rasterSampleCount",
       "kind": "property",
@@ -103725,7 +103725,7 @@
       "macos_introduced": "11.0",
       "name": "rasterSampleCount",
       "owner": "MTLTileRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -103767,7 +103767,7 @@
           "line": 667
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLTileRenderPipelineDescriptor:shaderValidation",
       "kind": "property",
@@ -103775,7 +103775,7 @@
       "macos_introduced": "15.0",
       "name": "shaderValidation",
       "owner": "MTLTileRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "MTLShaderValidation"
     },
     {
@@ -103792,7 +103792,7 @@
           "line": 650
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLTileRenderPipelineDescriptor:supportAddingBinaryFunctions",
       "kind": "property",
@@ -103800,7 +103800,7 @@
       "macos_introduced": "12.0",
       "name": "supportAddingBinaryFunctions",
       "owner": "MTLTileRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "BOOL"
     },
     {
@@ -103811,7 +103811,7 @@
           "line": 581
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLTileRenderPipelineDescriptor:threadgroupSizeMatchesTileSize",
       "kind": "property",
@@ -103819,7 +103819,7 @@
       "macos_introduced": "11.0",
       "name": "threadgroupSizeMatchesTileSize",
       "owner": "MTLTileRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance.",
       "signature": "BOOL"
     },
     {

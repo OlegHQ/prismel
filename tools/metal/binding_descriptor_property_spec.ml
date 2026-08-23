@@ -12,6 +12,7 @@ type default =
 type entry =
   { owner : string
   ; name : string
+  ; getter_name : string
   ; header : string
   ; signature : string
   ; macos_introduced : string
@@ -30,7 +31,7 @@ let representation signature =
       Enum value
   | value -> invalid_arg ("unsupported descriptor property type: " ^ value)
 
-let entry ?(attributes = []) ?(default_int64 = 0L) ~owner ~name ~header
+let entry ?(attributes = []) ?(default_int64 = 0L) ?getter ~owner ~name ~header
     ~signature ~introduced () =
   let representation = representation signature in
   let default =
@@ -39,13 +40,15 @@ let entry ?(attributes = []) ?(default_int64 = 0L) ~owner ~name ~header
     | Nsuint | Enum _ | Flags _ | Resource_options ->
         Default_int64 default_int64
   in
-  { owner; name; header; signature; macos_introduced = introduced; attributes
+  let getter_name = Option.value ~default:name getter in
+  { owner; name; getter_name; header; signature; macos_introduced = introduced; attributes
   ; representation
   ; default
   }
 
 let property_sdk_id entry = "property:" ^ entry.owner ^ ":" ^ entry.name
-let getter_sdk_id entry = "method:-[" ^ entry.owner ^ " " ^ entry.name ^ "]"
+let getter_sdk_id entry =
+  "method:-[" ^ entry.owner ^ " " ^ entry.getter_name ^ "]"
 
 let capitalize value =
   if value = "" then invalid_arg "empty descriptor property name";
@@ -126,7 +129,9 @@ let validate entries =
   duplicates ids;
   List.iter
     (fun entry ->
-      if entry.owner = "" || entry.name = "" || entry.header = "" then
+      if entry.owner = "" || entry.name = "" || entry.getter_name = ""
+         || entry.header = ""
+      then
         fail "empty identity field";
       if not (Filename.is_relative entry.header) then
         fail "absolute header %s" entry.header;
