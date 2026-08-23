@@ -1632,6 +1632,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   then
     Bound,
       "Implemented by safe compute/render pipeline state queries with destroyed-handle and argument validation plus exact native conformance."
+  else if List.mem identifier Binding_pipeline_expanded_reachability.promotable_ids then
+    Bound,
+      "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance."
   else if List.mem identifier Binding_shader_safe_reachability.promotable_ids then
     Bound,
       "Implemented by safe shader metadata and scalar descriptor operations with checked ownership, exact round trips, and native conformance."

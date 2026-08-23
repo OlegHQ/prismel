@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 3831,
+    "bound": 3877,
     "scope-excluded": 37,
-    "unreviewed": 1417
+    "unreviewed": 1371
   },
-  "classification_source_sha256": "0e94f030cd745fea4db4a2da326090154a67d4a8494598a6c50aeb8b3ad94c78",
+  "classification_source_sha256": "84542f6bcf061ac3842d6e2ffdb01e1a873602a5007f5e64baf66e61a2412a7c",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -3098,7 +3098,7 @@
           "line": 179
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "class:MTLRenderPipelineDescriptor",
       "kind": "class",
@@ -3106,7 +3106,7 @@
       "macos_introduced": "10.11",
       "name": "MTLRenderPipelineDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": ""
     },
     {
@@ -53258,7 +53258,7 @@
           "line": 151
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "method:-[MTLComputePipelineDescriptor requiredThreadsPerThreadgroup]",
       "kind": "method",
@@ -53266,7 +53266,7 @@
       "macos_introduced": "26.0",
       "name": "requiredThreadsPerThreadgroup",
       "owner": "MTLComputePipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": "instance () -> MTLSize"
     },
     {
@@ -53277,7 +53277,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "method:-[MTLComputePipelineDescriptor reset]",
       "kind": "method",
@@ -53285,7 +53285,7 @@
       "macos_introduced": "10.11",
       "name": "reset",
       "owner": "MTLComputePipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": "instance () -> void"
     },
     {
@@ -53490,7 +53490,7 @@
           "line": 151
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "method:-[MTLComputePipelineDescriptor setRequiredThreadsPerThreadgroup:]",
       "kind": "method",
@@ -53498,7 +53498,7 @@
       "macos_introduced": "26.0",
       "name": "setRequiredThreadsPerThreadgroup:",
       "owner": "MTLComputePipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": "instance (MTLSize) -> void"
     },
     {
@@ -53540,7 +53540,7 @@
           "line": 61
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "method:-[MTLComputePipelineDescriptor setStageInputDescriptor:]",
       "kind": "method",
@@ -53548,7 +53548,7 @@
       "macos_introduced": "10.12",
       "name": "setStageInputDescriptor:",
       "owner": "MTLComputePipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": "instance (MTLStageInputOutputDescriptor * _Nullable) -> void"
     },
     {
@@ -53659,7 +53659,7 @@
           "line": 61
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "method:-[MTLComputePipelineDescriptor stageInputDescriptor]",
       "kind": "method",
@@ -53667,7 +53667,7 @@
       "macos_introduced": "10.12",
       "name": "stageInputDescriptor",
       "owner": "MTLComputePipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": "instance () -> MTLStageInputOutputDescriptor * _Nullable"
     },
     {
@@ -57015,7 +57015,7 @@
           "line": 459
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newRenderPipelineStateWithDescriptor:options:reflection:error:]",
       "kind": "method",
@@ -57023,7 +57023,7 @@
       "macos_introduced": "10.11",
       "name": "newRenderPipelineStateWithDescriptor:options:reflection:error:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": "instance (MTLRenderPipelineDescriptor * _Nonnull __strong, MTLPipelineOption, MTLAutoreleasedRenderPipelineReflection * _Nullable, NSError *__autoreleasing  _Nullable * _Nullable) -> id<MTLRenderPipelineState> _Nullable"
     },
     {
@@ -73063,7 +73063,7 @@
           "line": 225
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor binaryArchives]",
       "kind": "method",
@@ -73071,7 +73071,7 @@
       "macos_introduced": "11.0",
       "name": "binaryArchives",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": "instance () -> NSArray<id<MTLBinaryArchive>> * _Nullable"
     },
     {
@@ -73101,7 +73101,7 @@
           "line": 179
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor depthAttachmentPixelFormat]",
       "kind": "method",
@@ -73109,7 +73109,7 @@
       "macos_introduced": "10.11",
       "name": "depthAttachmentPixelFormat",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": "instance () -> MTLPixelFormat"
     },
     {
@@ -73145,7 +73145,7 @@
           "line": 179
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor fragmentFunction]",
       "kind": "method",
@@ -73153,7 +73153,7 @@
       "macos_introduced": "10.11",
       "name": "fragmentFunction",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": "instance () -> id<MTLFunction> _Nullable"
     },
     {
@@ -73170,7 +73170,7 @@
           "line": 262
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor fragmentLinkedFunctions]",
       "kind": "method",
@@ -73178,7 +73178,7 @@
       "macos_introduced": "12.0",
       "name": "fragmentLinkedFunctions",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": "instance () -> MTLLinkedFunctions * _Nonnull"
     },
     {
@@ -73195,7 +73195,7 @@
           "line": 246
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor fragmentPreloadedLibraries]",
       "kind": "method",
@@ -73203,7 +73203,7 @@
       "macos_introduced": "12.0",
       "name": "fragmentPreloadedLibraries",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": "instance () -> NSArray<id<MTLDynamicLibrary>> * _Nonnull"
     },
     {
@@ -73220,7 +73220,7 @@
           "line": 204
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor inputPrimitiveTopology]",
       "kind": "method",
@@ -73228,7 +73228,7 @@
       "macos_introduced": "10.11",
       "name": "inputPrimitiveTopology",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": "instance () -> MTLPrimitiveTopologyClass"
     },
     {
@@ -73459,7 +73459,7 @@
           "line": 179
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor reset]",
       "kind": "method",
@@ -73467,7 +73467,7 @@
       "macos_introduced": "10.11",
       "name": "reset",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": "instance () -> void"
     },
     {
@@ -73484,7 +73484,7 @@
           "line": 190
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor sampleCount]",
       "kind": "method",
@@ -73492,7 +73492,7 @@
       "macos_introduced": "10.11",
       "name": "sampleCount",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -73547,7 +73547,7 @@
           "line": 225
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor setBinaryArchives:]",
       "kind": "method",
@@ -73555,7 +73555,7 @@
       "macos_introduced": "11.0",
       "name": "setBinaryArchives:",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": "instance (NSArray<id<MTLBinaryArchive>> * _Nullable) -> void"
     },
     {
@@ -73566,7 +73566,7 @@
           "line": 179
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor setDepthAttachmentPixelFormat:]",
       "kind": "method",
@@ -73574,7 +73574,7 @@
       "macos_introduced": "10.11",
       "name": "setDepthAttachmentPixelFormat:",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": "instance (MTLPixelFormat) -> void"
     },
     {
@@ -73585,7 +73585,7 @@
           "line": 179
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor setFragmentFunction:]",
       "kind": "method",
@@ -73593,7 +73593,7 @@
       "macos_introduced": "10.11",
       "name": "setFragmentFunction:",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": "instance (id<MTLFunction> _Nullable) -> void"
     },
     {
@@ -73610,7 +73610,7 @@
           "line": 262
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor setFragmentLinkedFunctions:]",
       "kind": "method",
@@ -73618,7 +73618,7 @@
       "macos_introduced": "12.0",
       "name": "setFragmentLinkedFunctions:",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": "instance (MTLLinkedFunctions * _Nullable) -> void"
     },
     {
@@ -73635,7 +73635,7 @@
           "line": 246
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor setFragmentPreloadedLibraries:]",
       "kind": "method",
@@ -73643,7 +73643,7 @@
       "macos_introduced": "12.0",
       "name": "setFragmentPreloadedLibraries:",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": "instance (NSArray<id<MTLDynamicLibrary>> * _Nonnull) -> void"
     },
     {
@@ -73660,7 +73660,7 @@
           "line": 204
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor setInputPrimitiveTopology:]",
       "kind": "method",
@@ -73668,7 +73668,7 @@
       "macos_introduced": "10.11",
       "name": "setInputPrimitiveTopology:",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": "instance (MTLPrimitiveTopologyClass) -> void"
     },
     {
@@ -73842,7 +73842,7 @@
           "line": 190
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor setSampleCount:]",
       "kind": "method",
@@ -73850,7 +73850,7 @@
       "macos_introduced": "10.11",
       "name": "setSampleCount:",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -73886,7 +73886,7 @@
           "line": 179
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor setStencilAttachmentPixelFormat:]",
       "kind": "method",
@@ -73894,7 +73894,7 @@
       "macos_introduced": "10.11",
       "name": "setStencilAttachmentPixelFormat:",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": "instance (MTLPixelFormat) -> void"
     },
     {
@@ -74086,7 +74086,7 @@
           "line": 212
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor setTessellationOutputWindingOrder:]",
       "kind": "method",
@@ -74094,7 +74094,7 @@
       "macos_introduced": "10.12",
       "name": "setTessellationOutputWindingOrder:",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": "instance (MTLWinding) -> void"
     },
     {
@@ -74149,7 +74149,7 @@
           "line": 179
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor setVertexFunction:]",
       "kind": "method",
@@ -74157,7 +74157,7 @@
       "macos_introduced": "10.11",
       "name": "setVertexFunction:",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": "instance (id<MTLFunction> _Nullable) -> void"
     },
     {
@@ -74174,7 +74174,7 @@
           "line": 254
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor setVertexLinkedFunctions:]",
       "kind": "method",
@@ -74182,7 +74182,7 @@
       "macos_introduced": "12.0",
       "name": "setVertexLinkedFunctions:",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": "instance (MTLLinkedFunctions * _Nullable) -> void"
     },
     {
@@ -74199,7 +74199,7 @@
           "line": 236
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor setVertexPreloadedLibraries:]",
       "kind": "method",
@@ -74207,7 +74207,7 @@
       "macos_introduced": "12.0",
       "name": "setVertexPreloadedLibraries:",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": "instance (NSArray<id<MTLDynamicLibrary>> * _Nonnull) -> void"
     },
     {
@@ -74243,7 +74243,7 @@
           "line": 179
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor stencilAttachmentPixelFormat]",
       "kind": "method",
@@ -74251,7 +74251,7 @@
       "macos_introduced": "10.11",
       "name": "stencilAttachmentPixelFormat",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": "instance () -> MTLPixelFormat"
     },
     {
@@ -74418,7 +74418,7 @@
           "line": 212
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor tessellationOutputWindingOrder]",
       "kind": "method",
@@ -74426,7 +74426,7 @@
       "macos_introduced": "10.12",
       "name": "tessellationOutputWindingOrder",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": "instance () -> MTLWinding"
     },
     {
@@ -74506,7 +74506,7 @@
           "line": 179
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor vertexFunction]",
       "kind": "method",
@@ -74514,7 +74514,7 @@
       "macos_introduced": "10.11",
       "name": "vertexFunction",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": "instance () -> id<MTLFunction> _Nullable"
     },
     {
@@ -74531,7 +74531,7 @@
           "line": 254
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor vertexLinkedFunctions]",
       "kind": "method",
@@ -74539,7 +74539,7 @@
       "macos_introduced": "12.0",
       "name": "vertexLinkedFunctions",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": "instance () -> MTLLinkedFunctions * _Nonnull"
     },
     {
@@ -74556,7 +74556,7 @@
           "line": 236
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor vertexPreloadedLibraries]",
       "kind": "method",
@@ -74564,7 +74564,7 @@
       "macos_introduced": "12.0",
       "name": "vertexPreloadedLibraries",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": "instance () -> NSArray<id<MTLDynamicLibrary>> * _Nonnull"
     },
     {
@@ -91725,7 +91725,7 @@
           "line": 151
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "property:MTLComputePipelineDescriptor:requiredThreadsPerThreadgroup",
       "kind": "property",
@@ -91733,7 +91733,7 @@
       "macos_introduced": "26.0",
       "name": "requiredThreadsPerThreadgroup",
       "owner": "MTLComputePipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": "MTLSize"
     },
     {
@@ -91775,7 +91775,7 @@
           "line": 61
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "property:MTLComputePipelineDescriptor:stageInputDescriptor",
       "kind": "property",
@@ -91783,7 +91783,7 @@
       "macos_introduced": "10.12",
       "name": "stageInputDescriptor",
       "owner": "MTLComputePipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": "MTLStageInputOutputDescriptor * _Nullable"
     },
     {
@@ -98935,7 +98935,7 @@
           "line": 225
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineDescriptor:binaryArchives",
       "kind": "property",
@@ -98943,7 +98943,7 @@
       "macos_introduced": "11.0",
       "name": "binaryArchives",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": "NSArray<id<MTLBinaryArchive>> * _Nullable"
     },
     {
@@ -98973,7 +98973,7 @@
           "line": 179
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineDescriptor:depthAttachmentPixelFormat",
       "kind": "property",
@@ -98981,7 +98981,7 @@
       "macos_introduced": "10.11",
       "name": "depthAttachmentPixelFormat",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": "MTLPixelFormat"
     },
     {
@@ -99017,7 +99017,7 @@
           "line": 179
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineDescriptor:fragmentFunction",
       "kind": "property",
@@ -99025,7 +99025,7 @@
       "macos_introduced": "10.11",
       "name": "fragmentFunction",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": "id<MTLFunction> _Nullable"
     },
     {
@@ -99042,7 +99042,7 @@
           "line": 262
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineDescriptor:fragmentLinkedFunctions",
       "kind": "property",
@@ -99050,7 +99050,7 @@
       "macos_introduced": "12.0",
       "name": "fragmentLinkedFunctions",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": "MTLLinkedFunctions * _Null_unspecified"
     },
     {
@@ -99067,7 +99067,7 @@
           "line": 246
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineDescriptor:fragmentPreloadedLibraries",
       "kind": "property",
@@ -99075,7 +99075,7 @@
       "macos_introduced": "12.0",
       "name": "fragmentPreloadedLibraries",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": "NSArray<id<MTLDynamicLibrary>> * _Nonnull"
     },
     {
@@ -99092,7 +99092,7 @@
           "line": 204
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineDescriptor:inputPrimitiveTopology",
       "kind": "property",
@@ -99100,7 +99100,7 @@
       "macos_introduced": "10.11",
       "name": "inputPrimitiveTopology",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": "MTLPrimitiveTopologyClass"
     },
     {
@@ -99274,7 +99274,7 @@
           "line": 190
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineDescriptor:sampleCount",
       "kind": "property",
@@ -99282,7 +99282,7 @@
       "macos_introduced": "10.11",
       "name": "sampleCount",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -99318,7 +99318,7 @@
           "line": 179
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineDescriptor:stencilAttachmentPixelFormat",
       "kind": "property",
@@ -99326,7 +99326,7 @@
       "macos_introduced": "10.11",
       "name": "stencilAttachmentPixelFormat",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": "MTLPixelFormat"
     },
     {
@@ -99518,7 +99518,7 @@
           "line": 212
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineDescriptor:tessellationOutputWindingOrder",
       "kind": "property",
@@ -99526,7 +99526,7 @@
       "macos_introduced": "10.12",
       "name": "tessellationOutputWindingOrder",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": "MTLWinding"
     },
     {
@@ -99606,7 +99606,7 @@
           "line": 179
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineDescriptor:vertexFunction",
       "kind": "property",
@@ -99614,7 +99614,7 @@
       "macos_introduced": "10.11",
       "name": "vertexFunction",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": "id<MTLFunction> _Nullable"
     },
     {
@@ -99631,7 +99631,7 @@
           "line": 254
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineDescriptor:vertexLinkedFunctions",
       "kind": "property",
@@ -99639,7 +99639,7 @@
       "macos_introduced": "12.0",
       "name": "vertexLinkedFunctions",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": "MTLLinkedFunctions * _Null_unspecified"
     },
     {
@@ -99656,7 +99656,7 @@
           "line": 236
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineDescriptor:vertexPreloadedLibraries",
       "kind": "property",
@@ -99664,7 +99664,7 @@
       "macos_introduced": "12.0",
       "name": "vertexPreloadedLibraries",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained compute/render pipeline descriptors, exact scalar round trips, checked synchronous compilation, and native conformance.",
       "signature": "NSArray<id<MTLDynamicLibrary>> * _Nonnull"
     },
     {

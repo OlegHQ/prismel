@@ -9,7 +9,7 @@ let ()=
  let json=read_file Sys.argv.(1)|>Yojson.Safe.from_string in
  let all=match member_list"symbols"json with Some xs->List.map declaration xs|None->fail"missing symbols"in
  let inventory_ids=List.map(fun(d,_)->d.Binding_pipeline_header_plan.id)all in
- if List.exists(fun id->not(List.mem id inventory_ids))Binding_pipeline_expanded_reachability.pending_family_ids then fail"Pipeline113 pending selector absent";
+ if List.exists(fun id->not(List.mem id inventory_ids))Binding_pipeline_expanded_reachability.promotable_ids then fail"Pipeline113 safe selector absent";
  if List.exists(fun id->not(List.mem id inventory_ids))Binding_pipeline_expanded_reachability.enabling_device_ids then fail"Pipeline113 enabling selector absent";
  if 113-List.length Binding_pipeline_expanded_reachability.pending_family_ids<>61 then fail"Pipeline113 blocked complement drift";
- Printf.printf"Pipeline113 expanded audit: 52 pending-safe, 61 blocked, plus 2 enabling Device selectors; no promotion\n"
+ Printf.printf"Pipeline113 expanded audit: 52 safe family IDs plus 2 enabling Device selectors promotable, 61 blocked\n"

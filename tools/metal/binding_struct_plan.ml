@@ -30,6 +30,8 @@ let relevant declaration =
              && List.mem declaration.id
                   Binding_pipeline_state_safe_reachability.promotable_ids
           || String.equal declaration.classification "bound"
+             && List.mem declaration.id Binding_pipeline_expanded_reachability.promotable_ids
+          || String.equal declaration.classification "bound"
              && List.mem declaration.id
                   Binding_shader_safe_reachability.promotable_ids
           || String.equal declaration.classification "bound"

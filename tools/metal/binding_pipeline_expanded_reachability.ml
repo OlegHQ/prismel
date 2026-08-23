@@ -1,4 +1,4 @@
-type status = Pending_safe | Blocked
+type status = Promotable | Blocked
 let property owner name setter=["property:"^owner^":"^name;"method:-["^owner^" "^name^"]";"method:-["^owner^" "^setter^":]"]
 let ownership_ids=
  [ "class:MTLRenderPipelineDescriptor";"class:MTLComputePipelineDescriptor" ] @
@@ -27,7 +27,8 @@ let pending_family_ids=List.sort_uniq String.compare(ownership_ids@mechanical_id
 let enabling_device_ids=
  [ "method:-[MTLDevice newRenderPipelineStateWithDescriptor:options:reflection:error:]"
  ; "method:-[MTLDevice newComputePipelineStateWithDescriptor:options:reflection:error:]" ]
-let status id=if List.mem id pending_family_ids then Pending_safe else Blocked
+let promotable_ids=List.sort_uniq String.compare(pending_family_ids@enabling_device_ids)
+let status id=if List.mem id promotable_ids then Promotable else Blocked
 let validate()=
- if List.length ownership_ids<>32||List.length mechanical_ids<>20||List.length pending_family_ids<>52||List.length enabling_device_ids<>2 then failwith"Pipeline113 expanded pending closure drift"
+ if List.length ownership_ids<>32||List.length mechanical_ids<>20||List.length pending_family_ids<>52||List.length enabling_device_ids<>2||List.length promotable_ids<>54 then failwith"Pipeline113 expanded safe closure drift"
 let ()=validate()
