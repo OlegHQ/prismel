@@ -2385,6 +2385,14 @@ module Render_encoder : sig
     t -> index:int -> offset:int64 -> Buffer.t -> (unit, error) result
   val set_vertex_texture : t -> index:int -> Texture.t -> (unit, error) result
   val set_fragment_texture : t -> index:int -> Texture.t -> (unit, error) result
+  val set_vertex_bytes : t -> index:int -> bytes -> (unit, error) result
+  val set_fragment_bytes : t -> index:int -> bytes -> (unit, error) result
+  val set_vertex_sampler :
+    t -> index:int -> ?lod_min:float -> ?lod_max:float -> Sampler.t ->
+    (unit, error) result
+  val set_fragment_sampler :
+    t -> index:int -> ?lod_min:float -> ?lod_max:float -> Sampler.t ->
+    (unit, error) result
   val set_viewport : t -> viewport -> (unit, error) result
   val set_scissor : t -> scissor -> (unit, error) result
   val set_cull_mode : t -> cull_mode -> (unit, error) result

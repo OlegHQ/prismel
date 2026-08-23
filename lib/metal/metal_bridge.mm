@@ -13448,6 +13448,40 @@ extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_fragment_texture
   CAMLreturn(result_unit());
 }
 
+static value render_encoder_set_bytes(value raw_encoder, value raw_bytes,
+                                      value raw_index, bool vertex) {
+  id<MTLRenderCommandEncoder> encoder = object_of_handle(raw_encoder, Handle_kind::Render_encoder);
+  NSUInteger length = caml_string_length(raw_bytes), index = Long_val(raw_index);
+  if (length == 0 || length > 4096 || index >= 31)
+    return result_error_text("render inline bytes are empty, too large, or out of range");
+  if (vertex) [encoder setVertexBytes:Bytes_val(raw_bytes) length:length atIndex:index];
+  else [encoder setFragmentBytes:Bytes_val(raw_bytes) length:length atIndex:index];
+  return result_unit();
+}
+extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_vertex_bytes(value e,value b,value i){ CAMLparam3(e,b,i); CAMLreturn(render_encoder_set_bytes(e,b,i,true)); }
+extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_fragment_bytes(value e,value b,value i){ CAMLparam3(e,b,i); CAMLreturn(render_encoder_set_bytes(e,b,i,false)); }
+
+static value render_encoder_set_sampler(value raw_encoder, value raw_sampler,
+                                        value raw_lod, value raw_index, bool vertex) {
+  id<MTLRenderCommandEncoder> encoder = object_of_handle(raw_encoder, Handle_kind::Render_encoder);
+  id<MTLSamplerState> sampler = object_of_handle(raw_sampler, Handle_kind::Sampler);
+  NSUInteger index = Long_val(raw_index);
+  if (index >= 31) return result_error_text("render sampler index is out of range");
+  if (Is_long(raw_lod)) {
+    if (vertex) [encoder setVertexSamplerState:sampler atIndex:index];
+    else [encoder setFragmentSamplerState:sampler atIndex:index];
+  } else {
+    value pair = Field(raw_lod,0); float lo=Double_val(Field(pair,0)), hi=Double_val(Field(pair,1));
+    if (vertex) [encoder setVertexSamplerState:sampler lodMinClamp:lo lodMaxClamp:hi atIndex:index];
+    else [encoder setFragmentSamplerState:sampler lodMinClamp:lo lodMaxClamp:hi atIndex:index];
+  }
+  return result_unit();
+}
+extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_vertex_sampler(value e,value s,value i){ CAMLparam3(e,s,i); CAMLreturn(render_encoder_set_sampler(e,s,Val_int(0),i,true)); }
+extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_fragment_sampler(value e,value s,value i){ CAMLparam3(e,s,i); CAMLreturn(render_encoder_set_sampler(e,s,Val_int(0),i,false)); }
+extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_vertex_sampler_lod(value e,value s,value l,value i){ CAMLparam4(e,s,l,i); CAMLlocal1(o); o=caml_alloc_small(1,0); Field(o,0)=l; CAMLreturn(render_encoder_set_sampler(e,s,o,i,true)); }
+extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_fragment_sampler_lod(value e,value s,value l,value i){ CAMLparam4(e,s,l,i); CAMLlocal1(o); o=caml_alloc_small(1,0); Field(o,0)=l; CAMLreturn(render_encoder_set_sampler(e,s,o,i,false)); }
+
 extern "C" CAMLprim value caml_prismel_metal_render_encoder_draw(
     value raw_encoder, value raw_first, value raw_count, value raw_instances) {
   CAMLparam4(raw_encoder, raw_first, raw_count, raw_instances);

@@ -1343,6 +1343,7 @@ type command_resource =
   | Command_buffer_buffer of buffer
   | Command_buffer_acceleration_structure of acceleration_structure
   | Command_buffer_texture of texture
+  | Command_buffer_sampler of sampler
   | Command_buffer_render_pipeline of render_pipeline
   | Command_residency_set of residency_set
   | Command_buffer_indirect of indirect_command_buffer
@@ -1399,6 +1400,7 @@ let command_resource_lifetime = function
   | Command_buffer_buffer buffer -> buffer.lifetime
   | Command_buffer_acceleration_structure value -> value.lifetime
   | Command_buffer_texture texture -> texture.lifetime
+  | Command_buffer_sampler sampler -> sampler.lifetime
   | Command_buffer_render_pipeline pipeline -> pipeline.lifetime
   | Command_residency_set residency_set -> residency_set.lifetime
   | Command_buffer_indirect value -> value.lifetime
@@ -1420,6 +1422,7 @@ let command_resource_heap = function
       { parent = (Device_resource _ | External_resource _); _ } -> None
   | Command_buffer_acceleration_structure _ -> None
   | Command_buffer_texture texture -> command_texture_heap texture
+  | Command_buffer_sampler _ -> None
   | Command_buffer_render_pipeline _ | Command_residency_set _
   | Command_buffer_indirect _ -> None
 
@@ -1618,7 +1621,7 @@ let retain_command_buffer_buffer (command_buffer : command_buffer) (buffer : buf
     List.exists
       (function
         | Command_buffer_buffer retained -> retained.lifetime == buffer.lifetime
-        | Command_buffer_acceleration_structure _ | Command_buffer_texture _ | Command_buffer_render_pipeline _
+        | Command_buffer_acceleration_structure _ | Command_buffer_texture _ | Command_buffer_sampler _ | Command_buffer_render_pipeline _
         | Command_buffer_indirect _ -> false
         | Command_residency_set _ -> false)
       !(command_buffer.resources)
@@ -1640,7 +1643,7 @@ let retain_command_buffer_acceleration_structure
       (function
         | Command_buffer_acceleration_structure retained ->
             retained.lifetime == value.lifetime
-        | Command_buffer_buffer _ | Command_buffer_texture _
+        | Command_buffer_buffer _ | Command_buffer_texture _ | Command_buffer_sampler _
         | Command_buffer_render_pipeline _ | Command_residency_set _
         | Command_buffer_indirect _ -> false)
       !(command_buffer.resources)
@@ -1658,7 +1661,7 @@ let retain_command_buffer_texture (command_buffer : command_buffer)
       (function
         | Command_buffer_texture retained ->
             retained.lifetime == texture.lifetime
-        | Command_buffer_buffer _ | Command_buffer_acceleration_structure _ | Command_buffer_render_pipeline _
+        | Command_buffer_buffer _ | Command_buffer_acceleration_structure _ | Command_buffer_sampler _ | Command_buffer_render_pipeline _
         | Command_residency_set _
         | Command_buffer_indirect _ -> false)
       !(command_buffer.resources)
@@ -1671,6 +1674,16 @@ let retain_command_buffer_texture (command_buffer : command_buffer)
       Command_buffer_texture texture :: !(command_buffer.resources)
   end
 
+let retain_command_buffer_sampler (command_buffer : command_buffer)
+    (sampler : sampler) =
+  if not (List.exists (function
+      | Command_buffer_sampler retained -> retained.lifetime == sampler.lifetime
+      | _ -> false) !(command_buffer.resources)) then begin
+    attach sampler.lifetime;
+    command_buffer.resources :=
+      Command_buffer_sampler sampler :: !(command_buffer.resources)
+  end
+
 let retain_command_buffer_residency_set (command_buffer : command_buffer)
     (residency_set : residency_set) =
   let already_retained =
@@ -1679,6 +1692,7 @@ let retain_command_buffer_residency_set (command_buffer : command_buffer)
         | Command_residency_set retained ->
             retained.lifetime == residency_set.lifetime
         | Command_buffer_buffer _ | Command_buffer_acceleration_structure _ | Command_buffer_texture _
+        | Command_buffer_sampler _
         | Command_buffer_render_pipeline _
         | Command_buffer_indirect _ -> false)
       !(command_buffer.resources)
@@ -1696,6 +1710,7 @@ let retain_command_buffer_indirect (command_buffer : command_buffer)
       (function
         | Command_buffer_indirect retained -> retained.lifetime == value.lifetime
         | Command_buffer_buffer _ | Command_buffer_acceleration_structure _ | Command_buffer_texture _
+        | Command_buffer_sampler _
         | Command_buffer_render_pipeline _
         | Command_residency_set _ -> false)
       !(command_buffer.resources)
@@ -1715,6 +1730,7 @@ let retain_command_buffer_render_pipeline (command_buffer : command_buffer)
            | Command_buffer_render_pipeline retained ->
                retained.lifetime == pipeline.lifetime
            | Command_buffer_buffer _ | Command_buffer_acceleration_structure _ | Command_buffer_texture _
+           | Command_buffer_sampler _
            | Command_residency_set _ | Command_buffer_indirect _ -> false)
          !(command_buffer.resources))
   then begin
@@ -13452,7 +13468,7 @@ module Command_buffer = struct
         | Command_residency_set retained ->
             retained.lifetime == residency_set.lifetime
         | Command_buffer_buffer _ | Command_buffer_acceleration_structure _
-        | Command_buffer_texture _
+        | Command_buffer_texture _ | Command_buffer_sampler _
         | Command_buffer_render_pipeline _ | Command_buffer_indirect _ -> false)
       !(value.resources)
 
@@ -13919,6 +13935,70 @@ module Render_encoder = struct
   let set_fragment_texture =
     set_texture "Metal.Render_encoder.set_fragment_texture"
       Metal_raw.render_encoder_set_fragment_texture
+
+  let set_bytes operation raw_call (value : t) ~index bytes =
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when index < 0 || index >= 31 ->
+          error operation Invalid_argument "byte index must be in [0, 31)"
+      | Ok () when Bytes.length bytes = 0 || Bytes.length bytes > 4096 ->
+          error operation Invalid_argument "inline bytes must contain 1..4096 bytes"
+      | Ok () ->
+          (match raw_call value.raw bytes index with
+           | Ok () -> Ok () | Error message -> native_error operation message))
+
+  let set_vertex_bytes =
+    set_bytes "Metal.Render_encoder.set_vertex_bytes"
+      Metal_raw.render_encoder_set_vertex_bytes
+  let set_fragment_bytes =
+    set_bytes "Metal.Render_encoder.set_fragment_bytes"
+      Metal_raw.render_encoder_set_fragment_bytes
+
+  let set_sampler operation raw_call (value : t) ~index ?lod_min ?lod_max
+      (sampler : Sampler.t) =
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match ensure_live operation sampler.lifetime with
+           | Error _ as failure -> failure
+           | Ok () when index < 0 || index >= 31 ->
+               error operation Invalid_argument "sampler index must be in [0, 31)"
+           | Ok () when
+               (match lod_min, lod_max with
+                | None, None -> false
+                | Some lo, Some hi ->
+                    not (Float.is_finite lo && Float.is_finite hi
+                         && lo >= 0. && lo <= hi)
+                | _ -> true) ->
+               error operation Invalid_argument
+                 "LOD clamps must be finite, nonnegative, ordered, and supplied together"
+           | Ok () ->
+               (match ensure_same_device operation value.command_buffer.queue.device sampler.device with
+                | Error _ as failure -> failure
+                | Ok () ->
+                    let result = match lod_min, lod_max with
+                      | None, None -> raw_call `Plain value.raw sampler.raw index
+                      | Some lo, Some hi ->
+                          raw_call (`Lod (lo, hi)) value.raw sampler.raw index
+                      | _ -> assert false
+                    in
+                    (match result with
+                     | Error message -> native_error operation message
+                     | Ok () -> retain_command_buffer_sampler value.command_buffer sampler; Ok ()))))
+
+  let sampler_call plain lod = function
+    | `Plain -> plain | `Lod clamps -> fun encoder sampler index -> lod encoder sampler clamps index
+
+  let set_vertex_sampler =
+    set_sampler "Metal.Render_encoder.set_vertex_sampler"
+      (sampler_call Metal_raw.render_encoder_set_vertex_sampler
+         Metal_raw.render_encoder_set_vertex_sampler_lod)
+  let set_fragment_sampler =
+    set_sampler "Metal.Render_encoder.set_fragment_sampler"
+      (sampler_call Metal_raw.render_encoder_set_fragment_sampler
+         Metal_raw.render_encoder_set_fragment_sampler_lod)
 
   let set_validated operation validate raw_call (value : t) argument =
     on_main operation (fun () ->

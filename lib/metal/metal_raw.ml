@@ -1358,6 +1358,24 @@ external render_encoder_set_vertex_texture :
 external render_encoder_set_fragment_texture :
   handle -> handle -> int -> (unit, string) result =
   "caml_prismel_metal_render_encoder_set_fragment_texture"
+external render_encoder_set_vertex_bytes :
+  handle -> bytes -> int -> (unit, string) result =
+  "caml_prismel_metal_render_encoder_set_vertex_bytes"
+external render_encoder_set_fragment_bytes :
+  handle -> bytes -> int -> (unit, string) result =
+  "caml_prismel_metal_render_encoder_set_fragment_bytes"
+external render_encoder_set_vertex_sampler :
+  handle -> handle -> int -> (unit, string) result =
+  "caml_prismel_metal_render_encoder_set_vertex_sampler"
+external render_encoder_set_fragment_sampler :
+  handle -> handle -> int -> (unit, string) result =
+  "caml_prismel_metal_render_encoder_set_fragment_sampler"
+external render_encoder_set_vertex_sampler_lod :
+  handle -> handle -> float * float -> int -> (unit, string) result =
+  "caml_prismel_metal_render_encoder_set_vertex_sampler_lod"
+external render_encoder_set_fragment_sampler_lod :
+  handle -> handle -> float * float -> int -> (unit, string) result =
+  "caml_prismel_metal_render_encoder_set_fragment_sampler_lod"
 external render_encoder_draw :
   handle -> int -> int -> int -> (unit, string) result =
   "caml_prismel_metal_render_encoder_draw"

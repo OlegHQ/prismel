@@ -30,6 +30,7 @@ let () =
             ~usage:[ Texture.Shader_read ] ~format:Texture.Rgba8_unorm
             ~width:1 ~height:1 ()))
   in
+  let sampler = get (Sampler.create ~device (Sampler.default ())) in
   let before = get (Release_queue.stats ()) in
   let tile_width = get (Render_encoder.tile_width encoder) in
   let tile_height = get (Render_encoder.tile_height encoder) in
@@ -46,6 +47,9 @@ let () =
        ~mode:Render_encoder.Visibility_boolean ~offset:1L);
   expect Invalid_argument
     (Render_encoder.set_vertex_texture encoder ~index:31 sampled);
+  expect Invalid_argument (Render_encoder.set_vertex_bytes encoder ~index:0 Bytes.empty);
+  expect Invalid_argument
+    (Render_encoder.set_fragment_sampler encoder ~index:0 ~lod_min:2. ~lod_max:1. sampler);
   let after = get (Release_queue.stats ()) in
   if after.total_created <> before.total_created
      || after.live_handles <> before.live_handles then
@@ -68,13 +72,21 @@ let () =
        ~mode:Render_encoder.Visibility_disabled ~offset:0L);
   get (Render_encoder.set_vertex_texture encoder ~index:0 sampled);
   get (Render_encoder.set_fragment_texture encoder ~index:0 sampled);
+  get (Render_encoder.set_vertex_bytes encoder ~index:2 (Bytes.make 8 '\000'));
+  get (Render_encoder.set_fragment_bytes encoder ~index:2 (Bytes.make 16 '\000'));
+  get (Render_encoder.set_vertex_sampler encoder ~index:0 sampler);
+  get
+    (Render_encoder.set_fragment_sampler encoder ~index:0 ~lod_min:0. ~lod_max:1.
+       sampler);
   expect Parent_has_dependents (Texture.destroy sampled);
+  expect Parent_has_dependents (Sampler.destroy sampler);
   get (Render_encoder.end_encoding encoder);
   expect Destroyed (Render_encoder.tile_width encoder);
   expect Destroyed (Render_encoder.set_cull_mode encoder Render_encoder.Cull_back);
   get (Command_buffer.commit commands);
   get (Command_buffer.wait_until_completed commands);
   get (Texture.destroy sampled);
+  get (Sampler.destroy sampler);
   get (Command_buffer.destroy commands);
   get (Texture.destroy target);
   get (Command_queue.destroy queue);
