@@ -889,6 +889,7 @@ enum class Handle_kind : std::uint32_t {
   Command_queue,
   Command_buffer,
   Compute_encoder,
+  Render_encoder,
   Resource_state_encoder,
   Blit_encoder,
   Residency_set,
@@ -13121,6 +13122,115 @@ extern "C" CAMLprim value caml_prismel_metal_command_buffer_compute_encoder(
     raw = allocate_handle(encoder, Handle_kind::Compute_encoder);
   }
   CAMLreturn(result_ok(raw));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_command_buffer_render_encoder(
+    value raw_buffer, value raw_texture, value raw_clear) {
+  CAMLparam3(raw_buffer, raw_texture, raw_clear);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    @try {
+      id<MTLCommandBuffer> buffer =
+          object_of_handle(raw_buffer, Handle_kind::Command_buffer);
+      id<MTLTexture> texture =
+          object_of_handle(raw_texture, Handle_kind::Texture);
+      const double red = Double_val(Field(raw_clear, 0));
+      const double green = Double_val(Field(raw_clear, 1));
+      const double blue = Double_val(Field(raw_clear, 2));
+      const double alpha = Double_val(Field(raw_clear, 3));
+      if (!std::isfinite(red) || !std::isfinite(green) ||
+          !std::isfinite(blue) || !std::isfinite(alpha) ||
+          texture.sampleCount != 1 ||
+          (texture.usage & MTLTextureUsageRenderTarget) == 0) {
+        CAMLreturn(result_error_text("render-pass target is invalid"));
+      }
+      MTLRenderPassDescriptor *pass =
+          [MTLRenderPassDescriptor renderPassDescriptor];
+      pass.colorAttachments[0].texture = texture;
+      pass.colorAttachments[0].loadAction = MTLLoadActionClear;
+      pass.colorAttachments[0].storeAction = MTLStoreActionStore;
+      pass.colorAttachments[0].clearColor =
+          MTLClearColorMake(red, green, blue, alpha);
+      id<MTLRenderCommandEncoder> encoder =
+          [buffer renderCommandEncoderWithDescriptor:pass];
+      if (encoder == nil) {
+        CAMLreturn(result_error_text("Metal failed to create a render encoder"));
+      }
+      raw = allocate_handle(encoder, Handle_kind::Render_encoder);
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+  CAMLreturn(result_ok(raw));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_pipeline(
+    value raw_encoder, value raw_pipeline) {
+  CAMLparam2(raw_encoder, raw_pipeline);
+  id<MTLRenderCommandEncoder> encoder =
+      object_of_handle(raw_encoder, Handle_kind::Render_encoder);
+  id<MTLRenderPipelineState> pipeline =
+      object_of_handle(raw_pipeline, Handle_kind::Render_pipeline);
+  [encoder setRenderPipelineState:pipeline];
+  CAMLreturn(result_unit());
+}
+
+extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_vertex_buffer(
+    value raw_encoder, value raw_buffer, value raw_offset, value raw_index) {
+  CAMLparam4(raw_encoder, raw_buffer, raw_offset, raw_index);
+  id<MTLRenderCommandEncoder> encoder =
+      object_of_handle(raw_encoder, Handle_kind::Render_encoder);
+  id<MTLBuffer> buffer = object_of_handle(raw_buffer, Handle_kind::Buffer);
+  const std::int64_t offset = Int64_val(raw_offset);
+  const intnat index = Long_val(raw_index);
+  if (offset < 0 || static_cast<std::uint64_t>(offset) > buffer.length ||
+      index < 0 || index >= 31) {
+    CAMLreturn(result_error_text("render vertex-buffer binding is out of range"));
+  }
+  [encoder setVertexBuffer:buffer offset:(NSUInteger)offset atIndex:(NSUInteger)index];
+  CAMLreturn(result_unit());
+}
+
+extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_fragment_buffer(
+    value raw_encoder, value raw_buffer, value raw_offset, value raw_index) {
+  CAMLparam4(raw_encoder, raw_buffer, raw_offset, raw_index);
+  id<MTLRenderCommandEncoder> encoder =
+      object_of_handle(raw_encoder, Handle_kind::Render_encoder);
+  id<MTLBuffer> buffer = object_of_handle(raw_buffer, Handle_kind::Buffer);
+  const std::int64_t offset = Int64_val(raw_offset);
+  const intnat index = Long_val(raw_index);
+  if (offset < 0 || static_cast<std::uint64_t>(offset) > buffer.length ||
+      index < 0 || index >= 31) {
+    CAMLreturn(result_error_text("render fragment-buffer binding is out of range"));
+  }
+  [encoder setFragmentBuffer:buffer offset:(NSUInteger)offset atIndex:(NSUInteger)index];
+  CAMLreturn(result_unit());
+}
+
+extern "C" CAMLprim value caml_prismel_metal_render_encoder_draw(
+    value raw_encoder, value raw_first, value raw_count, value raw_instances) {
+  CAMLparam4(raw_encoder, raw_first, raw_count, raw_instances);
+  id<MTLRenderCommandEncoder> encoder =
+      object_of_handle(raw_encoder, Handle_kind::Render_encoder);
+  const intnat first = Long_val(raw_first);
+  const intnat count = Long_val(raw_count);
+  const intnat instances = Long_val(raw_instances);
+  if (first < 0 || count <= 0 || instances <= 0) {
+    CAMLreturn(result_error_text("render draw range is invalid"));
+  }
+  [encoder drawPrimitives:MTLPrimitiveTypeTriangle
+              vertexStart:(NSUInteger)first
+              vertexCount:(NSUInteger)count
+            instanceCount:(NSUInteger)instances];
+  CAMLreturn(result_unit());
+}
+
+extern "C" CAMLprim value caml_prismel_metal_render_encoder_end(value raw) {
+  CAMLparam1(raw);
+  id<MTLRenderCommandEncoder> encoder =
+      object_of_handle(raw, Handle_kind::Render_encoder);
+  [encoder endEncoding];
+  CAMLreturn(result_unit());
 }
 
 extern "C" CAMLprim value

@@ -2310,6 +2310,24 @@ module Compute_encoder : sig
   val destroyed : t -> bool
 end
 
+module Render_encoder : sig
+  type t
+
+  val create :
+    Command_buffer.t -> target:Texture.t ->
+    ?clear:float * float * float * float -> unit -> (t, error) result
+  val set_pipeline : t -> Render_pipeline.t -> (unit, error) result
+  val set_vertex_buffer :
+    t -> index:int -> offset:int64 -> Buffer.t -> (unit, error) result
+  val set_fragment_buffer :
+    t -> index:int -> offset:int64 -> Buffer.t -> (unit, error) result
+  val draw_triangles :
+    t -> first:int -> count:int -> ?instances:int -> unit ->
+    (unit, error) result
+  val end_encoding : t -> (unit, error) result
+  val destroyed : t -> bool
+end
+
 module Resource_state_encoder : sig
   type t
 

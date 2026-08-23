@@ -1335,6 +1335,7 @@ type indirect_compute_command =
 type command_resource =
   | Command_buffer_buffer of buffer
   | Command_buffer_texture of texture
+  | Command_buffer_render_pipeline of render_pipeline
   | Command_residency_set of residency_set
   | Command_buffer_indirect of indirect_command_buffer
 
@@ -1351,6 +1352,14 @@ type compute_encoder =
   ; lifetime : lifetime
   ; command_buffer : command_buffer
   ; mutable pipeline : compute_pipeline option
+  }
+
+type render_encoder =
+  { raw : Metal_raw.handle
+  ; lifetime : lifetime
+  ; command_buffer : command_buffer
+  ; target : texture
+  ; mutable pipeline : render_pipeline option
   }
 
 type resource_state_encoder =
@@ -1375,6 +1384,7 @@ let attach_finalizer ?(on_finalize = fun () -> ()) value lifetime parent =
 let command_resource_lifetime = function
   | Command_buffer_buffer buffer -> buffer.lifetime
   | Command_buffer_texture texture -> texture.lifetime
+  | Command_buffer_render_pipeline pipeline -> pipeline.lifetime
   | Command_residency_set residency_set -> residency_set.lifetime
   | Command_buffer_indirect value -> value.lifetime
 
@@ -1394,7 +1404,8 @@ let command_resource_heap = function
   | Command_buffer_buffer
       { parent = (Device_resource _ | External_resource _); _ } -> None
   | Command_buffer_texture texture -> command_texture_heap texture
-  | Command_residency_set _ | Command_buffer_indirect _ -> None
+  | Command_buffer_render_pipeline _ | Command_residency_set _
+  | Command_buffer_indirect _ -> None
 
 let release_command_resources resources =
   let retained = !resources in
@@ -1591,7 +1602,8 @@ let retain_command_buffer_buffer (command_buffer : command_buffer) (buffer : buf
     List.exists
       (function
         | Command_buffer_buffer retained -> retained.lifetime == buffer.lifetime
-        | Command_buffer_texture _ | Command_buffer_indirect _ -> false
+        | Command_buffer_texture _ | Command_buffer_render_pipeline _
+        | Command_buffer_indirect _ -> false
         | Command_residency_set _ -> false)
       !(command_buffer.resources)
   in
@@ -1612,7 +1624,8 @@ let retain_command_buffer_texture (command_buffer : command_buffer)
       (function
         | Command_buffer_texture retained ->
             retained.lifetime == texture.lifetime
-        | Command_buffer_buffer _ | Command_residency_set _
+        | Command_buffer_buffer _ | Command_buffer_render_pipeline _
+        | Command_residency_set _
         | Command_buffer_indirect _ -> false)
       !(command_buffer.resources)
   in
@@ -1632,6 +1645,7 @@ let retain_command_buffer_residency_set (command_buffer : command_buffer)
         | Command_residency_set retained ->
             retained.lifetime == residency_set.lifetime
         | Command_buffer_buffer _ | Command_buffer_texture _
+        | Command_buffer_render_pipeline _
         | Command_buffer_indirect _ -> false)
       !(command_buffer.resources)
   in
@@ -1648,6 +1662,7 @@ let retain_command_buffer_indirect (command_buffer : command_buffer)
       (function
         | Command_buffer_indirect retained -> retained.lifetime == value.lifetime
         | Command_buffer_buffer _ | Command_buffer_texture _
+        | Command_buffer_render_pipeline _
         | Command_residency_set _ -> false)
       !(command_buffer.resources)
   in
@@ -1655,6 +1670,23 @@ let retain_command_buffer_indirect (command_buffer : command_buffer)
     attach value.lifetime;
     command_buffer.resources :=
       Command_buffer_indirect value :: !(command_buffer.resources)
+  end
+
+let retain_command_buffer_render_pipeline (command_buffer : command_buffer)
+    (pipeline : render_pipeline) =
+  if
+    not
+      (List.exists
+         (function
+           | Command_buffer_render_pipeline retained ->
+               retained.lifetime == pipeline.lifetime
+           | Command_buffer_buffer _ | Command_buffer_texture _
+           | Command_residency_set _ | Command_buffer_indirect _ -> false)
+         !(command_buffer.resources))
+  then begin
+    attach pipeline.lifetime;
+    command_buffer.resources :=
+      Command_buffer_render_pipeline pipeline :: !(command_buffer.resources)
   end
 
 let release_queue_residency_sets residency_sets =
@@ -13272,7 +13304,7 @@ module Command_buffer = struct
         | Command_residency_set retained ->
             retained.lifetime == residency_set.lifetime
         | Command_buffer_buffer _ | Command_buffer_texture _
-        | Command_buffer_indirect _ -> false)
+        | Command_buffer_render_pipeline _ | Command_buffer_indirect _ -> false)
       !(value.resources)
 
   let use operation ~bulk (value : t) residency_sets =
@@ -13383,6 +13415,150 @@ module Command_buffer = struct
       (fun () ->
         release_command_resources value.resources;
         detach value.queue.lifetime)
+end
+
+module Render_encoder = struct
+  type t = render_encoder
+
+  let create (command_buffer : Command_buffer.t) ~(target : Texture.t)
+      ?(clear = (0., 0., 0., 1.)) () =
+    let operation = "Metal.Render_encoder.create" in
+    on_main operation (fun () ->
+      match ensure_live operation command_buffer.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when command_buffer.phase <> Recording ->
+          error operation Invalid_state "command buffer is no longer recording"
+      | Ok () when dependent_count command_buffer.lifetime <> 0 ->
+          error operation Invalid_state "command buffer already has an open encoder"
+      | Ok () ->
+          (match ensure_texture_usable operation target with
+           | Error _ as failure -> failure
+           | Ok () when not (List.mem Render_target target.descriptor.usage) ->
+               error operation Invalid_argument
+                 "render target texture lacks Render_target usage"
+           | Ok () when target.descriptor.sample_count <> 1 ->
+               error operation Invalid_argument
+                 "classic render encoder currently requires one sample"
+           | Ok () ->
+               let r, g, b, a = clear in
+               if not (List.for_all Float.is_finite [ r; g; b; a ]) then
+                 error operation Invalid_argument "clear color must be finite"
+               else
+                 match
+                   Metal_raw.command_buffer_render_encoder command_buffer.raw
+                     target.raw clear
+                 with
+                 | Error message -> native_error operation message
+                 | Ok raw ->
+                     let value : t =
+                       { raw; lifetime = lifetime (); command_buffer; target
+                       ; pipeline = None }
+                     in
+                     attach command_buffer.lifetime;
+                     retain_command_buffer_texture command_buffer target;
+                     attach_finalizer value value.lifetime command_buffer.lifetime;
+                     Ok value))
+
+  let destroyed (value : t) = is_destroyed value.lifetime
+
+  let set_pipeline (value : t) (pipeline : Render_pipeline.t) =
+    let operation = "Metal.Render_encoder.set_pipeline" in
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match ensure_live operation pipeline.lifetime with
+           | Error _ as failure -> failure
+           | Ok () ->
+               (match
+                  ensure_same_device operation value.command_buffer.queue.device
+                    pipeline.device
+                with
+                | Error _ as failure -> failure
+                | Ok () when pipeline.kind <> Render ->
+                    error operation Invalid_argument
+                      "classic render encoder requires a render pipeline"
+                | Ok () when pipeline.raster_sample_count <> 1 ->
+                    error operation Invalid_argument
+                      "pipeline sample count differs from the render target"
+                | Ok () when
+                    pipeline.color_formats = []
+                    || List.hd pipeline.color_formats
+                       <> value.target.descriptor.format ->
+                    error operation Invalid_argument
+                      "pipeline color format differs from the render target"
+                | Ok () ->
+                    (match
+                       Metal_raw.render_encoder_set_pipeline value.raw pipeline.raw
+                     with
+                     | Error message -> native_error operation message
+                     | Ok () ->
+                         value.pipeline <- Some pipeline;
+                         retain_command_buffer_render_pipeline
+                           value.command_buffer pipeline;
+                         Ok ()))))
+
+  let set_buffer operation raw_call (value : t) ~index ~offset
+      (buffer : Buffer.t) =
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match ensure_buffer_usable operation buffer with
+           | Error _ as failure -> failure
+           | Ok () when index < 0 || index >= 31 ->
+               error operation Invalid_argument "buffer index must be in [0, 31)"
+           | Ok () when offset < 0L || offset > buffer.length ->
+               error operation Invalid_argument "buffer offset is outside the resource"
+           | Ok () ->
+               (match
+                  ensure_same_device operation value.command_buffer.queue.device
+                    buffer.device
+                with
+                | Error _ as failure -> failure
+                | Ok () ->
+                    (match raw_call value.raw buffer.raw offset index with
+                     | Error message -> native_error operation message
+                     | Ok () ->
+                         retain_command_buffer_buffer value.command_buffer buffer;
+                         Ok ()))))
+
+  let set_vertex_buffer =
+    set_buffer "Metal.Render_encoder.set_vertex_buffer"
+      Metal_raw.render_encoder_set_vertex_buffer
+
+  let set_fragment_buffer =
+    set_buffer "Metal.Render_encoder.set_fragment_buffer"
+      Metal_raw.render_encoder_set_fragment_buffer
+
+  let draw_triangles (value : t) ~first ~count ?(instances = 1) () =
+    let operation = "Metal.Render_encoder.draw_triangles" in
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when Option.is_none value.pipeline ->
+          error operation Invalid_state "no render pipeline is bound"
+      | Ok () when first < 0 || count <= 0 || instances <= 0 ->
+          error operation Invalid_argument "draw range must be positive"
+      | Ok () ->
+          (match Metal_raw.render_encoder_draw value.raw first count instances with
+           | Ok () -> Ok ()
+           | Error message -> native_error operation message))
+
+  let end_encoding (value : t) =
+    let operation = "Metal.Render_encoder.end_encoding" in
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match Metal_raw.render_encoder_end value.raw with
+           | Error message -> native_error operation message
+           | Ok () ->
+               if Atomic.compare_and_set value.lifetime.destroyed false true then begin
+                 ignore (Metal_raw.destroy value.raw);
+                 detach value.command_buffer.lifetime
+               end;
+               Ok ()))
 end
 
 module Compute_encoder = struct

@@ -1293,6 +1293,22 @@ external command_buffer_use_residency_sets :
 
 external command_buffer_compute_encoder : handle -> (handle, string) result =
   "caml_prismel_metal_command_buffer_compute_encoder"
+external command_buffer_render_encoder :
+  handle -> handle -> float * float * float * float -> (handle, string) result =
+  "caml_prismel_metal_command_buffer_render_encoder"
+external render_encoder_set_pipeline : handle -> handle -> (unit, string) result =
+  "caml_prismel_metal_render_encoder_set_pipeline"
+external render_encoder_set_vertex_buffer :
+  handle -> handle -> int64 -> int -> (unit, string) result =
+  "caml_prismel_metal_render_encoder_set_vertex_buffer"
+external render_encoder_set_fragment_buffer :
+  handle -> handle -> int64 -> int -> (unit, string) result =
+  "caml_prismel_metal_render_encoder_set_fragment_buffer"
+external render_encoder_draw :
+  handle -> int -> int -> int -> (unit, string) result =
+  "caml_prismel_metal_render_encoder_draw"
+external render_encoder_end : handle -> (unit, string) result =
+  "caml_prismel_metal_render_encoder_end"
 
 external command_buffer_resource_state_encoder :
   handle -> (handle, string) result
