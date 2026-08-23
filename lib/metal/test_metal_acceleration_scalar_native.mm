@@ -37,11 +37,18 @@ int main() {
     triangle.vertexBufferOffset = 0;
     triangle.vertexStride = 3 * sizeof(float);
     triangle.vertexFormat = MTLAttributeFormatFloat3;
+    triangle.indexType = MTLIndexTypeUInt32;
     triangle.triangleCount = 1;
     triangle.indexBufferOffset = 0;
     triangle.transformationMatrixBufferOffset = 0;
     triangle.transformationMatrixLayout = MTLMatrixLayoutColumnMajor;
-    require(triangle.triangleCount == 1 && triangle.vertexStride == 12,
+    require(triangle.indexBufferOffset == 0 &&
+            triangle.indexType == MTLIndexTypeUInt32 &&
+            triangle.transformationMatrixBufferOffset == 0 &&
+            triangle.transformationMatrixLayout == MTLMatrixLayoutColumnMajor &&
+            triangle.triangleCount == 1 && triangle.vertexBufferOffset == 0 &&
+            triangle.vertexFormat == MTLAttributeFormatFloat3 &&
+            triangle.vertexStride == 12,
             "triangle scalar round-trip failed");
 
     MTLPrimitiveAccelerationStructureDescriptor *primitive =
@@ -53,6 +60,12 @@ int main() {
     primitive.motionStartBorderMode = MTLMotionBorderModeClamp;
     primitive.motionEndBorderMode = MTLMotionBorderModeClamp;
     primitive.motionKeyframeCount = 1;
+    require(primitive.usage == MTLAccelerationStructureUsageRefit &&
+            primitive.motionStartTime == 0.f && primitive.motionEndTime == 1.f &&
+            primitive.motionStartBorderMode == MTLMotionBorderModeClamp &&
+            primitive.motionEndBorderMode == MTLMotionBorderModeClamp &&
+            primitive.motionKeyframeCount == 1,
+            "primitive scalar round-trip failed");
     MTLAccelerationStructureSizes sizes =
       [device accelerationStructureSizesWithDescriptor:primitive];
     require(sizes.accelerationStructureSize > 0 && sizes.buildScratchBufferSize > 0,

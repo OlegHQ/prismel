@@ -59,6 +59,16 @@ static bool render_once(id<MTLDevice> device) {
       vector_float4{-1.f, 3.f, 0.f, 1.f},
   };
   const vector_float4 tint = {1.f, 0.5f, 0.25f, 1.f};
+  id<MTLBuffer> positions_buffer =
+      [device newBufferWithBytes:positions.data()
+                         length:sizeof(positions)
+                        options:MTLResourceStorageModeShared];
+  id<MTLBuffer> tint_buffer =
+      [device newBufferWithBytes:&tint
+                         length:sizeof(tint)
+                        options:MTLResourceStorageModeShared];
+  __weak id<MTLBuffer> weak_positions = positions_buffer;
+  __weak id<MTLBuffer> weak_tint = tint_buffer;
   [encoder setRenderPipelineState:pipeline];
   [encoder setViewport:MTLViewport{0, 0, 16, 16, 0, 1}];
   [encoder setScissorRect:MTLScissorRect{0, 0, 16, 16}];
@@ -72,11 +82,17 @@ static bool render_once(id<MTLDevice> device) {
                       length:sizeof(positions)
                      atIndex:0];
   [encoder setFragmentBytes:&tint length:sizeof(tint) atIndex:0];
+  [encoder setVertexBuffer:positions_buffer offset:0 atIndex:0];
+  [encoder setFragmentBuffer:tint_buffer offset:0 atIndex:0];
   [encoder drawPrimitives:MTLPrimitiveTypeTriangle
               vertexStart:0
               vertexCount:3
             instanceCount:1];
   [encoder endEncoding];
+  positions_buffer = nil;
+  tint_buffer = nil;
+  if (weak_positions == nil || weak_tint == nil)
+    return false;
   [command_buffer commit];
   [command_buffer waitUntilCompleted];
   if (command_buffer.status != MTLCommandBufferStatusCompleted ||
@@ -89,8 +105,12 @@ static bool render_once(id<MTLDevice> device) {
          fromRegion:MTLRegionMake2D(0, 0, 16, 16)
         mipmapLevel:0];
   const std::size_t center = (8 * 16 + 8) * 4;
-  return pixels[center] == 51 && pixels[center + 1] == 51 &&
+  const bool pixels_match = pixels[center] == 51 && pixels[center + 1] == 51 &&
          pixels[center + 2] == 51 && pixels[center + 3] == 255;
+  encoder = nil;
+  pass = nil;
+  command_buffer = nil;
+  return pixels_match && weak_positions == nil && weak_tint == nil;
 }
 
 int main() {
