@@ -3032,6 +3032,9 @@ module Resource100 : sig
     type t
     val create : Device.t -> View_pool_descriptor.t -> (t,error) result
     val device : t -> Device.t
+    val checked_device : t -> (Device.t,error) result
+    val base_resource_id : t -> (int64,error) result
+    val label : t -> (string option,error) result
     val count : t -> int64
     val set : t -> index:int -> Texture.t -> (int64,error) result
     val copy : source:t -> source_index:int -> length:int -> destination:t -> destination_index:int -> (int64,error) result

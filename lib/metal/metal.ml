@@ -17427,6 +17427,37 @@ module Resource100 = struct
     type t=resource100_texture_view_pool
     let create(device:Device.t)(descriptor:View_pool_descriptor.t)=let op="Metal.Resource100.Texture_view_pool.create"in on_main op(fun()->match ensure_live op device.lifetime with Error _ as e->e|Ok()->match ensure_live op descriptor.lifetime with Error _ as e->e|Ok()->match Metal_raw.resource_device_new_view_pool device.raw descriptor.raw with Error m->native_error op m|Ok raw->let count=Int64.to_int descriptor.view_count in let pool_views=Array.make count None in let value:t={raw;lifetime=lifetime();device;view_count=descriptor.view_count;pool_views}in attach device.lifetime;attach_finalizer~on_finalize:(fun()->Array.iter(Option.iter(fun(x:texture)->detach x.lifetime))pool_views)value value.lifetime device.lifetime;Ok value)
     let device (t:t)=t.device and count (t:t)=t.view_count
+    let checked_device (t : t) =
+      let operation = "Metal.Resource100.Texture_view_pool.checked_device" in
+      on_main operation (fun () ->
+        match ensure_live operation t.lifetime with
+        | Error _ as failure -> failure
+        | Ok () -> match Metal_raw.resource_pool_device t.raw with
+          | Error message -> native_error operation message
+          | Ok None -> native_error operation "view pool returned no owning device"
+          | Ok (Some raw) ->
+              let registry_id = Metal_raw.device_registry_id raw in
+              ignore (Metal_raw.destroy raw);
+              if registry_id <> t.device.registry_id then
+                error operation Device_mismatch
+                  "view pool device disagrees with its safe owner"
+              else Ok t.device)
+    let base_resource_id (t : t) =
+      let operation = "Metal.Resource100.Texture_view_pool.base_resource_id" in
+      on_main operation (fun () ->
+        match ensure_live operation t.lifetime with
+        | Error _ as failure -> failure
+        | Ok () -> match Metal_raw.resource_pool_base_id t.raw with
+          | Error message -> native_error operation message
+          | Ok id -> Ok id)
+    let label (t : t) =
+      let operation = "Metal.Resource100.Texture_view_pool.label" in
+      on_main operation (fun () ->
+        match ensure_live operation t.lifetime with
+        | Error _ as failure -> failure
+        | Ok () -> match Metal_raw.resource_pool_label t.raw with
+          | Error message -> native_error operation message
+          | Ok label -> Ok label)
     let set (t:t) ~index(texture:Texture.t)=let op="Metal.Resource100.Texture_view_pool.set"in on_main op(fun()->match ensure_live op t.lifetime with Error _ as e->e|Ok()->match ensure_live op texture.lifetime with Error _ as e->e|Ok()->match ensure_same_device op t.device texture.device with Error _ as e->e|Ok()->if index<0||index>=Array.length t.pool_views then error op Invalid_argument "view index is out of range"else match Metal_raw.resource_texture_pool_set t.raw texture.raw(Int64.of_int index)with Error m->native_error op m|Ok id->Option.iter(fun (old:texture)->detach old.lifetime)t.pool_views.(index);attach texture.lifetime;t.pool_views.(index)<-Some texture;Ok id)
     let copy ~(source:t) ~source_index ~length ~(destination:t) ~destination_index=let op="Metal.Resource100.Texture_view_pool.copy"in on_main op(fun()->match ensure_live op source.lifetime with Error _ as e->e|Ok()->match ensure_live op destination.lifetime with Error _ as e->e|Ok()->match ensure_same_device op source.device destination.device with Error _ as e->e|Ok()->if source_index<0||destination_index<0||length<0||source_index>Array.length source.pool_views-length||destination_index>Array.length destination.pool_views-length then error op Invalid_argument "view pool copy range is invalid"else let snapshot=Array.sub source.pool_views source_index length in match Metal_raw.resource_pool_copy destination.raw source.raw(Int64.of_int source_index)(Int64.of_int length)(Int64.of_int destination_index)with Error m->native_error op m|Ok id->for i=0 to length-1 do let di=destination_index+i in Option.iter(fun (old:texture)->detach old.lifetime)destination.pool_views.(di);let next=snapshot.(i)in Option.iter(fun (x:texture)->attach x.lifetime)next;destination.pool_views.(di)<-next done;Ok id)
     let destroyed (t:t)=is_destroyed t.lifetime
