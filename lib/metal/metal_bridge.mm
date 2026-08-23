@@ -8343,6 +8343,44 @@ extern "C" CAMLprim value caml_prismel_metal_render_pipeline_label(value raw) {
   CAMLreturn(result);
 }
 
+extern "C" CAMLprim value caml_prismel_metal_render_pipeline_mesh_limits(
+    value raw) {
+  CAMLparam1(raw);
+  CAMLlocal2(limits, result);
+  @autoreleasepool {
+    if (@available(macOS 13.0, *)) {
+      @try {
+        id<MTLRenderPipelineState> pipeline =
+            object_of_handle(raw, Handle_kind::Render_pipeline);
+        const NSUInteger observed[5] = {
+            pipeline.maxTotalThreadsPerObjectThreadgroup,
+            pipeline.maxTotalThreadsPerMeshThreadgroup,
+            pipeline.objectThreadExecutionWidth,
+            pipeline.meshThreadExecutionWidth,
+            pipeline.maxTotalThreadgroupsPerMeshGrid,
+        };
+        for (NSUInteger index = 0; index < 5; ++index) {
+          if (observed[index] > static_cast<NSUInteger>(Max_long)) {
+            CAMLreturn(result_error_text(
+                "Metal mesh-pipeline limits exceed the OCaml integer range"));
+          }
+        }
+        limits = caml_alloc_tuple(5);
+        for (mlsize_t index = 0; index < 5; ++index) {
+          Store_field(limits, index,
+                      Val_long(static_cast<intnat>(observed[index])));
+        }
+        result = result_ok(limits);
+        CAMLreturn(result);
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text(
+        "Metal mesh-pipeline limits require macOS 13 or newer"));
+  }
+}
+
 extern "C" CAMLprim value caml_prismel_metal_compute_pipeline_create(
     value raw_device, value raw_function) {
   CAMLparam2(raw_device, raw_function);
@@ -9364,6 +9402,29 @@ caml_prismel_metal_command4_render_encoder_set_viewport(
   }
 }
 
+API_AVAILABLE(macos(26.0))
+bool retain_metal4_render_argument_tables(
+    value raw_tables, PrismelMetal4CommandBufferState *command_buffer,
+    NSString *__autoreleasing *failure) {
+  const mlsize_t table_count = Wosize_val(raw_tables);
+  if (table_count > 5) {
+    *failure = @"Metal 4 render command has too many argument tables";
+    return false;
+  }
+  for (mlsize_t index = 0; index < table_count; ++index) {
+    PrismelMetal4ArgumentTableState *table =
+        argument_table4_state_of_handle(Field(raw_tables, index));
+    if (table.argumentTable.device.registryID !=
+        command_buffer.commandBuffer.device.registryID) {
+      *failure = @"Metal 4 render argument table belongs to another device";
+      return false;
+    }
+    [command_buffer retainEncodedObject:table];
+    [table retainBoundObjectsInCommandBuffer:command_buffer];
+  }
+  return true;
+}
+
 extern "C" CAMLprim value
 caml_prismel_metal_command4_render_encoder_draw_primitives(
     value raw_encoder, value raw_buffer, value raw_tables, value raw_draw) {
@@ -9378,23 +9439,15 @@ caml_prismel_metal_command4_render_encoder_draw_primitives(
         const intnat primitive = Long_val(Field(raw_draw, 0));
         const intnat start = Long_val(Field(raw_draw, 1));
         const intnat count = Long_val(Field(raw_draw, 2));
-        const mlsize_t table_count = Wosize_val(raw_tables);
         if (encoder.commandBuffer != command_buffer.commandBuffer ||
-            primitive < 0 || primitive > 4 || start < 0 || count <= 0 ||
-            table_count > 5) {
+            primitive < 0 || primitive > 4 || start < 0 || count <= 0) {
           CAMLreturn(result_error_text(
               "Metal 4 primitive draw arguments are invalid"));
         }
-        for (mlsize_t index = 0; index < table_count; ++index) {
-          PrismelMetal4ArgumentTableState *table =
-              argument_table4_state_of_handle(Field(raw_tables, index));
-          if (table.argumentTable.device.registryID !=
-              command_buffer.commandBuffer.device.registryID) {
-            CAMLreturn(result_error_text(
-                "Metal 4 draw argument table belongs to another device"));
-          }
-          [command_buffer retainEncodedObject:table];
-          [table retainBoundObjectsInCommandBuffer:command_buffer];
+        NSString *validation_failure = nil;
+        if (!retain_metal4_render_argument_tables(
+                raw_tables, command_buffer, &validation_failure)) {
+          CAMLreturn(result_error(validation_failure));
         }
         [encoder drawPrimitives:static_cast<MTLPrimitiveType>(primitive)
                      vertexStart:static_cast<NSUInteger>(start)
@@ -9405,6 +9458,56 @@ caml_prismel_metal_command4_render_encoder_draw_primitives(
       }
     }
     CAMLreturn(result_error_text("Metal 4 commands require macOS 26"));
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_command4_render_encoder_draw_mesh_threadgroups(
+    value raw_encoder, value raw_buffer, value raw_tables, value raw_draw) {
+  CAMLparam4(raw_encoder, raw_buffer, raw_tables, raw_draw);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4RenderCommandEncoder> encoder =
+            object_of_handle(raw_encoder, Handle_kind::Render_encoder4);
+        PrismelMetal4CommandBufferState *command_buffer =
+            command_buffer4_state_of_handle(raw_buffer);
+        intnat dimensions[9];
+        for (mlsize_t index = 0; index < 9; ++index) {
+          dimensions[index] = Long_val(Field(raw_draw, index));
+          if (dimensions[index] <= 0) {
+            CAMLreturn(result_error_text(
+                "Metal 4 mesh draw dimensions are invalid"));
+          }
+        }
+        if (encoder.commandBuffer != command_buffer.commandBuffer) {
+          CAMLreturn(result_error_text(
+              "Metal 4 mesh draw belongs to another command graph"));
+        }
+        NSString *validation_failure = nil;
+        if (!retain_metal4_render_argument_tables(
+                raw_tables, command_buffer, &validation_failure)) {
+          CAMLreturn(result_error(validation_failure));
+        }
+        [encoder
+                  drawMeshThreadgroups:
+                      MTLSizeMake(static_cast<NSUInteger>(dimensions[0]),
+                                  static_cast<NSUInteger>(dimensions[1]),
+                                  static_cast<NSUInteger>(dimensions[2]))
+             threadsPerObjectThreadgroup:
+                 MTLSizeMake(static_cast<NSUInteger>(dimensions[3]),
+                             static_cast<NSUInteger>(dimensions[4]),
+                             static_cast<NSUInteger>(dimensions[5]))
+               threadsPerMeshThreadgroup:
+                   MTLSizeMake(static_cast<NSUInteger>(dimensions[6]),
+                               static_cast<NSUInteger>(dimensions[7]),
+                               static_cast<NSUInteger>(dimensions[8]))];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("Metal 4 mesh draws require macOS 26"));
   }
 }
 

@@ -690,6 +690,17 @@ type render_pipeline_reflection =
   ; mesh_bindings : shader_binding array
   }
 
+type mesh_pipeline_constraints =
+  { has_object_stage : bool
+  ; configured_max_object_threads : int option
+  ; configured_max_mesh_threads : int option
+  ; required_object_threads : (int * int * int) option
+  ; required_mesh_threads : (int * int * int) option
+  ; object_threadgroup_size_multiple : bool
+  ; mesh_threadgroup_size_multiple : bool
+  ; configured_max_mesh_threadgroups : int option
+  }
+
 type render_pipeline =
   { raw : Metal_raw.handle
   ; lifetime : lifetime
@@ -698,6 +709,15 @@ type render_pipeline =
   ; raster_sample_count : int
   ; color_formats : pixel_format list
   ; reflection : render_pipeline_reflection option
+  ; mesh_constraints : mesh_pipeline_constraints option
+  }
+
+type mesh_pipeline_limits =
+  { max_object_threads : int
+  ; max_mesh_threads : int
+  ; object_execution_width : int
+  ; mesh_execution_width : int
+  ; max_mesh_threadgroups : int
   }
 
 type command4_allocator =
@@ -767,6 +787,7 @@ type command4_render_encoder =
   ; height : int
   ; color_formats : pixel_format list
   ; mutable pipeline : render_pipeline option
+  ; mutable mesh_limits : mesh_pipeline_limits option
   ; argument_tables : command4_argument_table option array
   }
 
@@ -7070,8 +7091,8 @@ module Render_pipeline = struct
 
   let topology_code = function Point -> 1 | Line -> 2 | Triangle -> 3
 
-  let make device ~kind ~raster_sample_count ~color_formats ~reflection raw
-      (raw_reflection : Metal_raw.render_pipeline_reflection) =
+  let make ?mesh_constraints device ~kind ~raster_sample_count ~color_formats
+      ~reflection raw (raw_reflection : Metal_raw.render_pipeline_reflection) =
     let map values = Array.map Binding.of_raw values in
     let reflection =
       if reflection then
@@ -7092,6 +7113,7 @@ module Render_pipeline = struct
       ; raster_sample_count
       ; color_formats
       ; reflection
+      ; mesh_constraints
       }
     in
     attach device.lifetime;
@@ -8349,6 +8371,23 @@ module Compiler = struct
         in
         callback reflection descriptor)
 
+  let mesh_pipeline_constraints ?object_function
+      ?max_total_threads_per_object_threadgroup
+      ?max_total_threads_per_mesh_threadgroup
+      ?required_threads_per_object_threadgroup
+      ?required_threads_per_mesh_threadgroup ~object_threadgroup_size_multiple
+      ~mesh_threadgroup_size_multiple ?max_total_threadgroups_per_mesh_grid () =
+    { has_object_stage = Option.is_some object_function
+    ; configured_max_object_threads =
+        max_total_threads_per_object_threadgroup
+    ; configured_max_mesh_threads = max_total_threads_per_mesh_threadgroup
+    ; required_object_threads = required_threads_per_object_threadgroup
+    ; required_mesh_threads = required_threads_per_mesh_threadgroup
+    ; object_threadgroup_size_multiple
+    ; mesh_threadgroup_size_multiple
+    ; configured_max_mesh_threadgroups = max_total_threadgroups_per_mesh_grid
+    }
+
   let create_mesh_pipeline ?label ?object_function ?fragment
       ?(reflection = false) ?max_total_threads_per_object_threadgroup
       ?max_total_threads_per_mesh_threadgroup
@@ -8367,10 +8406,19 @@ module Compiler = struct
         match Metal_raw.compiler_create_mesh_pipeline value.raw descriptor with
         | Error message -> native_error operation message
         | Ok (raw, raw_reflection) ->
+            let mesh_constraints =
+              mesh_pipeline_constraints ?object_function
+                ?max_total_threads_per_object_threadgroup
+                ?max_total_threads_per_mesh_threadgroup
+                ?required_threads_per_object_threadgroup
+                ?required_threads_per_mesh_threadgroup
+                ~object_threadgroup_size_multiple ~mesh_threadgroup_size_multiple
+                ?max_total_threadgroups_per_mesh_grid ()
+            in
             Ok
-              (Render_pipeline.make value.device ~kind:Render_pipeline.Mesh
-                 ~raster_sample_count ~color_formats ~reflection raw
-                 raw_reflection))
+              (Render_pipeline.make ~mesh_constraints value.device
+                 ~kind:Render_pipeline.Mesh ~raster_sample_count ~color_formats
+                 ~reflection raw raw_reflection))
       ?label ?object_function ?fragment ~reflection
       ?max_total_threads_per_object_threadgroup
       ?max_total_threads_per_mesh_threadgroup
@@ -8401,11 +8449,20 @@ module Compiler = struct
         with
         | Error message -> native_error operation message
         | Ok raw ->
+            let mesh_constraints =
+              mesh_pipeline_constraints ?object_function
+                ?max_total_threads_per_object_threadgroup
+                ?max_total_threads_per_mesh_threadgroup
+                ?required_threads_per_object_threadgroup
+                ?required_threads_per_mesh_threadgroup
+                ~object_threadgroup_size_multiple ~mesh_threadgroup_size_multiple
+                ?max_total_threadgroups_per_mesh_grid ()
+            in
             Ok
               (Compiler_task.make value
                  Metal_raw.compiler_task_take_render_pipeline
                  (fun (raw, raw_reflection) ->
-                   Render_pipeline.make value.device
+                   Render_pipeline.make ~mesh_constraints value.device
                      ~kind:Render_pipeline.Mesh ~raster_sample_count
                      ~color_formats ~reflection raw raw_reflection)
                  raw))
@@ -8639,6 +8696,14 @@ let retain_command4_argument_bindings operation
       Ok ()
 
 module Command4 = struct
+  let positive_size (x, y, z) = x > 0 && y > 0 && z > 0
+
+  let product3 x y z =
+    if x > max_int / y then None
+    else
+      let xy = x * y in
+      if xy > max_int / z then None else Some (xy * z)
+
   module Argument_table = struct
     type t = command4_argument_table
 
@@ -9426,6 +9491,7 @@ module Command4 = struct
                        ; height
                        ; color_formats
                        ; pipeline = None
+                       ; mesh_limits = None
                        ; argument_tables = Array.make 5 None
                        }
                      in
@@ -9441,6 +9507,53 @@ module Command4 = struct
 
     let destroyed (value : t) = is_destroyed value.lifetime
 
+    let observed_mesh_limits operation (pipeline : Render_pipeline.t) =
+      match pipeline.mesh_constraints with
+      | None ->
+          error operation Native_error
+            "mesh pipeline is missing its checked dispatch constraints"
+      | Some constraints ->
+          (match Metal_raw.render_pipeline_mesh_limits pipeline.raw with
+           | Error message -> native_error operation message
+           | Ok
+               ( observed_max_object, observed_max_mesh
+               , object_execution_width, mesh_execution_width
+               , observed_max_threadgroups ) ->
+               let select_limit observed configured =
+                 if observed > 0 then observed
+                 else Option.value configured ~default:0
+               in
+               let max_object_threads =
+                 select_limit observed_max_object
+                   constraints.configured_max_object_threads
+               in
+               let max_mesh_threads =
+                 select_limit observed_max_mesh
+                   constraints.configured_max_mesh_threads
+               in
+               let max_mesh_threadgroups =
+                 select_limit observed_max_threadgroups
+                   constraints.configured_max_mesh_threadgroups
+               in
+               if max_mesh_threads <= 0 || mesh_execution_width <= 0 then
+                 error operation Native_error
+                   "Metal returned incomplete mesh-stage execution limits"
+               else if
+                 constraints.has_object_stage
+                 && (max_object_threads <= 0 || object_execution_width <= 0
+                    || max_mesh_threadgroups <= 0)
+               then
+                 error operation Native_error
+                   "Metal returned incomplete object-stage execution limits"
+               else
+                 Ok
+                   { max_object_threads
+                   ; max_mesh_threads
+                   ; object_execution_width
+                   ; mesh_execution_width
+                   ; max_mesh_threadgroups
+                   })
+
     let set_pipeline (value : t) (pipeline : Render_pipeline.t) =
       let operation = "Metal.Command4.Render_encoder.set_pipeline" in
       on_main operation (fun () ->
@@ -9455,9 +9568,9 @@ module Command4 = struct
                       value.command_buffer.allocator.device pipeline.device
                   with
                   | Error _ as failure -> failure
-                  | Ok () when pipeline.kind <> Render ->
+                  | Ok () when pipeline.kind = Tile ->
                       error operation Invalid_argument
-                        "ordinary primitive draws require a conventional render pipeline"
+                        "tile pipelines require tile command execution"
                   | Ok () when pipeline.raster_sample_count <> 1 ->
                       error operation Invalid_argument
                         "pipeline sample count does not match the render pass"
@@ -9465,16 +9578,28 @@ module Command4 = struct
                       error operation Invalid_argument
                         "pipeline color formats do not match the render pass"
                   | Ok () ->
-                      match
-                        Metal_raw.command4_render_encoder_set_pipeline value.raw
-                          value.command_buffer.raw pipeline.raw
-                      with
-                      | Error message -> native_error operation message
-                      | Ok () ->
-                          retain_command4_render_pipeline value.command_buffer
-                            pipeline;
-                          value.pipeline <- Some pipeline;
-                          Ok ())))
+                      let limits =
+                        match pipeline.kind with
+                        | Mesh ->
+                            Result.map Option.some
+                              (observed_mesh_limits operation pipeline)
+                        | Render -> Ok None
+                        | Tile -> assert false
+                      in
+                      (match limits with
+                       | Error _ as failure -> failure
+                       | Ok mesh_limits ->
+                           match
+                             Metal_raw.command4_render_encoder_set_pipeline
+                               value.raw value.command_buffer.raw pipeline.raw
+                           with
+                           | Error message -> native_error operation message
+                           | Ok () ->
+                               retain_command4_render_pipeline
+                                 value.command_buffer pipeline;
+                               value.pipeline <- Some pipeline;
+                               value.mesh_limits <- mesh_limits;
+                               Ok ()))))
 
     let stage_index = function
       | Vertex -> 0
@@ -9616,6 +9741,10 @@ module Command4 = struct
         | Ok () when Option.is_none value.pipeline ->
             error operation Invalid_state "no render pipeline is bound"
         | Ok () when
+            (Option.get value.pipeline).kind <> Render ->
+            error operation Invalid_state
+              "ordinary primitive draws require a conventional render pipeline"
+        | Ok () when
             vertex_start < 0 || vertex_count <= 0
             || vertex_start > max_int - vertex_count ->
             error operation Invalid_argument
@@ -9638,6 +9767,121 @@ module Command4 = struct
                  with
                  | Ok () -> Ok ()
                  | Error message -> native_error operation message))
+
+    let validate_mesh_threadgroup operation ~stage ~size ~maximum ~required
+        ~size_multiple ~execution_width =
+      if not (positive_size size) then
+        error operation Invalid_argument
+          (stage ^ " threadgroup dimensions must be positive")
+      else
+        let x, y, z = size in
+        match product3 x y z with
+        | None ->
+            error operation Invalid_argument
+              (stage ^ " threadgroup cardinality overflows an OCaml integer")
+        | Some cardinality when cardinality > maximum ->
+            error operation Invalid_argument
+              (stage ^ " threadgroup exceeds the compiled pipeline maximum")
+        | Some _ when
+            (match required with
+             | Some expected -> size <> expected
+             | None -> false) ->
+            error operation Invalid_argument
+              (stage ^ " threadgroup does not match the compiled required size")
+        | Some cardinality when
+            size_multiple && cardinality mod execution_width <> 0 ->
+            error operation Invalid_argument
+              (stage ^ " threadgroup violates the execution-width guarantee")
+        | Some _ -> Ok ()
+
+    let draw_mesh_threadgroups (value : t) ~threadgroups ?object_threadgroup
+        ~mesh_threadgroup () =
+      let operation =
+        "Metal.Command4.Render_encoder.draw_mesh_threadgroups"
+      in
+      on_main operation (fun () ->
+        let ( let* ) result callback = Result.bind result callback in
+        let* () = ensure_live operation value.lifetime in
+        let* pipeline =
+          match value.pipeline with
+          | None -> error operation Invalid_state "no render pipeline is bound"
+          | Some pipeline when pipeline.kind <> Mesh ->
+              error operation Invalid_state
+                "mesh draws require a mesh render pipeline"
+          | Some pipeline -> Ok pipeline
+        in
+        let* constraints, limits =
+          match pipeline.mesh_constraints, value.mesh_limits with
+          | Some constraints, Some limits -> Ok (constraints, limits)
+          | None, _ | _, None ->
+              error operation Native_error
+                "bound mesh pipeline lost its checked dispatch limits"
+        in
+        let* grid_cardinality =
+          if not (positive_size threadgroups) then
+            error operation Invalid_argument
+              "mesh-grid threadgroup dimensions must be positive"
+          else
+            let gx, gy, gz = threadgroups in
+            match product3 gx gy gz with
+            | None ->
+                error operation Invalid_argument
+                  "mesh-grid cardinality overflows an OCaml integer"
+            | Some cardinality -> Ok cardinality
+        in
+        let* () =
+          if
+            constraints.has_object_stage
+            && grid_cardinality > limits.max_mesh_threadgroups
+          then
+            error operation Invalid_argument
+              "mesh grid exceeds the compiled object-stage maximum"
+          else Ok ()
+        in
+        let* object_size =
+          match constraints.has_object_stage, object_threadgroup with
+          | false, None -> Ok (1, 1, 1)
+          | false, Some _ ->
+              error operation Invalid_argument
+                "an object threadgroup requires an object stage"
+          | true, None ->
+              error operation Invalid_argument
+                "the mesh pipeline requires an object threadgroup"
+          | true, Some size ->
+              let* () =
+                validate_mesh_threadgroup operation ~stage:"object" ~size
+                  ~maximum:limits.max_object_threads
+                  ~required:constraints.required_object_threads
+                  ~size_multiple:constraints.object_threadgroup_size_multiple
+                  ~execution_width:limits.object_execution_width
+              in
+              Ok size
+        in
+        let* () =
+          validate_mesh_threadgroup operation ~stage:"mesh"
+            ~size:mesh_threadgroup ~maximum:limits.max_mesh_threads
+            ~required:constraints.required_mesh_threads
+            ~size_multiple:constraints.mesh_threadgroup_size_multiple
+            ~execution_width:limits.mesh_execution_width
+        in
+        let tables = current_argument_tables value in
+        let* () = retain_argument_tables operation value tables in
+        let raw_tables =
+          Array.of_list
+            (List.map
+               (fun (table : command4_argument_table) -> table.raw)
+               tables)
+        in
+        let gx, gy, gz = threadgroups in
+        let ox, oy, oz = object_size in
+        let mx, my, mz = mesh_threadgroup in
+        match
+          Metal_raw.command4_render_encoder_draw_mesh_threadgroups value.raw
+            value.command_buffer.raw raw_tables
+            (gx, gy, gz, ox, oy, oz, mx, my, mz)
+        with
+        | Ok () -> Ok ()
+        | Error message -> native_error operation message)
 
     let end_encoding (value : t) =
       let operation = "Metal.Command4.Render_encoder.end_encoding" in
@@ -9758,14 +10002,6 @@ module Command4 = struct
                        table;
                      value.argument_table <- table;
                      Ok ()))
-
-    let positive_size (x, y, z) = x > 0 && y > 0 && z > 0
-
-    let product3 x y z =
-      if x > max_int / y then None
-      else
-        let xy = x * y in
-        if xy > max_int / z then None else Some (xy * z)
 
     let dispatch_threads (value : t) ~threads ~threadgroup =
       let operation = "Metal.Command4.Compute_encoder.dispatch_threads" in

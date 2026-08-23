@@ -2,11 +2,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 1423,
+    "bound": 1434,
     "scope-excluded": 7,
-    "unreviewed": 3855
+    "unreviewed": 3844
   },
-  "classification_source_sha256": "935b5bbfaefeed56cc800ad400b5b8c913e0e28f22c5832790e1af9893cfefbf",
+  "classification_source_sha256": "4dd45ff9a3bfc3a5b018216daca2d46bb27fdcdf1d6594b55ad3d2ed128e77ae",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "header_aggregate_sha256": "c2ee1e44c76606cf05fa81d1a8314dadfa49efe900342e8bcb3670363c16f0d1",
@@ -24552,14 +24552,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderCommandEncoder.h",
       "id": "method:-[MTL4RenderCommandEncoder drawMeshThreadgroups:threadsPerObjectThreadgroup:threadsPerMeshThreadgroup:]",
       "kind": "method",
       "line": 536,
       "name": "drawMeshThreadgroups:threadsPerObjectThreadgroup:threadsPerMeshThreadgroup:",
       "owner": "MTL4RenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLSize, MTLSize, MTLSize) -> void"
     },
     {
@@ -45939,42 +45939,42 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineState maxTotalThreadgroupsPerMeshGrid]",
       "kind": "method",
       "line": 490,
       "name": "maxTotalThreadgroupsPerMeshGrid",
       "owner": "MTLRenderPipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSUInteger"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineState maxTotalThreadsPerMeshThreadgroup]",
       "kind": "method",
       "line": 469,
       "name": "maxTotalThreadsPerMeshThreadgroup",
       "owner": "MTLRenderPipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSUInteger"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineState maxTotalThreadsPerObjectThreadgroup]",
       "kind": "method",
       "line": 462,
       "name": "maxTotalThreadsPerObjectThreadgroup",
       "owner": "MTLRenderPipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -45995,14 +45995,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineState meshThreadExecutionWidth]",
       "kind": "method",
       "line": 483,
       "name": "meshThreadExecutionWidth",
       "owner": "MTLRenderPipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -46084,14 +46084,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineState objectThreadExecutionWidth]",
       "kind": "method",
       "line": 476,
       "name": "objectThreadExecutionWidth",
       "owner": "MTLRenderPipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -61039,42 +61039,42 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineState:maxTotalThreadgroupsPerMeshGrid",
       "kind": "property",
       "line": 490,
       "name": "maxTotalThreadgroupsPerMeshGrid",
       "owner": "MTLRenderPipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineState:maxTotalThreadsPerMeshThreadgroup",
       "kind": "property",
       "line": 469,
       "name": "maxTotalThreadsPerMeshThreadgroup",
       "owner": "MTLRenderPipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineState:maxTotalThreadsPerObjectThreadgroup",
       "kind": "property",
       "line": 462,
       "name": "maxTotalThreadsPerObjectThreadgroup",
       "owner": "MTLRenderPipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
@@ -61095,28 +61095,28 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineState:meshThreadExecutionWidth",
       "kind": "property",
       "line": 483,
       "name": "meshThreadExecutionWidth",
       "owner": "MTLRenderPipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineState:objectThreadExecutionWidth",
       "kind": "property",
       "line": 476,
       "name": "objectThreadExecutionWidth",
       "owner": "MTLRenderPipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {

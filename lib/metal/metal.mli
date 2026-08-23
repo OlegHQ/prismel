@@ -1537,6 +1537,8 @@ module Command4 : sig
       ?label:string -> Command_buffer.t ->
       color_attachments:color_attachment list -> (t, error) result
 
+    (** Binds a conventional or mesh render pipeline whose sample count and
+        ordered color formats match the render pass. *)
     val set_pipeline : t -> Render_pipeline.t -> (unit, error) result
 
     (** Associates [table] with the selected render stages. Metal snapshots
@@ -1552,6 +1554,16 @@ module Command4 : sig
     val draw_primitives :
       t -> primitive -> vertex_start:int -> vertex_count:int ->
       (unit, error) result
+
+    (** Dispatches a positive grid of mesh threadgroups. [object_threadgroup]
+        is required exactly when the compiled pipeline has an object stage.
+        Required sizes, pipeline maxima, and execution-width promises are
+        checked before command encoding. *)
+    val draw_mesh_threadgroups :
+      t -> threadgroups:(int * int * int) ->
+      ?object_threadgroup:(int * int * int) ->
+      mesh_threadgroup:(int * int * int) -> unit -> (unit, error) result
+
     val end_encoding : t -> (unit, error) result
     val destroyed : t -> bool
   end

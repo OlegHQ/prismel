@@ -305,7 +305,8 @@ let bound_identifiers =
           ; "setArgumentTable:"; "setComputePipelineState:"
           ] )
       ; ( "MTL4RenderCommandEncoder"
-        , [ "drawPrimitives:vertexStart:vertexCount:"
+        , [ "drawMeshThreadgroups:threadsPerObjectThreadgroup:threadsPerMeshThreadgroup:"
+          ; "drawPrimitives:vertexStart:vertexCount:"
           ; "setArgumentTable:atStages:"; "setRenderPipelineState:"
           ; "setViewport:"
           ] )
@@ -477,7 +478,12 @@ let bound_identifiers =
         , [ "fragmentBindings"; "meshBindings"; "objectBindings"
           ; "tileBindings"; "vertexBindings"
           ] )
-      ; ( "MTLRenderPipelineState", [ "device"; "label"; "reflection" ] )
+      ; ( "MTLRenderPipelineState"
+        , [ "device"; "label"; "maxTotalThreadgroupsPerMeshGrid"
+          ; "maxTotalThreadsPerMeshThreadgroup"
+          ; "maxTotalThreadsPerObjectThreadgroup"; "meshThreadExecutionWidth"
+          ; "objectThreadExecutionWidth"; "reflection"
+          ] )
       ; ( "MTLRenderPassAttachmentDescriptor"
         , [ "loadAction"; "setLoadAction:"; "setStoreAction:"
           ; "setTexture:"; "storeAction"; "texture"
@@ -751,7 +757,12 @@ let bound_identifiers =
         , [ "fragmentBindings"; "meshBindings"; "objectBindings"
           ; "tileBindings"; "vertexBindings"
           ] )
-      ; "MTLRenderPipelineState", [ "device"; "label"; "reflection" ]
+      ; ( "MTLRenderPipelineState"
+        , [ "device"; "label"; "maxTotalThreadgroupsPerMeshGrid"
+          ; "maxTotalThreadsPerMeshThreadgroup"
+          ; "maxTotalThreadsPerObjectThreadgroup"; "meshThreadExecutionWidth"
+          ; "objectThreadExecutionWidth"; "reflection"
+          ] )
       ; ( "MTLRenderPassAttachmentDescriptor"
         , [ "loadAction"; "storeAction"; "texture" ] )
       ; "MTLRenderPassColorAttachmentDescriptor", [ "clearColor" ]

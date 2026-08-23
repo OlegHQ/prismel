@@ -787,6 +787,10 @@ external compiler_task_take_render_pipeline :
 external render_pipeline_label : handle -> string option =
   "caml_prismel_metal_render_pipeline_label"
 
+external render_pipeline_mesh_limits :
+  handle -> ((int * int * int * int * int), string) result =
+  "caml_prismel_metal_render_pipeline_mesh_limits"
+
 external command4_allocator_create :
   handle -> string option -> (handle, string) result =
   "caml_prismel_metal_command4_allocator_create"
@@ -879,6 +883,12 @@ external command4_render_encoder_draw_primitives :
   handle -> handle -> handle array -> (int * int * int) ->
   (unit, string) result =
   "caml_prismel_metal_command4_render_encoder_draw_primitives"
+
+external command4_render_encoder_draw_mesh_threadgroups :
+  handle -> handle -> handle array ->
+  (int * int * int * int * int * int * int * int * int) ->
+  (unit, string) result =
+  "caml_prismel_metal_command4_render_encoder_draw_mesh_threadgroups"
 
 external command4_render_encoder_end : handle -> (unit, string) result =
   "caml_prismel_metal_command4_render_encoder_end"

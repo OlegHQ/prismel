@@ -600,7 +600,21 @@ the exact four-value result. Missing pipelines, invalid dimensions, overflow,
 oversized threadgroups, open-encoder teardown, and premature pipeline/table/
 buffer destruction are rejected deterministically.
 
-Mesh and tile command execution, indexed/indirect draws, blend/depth/stencil
+`Command4.Render_encoder.draw_mesh_threadgroups` executes both direct mesh and
+object-to-mesh pipelines. Pipeline binding queries the compiled state's object
+and mesh thread maxima, execution widths, and object-stage mesh-grid maximum;
+the OCaml value also retains its exact required threadgroup dimensions and
+compiler optimization promises. A draw requires positive, non-overflowing grid
+and mesh dimensions, requires an object threadgroup exactly when the pipeline
+has an object stage, checks every explicit required size and maximum, and
+enforces execution-width multiples when the compiler was promised them. The
+same per-draw argument-table snapshot used by conventional rendering retains
+object, mesh, and fragment inputs after the table is cleared or rebound. The M1
+conformance path executes a full-screen direct mesh pipeline into an 8×8 green
+target and an object-payload mesh pipeline into a separate 8×8 red target, then
+verifies every BGRA pixel after commit feedback.
+
+Tile command execution, indexed/indirect draws, blend/depth/stencil
 policy, vertex descriptors, dynamic render linking, and positive offline
 `.metallib` provenance remain open.
 
@@ -626,7 +640,8 @@ tile stage/threadgroup rejection, asynchronous tile completion after
 source-library destruction, allocator/queue/buffer/submission lifecycle,
 argument-table buffer/texture/sampler ownership and render-stage snapshots, plus
 pixel-exact conventional Metal 4 offscreen render execution and exact
-argument-table-backed Metal 4 compute execution,
+argument-table-backed Metal 4 compute execution, direct and object-stage mesh
+command execution with two pixel-exact offscreen targets,
 compiler/task/dataset parent ownership, and complete Metal 4 compile diagnostics,
 copied/no-copy external buffer ownership,
 shareable texture/handle/import lifetimes, single- and multi-plane IOSurface

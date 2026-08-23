@@ -327,6 +327,24 @@ let input_values () =
   |> Array.iteri (fun index value -> Bytes.set_int32_le bytes (index * 4) value);
   bytes
 
+let float32_values values =
+  let bytes = Bytes.create (Array.length values * 4) in
+  Array.iteri
+    (fun index value ->
+      Bytes.set_int32_le bytes (index * 4) (Int32.bits_of_float value))
+    values;
+  bytes
+
+let shared_float_buffer device values =
+  let bytes = float32_values values in
+  let buffer =
+    get
+      (Buffer.create ~device ~length:(Int64.of_int (Bytes.length bytes))
+         ~storage:Buffer.Shared ())
+  in
+  get (Buffer.write_bytes buffer ~dst_offset:0L bytes);
+  buffer
+
 let align_up value alignment =
   let remainder = Int64.rem value alignment in
   if remainder = 0L then value
@@ -341,6 +359,18 @@ let check_values bytes =
       if actual <> expected then
         fail "compute output %d: expected %ld, got %ld" index expected actual)
     expected_values
+
+let check_solid_bgra ~label ~blue ~green ~red ~alpha pixels =
+  if Bytes.length pixels <> 256 then
+    fail "%s returned %d bytes instead of 256" label (Bytes.length pixels);
+  for index = 0 to 63 do
+    let pixel = index * 4 in
+    if Char.code (Bytes.get pixels pixel) <> blue
+       || Char.code (Bytes.get pixels (pixel + 1)) <> green
+       || Char.code (Bytes.get pixels (pixel + 2)) <> red
+       || Char.code (Bytes.get pixels (pixel + 3)) <> alpha
+    then fail "%s produced a wrong pixel at index %d" label index
+  done
 
 let settle_finalizers ~expected_live =
   let rec loop remaining =
@@ -3924,14 +3954,7 @@ let test_metal4_render_commands device =
               ~usage:[ Texture.Shader_read ] ~format:Texture.Bgra8_unorm
               ~width:8 ~height:8 ()))
     in
-    let tint_buffer =
-      get (Buffer.create ~device ~length:16L ~storage:Buffer.Shared ())
-    in
-    let tint_bytes = Bytes.create 16 in
-    [| 0.; 1.; 0.; 1. |]
-    |> Array.iteri (fun index component ->
-      Bytes.set_int32_le tint_bytes (index * 4) (Int32.bits_of_float component));
-    get (Buffer.write_bytes tint_buffer ~dst_offset:0L tint_bytes);
+    let tint_buffer = shared_float_buffer device [| 0.; 1.; 0.; 1. |] in
     let transient_buffer =
       get (Buffer.create ~device ~length:16L ~storage:Buffer.Shared ())
     in
@@ -4086,6 +4109,10 @@ let test_metal4_render_commands device =
                ~z_near:0. ~z_far:1.)));
     get (Command4.Render_encoder.set_pipeline encoder pipeline);
     ignore
+      (expect_error Invalid_state
+         (Command4.Render_encoder.draw_mesh_threadgroups encoder
+            ~threadgroups:(1, 1, 1) ~mesh_threadgroup:(1, 1, 1) ()));
+    ignore
       (expect_error Invalid_argument
          (Command4.Render_encoder.set_argument_table encoder ~stages:[]
             (Some arguments)));
@@ -4161,14 +4188,8 @@ let test_metal4_render_commands device =
            ~region:{ Texture.x = 0; y = 0; z = 0; width = 8; height = 8; depth = 1 }
            ~mip_level:0 ~slice:0 ~bytes_per_row:32 ~bytes_per_image:256)
     in
-    for offset = 0 to 63 do
-      let pixel = offset * 4 in
-      if Char.code (Bytes.get pixels pixel) <> 0
-         || Char.code (Bytes.get pixels (pixel + 1)) <> 255
-         || Char.code (Bytes.get pixels (pixel + 2)) <> 0
-         || Char.code (Bytes.get pixels (pixel + 3)) <> 255
-      then fail "Metal 4 offscreen draw produced a wrong pixel at index %d" offset
-    done;
+    check_solid_bgra ~label:"Metal 4 offscreen draw" ~blue:0 ~green:255 ~red:0
+      ~alpha:255 pixels;
     get (Render_pipeline.destroy pipeline);
     get (Texture.destroy render_target);
     get (Texture.destroy non_target);
@@ -4186,6 +4207,206 @@ let test_metal4_render_commands device =
     get (Library.destroy library);
     get (Compiler.destroy compiler);
     Printf.printf "Metal 4 offscreen render-command conformance passed\n%!";
+    true
+  end
+
+let test_metal4_mesh_commands device =
+  if
+    not (get (Device.supports_family device Device.Metal4))
+    || not
+         (get (Device.supports_family device Device.Apple7)
+          || get (Device.supports_family device Device.Mac2))
+  then false
+  else begin
+    let compiler = get (Compiler.create device) in
+    let library =
+      get
+        (Compiler.compile_source ~name:"metal4-command-mesh-library" compiler
+           mesh_shader_source)
+    in
+    let mesh_pipeline =
+      get
+        (Compiler.create_mesh_pipeline ~label:"Metal 4 executable mesh"
+           ~fragment:"prismel_mesh_fragment"
+           ~max_total_threads_per_mesh_threadgroup:3
+           ~required_threads_per_mesh_threadgroup:(3, 1, 1) compiler ~library
+           ~mesh:"prismel_mesh")
+    in
+    let object_mesh_pipeline =
+      get
+        (Compiler.create_mesh_pipeline ~label:"Metal 4 executable object mesh"
+           ~object_function:"prismel_object"
+           ~fragment:"prismel_mesh_fragment"
+           ~max_total_threads_per_object_threadgroup:1
+           ~max_total_threads_per_mesh_threadgroup:3
+           ~required_threads_per_object_threadgroup:(1, 1, 1)
+           ~required_threads_per_mesh_threadgroup:(3, 1, 1)
+           ~payload_memory_length:8 ~max_total_threadgroups_per_mesh_grid:1
+           compiler ~library ~mesh:"prismel_object_mesh")
+    in
+    let make_target label =
+      get
+        (Texture.create ~device
+           (Texture.descriptor_2d ~storage:Buffer.Shared
+              ~usage:[ Texture.Render_target ] ~format:Texture.Bgra8_unorm
+              ~width:8 ~height:8 ~label ()))
+    in
+    let direct_target = make_target "Metal 4 direct mesh target" in
+    let object_target = make_target "Metal 4 object mesh target" in
+    let direct_offset = shared_float_buffer device [| 0.; 0. |] in
+    let direct_tint = shared_float_buffer device [| 0.; 2.5; 0.; 1. |] in
+    let object_offset = shared_float_buffer device [| 0.; 0. |] in
+    let object_color = shared_float_buffer device [| 1.; 0.; 0.; 1. |] in
+    let object_tint = shared_float_buffer device [| 1.; 1.; 1.; 1. |] in
+    let arguments =
+      get
+        (Command4.Argument_table.create ~label:"Metal 4 mesh arguments"
+           ~max_buffers:4 device ())
+    in
+    let allocator =
+      get (Command4.Allocator.create ~label:"Metal 4 mesh allocator" device)
+    in
+    let queue = get (Command4.Queue.create ~label:"Metal 4 mesh queue" device) in
+    let commands =
+      get
+        (Command4.Command_buffer.create allocator
+           ~label:"Metal 4 mesh commands" ())
+    in
+    let attachment texture =
+      Command4.Render_encoder.color_attachment texture
+    in
+    get (Command4.Argument_table.set_buffer arguments ~index:2 direct_offset);
+    get (Command4.Argument_table.set_buffer arguments ~index:3 direct_tint);
+    let direct_encoder =
+      get
+        (Command4.Render_encoder.create ~label:"Metal 4 direct mesh encoder"
+           commands ~color_attachments:[ attachment direct_target ])
+    in
+    ignore
+      (expect_error Invalid_state
+         (Command4.Render_encoder.draw_mesh_threadgroups direct_encoder
+            ~threadgroups:(1, 1, 1) ~mesh_threadgroup:(3, 1, 1) ()));
+    get (Command4.Render_encoder.set_pipeline direct_encoder mesh_pipeline);
+    get
+      (Command4.Render_encoder.set_argument_table direct_encoder
+         ~stages:
+           [ Command4.Render_encoder.Mesh; Command4.Render_encoder.Fragment ]
+         (Some arguments));
+    ignore
+      (expect_error Invalid_state
+         (Command4.Render_encoder.draw_primitives direct_encoder
+            Command4.Render_encoder.Triangle ~vertex_start:0 ~vertex_count:3));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.draw_mesh_threadgroups direct_encoder
+            ~threadgroups:(0, 1, 1) ~mesh_threadgroup:(3, 1, 1) ()));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.draw_mesh_threadgroups direct_encoder
+            ~threadgroups:(max_int, 2, 1) ~mesh_threadgroup:(3, 1, 1) ()));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.draw_mesh_threadgroups direct_encoder
+            ~threadgroups:(1, 1, 1) ~object_threadgroup:(1, 1, 1)
+            ~mesh_threadgroup:(3, 1, 1) ()));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.draw_mesh_threadgroups direct_encoder
+            ~threadgroups:(1, 1, 1) ~mesh_threadgroup:(4, 1, 1) ()));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.draw_mesh_threadgroups direct_encoder
+            ~threadgroups:(1, 1, 1) ~mesh_threadgroup:(max_int, 2, 1) ()));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.draw_mesh_threadgroups direct_encoder
+            ~threadgroups:(1, 1, 1) ~mesh_threadgroup:(1, 3, 1) ()));
+    get
+      (Command4.Render_encoder.draw_mesh_threadgroups direct_encoder
+         ~threadgroups:(1, 1, 1) ~mesh_threadgroup:(3, 1, 1) ());
+    get (Command4.Argument_table.clear_buffer arguments ~index:2);
+    get (Command4.Argument_table.clear_buffer arguments ~index:3);
+    ignore (expect_error Parent_has_dependents (Buffer.destroy direct_offset));
+    ignore (expect_error Parent_has_dependents (Buffer.destroy direct_tint));
+    get (Command4.Render_encoder.end_encoding direct_encoder);
+    get (Command4.Argument_table.set_buffer arguments ~index:0 object_offset);
+    get (Command4.Argument_table.set_buffer arguments ~index:1 object_color);
+    get (Command4.Argument_table.set_buffer arguments ~index:3 object_tint);
+    let object_encoder =
+      get
+        (Command4.Render_encoder.create ~label:"Metal 4 object mesh encoder"
+           commands ~color_attachments:[ attachment object_target ])
+    in
+    get
+      (Command4.Render_encoder.set_pipeline object_encoder object_mesh_pipeline);
+    get
+      (Command4.Render_encoder.set_argument_table object_encoder
+         ~stages:
+           [ Command4.Render_encoder.Object; Command4.Render_encoder.Mesh
+           ; Command4.Render_encoder.Fragment
+           ]
+         (Some arguments));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.draw_mesh_threadgroups object_encoder
+            ~threadgroups:(1, 1, 1) ~mesh_threadgroup:(3, 1, 1) ()));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.draw_mesh_threadgroups object_encoder
+            ~threadgroups:(2, 1, 1) ~object_threadgroup:(1, 1, 1)
+            ~mesh_threadgroup:(3, 1, 1) ()));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.draw_mesh_threadgroups object_encoder
+            ~threadgroups:(1, 1, 1) ~object_threadgroup:(2, 1, 1)
+            ~mesh_threadgroup:(3, 1, 1) ()));
+    get
+      (Command4.Render_encoder.draw_mesh_threadgroups object_encoder
+         ~threadgroups:(1, 1, 1) ~object_threadgroup:(1, 1, 1)
+         ~mesh_threadgroup:(3, 1, 1) ());
+    get (Command4.Argument_table.clear_buffer arguments ~index:0);
+    get (Command4.Argument_table.clear_buffer arguments ~index:1);
+    get (Command4.Argument_table.clear_buffer arguments ~index:3);
+    ignore (expect_error Parent_has_dependents (Buffer.destroy object_offset));
+    ignore (expect_error Parent_has_dependents (Buffer.destroy object_color));
+    ignore (expect_error Parent_has_dependents (Buffer.destroy object_tint));
+    get (Command4.Render_encoder.end_encoding object_encoder);
+    get (Command4.Command_buffer.end_recording commands);
+    let submission = get (Command4.Queue.commit queue [ commands ]) in
+    ignore
+      (expect_error Parent_has_dependents
+         (Render_pipeline.destroy mesh_pipeline));
+    ignore
+      (expect_error Parent_has_dependents
+         (Render_pipeline.destroy object_mesh_pipeline));
+    get (Command4.Submission.wait submission);
+    let read_target texture =
+      get
+        (Texture.read_bytes texture
+           ~region:
+             { Texture.x = 0; y = 0; z = 0; width = 8; height = 8; depth = 1 }
+           ~mip_level:0 ~slice:0 ~bytes_per_row:32 ~bytes_per_image:256)
+    in
+    check_solid_bgra ~label:"Metal 4 direct mesh draw" ~blue:0 ~green:255
+      ~red:0 ~alpha:255 (read_target direct_target);
+    check_solid_bgra ~label:"Metal 4 object mesh draw" ~blue:0 ~green:0
+      ~red:255 ~alpha:255 (read_target object_target);
+    get (Render_pipeline.destroy object_mesh_pipeline);
+    get (Render_pipeline.destroy mesh_pipeline);
+    get (Command4.Argument_table.destroy arguments);
+    List.iter
+      (fun buffer -> get (Buffer.destroy buffer))
+      [ direct_offset; direct_tint; object_offset; object_color; object_tint ];
+    get (Texture.destroy direct_target);
+    get (Texture.destroy object_target);
+    get (Command4.Submission.destroy submission);
+    get (Command4.Command_buffer.destroy commands);
+    get (Command4.Allocator.reset allocator);
+    get (Command4.Queue.destroy queue);
+    get (Command4.Allocator.destroy allocator);
+    get (Library.destroy library);
+    get (Compiler.destroy compiler);
+    Printf.printf "Metal 4 direct/object mesh-command conformance passed\n%!";
     true
   end
 
@@ -4313,6 +4534,7 @@ let () =
     test_pipeline_assets device;
     ignore (test_metal4_compiler device);
     ignore (test_metal4_render_commands device);
+    ignore (test_metal4_mesh_commands device);
     ignore (test_metal4_compute_commands device);
     test_format_matrix device;
     test_texture_swizzle_and_compression device;
@@ -6120,6 +6342,6 @@ let () =
         stats.external_deallocations
         stats.external_deallocation_mismatches;
     Printf.printf
-      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/compiler-task/pipeline-dataset/binary-function/static-link/reflection/compute/render/mesh/object/tile/command4-argument-table/compute/render conformance passed on %s\n%!"
+      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/compiler-task/pipeline-dataset/binary-function/static-link/reflection/compute/render/mesh/object/tile/command4-argument-table/compute/render/mesh conformance passed on %s\n%!"
       info.name
   end
