@@ -1,11 +1,11 @@
 {
-  "binding_plan_source_sha256": "8e0ae7d95d1a8a252c3cb607f975850c109e4c2cccabd0a5eea53238196e5326",
+  "binding_plan_source_sha256": "f1ddac03a5226bba9e6b118a49d45e5be3d7cf9b96c57e690370508f975b953c",
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 3877,
+    "bound": 3886,
     "scope-excluded": 37,
-    "unreviewed": 1371
+    "unreviewed": 1362
   },
   "classification_source_sha256": "84542f6bcf061ac3842d6e2ffdb01e1a873602a5007f5e64baf66e61a2412a7c",
   "deployment_target": "14.0",
@@ -54414,7 +54414,7 @@
           "line": 157
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "method:-[MTLCounterSampleBufferDescriptor sampleCount]",
       "kind": "method",
@@ -54422,7 +54422,7 @@
       "macos_introduced": "10.15",
       "name": "sampleCount",
       "owner": "MTLCounterSampleBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -54489,7 +54489,7 @@
           "line": 157
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "method:-[MTLCounterSampleBufferDescriptor setSampleCount:]",
       "kind": "method",
@@ -54497,7 +54497,7 @@
       "macos_introduced": "10.15",
       "name": "setSampleCount:",
       "owner": "MTLCounterSampleBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -54514,7 +54514,7 @@
           "line": 151
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "method:-[MTLCounterSampleBufferDescriptor setStorageMode:]",
       "kind": "method",
@@ -54522,7 +54522,7 @@
       "macos_introduced": "10.15",
       "name": "setStorageMode:",
       "owner": "MTLCounterSampleBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (MTLStorageMode) -> void"
     },
     {
@@ -54539,7 +54539,7 @@
           "line": 151
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "method:-[MTLCounterSampleBufferDescriptor storageMode]",
       "kind": "method",
@@ -54547,7 +54547,7 @@
       "macos_introduced": "10.15",
       "name": "storageMode",
       "owner": "MTLCounterSampleBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> MTLStorageMode"
     },
     {
@@ -61246,7 +61246,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandQueue.h",
       "id": "method:-[MTLIOCommandQueueDescriptor priority]",
       "kind": "method",
@@ -61254,7 +61254,7 @@
       "macos_introduced": "13.0",
       "name": "priority",
       "owner": "MTLIOCommandQueueDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> MTLIOPriority"
     },
     {
@@ -61322,7 +61322,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandQueue.h",
       "id": "method:-[MTLIOCommandQueueDescriptor setPriority:]",
       "kind": "method",
@@ -61330,7 +61330,7 @@
       "macos_introduced": "13.0",
       "name": "setPriority:",
       "owner": "MTLIOCommandQueueDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (MTLIOPriority) -> void"
     },
     {
@@ -92301,7 +92301,7 @@
           "line": 157
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "property:MTLCounterSampleBufferDescriptor:sampleCount",
       "kind": "property",
@@ -92309,7 +92309,7 @@
       "macos_introduced": "10.15",
       "name": "sampleCount",
       "owner": "MTLCounterSampleBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -92326,7 +92326,7 @@
           "line": 151
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "property:MTLCounterSampleBufferDescriptor:storageMode",
       "kind": "property",
@@ -92334,7 +92334,7 @@
       "macos_introduced": "10.15",
       "name": "storageMode",
       "owner": "MTLCounterSampleBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "MTLStorageMode"
     },
     {
@@ -95148,7 +95148,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandQueue.h",
       "id": "property:MTLIOCommandQueueDescriptor:priority",
       "kind": "property",
@@ -95156,7 +95156,7 @@
       "macos_introduced": "13.0",
       "name": "priority",
       "owner": "MTLIOCommandQueueDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "MTLIOPriority"
     },
     {

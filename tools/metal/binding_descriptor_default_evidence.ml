@@ -4,7 +4,7 @@ let sdk_version = "26.5"
 let os_version = "26.4.1"
 let os_build = "25E253"
 let machine = "Macmini9,1 / Apple M1"
-let measured_property_count = 51
+let measured_property_count = 54
 
 let measured_nonzero =
   [ "property:MTLCompileOptions:languageVersion", 262144L

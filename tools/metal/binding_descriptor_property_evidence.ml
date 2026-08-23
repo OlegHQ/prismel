@@ -12,7 +12,7 @@ type inventory_symbol =
   ; classification : string
   }
 
-let expected_promotion_count = 153
+let expected_promotion_count = 162
 let promotion_ids =
   List.concat_map inventory_ids Binding_descriptor_property_plan.entries
 
@@ -20,7 +20,7 @@ let pending_icb_ids = []
 let bound_ids =
   Binding_descriptor_property_plan.entries |> List.concat_map inventory_ids
 
-let expected_bound_count = 153
+let expected_bound_count = 162
 let expected_pending_count = 0
 let bound_set = Hashtbl.create expected_bound_count
 let () = List.iter (fun id -> Hashtbl.replace bound_set id ()) bound_ids

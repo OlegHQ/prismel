@@ -91,8 +91,8 @@ let ocaml_type entry =
   | Bool -> "bool"
   | Nsuint -> "int64"
   | Enum value ->
-      "Metal_enum_generated." ^ String.capitalize_ascii (enum_module value)
-      ^ ".t"
+      if String.equal value "MTLStorageMode" then "Storage_mode.t"
+      else "Metal_enum_generated." ^ String.capitalize_ascii (enum_module value) ^ ".t"
   | Flags value ->
       "Metal_enum_generated." ^ String.capitalize_ascii (enum_module value)
       ^ ".t list"
@@ -103,10 +103,13 @@ let default_expression entry =
   | Bool, Default_bool value -> string_of_bool value
   | Nsuint, Default_int64 value -> Int64.to_string value ^ "L"
   | Enum name, Default_int64 value ->
-      Printf.sprintf
-        "(match Metal_enum_generated.%s.of_int64 %LdL with Some value -> value | None -> invalid_arg %S)"
-        (String.capitalize_ascii (enum_module name)) value
-        ("Metal SDK default is absent from generated enum " ^ name)
+      if String.equal name "MTLStorageMode" then
+        Printf.sprintf "Storage_mode.of_int64_exn %LdL" value
+      else
+        Printf.sprintf
+          "(match Metal_enum_generated.%s.of_int64 %LdL with Some value -> value | None -> invalid_arg %S)"
+          (String.capitalize_ascii (enum_module name)) value
+          ("Metal SDK default is absent from generated enum " ^ name)
   | Flags _, Default_int64 0L -> "[]"
   | Flags name, Default_int64 value ->
       invalid_arg

@@ -26,6 +26,8 @@ let entries =
   ; p ~attributes:a "MTLComputePipelineDescriptor" "shaderValidation" "Metal/MTLComputePipeline.h" "MTLShaderValidation" "15.0"
   ; p ~attributes:a "MTLComputePipelineDescriptor" "supportAddingBinaryFunctions" "Metal/MTLComputePipeline.h" "BOOL" "11.0"
   ; p ~attributes:a "MTLComputePipelineDescriptor" "supportIndirectCommandBuffers" "Metal/MTLComputePipeline.h" "BOOL" "11.0"
+  ; p ~attributes:a "MTLCounterSampleBufferDescriptor" "sampleCount" "Metal/MTLCounters.h" "NSUInteger" "10.15"
+  ; p ~attributes:a "MTLCounterSampleBufferDescriptor" "storageMode" "Metal/MTLCounters.h" "MTLStorageMode" "10.15"
   ; p "MTLComputePipelineDescriptor" "threadGroupSizeIsMultipleOfThreadExecutionWidth" "Metal/MTLComputePipeline.h" "BOOL" "10.11"
   ; p ~attributes:a ~default:32L "MTLHeapDescriptor" "resourceOptions" "Metal/MTLHeap.h" "MTLResourceOptions" "10.15"
   ; p "MTLRenderPassAttachmentDescriptor" "depthPlane" "Metal/MTLRenderPass.h" "NSUInteger" "10.11"
@@ -40,6 +42,7 @@ let entries =
   ; p ~default:16L "MTLTextureDescriptor" "resourceOptions" "Metal/MTLTexture.h" "MTLResourceOptions" "10.11"
   ; p "MTLIndirectCommandBufferDescriptor" "commandTypes" "Metal/MTLIndirectCommandBuffer.h" "MTLIndirectCommandType" "10.14"
   ; p "MTLIndirectCommandBufferDescriptor" "inheritBuffers" "Metal/MTLIndirectCommandBuffer.h" "BOOL" "10.14"
+  ; p "MTLIOCommandQueueDescriptor" "priority" "Metal/MTLIOCommandQueue.h" "MTLIOPriority" "13.0"
   ; p ~attributes:a ~default:1L "MTLIndirectCommandBufferDescriptor" "inheritCullMode" "Metal/MTLIndirectCommandBuffer.h" "BOOL" "26.0"
   ; p ~attributes:a ~default:1L "MTLIndirectCommandBufferDescriptor" "inheritDepthBias" "Metal/MTLIndirectCommandBuffer.h" "BOOL" "26.0"
   ; p ~attributes:a ~default:1L "MTLIndirectCommandBufferDescriptor" "inheritDepthClipMode" "Metal/MTLIndirectCommandBuffer.h" "BOOL" "26.0"
@@ -59,9 +62,9 @@ let entries =
   ; p ~attributes:a "MTLIndirectCommandBufferDescriptor" "supportRayTracing" "Metal/MTLIndirectCommandBuffer.h" "BOOL" "13.0"
   ]
 
-let expected_property_count = 51
-let expected_inventory_id_count = 153
-let expected_owner_count = 10
+let expected_property_count = 54
+let expected_inventory_id_count = 162
+let expected_owner_count = 12
 let source_paths =
   [ "tools/metal/binding_descriptor_property_spec.ml"
   ; "tools/metal/binding_descriptor_property_spec.mli"
