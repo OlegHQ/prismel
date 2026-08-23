@@ -995,7 +995,11 @@ enum class Handle_kind : std::uint32_t {
   Tile_pipeline_descriptor,
   Linked_functions,
   Counter_set,
+  Counter,
   Counter_descriptor,
+  Blit_pass_descriptor,
+  Blit_sample_attachment,
+  Blit_sample_attachment_array,
   Event,
   Capture_descriptor,
   Capture_manager,
@@ -14651,6 +14655,7 @@ extern "C" CAMLprim value caml_prismel_metal_pipeline_render_imageblock_length(v
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunguarded-availability-new"
 #include "../../tools/metal/metal_io_constructors.inc"
+#include "../../tools/metal/metal_io_counter_callable_tail.inc"
 #pragma clang diagnostic pop
 
 #pragma clang diagnostic push

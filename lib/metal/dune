@@ -224,6 +224,7 @@
   ../../tools/metal/metal_mesh_tile_mechanical_callable_bridge.inc
   ../../tools/metal/metal_command_event_constructors.inc
   ../../tools/metal/metal_io_constructors.inc
+  ../../tools/metal/metal_io_counter_callable_tail.inc
   ../../tools/metal/metal_mesh_tile_pipeline_compile.inc
   ../../tools/metal/metal_pipeline_ownership_callable_bridge.inc
   ../../tools/metal/metal_pipeline_descriptor_mechanical_callable_bridge.inc

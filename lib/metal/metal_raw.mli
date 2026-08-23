@@ -1757,6 +1757,16 @@ external io_command_create :
   "caml_prismel_metal_io_command_create"
 external io_command_commit_wait : handle -> (int,string) result =
   "caml_prismel_metal_io_command_commit_wait"
+external counter_sets : handle -> (((handle * string) array),string) result = "caml_prismel_metal_counter_sets"
+external counter_set_counters : handle -> (((handle * string) array),string) result = "caml_prismel_metal_counter_set_counters"
+external counter_descriptor_snapshot : handle -> ((handle * string option * int64 * int64),string) result = "caml_prismel_metal_counter_descriptor_snapshot"
+external counter_descriptor_set : handle -> handle -> string option -> int64 -> int64 -> (unit,string) result = "caml_prismel_metal_counter_descriptor_set"
+external counter_sample_buffer_create : handle -> handle -> (handle,string) result = "caml_prismel_metal_counter_sample_buffer_create"
+external counter_sample_snapshot : handle -> ((int64 * string option * int64),string) result = "caml_prismel_metal_counter_sample_snapshot"
+external counter_sample_resolve : handle -> int64 -> int64 -> (bytes,string) result = "caml_prismel_metal_counter_sample_resolve"
+external blit_pass_create : unit -> (handle,string) result = "caml_prismel_metal_blit_pass_create"
+external blit_pass_attachments : handle -> (handle,string) result = "caml_prismel_metal_blit_pass_attachments"
+external blit_attachment : handle -> int64 -> handle option -> int64 -> int64 -> (handle,string) result = "caml_prismel_metal_blit_attachment"
 
 (** Exact callable subset of the prepared authoritative Metal4 shards. *)
 external metal4_command_buffer_begin :
