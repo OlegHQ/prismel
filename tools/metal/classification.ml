@@ -308,8 +308,10 @@ let bound_identifiers =
       ; ( "MTL4RenderCommandEncoder"
         , [ "dispatchThreadsPerTile:"
           ; "drawIndexedPrimitives:indexCount:indexType:indexBuffer:indexBufferLength:"
+          ; "drawIndexedPrimitives:indexCount:indexType:indexBuffer:indexBufferLength:instanceCount:baseVertex:baseInstance:"
           ; "drawMeshThreadgroups:threadsPerObjectThreadgroup:threadsPerMeshThreadgroup:"
           ; "drawPrimitives:vertexStart:vertexCount:"
+          ; "drawPrimitives:vertexStart:vertexCount:instanceCount:baseInstance:"
           ; "setArgumentTable:atStages:"; "setRenderPipelineState:"
           ; "setViewport:"; "tileHeight"; "tileWidth"
           ] )

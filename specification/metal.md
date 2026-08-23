@@ -599,6 +599,15 @@ through commit feedback. The M1 conformance path executes both formats with
 nonzero aligned offsets into separate 8×8 targets and verifies exact blue and
 red BGRA pixels after completion.
 
+The instanced render slice uses the base-aware conventional and indexed Metal 4
+selectors. Direct draws validate a positive vertex and instance range plus a
+nonnegative base instance. Indexed draws add the same checked buffer ownership,
+alignment, byte-span, and GPU-address rules, accept a signed base vertex, and
+pass Metal the largest aligned accessible range remaining after the selected
+offset. The M1 conformance path renders exact left/right color splits for a
+nonzero direct vertex start and base instance, then for a 2-byte-offset `uint16`
+buffer with base vertex `-2` and base instance `8`.
+
 `Command4.Compute_encoder` binds a checked compute pipeline and an optional
 argument table, then dispatches positive direct grid/threadgroup dimensions
 whose threadgroup cardinality fits the compiled pipeline limit. Each dispatch
@@ -636,7 +645,7 @@ The M1 conformance path compiles an exact 32×32 full-tile pipeline, clears its
 argument-table slot immediately after dispatch, and verifies the retained shared
 buffer contains the tile shader's exact value `23` after commit feedback.
 
-Instanced and indirect draws, blend/depth/stencil
+Indirect draws, blend/depth/stencil
 policy, vertex descriptors, dynamic render linking, and positive offline
 `.metallib` provenance remain open.
 
@@ -663,6 +672,7 @@ source-library destruction, allocator/queue/buffer/submission lifecycle,
 argument-table buffer/texture/sampler ownership and render-stage snapshots, plus
 pixel-exact conventional Metal 4 offscreen render execution and exact
 16-/32-bit indexed execution with two nonzero-offset pixel-exact targets,
+base-aware direct/indexed instancing with two exact split-color targets,
 argument-table-backed Metal 4 compute execution, direct and object-stage mesh
 command execution with two pixel-exact offscreen targets, and exact full-tile
 command execution through a completion-retained output buffer,

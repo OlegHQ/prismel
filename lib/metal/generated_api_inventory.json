@@ -2,11 +2,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 1447,
+    "bound": 1449,
     "scope-excluded": 7,
-    "unreviewed": 3831
+    "unreviewed": 3829
   },
-  "classification_source_sha256": "7746a4e834dd2046c6ebb58df5e278ac3e3ba8bdca42412e86309794b0c233d7",
+  "classification_source_sha256": "6c6bcda47cf9d0ca5c5cdd7586a78e2420d798c58baca0cff4c84d1b2251c1f8",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "header_aggregate_sha256": "c2ee1e44c76606cf05fa81d1a8314dadfa49efe900342e8bcb3670363c16f0d1",
@@ -24528,14 +24528,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderCommandEncoder.h",
       "id": "method:-[MTL4RenderCommandEncoder drawIndexedPrimitives:indexCount:indexType:indexBuffer:indexBufferLength:instanceCount:baseVertex:baseInstance:]",
       "kind": "method",
       "line": 418,
       "name": "drawIndexedPrimitives:indexCount:indexType:indexBuffer:indexBufferLength:instanceCount:baseVertex:baseInstance:",
       "owner": "MTL4RenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLPrimitiveType, NSUInteger, MTLIndexType, MTLGPUAddress, NSUInteger, NSUInteger, NSInteger, NSUInteger) -> void"
     },
     {
@@ -24624,14 +24624,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderCommandEncoder.h",
       "id": "method:-[MTL4RenderCommandEncoder drawPrimitives:vertexStart:vertexCount:instanceCount:baseInstance:]",
       "kind": "method",
       "line": 312,
       "name": "drawPrimitives:vertexStart:vertexCount:instanceCount:baseInstance:",
       "owner": "MTL4RenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLPrimitiveType, NSUInteger, NSUInteger, NSUInteger, NSUInteger) -> void"
     },
     {

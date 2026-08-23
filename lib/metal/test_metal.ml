@@ -178,6 +178,61 @@ fragment float4 prismel_green_fragment() {
 }
 |}
 
+let instanced_render_shader_source =
+  {|
+#include <metal_stdlib>
+using namespace metal;
+
+struct PrismelInstancedVertexOut {
+  float4 position [[position]];
+  float4 color;
+};
+
+PrismelInstancedVertexOut prismel_instance_vertex(
+    uint local_vertex, uint lane, float4 left_color, float4 right_color) {
+  constexpr float2 positions[4] = {
+    float2(-1.0f, -1.0f),
+    float2(1.0f, -1.0f),
+    float2(-1.0f, 1.0f),
+    float2(1.0f, 1.0f)
+  };
+  const float x_offset = lane == 0u ? -0.5f :
+                           lane == 1u ? 0.5f : 4.0f;
+  PrismelInstancedVertexOut result;
+  result.position = float4(
+      positions[local_vertex].x * 0.5f + x_offset,
+      positions[local_vertex].y,
+      0.0f,
+      1.0f);
+  result.color = lane == 0u ? left_color : right_color;
+  return result;
+}
+
+vertex PrismelInstancedVertexOut prismel_direct_instanced_vertex(
+    uint vertex_id [[vertex_id]], uint instance_id [[instance_id]],
+    uint base_instance [[base_instance]]) {
+  return prismel_instance_vertex(
+      vertex_id - 4u,
+      base_instance == 5u ? instance_id - base_instance : 2u,
+      float4(0.0f, 0.0f, 1.0f, 1.0f),
+      float4(0.0f, 1.0f, 0.0f, 1.0f));
+}
+
+vertex PrismelInstancedVertexOut prismel_indexed_instanced_vertex(
+    uint vertex_id [[vertex_id]], uint instance_id [[instance_id]]) {
+  return prismel_instance_vertex(
+      vertex_id,
+      instance_id - 8u,
+      float4(1.0f, 0.0f, 0.0f, 1.0f),
+      float4(0.0f, 0.0f, 1.0f, 1.0f));
+}
+
+fragment float4 prismel_instanced_fragment(
+    PrismelInstancedVertexOut input [[stage_in]]) {
+  return input.color;
+}
+|}
+
 let mesh_shader_source =
   {|
 #include <metal_stdlib>
@@ -370,6 +425,31 @@ let check_solid_bgra ~label ~blue ~green ~red ~alpha pixels =
        || Char.code (Bytes.get pixels (pixel + 2)) <> red
        || Char.code (Bytes.get pixels (pixel + 3)) <> alpha
     then fail "%s produced a wrong pixel at index %d" label index
+  done
+
+let check_vertical_split_bgra ~label ~left ~right pixels =
+  if Bytes.length pixels <> 256 then
+    fail "%s returned %d bytes instead of 256" label (Bytes.length pixels);
+  for y = 0 to 7 do
+    for x = 0 to 7 do
+      let expected_blue, expected_green, expected_red, expected_alpha =
+        if x < 4 then left else right
+      in
+      let pixel = ((y * 8) + x) * 4 in
+      if Char.code (Bytes.get pixels pixel) <> expected_blue
+         || Char.code (Bytes.get pixels (pixel + 1)) <> expected_green
+         || Char.code (Bytes.get pixels (pixel + 2)) <> expected_red
+         || Char.code (Bytes.get pixels (pixel + 3)) <> expected_alpha
+      then
+        fail
+          "%s produced BGRA (%d, %d, %d, %d) instead of (%d, %d, %d, %d) at \
+           (%d, %d)"
+          label (Char.code (Bytes.get pixels pixel))
+          (Char.code (Bytes.get pixels (pixel + 1)))
+          (Char.code (Bytes.get pixels (pixel + 2)))
+          (Char.code (Bytes.get pixels (pixel + 3))) expected_blue expected_green
+          expected_red expected_alpha x y
+    done
   done
 
 let settle_finalizers ~expected_live =
@@ -4378,6 +4458,154 @@ let test_metal4_indexed_commands device =
     true
   end
 
+let test_metal4_instanced_commands device =
+  if not (get (Device.supports_family device Device.Metal4)) then false
+  else begin
+    let compiler = get (Compiler.create device) in
+    let library =
+      get
+        (Compiler.compile_source ~name:"metal4-command-instanced-library"
+           compiler instanced_render_shader_source)
+    in
+    let make_pipeline label vertex =
+      get
+        (Compiler.create_render_pipeline ~label
+           ~fragment:"prismel_instanced_fragment" compiler ~library ~vertex)
+    in
+    let direct_pipeline =
+      make_pipeline "Metal 4 direct instanced pipeline"
+        "prismel_direct_instanced_vertex"
+    in
+    let indexed_pipeline =
+      make_pipeline "Metal 4 indexed instanced pipeline"
+        "prismel_indexed_instanced_vertex"
+    in
+    let make_target label =
+      get
+        (Texture.create ~device
+           (Texture.descriptor_2d ~storage:Buffer.Shared
+              ~usage:[ Texture.Render_target ] ~format:Texture.Bgra8_unorm
+              ~width:8 ~height:8 ~label ()))
+    in
+    let direct_target = make_target "Metal 4 direct instanced target" in
+    let indexed_target = make_target "Metal 4 indexed instanced target" in
+    let index_bytes = Bytes.make 16 '\000' in
+    Array.iteri
+      (fun index value -> Bytes.set_uint16_le index_bytes (2 + (index * 2)) value)
+      [| 2; 3; 4; 4; 3; 5 |];
+    let index_buffer =
+      get (Buffer.create ~device ~length:16L ~storage:Buffer.Shared ())
+    in
+    get (Buffer.write_bytes index_buffer ~dst_offset:0L index_bytes);
+    let allocator =
+      get (Command4.Allocator.create ~label:"Metal 4 instanced allocator" device)
+    in
+    let queue =
+      get (Command4.Queue.create ~label:"Metal 4 instanced queue" device)
+    in
+    let commands =
+      get
+        (Command4.Command_buffer.create allocator
+           ~label:"Metal 4 instanced commands" ())
+    in
+    let attachment texture =
+      Command4.Render_encoder.color_attachment texture
+    in
+    let direct_encoder =
+      get
+        (Command4.Render_encoder.create ~label:"Metal 4 direct instance encoder"
+           commands ~color_attachments:[ attachment direct_target ])
+    in
+    ignore
+      (expect_error Invalid_state
+         (Command4.Render_encoder.draw_primitives_instanced direct_encoder
+            Command4.Render_encoder.Triangle_strip ~vertex_start:4
+            ~vertex_count:4
+            ~instance_count:2 ~base_instance:5));
+    get (Command4.Render_encoder.set_pipeline direct_encoder direct_pipeline);
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.draw_primitives_instanced direct_encoder
+            Command4.Render_encoder.Triangle_strip ~vertex_start:4
+            ~vertex_count:4
+            ~instance_count:0 ~base_instance:5));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.draw_primitives_instanced direct_encoder
+            Command4.Render_encoder.Triangle_strip ~vertex_start:4
+            ~vertex_count:4
+            ~instance_count:2 ~base_instance:(-1)));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.draw_primitives_instanced direct_encoder
+            Command4.Render_encoder.Triangle_strip ~vertex_start:4
+            ~vertex_count:4
+            ~instance_count:2 ~base_instance:max_int));
+    get
+      (Command4.Render_encoder.draw_primitives_instanced direct_encoder
+         Command4.Render_encoder.Triangle_strip ~vertex_start:4 ~vertex_count:4
+         ~instance_count:2 ~base_instance:5);
+    get (Command4.Render_encoder.end_encoding direct_encoder);
+    let indexed_encoder =
+      get
+        (Command4.Render_encoder.create
+           ~label:"Metal 4 indexed instance encoder" commands
+           ~color_attachments:[ attachment indexed_target ])
+    in
+    get (Command4.Render_encoder.set_pipeline indexed_encoder indexed_pipeline);
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.draw_indexed_primitives_instanced
+            indexed_encoder Command4.Render_encoder.Triangle
+            Command4.Render_encoder.Uint16 ~index_buffer ~index_offset:2L
+            ~index_count:6 ~instance_count:0 ~base_vertex:0
+            ~base_instance:0));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.draw_indexed_primitives_instanced
+            indexed_encoder Command4.Render_encoder.Triangle
+            Command4.Render_encoder.Uint16 ~index_buffer ~index_offset:2L
+            ~index_count:6 ~instance_count:2 ~base_vertex:0
+            ~base_instance:(-1)));
+    get
+      (Command4.Render_encoder.draw_indexed_primitives_instanced indexed_encoder
+         Command4.Render_encoder.Triangle Command4.Render_encoder.Uint16
+         ~index_buffer ~index_offset:2L ~index_count:6 ~instance_count:2
+         ~base_vertex:(-2) ~base_instance:8);
+    ignore (expect_error Parent_has_dependents (Buffer.destroy index_buffer));
+    get (Command4.Render_encoder.end_encoding indexed_encoder);
+    get (Command4.Command_buffer.end_recording commands);
+    let submission = get (Command4.Queue.commit queue [ commands ]) in
+    get (Command4.Submission.wait submission);
+    let read_target texture =
+      get
+        (Texture.read_bytes texture
+           ~region:
+             { Texture.x = 0; y = 0; z = 0; width = 8; height = 8; depth = 1 }
+           ~mip_level:0 ~slice:0 ~bytes_per_row:32 ~bytes_per_image:256)
+    in
+    check_vertical_split_bgra ~label:"Metal 4 direct instanced draw"
+      ~left:(255, 0, 0, 255) ~right:(0, 255, 0, 255)
+      (read_target direct_target);
+    check_vertical_split_bgra ~label:"Metal 4 indexed instanced draw"
+      ~left:(0, 0, 255, 255) ~right:(255, 0, 0, 255)
+      (read_target indexed_target);
+    get (Render_pipeline.destroy direct_pipeline);
+    get (Render_pipeline.destroy indexed_pipeline);
+    get (Buffer.destroy index_buffer);
+    get (Texture.destroy direct_target);
+    get (Texture.destroy indexed_target);
+    get (Command4.Submission.destroy submission);
+    get (Command4.Command_buffer.destroy commands);
+    get (Command4.Allocator.reset allocator);
+    get (Command4.Queue.destroy queue);
+    get (Command4.Allocator.destroy allocator);
+    get (Library.destroy library);
+    get (Compiler.destroy compiler);
+    Printf.printf "Metal 4 direct/indexed instanced-command conformance passed\n%!";
+    true
+  end
+
 let test_metal4_mesh_commands device =
   if
     not (get (Device.supports_family device Device.Metal4))
@@ -4829,6 +5057,7 @@ let () =
     ignore (test_metal4_compiler device);
     ignore (test_metal4_render_commands device);
     ignore (test_metal4_indexed_commands device);
+    ignore (test_metal4_instanced_commands device);
     ignore (test_metal4_mesh_commands device);
     ignore (test_metal4_tile_commands device);
     ignore (test_metal4_compute_commands device);
@@ -6638,6 +6867,6 @@ let () =
         stats.external_deallocations
         stats.external_deallocation_mismatches;
     Printf.printf
-      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/compiler-task/pipeline-dataset/binary-function/static-link/reflection/compute/render/mesh/object/tile/command4-argument-table/compute/render/indexed/mesh/tile conformance passed on %s\n%!"
+      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/compiler-task/pipeline-dataset/binary-function/static-link/reflection/compute/render/mesh/object/tile/command4-argument-table/compute/render/indexed/instanced/mesh/tile conformance passed on %s\n%!"
       info.name
   end

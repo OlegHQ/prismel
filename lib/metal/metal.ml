@@ -9816,40 +9816,103 @@ module Command4 = struct
       in
       loop tables
 
+    let ensure_conventional_pipeline operation (value : t) =
+      match value.pipeline with
+      | None -> error operation Invalid_state "no render pipeline is bound"
+      | Some pipeline when pipeline.kind <> Render ->
+          error operation Invalid_state
+            "primitive draws require a conventional render pipeline"
+      | Some _ -> Ok ()
+
+    let validate_vertex_range operation ~vertex_start ~vertex_count =
+      if
+        vertex_start < 0 || vertex_count <= 0
+        || vertex_start > max_int - (vertex_count - 1)
+      then
+        error operation Invalid_argument
+          "draw range must be positive and fit in an OCaml integer"
+      else Ok ()
+
+    let validate_instance_range operation ~instance_count ~base_instance =
+      if
+        instance_count <= 0 || base_instance < 0
+        || base_instance > max_int - (instance_count - 1)
+      then
+        error operation Invalid_argument
+          "instance range must be positive and fit in an OCaml integer"
+      else Ok ()
+
+    let prepare_argument_tables operation (value : t) =
+      let tables = current_argument_tables value in
+      Result.map
+        (fun () ->
+          Array.of_list
+            (List.map
+               (fun (table : command4_argument_table) -> table.raw)
+               tables))
+        (retain_argument_tables operation value tables)
+
+    let validate_index_range operation index_type (index_buffer : Buffer.t)
+        ~index_offset ~index_count =
+      let stride = index_stride index_type in
+      let count = Int64.of_int index_count in
+      let ( let* ) result callback = Result.bind result callback in
+      let* index_length =
+        if index_count <= 0 then
+          error operation Invalid_argument "index count must be positive"
+        else if index_offset < 0L || Int64.rem index_offset stride <> 0L then
+          error operation Invalid_argument
+            "index-buffer offset is negative or misaligned"
+        else if count > Int64.div Int64.max_int stride then
+          error operation Invalid_argument "index-buffer byte span overflows"
+        else Ok (Int64.mul count stride)
+      in
+      if
+        index_offset > index_buffer.length
+        || index_length > Int64.sub index_buffer.length index_offset
+      then
+        error operation Invalid_argument
+          "indexed draw exceeds the index-buffer bounds"
+      else Ok ()
+
     let draw_primitives (value : t) primitive ~vertex_start ~vertex_count =
       let operation = "Metal.Command4.Render_encoder.draw_primitives" in
       on_main operation (fun () ->
-        match ensure_live operation value.lifetime with
-        | Error _ as failure -> failure
-        | Ok () when Option.is_none value.pipeline ->
-            error operation Invalid_state "no render pipeline is bound"
-        | Ok () when
-            (Option.get value.pipeline).kind <> Render ->
-            error operation Invalid_state
-              "ordinary primitive draws require a conventional render pipeline"
-        | Ok () when
-            vertex_start < 0 || vertex_count <= 0
-            || vertex_start > max_int - vertex_count ->
-            error operation Invalid_argument
-              "draw range must be positive and fit in an OCaml integer"
-        | Ok () ->
-            let tables = current_argument_tables value in
-            (match retain_argument_tables operation value tables with
-             | Error _ as failure -> failure
-             | Ok () ->
-                 let raw_tables =
-                   Array.of_list
-                     (List.map
-                        (fun (table : command4_argument_table) -> table.raw)
-                        tables)
-                 in
-                 match
-                   Metal_raw.command4_render_encoder_draw_primitives value.raw
-                     value.command_buffer.raw raw_tables
-                     (primitive_code primitive, vertex_start, vertex_count)
-                 with
-                 | Ok () -> Ok ()
-                 | Error message -> native_error operation message))
+        let ( let* ) result callback = Result.bind result callback in
+        let* () = ensure_live operation value.lifetime in
+        let* () = ensure_conventional_pipeline operation value in
+        let* () = validate_vertex_range operation ~vertex_start ~vertex_count in
+        let* raw_tables = prepare_argument_tables operation value in
+        match
+          Metal_raw.command4_render_encoder_draw_primitives value.raw
+            value.command_buffer.raw raw_tables
+            (primitive_code primitive, vertex_start, vertex_count)
+        with
+        | Ok () -> Ok ()
+        | Error message -> native_error operation message)
+
+    let draw_primitives_instanced (value : t) primitive ~vertex_start
+        ~vertex_count ~instance_count ~base_instance =
+      let operation =
+        "Metal.Command4.Render_encoder.draw_primitives_instanced"
+      in
+      on_main operation (fun () ->
+        let ( let* ) result callback = Result.bind result callback in
+        let* () = ensure_live operation value.lifetime in
+        let* () = ensure_conventional_pipeline operation value in
+        let* () = validate_vertex_range operation ~vertex_start ~vertex_count in
+        let* () =
+          validate_instance_range operation ~instance_count ~base_instance
+        in
+        let* raw_tables = prepare_argument_tables operation value in
+        match
+          Metal_raw.command4_render_encoder_draw_primitives_instanced value.raw
+            value.command_buffer.raw raw_tables
+            ( primitive_code primitive, vertex_start, vertex_count
+            , instance_count, base_instance )
+        with
+        | Ok () -> Ok ()
+        | Error message -> native_error operation message)
 
     let draw_indexed_primitives (value : t) primitive index_type
         ~(index_buffer : Buffer.t) ~index_offset ~index_count =
@@ -9859,53 +9922,56 @@ module Command4 = struct
       on_main operation (fun () ->
         let ( let* ) result callback = Result.bind result callback in
         let* () = ensure_live operation value.lifetime in
-        let* () =
-          match value.pipeline with
-          | None -> error operation Invalid_state "no render pipeline is bound"
-          | Some pipeline when pipeline.kind <> Render ->
-              error operation Invalid_state
-                "indexed draws require a conventional render pipeline"
-          | Some _ -> Ok ()
-        in
+        let* () = ensure_conventional_pipeline operation value in
         let* () = ensure_buffer_usable operation index_buffer in
         let* () =
           ensure_same_device operation value.command_buffer.allocator.device
             index_buffer.device
         in
-        let stride = index_stride index_type in
-        let count = Int64.of_int index_count in
-        let* index_length =
-          if index_count <= 0 then
-            error operation Invalid_argument "index count must be positive"
-          else if index_offset < 0L || Int64.rem index_offset stride <> 0L then
-            error operation Invalid_argument
-              "index-buffer offset is negative or misaligned"
-          else if count > Int64.div Int64.max_int stride then
-            error operation Invalid_argument "index-buffer byte span overflows"
-          else Ok (Int64.mul count stride)
-        in
         let* () =
-          if index_offset > index_buffer.length
-             || index_length > Int64.sub index_buffer.length index_offset
-          then
-            error operation Invalid_argument
-              "indexed draw exceeds the index-buffer bounds"
-          else Ok ()
+          validate_index_range operation index_type index_buffer ~index_offset
+            ~index_count
         in
-        let tables = current_argument_tables value in
-        let* () = retain_argument_tables operation value tables in
+        let* raw_tables = prepare_argument_tables operation value in
         retain_command4_buffer value.command_buffer index_buffer;
-        let raw_tables =
-          Array.of_list
-            (List.map
-               (fun (table : command4_argument_table) -> table.raw)
-               tables)
-        in
         match
           Metal_raw.command4_render_encoder_draw_indexed_primitives value.raw
             value.command_buffer.raw raw_tables index_buffer.raw
             ( primitive_code primitive, index_count
             , index_type_code index_type, index_offset )
+        with
+        | Ok () -> Ok ()
+        | Error message -> native_error operation message)
+
+    let draw_indexed_primitives_instanced (value : t) primitive index_type
+        ~(index_buffer : Buffer.t) ~index_offset ~index_count ~instance_count
+        ~base_vertex ~base_instance =
+      let operation =
+        "Metal.Command4.Render_encoder.draw_indexed_primitives_instanced"
+      in
+      on_main operation (fun () ->
+        let ( let* ) result callback = Result.bind result callback in
+        let* () = ensure_live operation value.lifetime in
+        let* () = ensure_conventional_pipeline operation value in
+        let* () = ensure_buffer_usable operation index_buffer in
+        let* () =
+          ensure_same_device operation value.command_buffer.allocator.device
+            index_buffer.device
+        in
+        let* () =
+          validate_index_range operation index_type index_buffer ~index_offset
+            ~index_count
+        in
+        let* () =
+          validate_instance_range operation ~instance_count ~base_instance
+        in
+        let* raw_tables = prepare_argument_tables operation value in
+        retain_command4_buffer value.command_buffer index_buffer;
+        match
+          Metal_raw.command4_render_encoder_draw_indexed_primitives_instanced
+            value.raw value.command_buffer.raw raw_tables index_buffer.raw
+            ( primitive_code primitive, index_count, index_type_code index_type
+            , index_offset, instance_count, base_vertex, base_instance )
         with
         | Ok () -> Ok ()
         | Error message -> native_error operation message)
