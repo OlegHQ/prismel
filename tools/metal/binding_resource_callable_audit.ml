@@ -9,7 +9,11 @@ let ownership id = List.exists (contains id)
   ; "device"; "heap"; "sampleBuffer"; "copyResourceViews"
   ; "setTextureView"; "remoteStorage"; "rootResource"; ":buffer"
   ; "updateFence"; "waitForFence"; "setOwnerWithIdentity"
-  ; "sampleBufferAttachments" ]
+  ; "sampleBufferAttachments"; "resourceStateCommandEncoder"
+  ; "TextureMapping"; "getBytes"; "replaceRegion"; "Descriptor texture"
+  ; "texture2DDescriptor"; "textureBufferDescriptor"; "textureCubeDescriptor"
+  ; "resourceStatePassDescriptor"; "label"; "Label"; "sampleBuffer"; "SampleBuffer"
+  ; "addDebugMarker" ]
 let classify id =
   if begins id "class:" || begins id "enum-case:" then
     {id;lane=Constant_or_class;reason="compile-time class/constant qualification only"}
