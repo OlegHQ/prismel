@@ -35,6 +35,9 @@ let bound_identifiers =
   ; "class:MTL4PipelineDescriptor"
   ; "class:MTL4PipelineOptions"
   ; "class:MTL4PipelineStageDynamicLinkingDescriptor"
+  ; "class:MTL4RenderPipelineColorAttachmentDescriptor"
+  ; "class:MTL4RenderPipelineColorAttachmentDescriptorArray"
+  ; "class:MTL4RenderPipelineDescriptor"
   ; "class:MTL4StaticLinkingDescriptor"
   ; "class:MTLBinaryArchiveDescriptor"
   ; "class:MTLCompileOptions"
@@ -45,6 +48,7 @@ let bound_identifiers =
   ; "class:MTLHeapDescriptor"
   ; "class:MTLLinkedFunctions"
   ; "class:MTLResidencySetDescriptor"
+  ; "class:MTLRenderPipelineReflection"
   ; "class:MTLSamplerDescriptor"
   ; "class:MTLSharedTextureHandle"
   ; "class:MTLTextureDescriptor"
@@ -69,6 +73,7 @@ let bound_identifiers =
   ; "enum:MTLLibraryType"
   ; "enum:MTLPixelFormat"
   ; "enum:MTLPipelineOption"
+  ; "enum:MTLPrimitiveTopologyClass"
   ; "enum:MTLPurgeableState"
   ; "enum:MTLResourceOptions"
   ; "enum:MTLSamplerAddressMode"
@@ -151,6 +156,7 @@ let bound_identifiers =
   ; "protocol:MTLObjectPayloadBinding"
   ; "protocol:MTLResource"
   ; "protocol:MTLResidencySet"
+  ; "protocol:MTLRenderPipelineState"
   ; "protocol:MTLResourceStateCommandEncoder"
   ; "protocol:MTLSamplerState"
   ; "protocol:MTLSharedEvent"
@@ -181,6 +187,7 @@ let bound_identifiers =
   ; "typedef:MTLOrigin"
   ; "typedef:MTLPixelFormat"
   ; "typedef:MTLPipelineOption"
+  ; "typedef:MTLPrimitiveTopologyClass"
   ; "typedef:MTLPurgeableState"
   ; "typedef:MTLRegion"
   ; "typedef:MTLResourceOptions"
@@ -204,6 +211,7 @@ let bound_identifiers =
   ; "typedef:MTLNewLibraryCompletionHandler"
   ; "typedef:MTLNewComputePipelineStateCompletionHandler"
   ; "typedef:MTLNewDynamicLibraryCompletionHandler"
+  ; "typedef:MTLNewRenderPipelineStateCompletionHandler"
   ; "variable:swizzle"
   ]
   @ methods
@@ -238,6 +246,8 @@ let bound_identifiers =
           ; "newComputePipelineStateWithDescriptor:compilerTaskOptions:error:"
           ; "newComputePipelineStateWithDescriptor:compilerTaskOptions:completionHandler:"
           ; "newComputePipelineStateWithDescriptor:dynamicLinkingDescriptor:compilerTaskOptions:error:"
+          ; "newRenderPipelineStateWithDescriptor:compilerTaskOptions:error:"
+          ; "newRenderPipelineStateWithDescriptor:compilerTaskOptions:completionHandler:"
           ; "newDynamicLibrary:completionHandler:"
           ; "newDynamicLibrary:error:"
           ; "newDynamicLibraryWithURL:completionHandler:"
@@ -264,6 +274,22 @@ let bound_identifiers =
           ; "staticLinkingDescriptor"; "supportBinaryLinking"
           ; "supportIndirectCommandBuffers"
           ; "threadGroupSizeIsMultipleOfThreadExecutionWidth"
+          ] )
+      ; ( "MTL4RenderPipelineColorAttachmentDescriptor"
+        , [ "pixelFormat"; "setPixelFormat:" ] )
+      ; ( "MTL4RenderPipelineColorAttachmentDescriptorArray"
+        , [ "objectAtIndexedSubscript:"
+          ; "setObject:atIndexedSubscript:"
+          ] )
+      ; ( "MTL4RenderPipelineDescriptor"
+        , [ "colorAttachments"; "fragmentFunctionDescriptor"
+          ; "inputPrimitiveTopology"; "isRasterizationEnabled"
+          ; "rasterSampleCount"; "setFragmentFunctionDescriptor:"
+          ; "setInputPrimitiveTopology:"; "setRasterSampleCount:"
+          ; "setRasterizationEnabled:"
+          ; "setSupportIndirectCommandBuffers:"
+          ; "setVertexFunctionDescriptor:"
+          ; "supportIndirectCommandBuffers"; "vertexFunctionDescriptor"
           ] )
       ; ( "MTL4LibraryDescriptor"
         , [ "name"; "options"; "setName:"; "setOptions:"; "setSource:"
@@ -332,6 +358,11 @@ let bound_identifiers =
         , [ "device"; "label"; "maxTotalThreadsPerThreadgroup"; "reflection"
           ; "threadExecutionWidth"
           ] )
+      ; ( "MTLRenderPipelineReflection"
+        , [ "fragmentBindings"; "meshBindings"; "objectBindings"
+          ; "tileBindings"; "vertexBindings"
+          ] )
+      ; ( "MTLRenderPipelineState", [ "device"; "label"; "reflection" ] )
       ; ( "MTLDevice"
         , [ "currentAllocatedSize"; "hasUnifiedMemory"; "isHeadless"
           ; "heapBufferSizeAndAlignWithLength:options:"
@@ -515,6 +546,13 @@ let bound_identifiers =
           ; "supportIndirectCommandBuffers"
           ; "threadGroupSizeIsMultipleOfThreadExecutionWidth"
           ] )
+      ; "MTL4RenderPipelineColorAttachmentDescriptor", [ "pixelFormat" ]
+      ; ( "MTL4RenderPipelineDescriptor"
+        , [ "colorAttachments"; "fragmentFunctionDescriptor"
+          ; "inputPrimitiveTopology"; "rasterSampleCount"
+          ; "rasterizationEnabled"; "supportIndirectCommandBuffers"
+          ; "vertexFunctionDescriptor"
+          ] )
       ; "MTL4LibraryDescriptor", [ "name"; "options"; "source" ]
       ; "MTL4LibraryFunctionDescriptor", [ "library"; "name" ]
       ; "MTL4PipelineDataSetSerializerDescriptor", [ "configuration" ]
@@ -543,6 +581,11 @@ let bound_identifiers =
         , [ "device"; "label"; "maxTotalThreadsPerThreadgroup"; "reflection"
           ; "threadExecutionWidth"
           ] )
+      ; ( "MTLRenderPipelineReflection"
+        , [ "fragmentBindings"; "meshBindings"; "objectBindings"
+          ; "tileBindings"; "vertexBindings"
+          ] )
+      ; "MTLRenderPipelineState", [ "device"; "label"; "reflection" ]
       ; ( "MTLDevice"
         , [ "currentAllocatedSize"; "depth24Stencil8PixelFormatSupported"
           ; "hasUnifiedMemory"; "headless"; "lowPower"; "maxBufferLength"
@@ -664,6 +707,10 @@ let bound_identifiers =
       ; "MTLFunctionTypeKernel"; "MTLFunctionTypeVisible"
       ; "MTLFunctionTypeIntersection"; "MTLFunctionTypeMesh"
       ; "MTLFunctionTypeObject"
+      ]
+  @ enum_cases "MTLPrimitiveTopologyClass"
+      [ "MTLPrimitiveTopologyClassPoint"; "MTLPrimitiveTopologyClassLine"
+      ; "MTLPrimitiveTopologyClassTriangle"
       ]
   @ enum_cases "MTLPipelineOption"
       [ "MTLPipelineOptionNone"; "MTLPipelineOptionArgumentInfo"

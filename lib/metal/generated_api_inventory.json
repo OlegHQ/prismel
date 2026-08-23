@@ -2,11 +2,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 1152,
+    "bound": 1206,
     "scope-excluded": 7,
-    "unreviewed": 4126
+    "unreviewed": 4072
   },
-  "classification_source_sha256": "f1b398cb6ee48bf113643690637078c7157b4d8ed9fb226cd3db2a277484f720",
+  "classification_source_sha256": "8b7975ac64d278da21d85b90e3a766977e342d3afe40e55549216453d356cd77",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "header_aggregate_sha256": "c2ee1e44c76606cf05fa81d1a8314dadfa49efe900342e8bcb3670363c16f0d1",
@@ -1029,14 +1029,14 @@
         "AvailabilityAttr",
         "VisibilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "class:MTL4RenderPipelineColorAttachmentDescriptor",
       "kind": "class",
       "line": 44,
       "name": "MTL4RenderPipelineColorAttachmentDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -1044,14 +1044,14 @@
         "AvailabilityAttr",
         "VisibilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "class:MTL4RenderPipelineColorAttachmentDescriptorArray",
       "kind": "class",
       "line": 98,
       "name": "MTL4RenderPipelineColorAttachmentDescriptorArray",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -1059,14 +1059,14 @@
         "AvailabilityAttr",
         "VisibilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "class:MTL4RenderPipelineDescriptor",
       "kind": "class",
       "line": 156,
       "name": "MTL4RenderPipelineDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -2301,14 +2301,14 @@
         "AvailabilityAttr",
         "VisibilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "class:MTLRenderPipelineReflection",
       "kind": "class",
       "line": 167,
       "name": "MTLRenderPipelineReflection",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -11353,38 +11353,38 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "enum-case:MTLPrimitiveTopologyClass:MTLPrimitiveTopologyClassLine",
       "kind": "enum-case",
       "line": 82,
       "name": "MTLPrimitiveTopologyClassLine",
       "owner": "MTLPrimitiveTopologyClass",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPrimitiveTopologyClass"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "enum-case:MTLPrimitiveTopologyClass:MTLPrimitiveTopologyClassPoint",
       "kind": "enum-case",
       "line": 81,
       "name": "MTLPrimitiveTopologyClassPoint",
       "owner": "MTLPrimitiveTopologyClass",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPrimitiveTopologyClass"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "enum-case:MTLPrimitiveTopologyClass:MTLPrimitiveTopologyClassTriangle",
       "kind": "enum-case",
       "line": 83,
       "name": "MTLPrimitiveTopologyClassTriangle",
       "owner": "MTLPrimitiveTopologyClass",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPrimitiveTopologyClass"
     },
     {
@@ -15496,14 +15496,14 @@
         "AvailabilityAttr",
         "EnumExtensibilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "enum:MTLPrimitiveTopologyClass",
       "kind": "enum",
       "line": 79,
       "name": "MTLPrimitiveTopologyClass",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -21834,28 +21834,28 @@
       "attributes": [
         "NSReturnsRetainedAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4Compiler.h",
       "id": "method:-[MTL4Compiler newRenderPipelineStateWithDescriptor:compilerTaskOptions:completionHandler:]",
       "kind": "method",
       "line": 303,
       "name": "newRenderPipelineStateWithDescriptor:compilerTaskOptions:completionHandler:",
       "owner": "MTL4Compiler",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTL4PipelineDescriptor * _Nonnull __strong, MTL4CompilerTaskOptions * _Nullable __strong, MTLNewRenderPipelineStateCompletionHandler  _Nonnull __strong) -> id<MTL4CompilerTask> _Nonnull"
     },
     {
       "attributes": [
         "NSReturnsRetainedAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4Compiler.h",
       "id": "method:-[MTL4Compiler newRenderPipelineStateWithDescriptor:compilerTaskOptions:error:]",
       "kind": "method",
       "line": 170,
       "name": "newRenderPipelineStateWithDescriptor:compilerTaskOptions:error:",
       "owner": "MTL4Compiler",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTL4PipelineDescriptor * _Nonnull __strong, MTL4CompilerTaskOptions * _Nullable __strong, NSError *__autoreleasing  _Nullable * _Nullable) -> id<MTLRenderPipelineState> _Nullable"
     },
     {
@@ -25536,14 +25536,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "method:-[MTL4RenderPipelineColorAttachmentDescriptor pixelFormat]",
       "kind": "method",
       "line": 49,
       "name": "pixelFormat",
       "owner": "MTL4RenderPipelineColorAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLPixelFormat"
     },
     {
@@ -25620,14 +25620,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "method:-[MTL4RenderPipelineColorAttachmentDescriptor setPixelFormat:]",
       "kind": "method",
       "line": null,
       "name": "setPixelFormat:",
       "owner": "MTL4RenderPipelineColorAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLPixelFormat) -> void"
     },
     {
@@ -25716,14 +25716,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "method:-[MTL4RenderPipelineColorAttachmentDescriptorArray objectAtIndexedSubscript:]",
       "kind": "method",
       "line": 103,
       "name": "objectAtIndexedSubscript:",
       "owner": "MTL4RenderPipelineColorAttachmentDescriptorArray",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (NSUInteger) -> MTL4RenderPipelineColorAttachmentDescriptor * _Nonnull"
     },
     {
@@ -25740,14 +25740,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "method:-[MTL4RenderPipelineColorAttachmentDescriptorArray setObject:atIndexedSubscript:]",
       "kind": "method",
       "line": 115,
       "name": "setObject:atIndexedSubscript:",
       "owner": "MTL4RenderPipelineColorAttachmentDescriptorArray",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTL4RenderPipelineColorAttachmentDescriptor * _Nullable __strong, NSUInteger) -> void"
     },
     {
@@ -25788,26 +25788,26 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "method:-[MTL4RenderPipelineDescriptor colorAttachments]",
       "kind": "method",
       "line": 196,
       "name": "colorAttachments",
       "owner": "MTL4RenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTL4RenderPipelineColorAttachmentDescriptorArray * _Nonnull"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "method:-[MTL4RenderPipelineDescriptor fragmentFunctionDescriptor]",
       "kind": "method",
       "line": 165,
       "name": "fragmentFunctionDescriptor",
       "owner": "MTL4RenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTL4FunctionDescriptor * _Nullable"
     },
     {
@@ -25824,26 +25824,26 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "method:-[MTL4RenderPipelineDescriptor inputPrimitiveTopology]",
       "kind": "method",
       "line": 199,
       "name": "inputPrimitiveTopology",
       "owner": "MTL4RenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLPrimitiveTopologyClass"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "method:-[MTL4RenderPipelineDescriptor isRasterizationEnabled]",
       "kind": "method",
       "line": 187,
       "name": "isRasterizationEnabled",
       "owner": "MTL4RenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -25860,14 +25860,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "method:-[MTL4RenderPipelineDescriptor rasterSampleCount]",
       "kind": "method",
       "line": 174,
       "name": "rasterSampleCount",
       "owner": "MTL4RenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -25920,14 +25920,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "method:-[MTL4RenderPipelineDescriptor setFragmentFunctionDescriptor:]",
       "kind": "method",
       "line": null,
       "name": "setFragmentFunctionDescriptor:",
       "owner": "MTL4RenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTL4FunctionDescriptor * _Nullable) -> void"
     },
     {
@@ -25944,14 +25944,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "method:-[MTL4RenderPipelineDescriptor setInputPrimitiveTopology:]",
       "kind": "method",
       "line": null,
       "name": "setInputPrimitiveTopology:",
       "owner": "MTL4RenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLPrimitiveTopologyClass) -> void"
     },
     {
@@ -25968,26 +25968,26 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "method:-[MTL4RenderPipelineDescriptor setRasterSampleCount:]",
       "kind": "method",
       "line": null,
       "name": "setRasterSampleCount:",
       "owner": "MTL4RenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "method:-[MTL4RenderPipelineDescriptor setRasterizationEnabled:]",
       "kind": "method",
       "line": null,
       "name": "setRasterizationEnabled:",
       "owner": "MTL4RenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -26004,14 +26004,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "method:-[MTL4RenderPipelineDescriptor setSupportIndirectCommandBuffers:]",
       "kind": "method",
       "line": null,
       "name": "setSupportIndirectCommandBuffers:",
       "owner": "MTL4RenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTL4IndirectCommandBufferSupportState) -> void"
     },
     {
@@ -26040,14 +26040,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "method:-[MTL4RenderPipelineDescriptor setVertexFunctionDescriptor:]",
       "kind": "method",
       "line": null,
       "name": "setVertexFunctionDescriptor:",
       "owner": "MTL4RenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTL4FunctionDescriptor * _Nullable) -> void"
     },
     {
@@ -26076,14 +26076,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "method:-[MTL4RenderPipelineDescriptor supportIndirectCommandBuffers]",
       "kind": "method",
       "line": 226,
       "name": "supportIndirectCommandBuffers",
       "owner": "MTL4RenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTL4IndirectCommandBufferSupportState"
     },
     {
@@ -26112,14 +26112,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "method:-[MTL4RenderPipelineDescriptor vertexFunctionDescriptor]",
       "kind": "method",
       "line": 159,
       "name": "vertexFunctionDescriptor",
       "owner": "MTL4RenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTL4FunctionDescriptor * _Nullable"
     },
     {
@@ -45733,42 +45733,42 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineReflection fragmentBindings]",
       "kind": "method",
       "line": 170,
       "name": "fragmentBindings",
       "owner": "MTLRenderPipelineReflection",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSArray<id<MTLBinding>> * _Nonnull"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineReflection meshBindings]",
       "kind": "method",
       "line": 173,
       "name": "meshBindings",
       "owner": "MTLRenderPipelineReflection",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSArray<id<MTLBinding>> * _Nonnull"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineReflection objectBindings]",
       "kind": "method",
       "line": 172,
       "name": "objectBindings",
       "owner": "MTLRenderPipelineReflection",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSArray<id<MTLBinding>> * _Nonnull"
     },
     {
@@ -45789,14 +45789,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineReflection tileBindings]",
       "kind": "method",
       "line": 171,
       "name": "tileBindings",
       "owner": "MTLRenderPipelineReflection",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSArray<id<MTLBinding>> * _Nonnull"
     },
     {
@@ -45817,26 +45817,26 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineReflection vertexBindings]",
       "kind": "method",
       "line": 169,
       "name": "vertexBindings",
       "owner": "MTLRenderPipelineReflection",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSArray<id<MTLBinding>> * _Nonnull"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineState device]",
       "kind": "method",
       "line": 344,
       "name": "device",
       "owner": "MTLRenderPipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> id<MTLDevice> _Nonnull"
     },
     {
@@ -45925,14 +45925,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineState label]",
       "kind": "method",
       "line": 343,
       "name": "label",
       "owner": "MTLRenderPipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSString * _Nullable"
     },
     {
@@ -46098,14 +46098,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineState reflection]",
       "kind": "method",
       "line": 371,
       "name": "reflection",
       "owner": "MTLRenderPipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLRenderPipelineReflection * _Nullable"
     },
     {
@@ -53077,14 +53077,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "property:MTL4RenderPipelineColorAttachmentDescriptor:pixelFormat",
       "kind": "property",
       "line": 49,
       "name": "pixelFormat",
       "owner": "MTL4RenderPipelineColorAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
@@ -53173,26 +53173,26 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "property:MTL4RenderPipelineDescriptor:colorAttachments",
       "kind": "property",
       "line": 196,
       "name": "colorAttachments",
       "owner": "MTL4RenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTL4RenderPipelineColorAttachmentDescriptorArray * _Nonnull"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "property:MTL4RenderPipelineDescriptor:fragmentFunctionDescriptor",
       "kind": "property",
       "line": 165,
       "name": "fragmentFunctionDescriptor",
       "owner": "MTL4RenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTL4FunctionDescriptor * _Nullable"
     },
     {
@@ -53209,14 +53209,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "property:MTL4RenderPipelineDescriptor:inputPrimitiveTopology",
       "kind": "property",
       "line": 199,
       "name": "inputPrimitiveTopology",
       "owner": "MTL4RenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPrimitiveTopologyClass"
     },
     {
@@ -53233,26 +53233,26 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "property:MTL4RenderPipelineDescriptor:rasterSampleCount",
       "kind": "property",
       "line": 174,
       "name": "rasterSampleCount",
       "owner": "MTL4RenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "property:MTL4RenderPipelineDescriptor:rasterizationEnabled",
       "kind": "property",
       "line": 187,
       "name": "rasterizationEnabled",
       "owner": "MTL4RenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "BOOL"
     },
     {
@@ -53269,14 +53269,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "property:MTL4RenderPipelineDescriptor:supportIndirectCommandBuffers",
       "kind": "property",
       "line": 226,
       "name": "supportIndirectCommandBuffers",
       "owner": "MTL4RenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTL4IndirectCommandBufferSupportState"
     },
     {
@@ -53305,14 +53305,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "property:MTL4RenderPipelineDescriptor:vertexFunctionDescriptor",
       "kind": "property",
       "line": 159,
       "name": "vertexFunctionDescriptor",
       "owner": "MTL4RenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTL4FunctionDescriptor * _Nullable"
     },
     {
@@ -60889,42 +60889,42 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineReflection:fragmentBindings",
       "kind": "property",
       "line": 170,
       "name": "fragmentBindings",
       "owner": "MTLRenderPipelineReflection",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSArray<id<MTLBinding>> * _Nonnull"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineReflection:meshBindings",
       "kind": "property",
       "line": 173,
       "name": "meshBindings",
       "owner": "MTLRenderPipelineReflection",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSArray<id<MTLBinding>> * _Nonnull"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineReflection:objectBindings",
       "kind": "property",
       "line": 172,
       "name": "objectBindings",
       "owner": "MTLRenderPipelineReflection",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSArray<id<MTLBinding>> * _Nonnull"
     },
     {
@@ -60945,14 +60945,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineReflection:tileBindings",
       "kind": "property",
       "line": 171,
       "name": "tileBindings",
       "owner": "MTLRenderPipelineReflection",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSArray<id<MTLBinding>> * _Nonnull"
     },
     {
@@ -60973,26 +60973,26 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineReflection:vertexBindings",
       "kind": "property",
       "line": 169,
       "name": "vertexBindings",
       "owner": "MTLRenderPipelineReflection",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSArray<id<MTLBinding>> * _Nonnull"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineState:device",
       "kind": "property",
       "line": 344,
       "name": "device",
       "owner": "MTLRenderPipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "id<MTLDevice> _Nonnull"
     },
     {
@@ -61025,14 +61025,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineState:label",
       "kind": "property",
       "line": 343,
       "name": "label",
       "owner": "MTLRenderPipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSString * _Nullable"
     },
     {
@@ -61123,14 +61123,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineState:reflection",
       "kind": "property",
       "line": 371,
       "name": "reflection",
       "owner": "MTLRenderPipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLRenderPipelineReflection * _Nullable"
     },
     {
@@ -64503,14 +64503,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "protocol:MTLRenderPipelineState",
       "kind": "protocol",
       "line": 341,
       "name": "MTLRenderPipelineState",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -66862,14 +66862,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "typedef:MTLNewRenderPipelineStateCompletionHandler",
       "kind": "typedef",
       "line": 39,
       "name": "MTLNewRenderPipelineStateCompletionHandler",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "void (^)(id<MTLRenderPipelineState>  _Nullable __strong, NSError * _Nullable __strong)"
     },
     {
@@ -66972,14 +66972,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "typedef:MTLPrimitiveTopologyClass",
       "kind": "typedef",
       "line": 79,
       "name": "MTLPrimitiveTopologyClass",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "enum MTLPrimitiveTopologyClass"
     },
     {

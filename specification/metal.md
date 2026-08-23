@@ -71,7 +71,8 @@ established sparse heaps; macOS-15 residency sets; function lookup;
 compute-pipeline creation and limits; command queues and buffers; compute,
 resource-state, and narrow buffer-to-texture blit encoding; checked resource
 binding and thread dispatch; Metal 4 placement-sparse buffer and texture
-mapping; submission; blocking completion; and command status/errors.
+mapping; conventional Metal 4 vertex/fragment render-pipeline compilation;
+submission; blocking completion; and command status/errors.
 
 A `Buffer.Mapping.t` is valid only inside `Buffer.with_mapping`. It exposes
 checked copy operations rather than a Bigarray backed by an escaping native
@@ -484,15 +485,17 @@ only for synchronous compilation and can be destroyed before the resulting
 pipeline executes.
 
 `Compiler.compile_source_async`, compiler dynamic-library create/load,
-`create_binary_function_async`, and `create_compute_pipeline_async` return
-typed `Compiler_task.t` values where applicable.
+`create_binary_function_async`, `create_compute_pipeline_async`, and
+`create_render_pipeline_async` return typed `Compiler_task.t` values where
+applicable.
 Metal worker completion blocks never enter the OCaml runtime or retain OCaml
 roots: they store the native result in task-local completion state and enqueue
 only a monotonically increasing ID into a process-wide 1,024-entry ring.
 `Compiler_task.drain_completions` and `poll` run on the initial domain, and only
 `poll` materializes the resulting owned library, dynamic library, binary
-function, or reflected compute pipeline. Results are one-shot; duplicate
-consumption is `Invalid_state`, task/compiler parent ownership is explicit,
+function, reflected compute pipeline, or reflected render pipeline. Results
+are one-shot; duplicate consumption is `Invalid_state`, task/compiler parent
+ownership is explicit,
 queue overflow is reported, and blocking `wait` releases the OCaml
 runtime lock. Async binary-function task creation uses the same descriptor and
 archive validation as its synchronous peer, and the task natively retains its
@@ -509,9 +512,24 @@ lane. Compiler dynamic-library creation and URL loading share same-device,
 source-kind, install-name, absolute-path, label, and returned-object checks;
 their async blocks retain source/URL inputs through native completion, preserve
 full missing-file diagnostics, and produce a library that executes through an
-ordinary dynamically linked compute pipeline. Remaining synchronous and
-asynchronous render, mesh, and object pipelines, and positive offline
-`.metallib` provenance remain open M4 work.
+ordinary dynamically linked compute pipeline.
+
+Conventional Metal 4 render compilation is now implemented synchronously and
+asynchronously through one checked descriptor path. It accepts a same-device
+source library, exact vertex and optional fragment entry-point identities,
+supported raster sample count, one to eight typed color formats for rasterized
+pipelines, a point/line/triangle input topology, indirect-command support, and
+unique lookup archives. Native validation additionally resolves each function
+and verifies its shader stage before descriptor construction. Rasterized
+pipelines require a fragment function; a non-rasterizing pipeline requires a
+void-returning vertex function and no color attachments. Optional reflection
+materializes independently owned vertex, fragment, tile, object, and mesh
+binding lists from the returned pipeline state. The async task retains its
+library and descriptor inputs after the OCaml library handle is destroyed.
+This slice compiles and inspects conventional pipelines only: render command
+encoding and draw execution, blend/depth/stencil policy, vertex descriptors,
+dynamic render linking, and tile/mesh/object descriptors remain open. Positive
+offline `.metallib` provenance is also still open.
 
 `test_metal.exe` runs a real M1 compute kernel, wrong-domain and invalid-state
 cases, full labeled shader diagnostics, function-constant introspection and
@@ -524,7 +542,9 @@ Metal 4 archive reload/strict binary lookup, binary-function compilation and
 dynamic pipeline linking, public/private/grouped static-link descriptors,
 asynchronous library success/error, dynamic-library source/file success/error,
 binary-function, and reflected compute completion with bounded ID draining and
-M1 dynamic-link rejection,
+M1 dynamic-link rejection, synchronous reflected and non-rasterizing Metal 4
+render compilation, asynchronous reflected render completion after source
+library destruction,
 compiler/task/dataset parent ownership, and complete Metal 4 compile diagnostics,
 copied/no-copy external buffer ownership,
 shareable texture/handle/import lifetimes, single- and multi-plane IOSurface

@@ -677,6 +677,27 @@ type compute_pipeline =
   ; max_total_threads : int
   }
 
+type render_pipeline_kind =
+  | Render
+  | Tile
+  | Mesh
+
+type render_pipeline_reflection =
+  { vertex_bindings : shader_binding array
+  ; fragment_bindings : shader_binding array
+  ; tile_bindings : shader_binding array
+  ; object_bindings : shader_binding array
+  ; mesh_bindings : shader_binding array
+  }
+
+type render_pipeline =
+  { raw : Metal_raw.handle
+  ; lifetime : lifetime
+  ; device : device
+  ; kind : render_pipeline_kind
+  ; reflection : render_pipeline_reflection option
+  }
+
 type residency_allocation =
   | Buffer of buffer
   | Texture of texture
@@ -6789,6 +6810,75 @@ module Compute_pipeline = struct
       (fun () -> detach value.device.lifetime)
 end
 
+module Render_pipeline = struct
+  type t = render_pipeline
+
+  type kind = render_pipeline_kind =
+    | Render
+    | Tile
+    | Mesh
+
+  type primitive_topology =
+    | Point
+    | Line
+    | Triangle
+
+  type reflection =
+    { vertex : Binding.t list
+    ; fragment : Binding.t list
+    ; tile : Binding.t list
+    ; object_ : Binding.t list
+    ; mesh : Binding.t list
+    }
+
+  let topology_code = function Point -> 1 | Line -> 2 | Triangle -> 3
+
+  let make device ~kind ~reflection raw
+      (raw_reflection : Metal_raw.render_pipeline_reflection) =
+    let map values = Array.map Binding.of_raw values in
+    let reflection =
+      if reflection then
+        Some
+          { vertex_bindings = map raw_reflection.vertex_bindings
+          ; fragment_bindings = map raw_reflection.fragment_bindings
+          ; tile_bindings = map raw_reflection.tile_bindings
+          ; object_bindings = map raw_reflection.object_bindings
+          ; mesh_bindings = map raw_reflection.mesh_bindings
+          }
+      else None
+    in
+    let value : t = { raw; lifetime = lifetime (); device; kind; reflection } in
+    attach device.lifetime;
+    attach_finalizer value value.lifetime device.lifetime;
+    value
+
+  let device (value : t) = value.device
+  let generation (value : t) = Metal_raw.generation value.raw
+  let destroyed (value : t) = is_destroyed value.lifetime
+  let kind (value : t) = value.kind
+
+  let reflection (value : t) =
+    Option.map
+      (fun reflection ->
+        { vertex = Array.to_list reflection.vertex_bindings
+        ; fragment = Array.to_list reflection.fragment_bindings
+        ; tile = Array.to_list reflection.tile_bindings
+        ; object_ = Array.to_list reflection.object_bindings
+        ; mesh = Array.to_list reflection.mesh_bindings
+        })
+      value.reflection
+
+  let label (value : t) =
+    on_main "Metal.Render_pipeline.label" (fun () ->
+      match ensure_live "Metal.Render_pipeline.label" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () -> Ok (Metal_raw.render_pipeline_label value.raw))
+
+  let destroy (value : t) =
+    destroy_leaf "Metal.Render_pipeline.destroy" value.lifetime value.raw
+      (fun () -> detach value.device.lifetime)
+end
+
 let ensure_metal4 operation (device : Device.t) =
   match ensure_live operation device.lifetime with
   | Error _ as failure -> failure
@@ -7708,6 +7798,139 @@ module Compiler = struct
       ~support_binary_linking ~support_indirect_command_buffers
       ?static_linking ~binary_linked_functions ~preloaded_libraries
       ?max_call_stack_depth ~lookup_archives value ~library function_name
+
+  let with_render_descriptor operation callback ?label ?fragment
+      ?(reflection = false) ?(raster_sample_count = 1)
+      ?(color_formats = [ Texture.Bgra8_unorm ])
+      ?(rasterization_enabled = true)
+      ?(primitive_topology = Render_pipeline.Triangle)
+      ?(support_indirect_command_buffers = false) ?(lookup_archives = [])
+      (value : t) ~(library : Library.t) ~vertex =
+    on_main operation (fun () ->
+      let ( let* ) result callback = Result.bind result callback in
+      let* () = ensure_live operation value.lifetime in
+      let* () = ensure_live operation library.lifetime in
+      let* () = ensure_same_device operation value.device library.device in
+      if vertex = "" || contains_nul vertex then
+        error operation Invalid_argument
+          "vertex function name must be nonempty and contain no NUL byte"
+      else if
+        option_exists
+          (fun name -> name = "" || contains_nul name)
+          fragment
+      then
+        error operation Invalid_argument
+          "fragment function name must be nonempty and contain no NUL byte"
+      else if option_exists contains_nul label then
+        error operation Invalid_argument
+          "render-pipeline label contains a NUL byte"
+      else
+        let function_names = Metal_raw.library_function_names library.raw in
+        if not (Array.exists (String.equal vertex) function_names) then
+          error operation Invalid_argument
+            "vertex function is absent from the source library"
+        else if
+          option_exists
+            (fun name ->
+              not (Array.exists (String.equal name) function_names))
+            fragment
+        then
+          error operation Invalid_argument
+            "fragment function is absent from the source library"
+        else if rasterization_enabled <> Option.is_some fragment then
+          error operation Invalid_argument
+            "rasterization requires exactly one fragment function"
+        else if
+          (rasterization_enabled && color_formats = [])
+          || ((not rasterization_enabled) && color_formats <> [])
+          || List.length color_formats > 8
+        then
+          error operation Invalid_argument
+            "render color attachments must match rasterization and not exceed eight"
+        else if raster_sample_count <= 0 then
+          error operation Invalid_argument
+            "render raster sample count must be positive"
+        else if
+          not
+            (Metal_raw.device_supports_texture_sample_count value.device.raw
+               raster_sample_count)
+        then
+          error operation Unsupported
+            "the Metal device does not support the render sample count"
+        else
+          let* () =
+            validate_pipeline_archives operation value.device lookup_archives
+          in
+          let descriptor : Metal_raw.metal4_render_descriptor =
+            { label
+            ; library = library.raw
+            ; vertex_function = vertex
+            ; fragment_function = fragment
+            ; reflection
+            ; raster_sample_count = Int64.of_int raster_sample_count
+            ; color_formats =
+                Array.of_list (List.map Metal_format.code color_formats)
+            ; rasterization_enabled
+            ; primitive_topology =
+                Render_pipeline.topology_code primitive_topology
+            ; support_indirect_commands = support_indirect_command_buffers
+            ; lookup_archives =
+                Array.of_list
+                  (List.map
+                     (fun (archive : Pipeline_archive.t) -> archive.raw)
+                     lookup_archives)
+            }
+          in
+          callback reflection descriptor)
+
+  let create_render_pipeline ?label ?fragment ?(reflection = false)
+      ?(raster_sample_count = 1)
+      ?(color_formats = [ Texture.Bgra8_unorm ])
+      ?(rasterization_enabled = true)
+      ?(primitive_topology = Render_pipeline.Triangle)
+      ?(support_indirect_command_buffers = false) ?(lookup_archives = [])
+      (value : t) ~(library : Library.t) ~vertex =
+    let operation = "Metal.Compiler.create_render_pipeline" in
+    with_render_descriptor operation
+      (fun reflection descriptor ->
+        match Metal_raw.compiler_create_render_pipeline value.raw descriptor with
+        | Error message -> native_error operation message
+        | Ok (raw, raw_reflection) ->
+            Ok
+              (Render_pipeline.make value.device
+                 ~kind:Render_pipeline.Render ~reflection raw raw_reflection))
+      ?label ?fragment ~reflection ~raster_sample_count ~color_formats
+      ~rasterization_enabled ~primitive_topology
+      ~support_indirect_command_buffers ~lookup_archives value ~library
+      ~vertex
+
+  let create_render_pipeline_async ?label ?fragment ?(reflection = false)
+      ?(raster_sample_count = 1)
+      ?(color_formats = [ Texture.Bgra8_unorm ])
+      ?(rasterization_enabled = true)
+      ?(primitive_topology = Render_pipeline.Triangle)
+      ?(support_indirect_command_buffers = false) ?(lookup_archives = [])
+      (value : t) ~(library : Library.t) ~vertex =
+    let operation = "Metal.Compiler.create_render_pipeline_async" in
+    with_render_descriptor operation
+      (fun reflection descriptor ->
+        match
+          Metal_raw.compiler_create_render_pipeline_async value.raw descriptor
+        with
+        | Error message -> native_error operation message
+        | Ok raw ->
+            Ok
+              (Compiler_task.make value
+                 Metal_raw.compiler_task_take_render_pipeline
+                 (fun (raw, raw_reflection) ->
+                   Render_pipeline.make value.device
+                     ~kind:Render_pipeline.Render ~reflection raw
+                     raw_reflection)
+                 raw))
+      ?label ?fragment ~reflection ~raster_sample_count ~color_formats
+      ~rasterization_enabled ~primitive_topology
+      ~support_indirect_command_buffers ~lookup_archives value ~library
+      ~vertex
 
   let device (value : t) = value.device
   let generation (value : t) = Metal_raw.generation value.raw

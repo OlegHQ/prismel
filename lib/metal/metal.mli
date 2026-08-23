@@ -1066,6 +1066,36 @@ module Compute_pipeline : sig
   val destroy : t -> (unit, error) result
 end
 
+module Render_pipeline : sig
+  type t
+
+  type kind =
+    | Render
+    | Tile
+    | Mesh
+
+  type primitive_topology =
+    | Point
+    | Line
+    | Triangle
+
+  type reflection =
+    { vertex : Binding.t list
+    ; fragment : Binding.t list
+    ; tile : Binding.t list
+    ; object_ : Binding.t list
+    ; mesh : Binding.t list
+    }
+
+  val device : t -> Device.t
+  val generation : t -> int64
+  val destroyed : t -> bool
+  val kind : t -> kind
+  val reflection : t -> reflection option
+  val label : t -> (string option, error) result
+  val destroy : t -> (unit, error) result
+end
+
 module Pipeline_dataset : sig
   type t
 
@@ -1255,6 +1285,32 @@ module Compiler : sig
     ?max_call_stack_depth:int ->
     ?lookup_archives:Pipeline_archive.t list -> t -> library:Library.t ->
     string -> (Compute_pipeline.t Compiler_task.t, error) result
+
+  (** Compiles a conventional vertex/fragment Metal 4 render pipeline.
+      Rasterized pipelines require a fragment function and one to eight color
+      formats. Vertex-only pipelines use a void-returning vertex function,
+      disable rasterization, and use no color formats. *)
+  val create_render_pipeline :
+    ?label:string -> ?fragment:string -> ?reflection:bool ->
+    ?raster_sample_count:int -> ?color_formats:Texture.format list ->
+    ?rasterization_enabled:bool ->
+    ?primitive_topology:Render_pipeline.primitive_topology ->
+    ?support_indirect_command_buffers:bool ->
+    ?lookup_archives:Pipeline_archive.t list -> t -> library:Library.t ->
+    vertex:string -> (Render_pipeline.t, error) result
+
+  (** The native task retains its library and render descriptor through
+      completion; [Compiler_task.poll] materializes the result on the initial
+      domain. *)
+  val create_render_pipeline_async :
+    ?label:string -> ?fragment:string -> ?reflection:bool ->
+    ?raster_sample_count:int -> ?color_formats:Texture.format list ->
+    ?rasterization_enabled:bool ->
+    ?primitive_topology:Render_pipeline.primitive_topology ->
+    ?support_indirect_command_buffers:bool ->
+    ?lookup_archives:Pipeline_archive.t list -> t -> library:Library.t ->
+    vertex:string ->
+    (Render_pipeline.t Compiler_task.t, error) result
 
   val device : t -> Device.t
   val generation : t -> int64

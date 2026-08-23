@@ -132,6 +132,37 @@ kernel void call_dynamic_library(device uint *values [[buffer(0)]],
 }
 |}
 
+let render_shader_source =
+  {|
+#include <metal_stdlib>
+using namespace metal;
+
+struct PrismelVertexOut {
+  float4 position [[position]];
+};
+
+vertex PrismelVertexOut prismel_vertex(
+    uint vertex_id [[vertex_id]],
+    constant float2 &offset [[buffer(0)]]) {
+  constexpr float2 positions[3] = {
+    float2(-1.0f, -1.0f),
+    float2(3.0f, -1.0f),
+    float2(-1.0f, 3.0f)
+  };
+  PrismelVertexOut result;
+  result.position = float4(positions[vertex_id] + offset, 0.0f, 1.0f);
+  return result;
+}
+
+vertex void prismel_vertex_only(uint vertex_id [[vertex_id]]) {
+  (void)vertex_id;
+}
+
+fragment float4 prismel_fragment(constant float4 &tint [[buffer(1)]]) {
+  return tint;
+}
+|}
+
 let uncaptured_visible_source =
   {|
 #include <metal_stdlib>
@@ -2420,6 +2451,202 @@ let test_metal4_compiler device =
         then
           fail
             "invalid Metal 4 compiler inputs allocated native handles beyond the valid library";
+        let render_library =
+          get
+            (Compiler.compile_source ~name:"metal4-render-library" compiler
+               render_shader_source)
+        in
+        let before_invalid_render = get (Release_queue.stats ()) in
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.create_render_pipeline compiler ~library:render_library
+                ~vertex:""));
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.create_render_pipeline compiler ~library:render_library
+                ~vertex:"missing_vertex"));
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.create_render_pipeline_async compiler
+                ~library:render_library ~vertex:"missing_vertex"));
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.create_render_pipeline ~label:"invalid\000render"
+                ~fragment:"prismel_fragment" compiler
+                ~library:render_library ~vertex:"prismel_vertex"));
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.create_render_pipeline compiler ~library:render_library
+                ~vertex:"prismel_vertex"));
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.create_render_pipeline
+                ~rasterization_enabled:false ~color_formats:[]
+                ~fragment:"prismel_fragment" compiler
+                ~library:render_library ~vertex:"prismel_vertex"));
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.create_render_pipeline
+                ~rasterization_enabled:false compiler
+                ~library:render_library ~vertex:"prismel_vertex"));
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.create_render_pipeline ~raster_sample_count:0
+                ~fragment:"prismel_fragment" compiler
+                ~library:render_library ~vertex:"prismel_vertex"));
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.create_render_pipeline
+                ~color_formats:
+                  [ Texture.Bgra8_unorm; Texture.Bgra8_unorm
+                  ; Texture.Bgra8_unorm; Texture.Bgra8_unorm
+                  ; Texture.Bgra8_unorm; Texture.Bgra8_unorm
+                  ; Texture.Bgra8_unorm; Texture.Bgra8_unorm
+                  ; Texture.Bgra8_unorm
+                  ]
+                ~fragment:"prismel_fragment" compiler
+                ~library:render_library ~vertex:"prismel_vertex"));
+        ignore
+          (expect_error Native_error
+             (Compiler.create_render_pipeline
+                ~fragment:"prismel_fragment" compiler
+                ~library:render_library ~vertex:"prismel_fragment"));
+        ignore
+          (expect_error Native_error
+             (Compiler.create_render_pipeline ~fragment:"prismel_vertex"
+                compiler ~library:render_library ~vertex:"prismel_vertex"));
+        ignore
+          (expect_error Native_error
+             (Compiler.create_render_pipeline_async
+                ~fragment:"prismel_fragment" compiler
+                ~library:render_library ~vertex:"prismel_fragment"));
+        let after_invalid_render = get (Release_queue.stats ()) in
+        if after_invalid_render.total_created
+           <> before_invalid_render.total_created
+        then fail "invalid Metal 4 render inputs allocated native handles";
+        let render_pipeline =
+          get
+            (Compiler.create_render_pipeline
+               ~label:"metal4 reflected render" ~fragment:"prismel_fragment"
+               ~reflection:true ~primitive_topology:Render_pipeline.Triangle
+               ~support_indirect_command_buffers:true compiler
+               ~library:render_library ~vertex:"prismel_vertex")
+        in
+        if get (Render_pipeline.label render_pipeline)
+           <> Some "metal4 reflected render"
+           || Render_pipeline.kind render_pipeline <> Render_pipeline.Render
+           || not
+                (Device.same device (Render_pipeline.device render_pipeline))
+           || Render_pipeline.generation render_pipeline <= 0L
+        then fail "Metal 4 render-pipeline metadata is wrong";
+        (match Render_pipeline.reflection render_pipeline with
+         | Some reflection ->
+             get
+               (Binding.validate_layout reflection.vertex
+                  ~expected:
+                    [ { name = "offset"
+                      ; index = 0L
+                      ; access = Binding.Read_only
+                      ; kind = Binding.Buffer_layout
+                      ; data_type =
+                          Some (Shader_type.Vector (Shader_type.Float, 2))
+                      }
+                    ]);
+             get
+               (Binding.validate_layout reflection.fragment
+                  ~expected:
+                    [ { name = "tint"
+                      ; index = 1L
+                      ; access = Binding.Read_only
+                      ; kind = Binding.Buffer_layout
+                      ; data_type =
+                          Some (Shader_type.Vector (Shader_type.Float, 4))
+                      }
+                    ]);
+             if reflection.tile <> [] || reflection.object_ <> []
+                || reflection.mesh <> []
+             then
+               fail
+                 "Metal 4 conventional render reflection populated an unrelated stage"
+         | None -> fail "Metal 4 render reflection is missing");
+        let vertex_only_pipeline =
+          get
+            (Compiler.create_render_pipeline
+               ~label:"metal4 vertex-only render"
+               ~rasterization_enabled:false ~color_formats:[] compiler
+               ~library:render_library ~vertex:"prismel_vertex_only")
+        in
+        if Render_pipeline.reflection vertex_only_pipeline <> None
+           || get (Render_pipeline.label vertex_only_pipeline)
+              <> Some "metal4 vertex-only render"
+        then fail "Metal 4 vertex-only render-pipeline metadata is wrong";
+        get (Render_pipeline.destroy vertex_only_pipeline);
+        let before_render_finalizer = get (Release_queue.stats ()) in
+        let allocate_unreleased_render_pipeline () =
+          ignore
+            (get
+               (Compiler.create_render_pipeline
+                  ~fragment:"prismel_fragment" compiler
+                  ~library:render_library ~vertex:"prismel_vertex"))
+        in
+        allocate_unreleased_render_pipeline ();
+        let after_render_finalizer =
+          settle_finalizers
+            ~expected_live:before_render_finalizer.live_handles
+        in
+        if
+          Int64.sub after_render_finalizer.total_created
+            before_render_finalizer.total_created
+          <> 1L
+          || Int64.sub after_render_finalizer.total_released
+               before_render_finalizer.total_released
+             <> 1L
+        then fail "Metal 4 render-pipeline finalizer did not release one handle";
+        let async_render_library =
+          get
+            (Compiler.compile_source ~name:"async-render-source" compiler
+               render_shader_source)
+        in
+        let async_render_task =
+          get
+            (Compiler.create_render_pipeline_async
+               ~label:"async reflected render" ~fragment:"prismel_fragment"
+               ~reflection:true compiler ~library:async_render_library
+               ~vertex:"prismel_vertex")
+        in
+        let async_render_id = Compiler_task.id async_render_task in
+        get (Library.destroy async_render_library);
+        get (Compiler_task.wait async_render_task);
+        if
+          not
+            (List.mem async_render_id
+               (get (Compiler_task.drain_completions ())))
+        then fail "async render-pipeline completion ID was not drained";
+        let async_render_pipeline =
+          match get (Compiler_task.poll async_render_task) with
+          | Compiler_task.Complete (Ok pipeline) -> pipeline
+          | Compiler_task.Complete (Error error) ->
+              fail "async render-pipeline compilation failed: %s"
+                (Format.asprintf "%a" pp_error error)
+          | Compiler_task.Pending ->
+              fail "waited async render-pipeline compilation remained pending"
+        in
+        if get (Render_pipeline.label async_render_pipeline)
+           <> Some "async reflected render"
+           || Render_pipeline.kind async_render_pipeline
+              <> Render_pipeline.Render
+           || Option.is_none
+                (Render_pipeline.reflection async_render_pipeline)
+        then fail "async Metal 4 render-pipeline metadata is wrong";
+        get (Render_pipeline.destroy async_render_pipeline);
+        get (Compiler_task.destroy async_render_task);
+        get (Render_pipeline.destroy render_pipeline);
+        if not (Render_pipeline.destroyed render_pipeline) then
+          fail "destroyed Metal 4 render pipeline remained live";
+        ignore
+          (expect_error Destroyed (Render_pipeline.label render_pipeline));
+        get (Render_pipeline.destroy render_pipeline);
+        get (Library.destroy render_library);
         let before_invalid_dynamic = get (Release_queue.stats ()) in
         ignore
           (expect_error Invalid_argument
@@ -4882,6 +5109,6 @@ let () =
         stats.external_deallocations
         stats.external_deallocation_mismatches;
     Printf.printf
-      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/compiler-task/pipeline-dataset/binary-function/static-link/reflection/compute conformance passed on %s\n%!"
+      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/compiler-task/pipeline-dataset/binary-function/static-link/reflection/compute/render conformance passed on %s\n%!"
       info.name
   end

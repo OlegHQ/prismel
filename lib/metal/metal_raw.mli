@@ -48,7 +48,7 @@ type function_constant_value = string * int * int64 * float
 type function_constant_info = string * int * int64 * bool
 
 (** Positional native ABI value for one reflected pipeline binding. Keep this
-    synchronized with [copy_pipeline_bindings] in [metal_bridge.mm]. *)
+    synchronized with [copy_bindings] in [metal_bridge.mm]. *)
 type pipeline_binding_info =
   string * int * int * int64 * bool * bool * int64 * int64 * int * int * int
   * bool * int64 * int64 * int64 * int64 * int64
@@ -96,6 +96,28 @@ type metal4_compute_descriptor =
   ; lookup_archives : handle array
   ; binary_linked_functions : handle array
   ; static_linking : metal4_static_linking_descriptor option
+  }
+
+type render_pipeline_reflection =
+  { vertex_bindings : pipeline_binding_info array
+  ; fragment_bindings : pipeline_binding_info array
+  ; tile_bindings : pipeline_binding_info array
+  ; object_bindings : pipeline_binding_info array
+  ; mesh_bindings : pipeline_binding_info array
+  }
+
+type metal4_render_descriptor =
+  { label : string option
+  ; library : handle
+  ; vertex_function : string
+  ; fragment_function : string option
+  ; reflection : bool
+  ; raster_sample_count : int64
+  ; color_formats : int array
+  ; rasterization_enabled : bool
+  ; primitive_topology : int
+  ; support_indirect_commands : bool
+  ; lookup_archives : handle array
   }
 
 (** Positional native ABI record for a Metal 4 binary-function lookup or
@@ -663,6 +685,24 @@ external compiler_task_take_compute_pipeline :
   ((((handle * pipeline_binding_info array), string) result option, string)
     result) =
   "caml_prismel_metal_compiler_task_take_compute_pipeline"
+
+external compiler_create_render_pipeline :
+  handle -> metal4_render_descriptor ->
+  ((handle * render_pipeline_reflection), string) result =
+  "caml_prismel_metal_compiler_create_render_pipeline"
+
+external compiler_create_render_pipeline_async :
+  handle -> metal4_render_descriptor -> (handle, string) result =
+  "caml_prismel_metal_compiler_create_render_pipeline_async"
+
+external compiler_task_take_render_pipeline :
+  handle ->
+  ((((handle * render_pipeline_reflection), string) result option, string)
+    result) =
+  "caml_prismel_metal_compiler_task_take_render_pipeline"
+
+external render_pipeline_label : handle -> string option =
+  "caml_prismel_metal_render_pipeline_label"
 
 external compute_pipeline_create : handle -> handle -> (handle, string) result =
   "caml_prismel_metal_compute_pipeline_create"
