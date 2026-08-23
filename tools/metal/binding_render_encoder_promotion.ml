@@ -1,6 +1,8 @@
 let promotion_ids =
   [ "method:-[MTLRenderCommandEncoder drawPrimitives:vertexStart:vertexCount:instanceCount:]"
   ; "method:-[MTLRenderCommandEncoder setBlendColorRed:green:blue:alpha:]"
+  ; "method:-[MTLRenderCommandEncoder setColorStoreAction:atIndex:]"
+  ; "method:-[MTLRenderCommandEncoder setColorStoreActionOptions:atIndex:]"
   ; "method:-[MTLRenderCommandEncoder setCullMode:]"
   ; "method:-[MTLRenderCommandEncoder setDepthBias:slopeScale:clamp:]"
   ; "method:-[MTLRenderCommandEncoder setFragmentBuffer:offset:atIndex:]"
@@ -26,7 +28,7 @@ let promotion_ids =
   ; "property:MTLRenderCommandEncoder:tileWidth"
   ]
 
-let expected_count = 25
+let expected_count = 27
 
 let () =
   if List.length promotion_ids <> expected_count
