@@ -695,7 +695,60 @@ type render_pipeline =
   ; lifetime : lifetime
   ; device : device
   ; kind : render_pipeline_kind
+  ; raster_sample_count : int
+  ; color_formats : pixel_format list
   ; reflection : render_pipeline_reflection option
+  }
+
+type command4_allocator =
+  { raw : Metal_raw.handle
+  ; lifetime : lifetime
+  ; device : device
+  ; mutable recording : bool
+  }
+
+type command4_queue =
+  { raw : Metal_raw.handle
+  ; lifetime : lifetime
+  ; device : device
+  }
+
+type command4_phase =
+  | Command4_recording
+  | Command4_ended
+  | Command4_submitted
+  | Command4_completed
+  | Command4_failed of string
+
+type command4_resource =
+  | Command4_texture of texture
+  | Command4_render_pipeline of render_pipeline
+
+type command4_buffer =
+  { raw : Metal_raw.handle
+  ; lifetime : lifetime
+  ; allocator : command4_allocator
+  ; mutable phase : command4_phase
+  ; owns_recording : bool ref
+  ; resources : command4_resource list ref
+  }
+
+type command4_submission =
+  { raw : Metal_raw.handle
+  ; lifetime : lifetime
+  ; queue : command4_queue
+  ; buffers : command4_buffer list ref
+  ; mutable outcome : (unit, error) result option
+  }
+
+type command4_render_encoder =
+  { raw : Metal_raw.handle
+  ; lifetime : lifetime
+  ; command_buffer : command4_buffer
+  ; width : int
+  ; height : int
+  ; color_formats : pixel_format list
+  ; mutable pipeline : render_pipeline option
   }
 
 type residency_allocation =
@@ -802,6 +855,48 @@ let release_command_resources resources =
       Option.iter (fun heap -> Atomic.decr heap.active_uses)
         (command_resource_heap resource))
     retained
+
+let command4_resource_lifetime = function
+  | Command4_texture texture -> texture.lifetime
+  | Command4_render_pipeline pipeline -> pipeline.lifetime
+
+let release_command4_resources resources =
+  let retained = !resources in
+  resources := [];
+  List.iter
+    (fun resource -> detach (command4_resource_lifetime resource))
+    retained
+
+let retain_command4_texture (command_buffer : command4_buffer)
+    (texture : texture) =
+  if
+    not
+      (List.exists
+         (function
+           | Command4_texture retained -> retained.lifetime == texture.lifetime
+           | Command4_render_pipeline _ -> false)
+         !(command_buffer.resources))
+  then begin
+    attach texture.lifetime;
+    command_buffer.resources :=
+      Command4_texture texture :: !(command_buffer.resources)
+  end
+
+let retain_command4_render_pipeline (command_buffer : command4_buffer)
+    (pipeline : render_pipeline) =
+  if
+    not
+      (List.exists
+         (function
+           | Command4_render_pipeline retained ->
+               retained.lifetime == pipeline.lifetime
+           | Command4_texture _ -> false)
+         !(command_buffer.resources))
+  then begin
+    attach pipeline.lifetime;
+    command_buffer.resources :=
+      Command4_render_pipeline pipeline :: !(command_buffer.resources)
+  end
 
 let retain_command_buffer_buffer (command_buffer : command_buffer) (buffer : buffer) =
   let already_retained =
@@ -6833,7 +6928,7 @@ module Render_pipeline = struct
 
   let topology_code = function Point -> 1 | Line -> 2 | Triangle -> 3
 
-  let make device ~kind ~reflection raw
+  let make device ~kind ~raster_sample_count ~color_formats ~reflection raw
       (raw_reflection : Metal_raw.render_pipeline_reflection) =
     let map values = Array.map Binding.of_raw values in
     let reflection =
@@ -6847,7 +6942,16 @@ module Render_pipeline = struct
           }
       else None
     in
-    let value : t = { raw; lifetime = lifetime (); device; kind; reflection } in
+    let value : t =
+      { raw
+      ; lifetime = lifetime ()
+      ; device
+      ; kind
+      ; raster_sample_count
+      ; color_formats
+      ; reflection
+      }
+    in
     attach device.lifetime;
     attach_finalizer value value.lifetime device.lifetime;
     value
@@ -6856,6 +6960,8 @@ module Render_pipeline = struct
   let generation (value : t) = Metal_raw.generation value.raw
   let destroyed (value : t) = is_destroyed value.lifetime
   let kind (value : t) = value.kind
+  let raster_sample_count (value : t) = value.raster_sample_count
+  let color_formats (value : t) = value.color_formats
 
   let reflection (value : t) =
     Option.map
@@ -6875,7 +6981,7 @@ module Render_pipeline = struct
       | Ok () -> Ok (Metal_raw.render_pipeline_label value.raw))
 
   let destroy (value : t) =
-    destroy_leaf "Metal.Render_pipeline.destroy" value.lifetime value.raw
+    destroy_parent "Metal.Render_pipeline.destroy" value.lifetime value.raw
       (fun () -> detach value.device.lifetime)
 end
 
@@ -7908,7 +8014,8 @@ module Compiler = struct
         | Ok (raw, raw_reflection) ->
             Ok
               (Render_pipeline.make value.device
-                 ~kind:Render_pipeline.Render ~reflection raw raw_reflection))
+                 ~kind:Render_pipeline.Render ~raster_sample_count
+                 ~color_formats ~reflection raw raw_reflection))
       ?label ?fragment ~reflection ~raster_sample_count ~color_formats
       ~rasterization_enabled ~primitive_topology
       ~support_indirect_command_buffers ~lookup_archives value ~library
@@ -7934,7 +8041,8 @@ module Compiler = struct
                  Metal_raw.compiler_task_take_render_pipeline
                  (fun (raw, raw_reflection) ->
                    Render_pipeline.make value.device
-                     ~kind:Render_pipeline.Render ~reflection raw
+                     ~kind:Render_pipeline.Render ~raster_sample_count
+                     ~color_formats ~reflection raw
                      raw_reflection)
                  raw))
       ?label ?fragment ~reflection ~raster_sample_count ~color_formats
@@ -8119,7 +8227,8 @@ module Compiler = struct
         | Ok (raw, raw_reflection) ->
             Ok
               (Render_pipeline.make value.device ~kind:Render_pipeline.Mesh
-                 ~reflection raw raw_reflection))
+                 ~raster_sample_count ~color_formats ~reflection raw
+                 raw_reflection))
       ?label ?object_function ?fragment ~reflection
       ?max_total_threads_per_object_threadgroup
       ?max_total_threads_per_mesh_threadgroup
@@ -8155,7 +8264,8 @@ module Compiler = struct
                  Metal_raw.compiler_task_take_render_pipeline
                  (fun (raw, raw_reflection) ->
                    Render_pipeline.make value.device
-                     ~kind:Render_pipeline.Mesh ~reflection raw raw_reflection)
+                     ~kind:Render_pipeline.Mesh ~raster_sample_count
+                     ~color_formats ~reflection raw raw_reflection)
                  raw))
       ?label ?object_function ?fragment ~reflection
       ?max_total_threads_per_object_threadgroup
@@ -8270,7 +8380,8 @@ module Compiler = struct
         | Ok (raw, raw_reflection) ->
             Ok
               (Render_pipeline.make value.device ~kind:Render_pipeline.Tile
-                 ~reflection raw raw_reflection))
+                 ~raster_sample_count ~color_formats ~reflection raw
+                 raw_reflection))
       ?label ~reflection ~raster_sample_count ~color_formats
       ~threadgroup_size_matches_tile_size
       ?max_total_threads_per_threadgroup ?required_threads_per_threadgroup
@@ -8297,7 +8408,8 @@ module Compiler = struct
                  Metal_raw.compiler_task_take_render_pipeline
                  (fun (raw, raw_reflection) ->
                    Render_pipeline.make value.device ~kind:Render_pipeline.Tile
-                     ~reflection raw raw_reflection)
+                     ~raster_sample_count ~color_formats ~reflection raw
+                     raw_reflection)
                  raw))
       ?label ~reflection ~raster_sample_count ~color_formats
       ~threadgroup_size_matches_tile_size
@@ -8322,6 +8434,647 @@ module Compiler = struct
       Option.iter
         (fun (dataset : pipeline_dataset) -> detach dataset.lifetime)
         value.dataset)
+end
+
+module Command4 = struct
+  module Allocator = struct
+    type t = command4_allocator
+
+    let create ?label (device : Device.t) =
+      let operation = "Metal.Command4.Allocator.create" in
+      on_main operation (fun () ->
+        match ensure_metal4 operation device with
+        | Error _ as failure -> failure
+        | Ok () when option_exists contains_nul label ->
+            error operation Invalid_argument "label contains a NUL byte"
+        | Ok () ->
+            (match Metal_raw.command4_allocator_create device.raw label with
+             | Error message -> native_error operation message
+             | Ok raw ->
+                 let value : t =
+                   { raw
+                   ; lifetime = lifetime ()
+                   ; device
+                   ; recording = false
+                   }
+                 in
+                 attach device.lifetime;
+                 attach_finalizer value value.lifetime device.lifetime;
+                 Ok value))
+
+    let device (value : t) = value.device
+    let generation (value : t) = Metal_raw.generation value.raw
+    let destroyed (value : t) = is_destroyed value.lifetime
+
+    let label (value : t) =
+      let operation = "Metal.Command4.Allocator.label" in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () -> Ok (Metal_raw.command4_allocator_label value.raw))
+
+    let allocated_size (value : t) =
+      let operation = "Metal.Command4.Allocator.allocated_size" in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () ->
+            let size = Metal_raw.command4_allocator_allocated_size value.raw in
+            if size < 0L then
+              native_error operation
+                "Metal returned a negative command-allocator size"
+            else Ok size)
+
+    let reset (value : t) =
+      let operation = "Metal.Command4.Allocator.reset" in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () when value.recording ->
+            error operation Invalid_state
+              "the allocator is recording a command buffer"
+        | Ok () when dependent_count value.lifetime <> 0 ->
+            error operation Parent_has_dependents
+              "destroy completed command buffers before resetting their allocator"
+        | Ok () ->
+            (match Metal_raw.command4_allocator_reset value.raw with
+             | Ok () -> Ok ()
+             | Error message -> native_error operation message))
+
+    let destroy (value : t) =
+      destroy_parent "Metal.Command4.Allocator.destroy" value.lifetime value.raw
+        (fun () -> detach value.device.lifetime)
+  end
+
+  module Command_buffer = struct
+    type t = command4_buffer
+
+    type state =
+      | Recording
+      | Ended
+      | Submitted
+      | Completed
+      | Failed of string
+
+    let public_state = function
+      | Command4_recording -> Recording
+      | Command4_ended -> Ended
+      | Command4_submitted -> Submitted
+      | Command4_completed -> Completed
+      | Command4_failed message -> Failed message
+
+    let create (allocator : Allocator.t) ?label () =
+      let operation = "Metal.Command4.Command_buffer.create" in
+      on_main operation (fun () ->
+        match ensure_live operation allocator.lifetime with
+        | Error _ as failure -> failure
+        | Ok () when allocator.recording ->
+            error operation Invalid_state
+              "the allocator already services a recording command buffer"
+        | Ok () when option_exists contains_nul label ->
+            error operation Invalid_argument "label contains a NUL byte"
+        | Ok () ->
+            (match Metal_raw.command4_buffer_create allocator.raw label with
+             | Error message -> native_error operation message
+             | Ok raw ->
+                 let owns_recording = ref true in
+                 let resources = ref [] in
+                 let value : t =
+                   { raw
+                   ; lifetime = lifetime ()
+                   ; allocator
+                   ; phase = Command4_recording
+                   ; owns_recording
+                   ; resources
+                   }
+                 in
+                 allocator.recording <- true;
+                 attach allocator.lifetime;
+                 attach_finalizer
+                   ~on_finalize:(fun () ->
+                     if !owns_recording then allocator.recording <- false;
+                     release_command4_resources resources)
+                   value value.lifetime allocator.lifetime;
+                 Ok value))
+
+    let device (value : t) = value.allocator.device
+    let generation (value : t) = Metal_raw.generation value.raw
+    let destroyed (value : t) = is_destroyed value.lifetime
+    let state (value : t) = public_state value.phase
+
+    let label (value : t) =
+      let operation = "Metal.Command4.Command_buffer.label" in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () -> Ok (Metal_raw.command4_buffer_label value.raw))
+
+    let end_recording (value : t) =
+      let operation = "Metal.Command4.Command_buffer.end_recording" in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () when value.phase <> Command4_recording ->
+            error operation Invalid_state "command buffer is not recording"
+        | Ok () when dependent_count value.lifetime <> 0 ->
+            error operation Invalid_state "a command encoder is still open"
+        | Ok () ->
+            (match Metal_raw.command4_buffer_end value.raw with
+             | Error message -> native_error operation message
+             | Ok () ->
+                 value.phase <- Command4_ended;
+                 value.owns_recording := false;
+                 value.allocator.recording <- false;
+                 Ok ()))
+
+    let destroy (value : t) =
+      let operation = "Metal.Command4.Command_buffer.destroy" in
+      on_main operation (fun () ->
+        if is_destroyed value.lifetime then Ok ()
+        else if value.phase = Command4_submitted then
+            error operation Invalid_state
+              "wait for the command submission before destroying its buffer"
+        else if dependent_count value.lifetime <> 0 then
+            error operation Parent_has_dependents
+              "command buffer has a live encoder or submission"
+        else begin
+            if Atomic.compare_and_set value.lifetime.destroyed false true then begin
+              ignore (Metal_raw.destroy value.raw);
+              if !(value.owns_recording) then begin
+                value.owns_recording := false;
+                value.allocator.recording <- false
+              end;
+              release_command4_resources value.resources;
+              detach value.allocator.lifetime
+            end;
+            Ok ()
+        end)
+  end
+
+  module Submission = struct
+    type t = command4_submission
+
+    let release_buffers buffers phase =
+      let retained = !buffers in
+      buffers := [];
+      List.iter
+        (fun (buffer : command4_buffer) ->
+          buffer.phase <- phase;
+          release_command4_resources buffer.resources;
+          detach buffer.lifetime)
+        retained
+
+    let make (queue : command4_queue) buffers raw =
+      let retained = ref buffers in
+      let value : t =
+        { raw
+        ; lifetime = lifetime ()
+        ; queue
+        ; buffers = retained
+        ; outcome = None
+        }
+      in
+      attach queue.lifetime;
+      List.iter (fun (buffer : command4_buffer) -> attach buffer.lifetime) buffers;
+      attach_finalizer
+        ~on_finalize:(fun () ->
+          release_buffers retained
+            (Command4_failed "command submission was abandoned before wait"))
+        value value.lifetime queue.lifetime;
+      value
+
+    let device (value : t) = value.queue.device
+    let generation (value : t) = Metal_raw.generation value.raw
+    let destroyed (value : t) = is_destroyed value.lifetime
+    let completed (value : t) = Option.is_some value.outcome
+
+    let wait (value : t) =
+      let operation = "Metal.Command4.Submission.wait" in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () ->
+            (match value.outcome with
+             | Some outcome -> outcome
+             | None ->
+                 let outcome =
+                   match Metal_raw.command4_submission_wait value.raw with
+                   | Ok () -> Ok ()
+                   | Error message -> native_error operation message
+                 in
+                 let phase =
+                   match outcome with
+                   | Ok () -> Command4_completed
+                   | Error error -> Command4_failed error.message
+                 in
+                 release_buffers value.buffers phase;
+                 value.outcome <- Some outcome;
+                 outcome))
+
+    let destroy (value : t) =
+      let operation = "Metal.Command4.Submission.destroy" in
+      on_main operation (fun () ->
+        if is_destroyed value.lifetime then Ok ()
+        else if Option.is_none value.outcome then
+            error operation Invalid_state
+              "wait for the submission before destroying it"
+        else begin
+            if Atomic.compare_and_set value.lifetime.destroyed false true then begin
+              ignore (Metal_raw.destroy value.raw);
+              release_buffers value.buffers
+                (Command4_failed "command submission was destroyed");
+              detach value.queue.lifetime
+            end;
+            Ok ()
+        end)
+  end
+
+  module Queue = struct
+    type t = command4_queue
+
+    let create ?label (device : Device.t) =
+      let operation = "Metal.Command4.Queue.create" in
+      on_main operation (fun () ->
+        match ensure_metal4 operation device with
+        | Error _ as failure -> failure
+        | Ok () when option_exists contains_nul label ->
+            error operation Invalid_argument "label contains a NUL byte"
+        | Ok () ->
+            (match Metal_raw.command4_queue_create device.raw label with
+             | Error message -> native_error operation message
+             | Ok raw ->
+                 let value : t = { raw; lifetime = lifetime (); device } in
+                 attach device.lifetime;
+                 attach_finalizer value value.lifetime device.lifetime;
+                 Ok value))
+
+    let device (value : t) = value.device
+    let generation (value : t) = Metal_raw.generation value.raw
+    let destroyed (value : t) = is_destroyed value.lifetime
+
+    let label (value : t) =
+      let operation = "Metal.Command4.Queue.label" in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () -> Ok (Metal_raw.command4_queue_label value.raw))
+
+    let same_buffer (left : command4_buffer) (right : command4_buffer) =
+      left.lifetime == right.lifetime
+
+    let rec validate_buffers operation (queue : command4_queue) seen = function
+      | [] -> Ok ()
+      | (buffer : command4_buffer) :: rest ->
+          if List.exists (same_buffer buffer) seen then
+            error operation Invalid_argument
+              "command-buffer list contains a duplicate handle"
+          else
+            (match ensure_live operation buffer.lifetime with
+             | Error _ as failure -> failure
+             | Ok () when buffer.phase <> Command4_ended ->
+                 error operation Invalid_state
+                   "every Metal 4 command buffer must be ended before commit"
+             | Ok () when dependent_count buffer.lifetime <> 0 ->
+                 error operation Invalid_state
+                   "a Metal 4 command buffer still owns an open encoder"
+             | Ok () ->
+                 (match
+                    ensure_same_device operation queue.device
+                      buffer.allocator.device
+                  with
+                  | Error _ as failure -> failure
+                  | Ok () -> validate_buffers operation queue (buffer :: seen) rest))
+
+    let commit (value : t) buffers =
+      let operation = "Metal.Command4.Queue.commit" in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () when buffers = [] ->
+            error operation Invalid_argument
+              "at least one command buffer is required"
+        | Ok () when List.length buffers > 64 ->
+            error operation Invalid_argument
+              "a submission may contain at most 64 command buffers"
+        | Ok () ->
+            (match validate_buffers operation value [] buffers with
+             | Error _ as failure -> failure
+             | Ok () ->
+                 let raw_buffers =
+                   Array.of_list
+                     (List.map
+                        (fun (buffer : command4_buffer) -> buffer.raw)
+                        buffers)
+                 in
+                 match Metal_raw.command4_queue_commit value.raw raw_buffers with
+                 | Error message -> native_error operation message
+                 | Ok raw ->
+                     List.iter
+                       (fun (buffer : command4_buffer) ->
+                         buffer.phase <- Command4_submitted)
+                       buffers;
+                     Ok (Submission.make value buffers raw)))
+
+    let destroy (value : t) =
+      destroy_parent "Metal.Command4.Queue.destroy" value.lifetime value.raw
+        (fun () -> detach value.device.lifetime)
+  end
+
+  module Render_encoder = struct
+    type t = command4_render_encoder
+
+    type color =
+      { red : float
+      ; green : float
+      ; blue : float
+      ; alpha : float
+      }
+
+    type load_action =
+      | Load_dont_care
+      | Load
+      | Clear of color
+
+    type store_action =
+      | Store_dont_care
+      | Store
+
+    type color_attachment =
+      { texture : Texture.t
+      ; load_action : load_action
+      ; store_action : store_action
+      }
+
+    type viewport =
+      { x : float
+      ; y : float
+      ; width : float
+      ; height : float
+      ; z_near : float
+      ; z_far : float
+      }
+
+    type primitive =
+      | Point
+      | Line
+      | Line_strip
+      | Triangle
+      | Triangle_strip
+
+    let color ~red ~green ~blue ~alpha = { red; green; blue; alpha }
+    let transparent_black = color ~red:0. ~green:0. ~blue:0. ~alpha:0.
+
+    let color_attachment ?(load_action = Clear transparent_black)
+        ?(store_action = Store) texture =
+      { texture; load_action; store_action }
+
+    let finite_color color =
+      Float.is_finite color.red && Float.is_finite color.green
+      && Float.is_finite color.blue && Float.is_finite color.alpha
+
+    let load_code = function
+      | Load_dont_care -> 0
+      | Load -> 1
+      | Clear _ -> 2
+
+    let store_code = function Store_dont_care -> 0 | Store -> 1
+
+    let clear_color = function
+      | Clear color -> color
+      | Load_dont_care | Load -> transparent_black
+
+    let same_attachment left right =
+      left.texture.lifetime == right.texture.lifetime
+
+    let validate_attachments operation device attachments =
+      let rec loop seen dimensions formats = function
+        | [] -> Ok (Option.get dimensions, List.rev formats)
+        | attachment :: rest ->
+            if List.exists (same_attachment attachment) seen then
+              error operation Invalid_argument
+                "color-attachment list contains a duplicate texture"
+            else
+              (match ensure_texture_usable operation attachment.texture with
+               | Error _ as failure -> failure
+               | Ok () ->
+                   (match
+                      ensure_same_device operation device attachment.texture.device
+                    with
+                    | Error _ as failure -> failure
+                    | Ok () ->
+                        let descriptor = attachment.texture.descriptor in
+                        let color = clear_color attachment.load_action in
+                        if descriptor.kind <> Texture_2d then
+                          error operation Invalid_argument
+                            "Metal 4 base render attachments must be 2D textures"
+                        else if descriptor.sample_count <> 1 then
+                          error operation Invalid_argument
+                            "Metal 4 base render attachments must be single-sample"
+                        else if not (List.mem Render_target descriptor.usage) then
+                          error operation Invalid_argument
+                            "color attachment lacks render-target usage"
+                        else if not (finite_color color) then
+                          error operation Invalid_argument
+                            "clear-color components must be finite"
+                        else
+                          let current = descriptor.width, descriptor.height in
+                          (match dimensions with
+                           | Some expected when expected <> current ->
+                               error operation Invalid_argument
+                                 "color attachments have different dimensions"
+                           | None | Some _ ->
+                               loop (attachment :: seen) (Some current)
+                                 (descriptor.format :: formats) rest)))
+      in
+      loop [] None [] attachments
+
+    let raw_attachment (attachment : color_attachment) =
+      let clear = clear_color attachment.load_action in
+      ({ Metal_raw.texture = attachment.texture.raw
+       ; load_action = load_code attachment.load_action
+       ; store_action = store_code attachment.store_action
+       ; clear_red = clear.red
+       ; clear_green = clear.green
+       ; clear_blue = clear.blue
+       ; clear_alpha = clear.alpha
+       }
+        : Metal_raw.metal4_render_attachment)
+
+    let create ?label (command_buffer : Command_buffer.t) ~color_attachments =
+      let operation = "Metal.Command4.Render_encoder.create" in
+      on_main operation (fun () ->
+        match ensure_live operation command_buffer.lifetime with
+        | Error _ as failure -> failure
+        | Ok () when command_buffer.phase <> Command4_recording ->
+            error operation Invalid_state "command buffer is not recording"
+        | Ok () when dependent_count command_buffer.lifetime <> 0 ->
+            error operation Invalid_state
+              "command buffer already owns an open encoder"
+        | Ok () when color_attachments = [] ->
+            error operation Invalid_argument
+              "at least one color attachment is required"
+        | Ok () when List.length color_attachments > 8 ->
+            error operation Invalid_argument
+              "a render pass may contain at most eight color attachments"
+        | Ok () when option_exists contains_nul label ->
+            error operation Invalid_argument "label contains a NUL byte"
+        | Ok () ->
+            (match
+               validate_attachments operation command_buffer.allocator.device
+                 color_attachments
+             with
+             | Error _ as failure -> failure
+             | Ok ((width, height), color_formats) ->
+                 let raw_attachments =
+                   Array.of_list (List.map raw_attachment color_attachments)
+                 in
+                 match
+                   Metal_raw.command4_render_encoder_create command_buffer.raw
+                     raw_attachments (width, height) label
+                 with
+                 | Error message -> native_error operation message
+                 | Ok raw ->
+                     List.iter
+                       (fun attachment ->
+                         retain_command4_texture command_buffer
+                           attachment.texture)
+                       color_attachments;
+                     let value : t =
+                       { raw
+                       ; lifetime = lifetime ()
+                       ; command_buffer
+                       ; width
+                       ; height
+                       ; color_formats
+                       ; pipeline = None
+                       }
+                     in
+                     attach command_buffer.lifetime;
+                     attach_finalizer
+                       ~on_finalize:(fun () ->
+                         if command_buffer.phase = Command4_recording then
+                           command_buffer.phase <-
+                             Command4_failed
+                               "render encoder was abandoned before end_encoding")
+                       value value.lifetime command_buffer.lifetime;
+                     Ok value))
+
+    let destroyed (value : t) = is_destroyed value.lifetime
+
+    let set_pipeline (value : t) (pipeline : Render_pipeline.t) =
+      let operation = "Metal.Command4.Render_encoder.set_pipeline" in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () ->
+            (match ensure_live operation pipeline.lifetime with
+             | Error _ as failure -> failure
+             | Ok () ->
+                 (match
+                    ensure_same_device operation
+                      value.command_buffer.allocator.device pipeline.device
+                  with
+                  | Error _ as failure -> failure
+                  | Ok () when pipeline.kind <> Render ->
+                      error operation Invalid_argument
+                        "ordinary primitive draws require a conventional render pipeline"
+                  | Ok () when pipeline.raster_sample_count <> 1 ->
+                      error operation Invalid_argument
+                        "pipeline sample count does not match the render pass"
+                  | Ok () when pipeline.color_formats <> value.color_formats ->
+                      error operation Invalid_argument
+                        "pipeline color formats do not match the render pass"
+                  | Ok () ->
+                      match
+                        Metal_raw.command4_render_encoder_set_pipeline value.raw
+                          value.command_buffer.raw pipeline.raw
+                      with
+                      | Error message -> native_error operation message
+                      | Ok () ->
+                          retain_command4_render_pipeline value.command_buffer
+                            pipeline;
+                          value.pipeline <- Some pipeline;
+                          Ok ())))
+
+    let viewport ~x ~y ~width ~height ~z_near ~z_far =
+      { x; y; width; height; z_near; z_far }
+
+    let set_viewport (value : t) viewport =
+      let operation = "Metal.Command4.Render_encoder.set_viewport" in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () ->
+            let fields =
+              [ viewport.x; viewport.y; viewport.width; viewport.height
+              ; viewport.z_near; viewport.z_far
+              ]
+            in
+            if not (List.for_all Float.is_finite fields) then
+              error operation Invalid_argument "viewport values must be finite"
+            else if
+              viewport.x < 0. || viewport.y < 0. || viewport.width <= 0.
+              || viewport.height <= 0.
+              || viewport.x +. viewport.width > float value.width
+              || viewport.y +. viewport.height > float value.height
+              || viewport.z_near < 0. || viewport.z_near > 1.
+              || viewport.z_far < 0. || viewport.z_far > 1.
+              || viewport.z_near > viewport.z_far
+            then
+              error operation Invalid_argument
+                "viewport lies outside the render target or depth range"
+            else
+              match
+                Metal_raw.command4_render_encoder_set_viewport value.raw
+                  ( viewport.x, viewport.y, viewport.width, viewport.height
+                  , viewport.z_near, viewport.z_far )
+              with
+              | Ok () -> Ok ()
+              | Error message -> native_error operation message)
+
+    let primitive_code = function
+      | Point -> 0
+      | Line -> 1
+      | Line_strip -> 2
+      | Triangle -> 3
+      | Triangle_strip -> 4
+
+    let draw_primitives (value : t) primitive ~vertex_start ~vertex_count =
+      let operation = "Metal.Command4.Render_encoder.draw_primitives" in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () when Option.is_none value.pipeline ->
+            error operation Invalid_state "no render pipeline is bound"
+        | Ok () when
+            vertex_start < 0 || vertex_count <= 0
+            || vertex_start > max_int - vertex_count ->
+            error operation Invalid_argument
+              "draw range must be positive and fit in an OCaml integer"
+        | Ok () ->
+            (match
+               Metal_raw.command4_render_encoder_draw_primitives value.raw
+                 (primitive_code primitive) vertex_start vertex_count
+             with
+             | Ok () -> Ok ()
+             | Error message -> native_error operation message))
+
+    let end_encoding (value : t) =
+      let operation = "Metal.Command4.Render_encoder.end_encoding" in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () ->
+            (match Metal_raw.command4_render_encoder_end value.raw with
+             | Error message -> native_error operation message
+             | Ok () ->
+                 if Atomic.compare_and_set value.lifetime.destroyed false true
+                 then begin
+                   ignore (Metal_raw.destroy value.raw);
+                   detach value.command_buffer.lifetime
+                 end;
+                 Ok ()))
+  end
 end
 
 module Command_queue = struct

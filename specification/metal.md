@@ -553,10 +553,32 @@ buffer-writing tile function, verifies stage isolation, accepts a deliberately
 attachmentless pipeline, privately static-links a provider library, and proves
 that async descriptor inputs survive source-library destruction.
 
-This slice compiles and inspects conventional, mesh/object, and tile pipelines:
-render command encoding and draw execution, blend/depth/stencil policy, vertex
-descriptors, and dynamic render linking remain open. Positive offline
-`.metallib` provenance is also still open.
+`Command4` is the initial safe Metal 4 execution namespace. Its allocator owns
+at most one recording command buffer at a time; ending that buffer permits the
+allocator to record another, while reset requires every buffer that references
+its command memory to be destroyed. Command buffers use explicit recording,
+ended, submitted, completed, and failed states. A queue accepts one to 64
+unique, ended, same-device buffers in caller order and returns a submission
+handle. Submission wait releases the OCaml runtime lock and preserves the full
+`MTL4CommitFeedback` error. OCaml resource dependencies remain attached until
+wait observes completion, and a native submission state independently retains
+the queue, command buffers, render targets, and pipelines so premature OCaml
+finalization cannot release live GPU inputs.
+
+The first `Command4.Render_encoder` slice records conventional primitive draws
+against one to eight unique, base-level, single-sample 2D color attachments.
+It exposes checked clear/load and store/don't-care actions, a finite in-bounds
+viewport, and point/line/strip/triangle primitive selection. Pipeline binding
+requires an ordinary render pipeline whose recorded sample count and ordered
+color formats exactly match the pass. The M1 conformance test executes a
+full-screen triangle into an 8×8 shared BGRA target and verifies every stored
+pixel after commit feedback completes. Invalid labels, attachments, viewports,
+draw ranges, state transitions, duplicate submissions, and premature teardown
+are rejected before native handle allocation or submission where applicable.
+
+Mesh and tile command execution, argument tables, indexed/indirect draws,
+blend/depth/stencil policy, vertex descriptors, dynamic render linking, and
+positive offline `.metallib` provenance remain open.
 
 `test_metal.exe` runs a real M1 compute kernel, wrong-domain and invalid-state
 cases, full labeled shader diagnostics, function-constant introspection and
@@ -576,8 +598,9 @@ exact object-payload reflection, non-rasterizing mesh compilation, invalid
 stage/threadgroup/payload rejection without handle allocation, and asynchronous
 reflected mesh completion after source-library destruction, reflected and
 attachmentless Metal 4 tile compilation, private tile static linking, invalid
-tile stage/threadgroup rejection, and asynchronous tile completion after
-source-library destruction,
+tile stage/threadgroup rejection, asynchronous tile completion after
+source-library destruction, and allocator/queue/buffer/submission lifecycle plus
+pixel-exact conventional Metal 4 offscreen render execution,
 compiler/task/dataset parent ownership, and complete Metal 4 compile diagnostics,
 copied/no-copy external buffer ownership,
 shareable texture/handle/import lifetimes, single- and multi-plane IOSurface

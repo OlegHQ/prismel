@@ -271,6 +271,100 @@ API_AVAILABLE(macos(26.0))
 @implementation PrismelMetalCheckedRenderRequest
 @end
 
+API_AVAILABLE(macos(26.0))
+@interface PrismelMetal4CommandBufferState : NSObject
+@property(nonatomic, strong, readonly) id<MTL4CommandBuffer> commandBuffer;
+@property(nonatomic, strong, readonly) id<MTL4CommandAllocator> allocator;
+- (instancetype)initWithCommandBuffer:(id<MTL4CommandBuffer>)commandBuffer
+                             allocator:(id<MTL4CommandAllocator>)allocator;
+- (void)retainEncodedObject:(id)object;
+- (void)releaseEncodedObjects;
+@end
+
+@implementation PrismelMetal4CommandBufferState {
+  id<MTL4CommandBuffer> _commandBuffer;
+  id<MTL4CommandAllocator> _allocator;
+  NSMutableArray *_encodedObjects;
+}
+
+- (instancetype)initWithCommandBuffer:(id<MTL4CommandBuffer>)commandBuffer
+                             allocator:(id<MTL4CommandAllocator>)allocator {
+  self = [super init];
+  if (self != nil) {
+    _commandBuffer = commandBuffer;
+    _allocator = allocator;
+    _encodedObjects = [[NSMutableArray alloc] init];
+  }
+  return self;
+}
+
+- (id<MTL4CommandBuffer>)commandBuffer { return _commandBuffer; }
+- (id<MTL4CommandAllocator>)allocator { return _allocator; }
+
+- (void)retainEncodedObject:(id)object {
+  if (object != nil && ![_encodedObjects containsObject:object]) {
+    [_encodedObjects addObject:object];
+  }
+}
+
+- (void)releaseEncodedObjects { [_encodedObjects removeAllObjects]; }
+
+@end
+
+API_AVAILABLE(macos(26.0))
+@interface PrismelMetal4SubmissionState : NSObject
+- (instancetype)initWithQueue:(id<MTL4CommandQueue>)queue
+                       buffers:(NSArray<PrismelMetal4CommandBufferState *> *)buffers;
+- (void)finishWithFeedback:(id<MTL4CommitFeedback>)feedback;
+- (nullable NSError *)waitUntilCompleted;
+@end
+
+@implementation PrismelMetal4SubmissionState {
+  id<MTL4CommandQueue> _queue;
+  NSArray<PrismelMetal4CommandBufferState *> *_buffers;
+  NSCondition *_condition;
+  NSError *_error;
+  BOOL _completed;
+}
+
+- (instancetype)initWithQueue:(id<MTL4CommandQueue>)queue
+                       buffers:(NSArray<PrismelMetal4CommandBufferState *> *)buffers {
+  self = [super init];
+  if (self != nil) {
+    _queue = queue;
+    _buffers = [buffers copy];
+    _condition = [[NSCondition alloc] init];
+    _completed = NO;
+  }
+  return self;
+}
+
+- (void)finishWithFeedback:(id<MTL4CommitFeedback>)feedback {
+  [_condition lock];
+  if (!_completed) {
+    _error = feedback.error;
+    for (PrismelMetal4CommandBufferState *buffer in _buffers) {
+      [buffer releaseEncodedObjects];
+    }
+    _buffers = nil;
+    _completed = YES;
+    [_condition broadcast];
+  }
+  [_condition unlock];
+}
+
+- (NSError *)waitUntilCompleted {
+  [_condition lock];
+  while (!_completed) {
+    [_condition wait];
+  }
+  NSError *error = _error;
+  [_condition unlock];
+  return error;
+}
+
+@end
+
 @interface PrismelMetalXpcRequest : NSObject
 @property(nonatomic, readonly) NSString *operation;
 @property(nonatomic, readonly) id resource;
@@ -709,6 +803,11 @@ enum class Handle_kind : std::uint32_t {
   Binary_function,
   Compiler_task,
   Render_pipeline,
+  Command_allocator4,
+  Command_queue4,
+  Command_buffer4,
+  Render_encoder4,
+  Submission4,
 };
 
 struct Handle {
@@ -891,6 +990,16 @@ PrismelMetalXpcRequest *xpc_request_of_handle(value raw) {
 API_AVAILABLE(macos(26.0))
 id<MTL4CommandQueue> placement_mapping_queue_of_handle(value raw) {
   return object_of_handle(raw, Handle_kind::Placement_mapping_queue);
+}
+
+API_AVAILABLE(macos(26.0))
+PrismelMetal4CommandBufferState *command_buffer4_state_of_handle(value raw) {
+  return object_of_handle(raw, Handle_kind::Command_buffer4);
+}
+
+API_AVAILABLE(macos(26.0))
+PrismelMetal4SubmissionState *submission4_state_of_handle(value raw) {
+  return object_of_handle(raw, Handle_kind::Submission4);
 }
 
 API_AVAILABLE(macos(15.0))
@@ -1308,6 +1417,18 @@ bool device_supports_metal4_compiler(id<MTLDevice> device) {
                @selector(newArchiveWithURL:error:)] &&
            [device respondsToSelector:
                @selector(newPipelineDataSetSerializerWithDescriptor:)];
+  }
+  return false;
+}
+
+bool device_supports_metal4_commands(id<MTLDevice> device) {
+  if (@available(macOS 26.0, *)) {
+    return [device supportsFamily:MTLGPUFamilyMetal4] &&
+           [device respondsToSelector:
+               @selector(newCommandAllocatorWithDescriptor:error:)] &&
+           [device respondsToSelector:@selector(newCommandBuffer)] &&
+           [device respondsToSelector:
+               @selector(newMTL4CommandQueueWithDescriptor:error:)];
   }
   return false;
 }
@@ -8301,6 +8422,496 @@ caml_prismel_metal_compute_pipeline_max_total_threads(value raw) {
   id<MTLComputePipelineState> pipeline =
       object_of_handle(raw, Handle_kind::Compute_pipeline);
   CAMLreturn(Val_long(pipeline.maxTotalThreadsPerThreadgroup));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_command4_allocator_create(
+    value raw_device, value raw_label) {
+  CAMLparam2(raw_device, raw_label);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    @try {
+      id<MTLDevice> device =
+          object_of_handle(raw_device, Handle_kind::Device);
+      if (!device_supports_metal4_commands(device)) {
+        CAMLreturn(result_error_text(
+            "device does not support the checked Metal 4 command API"));
+      }
+      if (@available(macOS 26.0, *)) {
+        MTL4CommandAllocatorDescriptor *descriptor =
+            [[MTL4CommandAllocatorDescriptor alloc] init];
+        if (Is_block(raw_label)) {
+          NSString *label = string_from_ocaml(Field(raw_label, 0));
+          if (label == nil) {
+            CAMLreturn(result_error_text(
+                "Metal 4 command-allocator label is not valid UTF-8"));
+          }
+          descriptor.label = label;
+        }
+        NSError *error = nil;
+        id<MTL4CommandAllocator> allocator =
+            [device newCommandAllocatorWithDescriptor:descriptor error:&error];
+        if (allocator == nil ||
+            allocator.device.registryID != device.registryID ||
+            ((descriptor.label == nil) != (allocator.label == nil)) ||
+            (descriptor.label != nil &&
+             ![allocator.label isEqualToString:descriptor.label])) {
+          CAMLreturn(result_error(error_description(
+              error, @"Metal rejected the checked Metal 4 command allocator")));
+        }
+        raw = allocate_handle(allocator, Handle_kind::Command_allocator4);
+        CAMLreturn(result_ok(raw));
+      }
+      CAMLreturn(result_error_text("Metal 4 commands require macOS 26"));
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+}
+
+extern "C" CAMLprim value caml_prismel_metal_command4_allocator_label(
+    value raw) {
+  CAMLparam1(raw);
+  CAMLlocal1(result);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      id<MTL4CommandAllocator> allocator =
+          object_of_handle(raw, Handle_kind::Command_allocator4);
+      result = copy_optional_string(allocator.label);
+      CAMLreturn(result);
+    }
+    caml_failwith("Metal 4 commands require macOS 26");
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_command4_allocator_allocated_size(value raw) {
+  CAMLparam1(raw);
+  if (@available(macOS 26.0, *)) {
+    id<MTL4CommandAllocator> allocator =
+        object_of_handle(raw, Handle_kind::Command_allocator4);
+    CAMLreturn(caml_copy_int64(static_cast<std::int64_t>(allocator.allocatedSize)));
+  }
+  caml_failwith("Metal 4 commands require macOS 26");
+}
+
+extern "C" CAMLprim value caml_prismel_metal_command4_allocator_reset(
+    value raw) {
+  CAMLparam1(raw);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4CommandAllocator> allocator =
+            object_of_handle(raw, Handle_kind::Command_allocator4);
+        [allocator reset];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("Metal 4 commands require macOS 26"));
+  }
+}
+
+extern "C" CAMLprim value caml_prismel_metal_command4_queue_create(
+    value raw_device, value raw_label) {
+  CAMLparam2(raw_device, raw_label);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    @try {
+      id<MTLDevice> device =
+          object_of_handle(raw_device, Handle_kind::Device);
+      if (!device_supports_metal4_commands(device)) {
+        CAMLreturn(result_error_text(
+            "device does not support the checked Metal 4 command API"));
+      }
+      if (@available(macOS 26.0, *)) {
+        MTL4CommandQueueDescriptor *descriptor =
+            [[MTL4CommandQueueDescriptor alloc] init];
+        if (Is_block(raw_label)) {
+          NSString *label = string_from_ocaml(Field(raw_label, 0));
+          if (label == nil) {
+            CAMLreturn(result_error_text(
+                "Metal 4 command-queue label is not valid UTF-8"));
+          }
+          descriptor.label = label;
+        }
+        NSError *error = nil;
+        id<MTL4CommandQueue> queue =
+            [device newMTL4CommandQueueWithDescriptor:descriptor error:&error];
+        if (queue == nil || queue.device.registryID != device.registryID ||
+            ((descriptor.label == nil) != (queue.label == nil)) ||
+            (descriptor.label != nil &&
+             ![queue.label isEqualToString:descriptor.label])) {
+          CAMLreturn(result_error(error_description(
+              error, @"Metal rejected the checked Metal 4 command queue")));
+        }
+        raw = allocate_handle(queue, Handle_kind::Command_queue4);
+        CAMLreturn(result_ok(raw));
+      }
+      CAMLreturn(result_error_text("Metal 4 commands require macOS 26"));
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+}
+
+extern "C" CAMLprim value caml_prismel_metal_command4_queue_label(value raw) {
+  CAMLparam1(raw);
+  CAMLlocal1(result);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      id<MTL4CommandQueue> queue =
+          object_of_handle(raw, Handle_kind::Command_queue4);
+      result = copy_optional_string(queue.label);
+      CAMLreturn(result);
+    }
+    caml_failwith("Metal 4 commands require macOS 26");
+  }
+}
+
+extern "C" CAMLprim value caml_prismel_metal_command4_buffer_create(
+    value raw_allocator, value raw_label) {
+  CAMLparam2(raw_allocator, raw_label);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4CommandAllocator> allocator =
+            object_of_handle(raw_allocator, Handle_kind::Command_allocator4);
+        id<MTLDevice> device = allocator.device;
+        id<MTL4CommandBuffer> command_buffer = [device newCommandBuffer];
+        if (command_buffer == nil ||
+            command_buffer.device.registryID != device.registryID) {
+          CAMLreturn(result_error_text(
+              "Metal failed to create a checked Metal 4 command buffer"));
+        }
+        if (Is_block(raw_label)) {
+          NSString *label = string_from_ocaml(Field(raw_label, 0));
+          if (label == nil) {
+            CAMLreturn(result_error_text(
+                "Metal 4 command-buffer label is not valid UTF-8"));
+          }
+          command_buffer.label = label;
+          if (![command_buffer.label isEqualToString:label]) {
+            CAMLreturn(result_error_text(
+                "Metal changed the checked Metal 4 command-buffer label"));
+          }
+        }
+        [command_buffer beginCommandBufferWithAllocator:allocator];
+        PrismelMetal4CommandBufferState *state =
+            [[PrismelMetal4CommandBufferState alloc]
+                initWithCommandBuffer:command_buffer
+                             allocator:allocator];
+        raw = allocate_handle(state, Handle_kind::Command_buffer4);
+        CAMLreturn(result_ok(raw));
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("Metal 4 commands require macOS 26"));
+  }
+}
+
+extern "C" CAMLprim value caml_prismel_metal_command4_buffer_label(value raw) {
+  CAMLparam1(raw);
+  CAMLlocal1(result);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      PrismelMetal4CommandBufferState *state =
+          command_buffer4_state_of_handle(raw);
+      result = copy_optional_string(state.commandBuffer.label);
+      CAMLreturn(result);
+    }
+    caml_failwith("Metal 4 commands require macOS 26");
+  }
+}
+
+extern "C" CAMLprim value caml_prismel_metal_command4_buffer_end(value raw) {
+  CAMLparam1(raw);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        PrismelMetal4CommandBufferState *state =
+            command_buffer4_state_of_handle(raw);
+        [state.commandBuffer endCommandBuffer];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("Metal 4 commands require macOS 26"));
+  }
+}
+
+extern "C" CAMLprim value caml_prismel_metal_command4_render_encoder_create(
+    value raw_buffer, value raw_attachments, value raw_size, value raw_label) {
+  CAMLparam4(raw_buffer, raw_attachments, raw_size, raw_label);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        PrismelMetal4CommandBufferState *state =
+            command_buffer4_state_of_handle(raw_buffer);
+        const mlsize_t count = Wosize_val(raw_attachments);
+        const intnat width = Long_val(Field(raw_size, 0));
+        const intnat height = Long_val(Field(raw_size, 1));
+        NSString *expected_label = nil;
+        if (Is_block(raw_label)) {
+          expected_label = string_from_ocaml(Field(raw_label, 0));
+          if (expected_label == nil) {
+            CAMLreturn(result_error_text(
+                "Metal 4 render-encoder label is not valid UTF-8"));
+          }
+        }
+        if (count == 0 || count > 8 || width <= 0 || height <= 0) {
+          CAMLreturn(result_error_text(
+              "Metal 4 render-pass attachments or dimensions are invalid"));
+        }
+        MTL4RenderPassDescriptor *descriptor =
+            [[MTL4RenderPassDescriptor alloc] init];
+        descriptor.renderTargetWidth = static_cast<NSUInteger>(width);
+        descriptor.renderTargetHeight = static_cast<NSUInteger>(height);
+        descriptor.defaultRasterSampleCount = 1;
+        NSMutableArray<id<MTLTexture>> *textures =
+            [[NSMutableArray alloc] initWithCapacity:count];
+        for (mlsize_t index = 0; index < count; ++index) {
+          value attachment_value = Field(raw_attachments, index);
+          id<MTLTexture> texture = object_of_handle(
+              Field(attachment_value, 0), Handle_kind::Texture);
+          const intnat load_action = Long_val(Field(attachment_value, 1));
+          const intnat store_action = Long_val(Field(attachment_value, 2));
+          if (texture.device.registryID != state.commandBuffer.device.registryID ||
+              texture.textureType != MTLTextureType2D ||
+              texture.sampleCount != 1 ||
+              texture.width != static_cast<NSUInteger>(width) ||
+              texture.height != static_cast<NSUInteger>(height) ||
+              (texture.usage & MTLTextureUsageRenderTarget) == 0 ||
+              (load_action != MTLLoadActionDontCare &&
+               load_action != MTLLoadActionLoad &&
+               load_action != MTLLoadActionClear) ||
+              (store_action != MTLStoreActionDontCare &&
+               store_action != MTLStoreActionStore)) {
+            CAMLreturn(result_error_text(
+                "Metal 4 color attachment failed native validation"));
+          }
+          MTLRenderPassColorAttachmentDescriptor *attachment =
+              descriptor.colorAttachments[index];
+          attachment.texture = texture;
+          attachment.loadAction = static_cast<MTLLoadAction>(load_action);
+          attachment.storeAction = static_cast<MTLStoreAction>(store_action);
+          attachment.clearColor = MTLClearColorMake(
+              Double_val(Field(attachment_value, 3)),
+              Double_val(Field(attachment_value, 4)),
+              Double_val(Field(attachment_value, 5)),
+              Double_val(Field(attachment_value, 6)));
+          [textures addObject:texture];
+        }
+        id<MTL4RenderCommandEncoder> encoder =
+            [state.commandBuffer renderCommandEncoderWithDescriptor:descriptor];
+        if (encoder == nil || encoder.commandBuffer != state.commandBuffer) {
+          CAMLreturn(result_error_text(
+              "Metal failed to create a checked Metal 4 render encoder"));
+        }
+        if (expected_label != nil) {
+          encoder.label = expected_label;
+          if (![encoder.label isEqualToString:expected_label]) {
+            [encoder endEncoding];
+            CAMLreturn(result_error_text(
+                "Metal changed the checked Metal 4 render-encoder label"));
+          }
+        }
+        for (id<MTLTexture> texture in textures) {
+          [state retainEncodedObject:texture];
+        }
+        raw = allocate_handle(encoder, Handle_kind::Render_encoder4);
+        CAMLreturn(result_ok(raw));
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("Metal 4 commands require macOS 26"));
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_command4_render_encoder_set_pipeline(
+    value raw_encoder, value raw_buffer, value raw_pipeline) {
+  CAMLparam3(raw_encoder, raw_buffer, raw_pipeline);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4RenderCommandEncoder> encoder =
+            object_of_handle(raw_encoder, Handle_kind::Render_encoder4);
+        PrismelMetal4CommandBufferState *state =
+            command_buffer4_state_of_handle(raw_buffer);
+        id<MTLRenderPipelineState> pipeline =
+            object_of_handle(raw_pipeline, Handle_kind::Render_pipeline);
+        if (encoder.commandBuffer != state.commandBuffer ||
+            pipeline.device.registryID != state.commandBuffer.device.registryID) {
+          CAMLreturn(result_error_text(
+              "Metal 4 render pipeline belongs to a different command graph"));
+        }
+        [encoder setRenderPipelineState:pipeline];
+        [state retainEncodedObject:pipeline];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("Metal 4 commands require macOS 26"));
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_command4_render_encoder_set_viewport(
+    value raw_encoder, value raw_viewport) {
+  CAMLparam2(raw_encoder, raw_viewport);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4RenderCommandEncoder> encoder =
+            object_of_handle(raw_encoder, Handle_kind::Render_encoder4);
+        const MTLViewport viewport = {
+            Double_val(Field(raw_viewport, 0)),
+            Double_val(Field(raw_viewport, 1)),
+            Double_val(Field(raw_viewport, 2)),
+            Double_val(Field(raw_viewport, 3)),
+            Double_val(Field(raw_viewport, 4)),
+            Double_val(Field(raw_viewport, 5)),
+        };
+        [encoder setViewport:viewport];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("Metal 4 commands require macOS 26"));
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_command4_render_encoder_draw_primitives(
+    value raw_encoder, value raw_primitive, value raw_start, value raw_count) {
+  CAMLparam4(raw_encoder, raw_primitive, raw_start, raw_count);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4RenderCommandEncoder> encoder =
+            object_of_handle(raw_encoder, Handle_kind::Render_encoder4);
+        const intnat primitive = Long_val(raw_primitive);
+        const intnat start = Long_val(raw_start);
+        const intnat count = Long_val(raw_count);
+        if (primitive < 0 || primitive > 4 || start < 0 || count <= 0) {
+          CAMLreturn(result_error_text(
+              "Metal 4 primitive draw arguments are invalid"));
+        }
+        [encoder drawPrimitives:static_cast<MTLPrimitiveType>(primitive)
+                     vertexStart:static_cast<NSUInteger>(start)
+                     vertexCount:static_cast<NSUInteger>(count)];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("Metal 4 commands require macOS 26"));
+  }
+}
+
+extern "C" CAMLprim value caml_prismel_metal_command4_render_encoder_end(
+    value raw) {
+  CAMLparam1(raw);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4RenderCommandEncoder> encoder =
+            object_of_handle(raw, Handle_kind::Render_encoder4);
+        [encoder endEncoding];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("Metal 4 commands require macOS 26"));
+  }
+}
+
+extern "C" CAMLprim value caml_prismel_metal_command4_queue_commit(
+    value raw_queue, value raw_buffers) {
+  CAMLparam2(raw_queue, raw_buffers);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4CommandQueue> queue =
+            object_of_handle(raw_queue, Handle_kind::Command_queue4);
+        const mlsize_t count = Wosize_val(raw_buffers);
+        if (count == 0 || count > 64) {
+          CAMLreturn(result_error_text(
+              "Metal 4 submissions require between one and 64 command buffers"));
+        }
+        std::vector<id<MTL4CommandBuffer>> command_buffers;
+        command_buffers.reserve(count);
+        NSMutableArray<PrismelMetal4CommandBufferState *> *states =
+            [[NSMutableArray alloc] initWithCapacity:count];
+        for (mlsize_t index = 0; index < count; ++index) {
+          PrismelMetal4CommandBufferState *state =
+              command_buffer4_state_of_handle(Field(raw_buffers, index));
+          if (state.commandBuffer.device.registryID != queue.device.registryID) {
+            CAMLreturn(result_error_text(
+                "Metal 4 command buffer belongs to a different queue device"));
+          }
+          command_buffers.push_back(state.commandBuffer);
+          [states addObject:state];
+        }
+        PrismelMetal4SubmissionState *submission =
+            [[PrismelMetal4SubmissionState alloc] initWithQueue:queue
+                                                       buffers:states];
+        MTL4CommitOptions *options = [[MTL4CommitOptions alloc] init];
+        [options addFeedbackHandler:^(id<MTL4CommitFeedback> feedback) {
+          [submission finishWithFeedback:feedback];
+        }];
+        [queue commit:command_buffers.data()
+                 count:command_buffers.size()
+               options:options];
+        raw = allocate_handle(submission, Handle_kind::Submission4);
+        CAMLreturn(result_ok(raw));
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("Metal 4 commands require macOS 26"));
+  }
+}
+
+extern "C" CAMLprim value caml_prismel_metal_command4_submission_wait(
+    value raw) {
+  CAMLparam1(raw);
+  CAMLlocal1(result);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      PrismelMetal4SubmissionState *submission =
+          submission4_state_of_handle(raw);
+      __block NSError *gpu_error = nil;
+      __block NSString *wait_failure = nil;
+      caml_release_runtime_system();
+      @try {
+        gpu_error = [submission waitUntilCompleted];
+      } @catch (NSException *exception) {
+        wait_failure = [exception.reason copy];
+      }
+      caml_acquire_runtime_system();
+      if (wait_failure != nil) {
+        result = result_error(wait_failure);
+      } else if (gpu_error != nil) {
+        result = result_error(error_description(
+            gpu_error, @"Metal 4 command submission failed"));
+      } else {
+        result = result_unit();
+      }
+      CAMLreturn(result);
+    }
+    CAMLreturn(result_error_text("Metal 4 commands require macOS 26"));
+  }
 }
 
 extern "C" CAMLprim value

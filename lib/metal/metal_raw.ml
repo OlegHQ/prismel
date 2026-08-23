@@ -163,6 +163,18 @@ type metal4_tile_descriptor =
   ; lookup_archives : handle array
   }
 
+(** Positional native ABI record for one base-level, single-sample Metal 4
+    render-pass color attachment. *)
+type metal4_render_attachment =
+  { texture : handle
+  ; load_action : int
+  ; store_action : int
+  ; clear_red : float
+  ; clear_green : float
+  ; clear_blue : float
+  ; clear_alpha : float
+  }
+
 (** Positional native ABI record for a Metal 4 binary-function lookup or
     compilation. *)
 type metal4_binary_function_descriptor =
@@ -764,6 +776,64 @@ external compiler_task_take_render_pipeline :
 
 external render_pipeline_label : handle -> string option =
   "caml_prismel_metal_render_pipeline_label"
+
+external command4_allocator_create :
+  handle -> string option -> (handle, string) result =
+  "caml_prismel_metal_command4_allocator_create"
+
+external command4_allocator_label : handle -> string option =
+  "caml_prismel_metal_command4_allocator_label"
+
+external command4_allocator_allocated_size : handle -> int64 =
+  "caml_prismel_metal_command4_allocator_allocated_size"
+
+external command4_allocator_reset : handle -> (unit, string) result =
+  "caml_prismel_metal_command4_allocator_reset"
+
+external command4_queue_create :
+  handle -> string option -> (handle, string) result =
+  "caml_prismel_metal_command4_queue_create"
+
+external command4_queue_label : handle -> string option =
+  "caml_prismel_metal_command4_queue_label"
+
+external command4_buffer_create :
+  handle -> string option -> (handle, string) result =
+  "caml_prismel_metal_command4_buffer_create"
+
+external command4_buffer_label : handle -> string option =
+  "caml_prismel_metal_command4_buffer_label"
+
+external command4_buffer_end : handle -> (unit, string) result =
+  "caml_prismel_metal_command4_buffer_end"
+
+external command4_render_encoder_create :
+  handle -> metal4_render_attachment array -> (int * int) -> string option ->
+  (handle, string) result =
+  "caml_prismel_metal_command4_render_encoder_create"
+
+external command4_render_encoder_set_pipeline :
+  handle -> handle -> handle -> (unit, string) result =
+  "caml_prismel_metal_command4_render_encoder_set_pipeline"
+
+external command4_render_encoder_set_viewport :
+  handle -> (float * float * float * float * float * float) ->
+  (unit, string) result =
+  "caml_prismel_metal_command4_render_encoder_set_viewport"
+
+external command4_render_encoder_draw_primitives :
+  handle -> int -> int -> int -> (unit, string) result =
+  "caml_prismel_metal_command4_render_encoder_draw_primitives"
+
+external command4_render_encoder_end : handle -> (unit, string) result =
+  "caml_prismel_metal_command4_render_encoder_end"
+
+external command4_queue_commit :
+  handle -> handle array -> (handle, string) result =
+  "caml_prismel_metal_command4_queue_commit"
+
+external command4_submission_wait : handle -> (unit, string) result =
+  "caml_prismel_metal_command4_submission_wait"
 
 external compute_pipeline_create : handle -> handle -> (handle, string) result =
   "caml_prismel_metal_compute_pipeline_create"

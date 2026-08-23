@@ -1091,6 +1091,8 @@ module Render_pipeline : sig
   val generation : t -> int64
   val destroyed : t -> bool
   val kind : t -> kind
+  val raster_sample_count : t -> int
+  val color_formats : t -> Texture.format list
   val reflection : t -> reflection option
   val label : t -> (string option, error) result
   val destroy : t -> (unit, error) result
@@ -1379,6 +1381,129 @@ module Compiler : sig
   val destroyed : t -> bool
   val label : t -> (string option, error) result
   val destroy : t -> (unit, error) result
+end
+
+(** Typed Metal 4 command recording. These objects are distinct from the
+    legacy Metal command modules below: an allocator records one buffer at a
+    time, queues return explicit submissions, and a submission must complete
+    before its command resources are released. *)
+module Command4 : sig
+  module Allocator : sig
+    type t
+
+    val create : ?label:string -> Device.t -> (t, error) result
+    val device : t -> Device.t
+    val generation : t -> int64
+    val destroyed : t -> bool
+    val label : t -> (string option, error) result
+    val allocated_size : t -> (int64, error) result
+
+    (** Requires every command buffer that used this allocator to be destroyed,
+        which proves that no submitted work still owns allocator memory. *)
+    val reset : t -> (unit, error) result
+
+    val destroy : t -> (unit, error) result
+  end
+
+  module Command_buffer : sig
+    type t
+
+    type state =
+      | Recording
+      | Ended
+      | Submitted
+      | Completed
+      | Failed of string
+
+    val create : Allocator.t -> ?label:string -> unit -> (t, error) result
+    val device : t -> Device.t
+    val generation : t -> int64
+    val destroyed : t -> bool
+    val state : t -> state
+    val label : t -> (string option, error) result
+
+    (** Ends native command recording after the current encoder has ended. *)
+    val end_recording : t -> (unit, error) result
+
+    val destroy : t -> (unit, error) result
+  end
+
+  module Submission : sig
+    type t
+
+    val device : t -> Device.t
+    val generation : t -> int64
+    val destroyed : t -> bool
+    val completed : t -> bool
+
+    (** Blocks without holding the OCaml runtime lock. GPU execution errors are
+        returned from Metal 4 commit feedback with their native diagnostics. *)
+    val wait : t -> (unit, error) result
+
+    val destroy : t -> (unit, error) result
+  end
+
+  module Queue : sig
+    type t
+
+    val create : ?label:string -> Device.t -> (t, error) result
+    val device : t -> Device.t
+    val generation : t -> int64
+    val destroyed : t -> bool
+    val label : t -> (string option, error) result
+
+    (** Commits one to 64 unique, ended command buffers in list order. *)
+    val commit : t -> Command_buffer.t list -> (Submission.t, error) result
+
+    val destroy : t -> (unit, error) result
+  end
+
+  module Render_encoder : sig
+    type t
+    type color
+
+    type load_action =
+      | Load_dont_care
+      | Load
+      | Clear of color
+
+    type store_action =
+      | Store_dont_care
+      | Store
+
+    type color_attachment
+    type viewport
+
+    type primitive =
+      | Point
+      | Line
+      | Line_strip
+      | Triangle
+      | Triangle_strip
+
+    val color :
+      red:float -> green:float -> blue:float -> alpha:float -> color
+
+    (** Creates a base-level, single-sample 2D color attachment. *)
+    val color_attachment :
+      ?load_action:load_action -> ?store_action:store_action -> Texture.t ->
+      color_attachment
+
+    val create :
+      ?label:string -> Command_buffer.t ->
+      color_attachments:color_attachment list -> (t, error) result
+
+    val set_pipeline : t -> Render_pipeline.t -> (unit, error) result
+    val viewport :
+      x:float -> y:float -> width:float -> height:float -> z_near:float ->
+      z_far:float -> viewport
+    val set_viewport : t -> viewport -> (unit, error) result
+    val draw_primitives :
+      t -> primitive -> vertex_start:int -> vertex_count:int ->
+      (unit, error) result
+    val end_encoding : t -> (unit, error) result
+    val destroyed : t -> bool
+  end
 end
 
 module Command_queue : sig

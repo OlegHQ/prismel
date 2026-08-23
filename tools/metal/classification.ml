@@ -24,7 +24,9 @@ let enum_cases owner names =
 
 let bound_identifiers =
   [ "class:MTL4BinaryFunctionDescriptor"
+  ; "class:MTL4CommandAllocatorDescriptor"
   ; "class:MTL4CommandQueueDescriptor"
+  ; "class:MTL4CommitOptions"
   ; "class:MTL4CompilerDescriptor"
   ; "class:MTL4CompilerTaskOptions"
   ; "class:MTL4ComputePipelineDescriptor"
@@ -39,6 +41,7 @@ let bound_identifiers =
   ; "class:MTL4RenderPipelineColorAttachmentDescriptor"
   ; "class:MTL4RenderPipelineColorAttachmentDescriptorArray"
   ; "class:MTL4RenderPipelineDescriptor"
+  ; "class:MTL4RenderPassDescriptor"
   ; "class:MTL4StaticLinkingDescriptor"
   ; "class:MTL4TileRenderPipelineDescriptor"
   ; "class:MTLBinaryArchiveDescriptor"
@@ -51,6 +54,9 @@ let bound_identifiers =
   ; "class:MTLLinkedFunctions"
   ; "class:MTLResidencySetDescriptor"
   ; "class:MTLRenderPipelineReflection"
+  ; "class:MTLRenderPassAttachmentDescriptor"
+  ; "class:MTLRenderPassColorAttachmentDescriptor"
+  ; "class:MTLRenderPassColorAttachmentDescriptorArray"
   ; "class:MTLSamplerDescriptor"
   ; "class:MTLSharedTextureHandle"
   ; "class:MTLTextureDescriptor"
@@ -60,6 +66,9 @@ let bound_identifiers =
   ; "enum:MTL4BinaryFunctionOptions"
   ; "enum:MTL4CompilerTaskStatus"
   ; "enum:MTLCommandBufferStatus"
+  ; "enum:MTLLoadAction"
+  ; "enum:MTLPrimitiveType"
+  ; "enum:MTLStoreAction"
   ; "enum:MTL4VisibilityOptions"
   ; "enum:MTL4IndirectCommandBufferSupportState"
   ; "enum:MTL4PipelineDataSetSerializerConfiguration"
@@ -95,6 +104,7 @@ let bound_identifiers =
   ; "enum:MTLTextureSwizzle"
   ; "enum:MTLTextureUsage"
   ; "function:MTLCopyAllDevices"
+  ; "function:MTLClearColorMake"
   ; "function:MTLCreateSystemDefaultDevice"
   ; "function:MTLOriginMake"
   ; "function:MTLRegionMake3D"
@@ -102,12 +112,18 @@ let bound_identifiers =
   ; "function:MTLTextureSwizzleChannelsMake"
   ; "method:+[MTLLinkedFunctions linkedFunctions]"
   ; "record:MTLOrigin"
+  ; "record:MTLClearColor"
   ; "record:MTL4UpdateSparseBufferMappingOperation"
   ; "record:MTL4UpdateSparseTextureMappingOperation"
   ; "record:MTLRegion"
   ; "record:MTLSize"
   ; "record:MTLSizeAndAlign"
   ; "record:MTLTextureSwizzleChannels"
+  ; "record:MTLViewport"
+  ; "field:MTLClearColor:alpha"
+  ; "field:MTLClearColor:blue"
+  ; "field:MTLClearColor:green"
+  ; "field:MTLClearColor:red"
   ; "field:MTLOrigin:x"
   ; "field:MTLOrigin:y"
   ; "field:MTLOrigin:z"
@@ -122,6 +138,12 @@ let bound_identifiers =
   ; "field:MTLTextureSwizzleChannels:blue"
   ; "field:MTLTextureSwizzleChannels:green"
   ; "field:MTLTextureSwizzleChannels:red"
+  ; "field:MTLViewport:height"
+  ; "field:MTLViewport:originX"
+  ; "field:MTLViewport:originY"
+  ; "field:MTLViewport:width"
+  ; "field:MTLViewport:zfar"
+  ; "field:MTLViewport:znear"
   ; "field:MTL4UpdateSparseBufferMappingOperation:bufferRange"
   ; "field:MTL4UpdateSparseBufferMappingOperation:heapOffset"
   ; "field:MTL4UpdateSparseBufferMappingOperation:mode"
@@ -135,7 +157,9 @@ let bound_identifiers =
   ; "protocol:MTL4CommandBuffer"
   ; "protocol:MTL4CommandEncoder"
   ; "protocol:MTL4CommandQueue"
+  ; "protocol:MTL4CommitFeedback"
   ; "protocol:MTL4ComputeCommandEncoder"
+  ; "protocol:MTL4RenderCommandEncoder"
   ; "protocol:MTL4Archive"
   ; "protocol:MTL4Compiler"
   ; "protocol:MTL4CompilerTask"
@@ -169,8 +193,13 @@ let bound_identifiers =
   ; "protocol:MTLThreadgroupBinding"
   ; "typedef:MTL4BinaryFunctionOptions"
   ; "typedef:MTL4CompilerTaskStatus"
+  ; "typedef:MTL4CommitFeedbackHandler"
   ; "typedef:MTL4NewBinaryFunctionCompletionHandler"
   ; "typedef:MTLCommandBufferStatus"
+  ; "typedef:MTLClearColor"
+  ; "typedef:MTLLoadAction"
+  ; "typedef:MTLPrimitiveType"
+  ; "typedef:MTLStoreAction"
   ; "typedef:MTL4IndirectCommandBufferSupportState"
   ; "typedef:MTL4PipelineDataSetSerializerConfiguration"
   ; "typedef:MTL4ShaderReflection"
@@ -212,6 +241,7 @@ let bound_identifiers =
   ; "typedef:MTLTextureSwizzle"
   ; "typedef:MTLTextureSwizzleChannels"
   ; "typedef:MTLTextureUsage"
+  ; "typedef:MTLViewport"
   ; "typedef:MTLNewLibraryCompletionHandler"
   ; "typedef:MTLNewComputePipelineStateCompletionHandler"
   ; "typedef:MTLNewDynamicLibraryCompletionHandler"
@@ -227,22 +257,38 @@ let bound_identifiers =
         , [ "functionDescriptor"; "name"; "options"
           ; "setFunctionDescriptor:"; "setName:"; "setOptions:"
           ] )
-      ; "MTL4CommandAllocator", [ "reset" ]
+      ; ( "MTL4CommandAllocator"
+        , [ "allocatedSize"; "device"; "label"; "reset" ] )
+      ; ( "MTL4CommandAllocatorDescriptor", [ "label"; "setLabel:" ] )
       ; ( "MTL4CommandBuffer"
         , [ "beginCommandBufferWithAllocator:"; "computeCommandEncoder"
-          ; "endCommandBuffer"
+          ; "device"; "endCommandBuffer"; "label"
+          ; "renderCommandEncoderWithDescriptor:"; "setLabel:"
           ] )
       ; ( "MTL4CommandEncoder"
         , [ "barrierAfterQueueStages:beforeStages:visibilityOptions:"
-          ; "endEncoding"
+          ; "commandBuffer"; "endEncoding"; "label"; "setLabel:"
           ] )
       ; ( "MTL4CommandQueue"
-        , [ "commit:count:"; "device"; "label"; "signalEvent:value:"
+        , [ "commit:count:"; "commit:count:options:"; "device"; "label"
+          ; "signalEvent:value:"
           ; "updateBufferMappings:heap:operations:count:"
           ; "updateTextureMappings:heap:operations:count:"
           ] )
       ; ( "MTL4CommandQueueDescriptor"
         , [ "label"; "setLabel:" ] )
+      ; "MTL4CommitFeedback", [ "error" ]
+      ; "MTL4CommitOptions", [ "addFeedbackHandler:" ]
+      ; ( "MTL4RenderCommandEncoder"
+        , [ "drawPrimitives:vertexStart:vertexCount:"
+          ; "setRenderPipelineState:"; "setViewport:"
+          ] )
+      ; ( "MTL4RenderPassDescriptor"
+        , [ "colorAttachments"; "defaultRasterSampleCount"
+          ; "renderTargetHeight"; "renderTargetWidth"
+          ; "setDefaultRasterSampleCount:"; "setRenderTargetHeight:"
+          ; "setRenderTargetWidth:"
+          ] )
       ; ( "MTL4Compiler"
         , [ "device"; "label"
           ; "newBinaryFunctionWithDescriptor:compilerTaskOptions:error:"
@@ -405,6 +451,14 @@ let bound_identifiers =
           ; "tileBindings"; "vertexBindings"
           ] )
       ; ( "MTLRenderPipelineState", [ "device"; "label"; "reflection" ] )
+      ; ( "MTLRenderPassAttachmentDescriptor"
+        , [ "loadAction"; "setLoadAction:"; "setStoreAction:"
+          ; "setTexture:"; "storeAction"; "texture"
+          ] )
+      ; ( "MTLRenderPassColorAttachmentDescriptor"
+        , [ "clearColor"; "setClearColor:" ] )
+      ; ( "MTLRenderPassColorAttachmentDescriptorArray"
+        , [ "objectAtIndexedSubscript:" ] )
       ; ( "MTLDevice"
         , [ "currentAllocatedSize"; "hasUnifiedMemory"; "isHeadless"
           ; "heapBufferSizeAndAlignWithLength:options:"
@@ -416,7 +470,8 @@ let bound_identifiers =
           ; "newBufferWithBytesNoCopy:length:options:deallocator:"
           ; "newBufferWithLength:options:"
           ; "newBufferWithLength:options:placementSparsePageSize:"
-          ; "newCommandAllocator"; "newCommandBuffer"
+          ; "newCommandAllocator"; "newCommandAllocatorWithDescriptor:error:"
+          ; "newCommandBuffer"
           ; "newCommandQueue"
           ; "newBinaryArchiveWithDescriptor:error:"
           ; "newArchiveWithURL:error:"
@@ -632,8 +687,17 @@ let bound_identifiers =
           ] )
       ; ( "MTL4StaticLinkingDescriptor"
         , [ "functionDescriptors"; "groups"; "privateFunctionDescriptors" ] )
+      ; "MTL4CommandAllocator", [ "device"; "label" ]
+      ; "MTL4CommandAllocatorDescriptor", [ "label" ]
+      ; "MTL4CommandBuffer", [ "device"; "label" ]
+      ; "MTL4CommandEncoder", [ "commandBuffer"; "label" ]
       ; "MTL4CommandQueue", [ "device"; "label" ]
       ; "MTL4CommandQueueDescriptor", [ "label" ]
+      ; "MTL4CommitFeedback", [ "error" ]
+      ; ( "MTL4RenderPassDescriptor"
+        , [ "colorAttachments"; "defaultRasterSampleCount"
+          ; "renderTargetHeight"; "renderTargetWidth"
+          ] )
       ; "MTLAllocation", [ "allocatedSize" ]
       ; "MTLBinaryArchive", [ "device"; "label" ]
       ; "MTLBinaryArchiveDescriptor", [ "url" ]
@@ -654,6 +718,9 @@ let bound_identifiers =
           ; "tileBindings"; "vertexBindings"
           ] )
       ; "MTLRenderPipelineState", [ "device"; "label"; "reflection" ]
+      ; ( "MTLRenderPassAttachmentDescriptor"
+        , [ "loadAction"; "storeAction"; "texture" ] )
+      ; "MTLRenderPassColorAttachmentDescriptor", [ "clearColor" ]
       ; ( "MTLDevice"
         , [ "currentAllocatedSize"; "depth24Stencil8PixelFormatSupported"
           ; "hasUnifiedMemory"; "headless"; "lowPower"; "maxBufferLength"
@@ -756,6 +823,15 @@ let bound_identifiers =
       [ "MTL4ShaderReflectionBindingInfo"
       ; "MTL4ShaderReflectionBufferTypeInfo"
       ]
+  @ enum_cases "MTLLoadAction"
+      [ "MTLLoadActionClear"; "MTLLoadActionDontCare"; "MTLLoadActionLoad" ]
+  @ enum_cases "MTLPrimitiveType"
+      [ "MTLPrimitiveTypeLine"; "MTLPrimitiveTypeLineStrip"
+      ; "MTLPrimitiveTypePoint"; "MTLPrimitiveTypeTriangle"
+      ; "MTLPrimitiveTypeTriangleStrip"
+      ]
+  @ enum_cases "MTLStoreAction"
+      [ "MTLStoreActionDontCare"; "MTLStoreActionStore" ]
   @ enum_cases "MTLBindingAccess"
       [ "MTLArgumentAccessReadOnly"; "MTLArgumentAccessReadWrite"
       ; "MTLArgumentAccessWriteOnly"; "MTLBindingAccessReadOnly"

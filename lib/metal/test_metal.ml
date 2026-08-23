@@ -161,6 +161,21 @@ vertex void prismel_vertex_only(uint vertex_id [[vertex_id]]) {
 fragment float4 prismel_fragment(constant float4 &tint [[buffer(1)]]) {
   return tint;
 }
+
+vertex PrismelVertexOut prismel_fullscreen_vertex(uint vertex_id [[vertex_id]]) {
+  constexpr float2 positions[3] = {
+    float2(-1.0f, -1.0f),
+    float2(3.0f, -1.0f),
+    float2(-1.0f, 3.0f)
+  };
+  PrismelVertexOut result;
+  result.position = float4(positions[vertex_id], 0.0f, 1.0f);
+  return result;
+}
+
+fragment float4 prismel_green_fragment() {
+  return float4(0.0f, 1.0f, 0.0f, 1.0f);
+}
 |}
 
 let mesh_shader_source =
@@ -3820,6 +3835,211 @@ let test_metal4_compiler device =
     true
   end
 
+let test_metal4_render_commands device =
+  if not (get (Device.supports_family device Device.Metal4)) then false
+  else begin
+    let before_invalid = get (Release_queue.stats ()) in
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Allocator.create ~label:"invalid\000allocator" device));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Queue.create ~label:"invalid\000queue" device));
+    ignore
+      (expect_error Native_error
+         (Command4.Allocator.create ~label:"\255" device));
+    ignore
+      (expect_error Wrong_domain
+         (Domain.spawn (fun () -> Command4.Allocator.create device)
+          |> Domain.join));
+    let after_invalid = get (Release_queue.stats ()) in
+    if after_invalid.total_created <> before_invalid.total_created then
+      fail "invalid Metal 4 command labels allocated native handles";
+    let allocator =
+      get (Command4.Allocator.create ~label:"Metal 4 allocator" device)
+    in
+    let queue = get (Command4.Queue.create ~label:"Metal 4 queue" device) in
+    if get (Command4.Allocator.label allocator) <> Some "Metal 4 allocator"
+       || get (Command4.Queue.label queue) <> Some "Metal 4 queue"
+       || not (Device.same device (Command4.Allocator.device allocator))
+       || not (Device.same device (Command4.Queue.device queue))
+       || Command4.Allocator.generation allocator <= 0L
+       || Command4.Queue.generation queue <= 0L
+    then fail "Metal 4 command allocator/queue metadata is wrong";
+    let commands =
+      get
+        (Command4.Command_buffer.create allocator ~label:"Metal 4 render commands"
+           ())
+    in
+    if get (Command4.Command_buffer.label commands)
+       <> Some "Metal 4 render commands"
+       || Command4.Command_buffer.state commands
+          <> Command4.Command_buffer.Recording
+       || not (Device.same device (Command4.Command_buffer.device commands))
+       || Command4.Command_buffer.generation commands <= 0L
+    then fail "Metal 4 command-buffer metadata is wrong";
+    ignore
+      (expect_error Invalid_state
+         (Command4.Command_buffer.create allocator ()));
+    ignore
+      (expect_error Invalid_state (Command4.Allocator.reset allocator));
+    ignore
+      (expect_error Parent_has_dependents
+         (Command4.Allocator.destroy allocator));
+    let render_target_descriptor =
+      Texture.descriptor_2d ~storage:Buffer.Shared
+        ~usage:[ Texture.Render_target ] ~format:Texture.Bgra8_unorm ~width:8
+        ~height:8 ~label:"Metal 4 offscreen render target" ()
+    in
+    let render_target = get (Texture.create ~device render_target_descriptor) in
+    let non_target =
+      get
+        (Texture.create ~device
+           (Texture.descriptor_2d ~storage:Buffer.Shared
+              ~usage:[ Texture.Shader_read ] ~format:Texture.Bgra8_unorm
+              ~width:8 ~height:8 ()))
+    in
+    let clear =
+      Command4.Render_encoder.color ~red:1. ~green:0. ~blue:0. ~alpha:1.
+    in
+    let attachment =
+      Command4.Render_encoder.color_attachment
+        ~load_action:(Command4.Render_encoder.Clear clear) render_target
+    in
+    let invalid_clear =
+      Command4.Render_encoder.color ~red:nan ~green:0. ~blue:0. ~alpha:1.
+    in
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.create commands ~color_attachments:[]));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.create commands
+            ~color_attachments:(List.init 9 (fun _ -> attachment))));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.create commands
+            ~color_attachments:
+              [ Command4.Render_encoder.color_attachment
+                  ~load_action:(Command4.Render_encoder.Clear invalid_clear)
+                  render_target
+              ]));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.create commands
+            ~color_attachments:
+              [ Command4.Render_encoder.color_attachment non_target ]));
+    let compiler = get (Compiler.create device) in
+    let library =
+      get
+        (Compiler.compile_source ~name:"metal4-command-render-library" compiler
+           render_shader_source)
+    in
+    let pipeline =
+      get
+        (Compiler.create_render_pipeline ~label:"Metal 4 executable render"
+           ~fragment:"prismel_green_fragment" compiler ~library
+           ~vertex:"prismel_fullscreen_vertex")
+    in
+    if Render_pipeline.raster_sample_count pipeline <> 1
+       || Render_pipeline.color_formats pipeline <> [ Texture.Bgra8_unorm ]
+    then fail "Metal 4 render pipeline lost target metadata";
+    let encoder =
+      get
+        (Command4.Render_encoder.create ~label:"Metal 4 render encoder" commands
+           ~color_attachments:[ attachment ])
+    in
+    ignore
+      (expect_error Parent_has_dependents (Texture.destroy render_target));
+    ignore
+      (expect_error Invalid_state
+         (Command4.Command_buffer.end_recording commands));
+    ignore
+      (expect_error Invalid_state
+         (Command4.Render_encoder.draw_primitives encoder
+            Command4.Render_encoder.Triangle ~vertex_start:0 ~vertex_count:3));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.set_viewport encoder
+            (Command4.Render_encoder.viewport ~x:0. ~y:0. ~width:9. ~height:8.
+               ~z_near:0. ~z_far:1.)));
+    get (Command4.Render_encoder.set_pipeline encoder pipeline);
+    ignore
+      (expect_error Parent_has_dependents (Render_pipeline.destroy pipeline));
+    get
+      (Command4.Render_encoder.set_viewport encoder
+         (Command4.Render_encoder.viewport ~x:0. ~y:0. ~width:8. ~height:8.
+            ~z_near:0. ~z_far:1.));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.draw_primitives encoder
+            Command4.Render_encoder.Triangle ~vertex_start:(-1) ~vertex_count:3));
+    get
+      (Command4.Render_encoder.draw_primitives encoder
+         Command4.Render_encoder.Triangle ~vertex_start:0 ~vertex_count:3);
+    get (Command4.Render_encoder.end_encoding encoder);
+    if not (Command4.Render_encoder.destroyed encoder) then
+      fail "ended Metal 4 render encoder remained live";
+    get (Command4.Command_buffer.end_recording commands);
+    if Command4.Command_buffer.state commands <> Command4.Command_buffer.Ended then
+      fail "ended Metal 4 command buffer retained the recording state";
+    let empty_commands = get (Command4.Command_buffer.create allocator ()) in
+    get (Command4.Command_buffer.end_recording empty_commands);
+    get (Command4.Command_buffer.destroy empty_commands);
+    ignore (expect_error Invalid_argument (Command4.Queue.commit queue []));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Queue.commit queue [ commands; commands ]));
+    let submission = get (Command4.Queue.commit queue [ commands ]) in
+    if Command4.Submission.completed submission
+       || not (Device.same device (Command4.Submission.device submission))
+       || Command4.Submission.generation submission <= 0L
+       || Command4.Command_buffer.state commands
+          <> Command4.Command_buffer.Submitted
+    then fail "Metal 4 submission metadata is wrong";
+    ignore
+      (expect_error Parent_has_dependents (Command4.Queue.destroy queue));
+    ignore
+      (expect_error Invalid_state
+         (Command4.Command_buffer.destroy commands));
+    ignore
+      (expect_error Invalid_state (Command4.Submission.destroy submission));
+    get (Command4.Submission.wait submission);
+    get (Command4.Submission.wait submission);
+    if not (Command4.Submission.completed submission)
+       || Command4.Command_buffer.state commands
+          <> Command4.Command_buffer.Completed
+    then fail "waited Metal 4 submission did not complete";
+    let pixels =
+      get
+        (Texture.read_bytes render_target
+           ~region:{ Texture.x = 0; y = 0; z = 0; width = 8; height = 8; depth = 1 }
+           ~mip_level:0 ~slice:0 ~bytes_per_row:32 ~bytes_per_image:256)
+    in
+    for offset = 0 to 63 do
+      let pixel = offset * 4 in
+      if Char.code (Bytes.get pixels pixel) <> 0
+         || Char.code (Bytes.get pixels (pixel + 1)) <> 255
+         || Char.code (Bytes.get pixels (pixel + 2)) <> 0
+         || Char.code (Bytes.get pixels (pixel + 3)) <> 255
+      then fail "Metal 4 offscreen draw produced a wrong pixel at index %d" offset
+    done;
+    get (Render_pipeline.destroy pipeline);
+    get (Texture.destroy render_target);
+    get (Texture.destroy non_target);
+    get (Command4.Submission.destroy submission);
+    get (Command4.Command_buffer.destroy commands);
+    if get (Command4.Allocator.allocated_size allocator) < 0L then
+      fail "Metal 4 allocator reported a negative size";
+    get (Command4.Allocator.reset allocator);
+    get (Command4.Queue.destroy queue);
+    get (Command4.Allocator.destroy allocator);
+    get (Library.destroy library);
+    get (Compiler.destroy compiler);
+    Printf.printf "Metal 4 offscreen render-command conformance passed\n%!";
+    true
+  end
+
 let () =
   if Sys.os_type <> "Unix"
      || not (Sys.file_exists "/System/Library/Frameworks/Metal.framework")
@@ -3836,6 +4056,7 @@ let () =
     if info.max_buffer_length < 16L then fail "device buffer limit is invalid";
     test_pipeline_assets device;
     ignore (test_metal4_compiler device);
+    ignore (test_metal4_render_commands device);
     test_format_matrix device;
     test_texture_swizzle_and_compression device;
     let residency_sets_supported = test_residency_set device in
@@ -5642,6 +5863,6 @@ let () =
         stats.external_deallocations
         stats.external_deallocation_mismatches;
     Printf.printf
-      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/compiler-task/pipeline-dataset/binary-function/static-link/reflection/compute/render/mesh/object/tile conformance passed on %s\n%!"
+      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/compiler-task/pipeline-dataset/binary-function/static-link/reflection/compute/render/mesh/object/tile/command4-render conformance passed on %s\n%!"
       info.name
   end
