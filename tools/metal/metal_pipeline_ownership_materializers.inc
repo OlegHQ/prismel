@@ -52,7 +52,7 @@ prismel_materialize_compute_pipeline(PrismelComputePipelineObjects v,
   NSString *bad=prismel_pipeline_validate_array(v.libraries,@"compute libraries");
   if(bad){*failure=bad;return nil;}
   MTLComputePipelineDescriptor *d=[MTLComputePipelineDescriptor new];
-  @try { d.computeFunction=v.computeFunction;d.insertLibraries=v.libraries;
+  @try { d.computeFunction=v.computeFunction;d.preloadedLibraries=v.libraries;
     d.stageInputDescriptor=v.stageInput;return d;
   } @catch(NSException*x){*failure=x.reason;return nil;}
 }
