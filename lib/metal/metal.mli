@@ -2129,6 +2129,13 @@ module Command4 : sig
     val destroyed : t -> bool
     val state : t -> state
     val label : t -> (string option, error) result
+    val push_debug_group : t -> string -> (unit, error) result
+    val pop_debug_group : t -> (unit, error) result
+    val use_residency_sets : t -> Residency_set.t list -> (unit, error) result
+    val write_timestamp : t -> Counter_heap.t -> index:int64 -> (unit, error) result
+    val resolve_counter : t -> Counter_heap.t -> location:int64 -> length:int64 ->
+      destination:Buffer.t -> destination_offset:int64 -> ?wait_fence:Fence.t ->
+      ?update_fence:Fence.t -> unit -> (unit, error) result
 
     (** Ends native command recording after the current encoder has ended. *)
     val end_recording : t -> (unit, error) result

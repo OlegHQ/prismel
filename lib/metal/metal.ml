@@ -1295,6 +1295,7 @@ type command4_buffer =
   ; mutable phase : command4_phase
   ; owns_recording : bool ref
   ; resources : command4_resource list ref
+  ; mutable debug_group_depth : int
   }
 
 type command4_submission =
@@ -11616,6 +11617,7 @@ module Command4 = struct
                    ; phase = Command4_recording
                    ; owns_recording
                    ; resources
+                   ; debug_group_depth = 0
                    }
                  in
                  allocator.recording <- true;
@@ -11639,6 +11641,98 @@ module Command4 = struct
         | Error _ as failure -> failure
         | Ok () -> Ok (Metal_raw.command4_buffer_label value.raw))
 
+    let callable operation (value : t) callback =
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () when value.phase <> Command4_recording ->
+            error operation Invalid_state "command buffer is not recording"
+        | Ok () when dependent_count value.lifetime <> 0 ->
+            error operation Invalid_state "a command encoder is active"
+        | Ok () -> callback ())
+
+    let push_debug_group (value : t) label =
+      let operation = "Metal.Command4.Command_buffer.push_debug_group" in
+      if label = "" || contains_nul label then
+        error operation Invalid_argument "debug label is empty or contains NUL"
+      else callable operation value (fun () ->
+        match Metal_raw.metal4_buffer_debug value.raw label false with
+        | Error message -> native_error operation message
+        | Ok () -> value.debug_group_depth <- value.debug_group_depth + 1; Ok ())
+
+    let pop_debug_group (value : t) =
+      let operation = "Metal.Command4.Command_buffer.pop_debug_group" in
+      callable operation value (fun () ->
+        if value.debug_group_depth = 0 then
+          error operation Invalid_state "debug-group stack is empty"
+        else match Metal_raw.metal4_buffer_debug value.raw "" true with
+          | Error message -> native_error operation message
+          | Ok () -> value.debug_group_depth <- value.debug_group_depth - 1; Ok ())
+
+    let use_residency_sets (value : t) (sets : Residency_set.t list) =
+      let operation = "Metal.Command4.Command_buffer.use_residency_sets" in
+      if sets = [] then error operation Invalid_argument "residency-set list is empty"
+      else callable operation value (fun () ->
+        let rec validate = function
+          | [] -> Ok ()
+          | (set : residency_set) :: rest ->
+              Result.bind (ensure_live operation set.lifetime) (fun () ->
+                Result.bind (ensure_same_device operation value.allocator.device set.device)
+                  (fun () -> validate rest))
+        in
+        Result.bind (validate sets) (fun () ->
+          match Metal_raw.metal4_buffer_use_residencies value.raw
+            (Array.of_list (List.map (fun (set : residency_set) -> set.raw) sets)) with
+          | Error message -> native_error operation message
+          | Ok () -> List.iter (fun (set : residency_set) ->
+              retain_command4_other value set.lifetime) sets; Ok ()))
+
+    let write_timestamp (value : t) (heap : Counter_heap.t) ~index =
+      let operation = "Metal.Command4.Command_buffer.write_timestamp" in
+      callable operation value (fun () ->
+        Result.bind (ensure_live operation heap.lifetime) (fun () ->
+          Result.bind (ensure_same_device operation value.allocator.device heap.device)
+            (fun () -> if index < 0L || index >= heap.count then
+              error operation Invalid_argument "counter index is out of range"
+            else match Metal_raw.metal4_buffer_timestamp value.raw heap.raw index with
+              | Error message -> native_error operation message
+              | Ok () -> retain_command4_other value heap.lifetime; Ok ())))
+
+    let resolve_counter (value : t) (heap : Counter_heap.t) ~location ~length
+        ~(destination : Buffer.t) ~destination_offset ?wait_fence ?update_fence () =
+      let operation = "Metal.Command4.Command_buffer.resolve_counter" in
+      callable operation value (fun () ->
+        let range_ok total offset span = offset >= 0L && span >= 0L
+          && offset <= total && span <= Int64.sub total offset in
+        let output_length = Int64.mul length 8L in
+        Result.bind (ensure_live operation heap.lifetime) (fun () ->
+          Result.bind (ensure_same_device operation value.allocator.device heap.device) (fun () ->
+            Result.bind (ensure_buffer_usable operation destination) (fun () ->
+              Result.bind (ensure_same_device operation value.allocator.device destination.device) (fun () ->
+                if location < 0L || length <= 0L || location > heap.count
+                   || length > Int64.sub heap.count location
+                   || length > Int64.div Int64.max_int 8L
+                   || Int64.rem destination_offset 8L <> 0L
+                   || not (range_ok destination.length destination_offset output_length)
+                then error operation Invalid_argument "counter resolve range is invalid"
+                else
+                  let validate_fence = function None -> Ok () | Some (fence : Fence.t) ->
+                    Result.bind (ensure_live operation fence.lifetime) (fun () ->
+                      ensure_same_device operation value.allocator.device fence.device) in
+                  Result.bind (validate_fence wait_fence) (fun () ->
+                    Result.bind (validate_fence update_fence) (fun () ->
+                      match Metal_raw.metal4_buffer_resolve_counter value.raw
+                        (heap.raw,(location,length),(destination.raw,destination_offset,output_length),
+                         Option.map (fun (f : Fence.t) -> f.raw) wait_fence,
+                         Option.map (fun (f : Fence.t) -> f.raw) update_fence) with
+                      | Error message -> native_error operation message
+                      | Ok () ->
+                          retain_command4_other value heap.lifetime;
+                          retain_command4_buffer value destination;
+                          Option.iter (fun (f : Fence.t) -> retain_command4_other value f.lifetime) wait_fence;
+                          Option.iter (fun (f : Fence.t) -> retain_command4_other value f.lifetime) update_fence;
+                          Ok ())))))))
+
     let end_recording (value : t) =
       let operation = "Metal.Command4.Command_buffer.end_recording" in
       on_main operation (fun () ->
@@ -11648,6 +11742,8 @@ module Command4 = struct
             error operation Invalid_state "command buffer is not recording"
         | Ok () when dependent_count value.lifetime <> 0 ->
             error operation Invalid_state "a command encoder is still open"
+        | Ok () when value.debug_group_depth <> 0 ->
+            error operation Invalid_state "a command-buffer debug group is still open"
         | Ok () ->
             (match Metal_raw.command4_buffer_end value.raw with
              | Error message -> native_error operation message

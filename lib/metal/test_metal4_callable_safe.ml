@@ -14,6 +14,15 @@ let ()=match Device.system_default()with
   let kind,count,_=get(Command4.Counter_heap.info counter)in
   if kind<>Command4.Counter_heap.Timestamp||count<>8L then failwith"counter enum mapping drift";
   let commands=get(Command4.Command_buffer.create allocator())in
+  let residency=get(Residency_set.create~device(Residency_set.make_descriptor~initial_capacity:1()))in
+  expect Invalid_argument(Command4.Command_buffer.resolve_counter commands counter
+    ~location:0L~length:1L~destination~destination_offset:1020L());
+  get(Command4.Command_buffer.push_debug_group commands "command-buffer");
+  get(Command4.Command_buffer.pop_debug_group commands);
+  get(Command4.Command_buffer.use_residency_sets commands [residency]);
+  get(Command4.Command_buffer.write_timestamp commands counter~index:1L);
+  get(Command4.Command_buffer.resolve_counter commands counter~location:1L
+    ~length:1L~destination~destination_offset:512L());
   let encoder=get(Command4.Compute_encoder.create commands)in
   expect Invalid_argument(Command4.Compute_encoder.fill_buffer encoder source~offset:1000L~length:25L~byte:7);
   get(Command4.Compute_encoder.push_debug_group encoder"callable");
@@ -26,7 +35,6 @@ let ()=match Device.system_default()with
   get(Command4.Command_buffer.end_recording commands);
   expect Parent_has_dependents(Buffer.destroy source);
   let queue=get(Command4.Queue.create device)in
-  let residency=get(Residency_set.create~device(Residency_set.make_descriptor~initial_capacity:1()))in
   get(Command4.Queue.add_residency_sets queue[residency]);
   expect Parent_has_dependents(Residency_set.destroy residency);
   get(Command4.Queue.remove_residency_set queue residency);
