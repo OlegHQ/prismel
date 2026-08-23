@@ -917,6 +917,8 @@ enum class Handle_kind : std::uint32_t {
   Indirect_command_buffer,
   Indirect_render_command,
   Indirect_compute_command,
+  Acceleration_structure,
+  Acceleration_encoder,
 };
 
 struct Handle {
@@ -13122,6 +13124,129 @@ extern "C" CAMLprim value caml_prismel_metal_command_buffer_compute_encoder(
     raw = allocate_handle(encoder, Handle_kind::Compute_encoder);
   }
   CAMLreturn(result_ok(raw));
+}
+
+static MTLPrimitiveAccelerationStructureDescriptor *
+acceleration_triangle_descriptor_of_ocaml(value raw_descriptor) {
+  id<MTLBuffer> vertex_buffer =
+      object_of_handle(Field(raw_descriptor, 0), Handle_kind::Buffer);
+  MTLAccelerationStructureTriangleGeometryDescriptor *geometry =
+      [MTLAccelerationStructureTriangleGeometryDescriptor descriptor];
+  geometry.vertexBuffer = vertex_buffer;
+  geometry.vertexBufferOffset = Int64_val(Field(raw_descriptor, 1));
+  geometry.vertexStride = Int64_val(Field(raw_descriptor, 2));
+  geometry.triangleCount = Int64_val(Field(raw_descriptor, 3));
+  value raw_index = Field(raw_descriptor, 4);
+  if (Is_block(raw_index)) {
+    geometry.indexBuffer =
+        object_of_handle(Field(raw_index, 0), Handle_kind::Buffer);
+    geometry.indexBufferOffset = Int64_val(Field(raw_descriptor, 5));
+    geometry.indexType = MTLIndexTypeUInt32;
+  }
+  MTLPrimitiveAccelerationStructureDescriptor *descriptor =
+      [MTLPrimitiveAccelerationStructureDescriptor descriptor];
+  descriptor.geometryDescriptors = @[ geometry ];
+  return descriptor;
+}
+
+extern "C" CAMLprim value caml_prismel_metal_acceleration_structure_sizes(
+    value raw_device, value raw_descriptor) {
+  CAMLparam2(raw_device, raw_descriptor);
+  CAMLlocal4(result, tuple, first, second);
+  CAMLlocal1(third);
+  @autoreleasepool {
+    @try {
+      id<MTLDevice> device = object_of_handle(raw_device, Handle_kind::Device);
+      MTLAccelerationStructureSizes sizes =
+          [device accelerationStructureSizesWithDescriptor:
+                      acceleration_triangle_descriptor_of_ocaml(raw_descriptor)];
+      tuple = caml_alloc_tuple(3);
+      first = caml_copy_int64((int64_t)sizes.accelerationStructureSize);
+      second = caml_copy_int64((int64_t)sizes.buildScratchBufferSize);
+      third = caml_copy_int64((int64_t)sizes.refitScratchBufferSize);
+      Store_field(tuple, 0, first);
+      Store_field(tuple, 1, second);
+      Store_field(tuple, 2, third);
+      result = result_ok(tuple);
+    } @catch (NSException *exception) {
+      result = result_error(exception.reason);
+    }
+  }
+  CAMLreturn(result);
+}
+
+extern "C" CAMLprim value caml_prismel_metal_acceleration_structure_create(
+    value raw_device, value raw_size) {
+  CAMLparam2(raw_device, raw_size);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    @try {
+      id<MTLDevice> device = object_of_handle(raw_device, Handle_kind::Device);
+      id<MTLAccelerationStructure> acceleration =
+          [device newAccelerationStructureWithSize:Int64_val(raw_size)];
+      if (acceleration == nil)
+        CAMLreturn(result_error_text("Metal failed to allocate acceleration structure"));
+      raw = allocate_handle(acceleration, Handle_kind::Acceleration_structure);
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+  CAMLreturn(result_ok(raw));
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_command_buffer_acceleration_encoder(value raw_buffer) {
+  CAMLparam1(raw_buffer);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    id<MTLCommandBuffer> buffer =
+        object_of_handle(raw_buffer, Handle_kind::Command_buffer);
+    id<MTLAccelerationStructureCommandEncoder> encoder =
+        [buffer accelerationStructureCommandEncoder];
+    if (encoder == nil)
+      CAMLreturn(result_error_text("Metal failed to create an acceleration encoder"));
+    raw = allocate_handle(encoder, Handle_kind::Acceleration_encoder);
+  }
+  CAMLreturn(result_ok(raw));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_acceleration_encoder_build(
+    value raw_encoder, value raw_acceleration, value raw_descriptor,
+    value raw_scratch, value raw_scratch_offset) {
+  CAMLparam5(raw_encoder, raw_acceleration, raw_descriptor, raw_scratch,
+             raw_scratch_offset);
+  @autoreleasepool {
+    @try {
+      id<MTLAccelerationStructureCommandEncoder> encoder =
+          object_of_handle(raw_encoder, Handle_kind::Acceleration_encoder);
+      id<MTLAccelerationStructure> acceleration = object_of_handle(
+          raw_acceleration, Handle_kind::Acceleration_structure);
+      id<MTLBuffer> scratch =
+          object_of_handle(raw_scratch, Handle_kind::Buffer);
+      [encoder buildAccelerationStructure:acceleration
+                               descriptor:acceleration_triangle_descriptor_of_ocaml(raw_descriptor)
+                            scratchBuffer:scratch
+                      scratchBufferOffset:Int64_val(raw_scratch_offset)];
+      CAMLreturn(result_unit());
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_acceleration_encoder_end(value raw_encoder) {
+  CAMLparam1(raw_encoder);
+  @autoreleasepool {
+    @try {
+      id<MTLAccelerationStructureCommandEncoder> encoder =
+          object_of_handle(raw_encoder, Handle_kind::Acceleration_encoder);
+      [encoder endEncoding];
+      CAMLreturn(result_unit());
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
 }
 
 extern "C" CAMLprim value caml_prismel_metal_command_buffer_render_encoder(

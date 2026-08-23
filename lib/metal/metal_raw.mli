@@ -53,6 +53,15 @@ type function_constant_value = string * int * int64 * float
 (** Name, Metal data-type code, index, and required flag. *)
 type function_constant_info = string * int * int64 * bool
 
+type acceleration_triangle_descriptor =
+  { vertex_buffer : handle
+  ; vertex_offset : int64
+  ; vertex_stride : int64
+  ; triangle_count : int64
+  ; index_buffer : handle option
+  ; index_offset : int64
+  }
+
 (** Positional native ABI value for one reflected pipeline binding. Keep this
     synchronized with [copy_bindings] in [metal_bridge.mm]. *)
 type pipeline_binding_info =
@@ -1267,6 +1276,27 @@ external command_queue_remove_residency_sets :
 
 external command_buffer_create : handle -> (handle, string) result =
   "caml_prismel_metal_command_buffer_create"
+
+external acceleration_structure_sizes :
+  handle -> acceleration_triangle_descriptor ->
+  ((int64 * int64 * int64), string) result
+  = "caml_prismel_metal_acceleration_structure_sizes"
+
+external acceleration_structure_create :
+  handle -> int64 -> (handle, string) result
+  = "caml_prismel_metal_acceleration_structure_create"
+
+external command_buffer_acceleration_encoder :
+  handle -> (handle, string) result
+  = "caml_prismel_metal_command_buffer_acceleration_encoder"
+
+external acceleration_encoder_build :
+  handle -> handle -> acceleration_triangle_descriptor -> handle -> int64 ->
+  (unit, string) result
+  = "caml_prismel_metal_acceleration_encoder_build"
+
+external acceleration_encoder_end : handle -> (unit, string) result
+  = "caml_prismel_metal_acceleration_encoder_end"
 
 external command_buffer_set_label : handle -> string -> (unit, string) result =
   "caml_prismel_metal_command_buffer_set_label"

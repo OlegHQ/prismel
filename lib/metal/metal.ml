@@ -788,6 +788,13 @@ and buffer =
   ; placement_mappings : placement_mapping list ref
   }
 
+and acceleration_structure =
+  { raw : Metal_raw.handle
+  ; lifetime : lifetime
+  ; device : device
+  ; size : int64
+  }
+
 and texture =
   { raw : Metal_raw.handle
   ; lifetime : lifetime
@@ -1334,6 +1341,7 @@ type indirect_compute_command =
 
 type command_resource =
   | Command_buffer_buffer of buffer
+  | Command_buffer_acceleration_structure of acceleration_structure
   | Command_buffer_texture of texture
   | Command_buffer_render_pipeline of render_pipeline
   | Command_residency_set of residency_set
@@ -1374,6 +1382,12 @@ type blit_encoder =
   ; command_buffer : command_buffer
   }
 
+type acceleration_encoder =
+  { raw : Metal_raw.handle
+  ; lifetime : lifetime
+  ; command_buffer : command_buffer
+  }
+
 let make_device raw =
   ({ raw; lifetime = lifetime (); registry_id = Metal_raw.device_registry_id raw }
     : device)
@@ -1383,6 +1397,7 @@ let attach_finalizer ?(on_finalize = fun () -> ()) value lifetime parent =
 
 let command_resource_lifetime = function
   | Command_buffer_buffer buffer -> buffer.lifetime
+  | Command_buffer_acceleration_structure value -> value.lifetime
   | Command_buffer_texture texture -> texture.lifetime
   | Command_buffer_render_pipeline pipeline -> pipeline.lifetime
   | Command_residency_set residency_set -> residency_set.lifetime
@@ -1403,6 +1418,7 @@ let command_resource_heap = function
   | Command_buffer_buffer { parent = Heap_resource heap; _ } -> Some heap
   | Command_buffer_buffer
       { parent = (Device_resource _ | External_resource _); _ } -> None
+  | Command_buffer_acceleration_structure _ -> None
   | Command_buffer_texture texture -> command_texture_heap texture
   | Command_buffer_render_pipeline _ | Command_residency_set _
   | Command_buffer_indirect _ -> None
@@ -1602,7 +1618,7 @@ let retain_command_buffer_buffer (command_buffer : command_buffer) (buffer : buf
     List.exists
       (function
         | Command_buffer_buffer retained -> retained.lifetime == buffer.lifetime
-        | Command_buffer_texture _ | Command_buffer_render_pipeline _
+        | Command_buffer_acceleration_structure _ | Command_buffer_texture _ | Command_buffer_render_pipeline _
         | Command_buffer_indirect _ -> false
         | Command_residency_set _ -> false)
       !(command_buffer.resources)
@@ -1617,6 +1633,24 @@ let retain_command_buffer_buffer (command_buffer : command_buffer) (buffer : buf
       Command_buffer_buffer buffer :: !(command_buffer.resources)
   end
 
+let retain_command_buffer_acceleration_structure
+    (command_buffer : command_buffer) (value : acceleration_structure) =
+  let already_retained =
+    List.exists
+      (function
+        | Command_buffer_acceleration_structure retained ->
+            retained.lifetime == value.lifetime
+        | Command_buffer_buffer _ | Command_buffer_texture _
+        | Command_buffer_render_pipeline _ | Command_residency_set _
+        | Command_buffer_indirect _ -> false)
+      !(command_buffer.resources)
+  in
+  if not already_retained then begin
+    attach value.lifetime;
+    command_buffer.resources :=
+      Command_buffer_acceleration_structure value :: !(command_buffer.resources)
+  end
+
 let retain_command_buffer_texture (command_buffer : command_buffer)
     (texture : texture) =
   let already_retained =
@@ -1624,7 +1658,7 @@ let retain_command_buffer_texture (command_buffer : command_buffer)
       (function
         | Command_buffer_texture retained ->
             retained.lifetime == texture.lifetime
-        | Command_buffer_buffer _ | Command_buffer_render_pipeline _
+        | Command_buffer_buffer _ | Command_buffer_acceleration_structure _ | Command_buffer_render_pipeline _
         | Command_residency_set _
         | Command_buffer_indirect _ -> false)
       !(command_buffer.resources)
@@ -1644,7 +1678,7 @@ let retain_command_buffer_residency_set (command_buffer : command_buffer)
       (function
         | Command_residency_set retained ->
             retained.lifetime == residency_set.lifetime
-        | Command_buffer_buffer _ | Command_buffer_texture _
+        | Command_buffer_buffer _ | Command_buffer_acceleration_structure _ | Command_buffer_texture _
         | Command_buffer_render_pipeline _
         | Command_buffer_indirect _ -> false)
       !(command_buffer.resources)
@@ -1661,7 +1695,7 @@ let retain_command_buffer_indirect (command_buffer : command_buffer)
     List.exists
       (function
         | Command_buffer_indirect retained -> retained.lifetime == value.lifetime
-        | Command_buffer_buffer _ | Command_buffer_texture _
+        | Command_buffer_buffer _ | Command_buffer_acceleration_structure _ | Command_buffer_texture _
         | Command_buffer_render_pipeline _
         | Command_residency_set _ -> false)
       !(command_buffer.resources)
@@ -1680,7 +1714,7 @@ let retain_command_buffer_render_pipeline (command_buffer : command_buffer)
          (function
            | Command_buffer_render_pipeline retained ->
                retained.lifetime == pipeline.lifetime
-           | Command_buffer_buffer _ | Command_buffer_texture _
+           | Command_buffer_buffer _ | Command_buffer_acceleration_structure _ | Command_buffer_texture _
            | Command_residency_set _ | Command_buffer_indirect _ -> false)
          !(command_buffer.resources))
   then begin
@@ -2767,6 +2801,120 @@ module Buffer = struct
         detach (resource_parent_lifetime value.parent);
         Option.iter detach
           (resource_parent_extra_device value.device value.parent))
+end
+
+module Acceleration_structure = struct
+  type t = acceleration_structure
+
+  type sizes =
+    { acceleration_structure_size : int64
+    ; build_scratch_buffer_size : int64
+    ; refit_scratch_buffer_size : int64
+    }
+
+  module Triangle = struct
+    type t =
+      { vertex_buffer : buffer
+      ; vertex_offset : int64
+      ; vertex_stride : int64
+      ; triangle_count : int64
+      ; index_buffer : buffer option
+      ; index_offset : int64
+      }
+
+    let create ~(vertex_buffer : buffer) ?(vertex_offset = 0L) ~vertex_stride
+        ~triangle_count ?(index_buffer : buffer option) ?(index_offset = 0L) () =
+      let operation = "Metal.Acceleration_structure.Triangle.create" in
+      if vertex_offset < 0L || index_offset < 0L || vertex_stride < 12L
+         || triangle_count <= 0L
+      then
+        error operation Invalid_argument
+          "offsets must be nonnegative, stride at least 12, and triangle count positive"
+      else if Int64.rem vertex_stride 4L <> 0L then
+        error operation Invalid_argument "vertex stride must be four-byte aligned"
+      else
+        match ensure_live operation vertex_buffer.lifetime with
+        | Error _ as failure -> failure
+        | Ok () ->
+            let vertex_count = Int64.mul triangle_count 3L in
+            if triangle_count > Int64.div Int64.max_int 3L
+               || vertex_count <= 0L
+            then error operation Invalid_argument "triangle count overflows"
+            else
+              let last = Int64.sub vertex_count 1L in
+              if last > Int64.div (Int64.sub Int64.max_int 12L) vertex_stride
+              then error operation Invalid_argument "vertex range overflows"
+              else
+                let required =
+                  Int64.add vertex_offset (Int64.add (Int64.mul last vertex_stride) 12L)
+                in
+                if required < vertex_offset || required > vertex_buffer.length then
+                  error operation Invalid_argument "vertex range exceeds its buffer"
+                else
+                  match index_buffer with
+                  | None ->
+                      Ok { vertex_buffer; vertex_offset; vertex_stride; triangle_count
+                         ; index_buffer; index_offset }
+                  | Some index ->
+                      (match ensure_live operation index.lifetime with
+                      | Error _ as failure -> failure
+                      | Ok () when index.device.lifetime != vertex_buffer.device.lifetime ->
+                          error operation Device_mismatch "index and vertex buffers use different devices"
+                      | Ok () ->
+                          let bytes = Int64.mul vertex_count 4L in
+                          if vertex_count > Int64.div Int64.max_int 4L
+                             || index_offset > index.length
+                             || bytes > Int64.sub index.length index_offset
+                          then error operation Invalid_argument "index range exceeds its buffer"
+                          else Ok { vertex_buffer; vertex_offset; vertex_stride; triangle_count
+                                  ; index_buffer; index_offset })
+
+    let raw value : Metal_raw.acceleration_triangle_descriptor =
+      { vertex_buffer = value.vertex_buffer.raw
+      ; vertex_offset = value.vertex_offset
+      ; vertex_stride = value.vertex_stride
+      ; triangle_count = value.triangle_count
+      ; index_buffer = Option.map (fun (buffer : buffer) -> buffer.raw) value.index_buffer
+      ; index_offset = value.index_offset }
+  end
+
+  let sizes ~(device : device) descriptor =
+    let operation = "Metal.Acceleration_structure.sizes" in
+    on_main operation (fun () ->
+      match ensure_live operation device.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when descriptor.Triangle.vertex_buffer.device.lifetime != device.lifetime ->
+          error operation Device_mismatch "descriptor buffer belongs to another device"
+      | Ok () ->
+          match Metal_raw.acceleration_structure_sizes device.raw (Triangle.raw descriptor) with
+          | Error message -> native_error operation message
+          | Ok (acceleration_structure_size, build_scratch_buffer_size,
+                refit_scratch_buffer_size) ->
+              Ok { acceleration_structure_size; build_scratch_buffer_size;
+                   refit_scratch_buffer_size })
+
+  let create ~(device : device) ~size =
+    let operation = "Metal.Acceleration_structure.create" in
+    on_main operation (fun () ->
+      if size <= 0L then error operation Invalid_argument "size must be positive"
+      else match ensure_live operation device.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          match Metal_raw.acceleration_structure_create device.raw size with
+          | Error message -> native_error operation message
+          | Ok raw ->
+              let value = { raw; lifetime = lifetime (); device; size } in
+              attach device.lifetime;
+              attach_finalizer value value.lifetime device.lifetime;
+              Ok value)
+
+  let device (value : t) = value.device
+  let size (value : t) = value.size
+  let generation (value : t) = Metal_raw.generation value.raw
+  let destroyed (value : t) = is_destroyed value.lifetime
+  let destroy (value : t) =
+    destroy_parent "Metal.Acceleration_structure.destroy" value.lifetime value.raw
+      (fun () -> detach value.device.lifetime)
 end
 
 module Texture = struct
@@ -13303,7 +13451,8 @@ module Command_buffer = struct
       (function
         | Command_residency_set retained ->
             retained.lifetime == residency_set.lifetime
-        | Command_buffer_buffer _ | Command_buffer_texture _
+        | Command_buffer_buffer _ | Command_buffer_acceleration_structure _
+        | Command_buffer_texture _
         | Command_buffer_render_pipeline _ | Command_buffer_indirect _ -> false)
       !(value.resources)
 
@@ -13415,6 +13564,88 @@ module Command_buffer = struct
       (fun () ->
         release_command_resources value.resources;
         detach value.queue.lifetime)
+end
+
+module Acceleration_encoder = struct
+  type t = acceleration_encoder
+
+  let create (command_buffer : Command_buffer.t) =
+    let operation = "Metal.Acceleration_encoder.create" in
+    on_main operation (fun () ->
+      match ensure_live operation command_buffer.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when command_buffer.phase <> Recording ->
+          error operation Invalid_state "command buffer is no longer recording"
+      | Ok () when dependent_count command_buffer.lifetime <> 0 ->
+          error operation Invalid_state "command buffer already has an open encoder"
+      | Ok () ->
+          match Metal_raw.command_buffer_acceleration_encoder command_buffer.raw with
+          | Error message -> native_error operation message
+          | Ok raw ->
+              let value = { raw; lifetime = lifetime (); command_buffer } in
+              attach command_buffer.lifetime;
+              attach_finalizer value value.lifetime command_buffer.lifetime;
+              Ok value)
+
+  let build (value : t) ~(destination : Acceleration_structure.t)
+      ~(descriptor : Acceleration_structure.Triangle.t) ~(scratch : buffer) ~scratch_offset =
+    let operation = "Metal.Acceleration_encoder.build" in
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          let device = value.command_buffer.queue.device in
+          let buffers =
+            descriptor.Acceleration_structure.Triangle.vertex_buffer
+            :: scratch
+            :: Option.to_list descriptor.index_buffer
+          in
+          let rec validate = function
+            | [] -> Ok ()
+            | (buffer : buffer) :: rest ->
+                (match ensure_live operation buffer.lifetime with
+                | Error _ as failure -> failure
+                | Ok () when buffer.device.lifetime != device.lifetime ->
+                    error operation Device_mismatch "build resource belongs to another device"
+                | Ok () -> validate rest)
+          in
+          (match ensure_live operation destination.lifetime with
+          | Error _ as failure -> failure
+          | Ok () when destination.device.lifetime != device.lifetime ->
+              error operation Device_mismatch "destination belongs to another device"
+          | Ok () when scratch_offset < 0L || scratch_offset > scratch.length ->
+              error operation Invalid_argument "scratch offset exceeds its buffer"
+          | Ok () ->
+              match validate buffers with
+              | Error _ as failure -> failure
+              | Ok () ->
+                  match
+                    Metal_raw.acceleration_encoder_build value.raw destination.raw
+                      (Acceleration_structure.Triangle.raw descriptor) scratch.raw
+                      scratch_offset
+                  with
+                  | Error message -> native_error operation message
+                  | Ok () ->
+                      List.iter (retain_command_buffer_buffer value.command_buffer) buffers;
+                      retain_command_buffer_acceleration_structure value.command_buffer destination;
+                      Ok ()))
+
+  let destroyed value = is_destroyed value.lifetime
+
+  let end_encoding value =
+    let operation = "Metal.Acceleration_encoder.end_encoding" in
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          match Metal_raw.acceleration_encoder_end value.raw with
+          | Error message -> native_error operation message
+          | Ok () ->
+              if Atomic.compare_and_set value.lifetime.destroyed false true then begin
+                ignore (Metal_raw.destroy value.raw);
+                detach value.command_buffer.lifetime
+              end;
+              Ok ())
 end
 
 module Render_encoder = struct

@@ -277,6 +277,33 @@ module Buffer : sig
   val destroy : t -> (unit, error) result
 end
 
+module Acceleration_structure : sig
+  type t
+
+  type sizes =
+    { acceleration_structure_size : int64
+    ; build_scratch_buffer_size : int64
+    ; refit_scratch_buffer_size : int64
+    }
+
+  module Triangle : sig
+    type t
+
+    val create :
+      vertex_buffer:Buffer.t -> ?vertex_offset:int64 -> vertex_stride:int64 ->
+      triangle_count:int64 -> ?index_buffer:Buffer.t -> ?index_offset:int64 ->
+      unit -> (t, error) result
+  end
+
+  val sizes : device:Device.t -> Triangle.t -> (sizes, error) result
+  val create : device:Device.t -> size:int64 -> (t, error) result
+  val device : t -> Device.t
+  val size : t -> int64
+  val generation : t -> int64
+  val destroyed : t -> bool
+  val destroy : t -> (unit, error) result
+end
+
 module Texture : sig
   type t
 
@@ -2290,6 +2317,18 @@ module Command_buffer : sig
   val wait_until_completed : t -> (unit, error) result
   val destroyed : t -> bool
   val destroy : t -> (unit, error) result
+end
+
+module Acceleration_encoder : sig
+  type t
+
+  val create : Command_buffer.t -> (t, error) result
+  val build :
+    t -> destination:Acceleration_structure.t ->
+    descriptor:Acceleration_structure.Triangle.t -> scratch:Buffer.t ->
+    scratch_offset:int64 -> (unit, error) result
+  val end_encoding : t -> (unit, error) result
+  val destroyed : t -> bool
 end
 
 module Compute_encoder : sig
