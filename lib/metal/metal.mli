@@ -98,6 +98,10 @@ module Shared_event : sig
   val destroy:t->(unit,error)result
 end
 
+type io_queue
+type io_file
+type io_command_buffer
+
 module Device : sig
   type t
 
@@ -171,6 +175,12 @@ module Device : sig
   val system_default : unit -> (t, error) result
   val new_event:t->(Event.t,error)result
   val new_shared_event:t->(Shared_event.t,error)result
+  type io_queue_type = Serial | Concurrent
+  val new_io_queue :
+    t -> ?queue_type:io_queue_type -> ?max_command_buffers:int64 ->
+    ?max_commands_in_flight:int64 -> ?label:string -> unit ->
+    (io_queue, error) result
+  val open_io_file : t -> ?label:string -> string -> (io_file, error) result
   val all : unit -> (t list, error) result
   val generation : t -> int64
   val registry_id : t -> int64
@@ -2873,5 +2883,34 @@ module Resource100 : sig
     val create_encoder : Command_buffer.t -> t -> (Resource_state_encoder.t,error) result
     val destroyed : t -> bool
     val destroy : t -> (unit,error) result
+  end
+end
+
+
+module IO : sig
+  module Queue : sig
+    type t = io_queue
+    val device : t -> Device.t
+    val destroyed : t -> bool
+    val create_command_buffer :
+      t -> ?label:string -> unit -> (io_command_buffer, error) result
+    val destroy : t -> (unit, error) result
+  end
+  module File : sig
+    type t = io_file
+    val device : t -> Device.t
+    val destroyed : t -> bool
+    val destroy : t -> (unit, error) result
+  end
+  module Command_buffer : sig
+    type t = io_command_buffer
+    type status = Recording | Submitted | Complete | Failed
+    val status : t -> status
+    val load_buffer :
+      t -> destination:Buffer.t -> destination_offset:int64 -> size:int64 ->
+      source:File.t -> source_offset:int64 -> (unit, error) result
+    val commit_and_wait : t -> (status, error) result
+    val destroyed : t -> bool
+    val destroy : t -> (unit, error) result
   end
 end

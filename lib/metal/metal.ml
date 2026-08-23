@@ -818,6 +818,17 @@ and buffer =
   ; placement_mappings : placement_mapping list ref
   }
 
+and io_queue =
+  { raw : Metal_raw.handle; lifetime : lifetime; device : device }
+
+and io_file =
+  { raw : Metal_raw.handle; lifetime : lifetime; device : device }
+
+and io_command_buffer =
+  { raw : Metal_raw.handle; lifetime : lifetime; queue : io_queue
+  ; mutable io_phase : [ `Recording | `Submitted | `Completed | `Failed ]
+  ; mutable io_retained : lifetime list }
+
 and acceleration_structure =
   { raw : Metal_raw.handle
   ; lifetime : lifetime
@@ -2067,6 +2078,59 @@ end
 
 module Device = struct
   type t = device
+
+  type io_queue_type = Serial | Concurrent
+  let io_queue_type_code = function Serial -> 0 | Concurrent -> 1
+
+  let new_io_queue (value : t) ?(queue_type = Concurrent)
+      ?(max_command_buffers = 2L) ?(max_commands_in_flight = 1L) ?label () =
+    let operation = "Metal.Device.new_io_queue" in
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when max_command_buffers <= 0L || max_commands_in_flight < 0L ->
+          error operation Invalid_argument "IO queue limits are invalid"
+      | Ok () when option_exists contains_nul label ->
+          error operation Invalid_argument "IO queue label contains a NUL byte"
+      | Ok () ->
+          match Metal_raw.io_queue_create value.raw (io_queue_type_code queue_type)
+                  max_command_buffers max_commands_in_flight label with
+          | Error message -> native_error operation message
+          | Ok (raw, registry_id) when registry_id <> value.registry_id ->
+              ignore (Metal_raw.destroy raw);
+              error operation Device_mismatch
+                "IO queue constructor returned another device identity"
+          | Ok (raw, _registry_id) ->
+              let queue : io_queue =
+                { raw; lifetime = lifetime (); device = value }
+              in
+              attach value.lifetime;
+              attach_finalizer queue queue.lifetime value.lifetime;
+              Ok queue)
+
+  let open_io_file (value : t) ?label path =
+    let operation = "Metal.Device.open_io_file" in
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when path = "" || contains_nul path ->
+          error operation Invalid_argument "IO file path is empty or contains NUL"
+      | Ok () when option_exists contains_nul label ->
+          error operation Invalid_argument "IO file label contains a NUL byte"
+      | Ok () ->
+          match Metal_raw.io_file_create value.raw path label with
+          | Error message -> native_error operation message
+          | Ok (raw, registry_id) when registry_id <> value.registry_id ->
+              ignore (Metal_raw.destroy raw);
+              error operation Device_mismatch
+                "IO file constructor returned another device identity"
+          | Ok (raw, _registry_id) ->
+              let file : io_file =
+                { raw; lifetime = lifetime (); device = value }
+              in
+              attach value.lifetime;
+              attach_finalizer file file.lifetime value.lifetime;
+              Ok file)
 
   let new_event(value:t)=let operation="Metal.Device.new_event"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.command_event_create value.raw with Error m->native_error operation m|Ok(raw,registry_id)when registry_id<>value.registry_id->ignore(Metal_raw.destroy raw);error operation Device_mismatch "event constructor returned another device identity"|Ok(raw,registry_id)->let event:command_event={raw;lifetime=lifetime();device=value;registry_id}in attach value.lifetime;attach_finalizer event event.lifetime value.lifetime;Ok event)
   let new_shared_event(value:t)=let operation="Metal.Device.new_shared_event"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.command_shared_event_create value.raw with Error m->native_error operation m|Ok(raw,registry_id)when registry_id<>value.registry_id->ignore(Metal_raw.destroy raw);error operation Device_mismatch "shared-event constructor returned another device identity"|Ok(raw,registry_id)->match Metal_raw.command_shared_event_value raw with Error m->ignore(Metal_raw.destroy raw);native_error operation m|Ok current->let event:command_shared_event={raw;lifetime=lifetime();device=value;registry_id;value=current}in attach value.lifetime;attach_finalizer event event.lifetime value.lifetime;Ok event)
@@ -16670,5 +16734,115 @@ module Resource100 = struct
     let create_encoder (commands:Command_buffer.t)(pass:t)=let op="Metal.Resource100.Resource_state_pass.create_encoder"in on_main op(fun()->match ensure_live op commands.lifetime with Error _ as e->e|Ok()when commands.phase<>Recording->error op Invalid_state "command buffer is no longer recording"|Ok()->match ensure_live op pass.lifetime with Error _ as e->e|Ok()->if dependent_count commands.lifetime<>0 then error op Invalid_state "command buffer already has an open encoder"else match Metal_raw.resource_command_buffer_state_encoder commands.raw pass.raw with Error m->native_error op m|Ok raw->let value:resource_state_encoder={raw;lifetime=lifetime();command_buffer=commands}in attach commands.lifetime;attach_finalizer value value.lifetime commands.lifetime;Ok value)
     let destroyed(t:t)=is_destroyed t.lifetime
     let destroy(t:t)=destroy_leaf "Metal.Resource100.Resource_state_pass.destroy" t.lifetime t.raw(fun()->())
+  end
+end
+
+module IO = struct
+  module Queue = struct
+    type t = io_queue
+    let device (value : t) = value.device
+    let destroyed (value : t) = is_destroyed value.lifetime
+    let create_command_buffer (value : t) ?label () =
+      let operation = "Metal.IO.Queue.create_command_buffer" in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () when option_exists contains_nul label ->
+            error operation Invalid_argument "IO command label contains a NUL byte"
+        | Ok () ->
+            match Metal_raw.io_command_create value.raw label with
+            | Error message -> native_error operation message
+            | Ok raw ->
+                let commands : io_command_buffer =
+                  { raw; lifetime = lifetime (); queue = value
+                  ; io_phase = `Recording; io_retained = [] }
+                in
+                attach value.lifetime;
+                attach_finalizer ~on_finalize:(fun () ->
+                  List.iter detach commands.io_retained;
+                  commands.io_retained <- [])
+                  commands commands.lifetime value.lifetime;
+                Ok commands)
+    let destroy (value : t) =
+      destroy_parent "Metal.IO.Queue.destroy" value.lifetime value.raw
+        (fun () -> detach value.device.lifetime)
+  end
+
+  module File = struct
+    type t = io_file
+    let device (value : t) = value.device
+    let destroyed (value : t) = is_destroyed value.lifetime
+    let destroy (value : t) =
+      destroy_parent "Metal.IO.File.destroy" value.lifetime value.raw
+        (fun () -> detach value.device.lifetime)
+  end
+
+  module Command_buffer = struct
+    type t = io_command_buffer
+    type status = Recording | Submitted | Complete | Failed
+    let status (value : t) =
+      match value.io_phase with
+      | `Recording -> Recording | `Submitted -> Submitted
+      | `Completed -> Complete | `Failed -> Failed
+    let retain value retained =
+      attach retained; value.io_retained <- retained :: value.io_retained
+    let release_retained value =
+      List.iter detach value.io_retained; value.io_retained <- []
+    let load_buffer (value : t) ~(destination : Buffer.t)
+        ~destination_offset ~size ~(source : File.t) ~source_offset =
+      let operation = "Metal.IO.Command_buffer.load_buffer" in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () when value.io_phase <> `Recording ->
+            error operation Invalid_state "IO command buffer is already committed"
+        | Ok () ->
+            match ensure_buffer_usable operation destination with
+            | Error _ as failure -> failure
+            | Ok () ->
+                match ensure_live operation source.lifetime with
+                | Error _ as failure -> failure
+                | Ok () ->
+                    Result.bind
+                      (ensure_same_device operation value.queue.device destination.device)
+                      (fun () -> Result.bind
+                        (ensure_same_device operation value.queue.device source.device)
+                        (fun () ->
+                          if destination_offset < 0L || size < 0L
+                             || source_offset < 0L then
+                            error operation Invalid_argument
+                              "IO load offsets and size must be non-negative"
+                          else if destination_offset > destination.length
+                               || size > Int64.sub destination.length destination_offset then
+                            error operation Invalid_argument
+                              "IO load exceeds the destination buffer"
+                          else match Metal_raw.io_load_buffer value.raw destination.raw
+                                       destination_offset size source.raw source_offset with
+                            | Error message -> native_error operation message
+                            | Ok () ->
+                                retain value destination.lifetime;
+                                retain value source.lifetime;
+                                Ok ())))
+    let commit_and_wait (value : t) =
+      let operation = "Metal.IO.Command_buffer.commit_and_wait" in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () when value.io_phase <> `Recording ->
+            error operation Invalid_state "IO command buffer is already committed"
+        | Ok () ->
+            value.io_phase <- `Submitted;
+            match Metal_raw.io_command_commit_wait value.raw with
+            | Error message ->
+                value.io_phase <- `Failed;
+                native_error operation message
+            | Ok _ ->
+                value.io_phase <- `Completed;
+                release_retained value;
+                Ok Complete)
+    let destroyed (value : t) = is_destroyed value.lifetime
+    let destroy (value : t) =
+      destroy_leaf "Metal.IO.Command_buffer.destroy" value.lifetime value.raw
+        (fun () -> release_retained value; detach value.queue.lifetime)
   end
 end
