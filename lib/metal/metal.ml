@@ -1394,6 +1394,7 @@ type command_buffer =
   ; queue : command_queue
   ; mutable phase : command_phase
   ; resources : command_resource list ref
+  ; mutable callback_handlers : int
   }
 
 type compute_encoder =
@@ -13795,6 +13796,7 @@ module Command_buffer = struct
                      ; queue
                      ; phase = Recording
                      ; resources = ref []
+                     ; callback_handlers = 0
                      }
                    in
                    attach queue.lifetime;
@@ -13884,8 +13886,10 @@ module Command_buffer = struct
       | Error _ as failure -> failure
       | Ok () ->
           let status = Metal_raw.command_buffer_status value.raw in
-          if status = 4 || status = 5 then
+          if status = 4 || status = 5 then begin
             release_command_resources value.resources;
+            value.callback_handlers <- 0
+          end;
           Ok
             (match status with
              | 0 -> Not_enqueued
@@ -13918,9 +13922,10 @@ module Command_buffer = struct
       | Ok () when value.phase <> Recording ->
           error operation Invalid_state "handlers must be registered before commit"
       | Ok () ->
-          match Metal_raw.command_buffer_add_handler value.raw callback scheduled with
+          let guarded () = try callback () with _ -> () in
+          match Metal_raw.command_buffer_add_handler value.raw guarded scheduled with
           | Error message -> native_error operation message
-          | Ok () -> Ok ())
+          | Ok () -> value.callback_handlers <- value.callback_handlers + 1; Ok ())
 
   let add_scheduled_handler value callback =
     add_handler "Metal.Command_buffer.add_scheduled_handler" true value callback
@@ -13953,8 +13958,10 @@ module Command_buffer = struct
       | Ok () ->
           Metal_raw.command_buffer_wait value.raw;
           let status = Metal_raw.command_buffer_status value.raw in
-          if status = 4 || status = 5 then
+          if status = 4 || status = 5 then begin
             release_command_resources value.resources;
+            value.callback_handlers <- 0
+          end;
           if status = 4 then Ok () else
             native_error "Metal.Command_buffer.wait_until_completed"
               (Option.value (Metal_raw.command_buffer_error value.raw)
@@ -13962,10 +13969,14 @@ module Command_buffer = struct
                    (Printf.sprintf "command buffer ended with status %d" status)))
 
   let destroy (value : t) =
-    destroy_parent "Metal.Command_buffer.destroy" value.lifetime value.raw
-      (fun () ->
-        release_command_resources value.resources;
-        detach value.queue.lifetime)
+    if value.callback_handlers <> 0 then
+      error "Metal.Command_buffer.destroy" Parent_has_dependents
+        "command buffer has registered native callbacks; commit and wait first"
+    else
+      destroy_parent "Metal.Command_buffer.destroy" value.lifetime value.raw
+        (fun () ->
+          release_command_resources value.resources;
+          detach value.queue.lifetime)
 end
 
 module Acceleration_encoder = struct

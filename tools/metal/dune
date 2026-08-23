@@ -29,6 +29,15 @@
   binding_render_encoder_promotion
   binding_render_encoder_resource_plan
   render_encoder_resource_adapter
+  binding_presentation_spec
+  binding_presentation_plan
+  binding_presentation_codegen
+  binding_presentation_evidence
+  binding_presentation_adapter
+  binding_presentation_manifest
+  binding_presentation_coverage
+  binding_presentation_integration
+  binding_presentation_native_codegen
   binding_argument_reflection_plan
   binding_argument_reflection_codegen
   binding_argument_reflection_evidence
@@ -389,6 +398,31 @@
  (name test_render_encoder_resource_adapter)
  (modules test_render_encoder_resource_adapter)
  (libraries metal_inventory_classification))
+
+(test
+ (name test_binding_presentation_foundation)
+ (modules test_binding_presentation_foundation)
+ (libraries metal_inventory_classification yojson)
+ (deps ../../lib/metal/generated_api_inventory.json)
+ (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
+
+(test
+ (name test_binding_presentation_adapter)
+ (modules test_binding_presentation_adapter)
+ (libraries metal_inventory_classification))
+
+(test
+ (name test_binding_presentation_complete)
+ (modules test_binding_presentation_complete)
+ (libraries metal_inventory_classification))
+
+(test
+ (name test_binding_presentation_native_codegen)
+ (modules test_binding_presentation_native_codegen)
+ (libraries metal_inventory_classification)
+ (deps metal_presentation_typed_generated.mm metal_presentation_raw_generated.ml)
+ (action (run %{test} %{dep:metal_presentation_typed_generated.mm}
+                    %{dep:metal_presentation_raw_generated.ml})))
 
 (executable
  (name generate_inventory)

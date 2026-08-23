@@ -40,6 +40,12 @@ let () =
   get (Texture.destroy texture);
   get (Drawable.destroy drawable);
   get (Command_buffer.destroy commands);
+  let callback_commands = get (Command_buffer.create queue ()) in
+  get (Command_buffer.add_completed_handler callback_commands (fun () -> ()));
+  expect Parent_has_dependents (Command_buffer.destroy callback_commands);
+  get (Command_buffer.commit callback_commands);
+  get (Command_buffer.wait_until_completed callback_commands);
+  get (Command_buffer.destroy callback_commands);
   let pass = get (Render_pass_descriptor.create ~width:8 ~height:8 ()) in
   if Render_pass_descriptor.size pass <> (8,8)
      || Render_pass_descriptor.array_length pass <> 1

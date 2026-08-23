@@ -3,6 +3,10 @@ type layer = Layer of nativeint
 type command_buffer = Command_buffer of nativeint
 type texture = Texture of nativeint
 type render_pass = Render_pass of nativeint
+let _constructor_evidence =
+  ( Drawable Nativeint.zero, Layer Nativeint.zero
+  , Command_buffer Nativeint.zero, Texture Nativeint.zero
+  , Render_pass Nativeint.zero )
 type loss = Timeout | Occluded | Zero_sized | Detached
 type acquisition = Drawable_available of drawable * texture | Drawable_unavailable of loss
 type present_time = Immediate | At_time of float | After_minimum_duration of float
