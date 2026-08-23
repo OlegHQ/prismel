@@ -886,6 +886,13 @@ external pipeline_archive_load_binary_function :
   handle -> metal4_binary_function_descriptor -> (handle, string) result =
   "caml_prismel_metal_pipeline_archive_load_binary_function"
 
+external pipeline_archive_compute :
+  handle -> metal4_compute_descriptor -> bool -> (handle, string) result =
+  "caml_prismel_metal_pipeline_archive_compute"
+external pipeline_archive_render :
+  handle -> metal4_render_descriptor -> bool -> (handle, string) result =
+  "caml_prismel_metal_pipeline_archive_render"
+
 external compiler_create :
   handle -> handle option -> string option -> (handle, string) result =
   "caml_prismel_metal_compiler_create"

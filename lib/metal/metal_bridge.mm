@@ -276,6 +276,26 @@ API_AVAILABLE(macos(26.0))
 @end
 
 API_AVAILABLE(macos(26.0))
+@interface PrismelMetalPipelineArchiveState : NSObject
+@property(nonatomic, strong, readonly) id<MTL4Archive> archive;
+@property(nonatomic, strong, readonly) id<MTLDevice> device;
+@property(nonatomic, strong, readonly) id<MTL4Compiler> compiler;
+- (instancetype)initWithArchive:(id<MTL4Archive>)archive
+                         device:(id<MTLDevice>)device
+                       compiler:(id<MTL4Compiler>)compiler;
+@end
+
+@implementation PrismelMetalPipelineArchiveState
+- (instancetype)initWithArchive:(id<MTL4Archive>)archive
+                         device:(id<MTLDevice>)device
+                       compiler:(id<MTL4Compiler>)compiler {
+  self = [super init];
+  if (self != nil) { _archive = archive; _device = device; _compiler = compiler; }
+  return self;
+}
+@end
+
+API_AVAILABLE(macos(26.0))
 @interface PrismelMetal4CommandBufferState : NSObject
 @property(nonatomic, strong, readonly) id<MTL4CommandBuffer> commandBuffer;
 @property(nonatomic, strong, readonly) id<MTL4CommandAllocator> allocator;
@@ -1262,13 +1282,17 @@ std::vector<id<MTLBinaryArchive>> binary_archives_of_array(value raw_array) {
 }
 
 API_AVAILABLE(macos(26.0))
+PrismelMetalPipelineArchiveState *pipeline_archive_state(value raw) {
+  return object_of_handle(raw, Handle_kind::Pipeline_archive);
+}
+
+API_AVAILABLE(macos(26.0))
 std::vector<id<MTL4Archive>> pipeline_archives_of_array(value raw_array) {
   const mlsize_t count = Wosize_val(raw_array);
   std::vector<id<MTL4Archive>> archives;
   archives.reserve(count);
   for (mlsize_t index = 0; index < count; ++index) {
-    archives.push_back(object_of_handle(Field(raw_array, index),
-                                        Handle_kind::Pipeline_archive));
+    archives.push_back(pipeline_archive_state(Field(raw_array, index)).archive);
   }
   return archives;
 }
@@ -6991,7 +7015,21 @@ extern "C" CAMLprim value caml_prismel_metal_pipeline_archive_load_file(
           CAMLreturn(result_error_text(
               "Metal changed checked pipeline-archive properties"));
         }
-        raw = allocate_handle(archive, Handle_kind::Pipeline_archive);
+        MTL4CompilerDescriptor *compiler_descriptor =
+            [[MTL4CompilerDescriptor alloc] init];
+        NSError *compiler_error = nil;
+        id<MTL4Compiler> compiler =
+            [device newCompilerWithDescriptor:compiler_descriptor
+                                        error:&compiler_error];
+        if (compiler == nil || compiler.device.registryID != device.registryID) {
+          CAMLreturn(result_error(error_description(
+              compiler_error, @"Metal failed to create the archive validation compiler")));
+        }
+        PrismelMetalPipelineArchiveState *state =
+            [[PrismelMetalPipelineArchiveState alloc] initWithArchive:archive
+                                                               device:device
+                                                             compiler:compiler];
+        raw = allocate_handle(state, Handle_kind::Pipeline_archive);
       } @catch (NSException *exception) {
         CAMLreturn(result_error(exception.reason));
       }
@@ -7009,8 +7047,7 @@ extern "C" CAMLprim value caml_prismel_metal_pipeline_archive_label(
   CAMLlocal1(result);
   @autoreleasepool {
     if (@available(macOS 26.0, *)) {
-      id<MTL4Archive> archive =
-          object_of_handle(raw, Handle_kind::Pipeline_archive);
+      id<MTL4Archive> archive = pipeline_archive_state(raw).archive;
       result = copy_optional_string(archive.label);
     } else {
       CAMLreturn(Val_none);
@@ -7027,8 +7064,7 @@ caml_prismel_metal_pipeline_archive_load_binary_function(
   @autoreleasepool {
     if (@available(macOS 26.0, *)) {
       @try {
-        id<MTL4Archive> archive =
-            object_of_handle(raw_archive, Handle_kind::Pipeline_archive);
+        id<MTL4Archive> archive = pipeline_archive_state(raw_archive).archive;
         id<MTLLibrary> library = object_of_handle(
             Field(raw_descriptor, 0), Handle_kind::Library);
         NSArray<id<MTL4Archive>> *lookup_archives = nil;
@@ -10044,6 +10080,82 @@ caml_prismel_metal_compiler_specialize_render_pipeline_async(
         }
         state.task = task;
         raw = allocate_handle(state, Handle_kind::Compiler_task);
+        CAMLreturn(result_ok(raw));
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+  }
+  CAMLreturn(result_error_text("Metal 4 requires macOS 26"));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_pipeline_archive_compute(
+    value raw_archive, value raw_descriptor, value raw_dynamic) {
+  CAMLparam3(raw_archive, raw_descriptor, raw_dynamic);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        PrismelMetalPipelineArchiveState *state =
+            pipeline_archive_state(raw_archive);
+        NSString *failure = nil;
+        PrismelMetalCheckedComputeRequest *request = checked_compute_request(
+            raw_descriptor, state.compiler, &failure);
+        if (request == nil) CAMLreturn(result_error(failure));
+        const bool dynamic = Bool_val(raw_dynamic);
+        if (dynamic != (request.dynamicLinking != nil)) {
+          CAMLreturn(result_error_text("archive compute dynamic-linking mode mismatches descriptor"));
+        }
+        NSError *error = nil;
+        id<MTLComputePipelineState> pipeline = dynamic
+            ? [state.archive newComputePipelineStateWithDescriptor:request.descriptor
+                                          dynamicLinkingDescriptor:request.dynamicLinking
+                                                             error:&error]
+            : [state.archive newComputePipelineStateWithDescriptor:request.descriptor
+                                                             error:&error];
+        if (pipeline == nil || pipeline.device.registryID != state.device.registryID) {
+          CAMLreturn(result_error(error_description(
+              error, @"Metal archive compute-pipeline lookup failed")));
+        }
+        raw = allocate_handle(pipeline, Handle_kind::Compute_pipeline);
+        CAMLreturn(result_ok(raw));
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+  }
+  CAMLreturn(result_error_text("Metal 4 requires macOS 26"));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_pipeline_archive_render(
+    value raw_archive, value raw_descriptor, value raw_dynamic) {
+  CAMLparam3(raw_archive, raw_descriptor, raw_dynamic);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        PrismelMetalPipelineArchiveState *state =
+            pipeline_archive_state(raw_archive);
+        NSString *failure = nil;
+        PrismelMetalCheckedRenderRequest *request = checked_render_request(
+            raw_descriptor, state.compiler, &failure);
+        if (request == nil) CAMLreturn(result_error(failure));
+        const bool dynamic = Bool_val(raw_dynamic);
+        if (dynamic != (request.dynamicLinking != nil)) {
+          CAMLreturn(result_error_text("archive render dynamic-linking mode mismatches descriptor"));
+        }
+        NSError *error = nil;
+        id<MTLRenderPipelineState> pipeline = dynamic
+            ? [state.archive newRenderPipelineStateWithDescriptor:request.descriptor
+                                         dynamicLinkingDescriptor:request.dynamicLinking
+                                                            error:&error]
+            : [state.archive newRenderPipelineStateWithDescriptor:request.descriptor
+                                                            error:&error];
+        if (pipeline == nil || pipeline.device.registryID != state.device.registryID) {
+          CAMLreturn(result_error(error_description(
+              error, @"Metal archive render-pipeline lookup failed")));
+        }
+        raw = allocate_handle(pipeline, Handle_kind::Render_pipeline);
         CAMLreturn(result_ok(raw));
       } @catch (NSException *exception) {
         CAMLreturn(result_error(exception.reason));
