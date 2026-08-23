@@ -10,6 +10,10 @@
   binding_availability
   binding_availability_ast
   binding_receiver_catalog
+  binding_string_spec
+  binding_string_properties
+  binding_struct_spec
+  binding_struct_plan
   binding_direct_spec
   binding_direct_methods
   binding_direct_properties
@@ -113,6 +117,26 @@
  (action
   (run %{test}
    --inventory %{dep:../../lib/metal/generated_api_inventory.json})))
+
+(test
+ (name test_binding_struct_plan)
+ (modules test_binding_struct_plan)
+ (libraries
+  gpu_migration_support
+  metal_inventory_classification
+  yojson)
+ (deps ../../lib/metal/generated_api_inventory.json)
+ (action
+  (run %{test}
+   --inventory %{dep:../../lib/metal/generated_api_inventory.json})))
+
+(test
+ (name test_binding_string_properties)
+ (modules test_binding_string_properties)
+ (libraries metal_inventory_classification yojson)
+ (deps ../../lib/metal/generated_api_inventory.json)
+ (action
+  (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
  (name test_binding_receiver_catalog)
