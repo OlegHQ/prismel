@@ -11,7 +11,8 @@ type getter_ownership = Copy_to_ocaml
 type setter_ownership = Borrow_during_call
 
 type receiver_status =
-  | Qualified of Binding_receiver_catalog.receiver
+  | Qualified_direct of Binding_receiver_catalog.receiver
+  | Qualified_polymorphic of Binding_receiver_catalog.polymorphic_receiver
   | Pending_receiver_catalog
 
 type entry =
@@ -44,4 +45,3 @@ val setter_selector : entry -> string option
     receiver has been qualified by [Binding_receiver_catalog]. *)
 val native_getter_expression : entry -> string
 val native_setter_expression : entry -> string option
-

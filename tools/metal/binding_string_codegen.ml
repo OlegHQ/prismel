@@ -3,7 +3,9 @@ open Binding_string_spec
 let qualified_entries () =
   List.filter
     (fun entry ->
-      match entry.receiver_status with Qualified _ -> true | Pending_receiver_catalog -> false)
+      match entry.receiver_status with
+      | Qualified_direct _ | Qualified_polymorphic _ -> true
+      | Pending_receiver_catalog -> false)
     Binding_string_properties.entries
 
 let suffix = function `Getter -> "get" | `Setter -> "set"
@@ -137,9 +139,23 @@ let render_native entries =
       match entry.receiver_status with
       | Pending_receiver_catalog ->
           invalid_arg ("unqualified Metal string receiver: " ^ entry.owner)
-      | Qualified receiver ->
+      | Qualified_direct receiver ->
           add_getter output entry receiver;
-          Option.iter (add_setter output entry receiver) (setter_selector entry))
+          Option.iter (add_setter output entry receiver) (setter_selector entry)
+      | Qualified_polymorphic receiver ->
+          let direct : Binding_receiver_catalog.receiver =
+            { sdk_owner = receiver.sdk_owner
+            ; objc_receiver_type = receiver.objc_receiver_type
+            ; handle_kind = ""
+            ; local_name = receiver.local_name
+            ; raw_name = receiver.raw_name
+            ; owner_binding = Binding_receiver_catalog.One_to_one
+            ; bridge_access =
+                Binding_receiver_catalog.Object_of_helper receiver.helper
+            }
+          in
+          add_getter output entry direct;
+          Option.iter (add_setter output entry direct) (setter_selector entry))
     entries;
   let result = Buffer.contents output in
   List.iter

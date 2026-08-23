@@ -75,7 +75,7 @@ let () =
              ignore (native_getter_expression entry);
              fail "unqualified receiver emitted native code: %s" entry.owner
            with Invalid_argument _ -> ())
-      | Qualified _ ->
+      | Qualified_direct _ | Qualified_polymorphic _ ->
           if String.equal (native_getter_expression entry) "" then
             fail "empty native getter: %s" entry.property_sdk_id)
     entries;

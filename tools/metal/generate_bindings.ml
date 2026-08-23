@@ -357,8 +357,8 @@ let validate_string_entries inventory entries =
         entry.setter_sdk_id)
     entries;
   let identifiers = List.concat_map Binding_string_spec.inventory_ids entries in
-  if List.length entries <> 2 || List.length identifiers <> 5
-     || List.length (List.sort_uniq String.compare identifiers) <> 5
+  if List.length entries <> 3 || List.length identifiers <> 8
+     || List.length (List.sort_uniq String.compare identifiers) <> 8
   then fail "generated Metal NSString qualified cardinality drift"
 
 let valid_identifier ~initial value =

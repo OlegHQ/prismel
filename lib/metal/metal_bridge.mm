@@ -1036,6 +1036,20 @@ id<MTLAllocation> allocation_of_handle(value raw) {
   return (__bridge id<MTLAllocation>)handle->object;
 }
 
+id<MTLCommandEncoder> command_encoder_of_handle(value raw) {
+  auto *handle = handle_of_value(raw);
+  std::lock_guard<std::mutex> lock(handle_mutex);
+  if (handle->kind != Handle_kind::Compute_encoder &&
+      handle->kind != Handle_kind::Resource_state_encoder &&
+      handle->kind != Handle_kind::Blit_encoder) {
+    caml_failwith("Metal custom handle is not a command encoder");
+  }
+  if (handle->object == nullptr) {
+    caml_failwith("Metal custom handle is destroyed");
+  }
+  return (__bridge id<MTLCommandEncoder>)handle->object;
+}
+
 PrismelMetalExternalMemory *external_memory_of_handle(value raw) {
   return object_of_handle(raw, Handle_kind::External_memory);
 }

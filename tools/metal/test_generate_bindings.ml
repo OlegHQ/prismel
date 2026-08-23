@@ -1012,18 +1012,22 @@ let check_struct_native_batch raw_ml raw_mli native value =
 
 let check_string_batch raw_ml raw_mli native value =
   let batch = member_exn "mechanical_string_batch" value in
-  if member_int "property_count" batch <> Some 2
-     || member_int "declaration_count" batch <> Some 5
+  if member_int "property_count" batch <> Some 3
+     || member_int "declaration_count" batch <> Some 8
      || member_int "safe_bound_count" batch <> Some 0
   then fail "generated Metal NSString cardinality drift";
   let identifiers = json_string_list "identifiers" batch in
-  if List.length identifiers <> 5
-     || List.length (List.sort_uniq String.compare identifiers) <> 5
+  if List.length identifiers <> 8
+     || List.length (List.sort_uniq String.compare identifiers) <> 8
   then fail "generated Metal NSString identifier closure drift";
   [ raw_ml, "generated_mtl4_binary_function_name_get"
   ; raw_mli, "generated_mtl_command_queue_label_set"
+  ; raw_ml, "generated_mtl_command_encoder_label_get"
+  ; raw_mli, "generated_mtl_command_encoder_label_set"
   ; native, "[binary_function name]"
   ; native, "[command_queue setLabel:native_value]"
+  ; native, "command_encoder_of_handle(raw_receiver)"
+  ; native, "[command_encoder setLabel:native_value]"
   ; native, "copy_optional_string(native_result)"
   ]
   |> List.iter (fun (contents, needle) ->

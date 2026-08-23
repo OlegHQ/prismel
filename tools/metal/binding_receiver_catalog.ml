@@ -143,6 +143,14 @@ let polymorphic_receivers =
     ; local_name = "allocation"
     ; raw_name = "raw_allocation"
     }
+  ; { sdk_owner = "MTLCommandEncoder"
+    ; objc_receiver_type = "id<MTLCommandEncoder>"
+    ; accepted_handle_kinds =
+        [ "Compute_encoder"; "Resource_state_encoder"; "Blit_encoder" ]
+    ; helper = "command_encoder_of_handle"
+    ; local_name = "command_encoder"
+    ; raw_name = "raw_command_encoder"
+    }
   ]
 
 let exclusions =
@@ -170,8 +178,8 @@ let exclusions =
   ]
 
 let expected_receiver_count = 31
-let expected_polymorphic_receiver_count = 2
-let expected_catalog_count = 33
+let expected_polymorphic_receiver_count = 3
+let expected_catalog_count = 34
 let expected_handle_kind_count = 37
 let expected_exclusion_count = 6
 
@@ -304,7 +312,9 @@ let validate_exact_polymorphism () =
           invalid_arg ("Metal " ^ owner ^ " Handle_kind set drift")
   in
   require "MTLResource" [ "Buffer"; "Texture" ];
-  require "MTLAllocation" [ "Heap"; "Buffer"; "Texture" ]
+  require "MTLAllocation" [ "Heap"; "Buffer"; "Texture" ];
+  require "MTLCommandEncoder"
+    [ "Compute_encoder"; "Resource_state_encoder"; "Blit_encoder" ]
 
 let validate () =
   List.iter validate_receiver receivers;

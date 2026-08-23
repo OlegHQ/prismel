@@ -4,7 +4,8 @@ type getter_ownership = Copy_to_ocaml
 type setter_ownership = Borrow_during_call
 
 type receiver_status =
-  | Qualified of Binding_receiver_catalog.receiver
+  | Qualified_direct of Binding_receiver_catalog.receiver
+  | Qualified_polymorphic of Binding_receiver_catalog.polymorphic_receiver
   | Pending_receiver_catalog
 
 type entry =
@@ -39,8 +40,16 @@ let receiver_for owner =
         String.equal receiver.sdk_owner owner)
       Binding_receiver_catalog.receivers
   with
-  | Some receiver -> Qualified receiver
-  | None -> Pending_receiver_catalog
+  | Some receiver -> Qualified_direct receiver
+  | None ->
+      (match
+         List.find_opt
+           (fun (receiver : Binding_receiver_catalog.polymorphic_receiver) ->
+             String.equal receiver.sdk_owner owner)
+           Binding_receiver_catalog.polymorphic_receivers
+       with
+      | Some receiver -> Qualified_polymorphic receiver
+      | None -> Pending_receiver_catalog)
 
 let capitalize_first value =
   if String.equal value "" then invalid_arg "Empty Metal property name";
@@ -99,21 +108,21 @@ let setter_selector entry =
 
 let receiver_or_reject entry =
   match entry.receiver_status with
-  | Qualified receiver -> receiver
+  | Qualified_direct receiver -> receiver.local_name
+  | Qualified_polymorphic receiver -> receiver.local_name
   | Pending_receiver_catalog ->
       invalid_arg
         ("Metal NSString receiver is not qualified: " ^ entry.owner)
 
 let native_getter_expression entry =
   let receiver = receiver_or_reject entry in
-  "NSString *result = [" ^ receiver.local_name ^ " " ^ getter_selector entry
+  "NSString *result = [" ^ receiver ^ " " ^ getter_selector entry
   ^ "]; /* copy UTF-8 into OCaml before return */"
 
 let native_setter_expression entry =
   Option.map
     (fun selector ->
       let receiver = receiver_or_reject entry in
-      "[" ^ receiver.local_name ^ " " ^ selector
+      "[" ^ receiver ^ " " ^ selector
       ^ "value]; /* NSString borrowed for this call only */")
     (setter_selector entry)
-
