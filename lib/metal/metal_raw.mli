@@ -1885,3 +1885,49 @@ external command_indirect_render_mesh_threads :
   handle -> (int64 * int64 * int64) -> (int64 * int64 * int64) ->
   (int64 * int64 * int64) -> (unit,string) result =
   "caml_prismel_metal_support_indirect_render_mesh_threads"
+(* Mesh/tile105 exact mechanical ABI: 16 properties and 32 companions. *)
+type mesh_tile_threadgroup_size = int64 * int64 * int64
+
+type mesh_color_attachment_mechanical =
+  { pixel_format : int64
+  ; source_rgb_blend_factor : int
+  ; destination_rgb_blend_factor : int
+  ; rgb_blend_operation : int
+  ; source_alpha_blend_factor : int
+  ; destination_alpha_blend_factor : int
+  ; alpha_blend_operation : int
+  ; write_mask : int64
+  }
+
+type mesh_descriptor_mechanical =
+  { label : string option
+  ; depth_attachment_pixel_format : int64
+  ; stencil_attachment_pixel_format : int64
+  ; required_threads_per_mesh_threadgroup : mesh_tile_threadgroup_size
+  ; required_threads_per_object_threadgroup : mesh_tile_threadgroup_size
+  }
+
+type tile_descriptor_mechanical =
+  { label : string option
+  ; required_threads_per_threadgroup : mesh_tile_threadgroup_size
+  }
+
+external mesh_buffer_descriptor_create : unit -> (handle,string) result =
+  "caml_prismel_metal_mesh_buffer_descriptor_create"
+external mesh_buffer_set_mutability : handle -> int -> (unit,string) result =
+  "caml_prismel_metal_mesh_buffer_set_mutability"
+external mesh_color_attachment_create : unit -> (handle,string) result =
+  "caml_prismel_metal_mesh_color_attachment_create"
+external mesh_color_attachment_set :
+  handle -> int64 -> int -> int -> int -> int -> int -> int -> int64 ->
+  (unit,string) result =
+  "caml_prismel_metal_mesh_color_attachment_set_bytecode"
+  "caml_prismel_metal_mesh_color_attachment_set"
+external mesh_descriptor_set_mechanical :
+  handle -> string option -> int64 -> int64 -> mesh_tile_threadgroup_size ->
+  mesh_tile_threadgroup_size -> (unit,string) result =
+  "caml_prismel_metal_mesh_descriptor_set_mechanical_bytecode"
+  "caml_prismel_metal_mesh_descriptor_set_mechanical"
+external tile_descriptor_set_mechanical :
+  handle -> string option -> mesh_tile_threadgroup_size -> (unit,string) result =
+  "caml_prismel_metal_tile_descriptor_set_mechanical"
