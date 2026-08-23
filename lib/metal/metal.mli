@@ -3045,6 +3045,7 @@ module Resource100 : sig
     val label : t -> (string option,error) result
     val count : t -> int64
     val set : t -> index:int -> Texture.t -> (int64,error) result
+    val set_from_buffer : t -> index:int -> Buffer.t -> offset:int64 -> bytes_per_row:int -> Texture.descriptor -> (int64,error) result
     val copy : source:t -> source_index:int -> length:int -> destination:t -> destination_index:int -> (int64,error) result
     val destroyed : t -> bool
     val destroy : t -> (unit,error) result
