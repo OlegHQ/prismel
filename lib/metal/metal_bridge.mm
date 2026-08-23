@@ -927,6 +927,19 @@ enum class Handle_kind : std::uint32_t {
   Metal_layer,
   Metal_drawable,
   Render_pass_descriptor,
+  Buffer_layout_descriptor,
+  Buffer_layout_descriptor_array,
+  Resource_state_pass_descriptor,
+  Resource_state_sample_attachment_descriptor,
+  Resource_state_sample_attachment_array,
+  Resource_view_pool_descriptor,
+  Texture_view_pool,
+  Tensor_descriptor,
+  Tensor,
+  Acceleration_descriptor,
+  Counter_sample_buffer,
+  Texture_view_descriptor,
+  Texture_descriptor,
 };
 
 struct Handle {
@@ -14254,3 +14267,10 @@ extern "C" CAMLprim value caml_prismel_metal_command_buffer_error(value raw) {
 #pragma clang diagnostic ignored "-Wnullability-completeness"
 #include "metal_bridge_generated.inc"
 #pragma clang diagnostic pop
+
+#include "../../tools/metal/metal_resource_descriptor_owned_generated.inc"
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#include "../../tools/metal/metal_resource_ownership_generated.inc"
+#pragma clang diagnostic pop
+#include "../../tools/metal/metal_resource_scalar_generated.inc"
