@@ -2,11 +2,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 0,
-    "bound": 693,
+    "bound": 742,
     "scope-excluded": 7,
-    "unreviewed": 4586
+    "unreviewed": 4537
   },
-  "classification_source_sha256": "9b0fd3ebf9d0787c2217e7f1ba710b09cbc4504bbd579615fe15d5bd69058cf2",
+  "classification_source_sha256": "19a0c09dd6100d3437a75c980495abab7cb84983db73ce4baa255f69822b14a8",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "header_aggregate_sha256": "c2ee1e44c76606cf05fa81d1a8314dadfa49efe900342e8bcb3670363c16f0d1",
@@ -718,14 +718,14 @@
         "AvailabilityAttr",
         "VisibilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "class:MTL4CommandQueueDescriptor",
       "kind": "class",
       "line": 75,
       "name": "MTL4CommandQueueDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -3247,14 +3247,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandEncoder.h",
       "id": "enum-case:MTL4VisibilityOptions:MTL4VisibilityOptionResourceAlias",
       "kind": "enum-case",
       "line": 32,
       "name": "MTL4VisibilityOptionResourceAlias",
       "owner": "MTL4VisibilityOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "(unnamed enum at /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Metal.framework/Headers/MTL4CommandEncoder.h:19:9)"
     },
     {
@@ -12139,14 +12139,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandEncoder.h",
       "id": "enum-case:MTLStages:MTLStageAll",
       "kind": "enum-case",
       "line": 75,
       "name": "MTLStageAll",
       "owner": "MTLStages",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "(unnamed enum at /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Metal.framework/Headers/MTLCommandEncoder.h:42:9)"
     },
     {
@@ -12223,14 +12223,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandEncoder.h",
       "id": "enum-case:MTLStages:MTLStageResourceState",
       "kind": "enum-case",
       "line": 60,
       "name": "MTLStageResourceState",
       "owner": "MTLStages",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "(unnamed enum at /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Metal.framework/Headers/MTLCommandEncoder.h:42:9)"
     },
     {
@@ -14424,14 +14424,14 @@
         "EnumExtensibilityAttr",
         "FlagEnumAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandEncoder.h",
       "id": "enum:MTL4VisibilityOptions",
       "kind": "enum",
       "line": 19,
       "name": "MTL4VisibilityOptions",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -15740,14 +15740,14 @@
         "EnumExtensibilityAttr",
         "FlagEnumAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandEncoder.h",
       "id": "enum:MTLStages",
       "kind": "enum",
       "line": 42,
       "name": "MTLStages",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -16263,98 +16263,98 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "field:MTL4UpdateSparseBufferMappingOperation:bufferRange",
       "kind": "field",
       "line": 190,
       "name": "bufferRange",
       "owner": "MTL4UpdateSparseBufferMappingOperation",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSRange"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "field:MTL4UpdateSparseBufferMappingOperation:heapOffset",
       "kind": "field",
       "line": 193,
       "name": "heapOffset",
       "owner": "MTL4UpdateSparseBufferMappingOperation",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "field:MTL4UpdateSparseBufferMappingOperation:mode",
       "kind": "field",
       "line": 187,
       "name": "mode",
       "owner": "MTL4UpdateSparseBufferMappingOperation",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLSparseTextureMappingMode"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "field:MTL4UpdateSparseTextureMappingOperation:heapOffset",
       "kind": "field",
       "line": 124,
       "name": "heapOffset",
       "owner": "MTL4UpdateSparseTextureMappingOperation",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "field:MTL4UpdateSparseTextureMappingOperation:mode",
       "kind": "field",
       "line": 105,
       "name": "mode",
       "owner": "MTL4UpdateSparseTextureMappingOperation",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLSparseTextureMappingMode"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "field:MTL4UpdateSparseTextureMappingOperation:textureLevel",
       "kind": "field",
       "line": 116,
       "name": "textureLevel",
       "owner": "MTL4UpdateSparseTextureMappingOperation",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "field:MTL4UpdateSparseTextureMappingOperation:textureRegion",
       "kind": "field",
       "line": 111,
       "name": "textureRegion",
       "owner": "MTL4UpdateSparseTextureMappingOperation",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLRegion"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "field:MTL4UpdateSparseTextureMappingOperation:textureSlice",
       "kind": "field",
       "line": 121,
       "name": "textureSlice",
       "owner": "MTL4UpdateSparseTextureMappingOperation",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
@@ -20894,14 +20894,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandAllocator.h",
       "id": "method:-[MTL4CommandAllocator reset]",
       "kind": "method",
       "line": 50,
       "name": "reset",
       "owner": "MTL4CommandAllocator",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> void"
     },
     {
@@ -20930,14 +20930,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandBuffer.h",
       "id": "method:-[MTL4CommandBuffer beginCommandBufferWithAllocator:]",
       "kind": "method",
       "line": 71,
       "name": "beginCommandBufferWithAllocator:",
       "owner": "MTL4CommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (id<MTL4CommandAllocator>  _Nonnull __strong) -> void"
     },
     {
@@ -20954,14 +20954,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandBuffer.h",
       "id": "method:-[MTL4CommandBuffer computeCommandEncoder]",
       "kind": "method",
       "line": 130,
       "name": "computeCommandEncoder",
       "owner": "MTL4CommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> id<MTL4ComputeCommandEncoder> _Nullable"
     },
     {
@@ -20978,14 +20978,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandBuffer.h",
       "id": "method:-[MTL4CommandBuffer endCommandBuffer]",
       "kind": "method",
       "line": 103,
       "name": "endCommandBuffer",
       "owner": "MTL4CommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> void"
     },
     {
@@ -21162,14 +21162,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandEncoder.h",
       "id": "method:-[MTL4CommandEncoder barrierAfterQueueStages:beforeStages:visibilityOptions:]",
       "kind": "method",
       "line": 70,
       "name": "barrierAfterQueueStages:beforeStages:visibilityOptions:",
       "owner": "MTL4CommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLStages, MTLStages, MTL4VisibilityOptions) -> void"
     },
     {
@@ -21198,14 +21198,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandEncoder.h",
       "id": "method:-[MTL4CommandEncoder endEncoding]",
       "kind": "method",
       "line": 167,
       "name": "endEncoding",
       "owner": "MTL4CommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> void"
     },
     {
@@ -21318,14 +21318,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "method:-[MTL4CommandQueue commit:count:]",
       "kind": "method",
       "line": 234,
       "name": "commit:count:",
       "owner": "MTL4CommandQueue",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (id<MTL4CommandBuffer>  _Nonnull const __unsafe_unretained * _Nonnull, NSUInteger) -> void"
     },
     {
@@ -21366,26 +21366,26 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "method:-[MTL4CommandQueue device]",
       "kind": "method",
       "line": 215,
       "name": "device",
       "owner": "MTL4CommandQueue",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> id<MTLDevice> _Nonnull"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "method:-[MTL4CommandQueue label]",
       "kind": "method",
       "line": 218,
       "name": "label",
       "owner": "MTL4CommandQueue",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSString * _Nullable"
     },
     {
@@ -21426,38 +21426,38 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "method:-[MTL4CommandQueue signalEvent:value:]",
       "kind": "method",
       "line": 266,
       "name": "signalEvent:value:",
       "owner": "MTL4CommandQueue",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (id<MTLEvent>  _Nonnull __strong, uint64_t) -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "method:-[MTL4CommandQueue updateBufferMappings:heap:operations:count:]",
       "kind": "method",
       "line": 406,
       "name": "updateBufferMappings:heap:operations:count:",
       "owner": "MTL4CommandQueue",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (id<MTLBuffer>  _Nonnull __strong, id<MTLHeap>  _Nullable __strong, const MTL4UpdateSparseBufferMappingOperation * _Nonnull, NSUInteger) -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "method:-[MTL4CommandQueue updateTextureMappings:heap:operations:count:]",
       "kind": "method",
       "line": 368,
       "name": "updateTextureMappings:heap:operations:count:",
       "owner": "MTL4CommandQueue",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (id<MTLTexture>  _Nonnull __strong, id<MTLHeap>  _Nullable __strong, const MTL4UpdateSparseTextureMappingOperation * _Nonnull, NSUInteger) -> void"
     },
     {
@@ -21498,14 +21498,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "method:-[MTL4CommandQueueDescriptor label]",
       "kind": "method",
       "line": 78,
       "name": "label",
       "owner": "MTL4CommandQueueDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSString * _Nullable"
     },
     {
@@ -21522,14 +21522,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "method:-[MTL4CommandQueueDescriptor setLabel:]",
       "kind": "method",
       "line": null,
       "name": "setLabel:",
       "owner": "MTL4CommandQueueDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (NSString * _Nullable) -> void"
     },
     {
@@ -34622,14 +34622,14 @@
         "AvailabilityAttr",
         "NSReturnsRetainedAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newCommandAllocator]",
       "kind": "method",
       "line": 1358,
       "name": "newCommandAllocator",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> id<MTL4CommandAllocator> _Nullable"
     },
     {
@@ -34637,14 +34637,14 @@
         "AvailabilityAttr",
         "NSReturnsRetainedAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newCommandBuffer]",
       "kind": "method",
       "line": 1396,
       "name": "newCommandBuffer",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> id<MTL4CommandBuffer> _Nullable"
     },
     {
@@ -35143,14 +35143,14 @@
         "AvailabilityAttr",
         "NSReturnsRetainedAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newMTL4CommandQueueWithDescriptor:error:]",
       "kind": "method",
       "line": 1389,
       "name": "newMTL4CommandQueueWithDescriptor:error:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTL4CommandQueueDescriptor * _Nonnull __strong, NSError * _Nullable __autoreleasing * _Nullable) -> id<MTL4CommandQueue> _Nullable"
     },
     {
@@ -35357,14 +35357,14 @@
         "AvailabilityAttr",
         "NSReturnsRetainedAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newSharedEvent]",
       "kind": "method",
       "line": 1007,
       "name": "newSharedEvent",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> id<MTLSharedEvent> _Nullable"
     },
     {
@@ -47421,14 +47421,14 @@
         "AvailabilityAttr",
         "SwiftAttrAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLEvent.h",
       "id": "method:-[MTLSharedEvent waitUntilSignaledValue:timeoutMS:]",
       "kind": "method",
       "line": 62,
       "name": "waitUntilSignaledValue:timeoutMS:",
       "owner": "MTLSharedEvent",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (uint64_t, uint64_t) -> BOOL"
     },
     {
@@ -51589,26 +51589,26 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "property:MTL4CommandQueue:device",
       "kind": "property",
       "line": 215,
       "name": "device",
       "owner": "MTL4CommandQueue",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "id<MTLDevice> _Nonnull"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "property:MTL4CommandQueue:label",
       "kind": "property",
       "line": 218,
       "name": "label",
       "owner": "MTL4CommandQueue",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSString * _Nullable"
     },
     {
@@ -51625,14 +51625,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "property:MTL4CommandQueueDescriptor:label",
       "kind": "property",
       "line": 78,
       "name": "label",
       "owner": "MTL4CommandQueueDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSString * _Nullable"
     },
     {
@@ -63621,56 +63621,56 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandAllocator.h",
       "id": "protocol:MTL4CommandAllocator",
       "kind": "protocol",
       "line": 29,
       "name": "MTL4CommandAllocator",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandBuffer.h",
       "id": "protocol:MTL4CommandBuffer",
       "kind": "protocol",
       "line": 46,
       "name": "MTL4CommandBuffer",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandEncoder.h",
       "id": "protocol:MTL4CommandEncoder",
       "kind": "protocol",
       "line": 38,
       "name": "MTL4CommandEncoder",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "protocol:MTL4CommandQueue",
       "kind": "protocol",
       "line": 212,
       "name": "MTL4CommandQueue",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -63719,14 +63719,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4ComputeCommandEncoder.h",
       "id": "protocol:MTL4ComputeCommandEncoder",
       "kind": "protocol",
       "line": 31,
       "name": "MTL4ComputeCommandEncoder",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -64129,14 +64129,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLEvent.h",
       "id": "protocol:MTLEvent",
       "kind": "protocol",
       "line": 15,
       "name": "MTLEvent",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -64587,14 +64587,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLEvent.h",
       "id": "protocol:MTLSharedEvent",
       "kind": "protocol",
       "line": 52,
       "name": "MTLSharedEvent",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -64749,26 +64749,26 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "record:MTL4UpdateSparseBufferMappingOperation",
       "kind": "record",
       "line": 177,
       "name": "MTL4UpdateSparseBufferMappingOperation",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "struct"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "record:MTL4UpdateSparseTextureMappingOperation",
       "kind": "record",
       "line": 95,
       "name": "MTL4UpdateSparseTextureMappingOperation",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "struct"
     },
     {
@@ -65507,42 +65507,42 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "typedef:MTL4UpdateSparseBufferMappingOperation",
       "kind": "typedef",
       "line": 195,
       "name": "MTL4UpdateSparseBufferMappingOperation",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "struct MTL4UpdateSparseBufferMappingOperation"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "typedef:MTL4UpdateSparseTextureMappingOperation",
       "kind": "typedef",
       "line": 126,
       "name": "MTL4UpdateSparseTextureMappingOperation",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "struct MTL4UpdateSparseTextureMappingOperation"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandEncoder.h",
       "id": "typedef:MTL4VisibilityOptions",
       "kind": "typedef",
       "line": 19,
       "name": "MTL4VisibilityOptions",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
@@ -67284,14 +67284,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandEncoder.h",
       "id": "typedef:MTLStages",
       "kind": "typedef",
       "line": 42,
       "name": "MTLStages",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {

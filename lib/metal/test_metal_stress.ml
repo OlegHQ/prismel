@@ -236,6 +236,21 @@ let run_placement_sparse_cycles device ~page_size ~page_bytes
         (Texture.create_placement_sparse ~device ~page_size
            texture_descriptor)
     in
+    let queue = get (Placement_mapping.create_queue device) in
+    let buffer_mapping =
+      get
+        (Placement_mapping.map_buffer queue ~heap ~heap_offset:0L buffer
+           ~range:{ offset = 0; length = 1 })
+    in
+    get (Placement_mapping.unmap buffer_mapping);
+    let texture_mapping =
+      get
+        (Placement_mapping.map_texture queue ~heap ~heap_offset:0L texture
+           ~mip_level:0 ~slice:0
+           ~region:{ x = 0; y = 0; z = 0; width = 1; height = 1; depth = 1 })
+    in
+    get (Placement_mapping.unmap texture_mapping);
+    get (Placement_mapping.destroy_queue queue);
     get (Texture.destroy texture);
     get (Buffer.destroy buffer);
     get (Heap.destroy heap)
@@ -335,7 +350,8 @@ let run_io_surface_cycles device count =
     get (Texture.Io_surface.destroy surface)
   done
 
-let check_cycles ?rss_limit ~name ~expected (baseline : Release_queue.stats)
+let check_cycles ?rss_limit ?expected_mapping_operations ~name ~expected
+    (baseline : Release_queue.stats)
     (finished : Release_queue.stats) =
   let created = Int64.sub finished.total_created baseline.total_created in
   let released = Int64.sub finished.total_released baseline.total_released in
@@ -354,6 +370,17 @@ let check_cycles ?rss_limit ~name ~expected (baseline : Release_queue.stats)
     <> baseline.external_deallocation_mismatches
   then
     fail "%s: Metal reported a no-copy deallocator layout mismatch" name;
+  Option.iter
+    (fun expected_operations ->
+      let operations =
+        Int64.sub finished.placement_mapping_operations
+          baseline.placement_mapping_operations
+      in
+      if operations <> expected_operations then
+        fail
+          "%s: expected %Ld placement mapping operations, observed %Ld"
+          name expected_operations operations)
+    expected_mapping_operations;
   let rss_tolerance = Option.value rss_limit ~default:(rss_tolerance ()) in
   if rss_growth > rss_tolerance then
     fail "%s: resident memory grew by %Ld bytes after settling (limit %Ld)" name
@@ -427,12 +454,15 @@ let destroy_device device =
 
 let finish_device device = ignore (destroy_device device)
 
-let measure device ~name ~warmup ~cycles ~expected run =
+let measure ?expected_mapping_operations device ~name ~warmup ~cycles ~expected
+    run =
   run device warmup;
   let baseline = settle () in
   run device cycles;
   let finished = settle () in
-  let growth = check_cycles ~name ~expected baseline finished in
+  let growth =
+    check_cycles ?expected_mapping_operations ~name ~expected baseline finished
+  in
   finish_device device;
   Printf.printf
     "Metal ownership lane %s passed: %Ld measured handles, %Ld-byte settled RSS delta\n%!"
@@ -507,8 +537,9 @@ let run_lane lane =
                run_placement_sparse_cycles device ~page_size ~page_bytes
                  ~texture_descriptor count
              in
-             measure device ~name:"placement sparse resources" ~warmup:500
-               ~cycles:10_000 ~expected:30_000L run)
+             measure ~expected_mapping_operations:40_000L device
+               ~name:"placement sparse resources/mappings" ~warmup:500
+               ~cycles:10_000 ~expected:40_000L run)
   | Residency_sets_and_resources ->
       if not (get (Device.supports_residency_sets device)) then begin
         finish_device device;

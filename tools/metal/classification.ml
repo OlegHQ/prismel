@@ -23,7 +23,8 @@ let enum_cases owner names =
   List.map (fun name -> "enum-case:" ^ owner ^ ":" ^ name) names
 
 let bound_identifiers =
-  [ "class:MTLCompileOptions"
+  [ "class:MTL4CommandQueueDescriptor"
+  ; "class:MTLCompileOptions"
   ; "class:MTLHeapDescriptor"
   ; "class:MTLResidencySetDescriptor"
   ; "class:MTLSamplerDescriptor"
@@ -31,6 +32,7 @@ let bound_identifiers =
   ; "class:MTLTextureDescriptor"
   ; "class:MTLTextureViewDescriptor"
   ; "enum:MTLCommandBufferStatus"
+  ; "enum:MTL4VisibilityOptions"
   ; "enum:MTLCompareFunction"
   ; "enum:MTLBufferSparseTier"
   ; "enum:MTLCPUCacheMode"
@@ -48,6 +50,7 @@ let bound_identifiers =
   ; "enum:MTLSparsePageSize"
   ; "enum:MTLSparseTextureMappingMode"
   ; "enum:MTLStorageMode"
+  ; "enum:MTLStages"
   ; "enum:MTLTextureType"
   ; "enum:MTLTextureCompressionType"
   ; "enum:MTLTextureSparseTier"
@@ -60,6 +63,8 @@ let bound_identifiers =
   ; "function:MTLSizeMake"
   ; "function:MTLTextureSwizzleChannelsMake"
   ; "record:MTLOrigin"
+  ; "record:MTL4UpdateSparseBufferMappingOperation"
+  ; "record:MTL4UpdateSparseTextureMappingOperation"
   ; "record:MTLRegion"
   ; "record:MTLSize"
   ; "record:MTLSizeAndAlign"
@@ -78,6 +83,19 @@ let bound_identifiers =
   ; "field:MTLTextureSwizzleChannels:blue"
   ; "field:MTLTextureSwizzleChannels:green"
   ; "field:MTLTextureSwizzleChannels:red"
+  ; "field:MTL4UpdateSparseBufferMappingOperation:bufferRange"
+  ; "field:MTL4UpdateSparseBufferMappingOperation:heapOffset"
+  ; "field:MTL4UpdateSparseBufferMappingOperation:mode"
+  ; "field:MTL4UpdateSparseTextureMappingOperation:heapOffset"
+  ; "field:MTL4UpdateSparseTextureMappingOperation:mode"
+  ; "field:MTL4UpdateSparseTextureMappingOperation:textureLevel"
+  ; "field:MTL4UpdateSparseTextureMappingOperation:textureRegion"
+  ; "field:MTL4UpdateSparseTextureMappingOperation:textureSlice"
+  ; "protocol:MTL4CommandAllocator"
+  ; "protocol:MTL4CommandBuffer"
+  ; "protocol:MTL4CommandEncoder"
+  ; "protocol:MTL4CommandQueue"
+  ; "protocol:MTL4ComputeCommandEncoder"
   ; "protocol:MTLBuffer"
   ; "protocol:MTLAllocation"
   ; "protocol:MTLBlitCommandEncoder"
@@ -87,6 +105,7 @@ let bound_identifiers =
   ; "protocol:MTLComputeCommandEncoder"
   ; "protocol:MTLComputePipelineState"
   ; "protocol:MTLDevice"
+  ; "protocol:MTLEvent"
   ; "protocol:MTLFunction"
   ; "protocol:MTLHeap"
   ; "protocol:MTLLibrary"
@@ -94,8 +113,12 @@ let bound_identifiers =
   ; "protocol:MTLResidencySet"
   ; "protocol:MTLResourceStateCommandEncoder"
   ; "protocol:MTLSamplerState"
+  ; "protocol:MTLSharedEvent"
   ; "protocol:MTLTexture"
   ; "typedef:MTLCommandBufferStatus"
+  ; "typedef:MTL4UpdateSparseBufferMappingOperation"
+  ; "typedef:MTL4UpdateSparseTextureMappingOperation"
+  ; "typedef:MTL4VisibilityOptions"
   ; "typedef:MTLCompareFunction"
   ; "typedef:MTLBufferSparseTier"
   ; "typedef:MTLCPUCacheMode"
@@ -117,6 +140,7 @@ let bound_identifiers =
   ; "typedef:MTLSize"
   ; "typedef:MTLSizeAndAlign"
   ; "typedef:MTLStorageMode"
+  ; "typedef:MTLStages"
   ; "typedef:MTLTextureType"
   ; "typedef:MTLTextureCompressionType"
   ; "typedef:MTLTextureSparseTier"
@@ -126,7 +150,23 @@ let bound_identifiers =
   ; "variable:swizzle"
   ]
   @ methods
-      [ ( "MTLBuffer"
+      [ "MTL4CommandAllocator", [ "reset" ]
+      ; ( "MTL4CommandBuffer"
+        , [ "beginCommandBufferWithAllocator:"; "computeCommandEncoder"
+          ; "endCommandBuffer"
+          ] )
+      ; ( "MTL4CommandEncoder"
+        , [ "barrierAfterQueueStages:beforeStages:visibilityOptions:"
+          ; "endEncoding"
+          ] )
+      ; ( "MTL4CommandQueue"
+        , [ "commit:count:"; "device"; "label"; "signalEvent:value:"
+          ; "updateBufferMappings:heap:operations:count:"
+          ; "updateTextureMappings:heap:operations:count:"
+          ] )
+      ; ( "MTL4CommandQueueDescriptor"
+        , [ "label"; "setLabel:" ] )
+      ; ( "MTLBuffer"
         , [ "contents"; "didModifyRange:"; "length"; "sparseBufferTier"
           ; "newTextureWithDescriptor:offset:bytesPerRow:"
           ] )
@@ -161,14 +201,17 @@ let bound_identifiers =
           ; "newBufferWithBytesNoCopy:length:options:deallocator:"
           ; "newBufferWithLength:options:"
           ; "newBufferWithLength:options:placementSparsePageSize:"
+          ; "newCommandAllocator"; "newCommandBuffer"
           ; "newCommandQueue"
           ; "newComputePipelineStateWithFunction:error:"
           ; "newLibraryWithSource:options:error:"
           ; "newHeapWithDescriptor:"
           ; "newResidencySetWithDescriptor:error:"
+          ; "newMTL4CommandQueueWithDescriptor:error:"
           ; "newSamplerStateWithDescriptor:"
           ; "newSharedTextureWithDescriptor:"
           ; "newSharedTextureWithHandle:"
+          ; "newSharedEvent"
           ; "newTextureWithDescriptor:iosurface:plane:"
           ; "newTextureWithDescriptor:"
           ; "isDepth24Stencil8PixelFormatSupported"
@@ -235,6 +278,7 @@ let bound_identifiers =
           ] )
       ; "MTLSamplerState", [ "device"; "label" ]
       ; "MTLSharedTextureHandle", [ "device"; "label" ]
+      ; "MTLSharedEvent", [ "waitUntilSignaledValue:timeoutMS:" ]
       ; ( "MTLTexture"
         , [ "allowGPUOptimizedContents"; "arrayLength"; "buffer"
           ; "bufferBytesPerRow"; "bufferOffset"; "compressionType"; "depth"
@@ -276,7 +320,9 @@ let bound_identifiers =
           ] )
       ]
   @ properties
-      [ "MTLAllocation", [ "allocatedSize" ]
+      [ "MTL4CommandQueue", [ "device"; "label" ]
+      ; "MTL4CommandQueueDescriptor", [ "label" ]
+      ; "MTLAllocation", [ "allocatedSize" ]
       ; ( "MTLCommandBuffer", [ "error"; "label"; "status" ] )
       ; "MTLCompileOptions", [ "fastMathEnabled" ]
       ; ( "MTLComputePipelineState"
@@ -340,6 +386,10 @@ let bound_identifiers =
           ] )
       ; "MTLBuffer", [ "length"; "sparseBufferTier" ]
       ]
+  @ enum_cases "MTL4VisibilityOptions"
+      [ "MTL4VisibilityOptionResourceAlias" ]
+  @ enum_cases "MTLStages"
+      [ "MTLStageAll"; "MTLStageResourceState" ]
   @ enum_cases "MTLGPUFamily"
       [ "MTLGPUFamilyApple1"; "MTLGPUFamilyApple2"; "MTLGPUFamilyApple3"
       ; "MTLGPUFamilyApple4"; "MTLGPUFamilyApple5"; "MTLGPUFamilyApple6"

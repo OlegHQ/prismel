@@ -540,6 +540,7 @@ enum class Handle_kind : std::uint32_t {
   Xpc_connection,
   Xpc_service,
   Xpc_request,
+  Placement_mapping_queue,
 };
 
 struct Handle {
@@ -561,6 +562,7 @@ std::atomic<std::uint64_t> total_created_count{0};
 std::atomic<std::uint64_t> total_released_count{0};
 std::atomic<std::uint64_t> external_deallocation_count{0};
 std::atomic<std::uint64_t> external_deallocation_mismatch_count{0};
+std::atomic<std::uint64_t> placement_mapping_operation_count{0};
 
 Handle *handle_of_value(value raw) {
   return static_cast<Handle *>(Data_custom_val(raw));
@@ -718,6 +720,11 @@ PrismelMetalXpcRequest *xpc_request_of_handle(value raw) {
   return object_of_handle(raw, Handle_kind::Xpc_request);
 }
 
+API_AVAILABLE(macos(26.0))
+id<MTL4CommandQueue> placement_mapping_queue_of_handle(value raw) {
+  return object_of_handle(raw, Handle_kind::Placement_mapping_queue);
+}
+
 API_AVAILABLE(macos(15.0))
 std::vector<id<MTLAllocation>> allocations_of_array(value raw_array) {
   const mlsize_t count = Wosize_val(raw_array);
@@ -871,9 +878,77 @@ bool device_supports_placement_sparse(id<MTLDevice> device) {
            [MTLTextureDescriptor instancesRespondToSelector:
                @selector(setPlacementSparsePageSize:)] &&
            [MTLHeapDescriptor instancesRespondToSelector:
-               @selector(setMaxCompatiblePlacementSparsePageSize:)];
+               @selector(setMaxCompatiblePlacementSparsePageSize:)] &&
+           [device respondsToSelector:@selector(newCommandAllocator)] &&
+           [device respondsToSelector:@selector(newMTL4CommandQueue)] &&
+           [device respondsToSelector:
+               @selector(newMTL4CommandQueueWithDescriptor:error:)] &&
+           [device respondsToSelector:@selector(newCommandBuffer)] &&
+           [device respondsToSelector:@selector(newSharedEvent)];
   }
   return false;
+}
+
+API_AVAILABLE(macos(26.0))
+bool synchronize_placement_mapping(id<MTL4CommandQueue> queue,
+                                   void (^update)(void),
+                                   NSString **failure) {
+  id<MTLDevice> device = queue.device;
+  id<MTL4CommandAllocator> allocator = [device newCommandAllocator];
+  id<MTL4CommandBuffer> command_buffer = [device newCommandBuffer];
+  id<MTLSharedEvent> event = [device newSharedEvent];
+  if (allocator == nil || command_buffer == nil || event == nil) {
+    if (failure != nullptr) {
+      *failure = @"Metal failed to allocate placement-mapping synchronization objects";
+    }
+    return false;
+  }
+
+  [command_buffer beginCommandBufferWithAllocator:allocator];
+  id<MTL4ComputeCommandEncoder> encoder =
+      [command_buffer computeCommandEncoder];
+  if (encoder == nil) {
+    [command_buffer endCommandBuffer];
+    if (failure != nullptr) {
+      *failure = @"Metal failed to create a placement-mapping barrier encoder";
+    }
+    return false;
+  }
+  [encoder barrierAfterQueueStages:MTLStageResourceState
+                      beforeStages:MTLStageAll
+                 visibilityOptions:MTL4VisibilityOptionResourceAlias];
+  [encoder endEncoding];
+  [command_buffer endCommandBuffer];
+  update();
+  const id<MTL4CommandBuffer> command_buffers[] = {command_buffer};
+  [queue commit:command_buffers count:1];
+  [queue signalEvent:event value:1];
+
+  __block BOOL completed = NO;
+  __block NSString *wait_failure = nil;
+  caml_release_runtime_system();
+  @try {
+    completed =
+        [event waitUntilSignaledValue:1
+                           timeoutMS:std::numeric_limits<std::uint64_t>::max()];
+  } @catch (NSException *exception) {
+    wait_failure = [exception.reason copy];
+  }
+  caml_acquire_runtime_system();
+  if (wait_failure != nil) {
+    if (failure != nullptr) {
+      *failure = wait_failure;
+    }
+    return false;
+  }
+  if (!completed) {
+    if (failure != nullptr) {
+      *failure = @"Metal placement-mapping synchronization timed out";
+    }
+    return false;
+  }
+  [allocator reset];
+  return true;
 }
 
 bool device_supports_sampler_reduction(id<MTLDevice> device) {
@@ -1509,6 +1584,13 @@ caml_prismel_metal_external_deallocation_mismatches(value unit) {
   CAMLparam1(unit);
   CAMLreturn(caml_copy_int64(static_cast<std::int64_t>(
       external_deallocation_mismatch_count.load(std::memory_order_relaxed))));
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_placement_mapping_operations(value unit) {
+  CAMLparam1(unit);
+  CAMLreturn(caml_copy_int64(static_cast<std::int64_t>(
+      placement_mapping_operation_count.load(std::memory_order_relaxed))));
 }
 
 extern "C" CAMLprim value caml_prismel_metal_resident_bytes(value unit) {
@@ -4137,6 +4219,309 @@ caml_prismel_metal_compute_pipeline_max_total_threads(value raw) {
   id<MTLComputePipelineState> pipeline =
       object_of_handle(raw, Handle_kind::Compute_pipeline);
   CAMLreturn(Val_long(pipeline.maxTotalThreadsPerThreadgroup));
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_placement_mapping_queue_create(value raw_device,
+                                                   value raw_label) {
+  CAMLparam2(raw_device, raw_label);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    @try {
+      id<MTLDevice> device =
+          object_of_handle(raw_device, Handle_kind::Device);
+      if (!device_supports_placement_sparse(device)) {
+        CAMLreturn(result_error_text(
+            "device does not support Metal 4 placement mappings"));
+      }
+      if (@available(macOS 26.0, *)) {
+        MTL4CommandQueueDescriptor *descriptor =
+            [[MTL4CommandQueueDescriptor alloc] init];
+        if (Is_block(raw_label)) {
+          NSString *label = string_from_ocaml(Field(raw_label, 0));
+          if (label == nil) {
+            CAMLreturn(result_error_text(
+                "placement-mapping queue label is not valid UTF-8"));
+          }
+          descriptor.label = label;
+        }
+        NSError *error = nil;
+        id<MTL4CommandQueue> queue =
+            [device newMTL4CommandQueueWithDescriptor:descriptor error:&error];
+        if (queue == nil || queue.device.registryID != device.registryID ||
+            (descriptor.label != nil &&
+             ![queue.label isEqualToString:descriptor.label]) ||
+            ![queue respondsToSelector:
+                @selector(updateBufferMappings:heap:operations:count:)] ||
+            ![queue respondsToSelector:
+                @selector(updateTextureMappings:heap:operations:count:)] ||
+            ![queue respondsToSelector:@selector(commit:count:)] ||
+            ![queue respondsToSelector:@selector(signalEvent:value:)]) {
+          CAMLreturn(result_error(error_description(
+              error, @"Metal rejected the placement-mapping queue")));
+        }
+        raw = allocate_handle(queue, Handle_kind::Placement_mapping_queue);
+        CAMLreturn(result_ok(raw));
+      }
+      CAMLreturn(result_error_text(
+          "Metal 4 placement mappings require macOS 26"));
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_placement_mapping_queue_label(value raw) {
+  CAMLparam1(raw);
+  CAMLlocal1(result);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      id<MTL4CommandQueue> queue = placement_mapping_queue_of_handle(raw);
+      result = copy_optional_string(queue.label);
+      CAMLreturn(result);
+    }
+    caml_failwith("Metal 4 placement mappings require macOS 26");
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_placement_mapping_update_buffer(
+    value raw_queue, value raw_buffer, value raw_heap, value raw_mode,
+    value raw_operation) {
+  CAMLparam5(raw_queue, raw_buffer, raw_heap, raw_mode, raw_operation);
+  @autoreleasepool {
+    @try {
+      if (@available(macOS 26.0, *)) {
+        id<MTL4CommandQueue> queue =
+            placement_mapping_queue_of_handle(raw_queue);
+        id<MTLBuffer> buffer =
+            object_of_handle(raw_buffer, Handle_kind::Buffer);
+        id<MTLHeap> heap = Is_block(raw_heap)
+                               ? object_of_handle(Field(raw_heap, 0),
+                                                  Handle_kind::Heap)
+                               : nil;
+        const intnat mode = Long_val(raw_mode);
+        const std::int64_t range_offset =
+            Int64_val(Field(raw_operation, 0));
+        const std::int64_t range_length =
+            Int64_val(Field(raw_operation, 1));
+        const std::int64_t heap_offset =
+            Int64_val(Field(raw_operation, 2));
+        const int page_size = Int_val(Field(raw_operation, 3));
+        const int sparse_tier = buffer_sparse_tier_or_unavailable(buffer);
+        if (!device_supports_placement_sparse(queue.device) ||
+            queue.device.registryID != buffer.device.registryID ||
+            (heap != nil &&
+             queue.device.registryID != heap.device.registryID) ||
+            (mode != MTLSparseTextureMappingModeMap &&
+             mode != MTLSparseTextureMappingModeUnmap) ||
+            (mode == MTLSparseTextureMappingModeMap && heap == nil) ||
+            (mode == MTLSparseTextureMappingModeUnmap && heap != nil) ||
+            (heap != nil && heap.type != MTLHeapTypePlacement) ||
+            (heap != nil &&
+             (heap.storageMode != buffer.storageMode ||
+              heap.cpuCacheMode != buffer.cpuCacheMode)) ||
+            sparse_tier == MTLBufferSparseTierNone ||
+            sparse_tier > MTLBufferSparseTier1 ||
+            !valid_sparse_page_size(page_size) || range_offset < 0 ||
+            range_length <= 0 || heap_offset < 0) {
+          CAMLreturn(result_error_text(
+              "placement sparse buffer mapping arguments are invalid"));
+        }
+        const NSUInteger page_bytes = [queue.device
+            sparseTileSizeInBytesForSparsePageSize:
+                static_cast<MTLSparsePageSize>(page_size)];
+        if (page_bytes == 0 ||
+            static_cast<std::uint64_t>(range_offset) >
+                std::numeric_limits<NSUInteger>::max() ||
+            static_cast<std::uint64_t>(range_length) >
+                std::numeric_limits<NSUInteger>::max() ||
+            static_cast<std::uint64_t>(heap_offset) >
+                std::numeric_limits<NSUInteger>::max()) {
+          CAMLreturn(result_error_text(
+              "placement sparse buffer mapping values exceed native limits"));
+        }
+        const NSUInteger buffer_tiles =
+            buffer.length / page_bytes +
+            (buffer.length % page_bytes == 0 ? 0 : 1);
+        const NSUInteger virtual_offset =
+            static_cast<NSUInteger>(range_offset);
+        const NSUInteger virtual_length =
+            static_cast<NSUInteger>(range_length);
+        const NSUInteger physical_offset =
+            static_cast<NSUInteger>(heap_offset);
+        if (virtual_offset > buffer_tiles ||
+            virtual_length > buffer_tiles - virtual_offset ||
+            (heap != nil &&
+             (physical_offset > heap.size / page_bytes ||
+              virtual_length > heap.size / page_bytes - physical_offset))) {
+          CAMLreturn(result_error_text(
+              "placement sparse buffer mapping exceeds its resource"));
+        }
+        const MTL4UpdateSparseBufferMappingOperation operation = {
+            static_cast<MTLSparseTextureMappingMode>(mode),
+            NSMakeRange(virtual_offset, virtual_length), physical_offset};
+        NSString *failure = nil;
+        const bool completed = synchronize_placement_mapping(
+            queue,
+            ^{
+              placement_mapping_operation_count.fetch_add(
+                  1, std::memory_order_relaxed);
+              [queue updateBufferMappings:buffer
+                                      heap:heap
+                                operations:&operation
+                                     count:1];
+            },
+            &failure);
+        if (!completed) {
+          CAMLreturn(result_error(failure));
+        }
+        CAMLreturn(result_unit());
+      }
+      CAMLreturn(result_error_text(
+          "Metal 4 placement mappings require macOS 26"));
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_placement_mapping_update_texture(
+    value raw_queue, value raw_texture, value raw_heap, value raw_operation) {
+  CAMLparam4(raw_queue, raw_texture, raw_heap, raw_operation);
+  @autoreleasepool {
+    @try {
+      if (@available(macOS 26.0, *)) {
+        id<MTL4CommandQueue> queue =
+            placement_mapping_queue_of_handle(raw_queue);
+        id<MTLTexture> texture =
+            object_of_handle(raw_texture, Handle_kind::Texture);
+        id<MTLHeap> heap = Is_block(raw_heap)
+                               ? object_of_handle(Field(raw_heap, 0),
+                                                  Handle_kind::Heap)
+                               : nil;
+        const intnat mode = Long_val(Field(raw_operation, 0));
+        value raw_region = Field(raw_operation, 1);
+        const intnat x = Long_val(Field(raw_region, 0));
+        const intnat y = Long_val(Field(raw_region, 1));
+        const intnat z = Long_val(Field(raw_region, 2));
+        const intnat width = Long_val(Field(raw_region, 3));
+        const intnat height = Long_val(Field(raw_region, 4));
+        const intnat depth = Long_val(Field(raw_region, 5));
+        const intnat level = Long_val(Field(raw_operation, 2));
+        const intnat slice = Long_val(Field(raw_operation, 3));
+        const std::int64_t heap_offset =
+            Int64_val(Field(raw_operation, 4));
+        const int page_size = Int_val(Field(raw_operation, 5));
+        if (!device_supports_placement_sparse(queue.device) ||
+            queue.device.registryID != texture.device.registryID ||
+            (heap != nil &&
+             queue.device.registryID != heap.device.registryID) ||
+            !texture_is_sparse_resource(texture) ||
+            (mode != MTLSparseTextureMappingModeMap &&
+             mode != MTLSparseTextureMappingModeUnmap) ||
+            (mode == MTLSparseTextureMappingModeMap && heap == nil) ||
+            (mode == MTLSparseTextureMappingModeUnmap && heap != nil) ||
+            (heap != nil && heap.type != MTLHeapTypePlacement) ||
+            (heap != nil &&
+             (heap.storageMode != texture.storageMode ||
+              heap.cpuCacheMode != texture.cpuCacheMode)) ||
+            !valid_sparse_page_size(page_size) || x < 0 || y < 0 || z < 0 ||
+            width <= 0 || height <= 0 || depth <= 0 || level < 0 ||
+            slice < 0 || heap_offset < 0 ||
+            static_cast<NSUInteger>(level) >= texture.mipmapLevelCount ||
+            static_cast<NSUInteger>(slice) >= texture_slice_count(texture)) {
+          CAMLreturn(result_error_text(
+              "placement sparse texture mapping arguments are invalid"));
+        }
+        const auto sparse_page_size =
+            static_cast<MTLSparsePageSize>(page_size);
+        const NSUInteger page_bytes = [queue.device
+            sparseTileSizeInBytesForSparsePageSize:sparse_page_size];
+        const MTLSize tile = [queue.device
+            sparseTileSizeWithTextureType:texture.textureType
+                                pixelFormat:texture.pixelFormat
+                                sampleCount:texture.sampleCount
+                             sparsePageSize:sparse_page_size];
+        const NSUInteger mip_width = std::max<NSUInteger>(1, texture.width >> level);
+        const NSUInteger mip_height = std::max<NSUInteger>(1, texture.height >> level);
+        const NSUInteger mip_depth = std::max<NSUInteger>(1, texture.depth >> level);
+        if (page_bytes == 0 || tile.width == 0 || tile.height == 0 ||
+            tile.depth == 0 ||
+            static_cast<std::uint64_t>(heap_offset) >
+                std::numeric_limits<NSUInteger>::max()) {
+          CAMLreturn(result_error_text(
+              "placement sparse texture mapping layout is invalid"));
+        }
+        const NSUInteger tiles_x = mip_width / tile.width +
+            (mip_width % tile.width == 0 ? 0 : 1);
+        const NSUInteger tiles_y = mip_height / tile.height +
+            (mip_height % tile.height == 0 ? 0 : 1);
+        const NSUInteger tiles_z = mip_depth / tile.depth +
+            (mip_depth % tile.depth == 0 ? 0 : 1);
+        const NSUInteger ux = static_cast<NSUInteger>(x);
+        const NSUInteger uy = static_cast<NSUInteger>(y);
+        const NSUInteger uz = static_cast<NSUInteger>(z);
+        const NSUInteger uw = static_cast<NSUInteger>(width);
+        const NSUInteger uh = static_cast<NSUInteger>(height);
+        const NSUInteger ud = static_cast<NSUInteger>(depth);
+        const NSUInteger first_tail = texture.firstMipmapInTail;
+        const bool tail = static_cast<NSUInteger>(level) == first_tail;
+        if (static_cast<NSUInteger>(level) > first_tail || ux > tiles_x ||
+            uw > tiles_x - ux || uy > tiles_y || uh > tiles_y - uy ||
+            uz > tiles_z || ud > tiles_z - uz ||
+            (tail && (ux != 0 || uy != 0 || uz != 0 || uw != 1 ||
+                      uh != 1 || ud != 1)) ||
+            uw > std::numeric_limits<NSUInteger>::max() / uh ||
+            uw * uh > std::numeric_limits<NSUInteger>::max() / ud) {
+          CAMLreturn(result_error_text(
+              "placement sparse texture mapping exceeds its mip level"));
+        }
+        NSUInteger physical_tiles = uw * uh * ud;
+        if (tail) {
+          const NSUInteger tail_bytes = texture.tailSizeInBytes;
+          physical_tiles = tail_bytes / page_bytes +
+              (tail_bytes % page_bytes == 0 ? 0 : 1);
+        }
+        const NSUInteger physical_offset =
+            static_cast<NSUInteger>(heap_offset);
+        if (physical_tiles == 0 ||
+            (heap != nil &&
+             (physical_offset > heap.size / page_bytes ||
+              physical_tiles > heap.size / page_bytes - physical_offset))) {
+          CAMLreturn(result_error_text(
+              "placement sparse texture mapping exceeds its heap"));
+        }
+        const MTL4UpdateSparseTextureMappingOperation operation = {
+            static_cast<MTLSparseTextureMappingMode>(mode),
+            MTLRegionMake3D(ux, uy, uz, uw, uh, ud),
+            static_cast<NSUInteger>(level), static_cast<NSUInteger>(slice),
+            physical_offset};
+        NSString *failure = nil;
+        const bool completed = synchronize_placement_mapping(
+            queue,
+            ^{
+              placement_mapping_operation_count.fetch_add(
+                  1, std::memory_order_relaxed);
+              [queue updateTextureMappings:texture
+                                       heap:heap
+                                 operations:&operation
+                                      count:1];
+            },
+            &failure);
+        if (!completed) {
+          CAMLreturn(result_error(failure));
+        }
+        CAMLreturn(result_unit());
+      }
+      CAMLreturn(result_error_text(
+          "Metal 4 placement mappings require macOS 26"));
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
 }
 
 extern "C" CAMLprim value caml_prismel_metal_command_queue_create(

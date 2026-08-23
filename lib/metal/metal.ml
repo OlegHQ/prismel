@@ -68,6 +68,7 @@ module Release_queue = struct
     ; total_released : int64
     ; external_deallocations : int64
     ; external_deallocation_mismatches : int64
+    ; placement_mapping_operations : int64
     ; resident_bytes : int64
     }
 
@@ -100,6 +101,8 @@ module Release_queue = struct
             ; external_deallocations = Metal_raw.external_deallocations ()
             ; external_deallocation_mismatches =
                 Metal_raw.external_deallocation_mismatches ()
+            ; placement_mapping_operations =
+                Metal_raw.placement_mapping_operations ()
             ; resident_bytes
             }
 end
@@ -319,6 +322,7 @@ and buffer =
   ; placement_sparse_page_size : sparse_page_size option
   ; allocation : heap_allocation option
   ; state : resource_state
+  ; placement_mappings : placement_mapping list ref
   }
 
 and texture =
@@ -331,6 +335,7 @@ and texture =
   ; placement_sparse_page_size : sparse_page_size option
   ; allocation : heap_allocation option
   ; state : resource_state
+  ; placement_mappings : placement_mapping list ref
   }
 
 and buffer_texture_backing =
@@ -349,6 +354,37 @@ and texture_parent =
   | Texture_buffer_resource of buffer_texture_backing
   | Texture_io_surface_resource of texture_io_surface_backing
   | Texture_view of texture
+
+and placement_mapping_queue =
+  { raw : Metal_raw.handle
+  ; lifetime : lifetime
+  ; device : device
+  ; mappings : placement_mapping list ref
+  }
+
+and placement_mapping =
+  { queue : placement_mapping_queue
+  ; heap : heap
+  ; allocation : heap_allocation
+  ; target : placement_mapping_target
+  ; page_size : sparse_page_size
+  ; heap_offset : int64
+  ; mapped_bytes : int64
+  ; active : bool Atomic.t
+  }
+
+and placement_mapping_target =
+  | Placement_buffer_mapping of
+      { buffer : buffer
+      ; tile_offset : int64
+      ; tile_count : int64
+      }
+  | Placement_texture_mapping of
+      { texture : texture
+      ; region : int * int * int * int * int * int
+      ; mip_level : int
+      ; slice : int
+      }
 
 type shared_texture_handle =
   { raw : Metal_raw.handle
@@ -1123,6 +1159,7 @@ module Buffer = struct
             ; placement_sparse_page_size
             ; allocation
             ; state = resource_state ()
+            ; placement_mappings = ref []
             }
           in
           attach parent_lifetime;
@@ -3384,6 +3421,12 @@ module Texture = struct
           | Texture_io_surface_resource _ -> resource_state ()
           | Texture_view texture -> texture.state
         in
+        let placement_mappings =
+          match parent with
+          | Texture_view texture -> texture.placement_mappings
+          | Texture_resource _ | Texture_buffer_resource _
+          | Texture_io_surface_resource _ -> ref []
+        in
         let value : t =
           { raw
           ; lifetime = lifetime ()
@@ -3394,6 +3437,7 @@ module Texture = struct
           ; placement_sparse_page_size
           ; allocation
           ; state
+          ; placement_mappings
           }
         in
         attach parent_lifetime;
@@ -4035,6 +4079,9 @@ module Texture = struct
     on_main "Metal.Texture.create_view" (fun () ->
       match ensure_texture_usable "Metal.Texture.create_view" parent with
       | Error _ as failure -> failure
+      | Ok () when !(parent.placement_mappings) <> [] ->
+          error "Metal.Texture.create_view" Invalid_state
+            "placement sparse texture mappings must be unmapped before creating a view"
       | Ok ()
         when swizzle <> default_swizzle
              && has_writable_usage parent.descriptor.usage ->
@@ -6307,6 +6354,492 @@ module Resource_state_encoder = struct
                  detach value.command_buffer.lifetime
                end;
                Ok ()))
+end
+
+module Placement_mapping = struct
+  type queue = placement_mapping_queue
+  type t = placement_mapping
+
+  type tile_range =
+    { offset : int
+    ; length : int
+    }
+
+  type kind =
+    | Buffer
+    | Texture
+
+  let ( let* ) value callback = Result.bind value callback
+  let operation_prefix name = "Metal.Placement_mapping." ^ name
+
+  let require operation kind condition message =
+    if condition then Ok () else error operation kind message
+
+  let create_queue ?label (device : Device.t) =
+    let operation = operation_prefix "create_queue" in
+    on_main operation (fun () ->
+      let* () = ensure_live operation device.lifetime in
+      let* () =
+        require operation Invalid_argument
+          (not (option_exists contains_nul label))
+          "queue label contains a NUL byte"
+      in
+      let* () =
+        require operation Unsupported
+          (Metal_raw.device_supports_placement_sparse device.raw)
+          "device does not support Metal 4 placement mappings"
+      in
+      match Metal_raw.placement_mapping_queue_create device.raw label with
+      | Error message -> native_error operation message
+      | Ok raw ->
+          let value : queue =
+            { raw; lifetime = lifetime (); device; mappings = ref [] }
+          in
+          attach device.lifetime;
+          attach_finalizer value value.lifetime device.lifetime;
+          Ok value)
+
+  let queue_device (value : queue) = value.device
+  let queue_generation (value : queue) = Metal_raw.generation value.raw
+  let queue_destroyed (value : queue) = is_destroyed value.lifetime
+
+  let queue_label (value : queue) =
+    let operation = operation_prefix "queue_label" in
+    on_main operation (fun () ->
+      let* () = ensure_live operation value.lifetime in
+      Ok (Metal_raw.placement_mapping_queue_label value.raw))
+
+  let destroy_queue (value : queue) =
+    destroy_parent (operation_prefix "destroy_queue") value.lifetime value.raw
+      (fun () -> detach value.device.lifetime)
+
+  let kind (value : t) =
+    match value.target with
+    | Placement_buffer_mapping _ -> Buffer
+    | Placement_texture_mapping _ -> Texture
+
+  let heap (value : t) = value.heap
+  let page_size (value : t) = value.page_size
+  let heap_offset (value : t) = value.heap_offset
+  let mapped_bytes (value : t) = value.mapped_bytes
+  let destroyed (value : t) = not (Atomic.get value.active)
+
+  let active_mappings (mappings : placement_mapping list ref) =
+    let active =
+      List.filter
+        (fun (mapping : placement_mapping) -> Atomic.get mapping.active)
+        !mappings
+    in
+    mappings := active;
+    active
+
+  let ensure_only_mapping_dependents operation lifetime
+      (mappings : placement_mapping list ref) =
+    let active = active_mappings mappings in
+    let* () =
+      require operation Parent_has_dependents
+        (dependent_count lifetime = List.length active)
+        "resource has a live view, CPU mapping, or command dependency"
+    in
+    Ok active
+
+  let page_compatible maximum requested =
+    Sparse_page_size.bytes maximum >= Sparse_page_size.bytes requested
+
+  let validate_heap operation (queue : queue) (heap : Heap.t) ~storage
+      ~cpu_cache page_size =
+    let* () = ensure_live operation heap.lifetime in
+    let* () = ensure_same_device operation queue.device heap.device in
+    let* () =
+      require operation Invalid_argument
+        (heap.descriptor.kind = Placement)
+        "placement sparse mappings require a placement heap"
+    in
+    let* () =
+      require operation Invalid_state
+        (Atomic.get heap.purgeable = Nonvolatile)
+        "placement heap must be nonvolatile before mapping"
+    in
+    let* () =
+      require operation Invalid_argument
+        (heap.descriptor.storage = storage
+         && heap.descriptor.cpu_cache = cpu_cache)
+        "placement heap storage and cache modes must match the resource"
+    in
+    match heap.descriptor.sparse_page_size with
+    | None ->
+        error operation Invalid_argument
+          "placement heap has no sparse-page compatibility"
+    | Some maximum when not (page_compatible maximum page_size) ->
+        error operation Invalid_argument
+          "placement heap sparse pages are smaller than the resource pages"
+    | Some _ -> Ok ()
+
+  let prepare_mapping (value : t)
+      (resource_mappings : placement_mapping list ref) =
+    let queue = value.queue and heap = value.heap in
+    let queue_entries = value :: !(queue.mappings)
+    and resource_entries = value :: !resource_mappings
+    and allocations = value.allocation :: !(heap.allocations) in
+    resource_mappings, queue_entries, resource_entries, allocations
+
+  let register_mapping (value : t)
+      (resource_mappings, queue_entries, resource_entries, allocations) =
+    let queue = value.queue and heap = value.heap in
+    attach queue.lifetime;
+    attach heap.lifetime;
+    Atomic.incr heap.active_uses;
+    (match value.target with
+     | Placement_buffer_mapping target -> attach target.buffer.lifetime
+     | Placement_texture_mapping target -> attach target.texture.lifetime);
+    queue.mappings := queue_entries;
+    resource_mappings := resource_entries;
+    heap.allocations := allocations
+
+  let validate_physical_span operation (heap : Heap.t) ~page_bytes
+      ~physical_tiles ~heap_offset =
+    let* () =
+      require operation Invalid_argument
+        (heap_offset >= 0L && Int64.rem heap_offset page_bytes = 0L)
+        "heap offset must be aligned to the resource page size"
+    in
+    let* () =
+      require operation Invalid_argument
+        (physical_tiles <= Int64.div Int64.max_int page_bytes)
+        "mapped byte cardinality overflows int64"
+    in
+    let mapped_bytes = Int64.mul physical_tiles page_bytes in
+    let required : Heap.size_and_align =
+      { size = mapped_bytes; alignment = page_bytes }
+    in
+    let* () =
+      Heap.validate_placement operation heap (Some heap_offset) required
+    in
+    Ok mapped_bytes
+
+  let make_mapping queue heap target page_size heap_offset mapped_bytes =
+    let allocation : heap_allocation =
+      { offset = heap_offset; size = mapped_bytes; active = Atomic.make true }
+    in
+    ({ queue
+     ; heap
+     ; allocation
+     ; target
+     ; page_size
+     ; heap_offset
+     ; mapped_bytes
+     ; active = Atomic.make true
+     }
+      : t)
+
+  let interval_overlaps left_offset left_length right_offset right_length =
+    left_offset < Int64.add right_offset right_length
+    && right_offset < Int64.add left_offset left_length
+
+  let buffer_range_overlaps tile_offset tile_count (mapping : t) =
+    match mapping.target with
+    | Placement_buffer_mapping target ->
+        interval_overlaps tile_offset tile_count target.tile_offset
+          target.tile_count
+    | Placement_texture_mapping _ -> false
+
+  let map_buffer (queue : queue) ~(heap : Heap.t) ~heap_offset
+      (buffer : Buffer.t) ~(range : tile_range) =
+    let operation = operation_prefix "map_buffer" in
+    on_main operation (fun () ->
+      let* () = ensure_live operation queue.lifetime in
+      let* () = ensure_buffer_usable operation buffer in
+      let* () = ensure_same_device operation queue.device buffer.device in
+      let* page_size =
+        match buffer.placement_sparse_page_size with
+        | Some page_size -> Ok page_size
+        | None ->
+            error operation Invalid_argument "buffer is not placement sparse"
+      in
+      let* () =
+        validate_heap operation queue heap ~storage:buffer.storage
+          ~cpu_cache:buffer.cpu_cache page_size
+      in
+      let* active =
+        ensure_only_mapping_dependents operation buffer.lifetime
+          buffer.placement_mappings
+      in
+      let* () =
+        require operation Invalid_argument
+          (range.offset >= 0 && range.length > 0)
+          "buffer tile range must be positive"
+      in
+      let page_bytes = Sparse_page_size.bytes page_size in
+      let tile_offset = Int64.of_int range.offset
+      and tile_count = Int64.of_int range.length in
+      let whole_tiles = Int64.div buffer.length page_bytes in
+      let virtual_tiles =
+        if Int64.rem buffer.length page_bytes = 0L then whole_tiles
+        else Int64.succ whole_tiles
+      in
+      let* () =
+        require operation Invalid_argument
+          (tile_offset <= virtual_tiles
+           && tile_count <= Int64.sub virtual_tiles tile_offset)
+          "buffer tile range exceeds the virtual resource"
+      in
+      let* () =
+        require operation Invalid_state
+          (not (List.exists (buffer_range_overlaps tile_offset tile_count) active))
+          "buffer tile range overlaps a live mapping"
+      in
+      let* mapped_bytes =
+        validate_physical_span operation heap ~page_bytes
+          ~physical_tiles:tile_count ~heap_offset
+      in
+      let target =
+        Placement_buffer_mapping { buffer; tile_offset; tile_count }
+      in
+      let value =
+        make_mapping queue heap target page_size heap_offset mapped_bytes
+      in
+      let registration = prepare_mapping value buffer.placement_mappings in
+      let raw_heap_offset = Int64.div heap_offset page_bytes in
+      match
+        Metal_raw.placement_mapping_update_buffer queue.raw buffer.raw
+          (Some heap.raw) 0
+          ( tile_offset
+          , tile_count
+          , raw_heap_offset
+          , sparse_page_size_code page_size )
+      with
+      | Error message -> native_error operation message
+      | Ok () ->
+          register_mapping value registration;
+          Ok value)
+
+  let texture_regions_overlap left right =
+    let lx, ly, lz, lw, lh, ld = left
+    and rx, ry, rz, rw, rh, rd = right in
+    lx < rx + rw && rx < lx + lw
+    && ly < ry + rh && ry < ly + lh
+    && lz < rz + rd && rz < lz + ld
+
+  let texture_region_overlaps raw_region mip_level slice (mapping : t) =
+    match mapping.target with
+    | Placement_texture_mapping target ->
+        target.mip_level = mip_level && target.slice = slice
+        && texture_regions_overlap raw_region target.region
+    | Placement_buffer_mapping _ -> false
+
+  let validate_texture_parent operation (texture : Texture.t) =
+    match texture.parent with
+    | Texture_resource (Device_resource _) -> Ok ()
+    | Texture_view _ ->
+        error operation Invalid_argument
+          "map the base placement sparse texture, not a view"
+    | Texture_buffer_resource _ | Texture_io_surface_resource _
+    | Texture_resource (Heap_resource _ | External_resource _) ->
+        error operation Invalid_argument
+          "texture is not a device-owned placement sparse resource"
+
+  let validate_texture_region operation (texture : Texture.t) ~mip_level
+      ~slice (region : Resource_state_encoder.tile_region) =
+    let* info =
+      match Texture.sparse_info_raw operation texture with
+      | Ok (Some info) -> Ok info
+      | Ok None -> error operation Invalid_argument "texture is not sparse"
+      | Error _ as failure -> failure
+    in
+    let descriptor = texture.descriptor in
+    let* () =
+      require operation Invalid_argument
+        (mip_level >= 0 && mip_level < descriptor.mip_levels)
+        "mapping mip level is outside the texture"
+    in
+    let* () =
+      require operation Invalid_argument
+        (slice >= 0 && slice < Texture.total_slices descriptor)
+        "mapping slice is outside the texture"
+    in
+    let mip_width = Texture.mip_dimension descriptor.width mip_level
+    and mip_height = Texture.mip_dimension descriptor.height mip_level
+    and mip_depth = Texture.mip_dimension descriptor.depth mip_level in
+    let tile_width =
+      Resource_state_encoder.ceil_div mip_width info.tile_width
+    and tile_height =
+      Resource_state_encoder.ceil_div mip_height info.tile_height
+    and tile_depth =
+      Resource_state_encoder.ceil_div mip_depth info.tile_depth
+    in
+    let* () =
+      require operation Invalid_argument
+        (Resource_state_encoder.valid_axis region.x region.width tile_width
+         && Resource_state_encoder.valid_axis region.y region.height tile_height
+         && Resource_state_encoder.valid_axis region.z region.depth tile_depth)
+        "texture tile region exceeds the selected mip level"
+    in
+    let tail = info.first_mip_in_tail = Some mip_level in
+    let* () =
+      match info.first_mip_in_tail with
+      | Some first when mip_level > first ->
+          error operation Invalid_argument
+            "map a placement sparse mip tail through its first mip level"
+      | Some _ when tail
+                    && region <>
+                       { x = 0; y = 0; z = 0; width = 1; height = 1
+                       ; depth = 1
+                       } ->
+          error operation Invalid_argument
+            "a placement sparse mip-tail mapping must cover its single tail tile"
+      | None | Some _ -> Ok ()
+    in
+    let* tile_count =
+      Resource_state_encoder.tile_cardinality operation region
+    in
+    let page_bytes = info.tile_size_in_bytes in
+    let physical_tiles =
+      if tail then
+        let bytes = info.tail_size_in_bytes in
+        if bytes = 0L then 0L
+        else Int64.succ (Int64.div (Int64.pred bytes) page_bytes)
+      else Int64.of_int tile_count
+    in
+    let* () =
+      if physical_tiles > 0L then Ok ()
+      else
+        native_error operation
+          "Metal returned an empty placement sparse mapping"
+    in
+    Ok (Resource_state_encoder.region_tuple region, page_bytes, physical_tiles)
+
+  let map_texture (queue : queue) ~(heap : Heap.t) ~heap_offset
+      (texture : Texture.t) ~mip_level ~slice
+      ~(region : Resource_state_encoder.tile_region) =
+    let operation = operation_prefix "map_texture" in
+    on_main operation (fun () ->
+      let* () = ensure_live operation queue.lifetime in
+      let* () = ensure_texture_usable operation texture in
+      let* () = ensure_same_device operation queue.device texture.device in
+      let* () = validate_texture_parent operation texture in
+      let* page_size =
+        match texture.placement_sparse_page_size with
+        | Some page_size -> Ok page_size
+        | None ->
+            error operation Invalid_argument "texture is not placement sparse"
+      in
+      let* () =
+        validate_heap operation queue heap ~storage:texture.descriptor.storage
+          ~cpu_cache:texture.descriptor.cpu_cache page_size
+      in
+      let* active =
+        ensure_only_mapping_dependents operation texture.lifetime
+          texture.placement_mappings
+      in
+      let* raw_region, page_bytes, physical_tiles =
+        validate_texture_region operation texture ~mip_level ~slice region
+      in
+      let* () =
+        require operation Invalid_state
+          (not
+             (List.exists
+                (texture_region_overlaps raw_region mip_level slice)
+                active))
+          "texture tile region overlaps a live mapping"
+      in
+      let* mapped_bytes =
+        validate_physical_span operation heap ~page_bytes ~physical_tiles
+          ~heap_offset
+      in
+      let target =
+        Placement_texture_mapping { texture; region = raw_region; mip_level; slice }
+      in
+      let value =
+        make_mapping queue heap target page_size heap_offset mapped_bytes
+      in
+      let registration = prepare_mapping value texture.placement_mappings in
+      let raw_heap_offset = Int64.div heap_offset page_bytes in
+      match
+        Metal_raw.placement_mapping_update_texture queue.raw texture.raw
+          (Some heap.raw)
+          ( 0
+          , raw_region
+          , mip_level
+          , slice
+          , raw_heap_offset
+          , sparse_page_size_code page_size )
+      with
+      | Error message -> native_error operation message
+      | Ok () ->
+          register_mapping value registration;
+          Ok value)
+
+  let remove_mapping (value : t)
+      (resource_mappings : placement_mapping list ref) =
+    let keep (retained : placement_mapping) =
+      retained != value && Atomic.get retained.active
+    in
+    value.queue.mappings := List.filter keep !(value.queue.mappings);
+    resource_mappings := List.filter keep !resource_mappings;
+    Atomic.set value.active false;
+    Atomic.set value.allocation.active false;
+    Atomic.decr value.heap.active_uses;
+    (match value.target with
+     | Placement_buffer_mapping target -> detach target.buffer.lifetime
+     | Placement_texture_mapping target -> detach target.texture.lifetime);
+    detach value.heap.lifetime;
+    detach value.queue.lifetime
+
+  let unmap_buffer operation (value : t) (buffer : buffer) ~tile_offset
+      ~tile_count =
+    let* () = ensure_live operation buffer.lifetime in
+    let* _ =
+      ensure_only_mapping_dependents operation buffer.lifetime
+        buffer.placement_mappings
+    in
+    match
+      Metal_raw.placement_mapping_update_buffer value.queue.raw buffer.raw None 1
+        ( tile_offset
+        , tile_count
+        , 0L
+        , sparse_page_size_code value.page_size )
+    with
+    | Error message -> native_error operation message
+    | Ok () ->
+        remove_mapping value buffer.placement_mappings;
+        Ok ()
+
+  let unmap_texture operation (value : t) (texture : texture) ~region
+      ~mip_level ~slice =
+    let* () = ensure_live operation texture.lifetime in
+    let* _ =
+      ensure_only_mapping_dependents operation texture.lifetime
+        texture.placement_mappings
+    in
+    match
+      Metal_raw.placement_mapping_update_texture value.queue.raw
+        texture.raw None
+        ( 1
+        , region
+        , mip_level
+        , slice
+        , 0L
+        , sparse_page_size_code value.page_size )
+    with
+    | Error message -> native_error operation message
+    | Ok () ->
+        remove_mapping value texture.placement_mappings;
+        Ok ()
+
+  let unmap (value : t) =
+    let operation = operation_prefix "unmap" in
+    on_main operation (fun () ->
+      if not (Atomic.get value.active) then Ok ()
+      else
+        let* () = ensure_live operation value.queue.lifetime in
+        let* () = ensure_live operation value.heap.lifetime in
+        match value.target with
+        | Placement_buffer_mapping target ->
+            unmap_buffer operation value target.buffer
+              ~tile_offset:target.tile_offset ~tile_count:target.tile_count
+        | Placement_texture_mapping target ->
+            unmap_texture operation value target.texture ~region:target.region
+              ~mip_level:target.mip_level ~slice:target.slice)
 end
 
 module Blit_encoder = struct

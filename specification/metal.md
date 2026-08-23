@@ -54,8 +54,10 @@ handle remains rooted and cannot be concurrently destroyed through the safe
 API.
 
 `Metal.Release_queue.stats` exposes queued, dropped, live, total-created,
-total-released, and resident-byte facts for qualification. Queue overflow is a
-hard typed error rather than silent reclamation on a GC domain.
+total-released, placement-mapping-operation, and resident-byte facts for
+qualification. The mapping counter proves that rejected ranges did not reach
+the Objective-C update methods. Queue overflow is a hard typed error rather
+than silent reclamation on a GC domain.
 
 ## Implemented vertical slices
 
@@ -68,8 +70,8 @@ library compilation with full `NSError` diagnostics; automatic, placement, and
 established sparse heaps; macOS-15 residency sets; function lookup;
 compute-pipeline creation and limits; command queues and buffers; compute,
 resource-state, and narrow buffer-to-texture blit encoding; checked resource
-binding and thread dispatch; submission; blocking completion; and command
-status/errors.
+binding and thread dispatch; Metal 4 placement-sparse buffer and texture
+mapping; submission; blocking completion; and command status/errors.
 
 A `Buffer.Mapping.t` is valid only inside `Buffer.with_mapping`. It exposes
 checked copy operations rather than a Bigarray backed by an escaping native
@@ -293,8 +295,39 @@ typed OCaml handle. Texture creation preflights the complete
 kind/format/sample/page tile layout before allocation. A `Heap.Placement`
 descriptor may use `sparse_page_size` as
 `maxCompatiblePlacementSparsePageSize`; its size must be a whole number of
-those pages. This heap remains independently owned because Metal 4 mapping,
-not resource construction, connects its pages to the virtual resource.
+those pages. `Placement_mapping` owns the Metal 4 command queue that connects
+those independently created physical and virtual resources.
+
+`Placement_mapping.map_buffer` accepts a virtual tile range and a byte-addressed
+heap offset. `map_texture` accepts a tile region, mip level, and slice, including
+the one-tile packed-tail representation. Both paths validate device identity,
+page compatibility, storage/cache modes, positive cardinality, virtual bounds,
+page alignment, multiplication overflow, heap bounds, and virtual and physical
+overlap before Objective-C. The physical-range ledger is shared with ordinary
+placement-heap allocations, so a sparse mapping cannot silently alias a live
+placed resource. Mapping copies, which intentionally introduce two virtual
+aliases for the same pages, remain unreviewed until the command-access model can
+make their mutually exclusive use explicit.
+
+A successful operation returns an opaque mapping token. The queue and resource
+each retain that token; the token in turn retains the virtual resource, heap,
+and physical range until synchronous `unmap` succeeds. Resource, heap, and queue
+teardown therefore fail with `Parent_has_dependents` while pages are mapped.
+Unmap also rejects a resource owned by a live command buffer, and mapped base
+textures reject new views, preventing a view from escaping the same dependency
+check. The placement heap remains nonvolatile for the mapping lifetime, and
+its page range becomes reusable exactly once after unmap. Dropping the caller's
+token cannot silently release the mapping because the queue and resource
+ledgers continue to own it.
+
+Each native update is followed on the same Metal 4 queue by a consumer barrier
+from `MTLStageResourceState` with
+`MTL4VisibilityOptionResourceAlias`, then an event signal and synchronous
+`MTLSharedEvent` wait. This is the explicit completion boundary before a
+classic command queue may use the newly backed resource. The OCaml runtime lock
+is released during the native wait while all owners remain rooted. The safe
+surface uses Metal 4 only for the mapping boundary; it does not fork the
+existing compute, blit, or resource ownership APIs.
 
 `Buffer.sparse_tier` and `Texture.sparse_tier` query the macOS 26 native tier
 when the concrete driver implements the selector. The qualified M1/macOS 26.4
@@ -324,13 +357,13 @@ and verifies the same shader observes Metal's defined zero result. The narrow
 `Blit_encoder.copy_buffer_to_texture` entry point validates source offset,
 row/image pitch, total source span, destination mip/slice/region, format stride,
 sample count, and device identity before encoding; both resources remain owned
-through completion. Bulk/indirect mapping, access-counter residency maps,
-mapping moves, and Metal 4 placement-sparse mapping remain unreviewed rather
-than being conflated with this qualified legacy command-encoder path. The
-legacy encoder rejects placement resources before Objective-C. Until the Metal
-4 mapping surface lands, placement sparse CPU transfer, purgeability, and
-ordinary heap aliasability entry points also reject explicitly instead of
-pretending an initially unbacked resource owns physical memory.
+through completion. Bulk/indirect mapping, access-counter residency maps, and
+mapping-copy/move operations remain unreviewed rather than being conflated with
+either the qualified legacy command-encoder path or the typed Metal 4 placement
+path. The legacy encoder still rejects placement resources before Objective-C.
+Direct placement-sparse CPU transfer, resource purgeability, and ordinary
+resource aliasability remain explicit errors: physical ownership belongs to
+the live placement mapping and its heap, not to the virtual resource handle.
 
 `Residency_set` availability-gates the macOS 15 API at runtime because the
 library deployment target remains macOS 14. A set accepts only typed `Buffer`,
@@ -371,8 +404,10 @@ label. Invalid anisotropy, non-finite or inverted clamps, out-of-range bias,
 illegal unnormalized-coordinate combinations, and malformed labels fail before
 sampler creation. Sparse placement resource construction, sparse depth/stencil,
 shared-handle XPC transport, and IOSurface XPC transport are covered. Metal 4
-placement mapping remains pending, so this resource slice stays progress toward
-M3 rather than an M3 completion claim until the explicit audit.
+placement mapping now covers buffer pages, texture tiles and mip tails, exact
+unmap, barriers, and ownership on the qualified hardware. This completes the M3
+resource gate; the broader command and pipeline surfaces remain tracked by M4
+and M5 rather than being implied by that narrower gate.
 
 `test_metal.exe` runs a real M1 compute kernel, wrong-domain and invalid-state
 cases, shader diagnostics, copied/no-copy external buffer ownership,
@@ -392,7 +427,11 @@ linear/sRGB views, compressed private blits and volume creation, Depth24 and BC
 capability gating, sparse page and tile capability queries, compressed sparse-tile
 alignment, depth/stencil creation, legacy map/blit/read/unmap behavior,
 placement-sparse capability, all page-size constructors, typed tiers, texture
-views, sparse-compatible placement heaps, unmapped-state rejection,
+views, sparse-compatible placement heaps, unmapped-state rejection, Metal 4
+buffer/texture/tail map and unmap, mapped GPU write/read visibility, physical
+range reuse, command-retained unmap rejection, wrong-domain and stale-queue
+handling, and proof that invalid or overlapping mappings do not enter the
+Objective-C update methods,
 all sampler reduction modes and LOD-bias validation,
 command-resource retention, parent ownership, idempotent destruction, stale
 access, and GC-finalizer release. The
@@ -407,7 +446,8 @@ residency add/commit/remove/commit cycles covering 20,000 measured
 set/resource handles. Ten thousand sparse heap/color-texture cycles and a
 separate 10,000 sparse heap/depth-texture cycles each cover 20,000 measured
 handles on the qualified M1. Ten thousand placement-sparse
-heap/buffer/texture cycles cover another 30,000 measured handles. Another
+heap/buffer/texture/queue cycles cover another 40,000 measured handles and
+40,000 exact native map/unmap operations. Another
 10,000 base/swizzled-view cycles cover 20,000 handles. Another
 10,000 buffer/linear-texture ownership cycles cover 20,000 handles; 10,000
 shareable-source/handle/import cycles cover 30,000 handles; 10,000

@@ -56,6 +56,8 @@ external external_deallocations : unit -> int64 =
   "caml_prismel_metal_external_deallocations"
 external external_deallocation_mismatches : unit -> int64 =
   "caml_prismel_metal_external_deallocation_mismatches"
+external placement_mapping_operations : unit -> int64 =
+  "caml_prismel_metal_placement_mapping_operations"
 external resident_bytes : unit -> int64 = "caml_prismel_metal_resident_bytes"
 
 external default_device : unit -> (handle, string) result =
@@ -427,6 +429,24 @@ external compute_pipeline_thread_execution_width : handle -> int =
 
 external compute_pipeline_max_total_threads : handle -> int =
   "caml_prismel_metal_compute_pipeline_max_total_threads"
+
+external placement_mapping_queue_create :
+  handle -> string option -> (handle, string) result
+  = "caml_prismel_metal_placement_mapping_queue_create"
+
+external placement_mapping_queue_label : handle -> string option =
+  "caml_prismel_metal_placement_mapping_queue_label"
+
+external placement_mapping_update_buffer :
+  handle -> handle -> handle option -> int ->
+  (int64 * int64 * int64 * int) -> (unit, string) result
+  = "caml_prismel_metal_placement_mapping_update_buffer"
+
+external placement_mapping_update_texture :
+  handle -> handle -> handle option ->
+  (int * (int * int * int * int * int * int) * int * int * int64 * int) ->
+  (unit, string) result
+  = "caml_prismel_metal_placement_mapping_update_texture"
 
 external command_queue_create : handle -> (handle, string) result =
   "caml_prismel_metal_command_queue_create"

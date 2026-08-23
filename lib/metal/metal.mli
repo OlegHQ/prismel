@@ -55,6 +55,7 @@ module Release_queue : sig
     ; total_released : int64
     ; external_deallocations : int64
     ; external_deallocation_mismatches : int64
+    ; placement_mapping_operations : int64
     ; resident_bytes : int64
     }
 
@@ -922,6 +923,53 @@ module Resource_state_encoder : sig
     region:tile_region -> (unit, error) result
   val end_encoding : t -> (unit, error) result
   val destroyed : t -> bool
+end
+
+(** Synchronous Metal 4 placement-sparse mapping. A live mapping owns its
+    virtual resource and physical heap range until [unmap] succeeds. Virtual
+    buffer ranges and texture regions are expressed in sparse tiles;
+    [heap_offset] is expressed in bytes. *)
+module Placement_mapping : sig
+  type queue
+  type t
+
+  type tile_range =
+    { offset : int
+    ; length : int
+    }
+
+  type kind =
+    | Buffer
+    | Texture
+
+  val create_queue : ?label:string -> Device.t -> (queue, error) result
+  val queue_device : queue -> Device.t
+  val queue_generation : queue -> int64
+  val queue_label : queue -> (string option, error) result
+  val queue_destroyed : queue -> bool
+
+  (** Fails while mappings created by the queue remain live. *)
+  val destroy_queue : queue -> (unit, error) result
+
+  val map_buffer :
+    queue -> heap:Heap.t -> heap_offset:int64 -> Buffer.t ->
+    range:tile_range -> (t, error) result
+
+  val map_texture :
+    queue -> heap:Heap.t -> heap_offset:int64 -> Texture.t -> mip_level:int ->
+    slice:int -> region:Resource_state_encoder.tile_region ->
+    (t, error) result
+
+  val kind : t -> kind
+  val heap : t -> Heap.t
+  val page_size : t -> Sparse_page_size.t
+  val heap_offset : t -> int64
+  val mapped_bytes : t -> int64
+  val destroyed : t -> bool
+
+  (** Synchronously issues the matching Metal 4 unmap and releases ownership.
+      Repeating [unmap] after success is harmless. *)
+  val unmap : t -> (unit, error) result
 end
 
 module Blit_encoder : sig

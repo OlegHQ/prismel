@@ -35,6 +35,26 @@ kernel void sparse_read(texture2d<uint, access::read> source [[texture(0)]],
 }
 |}
 
+let placement_sparse_shader_source =
+  {|
+#include <metal_stdlib>
+using namespace metal;
+
+kernel void placement_buffer_write(device uint *target [[buffer(0)]]) {
+  target[0] = 0x5a17c0deu;
+}
+
+kernel void placement_buffer_read(device const uint *source [[buffer(0)]],
+                                  device uint *result [[buffer(1)]]) {
+  result[0] = source[0];
+}
+
+kernel void placement_texture_write(
+    texture2d<uint, access::write> target [[texture(0)]]) {
+  target.write(uint4(83u), uint2(0u));
+}
+|}
+
 let texture_swizzle_shader_source =
   {|
 #include <metal_stdlib>
@@ -678,7 +698,10 @@ let test_placement_sparse_resources device =
   in
   let descriptor =
     Texture.descriptor_2d ~mipmapped:true ~storage:Buffer.Private
-      ~usage:[ Texture.Shader_read; Texture.Pixel_format_view ]
+      ~usage:
+        [ Texture.Shader_read; Texture.Shader_write
+        ; Texture.Pixel_format_view
+        ]
       ~label:"Metal placement sparse texture" ~format:Texture.R8_uint
       ~width:256 ~height:256 ()
   in
@@ -858,27 +881,319 @@ let test_placement_sparse_resources device =
          (Heap.create ~device
             (Heap.make_descriptor ~sparse_page_size:page_size
                ~size:page_bytes ())));
+    ignore
+      (expect_error Invalid_argument
+         (Placement_mapping.create_queue ~label:"invalid\000label" device));
+    ignore
+      (expect_error Native_error
+         (Placement_mapping.create_queue ~label:"\255" device));
     let after_invalid = get (Release_queue.stats ()) in
     if after_invalid.total_created <> before_invalid.total_created then
       fail "invalid placement sparse inputs allocated native handles";
+    let tail_pages =
+      if sparse_info.tail_size_in_bytes = 0L then 0L
+      else
+        Int64.succ
+          (Int64.div (Int64.pred sparse_info.tail_size_in_bytes) page_bytes)
+    in
+    let heap_pages = Int64.add 2L tail_pages in
     let heap =
       get
         (Heap.create ~device
            (Heap.make_descriptor ~kind:Heap.Placement
               ~sparse_page_size:page_size ~label:"Metal sparse-compatible heap"
-              ~size:(Int64.mul 4L page_bytes) ()))
+              ~size:(Int64.mul heap_pages page_bytes) ()))
     in
     if
       (Heap.descriptor heap).sparse_page_size <> Some page_size
       || (get (Heap.info heap)).kind <> Heap.Placement
       || get (Heap.label heap) <> Some "Metal sparse-compatible heap"
     then fail "placement sparse heap compatibility metadata is inconsistent";
-    let queue = get (Command_queue.create device) in
-    let commands = get (Command_buffer.create queue ()) in
-    let encoder = get (Resource_state_encoder.create commands) in
     let tile : Resource_state_encoder.tile_region =
       { x = 0; y = 0; z = 0; width = 1; height = 1; depth = 1 }
     in
+    let mapping_queue =
+      get
+        (Placement_mapping.create_queue ~label:"Metal placement mapper"
+           device)
+    in
+    if
+      not
+        (Device.same device
+           (Placement_mapping.queue_device mapping_queue))
+      || Placement_mapping.queue_generation mapping_queue = 0L
+      || get (Placement_mapping.queue_label mapping_queue)
+         <> Some "Metal placement mapper"
+    then fail "placement-mapping queue properties are inconsistent";
+    ignore
+      (expect_error Wrong_domain
+         (Domain.spawn (fun () -> Placement_mapping.queue_label mapping_queue)
+          |> Domain.join));
+    let before_mapping_invalid = get (Release_queue.stats ()) in
+    let invalid_buffer range heap_offset =
+      ignore
+        (expect_error Invalid_argument
+           (Placement_mapping.map_buffer mapping_queue ~heap ~heap_offset
+              buffer ~range))
+    in
+    invalid_buffer { offset = -1; length = 1 } 0L;
+    invalid_buffer { offset = 0; length = 0 } 0L;
+    invalid_buffer { offset = 1; length = 1 } 0L;
+    invalid_buffer { offset = 0; length = 1 } 1L;
+    invalid_buffer { offset = 0; length = 1 }
+      (Heap.descriptor heap).size;
+    ignore
+      (expect_error Invalid_argument
+         (Placement_mapping.map_texture mapping_queue ~heap ~heap_offset:0L
+            texture ~mip_level:(-1) ~slice:0 ~region:tile));
+    ignore
+      (expect_error Invalid_argument
+         (Placement_mapping.map_texture mapping_queue ~heap ~heap_offset:0L
+            texture ~mip_level:0 ~slice:1 ~region:tile));
+    ignore
+      (expect_error Invalid_argument
+         (Placement_mapping.map_texture mapping_queue ~heap ~heap_offset:0L
+            texture ~mip_level:0 ~slice:0
+            ~region:{ tile with x = max_int }));
+    let after_mapping_invalid = get (Release_queue.stats ()) in
+    if
+      after_mapping_invalid.placement_mapping_operations
+      <> before_mapping_invalid.placement_mapping_operations
+    then fail "invalid placement mappings reached Objective-C";
+    let buffer_mapping =
+      get
+        (Placement_mapping.map_buffer mapping_queue ~heap ~heap_offset:0L
+           buffer ~range:{ offset = 0; length = 1 })
+    in
+    if
+      Placement_mapping.kind buffer_mapping <> Placement_mapping.Buffer
+      || Placement_mapping.page_size buffer_mapping <> page_size
+      || Placement_mapping.heap_offset buffer_mapping <> 0L
+      || Placement_mapping.mapped_bytes buffer_mapping <> page_bytes
+      || Placement_mapping.destroyed buffer_mapping
+    then fail "placement sparse buffer mapping metadata is inconsistent";
+    let before_overlap_invalid = get (Release_queue.stats ()) in
+    ignore
+      (expect_error Invalid_state
+         (Placement_mapping.map_buffer mapping_queue ~heap
+            ~heap_offset:page_bytes buffer
+            ~range:{ offset = 0; length = 1 }));
+    ignore
+      (expect_error Invalid_state
+         (Placement_mapping.map_texture mapping_queue ~heap ~heap_offset:0L
+            texture ~mip_level:0 ~slice:0 ~region:tile));
+    let after_overlap_invalid = get (Release_queue.stats ()) in
+    if
+      after_overlap_invalid.placement_mapping_operations
+      <> before_overlap_invalid.placement_mapping_operations
+    then fail "overlapping placement mappings reached Objective-C";
+    let texture_mapping =
+      get
+        (Placement_mapping.map_texture mapping_queue ~heap
+           ~heap_offset:page_bytes texture ~mip_level:0 ~slice:0 ~region:tile)
+    in
+    if
+      Placement_mapping.kind texture_mapping <> Placement_mapping.Texture
+      || Placement_mapping.heap texture_mapping != heap
+      || Placement_mapping.page_size texture_mapping <> page_size
+      || Placement_mapping.heap_offset texture_mapping <> page_bytes
+      || Placement_mapping.mapped_bytes texture_mapping <> page_bytes
+      || Placement_mapping.destroyed texture_mapping
+    then fail "placement sparse texture mapping metadata is inconsistent";
+    let tail_mapping =
+      match sparse_info.first_mip_in_tail with
+      | None -> None
+      | Some first_mip ->
+          if tail_pages <= 0L then
+            fail "placement sparse mip tail has no physical pages";
+          if first_mip + 1 < descriptor.mip_levels then
+            ignore
+              (expect_error Invalid_argument
+                 (Placement_mapping.map_texture mapping_queue ~heap
+                    ~heap_offset:(Int64.mul 2L page_bytes) texture
+                    ~mip_level:(first_mip + 1) ~slice:0 ~region:tile));
+          let mapping =
+            get
+              (Placement_mapping.map_texture mapping_queue ~heap
+                 ~heap_offset:(Int64.mul 2L page_bytes) texture
+                 ~mip_level:first_mip ~slice:0 ~region:tile)
+          in
+          if
+            Placement_mapping.mapped_bytes mapping
+            <> Int64.mul tail_pages page_bytes
+          then fail "placement sparse mip-tail byte ownership is inconsistent";
+          Some mapping
+    in
+    ignore
+      (expect_error Invalid_state
+         (Texture.create_view texture ~format:Texture.R8_uint ~base_mip:0
+            ~mip_count:1 ~base_slice:0 ~slice_count:1 ()));
+    ignore
+      (expect_error Parent_has_dependents
+         (Placement_mapping.destroy_queue mapping_queue));
+    ignore (expect_error Parent_has_dependents (Buffer.destroy buffer));
+    ignore (expect_error Parent_has_dependents (Texture.destroy texture));
+    ignore (expect_error Parent_has_dependents (Heap.destroy heap));
+    ignore
+      (expect_error Parent_has_dependents
+         (Heap.set_purgeable_state heap Volatile));
+
+    let command_queue = get (Command_queue.create device) in
+    let placement_library =
+      get (Library.compile_source ~device placement_sparse_shader_source)
+    in
+    let write_function =
+      get (Function.find ~library:placement_library "placement_buffer_write")
+    and read_function =
+      get (Function.find ~library:placement_library "placement_buffer_read")
+    and texture_write_function =
+      get (Function.find ~library:placement_library "placement_texture_write")
+    in
+    let write_pipeline = get (Compute_pipeline.create write_function)
+    and read_pipeline = get (Compute_pipeline.create read_function)
+    and texture_write_pipeline =
+      get (Compute_pipeline.create texture_write_function)
+    in
+    let output =
+      get (Buffer.create ~device ~length:4L ~storage:Buffer.Shared ())
+    in
+    let write_commands = get (Command_buffer.create command_queue ()) in
+    let write_encoder = get (Compute_encoder.create write_commands) in
+    get (Compute_encoder.set_pipeline write_encoder write_pipeline);
+    get (Compute_encoder.set_buffer write_encoder ~index:0 ~offset:0L buffer);
+    get
+      (Compute_encoder.dispatch_threads write_encoder ~threads:(1, 1, 1)
+         ~threadgroup:(1, 1, 1));
+    get (Compute_encoder.end_encoding write_encoder);
+    complete_commands write_commands;
+    get (Buffer.write_bytes output ~dst_offset:0L (Bytes.make 4 '\000'));
+    let read_commands = get (Command_buffer.create command_queue ()) in
+    let read_encoder = get (Compute_encoder.create read_commands) in
+    get (Compute_encoder.set_pipeline read_encoder read_pipeline);
+    get (Compute_encoder.set_buffer read_encoder ~index:0 ~offset:0L buffer);
+    get (Compute_encoder.set_buffer read_encoder ~index:1 ~offset:0L output);
+    get
+      (Compute_encoder.dispatch_threads read_encoder ~threads:(1, 1, 1)
+         ~threadgroup:(1, 1, 1));
+    get (Compute_encoder.end_encoding read_encoder);
+    ignore
+      (expect_error Parent_has_dependents
+         (Placement_mapping.unmap buffer_mapping));
+    complete_commands read_commands;
+    let buffer_value =
+      Bytes.get_int32_le (get (Buffer.read_bytes output ~offset:0L ~length:4)) 0
+    in
+    if buffer_value <> Int32.of_string "0x5a17c0de" then
+      fail "placement sparse buffer lost mapped GPU storage (%ld)" buffer_value;
+    get (Placement_mapping.unmap buffer_mapping);
+    if not (Placement_mapping.destroyed buffer_mapping) then
+      fail "unmapped buffer mapping remained live";
+    get (Placement_mapping.unmap buffer_mapping);
+    let reused_mapping =
+      get
+        (Placement_mapping.map_buffer mapping_queue ~heap ~heap_offset:0L
+           buffer ~range:{ offset = 0; length = 1 })
+    in
+    get (Placement_mapping.unmap reused_mapping);
+
+    let texture_write_commands =
+      get (Command_buffer.create command_queue ())
+    in
+    let texture_write_encoder =
+      get (Compute_encoder.create texture_write_commands)
+    in
+    get
+      (Compute_encoder.set_pipeline texture_write_encoder
+         texture_write_pipeline);
+    get (Compute_encoder.set_texture texture_write_encoder ~index:0 texture);
+    get
+      (Compute_encoder.dispatch_threads texture_write_encoder
+         ~threads:(1, 1, 1) ~threadgroup:(1, 1, 1));
+    get (Compute_encoder.end_encoding texture_write_encoder);
+    complete_commands texture_write_commands;
+    let sparse_library =
+      get (Library.compile_source ~device sparse_shader_source)
+    in
+    let sparse_function =
+      get (Function.find ~library:sparse_library "sparse_read")
+    in
+    let sparse_pipeline = get (Compute_pipeline.create sparse_function) in
+    let read_texture source =
+      get (Buffer.write_bytes output ~dst_offset:0L (Bytes.make 4 '\000'));
+      let commands = get (Command_buffer.create command_queue ()) in
+      let encoder = get (Compute_encoder.create commands) in
+      get (Compute_encoder.set_pipeline encoder sparse_pipeline);
+      get (Compute_encoder.set_texture encoder ~index:0 source);
+      get (Compute_encoder.set_buffer encoder ~index:0 ~offset:0L output);
+      get
+        (Compute_encoder.dispatch_threads encoder ~threads:(1, 1, 1)
+           ~threadgroup:(1, 1, 1));
+      get (Compute_encoder.end_encoding encoder);
+      complete_commands commands;
+      Bytes.get_int32_le (get (Buffer.read_bytes output ~offset:0L ~length:4)) 0
+    in
+    let mapped_texture_value = read_texture texture in
+    if mapped_texture_value <> 83l then
+      fail
+        "placement sparse texture lost mapped GPU storage (%ld; tile=%dx%dx%d, tail=%s/%Ld)"
+        mapped_texture_value sparse_info.tile_width sparse_info.tile_height
+        sparse_info.tile_depth
+        (match sparse_info.first_mip_in_tail with
+         | None -> "none"
+         | Some value -> string_of_int value)
+        sparse_info.tail_size_in_bytes;
+    Option.iter (fun mapping -> get (Placement_mapping.unmap mapping))
+      tail_mapping;
+    get (Placement_mapping.unmap texture_mapping);
+    if read_texture texture <> 0l then
+      fail "unmapped placement sparse texture did not return defined zero data";
+    let after_mapping = get (Release_queue.stats ()) in
+    if
+      Int64.sub after_mapping.placement_mapping_operations
+        before_mapping_invalid.placement_mapping_operations
+      <> (if Option.is_some tail_mapping then 8L else 6L)
+    then fail "placement mapping operations did not cross Objective-C exactly once";
+    get (Placement_mapping.destroy_queue mapping_queue);
+    if not (Placement_mapping.queue_destroyed mapping_queue) then
+      fail "destroyed placement-mapping queue remained live";
+    ignore
+      (expect_error Destroyed
+         (Placement_mapping.queue_label mapping_queue));
+    let before_mapping_finalizer = get (Release_queue.stats ()) in
+    let allocate_unreleased_mapping () =
+      let finalizer_heap =
+        get
+          (Heap.create ~device
+             (Heap.make_descriptor ~kind:Heap.Placement
+                ~sparse_page_size:page_size ~size:page_bytes ()))
+      in
+      let finalizer_buffer =
+        get
+          (Buffer.create_placement_sparse ~device ~page_size
+             ~length:page_bytes ~storage:Buffer.Private ())
+      in
+      let finalizer_queue = get (Placement_mapping.create_queue device) in
+      ignore
+        (get
+           (Placement_mapping.map_buffer finalizer_queue ~heap:finalizer_heap
+              ~heap_offset:0L finalizer_buffer
+              ~range:{ offset = 0; length = 1 }))
+    in
+    allocate_unreleased_mapping ();
+    let after_mapping_finalizer =
+      settle_finalizers ~expected_live:before_mapping_finalizer.live_handles
+    in
+    if
+      Int64.sub after_mapping_finalizer.total_created
+        before_mapping_finalizer.total_created
+      <> 3L
+      || Int64.sub after_mapping_finalizer.total_released
+           before_mapping_finalizer.total_released
+         <> 3L
+    then fail "placement mapping finalization did not release all owners";
+
+    let commands = get (Command_buffer.create command_queue ()) in
+    let encoder = get (Resource_state_encoder.create commands) in
     ignore
       (expect_error Unsupported
          (Resource_state_encoder.update_texture_mapping encoder
@@ -886,14 +1201,25 @@ let test_placement_sparse_resources device =
             ~region:tile));
     get (Resource_state_encoder.end_encoding encoder);
     complete_commands commands;
-    get (Command_queue.destroy queue);
+    get (Buffer.destroy output);
+    get (Compute_pipeline.destroy sparse_pipeline);
+    get (Function.destroy sparse_function);
+    get (Library.destroy sparse_library);
+    get (Compute_pipeline.destroy read_pipeline);
+    get (Compute_pipeline.destroy write_pipeline);
+    get (Compute_pipeline.destroy texture_write_pipeline);
+    get (Function.destroy read_function);
+    get (Function.destroy write_function);
+    get (Function.destroy texture_write_function);
+    get (Library.destroy placement_library);
+    get (Command_queue.destroy command_queue);
     get (Texture.destroy texture);
     get (Buffer.destroy buffer);
     get (Heap.destroy heap);
     ignore (expect_error Destroyed (Buffer.sparse_tier buffer));
     ignore (expect_error Destroyed (Texture.sparse_tier texture));
     Printf.printf
-      "Metal placement sparse buffer/texture/heap conformance passed (%Ld-byte pages)\n%!"
+      "Metal 4 placement sparse mapping conformance passed (%Ld-byte pages)\n%!"
       page_bytes;
     true
   end
