@@ -10287,6 +10287,50 @@ let () =
     if after_invalid_constants.total_created
        <> before_invalid_constants.total_created
     then fail "invalid function constants allocated native handles";
+    ignore
+      (expect_error Invalid_argument
+         (Function.descriptor ~constants:[] ""));
+    ignore
+      (expect_error Invalid_argument
+         (Function.descriptor ~specialized_name:"invalid\000name"
+            ~constants:[] "specialized_increment"));
+    ignore
+      (expect_error Invalid_argument
+         (Function.descriptor
+            ~constants:
+              [ "increment_amount", Function.Uint32_constant 1L
+              ; "increment_amount", Function.Uint32_constant 2L
+              ]
+            "specialized_increment"));
+    let after_invalid_descriptors = get (Release_queue.stats ()) in
+    if after_invalid_descriptors.total_created
+       <> before_invalid_constants.total_created
+    then fail "invalid immutable function descriptors allocated native handles";
+    let function_descriptor =
+      get
+        (Function.descriptor ~specialized_name:"descriptor_seven_twice"
+           ~constants:
+             [ "increment_amount", Function.Uint32_constant 7L
+             ; "apply_twice", Function.Bool_constant true
+             ]
+           "specialized_increment")
+    in
+    let before_descriptor_create = get (Release_queue.stats ()) in
+    let descriptor_function =
+      get (Function.create ~library function_descriptor)
+    in
+    let after_descriptor_create = get (Release_queue.stats ()) in
+    if
+      after_descriptor_create.total_created
+      <> Int64.succ before_descriptor_create.total_created
+      || after_descriptor_create.live_handles
+         <> before_descriptor_create.live_handles + 1
+    then
+      fail
+        "native function descriptor escaped as a handle or function ownership was lost";
+    if get (Function.name descriptor_function) <> "descriptor_seven_twice"
+       || get (Function.kind descriptor_function) <> Function.Kernel
+    then fail "function descriptor strings did not round-trip through Metal";
     let invalid_constant_type =
       expect_error Native_error
         (Function.specialize ~library ~label:"constant type diagnostic"
@@ -10562,6 +10606,7 @@ let () =
     Option.iter (fun value -> get (Function.destroy value)) linked_function;
     get (Function.destroy scalar_constant_function);
     get (Function.destroy scalar_constant_base);
+    get (Function.destroy descriptor_function);
     get (Function.destroy specialized_function);
     get (Function.destroy specializable);
     get (Function.destroy function_);

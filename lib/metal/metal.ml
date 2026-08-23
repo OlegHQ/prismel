@@ -7182,6 +7182,13 @@ module Function = struct
     ; required : bool
     }
 
+  type descriptor =
+    { name : string
+    ; specialized_name : string option
+    ; constants : (string * constant_value) list
+    ; compile_to_binary : bool
+    }
+
   let kind_of_code = function
     | 1 -> Vertex
     | 2 -> Fragment
@@ -7245,6 +7252,48 @@ module Function = struct
              | Ok raw -> loop (name :: seen) (raw :: reversed) rest)
     in
     loop [] [] constants
+
+  let descriptor ?specialized_name ?(compile_to_binary = false) ~constants
+      name =
+    let operation = "Metal.Function.descriptor" in
+    if name = "" || contains_nul name then
+      error operation Invalid_argument
+        "function descriptor name must be nonempty and contain no NUL byte"
+    else if
+      option_exists
+        (fun value -> value = "" || contains_nul value)
+        specialized_name
+    then
+      error operation Invalid_argument
+        "specialized function name must be nonempty and contain no NUL byte"
+    else
+      match raw_constants operation constants with
+      | Error _ as failure -> failure
+      | Ok _ ->
+          Ok { name; specialized_name; constants; compile_to_binary }
+
+  let create ~(library : Library.t) descriptor =
+    let operation = "Metal.Function.create" in
+    on_main operation (fun () ->
+      match ensure_live operation library.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match raw_constants operation descriptor.constants with
+           | Error _ as failure -> failure
+           | Ok raw_constants ->
+               match
+                 Metal_raw.function_create_descriptor library.raw
+                   descriptor.name descriptor.specialized_name raw_constants
+                   (if descriptor.compile_to_binary then 1 else 0)
+               with
+               | Error message -> native_error operation message
+               | Ok raw ->
+                   let value : t =
+                     { raw; lifetime = lifetime (); library }
+                   in
+                   attach library.lifetime;
+                   attach_finalizer value value.lifetime library.lifetime;
+                   Ok value))
 
   let find ~(library : Library.t) name =
     on_main "Metal.Function.find" (fun () ->

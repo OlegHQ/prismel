@@ -28,8 +28,6 @@ let entries =
   ; p ~attributes:a "MTLCounterSet" "name" "Metal/MTLCounters.h" "NSString * _Nonnull" "10.15"
   ; p ~setter:true "MTLEvent" "label" "Metal/MTLEvent.h" "NSString * _Nullable" "10.14"
   ; p ~setter:true "MTLFence" "label" "Metal/MTLFence.h" "NSString * _Nullable" "10.13"
-  ; p ~setter:true "MTLFunctionDescriptor" "name" "Metal/MTLFunctionDescriptor.h" "NSString * _Nullable" "11.0"
-  ; p ~setter:true "MTLFunctionDescriptor" "specializedName" "Metal/MTLFunctionDescriptor.h" "NSString * _Nullable" "11.0"
   ; p "MTLFunctionHandle" "name" "Metal/MTLFunctionHandle.h" "NSString * _Nonnull" "11.0"
   ; p "MTLFunctionLog" "encoderLabel" "Metal/MTLFunctionLog.h" "NSString * _Nullable" "11.0"
   ; p "MTLFunctionLogDebugLocation" "functionName" "Metal/MTLFunctionLog.h" "NSString * _Nullable" "11.0"
@@ -51,8 +49,7 @@ let entries =
   ; p "MTLVertexAttribute" "name" "Metal/MTLLibrary.h" "NSString * _Nonnull" "10.11"
   ]
 
-let expected_property_count = 42
-let expected_getter_count = 42
-let expected_setter_count = 24
-let expected_inventory_id_count = 108
-
+let expected_property_count = 40
+let expected_getter_count = 40
+let expected_setter_count = 22
+let expected_inventory_id_count = 102

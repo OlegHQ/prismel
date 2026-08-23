@@ -5696,6 +5696,160 @@ extern "C" CAMLprim value caml_prismel_metal_function_find(
   CAMLreturn(result_ok(raw));
 }
 
+extern "C" CAMLprim value caml_prismel_metal_function_create_descriptor(
+    value raw_library, value raw_name, value raw_specialized_name,
+    value raw_constants, value raw_options) {
+  CAMLparam5(raw_library, raw_name, raw_specialized_name, raw_constants,
+             raw_options);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    @try {
+      if (@available(macOS 11.0, *)) {
+        id<MTLLibrary> library =
+            object_of_handle(raw_library, Handle_kind::Library);
+        NSString *name = string_from_ocaml(raw_name);
+        if (name == nil) {
+          CAMLreturn(result_error_text(
+              "Metal function descriptor name is not valid UTF-8"));
+        }
+        NSString *specialized_name = nil;
+        if (Is_block(raw_specialized_name)) {
+          specialized_name =
+              string_from_ocaml(Field(raw_specialized_name, 0));
+          if (specialized_name == nil) {
+            CAMLreturn(result_error_text(
+                "Metal specialized function name is not valid UTF-8"));
+          }
+        }
+        const intnat options_code = Long_val(raw_options);
+        if (options_code < 0 || options_code > 1) {
+          CAMLreturn(result_error_text(
+              "Metal function descriptor options are invalid"));
+        }
+        MTLFunctionConstantValues *constant_values =
+            [[MTLFunctionConstantValues alloc] init];
+        NSMutableSet<NSString *> *constant_names = [NSMutableSet set];
+        const mlsize_t count = Wosize_val(raw_constants);
+        for (mlsize_t index = 0; index < count; ++index) {
+          value raw_constant = Field(raw_constants, index);
+          NSString *constant_name =
+              string_from_ocaml(Field(raw_constant, 0));
+          if (constant_name == nil) {
+            CAMLreturn(result_error_text(
+                "Metal function-constant name is not valid UTF-8"));
+          }
+          if ([constant_names containsObject:constant_name]) {
+            CAMLreturn(result_error_text(
+                "Metal function-constant list contains a duplicate name"));
+          }
+          [constant_names addObject:constant_name];
+          const intnat tag = Long_val(Field(raw_constant, 1));
+          const std::int64_t integral = Int64_val(Field(raw_constant, 2));
+          const double floating = Double_val(Field(raw_constant, 3));
+#define PRISMEL_SET_FUNCTION_CONSTANT(type_, metal_type_, expression_)         \
+  do {                                                                         \
+    const type_ constant = expression_;                                        \
+    [constant_values setConstantValue:&constant                                \
+                                     type:metal_type_                           \
+                                 withName:constant_name];                       \
+  } while (false)
+          switch (tag) {
+          case 0:
+            PRISMEL_SET_FUNCTION_CONSTANT(bool, MTLDataTypeBool,
+                                          integral != 0);
+            break;
+          case 1:
+            PRISMEL_SET_FUNCTION_CONSTANT(std::int8_t, MTLDataTypeChar,
+                                          static_cast<std::int8_t>(integral));
+            break;
+          case 2:
+            PRISMEL_SET_FUNCTION_CONSTANT(std::uint8_t, MTLDataTypeUChar,
+                                          static_cast<std::uint8_t>(integral));
+            break;
+          case 3:
+            PRISMEL_SET_FUNCTION_CONSTANT(std::int16_t, MTLDataTypeShort,
+                                          static_cast<std::int16_t>(integral));
+            break;
+          case 4:
+            PRISMEL_SET_FUNCTION_CONSTANT(std::uint16_t, MTLDataTypeUShort,
+                                          static_cast<std::uint16_t>(integral));
+            break;
+          case 5:
+            PRISMEL_SET_FUNCTION_CONSTANT(std::int32_t, MTLDataTypeInt,
+                                          static_cast<std::int32_t>(integral));
+            break;
+          case 6:
+            PRISMEL_SET_FUNCTION_CONSTANT(std::uint32_t, MTLDataTypeUInt,
+                                          static_cast<std::uint32_t>(integral));
+            break;
+          case 7:
+            PRISMEL_SET_FUNCTION_CONSTANT(std::int64_t, MTLDataTypeLong,
+                                          integral);
+            break;
+          case 8:
+            PRISMEL_SET_FUNCTION_CONSTANT(std::uint64_t, MTLDataTypeULong,
+                                          static_cast<std::uint64_t>(integral));
+            break;
+          case 9:
+            PRISMEL_SET_FUNCTION_CONSTANT(_Float16, MTLDataTypeHalf,
+                                          static_cast<_Float16>(floating));
+            break;
+          case 10:
+            PRISMEL_SET_FUNCTION_CONSTANT(float, MTLDataTypeFloat,
+                                          static_cast<float>(floating));
+            break;
+          default:
+#undef PRISMEL_SET_FUNCTION_CONSTANT
+            CAMLreturn(result_error_text(
+                "Metal function-constant type tag is invalid"));
+          }
+#undef PRISMEL_SET_FUNCTION_CONSTANT
+        }
+        MTLFunctionDescriptor *descriptor =
+            [MTLFunctionDescriptor functionDescriptor];
+        descriptor.name = name;
+        descriptor.specializedName = specialized_name;
+        descriptor.constantValues = count == 0 ? nil : constant_values;
+        descriptor.options = options_code == 1
+                                 ? MTLFunctionOptionCompileToBinary
+                                 : MTLFunctionOptionNone;
+        if (![descriptor.name isEqualToString:name] ||
+            ((specialized_name == nil) !=
+             (descriptor.specializedName == nil)) ||
+            (specialized_name != nil &&
+             ![descriptor.specializedName isEqualToString:specialized_name]) ||
+            ((count == 0) != (descriptor.constantValues == nil)) ||
+            descriptor.options !=
+                (options_code == 1 ? MTLFunctionOptionCompileToBinary
+                                   : MTLFunctionOptionNone)) {
+          CAMLreturn(result_error_text(
+              "Metal changed checked function descriptor properties"));
+        }
+        NSError *error = nil;
+        id<MTLFunction> function =
+            [library newFunctionWithDescriptor:descriptor error:&error];
+        if (function == nil) {
+          CAMLreturn(result_error(labeled_error_description(
+              specialized_name ?: name, error,
+              @"Metal function descriptor creation failed without NSError")));
+        }
+        NSString *expected_name = specialized_name ?: name;
+        if (function.device.registryID != library.device.registryID ||
+            ![function.name isEqualToString:expected_name]) {
+          CAMLreturn(result_error_text(
+              "Metal changed checked function descriptor result"));
+        }
+        raw = allocate_handle(function, Handle_kind::Function);
+        CAMLreturn(result_ok(raw));
+      }
+      CAMLreturn(result_error_text(
+          "Metal function descriptors require macOS 11"));
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+}
+
 extern "C" CAMLprim value caml_prismel_metal_function_name(value raw) {
   CAMLparam1(raw);
   CAMLlocal1(result);

@@ -23,7 +23,21 @@ let enum_cases owner names =
   List.map (fun name -> "enum-case:" ^ owner ^ ":" ^ name) names
 
 let bound_identifiers =
-  [ "class:MTL4ArgumentTableDescriptor"
+  [ "class:MTLFunctionDescriptor"
+  ; "method:+[MTLFunctionDescriptor functionDescriptor]"
+  ; "method:-[MTLFunctionDescriptor constantValues]"
+  ; "method:-[MTLFunctionDescriptor name]"
+  ; "method:-[MTLFunctionDescriptor options]"
+  ; "method:-[MTLFunctionDescriptor setConstantValues:]"
+  ; "method:-[MTLFunctionDescriptor setName:]"
+  ; "method:-[MTLFunctionDescriptor setOptions:]"
+  ; "method:-[MTLFunctionDescriptor setSpecializedName:]"
+  ; "method:-[MTLFunctionDescriptor specializedName]"
+  ; "property:MTLFunctionDescriptor:constantValues"
+  ; "property:MTLFunctionDescriptor:name"
+  ; "property:MTLFunctionDescriptor:options"
+  ; "property:MTLFunctionDescriptor:specializedName"
+  ; "class:MTL4ArgumentTableDescriptor"
   ; "class:MTL4BinaryFunctionDescriptor"
   ; "class:MTL4CommandAllocatorDescriptor"
   ; "class:MTL4CommandQueueDescriptor"

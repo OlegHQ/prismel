@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 1885,
+    "bound": 1899,
     "scope-excluded": 27,
-    "unreviewed": 3373
+    "unreviewed": 3359
   },
-  "classification_source_sha256": "c2fb8d3cecd62653074bdfc7a1d67488f9641e3495ac0e11713572ca2ca22813",
+  "classification_source_sha256": "d7f4059e01f8f1b5f6bd84c9686569ee72c66c5b40513e1cd18326446dd5125b",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "271bd5614a6f2ca840ce89a551c7fe0eff087fb6bd30e651d7acd230226f04a1",
@@ -2306,7 +2306,7 @@
           "line": 49
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionDescriptor.h",
       "id": "class:MTLFunctionDescriptor",
       "kind": "class",
@@ -2314,7 +2314,7 @@
       "macos_introduced": "11.0",
       "name": "MTLFunctionDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -29598,7 +29598,7 @@
           "line": 49
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionDescriptor.h",
       "id": "method:+[MTLFunctionDescriptor functionDescriptor]",
       "kind": "method",
@@ -29606,7 +29606,7 @@
       "macos_introduced": "11.0",
       "name": "functionDescriptor",
       "owner": "MTLFunctionDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "class () -> MTLFunctionDescriptor * _Nonnull"
     },
     {
@@ -59113,7 +59113,7 @@
           "line": 49
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionDescriptor.h",
       "id": "method:-[MTLFunctionDescriptor constantValues]",
       "kind": "method",
@@ -59121,7 +59121,7 @@
       "macos_introduced": "11.0",
       "name": "constantValues",
       "owner": "MTLFunctionDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLFunctionConstantValues * _Nullable"
     },
     {
@@ -59132,7 +59132,7 @@
           "line": 49
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionDescriptor.h",
       "id": "method:-[MTLFunctionDescriptor name]",
       "kind": "method",
@@ -59140,7 +59140,7 @@
       "macos_introduced": "11.0",
       "name": "name",
       "owner": "MTLFunctionDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSString * _Nullable"
     },
     {
@@ -59151,7 +59151,7 @@
           "line": 49
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionDescriptor.h",
       "id": "method:-[MTLFunctionDescriptor options]",
       "kind": "method",
@@ -59159,7 +59159,7 @@
       "macos_introduced": "11.0",
       "name": "options",
       "owner": "MTLFunctionDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLFunctionOptions"
     },
     {
@@ -59195,7 +59195,7 @@
           "line": 49
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionDescriptor.h",
       "id": "method:-[MTLFunctionDescriptor setConstantValues:]",
       "kind": "method",
@@ -59203,7 +59203,7 @@
       "macos_introduced": "11.0",
       "name": "setConstantValues:",
       "owner": "MTLFunctionDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLFunctionConstantValues * _Nullable) -> void"
     },
     {
@@ -59214,7 +59214,7 @@
           "line": 49
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionDescriptor.h",
       "id": "method:-[MTLFunctionDescriptor setName:]",
       "kind": "method",
@@ -59222,7 +59222,7 @@
       "macos_introduced": "11.0",
       "name": "setName:",
       "owner": "MTLFunctionDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (NSString * _Nullable) -> void"
     },
     {
@@ -59233,7 +59233,7 @@
           "line": 49
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionDescriptor.h",
       "id": "method:-[MTLFunctionDescriptor setOptions:]",
       "kind": "method",
@@ -59241,7 +59241,7 @@
       "macos_introduced": "11.0",
       "name": "setOptions:",
       "owner": "MTLFunctionDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLFunctionOptions) -> void"
     },
     {
@@ -59252,7 +59252,7 @@
           "line": 49
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionDescriptor.h",
       "id": "method:-[MTLFunctionDescriptor setSpecializedName:]",
       "kind": "method",
@@ -59260,7 +59260,7 @@
       "macos_introduced": "11.0",
       "name": "setSpecializedName:",
       "owner": "MTLFunctionDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (NSString * _Nullable) -> void"
     },
     {
@@ -59271,7 +59271,7 @@
           "line": 49
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionDescriptor.h",
       "id": "method:-[MTLFunctionDescriptor specializedName]",
       "kind": "method",
@@ -59279,7 +59279,7 @@
       "macos_introduced": "11.0",
       "name": "specializedName",
       "owner": "MTLFunctionDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSString * _Nullable"
     },
     {
@@ -94132,7 +94132,7 @@
           "line": 49
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionDescriptor.h",
       "id": "property:MTLFunctionDescriptor:constantValues",
       "kind": "property",
@@ -94140,7 +94140,7 @@
       "macos_introduced": "11.0",
       "name": "constantValues",
       "owner": "MTLFunctionDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLFunctionConstantValues * _Nullable"
     },
     {
@@ -94151,7 +94151,7 @@
           "line": 49
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionDescriptor.h",
       "id": "property:MTLFunctionDescriptor:name",
       "kind": "property",
@@ -94159,7 +94159,7 @@
       "macos_introduced": "11.0",
       "name": "name",
       "owner": "MTLFunctionDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSString * _Nullable"
     },
     {
@@ -94170,7 +94170,7 @@
           "line": 49
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionDescriptor.h",
       "id": "property:MTLFunctionDescriptor:options",
       "kind": "property",
@@ -94178,7 +94178,7 @@
       "macos_introduced": "11.0",
       "name": "options",
       "owner": "MTLFunctionDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLFunctionOptions"
     },
     {
@@ -94189,7 +94189,7 @@
           "line": 49
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionDescriptor.h",
       "id": "property:MTLFunctionDescriptor:specializedName",
       "kind": "property",
@@ -94197,7 +94197,7 @@
       "macos_introduced": "11.0",
       "name": "specializedName",
       "owner": "MTLFunctionDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSString * _Nullable"
     },
     {

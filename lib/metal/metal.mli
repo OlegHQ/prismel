@@ -1081,6 +1081,25 @@ module Function : sig
     ; required : bool
     }
 
+  type descriptor = private
+    { name : string
+    ; specialized_name : string option
+    ; constants : (string * constant_value) list
+    ; compile_to_binary : bool
+    }
+
+  (** Builds an immutable function descriptor. The native
+      [MTLFunctionDescriptor] and its copied strings/constant table exist only
+      for the duration of [create]; they are never exposed as handles. *)
+  val descriptor :
+    ?specialized_name:string -> ?compile_to_binary:bool ->
+    constants:(string * constant_value) list -> string ->
+    (descriptor, error) result
+
+  (** Creates a function through Metal's checked descriptor API. The returned
+      function retains its library in the same way as [find] and [specialize]. *)
+  val create : library:Library.t -> descriptor -> (t, error) result
+
   val find : library:Library.t -> string -> (t, error) result
   val specialize :
     library:Library.t -> ?label:string ->
