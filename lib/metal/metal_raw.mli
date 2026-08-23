@@ -1767,6 +1767,14 @@ external counter_sample_resolve : handle -> int64 -> int64 -> (bytes,string) res
 external blit_pass_create : unit -> (handle,string) result = "caml_prismel_metal_blit_pass_create"
 external blit_pass_attachments : handle -> (handle,string) result = "caml_prismel_metal_blit_pass_attachments"
 external blit_attachment : handle -> int64 -> handle option -> int64 -> int64 -> (handle,string) result = "caml_prismel_metal_blit_attachment"
+external io_queue_snapshot : handle -> (string option,string) result = "caml_prismel_metal_io_queue_snapshot"
+external io_queue_set_label : handle -> string option -> (unit,string) result = "caml_prismel_metal_io_queue_set_label"
+external io_queue_barrier : handle -> (unit,string) result = "caml_prismel_metal_io_queue_barrier"
+external io_queue_unretained : handle -> (handle,string) result = "caml_prismel_metal_io_queue_unretained"
+external io_command_snapshot : handle -> ((string option * string option * int),string) result = "caml_prismel_metal_io_command_snapshot"
+external io_command_simple : handle -> int -> string option -> (unit,string) result = "caml_prismel_metal_io_command_simple"
+external io_command_event : handle -> handle -> int64 -> bool -> (unit,string) result = "caml_prismel_metal_io_command_event"
+external io_command_handler : handle -> (unit -> unit) -> (nativeint,string) result = "caml_prismel_metal_io_command_handler"
 
 (** Exact callable subset of the prepared authoritative Metal4 shards. *)
 external metal4_command_buffer_begin :
