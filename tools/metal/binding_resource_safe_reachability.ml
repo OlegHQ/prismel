@@ -84,6 +84,18 @@ let public_operation id =
   else if contains id "MTLBuffer remoteStorageBuffer"
        || contains id "MTLBuffer:remoteStorageBuffer" then
     "Metal.Resource100.Buffer_ops.remote_storage"
+  else if contains id "MTLTexture newRemoteTextureViewForDevice" then
+    "Metal.Resource100.Texture_ops.remote_view"
+  else if contains id "MTLTexture remoteStorageTexture"
+       || contains id "MTLTexture:remoteStorageTexture" then
+    "Metal.Resource100.Texture_ops.remote_storage"
+  else if contains id "MTLTexture rootResource"
+       || contains id "MTLTexture:rootResource" then
+    "Metal.Resource100.Texture_ops.root_resource"
+  else if contains id "setTextureViewFromBuffer" then
+    "Metal.Resource100.Texture_view_pool.set_from_buffer"
+  else if contains id "newAccelerationStructureWithSize:" then
+    "Metal.Resource100.Heap_ops.create_acceleration_structure"
   else if contains id "MTLResourceViewPool baseResourceID"
        || contains id "MTLResourceViewPool:baseResourceID" then
     "Metal.Resource100.Texture_view_pool.base_resource_id"
