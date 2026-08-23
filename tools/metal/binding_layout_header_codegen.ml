@@ -1,0 +1,17 @@
+open Binding_layout_header_plan
+let snake s=s|>String.to_seq|>Seq.map(function('a'..'z'|'0'..'9')as c->c|'A'..'Z'as c->Char.lowercase_ascii c|_->'_')|>String.of_seq
+let selector id=let l=String.index id ' 'and r=String.rindex id ']'in String.sub id(l+1)(r-l-1)
+let signature s=let a=String.index s '('and b=String.rindex s ')'in let x=String.sub s(a+1)(b-a-1)|>String.trim in
+ (if x=""then[]else String.split_on_char ',' x|>List.map String.trim),let d=String.index s '-'in String.sub s(d+2)(String.length s-d-2)|>String.trim
+let owner_type=function
+ |"MTLRasterizationRateLayerDescriptor"->"MTLRasterizationRateLayerDescriptor *"
+ |"MTLRasterizationRateMap"->"id<MTLRasterizationRateMap>"
+ |"MTLRasterizationRateMapDescriptor"->"MTLRasterizationRateMapDescriptor *"
+ |"MTLTensor"->"id<MTLTensor>"|"MTLTensorDescriptor"->"MTLTensorDescriptor *"
+ |"MTLTensorExtents"->"MTLTensorExtents *"|x->invalid_arg x
+let call sel args=if args=[]then"[receiver "^sel^"]"else let ps=String.split_on_char ':' sel|>List.filter((<>)"")in
+ if List.length ps<>List.length args then invalid_arg sel else"[receiver "^(List.map2(fun p(_,n)->p^":"^n)ps args|>String.concat" ")^"]"
+let render es=validate es;let b=Buffer.create 32768 in Buffer.add_string b"#import <Foundation/Foundation.h>\n#import <Metal/Metal.h>\n/* exact tensor/raster layout mechanical shard */\n";
+ List.iter(fun e->match e.lane,e.declaration.kind,e.declaration.owner with|Mechanical,"method",Some o->let args,res=signature e.declaration.signature in
+  let ns=List.mapi(fun i t->t,"a"^string_of_int i)args in Printf.bprintf b"static %s prismel_layout_%s(%s receiver%s){%s%s;}/*%s*/\n"res(snake(o^"_"^e.declaration.name))(owner_type o)
+  (if ns=[]then""else", "^(List.map(fun(t,n)->t^" "^n)ns|>String.concat", "))(if res="void"then""else"return ")(call(selector e.declaration.id)ns)e.declaration.id|_->())es;Buffer.contents b
