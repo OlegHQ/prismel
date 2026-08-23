@@ -13542,6 +13542,34 @@ module Render_encoder = struct
     set_buffer "Metal.Render_encoder.set_fragment_buffer"
       Metal_raw.render_encoder_set_fragment_buffer
 
+  let set_texture operation raw_call (value : t) ~index (texture : Texture.t) =
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match ensure_texture_usable operation texture with
+           | Error _ as failure -> failure
+           | Ok () when index < 0 || index >= 31 ->
+               error operation Invalid_argument "texture index must be in [0, 31)"
+           | Ok () ->
+               (match ensure_same_device operation value.command_buffer.queue.device
+                        texture.device with
+                | Error _ as failure -> failure
+                | Ok () ->
+                    (match raw_call value.raw texture.raw index with
+                     | Error message -> native_error operation message
+                     | Ok () ->
+                         retain_command_buffer_texture value.command_buffer texture;
+                         Ok ()))))
+
+  let set_vertex_texture =
+    set_texture "Metal.Render_encoder.set_vertex_texture"
+      Metal_raw.render_encoder_set_vertex_texture
+
+  let set_fragment_texture =
+    set_texture "Metal.Render_encoder.set_fragment_texture"
+      Metal_raw.render_encoder_set_fragment_texture
+
   let set_validated operation validate raw_call (value : t) argument =
     on_main operation (fun () ->
       match ensure_live operation value.lifetime with

@@ -13207,6 +13207,28 @@ extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_fragment_buffer(
   CAMLreturn(result_unit());
 }
 
+extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_vertex_texture(
+    value raw_encoder, value raw_texture, value raw_index) {
+  CAMLparam3(raw_encoder, raw_texture, raw_index);
+  id<MTLRenderCommandEncoder> encoder = object_of_handle(raw_encoder, Handle_kind::Render_encoder);
+  id<MTLTexture> texture = object_of_handle(raw_texture, Handle_kind::Texture);
+  const intnat index = Long_val(raw_index);
+  if (index < 0 || index >= 31) CAMLreturn(result_error_text("render vertex-texture index is out of range"));
+  [encoder setVertexTexture:texture atIndex:(NSUInteger)index];
+  CAMLreturn(result_unit());
+}
+
+extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_fragment_texture(
+    value raw_encoder, value raw_texture, value raw_index) {
+  CAMLparam3(raw_encoder, raw_texture, raw_index);
+  id<MTLRenderCommandEncoder> encoder = object_of_handle(raw_encoder, Handle_kind::Render_encoder);
+  id<MTLTexture> texture = object_of_handle(raw_texture, Handle_kind::Texture);
+  const intnat index = Long_val(raw_index);
+  if (index < 0 || index >= 31) CAMLreturn(result_error_text("render fragment-texture index is out of range"));
+  [encoder setFragmentTexture:texture atIndex:(NSUInteger)index];
+  CAMLreturn(result_unit());
+}
+
 extern "C" CAMLprim value caml_prismel_metal_render_encoder_draw(
     value raw_encoder, value raw_first, value raw_count, value raw_instances) {
   CAMLparam4(raw_encoder, raw_first, raw_count, raw_instances);

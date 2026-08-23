@@ -1304,6 +1304,12 @@ external render_encoder_set_vertex_buffer :
 external render_encoder_set_fragment_buffer :
   handle -> handle -> int64 -> int -> (unit, string) result =
   "caml_prismel_metal_render_encoder_set_fragment_buffer"
+external render_encoder_set_vertex_texture :
+  handle -> handle -> int -> (unit, string) result =
+  "caml_prismel_metal_render_encoder_set_vertex_texture"
+external render_encoder_set_fragment_texture :
+  handle -> handle -> int -> (unit, string) result =
+  "caml_prismel_metal_render_encoder_set_fragment_texture"
 external render_encoder_draw :
   handle -> int -> int -> int -> (unit, string) result =
   "caml_prismel_metal_render_encoder_draw"
