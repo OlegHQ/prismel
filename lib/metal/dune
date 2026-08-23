@@ -216,6 +216,7 @@
   ../../tools/metal/metal4_render_pass_callable_bridge.inc
   ../../tools/metal/metal4_stitched_callable_bridge.inc
   ../../tools/metal/metal_presentation_render_pass_advanced.inc
+  ../../tools/metal/metal_presentation_layer_snapshot.inc
   ../../tools/metal/metal_command_support_mechanical.inc
   ../../tools/metal/metal_command_support_callable_bridge.inc
   ../../tools/metal/metal_mesh_tile_mechanical_generated.mm

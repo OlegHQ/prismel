@@ -15,6 +15,7 @@ int main(void) { @autoreleasepool {
   layer.framebufferOnly = NO; layer.maximumDrawableCount = 3;
   layer.allowsNextDrawableTimeout = YES; layer.displaySyncEnabled = NO;
   layer.presentsWithTransaction = NO;
+  if (@available(macOS 10.15,*)) { layer.wantsExtendedDynamicRangeContent=NO; require(!layer.wantsExtendedDynamicRangeContent,@"extended-range roundtrip"); }
   CGColorSpaceRef color = CGColorSpaceCreateWithName(kCGColorSpaceDisplayP3);
   layer.colorspace = color; CGColorSpaceRelease(color);
   require(layer.device == device && layer.drawableSize.width == 64 &&
