@@ -89,6 +89,31 @@ let sparse_page device =
     | Error { kind = Unsupported; _ } -> None
     | Error error -> fail "%s" (Format.asprintf "%a" pp_error error))
 
+let sparse_depth_descriptor device ~page_size ~page_bytes =
+  let heap =
+    get
+      (Heap.create ~device
+         (Heap.make_descriptor ~kind:Heap.Sparse ~sparse_page_size:page_size
+            ~size:page_bytes ()))
+  in
+  Fun.protect
+    ~finally:(fun () -> get (Heap.destroy heap))
+    (fun () ->
+      [ Texture.Depth16_unorm; Texture.Depth32_float; Texture.Stencil8
+      ; Texture.Depth24_unorm_stencil8; Texture.Depth32_float_stencil8
+      ]
+      |> List.find_map (fun format ->
+        let descriptor =
+          Texture.descriptor_2d ~storage:Buffer.Private
+            ~usage:[ Texture.Render_target ] ~format ~width:1 ~height:1 ()
+        in
+        match Heap.create_texture heap descriptor with
+        | Ok texture ->
+            get (Texture.destroy texture);
+            Some descriptor
+        | Error { kind = Unsupported; _ } -> None
+        | Error error -> fail "%s" (Format.asprintf "%a" pp_error error)))
+
 let run_sparse_cycles device ~page_size ~page_bytes count =
   let heap_descriptor =
     Heap.make_descriptor ~kind:Heap.Sparse ~sparse_page_size:page_size
@@ -102,6 +127,19 @@ let run_sparse_cycles device ~page_size ~page_bytes count =
   for _ = 1 to count do
     let heap = get (Heap.create ~device heap_descriptor) in
     let texture = get (Heap.create_texture heap texture_descriptor) in
+    get (Texture.destroy texture);
+    get (Heap.destroy heap)
+  done
+
+let run_sparse_depth_cycles device ~page_size ~page_bytes
+    ~depth_descriptor count =
+  let heap_descriptor =
+    Heap.make_descriptor ~kind:Heap.Sparse ~sparse_page_size:page_size
+      ~size:page_bytes ()
+  in
+  for _ = 1 to count do
+    let heap = get (Heap.create ~device heap_descriptor) in
+    let texture = get (Heap.create_texture heap depth_descriptor) in
     get (Texture.destroy texture);
     get (Heap.destroy heap)
   done
@@ -230,6 +268,7 @@ type lane =
   | Textures_and_samplers
   | Heaps_and_resources
   | Sparse_heaps_and_textures
+  | Sparse_depth_stencil
   | Residency_sets_and_resources
   | Buffer_backed_textures
   | Shared_textures
@@ -241,6 +280,7 @@ let lane_name = function
   | Textures_and_samplers -> "textures-samplers"
   | Heaps_and_resources -> "heaps-resources"
   | Sparse_heaps_and_textures -> "sparse-heaps-textures"
+  | Sparse_depth_stencil -> "sparse-depth-stencil"
   | Residency_sets_and_resources -> "residency-sets-resources"
   | Buffer_backed_textures -> "buffer-backed-textures"
   | Shared_textures -> "shared-textures"
@@ -252,6 +292,7 @@ let lane_of_name = function
   | "textures-samplers" -> Textures_and_samplers
   | "heaps-resources" -> Heaps_and_resources
   | "sparse-heaps-textures" -> Sparse_heaps_and_textures
+  | "sparse-depth-stencil" -> Sparse_depth_stencil
   | "residency-sets-resources" -> Residency_sets_and_resources
   | "buffer-backed-textures" -> Buffer_backed_textures
   | "shared-textures" -> Shared_textures
@@ -264,6 +305,7 @@ let lanes =
   ; Textures_and_samplers
   ; Heaps_and_resources
   ; Sparse_heaps_and_textures
+  ; Sparse_depth_stencil
   ; Residency_sets_and_resources
   ; Buffer_backed_textures
   ; Shared_textures
@@ -317,6 +359,30 @@ let run_lane lane =
              in
              measure device ~name:"sparse heaps/textures" ~warmup:500
                ~cycles:10_000 ~expected:20_000L run)
+  | Sparse_depth_stencil ->
+      if not (get (Device.supports_sparse_textures device)) then begin
+        finish_device device;
+        Printf.printf
+          "Metal ownership lane sparse depth/stencil skipped: unsupported\n%!"
+      end
+      else
+        (match sparse_page device with
+         | None -> fail "sparse device exposes no usable sparse page size"
+         | Some (page_size, page_bytes) ->
+             (match
+                sparse_depth_descriptor device ~page_size ~page_bytes
+              with
+              | None ->
+                  finish_device device;
+                  Printf.printf
+                    "Metal ownership lane sparse depth/stencil skipped: no supported format\n%!"
+              | Some depth_descriptor ->
+                  let run device count =
+                    run_sparse_depth_cycles device ~page_size ~page_bytes
+                      ~depth_descriptor count
+                  in
+                  measure device ~name:"sparse depth/stencil" ~warmup:500
+                    ~cycles:10_000 ~expected:20_000L run))
   | Residency_sets_and_resources ->
       if not (get (Device.supports_residency_sets device)) then begin
         finish_device device;

@@ -248,7 +248,11 @@ preflights each texture kind/format/sample/page
 combination through the device tile-layout query before allocation and verifies
 that a heap-created texture reports `isSparse`. This includes compressed
 EAC/ETC2 and ASTC resources on Apple family 6 or newer; their reported tile
-dimensions must remain aligned to the selected format's blocks.
+dimensions must remain aligned to the selected format's blocks. Depth and
+stencil formats use the same capability query instead of a blanket exclusion.
+The qualified M1 accepts `Depth16Unorm`, `Depth32Float`, `Stencil8`, and
+`Depth32Float_Stencil8`; its unsupported `Depth24Unorm_Stencil8` path remains
+explicitly capability-gated and allocates no safe handle.
 
 `Texture.sparse_info` returns the exact device tile dimensions, page bytes,
 first mip in the packed tail, and tail bytes while retaining typed sparse-heap
@@ -269,9 +273,8 @@ and verifies the same shader observes Metal's defined zero result. The narrow
 row/image pitch, total source span, destination mip/slice/region, format stride,
 sample count, and device identity before encoding; both resources remain owned
 through completion. Bulk/indirect mapping, access-counter residency maps,
-mapping moves, sparse depth/stencil, and macOS-26.4 placement-sparse buffers
-and textures remain unreviewed rather than being conflated with this qualified
-path.
+mapping moves, and macOS-26.4 placement-sparse buffers and textures remain
+unreviewed rather than being conflated with this qualified path.
 
 `Residency_set` availability-gates the macOS 15 API at runtime because the
 library deployment target remains macOS 14. A set accepts only typed `Buffer`,
@@ -305,10 +308,10 @@ address modes and border colors, normalized coordinates, finite float32 LOD
 clamps, comparison, LOD averaging, and argument-buffer support. Invalid
 anisotropy, non-finite or inverted clamps, illegal unnormalized-coordinate
 combinations, and malformed labels fail before sampler creation. Sparse
-depth/stencil and placement resources plus a public cross-process IOSurface
-transport are still pending; shared-handle XPC transport is covered, but this
-resource slice is therefore progress toward M3 rather than an M3 completion
-claim.
+placement resources plus a public cross-process IOSurface transport are still
+pending; sparse depth/stencil and shared-handle XPC transport are covered, but
+this resource slice is therefore progress toward M3 rather than an M3
+completion claim.
 
 `test_metal.exe` runs a real M1 compute kernel, wrong-domain and invalid-state
 cases, shader diagnostics, copied/no-copy external buffer ownership,
@@ -324,8 +327,9 @@ generic format-block transfers, encoded-block CPU round trips for all 66
 capability-supported compressed formats, all 42 bidirectional compressed
 linear/sRGB views, compressed private blits and volume creation, Depth24 and BC
 capability gating, sparse page and tile capability queries, compressed sparse-tile
-alignment, map/blit/read/unmap behavior, command-resource retention, parent
-ownership, idempotent destruction, stale access, and GC-finalizer release. The
+alignment, depth/stencil creation, map/blit/read/unmap behavior,
+command-resource retention, parent ownership, idempotent destruction, stale
+access, and GC-finalizer release. The
 separate XPC conformance app exercises a real cross-process shared-texture
 mutation and typed transport failures. The separate ownership stress performs
 warm-up followed
@@ -333,8 +337,9 @@ by 100,000 measured buffer create/destroy cycles, 100,000 measured
 texture/sampler create/destroy cycles, 10,000 heap/purge/alias/replacement
 cycles covering 30,000 measured heap/child-resource handles, and 10,000
 residency add/commit/remove/commit cycles covering 20,000 measured
-set/resource handles. Ten thousand sparse heap/texture cycles cover another
-20,000 measured handles. Another 10,000 buffer/linear-texture ownership cycles
+set/resource handles. Ten thousand sparse heap/color-texture cycles and a
+separate 10,000 sparse heap/depth-texture cycles each cover 20,000 measured
+handles on the qualified M1. Another 10,000 buffer/linear-texture ownership cycles
 cover 20,000 handles; 10,000 shareable-source/handle/import cycles cover 30,000
 handles; 10,000 IOSurface/texture cycles cover 20,000 handles; and 10,000
 external-memory/no-copy cycles cover 20,000 handles and exact

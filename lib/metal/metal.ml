@@ -3866,12 +3866,9 @@ module Heap = struct
                         if not sparse_kind_supported then
                           error "Metal.Heap.create_texture" Unsupported
                             "sparse heaps support reviewed 2D, cube, and 3D texture kinds"
-                        else if
-                          Metal_format.is_depth_or_stencil descriptor.format
-                          || Metal_format.is_subsampled descriptor.format
-                        then
+                        else if Metal_format.is_subsampled descriptor.format then
                           error "Metal.Heap.create_texture" Unsupported
-                            "sparse depth, stencil, and subsampled textures are not yet in the reviewed format matrix"
+                            "sparse subsampled textures are not in the reviewed format matrix"
                         else
                           match
                             Metal_raw.device_sparse_texture_tile_size

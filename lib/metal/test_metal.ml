@@ -597,10 +597,47 @@ let test_sparse_textures device =
               kind = Texture.Texture_1d
             ; height = 1
             }));
-    ignore
-      (expect_error Unsupported
-         (Heap.create_texture heap
-            { descriptor with format = Texture.Depth32_float }));
+    let sparse_depth_stencil_formats = ref [] in
+    let sparse_depth_stencil_count =
+      [ "Depth16Unorm", Texture.Depth16_unorm
+      ; "Depth32Float", Texture.Depth32_float
+      ; "Stencil8", Texture.Stencil8
+      ; "Depth24Unorm_Stencil8", Texture.Depth24_unorm_stencil8
+      ; "Depth32Float_Stencil8", Texture.Depth32_float_stencil8
+      ]
+      |> List.fold_left
+           (fun count (name, format) ->
+             let candidate =
+               Texture.descriptor_2d ~storage:Buffer.Private
+                 ~usage:[ Texture.Render_target ] ~format ~width:256
+                 ~height:256 ()
+             in
+             match Heap.create_texture heap candidate with
+             | Error { kind = Unsupported; _ } -> count
+             | Error error ->
+                 fail "sparse %s creation failed unexpectedly: %s" name
+                   (Format.asprintf "%a" pp_error error)
+             | Ok sparse_depth_stencil ->
+                 (match get (Texture.sparse_info sparse_depth_stencil) with
+                  | Some info
+                    when info.page_size = page_size
+                         && info.tile_size_in_bytes = page_bytes
+                         && info.tile_width > 0 && info.tile_height > 0
+                         && info.tile_depth > 0 -> ()
+                 | Some _ | None ->
+                      fail "sparse %s metadata is inconsistent" name);
+                 get (Texture.destroy sparse_depth_stencil);
+                 sparse_depth_stencil_formats :=
+                   name :: !sparse_depth_stencil_formats;
+                 count + 1)
+           0
+    in
+    if sparse_depth_stencil_count = 0 then
+      Printf.printf
+        "Metal sparse depth/stencil formats skipped: device reports no supported layout\n%!"
+    else
+      Printf.printf "Metal sparse depth/stencil formats passed: %s\n%!"
+        (String.concat ", " (List.rev !sparse_depth_stencil_formats));
     let texture = get (Heap.create_texture heap descriptor) in
     if Texture.heap_offset texture <> None then
       fail "sparse texture unexpectedly reports a placement offset";
