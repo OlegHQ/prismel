@@ -54,6 +54,7 @@ let () =
   expect Invalid_argument (Render_encoder.set_viewports encoder []);
   expect Invalid_argument (Render_encoder.set_scissors encoder []);
   expect Invalid_argument (Render_encoder.set_tessellation_factor_scale encoder nan);
+  expect Invalid_argument (Render_encoder.set_tessellation_factor_buffer encoder ~offset:1L ~instance_stride:0L);
   expect Invalid_argument (Render_encoder.set_stage_buffer encoder ~stage:Render_encoder.Mesh ~index:0 ~offset:1L None);
   expect Invalid_argument
     (Render_encoder.set_fragment_sampler encoder ~index:0 ~lod_min:2. ~lod_max:1. sampler);

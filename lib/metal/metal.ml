@@ -14365,6 +14365,8 @@ module Render_encoder = struct
   type barrier_scope = Buffers | Textures | Render_targets
   type resource_usage = Read | Write | Sample
   type resource = Buffer_resource of Buffer.t | Texture_resource of Texture.t
+  type primitive = Point | Line | Line_strip | Triangle | Triangle_strip
+  type index_type = Uint16 | Uint32
 
   type viewport =
     { x : float; y : float; width : float; height : float
@@ -15015,6 +15017,52 @@ module Render_encoder = struct
       then error operation Invalid_argument "amplification mappings must be nonempty and nonnegative"
       else match Metal_raw.render_vertex_amplification value.raw(Array.of_list(List.map(fun(a,b)->Int64.of_int a,Int64.of_int b)mappings))with
       | Error m->native_error operation m|Ok()->Ok())
+
+  let primitive_code = function Point->0|Line->1|Line_strip->2|Triangle->3|Triangle_strip->4
+  let index_type_code = function Uint16->0|Uint32->1
+  let index_width = function Uint16->2L|Uint32->4L
+  let validate_draw_buffer operation (value:t) (buffer:buffer) ~offset ~required =
+    Result.bind(ensure_buffer_usable operation buffer)(fun()->
+    Result.bind(ensure_same_device operation value.command_buffer.queue.device buffer.device)(fun()->
+    if offset<0L||required<0L||offset>buffer.length||required>Int64.sub buffer.length offset
+    then error operation Invalid_argument "draw buffer range is outside the resource" else Ok()))
+  let checked_product operation a b =
+    if a<0L||b<0L||(a<>0L&&b>Int64.div Int64.max_int a)
+    then error operation Invalid_argument "draw range overflows" else Ok(Int64.mul a b)
+
+  let draw_indexed (value:t) ~primitive ~index_type ~(index_buffer:Buffer.t)
+      ~index_offset ~index_count ?(instances=1L) ?(base_vertex=0L) ?(base_instance=0L) () =
+    let operation="Metal.Render_encoder.draw_indexed" in
+    on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->
+      if Option.is_none value.pipeline then error operation Invalid_state "no render pipeline is bound"
+      else if index_count<=0L||instances<=0L||base_instance<0L then error operation Invalid_argument "draw counts must be positive"
+      else let width=index_width index_type in
+      if index_offset<0L||Int64.rem index_offset width<>0L then error operation Invalid_argument "index offset is misaligned"
+      else Result.bind(checked_product operation index_count width)(fun required->
+      Result.bind(validate_draw_buffer operation value index_buffer ~offset:index_offset ~required)(fun()->
+      match Metal_raw.render_draw_indexed value.raw(primitive_code primitive)index_count(index_type_code index_type)
+              index_buffer.raw index_offset instances base_vertex base_instance with
+      | Error m->native_error operation m|Ok()->retain_command_buffer_buffer value.command_buffer index_buffer;Ok())))
+
+  let draw_indirect (value:t) ~primitive ~(buffer:Buffer.t) ~offset =
+    let operation="Metal.Render_encoder.draw_indirect" in
+    on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->
+      if Option.is_none value.pipeline then error operation Invalid_state "no render pipeline is bound"
+      else if Int64.rem offset 4L<>0L then error operation Invalid_argument "indirect offset must be 4-byte aligned"
+      else Result.bind(validate_draw_buffer operation value buffer ~offset ~required:16L)(fun()->
+      match Metal_raw.render_draw_indirect value.raw(primitive_code primitive)buffer.raw offset with
+      | Error m->native_error operation m|Ok()->retain_command_buffer_buffer value.command_buffer buffer;Ok()))
+
+  let set_tessellation_factor_buffer (value:t) ?buffer ~offset ~instance_stride =
+    let operation="Metal.Render_encoder.set_tessellation_factor_buffer" in
+    on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->
+      if offset<0L||instance_stride<0L then error operation Invalid_argument "offset and stride must be nonnegative"
+      else match buffer with
+      | None when offset<>0L||instance_stride<>0L->error operation Invalid_argument "nil buffer requires zero offset and stride"
+      | None->(match Metal_raw.render_tessellation_buffer value.raw None 0L 0L with Error m->native_error operation m|Ok()->Ok())
+      | Some (b:buffer)->Result.bind(validate_draw_buffer operation value b ~offset ~required:0L)(fun()->
+          match Metal_raw.render_tessellation_buffer value.raw(Some b.raw)offset instance_stride with
+          | Error m->native_error operation m|Ok()->retain_command_buffer_buffer value.command_buffer b;Ok()))
 
   let pipeline_supports_icb operation (value : t) = match value.pipeline with None->error operation Invalid_state "no render pipeline is bound"|Some p->(match Metal_raw.generated_mtl_render_pipeline_state_support_indirect_command_buffers p.raw with Error m->native_error operation m|Ok b->Ok b)
   let execute_indirect_commands (value : t) (commands : indirect_command_buffer) ~location ~length = let operation="Metal.Render_encoder.execute_indirect_commands" in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match ensure_live operation commands.lifetime with Error _ as e->e|Ok()->Result.bind(ensure_same_device operation value.command_buffer.queue.device commands.device)(fun()->Result.bind(Indirect_command_buffer.validate_range operation commands ~location ~length)(fun()->Result.bind(pipeline_supports_icb operation value)(function false->error operation Unsupported "pipeline lacks indirect-command-buffer support"|true->match Metal_raw.render_encoder_execute_icb_range value.raw commands.raw location length with Error m->native_error operation m|Ok()->retain_command_buffer_indirect value.command_buffer commands;Ok()))))

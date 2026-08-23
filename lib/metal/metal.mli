@@ -2466,6 +2466,8 @@ module Render_encoder : sig
   type barrier_scope = Buffers | Textures | Render_targets
   type resource_usage = Read | Write | Sample
   type resource = Buffer_resource of Buffer.t | Texture_resource of Texture.t
+  type primitive = Point | Line | Line_strip | Triangle | Triangle_strip
+  type index_type = Uint16 | Uint32
   type viewport =
     { x : float; y : float; width : float; height : float
     ; znear : float; zfar : float }
@@ -2538,6 +2540,9 @@ module Render_encoder : sig
   val set_scissors : t -> scissor list -> (unit,error) result
   val set_tessellation_factor_scale : t -> float -> (unit,error) result
   val set_vertex_amplification : t -> (int * int) list -> (unit,error) result
+  val draw_indexed : t -> primitive:primitive -> index_type:index_type -> index_buffer:Buffer.t -> index_offset:int64 -> index_count:int64 -> ?instances:int64 -> ?base_vertex:int64 -> ?base_instance:int64 -> unit -> (unit,error) result
+  val draw_indirect : t -> primitive:primitive -> buffer:Buffer.t -> offset:int64 -> (unit,error) result
+  val set_tessellation_factor_buffer : t -> ?buffer:Buffer.t -> offset:int64 -> instance_stride:int64 -> (unit,error) result
   val execute_indirect_commands : t -> Indirect_command_buffer.t -> location:int -> length:int -> (unit,error) result
   val execute_indirect_commands_indirect_range : t -> Indirect_command_buffer.t -> range_buffer:Buffer.t -> offset:int64 -> (unit,error) result
   val draw_triangles :
