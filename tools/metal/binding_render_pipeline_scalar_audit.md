@@ -20,3 +20,13 @@ SDK-type `static_assert` checks, exact setter/getter round trips, availability
 guards, and native conformance executables. Promotion to `bound` is permitted
 only after those artifacts are integrated and their native conformance passes;
 the plan alone leaves all 126 declarations `unreviewed`.
+
+`lib/metal/test_metal_render_pipeline_scalar_native.mm` is the integration-ready
+native gate. It compile-time checks all 42 SDK property types, verifies every
+planned descriptor default and direct setter/getter round trip, compiles a real
+vertex/fragment pipeline on the active device, requires a deliberately invalid
+sample count to fail with a full diagnostic, and verifies that a successful
+pipeline is released after its autorelease scope. It passed on Apple M1 with
+the pinned SDK. No OCaml handle is allocated by the rejected native operation;
+the eventual safe integration must additionally bracket its public rejection
+case with `Metal.Debug.stats` before promoting the declarations.
