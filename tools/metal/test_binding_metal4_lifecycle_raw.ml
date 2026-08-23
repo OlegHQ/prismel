@@ -1,0 +1,3 @@
+module M=struct type handle=int let retained=ref[]and released=ref[]and fail=ref false let retain x=retained:=x::!retained let release x=released:=x::!released let begin_ _~allocator:_=if !fail then Error"x"else Ok()let end_ _=Ok()let commit _~callback:_=if !fail then Error"x"else Ok()end
+module S=Binding_metal4_lifecycle_raw.Make(M)
+let ()=let t=S.create 1 2 in assert(S.begin_ t=Ok());assert(S.retain t 3=Ok());assert(S.end_ t=Ok());M.fail:=true;let n=ref 0 in(match S.commit t(fun()->incr n)with Error _->()|Ok _->failwith"accepted");if !n<>1||List.sort compare!(M.released)<>[2;3]then failwith"completion unwind";(match S.retain t 4 with Error _->()|Ok()->failwith"post-completion encode")
