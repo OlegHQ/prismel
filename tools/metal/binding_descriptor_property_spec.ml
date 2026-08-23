@@ -119,7 +119,7 @@ let default_expression entry =
            name)
   | Resource_options, Default_int64 value ->
       Printf.sprintf "Resource_options.of_bits_exn %LdL" value
-  | Sample_index, Default_int64 value -> Printf.sprintf "Sample_index.of_int64_exn %LdL" value
+  | Sample_index, Default_int64 value -> Printf.sprintf "Sample_index.of_int64_exn (%LdL)" value
   | _ -> failwith "descriptor property default/representation mismatch"
 
 let fail format =

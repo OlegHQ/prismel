@@ -1,13 +1,13 @@
 {
-  "binding_plan_source_sha256": "eaf809c5d9f126b370080e98f375f93a0ea553007c5ee75d8fdc81c39eb1e187",
+  "binding_plan_source_sha256": "034fb2ff3ac5685f71552d2375cd14945e96cada6d824689592a12f245cfe8d6",
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 3892,
+    "bound": 3897,
     "scope-excluded": 37,
-    "unreviewed": 1356
+    "unreviewed": 1351
   },
-  "classification_source_sha256": "84542f6bcf061ac3842d6e2ffdb01e1a873602a5007f5e64baf66e61a2412a7c",
+  "classification_source_sha256": "5d40a644c2bb4b78ef24760548138f8b4008ad22e2538ab4b3148efcafa0ed00",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -1896,7 +1896,7 @@
           "line": 18
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBlitPass.h",
       "id": "class:MTLBlitPassSampleBufferAttachmentDescriptor",
       "kind": "class",
@@ -1904,7 +1904,7 @@
       "macos_introduced": "11.0",
       "name": "MTLBlitPassSampleBufferAttachmentDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented exactly by a public contained descriptor or retained abstract Metal IO handle with safe ownership.",
       "signature": ""
     },
     {
@@ -2204,7 +2204,7 @@
           "line": 137
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "class:MTLCounterSampleBufferDescriptor",
       "kind": "class",
@@ -2212,7 +2212,7 @@
       "macos_introduced": "10.15",
       "name": "MTLCounterSampleBufferDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented exactly by a public contained descriptor or retained abstract Metal IO handle with safe ownership.",
       "signature": ""
     },
     {
@@ -105253,7 +105253,7 @@
           "line": 32
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandBuffer.h",
       "id": "protocol:MTLIOCommandBuffer",
       "kind": "protocol",
@@ -105261,7 +105261,7 @@
       "macos_introduced": "13.0",
       "name": "MTLIOCommandBuffer",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented exactly by a public contained descriptor or retained abstract Metal IO handle with safe ownership.",
       "signature": ""
     },
     {
@@ -105274,7 +105274,7 @@
           "line": 46
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandQueue.h",
       "id": "protocol:MTLIOCommandQueue",
       "kind": "protocol",
@@ -105282,7 +105282,7 @@
       "macos_introduced": "13.0",
       "name": "MTLIOCommandQueue",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented exactly by a public contained descriptor or retained abstract Metal IO handle with safe ownership.",
       "signature": ""
     },
     {
@@ -105296,7 +105296,7 @@
           "line": 175
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandQueue.h",
       "id": "protocol:MTLIOFileHandle",
       "kind": "protocol",
@@ -105304,7 +105304,7 @@
       "macos_introduced": "13.0",
       "name": "MTLIOFileHandle",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented exactly by a public contained descriptor or retained abstract Metal IO handle with safe ownership.",
       "signature": ""
     },
     {

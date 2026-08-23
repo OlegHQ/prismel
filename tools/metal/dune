@@ -43,6 +43,7 @@
   binding_io_counter_audit
   binding_io_safe_reachability
   binding_io_counter_scalar_reachability
+  binding_io_counter_type_reachability
   binding_presentation_spec
   binding_presentation_plan
   binding_presentation_codegen
@@ -486,6 +487,11 @@
 (test
  (name test_binding_io_counter_scalar_reachability)
  (modules test_binding_io_counter_scalar_reachability)
+ (libraries metal_inventory_classification))
+
+(test
+ (name test_binding_io_counter_type_reachability)
+ (modules test_binding_io_counter_type_reachability)
  (libraries metal_inventory_classification))
 
 (test
