@@ -1332,6 +1332,39 @@ module Vertex_descriptor : sig
   val layouts : t -> layout list
 end
 
+module Function_handle : sig
+  type t
+  val create : pipeline:Compute_pipeline.t -> function_:Function.t -> (t, error) result
+  val device : t -> Device.t
+  val generation : t -> int64
+  val destroyed : t -> bool
+  val destroy : t -> (unit, error) result
+end
+
+module Visible_function_table : sig
+  type t
+  val create : pipeline:Compute_pipeline.t -> capacity:int -> (t, error) result
+  val set_function : t -> index:int -> Function_handle.t option -> (unit, error) result
+  val device : t -> Device.t
+  val capacity : t -> int
+  val resource_id : t -> int64
+  val destroyed : t -> bool
+  val destroy : t -> (unit, error) result
+end
+
+module Intersection_function_table : sig
+  type t
+  val create : pipeline:Compute_pipeline.t -> capacity:int -> (t, error) result
+  val set_function : t -> index:int -> Function_handle.t option -> (unit, error) result
+  val set_buffer : t -> index:int -> ?offset:int64 -> Buffer.t option -> (unit, error) result
+  val set_visible_table : t -> buffer_index:int -> Visible_function_table.t option -> (unit, error) result
+  val device : t -> Device.t
+  val capacity : t -> int
+  val resource_id : t -> int64
+  val destroyed : t -> bool
+  val destroy : t -> (unit, error) result
+end
+
 module Render_pipeline : sig
   type t
 

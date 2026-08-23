@@ -1328,6 +1328,30 @@ external acceleration_encoder_copy_and_compact :
 external acceleration_encoder_end : handle -> (unit, string) result
   = "caml_prismel_metal_acceleration_encoder_end"
 
+external compute_pipeline_function_handle :
+  handle -> handle -> (handle, string) result
+  = "caml_prismel_metal_compute_pipeline_function_handle"
+external compute_pipeline_visible_function_table :
+  handle -> int64 -> (handle, string) result
+  = "caml_prismel_metal_compute_pipeline_visible_function_table"
+external compute_pipeline_intersection_function_table :
+  handle -> int64 -> (handle, string) result
+  = "caml_prismel_metal_compute_pipeline_intersection_function_table"
+external visible_function_table_set_function :
+  handle -> handle option -> int -> (unit, string) result
+  = "caml_prismel_metal_visible_function_table_set_function"
+external intersection_function_table_set_function :
+  handle -> handle option -> int -> (unit, string) result
+  = "caml_prismel_metal_intersection_function_table_set_function"
+external intersection_function_table_set_buffer :
+  handle -> handle option -> int64 -> int -> (unit, string) result
+  = "caml_prismel_metal_intersection_function_table_set_buffer"
+external intersection_function_table_set_visible_table :
+  handle -> handle option -> int -> (unit, string) result
+  = "caml_prismel_metal_intersection_function_table_set_visible_table"
+external function_table_resource_id : handle -> int64
+  = "caml_prismel_metal_function_table_resource_id"
+
 external command_buffer_set_label : handle -> string -> (unit, string) result =
   "caml_prismel_metal_command_buffer_set_label"
 

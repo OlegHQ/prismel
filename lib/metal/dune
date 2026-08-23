@@ -287,9 +287,27 @@
  (deps test_metal_acceleration_ownership_native.exe)
  (action (run ./test_metal_acceleration_ownership_native.exe)))
 
+(rule
+ (targets test_metal_acceleration_operations_native.exe)
+ (deps test_metal_acceleration_operations_native.mm)
+ (action
+  (run clang++ -std=c++17 -Werror -Wno-deprecated-declarations -fobjc-arc
+   -framework Foundation -framework Metal
+   %{dep:test_metal_acceleration_operations_native.mm} -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_acceleration_operations_native.exe)
+ (action (run ./test_metal_acceleration_operations_native.exe)))
+
 (test
  (name test_metal_acceleration_safe)
  (modules test_metal_acceleration_safe)
+ (libraries metal))
+
+(test
+ (name test_metal_function_tables_safe)
+ (modules test_metal_function_tables_safe)
  (libraries metal))
 
 (test

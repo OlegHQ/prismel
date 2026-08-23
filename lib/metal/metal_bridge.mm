@@ -919,6 +919,9 @@ enum class Handle_kind : std::uint32_t {
   Indirect_compute_command,
   Acceleration_structure,
   Acceleration_encoder,
+  Function_handle,
+  Visible_function_table,
+  Intersection_function_table,
 };
 
 struct Handle {
@@ -13343,6 +13346,135 @@ caml_prismel_metal_acceleration_encoder_end(value raw_encoder) {
   }
 }
 
+extern "C" CAMLprim value caml_prismel_metal_compute_pipeline_function_handle(
+    value raw_pipeline, value raw_function) {
+  CAMLparam2(raw_pipeline, raw_function);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    id<MTLComputePipelineState> pipeline =
+        object_of_handle(raw_pipeline, Handle_kind::Compute_pipeline);
+    id<MTLFunction> function = object_of_handle(raw_function, Handle_kind::Function);
+    id<MTLFunctionHandle> handle = [pipeline functionHandleWithFunction:function];
+    if (handle == nil)
+      CAMLreturn(result_error_text("Metal pipeline rejected the function handle"));
+    raw = allocate_handle(handle, Handle_kind::Function_handle);
+  }
+  CAMLreturn(result_ok(raw));
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_compute_pipeline_visible_function_table(
+    value raw_pipeline, value raw_count) {
+  CAMLparam2(raw_pipeline, raw_count);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    id<MTLComputePipelineState> pipeline =
+        object_of_handle(raw_pipeline, Handle_kind::Compute_pipeline);
+    MTLVisibleFunctionTableDescriptor *descriptor =
+        [MTLVisibleFunctionTableDescriptor visibleFunctionTableDescriptor];
+    descriptor.functionCount = Int64_val(raw_count);
+    id<MTLVisibleFunctionTable> table =
+        [pipeline newVisibleFunctionTableWithDescriptor:descriptor];
+    if (table == nil)
+      CAMLreturn(result_error_text("Metal failed to allocate visible function table"));
+    raw = allocate_handle(table, Handle_kind::Visible_function_table);
+  }
+  CAMLreturn(result_ok(raw));
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_compute_pipeline_intersection_function_table(
+    value raw_pipeline, value raw_count) {
+  CAMLparam2(raw_pipeline, raw_count);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    id<MTLComputePipelineState> pipeline =
+        object_of_handle(raw_pipeline, Handle_kind::Compute_pipeline);
+    MTLIntersectionFunctionTableDescriptor *descriptor =
+        [MTLIntersectionFunctionTableDescriptor intersectionFunctionTableDescriptor];
+    descriptor.functionCount = Int64_val(raw_count);
+    id<MTLIntersectionFunctionTable> table =
+        [pipeline newIntersectionFunctionTableWithDescriptor:descriptor];
+    if (table == nil)
+      CAMLreturn(result_error_text("Metal failed to allocate intersection function table"));
+    raw = allocate_handle(table, Handle_kind::Intersection_function_table);
+  }
+  CAMLreturn(result_ok(raw));
+}
+
+static id optional_object(value raw, Handle_kind kind) {
+  return Is_block(raw) ? object_of_handle(Field(raw, 0), kind) : nil;
+}
+
+extern "C" CAMLprim value caml_prismel_metal_visible_function_table_set_function(
+    value raw_table, value raw_function, value raw_index) {
+  CAMLparam3(raw_table, raw_function, raw_index);
+  @autoreleasepool {
+    id<MTLVisibleFunctionTable> table =
+        object_of_handle(raw_table, Handle_kind::Visible_function_table);
+    [table setFunction:optional_object(raw_function, Handle_kind::Function_handle)
+                atIndex:Int_val(raw_index)];
+  }
+  CAMLreturn(result_unit());
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_intersection_function_table_set_function(
+    value raw_table, value raw_function, value raw_index) {
+  CAMLparam3(raw_table, raw_function, raw_index);
+  @autoreleasepool {
+    id<MTLIntersectionFunctionTable> table =
+        object_of_handle(raw_table, Handle_kind::Intersection_function_table);
+    [table setFunction:optional_object(raw_function, Handle_kind::Function_handle)
+                atIndex:Int_val(raw_index)];
+  }
+  CAMLreturn(result_unit());
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_intersection_function_table_set_buffer(
+    value raw_table, value raw_buffer, value raw_offset, value raw_index) {
+  CAMLparam4(raw_table, raw_buffer, raw_offset, raw_index);
+  @autoreleasepool {
+    id<MTLIntersectionFunctionTable> table =
+        object_of_handle(raw_table, Handle_kind::Intersection_function_table);
+    [table setBuffer:optional_object(raw_buffer, Handle_kind::Buffer)
+               offset:Int64_val(raw_offset) atIndex:Int_val(raw_index)];
+  }
+  CAMLreturn(result_unit());
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_intersection_function_table_set_visible_table(
+    value raw_table, value raw_visible, value raw_index) {
+  CAMLparam3(raw_table, raw_visible, raw_index);
+  @autoreleasepool {
+    id<MTLIntersectionFunctionTable> table =
+        object_of_handle(raw_table, Handle_kind::Intersection_function_table);
+    [table setVisibleFunctionTable:
+               optional_object(raw_visible, Handle_kind::Visible_function_table)
+                     atBufferIndex:Int_val(raw_index)];
+  }
+  CAMLreturn(result_unit());
+}
+
+extern "C" CAMLprim value caml_prismel_metal_function_table_resource_id(
+    value raw_table) {
+  CAMLparam1(raw_table);
+  auto *handle = handle_of_value(raw_table);
+  uint64_t identifier = 0;
+  if (handle->kind == Handle_kind::Visible_function_table) {
+    id<MTLVisibleFunctionTable> table = object_of_handle(
+        raw_table, Handle_kind::Visible_function_table);
+    identifier = table.gpuResourceID._impl;
+  } else {
+    id<MTLIntersectionFunctionTable> table = object_of_handle(
+        raw_table, Handle_kind::Intersection_function_table);
+    identifier = table.gpuResourceID._impl;
+  }
+  CAMLreturn(caml_copy_int64((int64_t)identifier));
+}
+
 extern "C" CAMLprim value caml_prismel_metal_command_buffer_render_encoder(
     value raw_buffer, value raw_texture, value raw_clear) {
   CAMLparam3(raw_buffer, raw_texture, raw_clear);
@@ -13942,4 +14074,7 @@ extern "C" CAMLprim value caml_prismel_metal_command_buffer_error(value raw) {
   CAMLreturn(result);
 }
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wnullability-completeness"
 #include "metal_bridge_generated.inc"
+#pragma clang diagnostic pop

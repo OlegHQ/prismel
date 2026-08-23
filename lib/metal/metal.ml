@@ -1036,6 +1036,19 @@ type compute_pipeline =
   ; max_total_threads : int
   }
 
+type linked_function_handle =
+  { raw : Metal_raw.handle; lifetime : lifetime; pipeline : compute_pipeline
+  ; function_ : function_handle }
+
+type visible_function_table =
+  { raw : Metal_raw.handle; lifetime : lifetime; pipeline : compute_pipeline
+  ; capacity : int; functions : linked_function_handle option array }
+
+type intersection_function_table =
+  { raw : Metal_raw.handle; lifetime : lifetime; pipeline : compute_pipeline
+  ; capacity : int; functions : linked_function_handle option array
+  ; buffers : buffer option array; visible_tables : visible_function_table option array }
+
 type render_pipeline_kind =
   | Render
   | Tile
@@ -8112,6 +8125,203 @@ module Compute_pipeline = struct
   let destroy (value : t) =
     destroy_parent "Metal.Compute_pipeline.destroy" value.lifetime value.raw
       (fun () -> detach value.device.lifetime)
+end
+
+module Function_handle = struct
+  type t = linked_function_handle
+
+  let create ~(pipeline : compute_pipeline) ~(function_ : function_handle) =
+    let operation = "Metal.Function_handle.create" in
+    on_main operation (fun () ->
+      match ensure_live operation pipeline.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match ensure_live operation function_.lifetime with
+          | Error _ as failure -> failure
+          | Ok () when function_.library.device.lifetime != pipeline.device.lifetime ->
+              error operation Device_mismatch "function and pipeline use different devices"
+          | Ok () ->
+              match Metal_raw.compute_pipeline_function_handle pipeline.raw function_.raw with
+              | Error message -> error operation Unsupported message
+              | Ok raw ->
+                  let value = { raw; lifetime = lifetime (); pipeline; function_ } in
+                  attach pipeline.lifetime; attach function_.lifetime;
+                  Gc.finalise
+                    (fun _ -> finalize_child value.lifetime pipeline.lifetime
+                      (fun () -> detach function_.lifetime)) value;
+                  Ok value))
+
+  let device (value : t) = value.pipeline.device
+  let generation (value : t) = Metal_raw.generation value.raw
+  let destroyed (value : t) = is_destroyed value.lifetime
+  let destroy (value : t) =
+    destroy_parent "Metal.Function_handle.destroy" value.lifetime value.raw
+      (fun () -> detach value.function_.lifetime; detach value.pipeline.lifetime)
+end
+
+module Visible_function_table = struct
+  type t = visible_function_table
+
+  let create ~(pipeline : compute_pipeline) ~capacity =
+    let operation = "Metal.Visible_function_table.create" in
+    on_main operation (fun () ->
+      if capacity <= 0 || capacity > 1_000_000 then
+        error operation Invalid_argument "capacity must be between 1 and 1000000"
+      else match ensure_live operation pipeline.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          match Metal_raw.compute_pipeline_visible_function_table pipeline.raw
+                  (Int64.of_int capacity) with
+          | Error message -> native_error operation message
+          | Ok raw ->
+              let value = { raw; lifetime = lifetime (); pipeline; capacity
+                          ; functions = Array.make capacity None } in
+              attach pipeline.lifetime;
+              attach_finalizer ~on_finalize:(fun () ->
+                Array.iter
+                  (Option.iter
+                     (fun (item : linked_function_handle) -> detach item.lifetime))
+                  value.functions)
+                value value.lifetime pipeline.lifetime;
+              Ok value)
+
+  let set_function (value : t) ~index function_ =
+    let operation = "Metal.Visible_function_table.set_function" in
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when index < 0 || index >= value.capacity ->
+          error operation Invalid_argument "function-table index is out of range"
+      | Ok () ->
+          (match function_ with
+          | Some (handle : linked_function_handle)
+            when handle.pipeline.device.lifetime != value.pipeline.device.lifetime ->
+              error operation Device_mismatch "function handle belongs to another device"
+          | _ ->
+              match Metal_raw.visible_function_table_set_function value.raw
+                      (Option.map (fun (handle : linked_function_handle) -> handle.raw) function_) index with
+              | Error message -> native_error operation message
+              | Ok () ->
+                  Option.iter
+                    (fun (old : linked_function_handle) -> detach old.lifetime)
+                    value.functions.(index);
+                  Option.iter
+                    (fun (next : linked_function_handle) -> attach next.lifetime)
+                    function_;
+                  value.functions.(index) <- function_; Ok ()))
+
+  let device (value : t) = value.pipeline.device
+  let capacity (value : t) = value.capacity
+  let resource_id (value : t) = Metal_raw.function_table_resource_id value.raw
+  let destroyed (value : t) = is_destroyed value.lifetime
+  let destroy (value : t) =
+    destroy_parent "Metal.Visible_function_table.destroy" value.lifetime value.raw
+      (fun () -> Array.iter
+        (Option.iter (fun (item : linked_function_handle) -> detach item.lifetime))
+        value.functions;
+        Array.fill value.functions 0 value.capacity None; detach value.pipeline.lifetime)
+end
+
+module Intersection_function_table = struct
+  type t = intersection_function_table
+
+  let create ~(pipeline : compute_pipeline) ~capacity =
+    let operation = "Metal.Intersection_function_table.create" in
+    on_main operation (fun () ->
+      if capacity <= 0 || capacity > 1_000_000 then
+        error operation Invalid_argument "capacity must be between 1 and 1000000"
+      else match ensure_live operation pipeline.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          match Metal_raw.compute_pipeline_intersection_function_table pipeline.raw
+                  (Int64.of_int capacity) with
+          | Error message -> native_error operation message
+          | Ok raw ->
+              let value = { raw; lifetime = lifetime (); pipeline; capacity
+                          ; functions = Array.make capacity None
+                          ; buffers = Array.make capacity None
+                          ; visible_tables = Array.make capacity None } in
+              attach pipeline.lifetime;
+              let release values lifetime = Array.iter (Option.iter (fun item -> detach (lifetime item))) values in
+              attach_finalizer ~on_finalize:(fun () ->
+                release value.functions (fun item -> item.lifetime);
+                release value.buffers (fun item -> item.lifetime);
+                release value.visible_tables (fun item -> item.lifetime))
+                value value.lifetime pipeline.lifetime;
+              Ok value)
+
+  let validate (value : t) operation index =
+    match ensure_live operation value.lifetime with
+    | Error _ as failure -> failure
+    | Ok () when index < 0 || index >= value.capacity ->
+        error operation Invalid_argument "function-table index is out of range"
+    | Ok () -> Ok ()
+
+  let replace values index lifetime next =
+    Option.iter (fun old -> detach (lifetime old)) values.(index);
+    Option.iter (fun item -> attach (lifetime item)) next;
+    values.(index) <- next
+
+  let set_function (value : t) ~index function_ =
+    let operation = "Metal.Intersection_function_table.set_function" in
+    on_main operation (fun () -> match validate value operation index with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match function_ with Some (item : linked_function_handle)
+            when item.pipeline.device.lifetime != value.pipeline.device.lifetime ->
+             error operation Device_mismatch "function handle belongs to another device"
+           | _ -> match Metal_raw.intersection_function_table_set_function value.raw
+                          (Option.map (fun (item : linked_function_handle) -> item.raw) function_) index with
+             | Error message -> native_error operation message
+             | Ok () -> replace value.functions index (fun item -> item.lifetime) function_; Ok ()))
+
+  let set_buffer (value : t) ~index ?(offset=0L) buffer =
+    let operation = "Metal.Intersection_function_table.set_buffer" in
+    on_main operation (fun () -> match validate value operation index with
+      | Error _ as failure -> failure
+      | Ok () when offset < 0L -> error operation Invalid_argument "buffer offset is negative"
+      | Ok () ->
+          (match buffer with
+          | Some (item : buffer) when item.device.lifetime != value.pipeline.device.lifetime ->
+              error operation Device_mismatch "buffer belongs to another device"
+          | Some item when offset >= item.length -> error operation Invalid_argument "buffer offset exceeds its length"
+          | _ -> match Metal_raw.intersection_function_table_set_buffer value.raw
+                           (Option.map (fun (item : buffer) -> item.raw) buffer) offset index with
+            | Error message -> native_error operation message
+            | Ok () -> replace value.buffers index (fun item -> item.lifetime) buffer; Ok ()))
+
+  let set_visible_table (value : t) ~buffer_index table =
+    let operation = "Metal.Intersection_function_table.set_visible_table" in
+    on_main operation (fun () -> match validate value operation buffer_index with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match table with Some (item : visible_function_table)
+            when item.pipeline.device.lifetime != value.pipeline.device.lifetime ->
+             error operation Device_mismatch "visible table belongs to another device"
+           | _ -> match Metal_raw.intersection_function_table_set_visible_table value.raw
+                          (Option.map (fun (item : visible_function_table) -> item.raw) table) buffer_index with
+             | Error message -> native_error operation message
+             | Ok () -> replace value.visible_tables buffer_index (fun item -> item.lifetime) table; Ok ()))
+
+  let device (value : t) = value.pipeline.device
+  let capacity (value : t) = value.capacity
+  let resource_id (value : t) = Metal_raw.function_table_resource_id value.raw
+  let destroyed (value : t) = is_destroyed value.lifetime
+  let destroy (value : t) =
+    destroy_parent "Metal.Intersection_function_table.destroy" value.lifetime value.raw
+      (fun () ->
+        Array.iter
+          (Option.iter (fun (item : linked_function_handle) -> detach item.lifetime))
+          value.functions;
+        Array.iter (Option.iter (fun (item : buffer) -> detach item.lifetime))
+          value.buffers;
+        Array.iter
+          (Option.iter (fun (item : visible_function_table) -> detach item.lifetime))
+          value.visible_tables;
+        Array.fill value.functions 0 value.capacity None;
+        Array.fill value.buffers 0 value.capacity None;
+        Array.fill value.visible_tables 0 value.capacity None;
+        detach value.pipeline.lifetime)
 end
 
 module Render_pipeline = struct

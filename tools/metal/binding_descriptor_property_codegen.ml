@@ -189,7 +189,7 @@ let render_native_materializers entries =
   |> List.iter (fun (owner, entries) ->
     if String.starts_with ~prefix:"MTL4" owner then
       Buffer.add_string output "API_AVAILABLE(macos(26.0))\n";
-    Printf.bprintf output "[[maybe_unused]] static value materialize_generated_%s_properties(\n    %s *descriptor, value raw_properties) {\n" (owner_name owner) owner;
+    Printf.bprintf output "[[maybe_unused]] static value materialize_generated_%s_properties(\n    %s * _Nonnull descriptor, value raw_properties) {\n" (owner_name owner) owner;
     List.iteri (add_assignment output) entries;
     Buffer.add_string output "  return result_unit();\n}\n\n");
   let rendered = Buffer.contents output in
