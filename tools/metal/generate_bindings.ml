@@ -23,32 +23,46 @@ type receiver_spec =
   ; local_name : string
   }
 
+let catalog_receiver handle_kind =
+  match
+    List.find_opt
+      (fun (receiver : Binding_receiver_catalog.receiver) ->
+        String.equal receiver.handle_kind handle_kind)
+      Binding_receiver_catalog.receivers
+  with
+  | Some receiver -> receiver
+  | None -> fail "Metal receiver catalog has no Handle_kind::%s" handle_kind
+
 let receiver_spec = function
   | Binding_plan.Render_encoder4 ->
-      { owner = "MTL4RenderCommandEncoder"
-      ; objc_type = "id<MTL4RenderCommandEncoder>"
-      ; handle_kind = "Render_encoder4"
+      let receiver = catalog_receiver "Render_encoder4" in
+      { owner = receiver.sdk_owner
+      ; objc_type = receiver.objc_receiver_type
+      ; handle_kind = receiver.handle_kind
       ; raw_name = "raw_encoder"
       ; local_name = "encoder"
       }
   | Binding_plan.Compute_encoder4 ->
-      { owner = "MTL4ComputeCommandEncoder"
-      ; objc_type = "id<MTL4ComputeCommandEncoder>"
-      ; handle_kind = "Compute_encoder4"
+      let receiver = catalog_receiver "Compute_encoder4" in
+      { owner = receiver.sdk_owner
+      ; objc_type = receiver.objc_receiver_type
+      ; handle_kind = receiver.handle_kind
       ; raw_name = "raw_encoder"
       ; local_name = "encoder"
       }
   | Binding_plan.Device ->
-      { owner = "MTLDevice"
-      ; objc_type = "id<MTLDevice>"
-      ; handle_kind = "Device"
+      let receiver = catalog_receiver "Device" in
+      { owner = receiver.sdk_owner
+      ; objc_type = receiver.objc_receiver_type
+      ; handle_kind = receiver.handle_kind
       ; raw_name = "raw_device"
       ; local_name = "device"
       }
   | Binding_plan.Compute_pipeline ->
-      { owner = "MTLComputePipelineState"
-      ; objc_type = "id<MTLComputePipelineState>"
-      ; handle_kind = "Compute_pipeline"
+      let receiver = catalog_receiver "Compute_pipeline" in
+      { owner = receiver.sdk_owner
+      ; objc_type = receiver.objc_receiver_type
+      ; handle_kind = receiver.handle_kind
       ; raw_name = "raw_pipeline"
       ; local_name = "pipeline"
       }
@@ -1178,6 +1192,8 @@ let generator_source_paths =
   [ "tools/metal/generate_bindings.ml"
   ; "tools/metal/binding_enum_codegen.ml"
   ; "tools/metal/binding_enum_codegen.mli"
+  ; "tools/metal/binding_receiver_catalog.ml"
+  ; "tools/metal/binding_receiver_catalog.mli"
   ]
 
 let generator_source_root entry_source =

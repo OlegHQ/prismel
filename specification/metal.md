@@ -49,6 +49,17 @@ an entry out of the aggregator cannot make an untracked plan input. Native
 adapters use direct, statically typed Objective-C selectors; neither generated
 nor handwritten code dispatches through `objc_msgSend`.
 
+The native receiver catalog accounts for all 37 existing bridge `Handle_kind`
+values before bulk selector generation. It has 31 concrete SDK receiver
+mappings, explicit `MTLResource` and `MTLAllocation` polymorphic mappings, and
+six documented non-SDK/state exclusions. General and placement roles for
+`MTL4CommandQueue` remain distinct, while compiler-task, Metal 4 command-buffer,
+and argument-table handles record their wrapper-property access instead of
+pretending that the wrapper itself is the SDK object. A test compares the exact
+catalog partition with the native enum, requires every SDK owner in the pinned
+inventory, and checks the declared direct/helper/wrapper recovery evidence in
+the bridge.
+
 The first production-scale mechanical batch selects 61 wholly unreviewed enum
 families whose pinned closure is complete: 61 enum declarations, 61 typedef
 companions, and 326 cases, or 448 inventory declarations in total. Three

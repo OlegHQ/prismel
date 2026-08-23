@@ -880,6 +880,8 @@ let generator_source_sha256 entry_source =
   [ "tools/metal/generate_bindings.ml"
   ; "tools/metal/binding_enum_codegen.ml"
   ; "tools/metal/binding_enum_codegen.mli"
+  ; "tools/metal/binding_receiver_catalog.ml"
+  ; "tools/metal/binding_receiver_catalog.mli"
   ]
   |> List.map (fun relative ->
     relative, read_file (Filename.concat root relative))

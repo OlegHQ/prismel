@@ -7,6 +7,7 @@
   binding_enum_misc
   binding_enum_plan
   binding_enum_codegen
+  binding_receiver_catalog
   binding_spec
   binding_plan_render
   binding_plan_compute
@@ -46,6 +47,8 @@
   binding_enum_plan.mli
   binding_enum_codegen.ml
   binding_enum_codegen.mli
+  binding_receiver_catalog.ml
+  binding_receiver_catalog.mli
   binding_plan.ml
   binding_plan.mli
   binding_plan_render.ml
@@ -82,6 +85,21 @@
  (action
   (run %{test}
    --inventory %{dep:../../lib/metal/generated_api_inventory.json})))
+
+(test
+ (name test_binding_receiver_catalog)
+ (modules test_binding_receiver_catalog)
+ (libraries
+  gpu_migration_support
+  metal_inventory_classification
+  yojson)
+ (deps
+  ../../lib/metal/generated_api_inventory.json
+  ../../lib/metal/metal_bridge.mm)
+ (action
+  (run %{test}
+   --inventory %{dep:../../lib/metal/generated_api_inventory.json}
+   --bridge %{dep:../../lib/metal/metal_bridge.mm})))
 
 (executable
  (name generate_inventory)

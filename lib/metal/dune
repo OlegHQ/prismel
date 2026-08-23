@@ -49,6 +49,8 @@
   ../../tools/metal/binding_enum_plan.mli
   ../../tools/metal/binding_enum_codegen.ml
   ../../tools/metal/binding_enum_codegen.mli
+  ../../tools/metal/binding_receiver_catalog.ml
+  ../../tools/metal/binding_receiver_catalog.mli
   ../../tools/metal/binding_plan.ml
   ../../tools/metal/binding_plan.mli
   ../../tools/metal/binding_plan_render.ml
