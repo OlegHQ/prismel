@@ -14,6 +14,7 @@ int main(){@autoreleasepool{
   binary.tileAdditionalBinaryFunctions=@[];binary.objectAdditionalBinaryFunctions=@[];
   binary.meshAdditionalBinaryFunctions=@[];
   need(binary.vertexAdditionalBinaryFunctions.count==0&&binary.meshAdditionalBinaryFunctions.count==0,@"binary descriptor roundtrip");[binary reset];
+  MTL4MachineLearningPipelineDescriptor*ml=[MTL4MachineLearningPipelineDescriptor new];ml.label=@"ml";NSInteger dims[]={2,3};MTLTensorExtents*ext=[[MTLTensorExtents alloc]initWithRank:2 values:dims];[ml setInputDimensions:ext atBufferIndex:0];MTLTensorExtents*stored=[ml inputDimensionsAtBufferIndex:0];need([ml.label isEqual:@"ml"]&&stored.rank==2&&[stored extentAtDimensionIndex:1]==3,@"ML descriptor/extents roundtrip");[ml reset];
   MTL4CounterHeapDescriptor*hd=[MTL4CounterHeapDescriptor new];hd.type=MTL4CounterHeapTypeTimestamp;hd.count=8;
   need(hd.type==MTL4CounterHeapTypeTimestamp&&hd.count==8,@"counter descriptor roundtrip");
   NSError*error=nil;id<MTL4CounterHeap>heap=[d newCounterHeapWithDescriptor:hd error:&error];need(heap!=nil,error.localizedDescription?:@"counter heap");heap.label=@"m4-counter";need(heap.count==8&&heap.type==MTL4CounterHeapTypeTimestamp&&[heap.label isEqual:@"m4-counter"],@"counter properties");[heap invalidateCounterRange:NSMakeRange(0,1)];

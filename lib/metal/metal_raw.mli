@@ -1806,6 +1806,13 @@ external metal4_render_execute_icb_range : handle -> handle -> (handle * metal4_
 external metal4_render_execute_icb_indirect : handle -> handle -> (handle * metal4_owned_buffer_range) -> (unit,string) result = "caml_prismel_metal4_render_execute_icb_indirect"
 external metal4_render_memory : handle -> handle -> (bool * int64 * int64 * int64) -> (unit,string) result = "caml_prismel_metal4_render_memory"
 external metal4_render_timestamp : handle -> handle -> (int * int64 * handle * int64) -> (unit,string) result = "caml_prismel_metal4_render_timestamp"
+external metal4_ml_descriptor_create : handle -> string -> string option -> (handle,string) result = "caml_prismel_metal4_ml_descriptor_create"
+external metal4_ml_descriptor_label : handle -> string option -> (string option,string) result = "caml_prismel_metal4_ml_descriptor_label"
+external metal4_ml_descriptor_function : handle -> ((handle * string),string) result = "caml_prismel_metal4_ml_descriptor_function"
+external metal4_ml_descriptor_input : handle -> int64 -> int64 array option -> (int64 array option,string) result = "caml_prismel_metal4_ml_descriptor_input"
+external metal4_ml_descriptor_inputs : handle -> int64 -> int64 array option array -> (unit,string) result = "caml_prismel_metal4_ml_descriptor_inputs"
+external metal4_ml_descriptor_reset : handle -> (unit,string) result = "caml_prismel_metal4_ml_descriptor_reset"
+external metal4_ml_compile : handle -> handle -> ((handle * (string option * int64 * int64 * pipeline_binding_info array)),string) result = "caml_prismel_metal4_ml_compile"
 
 (** Shader157 exact callable raw subset. Descriptor graphs, reflection,
     preprocessor dictionaries and callback compilation remain blocked. *)
