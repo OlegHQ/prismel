@@ -14,6 +14,10 @@ type symbol =
 let fail fmt =
   Printf.ksprintf (fun text -> invalid_arg ("Metal argument reflection evidence: " ^ text)) fmt
 
+let bound_ids = lazy (List.sort_uniq String.compare Binding_argument_reflection_plan.inventory_ids)
+
+let is_bound_identifier identifier = List.mem identifier (Lazy.force bound_ids)
+
 let result_signature entry =
   match entry.result with
   | Bool -> "BOOL"
@@ -57,7 +61,7 @@ let validate_inventory symbols =
          || method_symbol.header <> "Metal/MTLArgument.h"
          || method_symbol.signature <> expected_signature entry
          || method_symbol.macos_introduced <> Some entry.macos_introduced
-         || method_symbol.classification <> "unreviewed"
+         || method_symbol.classification <> "bound"
       then fail "inventory drift for %s" entry.sdk_id;
       Option.iter
         (fun id ->
@@ -72,7 +76,7 @@ let validate_inventory symbols =
              || property.header <> "Metal/MTLArgument.h"
              || property.signature <> result_signature entry
              || property.macos_introduced <> Some entry.macos_introduced
-             || property.classification <> "unreviewed"
+             || property.classification <> "bound"
           then fail "inventory drift for %s" id)
         entry.property_id)
     entries;
@@ -84,5 +88,5 @@ let validate_inventory symbols =
          && (symbol.kind = "method" || symbol.kind = "property"))
     |> List.map (fun symbol -> symbol.id) |> List.sort String.compare
   in
-  if pending_header_ids <> List.sort String.compare inventory_ids then
-    fail "plan does not exactly close the pending method/property header surface"
+  if pending_header_ids <> [] then
+    fail "plan leaves pending method/property declarations in MTLArgument.h"

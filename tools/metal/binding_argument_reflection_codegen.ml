@@ -64,20 +64,21 @@ let render_native_calls entries =
 let render_snapshot_ownership_helpers () =
   {|
 /* A nullable child returned at +0 becomes an ordinary owned Metal handle. */
-static id prismel_reflection_retain_nullable(id child) {
-  return child == nil ? nil : [child retain];
+[[maybe_unused]] static CFTypeRef prismel_reflection_retain_nullable(id child) {
+  return child == nil ? nullptr : CFBridgingRetain(child);
 }
 
 /* Snapshot NSArray membership before OCaml allocation.  The copied array
    retains every child; each exported temporary handle takes its own +1, then
    releasing the snapshot cannot invalidate a handle during conversion. */
-static NSArray *prismel_reflection_copy_members(NSArray *members) {
-  return members == nil ? nil : [members copy];
+[[maybe_unused]] static CFTypeRef prismel_reflection_copy_members(NSArray *members) {
+  return members == nil ? nullptr : CFBridgingRetain([members copy]);
 }
-static id prismel_reflection_retain_member(NSArray *snapshot, NSUInteger index) {
-  return [[snapshot objectAtIndex:index] retain];
+[[maybe_unused]] static CFTypeRef prismel_reflection_retain_member(CFTypeRef raw_snapshot, NSUInteger index) {
+  NSArray *snapshot = (__bridge NSArray *)raw_snapshot;
+  return CFBridgingRetain([snapshot objectAtIndex:index]);
 }
-static void prismel_reflection_release_snapshot(NSArray *snapshot) {
-  [snapshot release];
+[[maybe_unused]] static void prismel_reflection_release_snapshot(CFTypeRef snapshot) {
+  if (snapshot != nullptr) CFRelease(snapshot);
 }
 |}

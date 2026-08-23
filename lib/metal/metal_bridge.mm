@@ -1240,9 +1240,165 @@ value copy_function_constants(id<MTLFunction> function) {
   CAMLreturn(array);
 }
 
+constexpr NSUInteger reflection_max_depth = 32;
+constexpr NSUInteger reflection_max_members = 65'536;
+
+value copy_reflected_type(MTLType *type, NSUInteger depth,
+                          NSUInteger *remaining_members);
+
+value copy_optional_reflected_type(MTLType *type, NSUInteger depth,
+                                   NSUInteger *remaining_members) {
+  CAMLparam0();
+  CAMLlocal2(option, copied);
+  if (type == nil) CAMLreturn(Val_none);
+  copied = copy_reflected_type(type, depth, remaining_members);
+  option = caml_alloc(1, 0);
+  Store_field(option, 0, copied);
+  CAMLreturn(option);
+}
+
+value copy_reflection_member(MTLStructMember *member, NSUInteger depth,
+                             NSUInteger *remaining_members) {
+  CAMLparam0();
+  CAMLlocal4(result, name, offset, nested);
+  result = caml_alloc_tuple(5);
+  name = caml_copy_string(member.name.UTF8String ?: "");
+  Store_field(result, 0, name);
+  offset = caml_copy_int64(static_cast<std::int64_t>(member.offset));
+  Store_field(result, 1, offset);
+  offset = caml_copy_int64(static_cast<std::int64_t>(member.argumentIndex));
+  Store_field(result, 2, offset);
+  Store_field(result, 3, Val_long(static_cast<intnat>(member.dataType)));
+  MTLType *child = member.arrayType;
+  if (child == nil) child = member.pointerType;
+  if (child == nil) child = member.structType;
+  if (@available(macOS 26.0, *)) {
+    if (child == nil) child = member.tensorReferenceType;
+  }
+  if (child == nil) child = member.textureReferenceType;
+  nested = copy_optional_reflected_type(child, depth, remaining_members);
+  Store_field(result, 4, nested);
+  CAMLreturn(result);
+}
+
+value copy_reflected_type(MTLType *type, NSUInteger depth,
+                          NSUInteger *remaining_members) {
+  CAMLparam0();
+  CAMLlocal5(result, item, list, option, dimensions);
+  if (depth > reflection_max_depth)
+    caml_failwith("Metal reflection exceeded max_depth");
+  MTLDataType data_type = type.dataType;
+  if ([type isKindOfClass:[MTLArrayType class]]) {
+    MTLArrayType *array = (MTLArrayType *)type;
+    result = caml_alloc(5, 1);
+    Store_field(result, 0, Val_long(static_cast<intnat>(data_type)));
+    item = caml_copy_int64(static_cast<std::int64_t>(array.arrayLength));
+    Store_field(result, 1, item);
+    item = caml_copy_int64(static_cast<std::int64_t>(array.stride));
+    Store_field(result, 2, item);
+    item = caml_copy_int64(static_cast<std::int64_t>(array.argumentIndexStride));
+    Store_field(result, 3, item);
+    MTLType *element = array.elementArrayType;
+    if (element == nil) element = array.elementPointerType;
+    if (element == nil) element = array.elementStructType;
+    if (@available(macOS 26.0, *)) {
+      if (element == nil) element = array.elementTensorReferenceType;
+    }
+    if (element == nil) element = array.elementTextureReferenceType;
+    (void)array.elementType;
+    option = copy_optional_reflected_type(element, depth + 1, remaining_members);
+    Store_field(result, 4, option);
+    CAMLreturn(result);
+  }
+  if ([type isKindOfClass:[MTLPointerType class]]) {
+    MTLPointerType *pointer = (MTLPointerType *)type;
+    result = caml_alloc(6, 2);
+    Store_field(result, 0, Val_long(static_cast<intnat>(data_type)));
+    Store_field(result, 1, Val_long(static_cast<intnat>(pointer.access)));
+    item = caml_copy_int64(static_cast<std::int64_t>(pointer.alignment));
+    Store_field(result, 2, item);
+    item = caml_copy_int64(static_cast<std::int64_t>(pointer.dataSize));
+    Store_field(result, 3, item);
+    Store_field(result, 4, Val_bool(pointer.elementIsArgumentBuffer));
+    MTLType *element = pointer.elementArrayType;
+    if (element == nil) element = pointer.elementStructType;
+    (void)pointer.elementType;
+    option = copy_optional_reflected_type(element, depth + 1, remaining_members);
+    Store_field(result, 5, option);
+    CAMLreturn(result);
+  }
+  if ([type isKindOfClass:[MTLStructType class]]) {
+    MTLStructType *structure = (MTLStructType *)type;
+    NSArray<MTLStructMember *> *members = structure.members;
+    if (members.count > *remaining_members) {
+      caml_failwith("Metal reflection exceeded max_members");
+    }
+    *remaining_members -= members.count;
+    list = Val_emptylist;
+    for (NSUInteger index = members.count; index > 0; --index) {
+      MTLStructMember *member = members[index - 1];
+      MTLStructMember *lookup = [structure memberByName:member.name];
+      if (lookup != member) {
+        caml_failwith("Metal reflection memberByName mismatch");
+      }
+      item = copy_reflection_member(member, depth + 1, remaining_members);
+      option = caml_alloc(2, 0);
+      Store_field(option, 0, item);
+      Store_field(option, 1, list);
+      list = option;
+    }
+    result = caml_alloc(1, 3);
+    Store_field(result, 0, list);
+    CAMLreturn(result);
+  }
+  if ([type isKindOfClass:[MTLTextureReferenceType class]]) {
+    MTLTextureReferenceType *texture = (MTLTextureReferenceType *)type;
+    result = caml_alloc(4, 4);
+    Store_field(result, 0, Val_long(static_cast<intnat>(data_type)));
+    Store_field(result, 1, Val_long(static_cast<intnat>(texture.access)));
+    Store_field(result, 2, Val_long(static_cast<intnat>(texture.textureType)));
+    Store_field(result, 3, Val_bool(texture.isDepthTexture));
+    (void)texture.textureDataType;
+    CAMLreturn(result);
+  }
+  if (@available(macOS 26.0, *)) {
+    if ([type isKindOfClass:[MTLTensorReferenceType class]]) {
+      MTLTensorReferenceType *tensor = (MTLTensorReferenceType *)type;
+      result = caml_alloc(5, 5);
+      Store_field(result, 0, Val_long(static_cast<intnat>(data_type)));
+      Store_field(result, 1, Val_long(static_cast<intnat>(tensor.access)));
+      Store_field(result, 2,
+                  Val_long(static_cast<intnat>(tensor.tensorDataType)));
+      Store_field(result, 3, Val_long(static_cast<intnat>(tensor.indexType)));
+      MTLTensorExtents *extents = tensor.dimensions;
+      if (extents == nil) {
+        dimensions = Val_none;
+      } else {
+        list = Val_emptylist;
+        for (NSUInteger index = extents.rank; index > 0; --index) {
+          NSInteger extent = [extents extentAtDimensionIndex:index - 1];
+          item = caml_copy_int64(static_cast<std::int64_t>(extent));
+          option = caml_alloc(2, 0);
+          Store_field(option, 0, item);
+          Store_field(option, 1, list);
+          list = option;
+        }
+        dimensions = caml_alloc(1, 0);
+        Store_field(dimensions, 0, list);
+      }
+      Store_field(result, 4, dimensions);
+      CAMLreturn(result);
+    }
+  }
+  result = caml_alloc(1, 0);
+  item = caml_copy_int64(static_cast<std::int64_t>(data_type));
+  Store_field(result, 0, item);
+  CAMLreturn(result);
+}
+
 value copy_bindings(NSArray<id<MTLBinding>> *bindings) {
   CAMLparam0();
-  CAMLlocal4(array, tuple, name, item);
+  CAMLlocal5(array, tuple, name, item, reflected_type);
   if (bindings.count > static_cast<NSUInteger>(Max_wosize)) {
     caml_failwith("Metal pipeline reflection exceeds OCaml limits");
   }
@@ -1309,7 +1465,7 @@ value copy_bindings(NSArray<id<MTLBinding>> *bindings) {
         caml_failwith("Metal reflected binding value exceeds int64");
       }
     }
-    tuple = caml_alloc_tuple(17);
+    tuple = caml_alloc_tuple(18);
     name = caml_copy_string(binding.name.UTF8String ?: "");
     Store_field(tuple, 0, name);
     Store_field(tuple, 1, Val_long(static_cast<intnat>(binding.type)));
@@ -1338,6 +1494,16 @@ value copy_bindings(NSArray<id<MTLBinding>> *bindings) {
     Store_field(tuple, 15, item);
     item = caml_copy_int64(static_cast<std::int64_t>(object_data_size));
     Store_field(tuple, 16, item);
+    MTLType *root_type = nil;
+    if (binding.type == MTLBindingTypeBuffer) {
+      id<MTLBufferBinding> buffer = (id<MTLBufferBinding>)binding;
+      root_type = buffer.bufferPointerType;
+      if (root_type == nil) root_type = buffer.bufferStructType;
+    }
+    NSUInteger remaining_members = reflection_max_members;
+    reflected_type = copy_optional_reflected_type(
+        root_type, 0, &remaining_members);
+    Store_field(tuple, 17, reflected_type);
     Store_field(array, static_cast<mlsize_t>(index), tuple);
   }
   CAMLreturn(array);

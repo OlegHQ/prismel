@@ -180,7 +180,7 @@
 (library
  (name metal)
  (public_name prismel.metal)
- (modules Metal Metal_format Metal_raw Metal_raw_generated Metal_enum_generated Metal_value_record_generated Metal_global_generated Metal_descriptor_generated Generated_provenance)
+ (modules Metal Metal_argument_reflection_snapshot Metal_format Metal_raw Metal_raw_generated Metal_enum_generated Metal_value_record_generated Metal_global_generated Metal_descriptor_generated Generated_provenance)
  (private_modules
   Metal_format
   Metal_raw
@@ -223,6 +223,24 @@
  (name test_metal_global_generated)
  (modules test_metal_global_generated)
  (libraries metal))
+
+(test
+ (name test_metal_argument_reflection_snapshot)
+ (modules test_metal_argument_reflection_snapshot)
+ (libraries metal))
+
+(rule
+ (targets test_metal_argument_reflection_native.exe)
+ (deps test_metal_argument_reflection_native.mm metal_argument_reflection_generated.inc)
+ (action
+  (run clang++ -std=c++17 -Wno-deprecated-declarations -Wno-unused-function
+   -fno-objc-arc -framework Foundation -framework Metal -I .
+   %{dep:test_metal_argument_reflection_native.mm} -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_argument_reflection_native.exe)
+ (action (run ./test_metal_argument_reflection_native.exe)))
 
 (test
  (name test_device_generated_capabilities)

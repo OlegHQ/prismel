@@ -1453,6 +1453,7 @@ let bound_identifiers =
       ]
   @ Binding_plan.bound_identifiers
   @ Binding_direct_plan.safe_device_identifiers
+  @ Binding_argument_reflection_plan.inventory_ids
 
 let bound_identifier_set = String_set.of_list bound_identifiers
 

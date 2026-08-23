@@ -58,6 +58,7 @@ type function_constant_info = string * int * int64 * bool
 type pipeline_binding_info =
   string * int * int * int64 * bool * bool * int64 * int64 * int * int * int
   * bool * int64 * int64 * int64 * int64 * int64
+  * Metal_argument_reflection_snapshot.reflected_type option
 
 type library_compile_descriptor =
   { label : string option

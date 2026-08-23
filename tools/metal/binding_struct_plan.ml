@@ -13,9 +13,9 @@ type selection =
   ; owner_count : int
   }
 
-let expected_method_count = 97
+let expected_method_count = 96
 let expected_property_count = 47
-let expected_declaration_count = 144
+let expected_declaration_count = 143
 let expected_owner_count = 34
 
 let fail format =

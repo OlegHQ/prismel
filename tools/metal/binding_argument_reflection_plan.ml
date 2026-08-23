@@ -102,4 +102,8 @@ let inventory_ids =
 let source_paths =
   [ "tools/metal/binding_argument_reflection_plan.ml"
   ; "tools/metal/binding_argument_reflection_plan.mli"
+  ; "tools/metal/binding_argument_reflection_codegen.ml"
+  ; "tools/metal/binding_argument_reflection_codegen.mli"
+  ; "tools/metal/binding_argument_reflection_evidence.ml"
+  ; "tools/metal/binding_argument_reflection_evidence.mli"
   ]

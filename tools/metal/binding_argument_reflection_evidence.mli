@@ -10,3 +10,4 @@ type symbol =
   }
 
 val validate_inventory : symbol list -> unit
+val is_bound_identifier : string -> bool

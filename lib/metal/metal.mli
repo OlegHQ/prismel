@@ -955,6 +955,8 @@ module Shader_type : sig
     | Other_data_type of int
 end
 
+module Reflection : module type of Metal_argument_reflection_snapshot
+
 module Binding : sig
   type access =
     | Read_only
@@ -1002,7 +1004,10 @@ module Binding : sig
     ; used : bool
     ; argument : bool
     ; kind : kind
+    ; reflection : Reflection.reflected_type option
     }
+
+  val reflection : t -> Reflection.reflected_type option
 
   type layout_kind =
     | Buffer_layout

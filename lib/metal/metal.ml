@@ -579,6 +579,7 @@ type shader_binding =
   ; used : bool
   ; argument : bool
   ; kind : shader_binding_kind
+  ; reflection : Metal_argument_reflection_snapshot.reflected_type option
   }
 
 type shader_binding_layout_kind =
@@ -6902,6 +6903,8 @@ module Shader_type = struct
     | code -> Other_data_type code
 end
 
+module Reflection = Metal_argument_reflection_snapshot
+
 module Binding = struct
   type access = shader_binding_access =
     | Read_only
@@ -6949,6 +6952,7 @@ module Binding = struct
     ; used : bool
     ; argument : bool
     ; kind : kind
+    ; reflection : Reflection.reflected_type option
     }
 
   type layout_kind = shader_binding_layout_kind =
@@ -7010,7 +7014,8 @@ module Binding = struct
       , threadgroup_alignment
       , threadgroup_data_size
       , object_alignment
-      , object_data_size ) =
+      , object_data_size
+      , reflection ) =
     let kind =
       match kind_code with
       | 0 ->
@@ -7047,7 +7052,10 @@ module Binding = struct
       | 37 -> Tensor_binding
       | code -> Unknown_binding code
     in
-    { name; index; access = access_of_code access_code; used; argument; kind }
+    { name; index; access = access_of_code access_code; used; argument; kind
+    ; reflection }
+
+  let reflection (value : t) = value.reflection
 
   let layout (value : t) =
     let kind, data_type =

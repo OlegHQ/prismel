@@ -2106,6 +2106,12 @@ let generator_source_paths =
   ; "tools/metal/binding_descriptor_property_evidence.mli"
   ; "tools/metal/binding_descriptor_default_evidence.ml"
   ; "tools/metal/binding_descriptor_default_evidence.mli"
+  ; "tools/metal/binding_argument_reflection_plan.ml"
+  ; "tools/metal/binding_argument_reflection_plan.mli"
+  ; "tools/metal/binding_argument_reflection_codegen.ml"
+  ; "tools/metal/binding_argument_reflection_codegen.mli"
+  ; "tools/metal/binding_argument_reflection_evidence.ml"
+  ; "tools/metal/binding_argument_reflection_evidence.mli"
   ; "tools/metal/binding_struct_spec.ml"
   ; "tools/metal/binding_struct_spec.mli"
   ; "tools/metal/binding_struct_plan.ml"
@@ -2359,6 +2365,21 @@ let main () =
   in
   Binding_descriptor_property_evidence.validate_inventory descriptor_symbols;
   Binding_descriptor_default_evidence.validate ();
+  let reflection_symbols =
+    String_map.bindings inventory
+    |> List.map (fun (_, declaration) ->
+      { Binding_argument_reflection_evidence.id = declaration.identifier
+      ; kind = declaration.kind
+      ; owner = declaration.owner
+      ; name = declaration.name
+      ; header = declaration.header
+      ; signature = declaration.signature
+      ; macos_introduced =
+          Option.map Binding_availability.canonical declaration.macos_introduced
+      ; classification = declaration.classification
+      })
+  in
+  Binding_argument_reflection_evidence.validate_inventory reflection_symbols;
   let manual_native = read_file options.manual_native in
   let manual_raw_ml = read_file options.manual_raw_ml in
   let manual_raw_mli = read_file options.manual_raw_mli in
@@ -2386,6 +2407,8 @@ let main () =
     ^ "\n"
     ^ Binding_descriptor_property_codegen.render_native_materializers
         descriptor_property_entries
+    ^ "\n"
+    ^ Binding_argument_reflection_codegen.render_snapshot_ownership_helpers ()
   in
   let manifest_contents =
     manifest ~sdk_version ~plan_sha256 ~generator_sha256 ~inventory_sha256

@@ -66,7 +66,7 @@ module Mock = struct
     Ok (Some (own (Struct [ "x", Scalar ])))
 end
 
-module Snapshot = Metal_argument_reflection_snapshot.Make (Mock)
+module Snapshot = Metal.Reflection.Make (Mock)
 
 let check condition message = if not condition then failwith message
 let no_delta before label = check (!Mock.live = before) (label ^ ": native handle delta")
