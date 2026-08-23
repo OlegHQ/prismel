@@ -43,7 +43,17 @@ let run_texture_sampler_cycles device count =
   let texture_descriptor =
     Texture.descriptor_2d ~format:Texture.Rgba8_unorm ~width:1 ~height:1 ()
   in
-  let sampler_descriptor = Sampler.default () in
+  let sampler_descriptor =
+    if get (Device.supports_sampler_reduction device) then
+      { (Sampler.default ()) with
+        min_filter = Sampler.Linear
+      ; mag_filter = Sampler.Linear
+      ; mip_filter = Sampler.Mip_linear
+      ; reduction_mode = Sampler.Minimum
+      ; lod_bias = 0.5
+      }
+    else Sampler.default ()
+  in
   for _ = 1 to count do
     let texture = get (Texture.create ~device texture_descriptor) in
     let sampler = get (Sampler.create ~device sampler_descriptor) in

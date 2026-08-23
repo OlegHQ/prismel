@@ -115,6 +115,9 @@ module Device : sig
 
   (** Runtime-gated macOS 26.4 placement-sparse capability. *)
   val supports_placement_sparse : t -> (bool, error) result
+
+  (** Runtime-gated macOS 26 sampler reduction modes and LOD bias. *)
+  val supports_sampler_reduction : t -> (bool, error) result
   val destroy : t -> (unit, error) result
 end
 
@@ -696,6 +699,7 @@ module Sampler : sig
     | Clamp_to_border_color
 
   type border_color = Transparent_black | Opaque_black | Opaque_white
+  type reduction_mode = Weighted_average | Minimum | Maximum
   type compare_function =
     | Never
     | Less
@@ -715,10 +719,12 @@ module Sampler : sig
     ; t_address : address_mode
     ; r_address : address_mode
     ; border_color : border_color
+    ; reduction_mode : reduction_mode
     ; normalized_coordinates : bool
     ; lod_min_clamp : float
     ; lod_max_clamp : float
     ; lod_average : bool
+    ; lod_bias : float
     ; compare_function : compare_function
     ; support_argument_buffers : bool
     ; label : string option

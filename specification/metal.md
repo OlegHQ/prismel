@@ -330,9 +330,14 @@ guarded and exception-translated.
 
 `Sampler.descriptor` covers min/mag/mip filtering, anisotropy, all current
 address modes and border colors, normalized coordinates, finite float32 LOD
-clamps, comparison, LOD averaging, and argument-buffer support. Invalid
-anisotropy, non-finite or inverted clamps, illegal unnormalized-coordinate
-combinations, and malformed labels fail before sampler creation. Sparse
+clamps, comparison, LOD averaging, argument-buffer support, and the macOS 26
+weighted/minimum/maximum reduction modes plus signed LOD bias. The latter two
+fields are runtime-gated together; non-default requests return `Unsupported`
+before allocation on older systems. The bridge reads every mutable descriptor
+property back before creation and verifies the resulting sampler's device and
+label. Invalid anisotropy, non-finite or inverted clamps, out-of-range bias,
+illegal unnormalized-coordinate combinations, and malformed labels fail before
+sampler creation. Sparse
 placement resource construction, sparse depth/stencil, and shared-handle XPC
 transport are covered. Metal 4 placement mapping plus a public cross-process
 IOSurface transport remain pending, so this resource slice stays progress
@@ -355,6 +360,7 @@ capability gating, sparse page and tile capability queries, compressed sparse-ti
 alignment, depth/stencil creation, legacy map/blit/read/unmap behavior,
 placement-sparse capability, all page-size constructors, typed tiers, texture
 views, sparse-compatible placement heaps, unmapped-state rejection,
+all sampler reduction modes and LOD-bias validation,
 command-resource retention, parent ownership, idempotent destruction, stale
 access, and GC-finalizer release. The
 separate XPC conformance app exercises a real cross-process shared-texture

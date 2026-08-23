@@ -72,6 +72,9 @@ external device_supports_sparse_textures : handle -> bool =
 external device_supports_placement_sparse : handle -> bool =
   "caml_prismel_metal_device_supports_placement_sparse"
 
+external device_supports_sampler_reduction : handle -> bool =
+  "caml_prismel_metal_device_supports_sampler_reduction"
+
 external device_sparse_tile_size_in_bytes :
   handle -> int -> (int64, string) result
   = "caml_prismel_metal_device_sparse_tile_size_in_bytes"
@@ -360,7 +363,7 @@ external texture_create_view :
 
 external sampler_create :
   handle ->
-  (int * int * int * int * int * int * int * int * bool * float * float * bool * int * bool) ->
+  (int * int * int * int * int * int * int * int * int * bool * float * float * bool * float * int * bool) ->
   string option -> (handle, string) result
   = "caml_prismel_metal_sampler_create"
 

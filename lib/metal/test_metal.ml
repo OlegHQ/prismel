@@ -2620,14 +2620,57 @@ let () =
       }
     in
     let sampler = get (Sampler.create ~device sampler_descriptor) in
-    if get (Sampler.label sampler) <> Some "Metal linear sampler" then
-      fail "sampler label did not round-trip";
+    if get (Sampler.label sampler) <> Some "Metal linear sampler"
+       || Sampler.descriptor sampler <> sampler_descriptor
+    then fail "sampler descriptor did not round-trip";
+    let sampler_reduction_supported =
+      get (Device.supports_sampler_reduction device)
+    in
+    if sampler_reduction_supported then
+      List.iter
+        (fun (reduction_mode, lod_bias) ->
+          let advanced_descriptor =
+            { sampler_descriptor with
+              reduction_mode
+            ; lod_bias
+            ; label = Some "Metal reduction sampler"
+            }
+          in
+          let advanced = get (Sampler.create ~device advanced_descriptor) in
+          if Sampler.descriptor advanced <> advanced_descriptor
+             || get (Sampler.label advanced) <> Some "Metal reduction sampler"
+          then fail "Metal 4 sampler descriptor did not round-trip";
+          get (Sampler.destroy advanced))
+        [ Sampler.Minimum, -16.; Sampler.Maximum, 15.999 ]
+    else begin
+      let before_unsupported = get (Release_queue.stats ()) in
+      ignore
+        (expect_error Unsupported
+           (Sampler.create ~device
+              { sampler_descriptor with
+                reduction_mode = Sampler.Minimum
+              ; lod_bias = 0.5
+              }));
+      let after_unsupported = get (Release_queue.stats ()) in
+      if after_unsupported.total_created <> before_unsupported.total_created then
+        fail "unsupported sampler extensions allocated a native handle"
+    end;
+    let before_invalid_samplers = get (Release_queue.stats ()) in
     ignore
       (expect_error Invalid_argument
          (Sampler.create ~device { sampler_descriptor with max_anisotropy = 0 }));
     ignore
       (expect_error Invalid_argument
          (Sampler.create ~device { sampler_descriptor with lod_min_clamp = nan }));
+    ignore
+      (expect_error Invalid_argument
+         (Sampler.create ~device { sampler_descriptor with lod_bias = nan }));
+    ignore
+      (expect_error Invalid_argument
+         (Sampler.create ~device { sampler_descriptor with lod_bias = -16.001 }));
+    ignore
+      (expect_error Invalid_argument
+         (Sampler.create ~device { sampler_descriptor with lod_bias = 16. }));
     ignore
       (expect_error Invalid_argument
          (Sampler.create ~device
@@ -2647,6 +2690,9 @@ let () =
       (expect_error Native_error
          (Sampler.create ~device
             { sampler_descriptor with label = Some "\255" }));
+    let after_invalid_samplers = get (Release_queue.stats ()) in
+    if after_invalid_samplers.total_created <> before_invalid_samplers.total_created
+    then fail "invalid sampler inputs allocated native handles";
     get (Sampler.destroy sampler);
     get (Texture.destroy texture);
     let invalid_shader =

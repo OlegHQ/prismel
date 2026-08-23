@@ -43,6 +43,7 @@ let bound_identifiers =
   ; "enum:MTLSamplerBorderColor"
   ; "enum:MTLSamplerMinMagFilter"
   ; "enum:MTLSamplerMipFilter"
+  ; "enum:MTLSamplerReductionMode"
   ; "enum:MTLSparsePageSize"
   ; "enum:MTLSparseTextureMappingMode"
   ; "enum:MTLStorageMode"
@@ -101,6 +102,7 @@ let bound_identifiers =
   ; "typedef:MTLSamplerBorderColor"
   ; "typedef:MTLSamplerMinMagFilter"
   ; "typedef:MTLSamplerMipFilter"
+  ; "typedef:MTLSamplerReductionMode"
   ; "typedef:MTLSparsePageSize"
   ; "typedef:MTLSparseTextureMappingMode"
   ; "typedef:MTLSize"
@@ -205,17 +207,20 @@ let bound_identifiers =
           ] )
       ; ( "MTLSamplerDescriptor"
         , [ "borderColor"; "compareFunction"; "label"; "lodAverage"
-          ; "lodMaxClamp"; "lodMinClamp"; "magFilter"; "maxAnisotropy"
+          ; "lodBias"; "lodMaxClamp"; "lodMinClamp"; "magFilter"
+          ; "maxAnisotropy"
           ; "minFilter"; "mipFilter"; "normalizedCoordinates"
-          ; "rAddressMode"; "sAddressMode"; "setBorderColor:"
+          ; "rAddressMode"; "reductionMode"; "sAddressMode"; "setBorderColor:"
           ; "setCompareFunction:"; "setLabel:"; "setLodAverage:"
-          ; "setLodMaxClamp:"; "setLodMinClamp:"; "setMagFilter:"
+          ; "setLodBias:"; "setLodMaxClamp:"; "setLodMinClamp:"
+          ; "setMagFilter:"
           ; "setMaxAnisotropy:"; "setMinFilter:"; "setMipFilter:"
           ; "setNormalizedCoordinates:"; "setRAddressMode:"
+          ; "setReductionMode:"
           ; "setSAddressMode:"; "setSupportArgumentBuffers:"
           ; "setTAddressMode:"; "supportArgumentBuffers"; "tAddressMode"
           ] )
-      ; "MTLSamplerState", [ "label" ]
+      ; "MTLSamplerState", [ "device"; "label" ]
       ; "MTLSharedTextureHandle", [ "device"; "label" ]
       ; ( "MTLTexture"
         , [ "arrayLength"; "buffer"; "bufferBytesPerRow"; "bufferOffset"
@@ -282,12 +287,13 @@ let bound_identifiers =
       ; ( "MTLResidencySetDescriptor", [ "initialCapacity"; "label" ] )
       ; ( "MTLSamplerDescriptor"
         , [ "borderColor"; "compareFunction"; "label"; "lodAverage"
-          ; "lodMaxClamp"; "lodMinClamp"; "magFilter"; "maxAnisotropy"
+          ; "lodBias"; "lodMaxClamp"; "lodMinClamp"; "magFilter"
+          ; "maxAnisotropy"
           ; "minFilter"; "mipFilter"; "normalizedCoordinates"
-          ; "rAddressMode"; "sAddressMode"; "supportArgumentBuffers"
-          ; "tAddressMode"
+          ; "rAddressMode"; "reductionMode"; "sAddressMode"
+          ; "supportArgumentBuffers"; "tAddressMode"
           ] )
-      ; "MTLSamplerState", [ "label" ]
+      ; "MTLSamplerState", [ "device"; "label" ]
       ; "MTLSharedTextureHandle", [ "device"; "label" ]
       ; ( "MTLTexture"
         , [ "arrayLength"; "depth"; "firstMipmapInTail"; "height"
@@ -342,6 +348,10 @@ let bound_identifiers =
       ]
   @ enum_cases "MTLSparseTextureMappingMode"
       [ "MTLSparseTextureMappingModeMap"; "MTLSparseTextureMappingModeUnmap" ]
+  @ enum_cases "MTLSamplerReductionMode"
+      [ "MTLSamplerReductionModeWeightedAverage"
+      ; "MTLSamplerReductionModeMinimum"; "MTLSamplerReductionModeMaximum"
+      ]
   @ enum_cases "MTLBufferSparseTier"
       [ "MTLBufferSparseTierNone"; "MTLBufferSparseTier1" ]
   @ enum_cases "MTLTextureSparseTier"

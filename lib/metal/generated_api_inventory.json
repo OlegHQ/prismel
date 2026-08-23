@@ -2,11 +2,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 0,
-    "bound": 623,
+    "bound": 636,
     "scope-excluded": 7,
-    "unreviewed": 4656
+    "unreviewed": 4643
   },
-  "classification_source_sha256": "d373086a406ac70a413d691b6c6c47c10706e68a1b476244cbf17ea61aa45267",
+  "classification_source_sha256": "d7edc8dd02da528f8baa5cdd98b28d6c578e15a38dd4ce6979b70d92d4431cfb",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "header_aggregate_sha256": "c2ee1e44c76606cf05fa81d1a8314dadfa49efe900342e8bcb3670363c16f0d1",
@@ -11971,38 +11971,38 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "enum-case:MTLSamplerReductionMode:MTLSamplerReductionModeMaximum",
       "kind": "enum-case",
       "line": 99,
       "name": "MTLSamplerReductionModeMaximum",
       "owner": "MTLSamplerReductionMode",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLSamplerReductionMode"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "enum-case:MTLSamplerReductionMode:MTLSamplerReductionModeMinimum",
       "kind": "enum-case",
       "line": 97,
       "name": "MTLSamplerReductionModeMinimum",
       "owner": "MTLSamplerReductionMode",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLSamplerReductionMode"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "enum-case:MTLSamplerReductionMode:MTLSamplerReductionModeWeightedAverage",
       "kind": "enum-case",
       "line": 95,
       "name": "MTLSamplerReductionModeWeightedAverage",
       "owner": "MTLSamplerReductionMode",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLSamplerReductionMode"
     },
     {
@@ -15664,14 +15664,14 @@
         "AvailabilityAttr",
         "EnumExtensibilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "enum:MTLSamplerReductionMode",
       "kind": "enum",
       "line": 93,
       "name": "MTLSamplerReductionMode",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -46954,14 +46954,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "method:-[MTLSamplerDescriptor lodBias]",
       "kind": "method",
       "line": 204,
       "name": "lodBias",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> float"
     },
     {
@@ -47064,14 +47064,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "method:-[MTLSamplerDescriptor reductionMode]",
       "kind": "method",
       "line": 169,
       "name": "reductionMode",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLSamplerReductionMode"
     },
     {
@@ -47144,14 +47144,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "method:-[MTLSamplerDescriptor setLodBias:]",
       "kind": "method",
       "line": null,
       "name": "setLodBias:",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (float) -> void"
     },
     {
@@ -47254,14 +47254,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "method:-[MTLSamplerDescriptor setReductionMode:]",
       "kind": "method",
       "line": null,
       "name": "setReductionMode:",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLSamplerReductionMode) -> void"
     },
     {
@@ -47330,14 +47330,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "method:-[MTLSamplerState device]",
       "kind": "method",
       "line": 243,
       "name": "device",
       "owner": "MTLSamplerState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> id<MTLDevice> _Nonnull"
     },
     {
@@ -61601,14 +61601,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "property:MTLSamplerDescriptor:lodBias",
       "kind": "property",
       "line": 204,
       "name": "lodBias",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "float"
     },
     {
@@ -61711,14 +61711,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "property:MTLSamplerDescriptor:reductionMode",
       "kind": "property",
       "line": 169,
       "name": "reductionMode",
       "owner": "MTLSamplerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLSamplerReductionMode"
     },
     {
@@ -61761,14 +61761,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "property:MTLSamplerState:device",
       "kind": "property",
       "line": 243,
       "name": "device",
       "owner": "MTLSamplerState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "id<MTLDevice> _Nonnull"
     },
     {
@@ -67160,14 +67160,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLSampler.h",
       "id": "typedef:MTLSamplerReductionMode",
       "kind": "typedef",
       "line": 93,
       "name": "MTLSamplerReductionMode",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "enum MTLSamplerReductionMode"
     },
     {

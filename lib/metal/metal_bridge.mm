@@ -763,6 +763,21 @@ bool device_supports_placement_sparse(id<MTLDevice> device) {
   return false;
 }
 
+bool device_supports_sampler_reduction(id<MTLDevice> device) {
+  (void)device;
+  if (@available(macOS 26.0, *)) {
+    return [MTLSamplerDescriptor instancesRespondToSelector:
+                @selector(reductionMode)] &&
+           [MTLSamplerDescriptor instancesRespondToSelector:
+                @selector(setReductionMode:)] &&
+           [MTLSamplerDescriptor instancesRespondToSelector:
+                @selector(lodBias)] &&
+           [MTLSamplerDescriptor instancesRespondToSelector:
+                @selector(setLodBias:)];
+  }
+  return false;
+}
+
 int buffer_sparse_tier_or_unavailable(id<MTLBuffer> buffer) {
   if (@available(macOS 26.0, *)) {
     @try {
@@ -1515,6 +1530,13 @@ caml_prismel_metal_device_supports_placement_sparse(value raw) {
   CAMLparam1(raw);
   id<MTLDevice> device = object_of_handle(raw, Handle_kind::Device);
   CAMLreturn(Val_bool(device_supports_placement_sparse(device)));
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_device_supports_sampler_reduction(value raw) {
+  CAMLparam1(raw);
+  id<MTLDevice> device = object_of_handle(raw, Handle_kind::Device);
+  CAMLreturn(Val_bool(device_supports_sampler_reduction(device)));
 }
 
 extern "C" CAMLprim value
@@ -3620,13 +3642,26 @@ extern "C" CAMLprim value caml_prismel_metal_sampler_create(
   CAMLparam3(raw_device, raw_descriptor, raw_label);
   CAMLlocal1(raw);
   @autoreleasepool {
+    @try {
     id<MTLDevice> device = object_of_handle(raw_device, Handle_kind::Device);
     const intnat anisotropy = Long_val(Field(raw_descriptor, 3));
-    const double lod_min = Double_val(Field(raw_descriptor, 9));
-    const double lod_max = Double_val(Field(raw_descriptor, 10));
+    const intnat reduction_mode = Long_val(Field(raw_descriptor, 8));
+    const double lod_min = Double_val(Field(raw_descriptor, 10));
+    const double lod_max = Double_val(Field(raw_descriptor, 11));
+    const double lod_bias = Double_val(Field(raw_descriptor, 13));
+    const bool sampler_reduction_supported =
+        device_supports_sampler_reduction(device);
     if (anisotropy < 1 || anisotropy > 16 || !std::isfinite(lod_min) ||
-        !std::isfinite(lod_max) || lod_min < 0.0 || lod_max < lod_min) {
+        !std::isfinite(lod_max) || lod_min < 0.0 || lod_max < lod_min ||
+        lod_max > std::numeric_limits<float>::max() ||
+        reduction_mode < 0 || reduction_mode > 2 ||
+        !std::isfinite(lod_bias) || lod_bias < -16.0 || lod_bias > 15.999) {
       CAMLreturn(result_error_text("sampler descriptor values are invalid"));
+    }
+    if ((reduction_mode != 0 || lod_bias != 0.0) &&
+        !sampler_reduction_supported) {
+      CAMLreturn(result_error_text(
+          "sampler reduction modes and LOD bias require macOS 26"));
     }
     MTLSamplerDescriptor *descriptor = [[MTLSamplerDescriptor alloc] init];
     descriptor.minFilter = static_cast<MTLSamplerMinMagFilter>(
@@ -3644,26 +3679,91 @@ extern "C" CAMLprim value caml_prismel_metal_sampler_create(
         static_cast<MTLSamplerAddressMode>(Long_val(Field(raw_descriptor, 6)));
     descriptor.borderColor =
         static_cast<MTLSamplerBorderColor>(Long_val(Field(raw_descriptor, 7)));
-    descriptor.normalizedCoordinates = Bool_val(Field(raw_descriptor, 8));
+    descriptor.normalizedCoordinates = Bool_val(Field(raw_descriptor, 9));
     descriptor.lodMinClamp = static_cast<float>(lod_min);
     descriptor.lodMaxClamp = static_cast<float>(lod_max);
-    descriptor.lodAverage = Bool_val(Field(raw_descriptor, 11));
+    descriptor.lodAverage = Bool_val(Field(raw_descriptor, 12));
     descriptor.compareFunction =
-        static_cast<MTLCompareFunction>(Long_val(Field(raw_descriptor, 12)));
-    descriptor.supportArgumentBuffers = Bool_val(Field(raw_descriptor, 13));
+        static_cast<MTLCompareFunction>(Long_val(Field(raw_descriptor, 14)));
+    descriptor.supportArgumentBuffers = Bool_val(Field(raw_descriptor, 15));
+    if (sampler_reduction_supported) {
+      if (@available(macOS 26.0, *)) {
+        descriptor.reductionMode =
+            static_cast<MTLSamplerReductionMode>(reduction_mode);
+        descriptor.lodBias = static_cast<float>(lod_bias);
+      }
+    }
+    NSString *expected_label = nil;
     if (Is_block(raw_label)) {
-      NSString *label = string_from_ocaml(Field(raw_label, 0));
-      if (label == nil) {
+      expected_label = string_from_ocaml(Field(raw_label, 0));
+      if (expected_label == nil) {
         CAMLreturn(result_error_text("sampler label is not valid UTF-8"));
       }
-      descriptor.label = label;
+      descriptor.label = expected_label;
+    }
+    const bool base_descriptor_matches =
+        descriptor.minFilter ==
+            static_cast<MTLSamplerMinMagFilter>(
+                Long_val(Field(raw_descriptor, 0))) &&
+        descriptor.magFilter ==
+            static_cast<MTLSamplerMinMagFilter>(
+                Long_val(Field(raw_descriptor, 1))) &&
+        descriptor.mipFilter ==
+            static_cast<MTLSamplerMipFilter>(
+                Long_val(Field(raw_descriptor, 2))) &&
+        descriptor.maxAnisotropy == static_cast<NSUInteger>(anisotropy) &&
+        descriptor.sAddressMode ==
+            static_cast<MTLSamplerAddressMode>(
+                Long_val(Field(raw_descriptor, 4))) &&
+        descriptor.tAddressMode ==
+            static_cast<MTLSamplerAddressMode>(
+                Long_val(Field(raw_descriptor, 5))) &&
+        descriptor.rAddressMode ==
+            static_cast<MTLSamplerAddressMode>(
+                Long_val(Field(raw_descriptor, 6))) &&
+        descriptor.borderColor ==
+            static_cast<MTLSamplerBorderColor>(
+                Long_val(Field(raw_descriptor, 7))) &&
+        descriptor.normalizedCoordinates == Bool_val(Field(raw_descriptor, 9)) &&
+        descriptor.lodMinClamp == static_cast<float>(lod_min) &&
+        descriptor.lodMaxClamp == static_cast<float>(lod_max) &&
+        descriptor.lodAverage == Bool_val(Field(raw_descriptor, 12)) &&
+        descriptor.compareFunction ==
+            static_cast<MTLCompareFunction>(
+                Long_val(Field(raw_descriptor, 14))) &&
+        descriptor.supportArgumentBuffers == Bool_val(Field(raw_descriptor, 15));
+    bool extended_descriptor_matches = true;
+    if (sampler_reduction_supported) {
+      if (@available(macOS 26.0, *)) {
+        extended_descriptor_matches =
+            descriptor.reductionMode ==
+                static_cast<MTLSamplerReductionMode>(reduction_mode) &&
+            descriptor.lodBias == static_cast<float>(lod_bias);
+      }
+    }
+    if (!base_descriptor_matches || !extended_descriptor_matches ||
+        ((expected_label == nil) != (descriptor.label == nil)) ||
+        (expected_label != nil &&
+         ![descriptor.label isEqualToString:expected_label])) {
+      CAMLreturn(result_error_text(
+          "Metal changed checked sampler descriptor properties"));
     }
     id<MTLSamplerState> sampler =
         [device newSamplerStateWithDescriptor:descriptor];
     if (sampler == nil) {
       CAMLreturn(result_error_text("Metal rejected the sampler descriptor"));
     }
+    if (sampler.device.registryID != device.registryID ||
+        ((expected_label == nil) != (sampler.label == nil)) ||
+        (expected_label != nil &&
+         ![sampler.label isEqualToString:expected_label])) {
+      CAMLreturn(result_error_text(
+          "Metal changed checked sampler creation properties"));
+    }
     raw = allocate_handle(sampler, Handle_kind::Sampler);
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
   }
   CAMLreturn(result_ok(raw));
 }

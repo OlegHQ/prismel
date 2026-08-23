@@ -366,6 +366,11 @@ type sampler_border_color =
   | Opaque_black
   | Opaque_white
 
+type sampler_reduction_mode =
+  | Weighted_average
+  | Minimum
+  | Maximum
+
 type sampler_compare_function =
   | Never
   | Less
@@ -385,10 +390,12 @@ type sampler_descriptor =
   ; t_address : sampler_address_mode
   ; r_address : sampler_address_mode
   ; border_color : sampler_border_color
+  ; reduction_mode : sampler_reduction_mode
   ; normalized_coordinates : bool
   ; lod_min_clamp : float
   ; lod_max_clamp : float
   ; lod_average : bool
+  ; lod_bias : float
   ; compare_function : sampler_compare_function
   ; support_argument_buffers : bool
   ; label : string option
@@ -888,6 +895,12 @@ module Device = struct
       with
       | Error _ as failure -> failure
       | Ok () -> Ok (Metal_raw.device_supports_placement_sparse value.raw))
+
+  let supports_sampler_reduction (value : t) =
+    on_main "Metal.Device.supports_sampler_reduction" (fun () ->
+      match ensure_live "Metal.Device.supports_sampler_reduction" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () -> Ok (Metal_raw.device_supports_sampler_reduction value.raw))
 
   let destroy (value : t) =
     destroy_parent "Metal.Device.destroy" value.lifetime value.raw (fun () -> ())
@@ -4631,6 +4644,11 @@ module Sampler = struct
     | Opaque_black
     | Opaque_white
 
+  type reduction_mode = sampler_reduction_mode =
+    | Weighted_average
+    | Minimum
+    | Maximum
+
   type compare_function = sampler_compare_function =
     | Never
     | Less
@@ -4650,10 +4668,12 @@ module Sampler = struct
     ; t_address : address_mode
     ; r_address : address_mode
     ; border_color : border_color
+    ; reduction_mode : reduction_mode
     ; normalized_coordinates : bool
     ; lod_min_clamp : float
     ; lod_max_clamp : float
     ; lod_average : bool
+    ; lod_bias : float
     ; compare_function : compare_function
     ; support_argument_buffers : bool
     ; label : string option
@@ -4668,10 +4688,12 @@ module Sampler = struct
     ; t_address = Clamp_to_edge
     ; r_address = Clamp_to_edge
     ; border_color = Transparent_black
+    ; reduction_mode = Weighted_average
     ; normalized_coordinates = true
     ; lod_min_clamp = 0.
     ; lod_max_clamp = 3.402823466e38
     ; lod_average = false
+    ; lod_bias = 0.
     ; compare_function = Never
     ; support_argument_buffers = false
     ; label
@@ -4697,6 +4719,11 @@ module Sampler = struct
     | Opaque_black -> 1
     | Opaque_white -> 2
 
+  let reduction_code = function
+    | Weighted_average -> 0
+    | Minimum -> 1
+    | Maximum -> 2
+
   let compare_code = function
     | Never -> 0
     | Less -> 1
@@ -4717,6 +4744,10 @@ module Sampler = struct
             || descriptor.lod_max_clamp < descriptor.lod_min_clamp
             || descriptor.lod_max_clamp > 3.402823466e38
     then invalid "sampler LOD clamps are invalid or exceed float32 range"
+    else if not (Float.is_finite descriptor.lod_bias)
+            || descriptor.lod_bias < -16.
+            || descriptor.lod_bias > 15.999
+    then invalid "sampler LOD bias must be finite and in [-16, 15.999]"
     else if option_exists contains_nul descriptor.label then
       invalid "sampler label contains a NUL byte"
     else if not descriptor.normalized_coordinates
@@ -4739,12 +4770,17 @@ module Sampler = struct
     , address_code descriptor.t_address
     , address_code descriptor.r_address
     , border_code descriptor.border_color
+    , reduction_code descriptor.reduction_mode
     , descriptor.normalized_coordinates
     , descriptor.lod_min_clamp
     , descriptor.lod_max_clamp
     , descriptor.lod_average
+    , descriptor.lod_bias
     , compare_code descriptor.compare_function
     , descriptor.support_argument_buffers )
+
+  let requires_sampler_reduction descriptor =
+    descriptor.reduction_mode <> Weighted_average || descriptor.lod_bias <> 0.
 
   let create ~(device : Device.t) descriptor =
     on_main "Metal.Sampler.create" (fun () ->
@@ -4753,6 +4789,12 @@ module Sampler = struct
       | Ok () ->
           (match validate descriptor with
            | Error _ as failure -> failure
+           | Ok ()
+             when requires_sampler_reduction descriptor
+                  && not
+                       (Metal_raw.device_supports_sampler_reduction device.raw) ->
+               error "Metal.Sampler.create" Unsupported
+                 "sampler reduction modes and LOD bias require macOS 26"
            | Ok () ->
                match
                  Metal_raw.sampler_create device.raw (descriptor_tuple descriptor)
