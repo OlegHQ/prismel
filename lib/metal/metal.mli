@@ -2992,6 +2992,7 @@ module Resource100 : sig
   end
   module Texture_ops : sig
     val view : Texture.t -> format:Texture.format -> (Texture.t,error) result
+    val buffer_backing : Texture.t -> (Texture.buffer_backing option,error) result
     val get_bytes : Texture.t -> bytes:bytes -> bytes_per_row:int -> region:Texture.region -> mip_level:int -> (unit,error) result
     val replace_region : Texture.t -> region:Texture.region -> mip_level:int -> bytes:bytes -> bytes_per_row:int -> (unit,error) result
   end

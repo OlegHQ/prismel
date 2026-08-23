@@ -17306,6 +17306,36 @@ module Resource100 = struct
       if mip_level<0||mip_level>=value.descriptor.mip_levels||region.x<0||region.y<0||region.z<>0||region.width<=0||region.height<=0||region.depth<>1||bytes_per_row<=0 then error op Invalid_argument "the bytesPerRow-only transfer requires one 2D slice"else let width=max 1(value.descriptor.width lsr mip_level)and height=max 1(value.descriptor.height lsr mip_level)in if region.x>width||region.width>width-region.x||region.y>height||region.height>height-region.y then error op Invalid_argument "texture transfer region is out of bounds"else let rows=Int64.of_int region.height and row=Int64.of_int bytes_per_row in if rows>Int64.div Int64.max_int row then error op Invalid_argument "texture transfer cardinality overflows 64 bits"else let required=Int64.mul row rows in if required>Int64.of_int(Bytes.length bytes)then error op Invalid_argument "texture transfer bytes are too short"else Ok()
     let get_bytes (value:texture) ~bytes ~bytes_per_row ~region ~mip_level=let op="Metal.Resource100.Texture.get_bytes"in on_main op(fun()->match ensure_texture_usable op value with Error _ as e->e|Ok()->match validate_transfer op value~region~mip_level~bytes_per_row bytes with Error _ as e->e|Ok()->let r=(Int64.of_int region.x,Int64.of_int region.y,Int64.of_int region.z,Int64.of_int region.width,Int64.of_int region.height,Int64.of_int region.depth)in match Metal_raw.resource_texture_get_bytes value.raw bytes(Int64.of_int bytes_per_row)r(Int64.of_int mip_level)with Error m->native_error op m|Ok()->Ok())
     let replace_region (value:texture) ~region ~mip_level ~bytes ~bytes_per_row=let op="Metal.Resource100.Texture.replace_region"in on_main op(fun()->match ensure_texture_usable op value with Error _ as e->e|Ok()->match validate_transfer op value~region~mip_level~bytes_per_row bytes with Error _ as e->e|Ok()->let r=(Int64.of_int region.x,Int64.of_int region.y,Int64.of_int region.z,Int64.of_int region.width,Int64.of_int region.height,Int64.of_int region.depth)in match Metal_raw.resource_texture_replace value.raw r(Int64.of_int mip_level)bytes(Int64.of_int bytes_per_row)with Error m->native_error op m|Ok()->Ok())
+
+    let buffer_backing (value : texture) =
+      let operation = "Metal.Resource100.Texture.buffer_backing" in
+      on_main operation (fun () ->
+        match ensure_texture_usable operation value with
+        | Error _ as failure -> failure
+        | Ok () ->
+            match Metal_raw.resource_texture_buffer_graph value.raw with
+            | Error message -> native_error operation message
+            | Ok None ->
+                (match Texture.buffer_backing value with
+                 | None -> Ok None
+                 | Some _ -> native_error operation
+                     "native texture lost its checked buffer parent")
+            | Ok (Some ((raw, length, storage, cache, hazard), offset,
+                         bytes_per_row)) ->
+                let finish result = ignore (Metal_raw.destroy raw); result in
+                match Texture.buffer_backing value with
+                | None -> finish (native_error operation
+                    "native texture reported an unexpected buffer parent")
+                | Some (backing : buffer_texture_backing) ->
+                    if length <> backing.buffer.length
+                       || storage <> storage_code backing.buffer.storage
+                       || cache <> cache_code backing.buffer.cpu_cache
+                       || hazard <> hazard_code backing.buffer.hazard_tracking
+                       || offset <> backing.offset
+                       || bytes_per_row <> Int64.of_int backing.bytes_per_row
+                    then finish (native_error operation
+                        "native buffer-parent metadata disagrees with the safe graph")
+                    else finish (Ok (Some backing)))
   end
 
   module Buffer_layout = struct
