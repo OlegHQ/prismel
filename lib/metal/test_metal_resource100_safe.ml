@@ -48,6 +48,16 @@ let ()=
  let queue=get(Command_queue.create device)in
  let commands=get(Command_buffer.create queue())in
  let state_pass=get(Resource100.Resource_state_pass.create())in
+ let copied_attachment=get(Resource100.Sample_attachment.create~start:(Index 1L)~finish:(Index 2L)())in
+ get(Resource100.Resource_state_pass.set_sample_attachment state_pass~index:0(Some copied_attachment));
+ get(Resource100.Sample_attachment.destroy copied_attachment);
+ for _=1 to 10000 do match get(Resource100.Resource_state_pass.sample_attachment state_pass~index:0)with
+   |Some copy when Resource100.Sample_attachment.range copy=(1L,2L)->get(Resource100.Sample_attachment.destroy copy)
+   |_->failwith"sample attachment copy semantics"done;
+ get(Resource100.Resource_state_pass.set_sample_attachment state_pass~index:0 None);
+ (match get(Resource100.Resource_state_pass.sample_attachment state_pass~index:0)with
+  |Some default->get(Resource100.Sample_attachment.destroy default)|None->());
+ reject(Resource100.Resource_state_pass.sample_attachment state_pass~index:4);
  let state_encoder=get(Resource100.Resource_state_pass.create_encoder commands state_pass)in
  reject(Resource_state_encoder.move_texture_mappings state_encoder~source:texture
    ~source_slice:0~source_level:0

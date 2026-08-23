@@ -3068,6 +3068,8 @@ module Resource100 : sig
   module Resource_state_pass : sig
     type t
     val create : unit -> (t,error) result
+    val sample_attachment : t -> index:int -> (Sample_attachment.t option,error) result
+    val set_sample_attachment : t -> index:int -> Sample_attachment.t option -> (unit,error) result
     val create_encoder : Command_buffer.t -> t -> (Resource_state_encoder.t,error) result
     val destroyed : t -> bool
     val destroy : t -> (unit,error) result
