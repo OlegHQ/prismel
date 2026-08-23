@@ -1,4 +1,4 @@
-type handoff=Scalar_snapshot|Sample_positions|Nullable_rasterization_graph|Layer_identity|Drawable_parent
+type handoff=Scalar_snapshot|Sample_positions|Nullable_rasterization_graph|Layer_identity|Drawable_parent|Command_lifecycle|Attachment_graph|Descriptor_encoder
 type item={id:string;raw_symbols:string list;native_symbols:string list;safe_operation:string;handoff:handoff}
 let contains s n=let l=String.length n in let rec f i=i+l<=String.length s&&(String.sub s i l=n||f(i+1))in f 0
 let native raw="caml_prismel_metal_"^raw
@@ -12,8 +12,17 @@ let layer_item id=
 let property name=["method:-[MTLRenderPassDescriptor "^name^"]";"method:-[MTLRenderPassDescriptor set"^String.capitalize_ascii name^":]";"property:MTLRenderPassDescriptor:"^name]
 let render_pass_ids=List.sort_uniq String.compare(List.concat_map property["imageblockSampleLength";"threadgroupMemoryLength";"tileWidth";"tileHeight";"visibilityResultType";"supportColorAttachmentMapping";"rasterizationRateMap"]@["method:-[MTLRenderPassDescriptor setSamplePositions:count:]";"method:-[MTLRenderPassDescriptor getSamplePositions:count:]"])
 let layer_drawable_ids=List.sort_uniq String.compare(["device";"drawableSize";"pixelFormat";"framebufferOnly";"maximumDrawableCount";"allowsNextDrawableTimeout";"displaySyncEnabled";"presentsWithTransaction"]|>List.map(fun n->"method:-[CAMetalLayer "^n^"]")|>fun xs->xs@["method:-[CAMetalLayer wantsExtendedDynamicRangeContent]";"method:-[CAMetalLayer setWantsExtendedDynamicRangeContent:]";"property:CAMetalLayer:wantsExtendedDynamicRangeContent";"method:-[CAMetalDrawable layer]";"property:CAMetalDrawable:layer"])
-let items=List.map render_item render_pass_ids@List.map layer_item layer_drawable_ids
-let callable_ids=List.map(fun x->x.id)items|>List.sort_uniq String.compare
-let blocked_ids=Binding_presentation_public_audit.missing_public|>List.filter(fun id->not(List.mem id callable_ids))
-let validate()=if List.length render_pass_ids<>23||List.length layer_drawable_ids<>13||List.length callable_ids<>36||List.length blocked_ids<>46||List.exists(fun x->x.raw_symbols=[]||x.native_symbols=[]||x.safe_operation="")items then failwith"Presentation callable36 reachability drift"
+let initial_items=List.map render_item render_pass_ids@List.map layer_item layer_drawable_ids
+let private_metadata_ids=["record:_CAMetalLayerPrivate"]
+let callable_ids=Binding_presentation_public_audit.missing_public|>List.filter(fun id->not(List.mem id private_metadata_ids))|>List.sort_uniq String.compare
+let tail_item id=
+ let raw_symbols,safe_operation,handoff=
+  if List.mem id Binding_presentation_command_closure.callable_ids then ["presentation_command_snapshot"],"Metal.Command_buffer diagnostics/command operation",Command_lifecycle
+  else if List.mem id Binding_presentation_graph_tail_closure.callable_ids then (if contains id "colorspace" then ["layer_colorspace_name";"layer_set_colorspace_name"] else ["render_pass_reset_depth_stencil";"render_pass_sample_attachments"]),"Metal.Layer colorspace or Render_pass_descriptor attachment graph",Attachment_graph
+  else if List.mem id Binding_presentation_descriptor_tail_closure.callable_ids then (if contains id "EDRMetadata" then ["layer_set_edr";"layer_has_edr"] else if contains id " logs"||contains id ":logs" then ["presentation_command_logs"] else ["presentation_descriptor_encoder"]),"Metal.Layer EDR or Command_buffer descriptor encoder",Descriptor_encoder
+  else ["render_pass_sizes"],"Metal.Render_pass_descriptor target sizes",Scalar_snapshot in
+ {id;raw_symbols;native_symbols=List.map native raw_symbols;safe_operation;handoff}
+let items=initial_items@(callable_ids|>List.filter(fun id->not(List.exists(fun x->x.id=id)initial_items))|>List.map tail_item)
+let blocked_ids=private_metadata_ids
+let validate()=if List.length render_pass_ids<>23||List.length layer_drawable_ids<>13||List.length callable_ids<>81||List.length items<>81||List.length blocked_ids<>1||List.length Binding_presentation_public_audit.safe_reachable<>43||List.sort_uniq String.compare(Binding_presentation_public_audit.safe_reachable@callable_ids@private_metadata_ids)<>List.sort_uniq String.compare Binding_presentation_manifest.ids||List.exists(fun x->x.raw_symbols=[]||x.native_symbols=[]||x.safe_operation="")items then failwith"Presentation callable81 reachability drift"
 let ()=validate()

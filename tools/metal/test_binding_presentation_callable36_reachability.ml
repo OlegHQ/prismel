@@ -1,1 +1,1 @@
-let ()=Binding_presentation_callable36_reachability.validate();Printf.printf"Presentation callable36 audit: 23 render-pass + 13 layer/drawable IDs, 46 blocked residual; no promotion\n"
+let ()=Binding_presentation_callable36_reachability.validate();Printf.printf"Presentation callable81 audit: 43 prior safe + 81 callable + 1 private metadata = 125; no promotion\n"
