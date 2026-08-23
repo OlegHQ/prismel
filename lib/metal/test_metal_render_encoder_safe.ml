@@ -31,6 +31,7 @@ let () =
             ~width:1 ~height:1 ()))
   in
   let sampler = get (Sampler.create ~device (Sampler.default ())) in
+  let fence = get (Fence.create device) in
   let before = get (Release_queue.stats ()) in
   let tile_width = get (Render_encoder.tile_width encoder) in
   let tile_height = get (Render_encoder.tile_height encoder) in
@@ -52,6 +53,13 @@ let () =
     (Render_encoder.set_fragment_sampler encoder ~index:0 ~lod_min:2. ~lod_max:1. sampler);
   expect Invalid_argument
     (Render_encoder.set_color_store_action encoder Render_encoder.Multisample_resolve);
+  expect Invalid_state
+    (Render_encoder.set_depth_store_action encoder Render_encoder.Store);
+  expect Invalid_argument
+    (Render_encoder.memory_barrier_resources encoder
+       [ Render_encoder.Texture_resource sampled
+       ; Render_encoder.Texture_resource sampled ]
+       ~after:[ Render_encoder.Vertex ] ~before:[ Render_encoder.Fragment ]);
   let after = get (Release_queue.stats ()) in
   if after.total_created <> before.total_created
      || after.live_handles <> before.live_handles then
@@ -82,8 +90,18 @@ let () =
   get
     (Render_encoder.set_fragment_sampler encoder ~index:0 ~lod_min:0. ~lod_max:1.
        sampler);
+  get (Render_encoder.memory_barrier encoder ~scope:[ Render_encoder.Textures ]
+         ~after:[ Render_encoder.Vertex ] ~before:[ Render_encoder.Fragment ]);
+  get (Render_encoder.memory_barrier_resources encoder
+         [ Render_encoder.Texture_resource sampled ]
+         ~after:[ Render_encoder.Vertex ] ~before:[ Render_encoder.Fragment ]);
+  get (Render_encoder.use_resource encoder (Render_encoder.Texture_resource sampled)
+         ~usage:[ Render_encoder.Read; Render_encoder.Sample ]
+         ~stages:[ Render_encoder.Fragment ]);
+  get (Render_encoder.update_fence encoder fence ~after:[ Render_encoder.Fragment ]);
   expect Parent_has_dependents (Texture.destroy sampled);
   expect Parent_has_dependents (Sampler.destroy sampler);
+  expect Parent_has_dependents (Fence.destroy fence);
   get (Render_encoder.end_encoding encoder);
   expect Destroyed (Render_encoder.tile_width encoder);
   expect Destroyed (Render_encoder.set_cull_mode encoder Render_encoder.Cull_back);
@@ -91,7 +109,26 @@ let () =
   get (Command_buffer.wait_until_completed commands);
   get (Texture.destroy sampled);
   get (Sampler.destroy sampler);
+  get (Fence.destroy fence);
   get (Command_buffer.destroy commands);
+  let depth = get (Texture.create ~device
+    (Texture.descriptor_2d ~storage:Buffer.Private ~usage:[Texture.Render_target]
+       ~format:Texture.Depth32_float ~width:8 ~height:8 ())) in
+  let stencil = get (Texture.create ~device
+    (Texture.descriptor_2d ~storage:Buffer.Private ~usage:[Texture.Render_target]
+       ~format:Texture.Stencil8 ~width:8 ~height:8 ())) in
+  let commands = get (Command_buffer.create queue ()) in
+  let encoder = get (Render_encoder.create commands ~target ~depth ~stencil ()) in
+  get (Render_encoder.set_depth_store_action encoder Render_encoder.Store);
+  get (Render_encoder.set_depth_store_options encoder ~custom_sample_positions:false ());
+  get (Render_encoder.set_stencil_store_action encoder Render_encoder.Store);
+  get (Render_encoder.set_stencil_store_options encoder ~custom_sample_positions:false ());
+  get (Render_encoder.end_encoding encoder);
+  get (Command_buffer.commit commands);
+  get (Command_buffer.wait_until_completed commands);
+  get (Command_buffer.destroy commands);
+  get (Texture.destroy depth);
+  get (Texture.destroy stencil);
   get (Texture.destroy target);
   get (Command_queue.destroy queue);
   get (Device.destroy device)

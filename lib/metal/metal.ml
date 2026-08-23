@@ -760,6 +760,12 @@ type heap =
   ; active_uses : int Atomic.t
   }
 
+and fence =
+  { raw : Metal_raw.handle
+  ; lifetime : lifetime
+  ; device : device
+  }
+
 and external_memory =
   { raw : Metal_raw.handle
   ; lifetime : lifetime
@@ -1360,6 +1366,8 @@ type command_resource =
   | Command_buffer_render_pipeline of render_pipeline
   | Command_residency_set of residency_set
   | Command_buffer_indirect of indirect_command_buffer
+  | Command_buffer_fence of fence
+  | Command_buffer_heap of heap
 
 type command_buffer =
   { raw : Metal_raw.handle
@@ -1381,6 +1389,8 @@ type render_encoder =
   ; lifetime : lifetime
   ; command_buffer : command_buffer
   ; target : texture
+  ; depth : texture option
+  ; stencil : texture option
   ; mutable pipeline : render_pipeline option
   }
 
@@ -1417,6 +1427,8 @@ let command_resource_lifetime = function
   | Command_buffer_render_pipeline pipeline -> pipeline.lifetime
   | Command_residency_set residency_set -> residency_set.lifetime
   | Command_buffer_indirect value -> value.lifetime
+  | Command_buffer_fence value -> value.lifetime
+  | Command_buffer_heap value -> value.lifetime
 
 let rec command_texture_heap (value : texture) =
   match value.parent with
@@ -1437,7 +1449,8 @@ let command_resource_heap = function
   | Command_buffer_texture texture -> command_texture_heap texture
   | Command_buffer_sampler _ -> None
   | Command_buffer_render_pipeline _ | Command_residency_set _
-  | Command_buffer_indirect _ -> None
+  | Command_buffer_indirect _ | Command_buffer_fence _ -> None
+  | Command_buffer_heap heap -> Some heap
 
 let release_command_resources resources =
   let retained = !resources in
@@ -1636,7 +1649,7 @@ let retain_command_buffer_buffer (command_buffer : command_buffer) (buffer : buf
         | Command_buffer_buffer retained -> retained.lifetime == buffer.lifetime
         | Command_buffer_acceleration_structure _ | Command_buffer_texture _ | Command_buffer_sampler _ | Command_buffer_render_pipeline _
         | Command_buffer_indirect _ -> false
-        | Command_residency_set _ -> false)
+        | Command_residency_set _ | Command_buffer_fence _ | Command_buffer_heap _ -> false)
       !(command_buffer.resources)
   in
   if not already_retained then begin
@@ -1658,7 +1671,7 @@ let retain_command_buffer_acceleration_structure
             retained.lifetime == value.lifetime
         | Command_buffer_buffer _ | Command_buffer_texture _ | Command_buffer_sampler _
         | Command_buffer_render_pipeline _ | Command_residency_set _
-        | Command_buffer_indirect _ -> false)
+        | Command_buffer_indirect _ | Command_buffer_fence _ | Command_buffer_heap _ -> false)
       !(command_buffer.resources)
   in
   if not already_retained then begin
@@ -1676,7 +1689,7 @@ let retain_command_buffer_texture (command_buffer : command_buffer)
             retained.lifetime == texture.lifetime
         | Command_buffer_buffer _ | Command_buffer_acceleration_structure _ | Command_buffer_sampler _ | Command_buffer_render_pipeline _
         | Command_residency_set _
-        | Command_buffer_indirect _ -> false)
+        | Command_buffer_indirect _ | Command_buffer_fence _ | Command_buffer_heap _ -> false)
       !(command_buffer.resources)
   in
   if not already_retained then begin
@@ -1707,7 +1720,7 @@ let retain_command_buffer_residency_set (command_buffer : command_buffer)
         | Command_buffer_buffer _ | Command_buffer_acceleration_structure _ | Command_buffer_texture _
         | Command_buffer_sampler _
         | Command_buffer_render_pipeline _
-        | Command_buffer_indirect _ -> false)
+        | Command_buffer_indirect _ | Command_buffer_fence _ | Command_buffer_heap _ -> false)
       !(command_buffer.resources)
   in
   if not already_retained then begin
@@ -1725,7 +1738,7 @@ let retain_command_buffer_indirect (command_buffer : command_buffer)
         | Command_buffer_buffer _ | Command_buffer_acceleration_structure _ | Command_buffer_texture _
         | Command_buffer_sampler _
         | Command_buffer_render_pipeline _
-        | Command_residency_set _ -> false)
+        | Command_residency_set _ | Command_buffer_fence _ | Command_buffer_heap _ -> false)
       !(command_buffer.resources)
   in
   if not already_retained then begin
@@ -1744,12 +1757,25 @@ let retain_command_buffer_render_pipeline (command_buffer : command_buffer)
                retained.lifetime == pipeline.lifetime
            | Command_buffer_buffer _ | Command_buffer_acceleration_structure _ | Command_buffer_texture _
            | Command_buffer_sampler _
-           | Command_residency_set _ | Command_buffer_indirect _ -> false)
+           | Command_residency_set _ | Command_buffer_indirect _
+           | Command_buffer_fence _ | Command_buffer_heap _ -> false)
          !(command_buffer.resources))
   then begin
     attach pipeline.lifetime;
     command_buffer.resources :=
       Command_buffer_render_pipeline pipeline :: !(command_buffer.resources)
+  end
+
+let retain_command_buffer_fence (command_buffer : command_buffer) (value : fence) =
+  if not (List.exists (function Command_buffer_fence x -> x.lifetime == value.lifetime | _ -> false) !(command_buffer.resources)) then begin
+    attach value.lifetime;
+    command_buffer.resources := Command_buffer_fence value :: !(command_buffer.resources)
+  end
+
+let retain_command_buffer_heap (command_buffer : command_buffer) (value : heap) =
+  if not (List.exists (function Command_buffer_heap x -> x.lifetime == value.lifetime | _ -> false) !(command_buffer.resources)) then begin
+    attach value.lifetime; Atomic.incr value.active_uses;
+    command_buffer.resources := Command_buffer_heap value :: !(command_buffer.resources)
   end
 
 let release_queue_residency_sets residency_sets =
@@ -5668,6 +5694,26 @@ module Texture = struct
         detach (texture_parent_lifetime value.parent);
         Option.iter detach
           (texture_parent_extra_device value.device value.parent))
+end
+
+module Fence = struct
+  type t = fence
+  let create (device : Device.t) =
+    let operation = "Metal.Fence.create" in
+    on_main operation (fun () ->
+      match ensure_live operation device.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          match Metal_raw.device_create_fence device.raw with
+          | Error message -> native_error operation message
+          | Ok raw ->
+              let value : t = { raw; lifetime = lifetime (); device } in
+              attach device.lifetime;
+              attach_finalizer value value.lifetime device.lifetime;
+              Ok value)
+  let device (value : t) = value.device
+  let destroyed (value : t) = is_destroyed value.lifetime
+  let destroy (value : t) = destroy_parent "Metal.Fence.destroy" value.lifetime value.raw (fun () -> detach value.device.lifetime)
 end
 
 module Heap = struct
@@ -13679,7 +13725,8 @@ module Command_buffer = struct
             retained.lifetime == residency_set.lifetime
         | Command_buffer_buffer _ | Command_buffer_acceleration_structure _
         | Command_buffer_texture _ | Command_buffer_sampler _
-        | Command_buffer_render_pipeline _ | Command_buffer_indirect _ -> false)
+        | Command_buffer_render_pipeline _ | Command_buffer_indirect _
+        | Command_buffer_fence _ | Command_buffer_heap _ -> false)
       !(value.resources)
 
   let use operation ~bulk (value : t) residency_sets =
@@ -14002,6 +14049,10 @@ module Render_encoder = struct
   type visibility = Visibility_disabled | Visibility_boolean | Visibility_counting
   type store_action = Store_dont_care | Store | Multisample_resolve
                     | Store_and_multisample_resolve
+  type stage = Vertex | Fragment | Tile | Object | Mesh
+  type barrier_scope = Buffers | Textures | Render_targets
+  type resource_usage = Read | Write | Sample
+  type resource = Buffer_resource of Buffer.t | Texture_resource of Texture.t
 
   type viewport =
     { x : float; y : float; width : float; height : float
@@ -14010,7 +14061,8 @@ module Render_encoder = struct
   type scissor = { x : int; y : int; width : int; height : int }
 
   let create (command_buffer : Command_buffer.t) ~(target : Texture.t)
-      ?(clear = (0., 0., 0., 1.)) () =
+      ?(clear = (0., 0., 0., 1.)) ?(depth : Texture.t option)
+      ?(stencil : Texture.t option) () =
     let operation = "Metal.Render_encoder.create" in
     on_main operation (fun () ->
       match ensure_live operation command_buffer.lifetime with
@@ -14028,25 +14080,53 @@ module Render_encoder = struct
            | Ok () when target.descriptor.sample_count <> 1 ->
                error operation Invalid_argument
                  "classic render encoder currently requires one sample"
+           | Ok () when
+               not
+                 (same_device command_buffer.queue.device target.device) ->
+               error operation Device_mismatch
+                 "render target belongs to another device"
            | Ok () ->
+               let valid_attachment texture formats =
+                 match ensure_texture_usable operation texture with
+                 | Error _ as failure -> failure
+                 | Ok () when not (List.mem Render_target texture.descriptor.usage) ->
+                     error operation Invalid_argument "attachment lacks Render_target usage"
+                 | Ok () when not (List.mem texture.descriptor.format formats) ->
+                     error operation Invalid_argument "attachment pixel format is incompatible"
+                 | Ok () when texture.descriptor.width <> target.descriptor.width
+                              || texture.descriptor.height <> target.descriptor.height
+                              || texture.descriptor.sample_count <> target.descriptor.sample_count ->
+                     error operation Invalid_argument "attachment dimensions or sample count differ"
+                 | Ok () -> ensure_same_device operation command_buffer.queue.device texture.device
+               in
+               let depth_formats = [ Texture.Depth16_unorm; Texture.Depth32_float; Texture.Depth24_unorm_stencil8; Texture.Depth32_float_stencil8 ] in
+               let stencil_formats = [ Texture.Stencil8; Texture.Depth24_unorm_stencil8; Texture.Depth32_float_stencil8 ] in
+               let attachment_check =
+                 match depth with Some texture -> valid_attachment texture depth_formats | None -> Ok ()
+               in
+               let attachment_check = Result.bind attachment_check (fun () -> match stencil with Some texture -> valid_attachment texture stencil_formats | None -> Ok ()) in
+               Result.bind attachment_check (fun () ->
                let r, g, b, a = clear in
                if not (List.for_all Float.is_finite [ r; g; b; a ]) then
                  error operation Invalid_argument "clear color must be finite"
                else
                  match
-                   Metal_raw.command_buffer_render_encoder command_buffer.raw
-                     target.raw clear
+                   Metal_raw.command_buffer_render_encoder_attachments command_buffer.raw
+                     target.raw (Option.map (fun (x:texture)->x.raw) depth)
+                     (Option.map (fun (x:texture)->x.raw) stencil) clear
                  with
                  | Error message -> native_error operation message
                  | Ok raw ->
                      let value : t =
                        { raw; lifetime = lifetime (); command_buffer; target
-                       ; pipeline = None }
+                       ; depth; stencil; pipeline = None }
                      in
                      attach command_buffer.lifetime;
                      retain_command_buffer_texture command_buffer target;
+                     Option.iter (retain_command_buffer_texture command_buffer) depth;
+                     Option.iter (retain_command_buffer_texture command_buffer) stencil;
                      attach_finalizer value value.lifetime command_buffer.lifetime;
-                     Ok value))
+                     Ok value)))
 
   let destroyed (value : t) = is_destroyed value.lifetime
 
@@ -14360,6 +14440,81 @@ module Render_encoder = struct
           match Metal_raw.render_encoder_set_color_store_options value.raw
                   (if custom_sample_positions then 1 else 0) attachment with
           | Ok () -> Ok () | Error message -> native_error operation message)
+
+  let bits code values = List.fold_left (fun mask value -> mask lor code value) 0 values
+  let stage_code = function Vertex->1 | Fragment->2 | Tile->4 | Object->8 | Mesh->16
+  let scope_code = function Buffers->1 | Textures->2 | Render_targets->4
+  let usage_code = function Read->1 | Write->2 | Sample->4
+  let validate_nonempty operation what values =
+    if values=[] then error operation Invalid_argument (what ^ " must be nonempty") else Ok ()
+  let validate_resource operation device = function
+    | Buffer_resource b ->
+        Result.bind (ensure_buffer_usable operation b) (fun () -> ensure_same_device operation device b.device)
+    | Texture_resource t ->
+        Result.bind (ensure_texture_usable operation t) (fun () -> ensure_same_device operation device t.device)
+  let resource_raw = function Buffer_resource b -> b.raw | Texture_resource t -> t.raw
+  let resource_lifetime = function Buffer_resource b -> b.lifetime | Texture_resource t -> t.lifetime
+  let has_duplicate_lifetimes lifetimes =
+    let rec loop seen = function
+      | [] -> false
+      | value :: rest ->
+          List.exists (fun current -> current == value) seen || loop (value :: seen) rest
+    in
+    loop [] lifetimes
+  let retain_resource command_buffer = function
+    | Buffer_resource b -> retain_command_buffer_buffer command_buffer b
+    | Texture_resource t -> retain_command_buffer_texture command_buffer t
+
+  let memory_barrier (value : t) ~scope ~after ~before =
+    let operation="Metal.Render_encoder.memory_barrier" in on_main operation (fun()->
+      match ensure_live operation value.lifetime with Error _ as e->e | Ok()->
+      Result.bind(validate_nonempty operation "barrier scope" scope)(fun()->
+      Result.bind(validate_nonempty operation "after stages" after)(fun()->
+      Result.bind(validate_nonempty operation "before stages" before)(fun()->
+      match Metal_raw.render_encoder_memory_barrier_scope value.raw (bits scope_code scope) (bits stage_code after) (bits stage_code before) with Error m->native_error operation m|Ok()->Ok()))))
+
+  let memory_barrier_resources (value : t) resources ~after ~before =
+    let operation="Metal.Render_encoder.memory_barrier_resources" in on_main operation (fun()->
+      match ensure_live operation value.lifetime with Error _ as e->e | Ok()->
+      Result.bind(validate_nonempty operation "resources" resources)(fun()->
+      Result.bind(validate_nonempty operation "after stages" after)(fun()->
+      Result.bind(validate_nonempty operation "before stages" before)(fun()->
+      let device=value.command_buffer.queue.device in
+      if has_duplicate_lifetimes (List.map resource_lifetime resources) then
+        error operation Invalid_argument "resources contain duplicate identities"
+      else match List.find_map(fun r->match validate_resource operation device r with Ok()->None|Error e->Some e)resources with
+      | Some e->Error e | None->
+        match Metal_raw.render_encoder_memory_barrier_resources value.raw (Array.of_list(List.map resource_raw resources)) (bits stage_code after) (bits stage_code before) with
+        | Error m->native_error operation m | Ok()->List.iter(retain_resource value.command_buffer)resources;Ok()))))
+
+  let fence_call operation raw (value : t) (fence : fence) stages = on_main operation (fun()->
+    match ensure_live operation value.lifetime with Error _ as e->e | Ok()->
+    match ensure_live operation fence.lifetime with Error _ as e->e | Ok()->
+    Result.bind(ensure_same_device operation value.command_buffer.queue.device fence.device)(fun()->
+    Result.bind(validate_nonempty operation "stages" stages)(fun()->
+    match raw value.raw fence.raw (bits stage_code stages) with Error m->native_error operation m|Ok()->retain_command_buffer_fence value.command_buffer fence;Ok())))
+  let update_fence value fence ~after = fence_call "Metal.Render_encoder.update_fence" Metal_raw.render_encoder_update_fence value fence after
+  let wait_for_fence value fence ~before = fence_call "Metal.Render_encoder.wait_for_fence" Metal_raw.render_encoder_wait_fence value fence before
+
+  let set_attachment operation present raw (value : t) action = on_main operation(fun()->
+    match ensure_live operation value.lifetime with Error _ as e->e | Ok() when not present->error operation Invalid_state "render pass has no matching attachment" | Ok()->
+    let code=match action with Store_dont_care->0|Store->1|Multisample_resolve->2|Store_and_multisample_resolve->3 in
+    if code>=2 && value.target.descriptor.sample_count=1 then error operation Invalid_argument "resolve store actions require multisampling" else
+    match raw value.raw code with Error m->native_error operation m|Ok()->Ok())
+  let set_depth_store_action value action = set_attachment "Metal.Render_encoder.set_depth_store_action" (Option.is_some value.depth) Metal_raw.render_encoder_set_depth_store_action value action
+  let set_stencil_store_action value action = set_attachment "Metal.Render_encoder.set_stencil_store_action" (Option.is_some value.stencil) Metal_raw.render_encoder_set_stencil_store_action value action
+  let set_store_options operation present raw (value : t) ~custom_sample_positions = on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok() when not present->error operation Invalid_state "render pass has no matching attachment"|Ok()->match raw value.raw(if custom_sample_positions then 1 else 0)with Error m->native_error operation m|Ok()->Ok())
+  let set_depth_store_options value ~custom_sample_positions ()=set_store_options "Metal.Render_encoder.set_depth_store_options" (Option.is_some value.depth) Metal_raw.render_encoder_set_depth_store_options value ~custom_sample_positions
+  let set_stencil_store_options value ~custom_sample_positions ()=set_store_options "Metal.Render_encoder.set_stencil_store_options" (Option.is_some value.stencil) Metal_raw.render_encoder_set_stencil_store_options value ~custom_sample_positions
+
+  let use_heaps (value : t) heaps ~stages = let operation="Metal.Render_encoder.use_heaps" in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->Result.bind(validate_nonempty operation "heaps" heaps)(fun()->Result.bind(validate_nonempty operation "stages" stages)(fun()->let device=value.command_buffer.queue.device in if has_duplicate_lifetimes(List.map(fun(h:heap)->h.lifetime)heaps)then error operation Invalid_argument "heaps contain duplicate identities" else match List.find_opt(fun(h:heap)->is_destroyed h.lifetime)heaps with Some _->error operation Destroyed "heap is destroyed"|None->match List.find_opt(fun(h:heap)->not(same_device device h.device))heaps with Some _->error operation Device_mismatch "heap belongs to another device"|None->match Metal_raw.render_encoder_use_heaps value.raw(Array.of_list(List.map(fun(h:heap)->h.raw)heaps))(bits stage_code stages)with Error m->native_error operation m|Ok()->List.iter(retain_command_buffer_heap value.command_buffer)heaps;Ok())))
+  let use_heap value heap ~stages = use_heaps value [heap] ~stages
+  let use_resources (value : t) resources ~usage ~stages = let operation="Metal.Render_encoder.use_resources" in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->Result.bind(validate_nonempty operation "resources" resources)(fun()->Result.bind(validate_nonempty operation "usage" usage)(fun()->Result.bind(validate_nonempty operation "stages" stages)(fun()->let device=value.command_buffer.queue.device in if has_duplicate_lifetimes(List.map resource_lifetime resources)then error operation Invalid_argument "resources contain duplicate identities" else match List.find_map(fun r->match validate_resource operation device r with Ok()->None|Error e->Some e)resources with Some e->Error e|None->match Metal_raw.render_encoder_use_resources value.raw(Array.of_list(List.map resource_raw resources))(bits usage_code usage)(bits stage_code stages)with Error m->native_error operation m|Ok()->List.iter(retain_resource value.command_buffer)resources;Ok()))))
+  let use_resource value resource ~usage ~stages=use_resources value [resource] ~usage ~stages
+
+  let pipeline_supports_icb operation (value : t) = match value.pipeline with None->error operation Invalid_state "no render pipeline is bound"|Some p->(match Metal_raw.generated_mtl_render_pipeline_state_support_indirect_command_buffers p.raw with Error m->native_error operation m|Ok b->Ok b)
+  let execute_indirect_commands (value : t) (commands : indirect_command_buffer) ~location ~length = let operation="Metal.Render_encoder.execute_indirect_commands" in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match ensure_live operation commands.lifetime with Error _ as e->e|Ok()->Result.bind(ensure_same_device operation value.command_buffer.queue.device commands.device)(fun()->Result.bind(Indirect_command_buffer.validate_range operation commands ~location ~length)(fun()->Result.bind(pipeline_supports_icb operation value)(function false->error operation Unsupported "pipeline lacks indirect-command-buffer support"|true->match Metal_raw.render_encoder_execute_icb_range value.raw commands.raw location length with Error m->native_error operation m|Ok()->retain_command_buffer_indirect value.command_buffer commands;Ok()))))
+  let execute_indirect_commands_indirect_range (value : t) (commands : indirect_command_buffer) ~(range_buffer : buffer) ~offset = let operation="Metal.Render_encoder.execute_indirect_commands_indirect_range" in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match ensure_live operation commands.lifetime with Error _ as e->e|Ok()->match ensure_buffer_usable operation range_buffer with Error _ as e->e|Ok() when offset<0L||Int64.rem offset 8L<>0L||offset>Int64.sub range_buffer.length 8L->error operation Invalid_argument "indirect range offset is invalid"|Ok()->Result.bind(ensure_same_device operation value.command_buffer.queue.device commands.device)(fun()->Result.bind(ensure_same_device operation value.command_buffer.queue.device range_buffer.device)(fun()->Result.bind(pipeline_supports_icb operation value)(function false->error operation Unsupported "pipeline lacks indirect-command-buffer support"|true->match Metal_raw.render_encoder_execute_icb_indirect_range value.raw commands.raw range_buffer.raw offset with Error m->native_error operation m|Ok()->retain_command_buffer_indirect value.command_buffer commands;retain_command_buffer_buffer value.command_buffer range_buffer;Ok()))))
 
   let draw_triangles (value : t) ~first ~count ?(instances = 1) () =
     let operation = "Metal.Render_encoder.draw_triangles" in

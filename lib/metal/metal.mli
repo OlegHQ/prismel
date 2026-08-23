@@ -739,6 +739,14 @@ module Texture : sig
   val destroy : t -> (unit, error) result
 end
 
+module Fence : sig
+  type t
+  val create : Device.t -> (t, error) result
+  val device : t -> Device.t
+  val destroyed : t -> bool
+  val destroy : t -> (unit, error) result
+end
+
 module Heap : sig
   type t
   type kind = Automatic | Placement | Sparse
@@ -2405,6 +2413,10 @@ module Render_encoder : sig
   type visibility = Visibility_disabled | Visibility_boolean | Visibility_counting
   type store_action = Store_dont_care | Store | Multisample_resolve
                     | Store_and_multisample_resolve
+  type stage = Vertex | Fragment | Tile | Object | Mesh
+  type barrier_scope = Buffers | Textures | Render_targets
+  type resource_usage = Read | Write | Sample
+  type resource = Buffer_resource of Buffer.t | Texture_resource of Texture.t
   type viewport =
     { x : float; y : float; width : float; height : float
     ; znear : float; zfar : float }
@@ -2412,7 +2424,8 @@ module Render_encoder : sig
 
   val create :
     Command_buffer.t -> target:Texture.t ->
-    ?clear:float * float * float * float -> unit -> (t, error) result
+    ?clear:float * float * float * float -> ?depth:Texture.t ->
+    ?stencil:Texture.t -> unit -> (t, error) result
   val set_pipeline : t -> Render_pipeline.t -> (unit, error) result
   val set_vertex_buffer :
     t -> index:int -> offset:int64 -> Buffer.t -> (unit, error) result
@@ -2451,6 +2464,20 @@ module Render_encoder : sig
   val set_color_store_options :
     t -> ?attachment:int -> custom_sample_positions:bool -> unit ->
     (unit, error) result
+  val memory_barrier : t -> scope:barrier_scope list -> after:stage list -> before:stage list -> (unit,error) result
+  val memory_barrier_resources : t -> resource list -> after:stage list -> before:stage list -> (unit,error) result
+  val update_fence : t -> Fence.t -> after:stage list -> (unit,error) result
+  val wait_for_fence : t -> Fence.t -> before:stage list -> (unit,error) result
+  val set_depth_store_action : t -> store_action -> (unit,error) result
+  val set_depth_store_options : t -> custom_sample_positions:bool -> unit -> (unit,error) result
+  val set_stencil_store_action : t -> store_action -> (unit,error) result
+  val set_stencil_store_options : t -> custom_sample_positions:bool -> unit -> (unit,error) result
+  val use_heap : t -> Heap.t -> stages:stage list -> (unit,error) result
+  val use_heaps : t -> Heap.t list -> stages:stage list -> (unit,error) result
+  val use_resource : t -> resource -> usage:resource_usage list -> stages:stage list -> (unit,error) result
+  val use_resources : t -> resource list -> usage:resource_usage list -> stages:stage list -> (unit,error) result
+  val execute_indirect_commands : t -> Indirect_command_buffer.t -> location:int -> length:int -> (unit,error) result
+  val execute_indirect_commands_indirect_range : t -> Indirect_command_buffer.t -> range_buffer:Buffer.t -> offset:int64 -> (unit,error) result
   val draw_triangles :
     t -> first:int -> count:int -> ?instances:int -> unit ->
     (unit, error) result

@@ -1356,6 +1356,24 @@ external command_buffer_compute_encoder : handle -> (handle, string) result =
 external command_buffer_render_encoder :
   handle -> handle -> float * float * float * float -> (handle, string) result =
   "caml_prismel_metal_command_buffer_render_encoder"
+external command_buffer_render_encoder_attachments :
+  handle -> handle -> handle option -> handle option ->
+  float * float * float * float -> (handle,string) result =
+  "caml_prismel_metal_command_buffer_render_encoder_attachments_bytecode"
+  "caml_prismel_metal_command_buffer_render_encoder_attachments"
+external device_create_fence : handle -> (handle, string) result = "caml_prismel_metal_device_create_fence"
+external render_encoder_memory_barrier_scope : handle -> int -> int -> int -> (unit,string) result = "caml_prismel_metal_render_encoder_memory_barrier_scope"
+external render_encoder_memory_barrier_resources : handle -> handle array -> int -> int -> (unit,string) result = "caml_prismel_metal_render_encoder_memory_barrier_resources"
+external render_encoder_update_fence : handle -> handle -> int -> (unit,string) result = "caml_prismel_metal_render_encoder_update_fence"
+external render_encoder_wait_fence : handle -> handle -> int -> (unit,string) result = "caml_prismel_metal_render_encoder_wait_fence"
+external render_encoder_set_depth_store_action : handle -> int -> (unit,string) result = "caml_prismel_metal_render_encoder_set_depth_store_action"
+external render_encoder_set_depth_store_options : handle -> int -> (unit,string) result = "caml_prismel_metal_render_encoder_set_depth_store_options"
+external render_encoder_set_stencil_store_action : handle -> int -> (unit,string) result = "caml_prismel_metal_render_encoder_set_stencil_store_action"
+external render_encoder_set_stencil_store_options : handle -> int -> (unit,string) result = "caml_prismel_metal_render_encoder_set_stencil_store_options"
+external render_encoder_use_heaps : handle -> handle array -> int -> (unit,string) result = "caml_prismel_metal_render_encoder_use_heaps"
+external render_encoder_use_resources : handle -> handle array -> int -> int -> (unit,string) result = "caml_prismel_metal_render_encoder_use_resources"
+external render_encoder_execute_icb_range : handle -> handle -> int -> int -> (unit,string) result = "caml_prismel_metal_render_encoder_execute_icb_range"
+external render_encoder_execute_icb_indirect_range : handle -> handle -> handle -> int64 -> (unit,string) result = "caml_prismel_metal_render_encoder_execute_icb_indirect_range"
 external render_encoder_set_pipeline : handle -> handle -> (unit, string) result =
   "caml_prismel_metal_render_encoder_set_pipeline"
 external render_encoder_set_vertex_buffer :

@@ -922,6 +922,7 @@ enum class Handle_kind : std::uint32_t {
   Function_handle,
   Visible_function_table,
   Intersection_function_table,
+  Fence,
 };
 
 struct Handle {
@@ -13516,6 +13517,73 @@ extern "C" CAMLprim value caml_prismel_metal_command_buffer_render_encoder(
   }
   CAMLreturn(result_ok(raw));
 }
+
+extern "C" CAMLprim value caml_prismel_metal_device_create_fence(value raw_device) {
+  CAMLparam1(raw_device); CAMLlocal1(raw);
+  @autoreleasepool { @try {
+    id<MTLDevice> device = object_of_handle(raw_device, Handle_kind::Device);
+    id<MTLFence> fence = [device newFence];
+    if (fence == nil) CAMLreturn(result_error_text("Metal failed to create a fence"));
+    raw = allocate_handle(fence, Handle_kind::Fence);
+  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); } }
+  CAMLreturn(result_ok(raw));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_command_buffer_render_encoder_attachments(
+    value raw_buffer,value raw_color,value raw_depth,value raw_stencil,value raw_clear) {
+  CAMLparam5(raw_buffer,raw_color,raw_depth,raw_stencil,raw_clear); CAMLlocal1(raw);
+  @autoreleasepool { @try {
+    id<MTLCommandBuffer> buffer=object_of_handle(raw_buffer,Handle_kind::Command_buffer);
+    id<MTLTexture> color=object_of_handle(raw_color,Handle_kind::Texture);
+    id<MTLTexture> depth=optional_object(raw_depth,Handle_kind::Texture);
+    id<MTLTexture> stencil=optional_object(raw_stencil,Handle_kind::Texture);
+    MTLRenderPassDescriptor *pass=[MTLRenderPassDescriptor renderPassDescriptor];
+    pass.colorAttachments[0].texture=color; pass.colorAttachments[0].loadAction=MTLLoadActionClear; pass.colorAttachments[0].storeAction=MTLStoreActionStore;
+    pass.colorAttachments[0].clearColor=MTLClearColorMake(Double_val(Field(raw_clear,0)),Double_val(Field(raw_clear,1)),Double_val(Field(raw_clear,2)),Double_val(Field(raw_clear,3)));
+    if(depth){pass.depthAttachment.texture=depth;pass.depthAttachment.loadAction=MTLLoadActionClear;pass.depthAttachment.storeAction=MTLStoreActionStore;pass.depthAttachment.clearDepth=1.0;}
+    if(stencil){pass.stencilAttachment.texture=stencil;pass.stencilAttachment.loadAction=MTLLoadActionClear;pass.stencilAttachment.storeAction=MTLStoreActionStore;pass.stencilAttachment.clearStencil=0;}
+    id<MTLRenderCommandEncoder> encoder=[buffer renderCommandEncoderWithDescriptor:pass];
+    if(!encoder) CAMLreturn(result_error_text("Metal failed to create render encoder with attachments"));
+    raw=allocate_handle(encoder,Handle_kind::Render_encoder);
+  } @catch(NSException*x){CAMLreturn(result_error(x.reason));} }
+  CAMLreturn(result_ok(raw));
+}
+extern "C" CAMLprim value caml_prismel_metal_command_buffer_render_encoder_attachments_bytecode(value *argv,int argc){(void)argc;return caml_prismel_metal_command_buffer_render_encoder_attachments(argv[0],argv[1],argv[2],argv[3],argv[4]);}
+
+extern "C" CAMLprim value caml_prismel_metal_render_encoder_memory_barrier_scope(
+    value raw_encoder, value raw_scope, value raw_after, value raw_before) {
+  CAMLparam4(raw_encoder, raw_scope, raw_after, raw_before);
+  @try {
+    id<MTLRenderCommandEncoder> e=object_of_handle(raw_encoder,Handle_kind::Render_encoder);
+    [e memoryBarrierWithScope:(MTLBarrierScope)Long_val(raw_scope)
+                  afterStages:(MTLRenderStages)Long_val(raw_after)
+                 beforeStages:(MTLRenderStages)Long_val(raw_before)];
+    CAMLreturn(result_unit());
+  } @catch(NSException *x){ CAMLreturn(result_error(x.reason)); }
+}
+extern "C" CAMLprim value caml_prismel_metal_render_encoder_memory_barrier_resources(
+    value raw_encoder,value raw_resources,value raw_after,value raw_before) {
+  CAMLparam4(raw_encoder,raw_resources,raw_after,raw_before);
+  @try {
+    id<MTLRenderCommandEncoder> e=object_of_handle(raw_encoder,Handle_kind::Render_encoder);
+    const mlsize_t count=Wosize_val(raw_resources); std::vector<id<MTLResource>> values; values.reserve(count);
+    for(mlsize_t i=0;i<count;i++) values.push_back(resource_of_handle(Field(raw_resources,i)));
+    [e memoryBarrierWithResources:values.data() count:count afterStages:(MTLRenderStages)Long_val(raw_after) beforeStages:(MTLRenderStages)Long_val(raw_before)];
+    CAMLreturn(result_unit());
+  } @catch(NSException *x){ CAMLreturn(result_error(x.reason)); }
+}
+extern "C" CAMLprim value caml_prismel_metal_render_encoder_update_fence(value re,value rf,value rs){
+  CAMLparam3(re,rf,rs); @try { [object_of_handle(re,Handle_kind::Render_encoder) updateFence:object_of_handle(rf,Handle_kind::Fence) afterStages:(MTLRenderStages)Long_val(rs)]; CAMLreturn(result_unit()); } @catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+extern "C" CAMLprim value caml_prismel_metal_render_encoder_wait_fence(value re,value rf,value rs){
+  CAMLparam3(re,rf,rs); @try { [object_of_handle(re,Handle_kind::Render_encoder) waitForFence:object_of_handle(rf,Handle_kind::Fence) beforeStages:(MTLRenderStages)Long_val(rs)]; CAMLreturn(result_unit()); } @catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_depth_store_action(value re,value ra){CAMLparam2(re,ra);[object_of_handle(re,Handle_kind::Render_encoder) setDepthStoreAction:(MTLStoreAction)Long_val(ra)];CAMLreturn(result_unit());}
+extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_depth_store_options(value re,value ro){CAMLparam2(re,ro);[object_of_handle(re,Handle_kind::Render_encoder) setDepthStoreActionOptions:(MTLStoreActionOptions)Long_val(ro)];CAMLreturn(result_unit());}
+extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_stencil_store_action(value re,value ra){CAMLparam2(re,ra);[object_of_handle(re,Handle_kind::Render_encoder) setStencilStoreAction:(MTLStoreAction)Long_val(ra)];CAMLreturn(result_unit());}
+extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_stencil_store_options(value re,value ro){CAMLparam2(re,ro);[object_of_handle(re,Handle_kind::Render_encoder) setStencilStoreActionOptions:(MTLStoreActionOptions)Long_val(ro)];CAMLreturn(result_unit());}
+extern "C" CAMLprim value caml_prismel_metal_render_encoder_use_heaps(value re,value rh,value rs){CAMLparam3(re,rh,rs);@try{id<MTLRenderCommandEncoder>e=object_of_handle(re,Handle_kind::Render_encoder);mlsize_t n=Wosize_val(rh);std::vector<id<MTLHeap>>v;v.reserve(n);for(mlsize_t i=0;i<n;i++)v.push_back(object_of_handle(Field(rh,i),Handle_kind::Heap));[e useHeaps:v.data() count:n stages:(MTLRenderStages)Long_val(rs)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+extern "C" CAMLprim value caml_prismel_metal_render_encoder_use_resources(value re,value rr,value ru,value rs){CAMLparam4(re,rr,ru,rs);@try{id<MTLRenderCommandEncoder>e=object_of_handle(re,Handle_kind::Render_encoder);mlsize_t n=Wosize_val(rr);std::vector<id<MTLResource>>v;v.reserve(n);for(mlsize_t i=0;i<n;i++)v.push_back(resource_of_handle(Field(rr,i)));[e useResources:v.data() count:n usage:(MTLResourceUsage)Long_val(ru) stages:(MTLRenderStages)Long_val(rs)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+extern "C" CAMLprim value caml_prismel_metal_render_encoder_execute_icb_range(value re,value ri,value rl,value rn){CAMLparam4(re,ri,rl,rn);@try{[object_of_handle(re,Handle_kind::Render_encoder) executeCommandsInBuffer:object_of_handle(ri,Handle_kind::Indirect_command_buffer) withRange:NSMakeRange(Long_val(rl),Long_val(rn))];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+extern "C" CAMLprim value caml_prismel_metal_render_encoder_execute_icb_indirect_range(value re,value ri,value rb,value ro){CAMLparam4(re,ri,rb,ro);@try{[object_of_handle(re,Handle_kind::Render_encoder) executeCommandsInBuffer:object_of_handle(ri,Handle_kind::Indirect_command_buffer) indirectBuffer:object_of_handle(rb,Handle_kind::Buffer) indirectBufferOffset:(NSUInteger)Int64_val(ro)];CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
 
 extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_pipeline(
     value raw_encoder, value raw_pipeline) {
