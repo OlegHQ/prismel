@@ -211,6 +211,7 @@
   ../../tools/metal/metal_command_support_callable_bridge.inc
   ../../tools/metal/metal_mesh_tile_mechanical_generated.mm
   ../../tools/metal/metal_mesh_tile_mechanical_callable_bridge.inc
+  ../../tools/metal/metal_command_event_constructors.inc
   c_library_flags.sexp)
  (action
   (run ./build_bridge.exe
@@ -568,3 +569,18 @@
  (action
   (bash
    "status=0; ./test_metal_mesh_tile105_descriptor_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal_command_events_native.exe)
+ (deps test_metal_command_events_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -framework Foundation
+   -framework Metal %{dep:test_metal_command_events_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_command_events_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal_command_events_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
