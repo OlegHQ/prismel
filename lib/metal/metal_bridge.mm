@@ -956,6 +956,11 @@ enum class Handle_kind : std::uint32_t {
   Counter_set,
   Counter_descriptor,
   Event,
+  Capture_descriptor,
+  Capture_manager,
+  Function_log,
+  Function_log_location,
+  Shared_event,
 };
 
 struct Handle {
@@ -14354,4 +14359,10 @@ extern "C" CAMLprim value caml_prismel_metal_pipeline_render_imageblock_length(v
 #pragma clang diagnostic ignored "-Wunused-function"
 #include "../../tools/metal/metal4_lifecycle_materializers.inc"
 #include "../../tools/metal/metal4_lifecycle_callable_bridge.inc"
+#pragma clang diagnostic pop
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunguarded-availability-new"
+#include "../../tools/metal/metal_command_support_mechanical.inc"
+#include "../../tools/metal/metal_command_support_callable_bridge.inc"
 #pragma clang diagnostic pop
