@@ -1,5 +1,9 @@
 type handle
 
+include Metal_raw_generated.Make (struct
+    type nonrec handle = handle
+  end)
+
 (** Positional native ABI record. Keep field order synchronized with
     [texture_descriptor] in [metal_bridge.mm]. *)
 type texture_descriptor =
@@ -1054,18 +1058,6 @@ external command4_render_encoder_set_viewports :
   (unit, string) result =
   "caml_prismel_metal_command4_render_encoder_set_viewports"
 
-external command4_render_encoder_set_front_facing_winding :
-  handle -> int -> (unit, string) result =
-  "caml_prismel_metal_command4_render_encoder_set_front_facing_winding"
-
-external command4_render_encoder_set_cull_mode :
-  handle -> int -> (unit, string) result =
-  "caml_prismel_metal_command4_render_encoder_set_cull_mode"
-
-external command4_render_encoder_set_depth_clip_mode :
-  handle -> int -> (unit, string) result =
-  "caml_prismel_metal_command4_render_encoder_set_depth_clip_mode"
-
 external command4_render_encoder_set_depth_bias :
   handle -> (float * float * float) -> (unit, string) result =
   "caml_prismel_metal_command4_render_encoder_set_depth_bias"
@@ -1081,10 +1073,6 @@ external command4_render_encoder_set_scissor_rect :
 external command4_render_encoder_set_scissor_rects :
   handle -> metal4_scissor_rect array -> (unit, string) result =
   "caml_prismel_metal_command4_render_encoder_set_scissor_rects"
-
-external command4_render_encoder_set_triangle_fill_mode :
-  handle -> int -> (unit, string) result =
-  "caml_prismel_metal_command4_render_encoder_set_triangle_fill_mode"
 
 external command4_render_encoder_set_color_store_action :
   handle -> int -> int -> (unit, string) result =

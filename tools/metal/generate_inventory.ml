@@ -18,6 +18,7 @@ type declaration =
   ; line : int option
   ; signature : string
   ; attributes : string list
+  ; constant_value : string option
   ; child_count : int
   ; classification : Classification.t
   ; reason : string
@@ -121,6 +122,11 @@ let declaration_attributes value =
     | Some kind when String.ends_with ~suffix:"Attr" kind -> Some kind
     | Some _ | None -> None)
   |> List.sort_uniq String.compare
+
+let rec constant_expression_value value =
+  match object_string "kind" value, object_string "value" value with
+  | Some "ConstantExpr", Some value -> Some value
+  | _ -> object_list "inner" value |> List.find_map constant_expression_value
 
 let direct_declaration_children value =
   object_list "inner" value
@@ -319,6 +325,10 @@ let rec collect declarations aliases ?owner ?header value =
            ; line = location_line value
            ; signature
            ; attributes
+           ; constant_value =
+               if ast_kind = "EnumConstantDecl" then
+                 constant_expression_value value
+               else None
            ; child_count = List.length (direct_declaration_children value)
            ; classification
            ; reason
@@ -417,7 +427,7 @@ let option_json f = function
   | None -> `Null
 
 let declaration_json declaration =
-  `Assoc
+  let fields =
     [ "id", `String declaration.identifier
     ; "kind", `String declaration.kind
     ; "name", `String declaration.name
@@ -429,6 +439,13 @@ let declaration_json declaration =
     ; "classification", `String (Classification.name declaration.classification)
     ; "reason", `String declaration.reason
     ]
+  in
+  let fields =
+    match declaration.constant_value with
+    | Some value -> fields @ [ "constant_value", `String value ]
+    | None -> fields
+  in
+  `Assoc fields
 
 let classification_counts declarations =
   let counts = Hashtbl.create 8 in
@@ -532,6 +549,8 @@ let generate root =
   validate_bound_identifiers declarations;
   let header_hash = aggregate_headers headers in
   let classification_path = Filename.concat root "tools/metal/classification.ml" in
+  let binding_plan_path = Filename.concat root "tools/metal/binding_plan.ml" in
+  let binding_plan_hash = sha256 (read_file binding_plan_path) in
   let value =
     `Assoc
       [ "schema", `Int 1
@@ -545,6 +564,7 @@ let generate root =
       ; "header_aggregate_sha256", `String header_hash
       ; "classification_source_sha256",
         `String (sha256 (read_file classification_path))
+      ; "binding_plan_source_sha256", `String binding_plan_hash
       ; "symbol_count", `Int (List.length declarations)
       ; "classification_counts", classification_counts declarations
       ; "headers", `List (List.map header_json headers)
@@ -555,8 +575,10 @@ let generate root =
     Printf.sprintf
       "let sdk_version = %S\nlet deployment_target = %S\n\
        let target_triple = %S\nlet header_count = %d\n\
-       let header_aggregate_sha256 = %S\n"
+       let header_aggregate_sha256 = %S\n\
+       let binding_plan_source_sha256 = %S\n"
       sdk_version deployment_target target_triple (List.length headers) header_hash
+      binding_plan_hash
   in
   pretty_json value, provenance, List.length declarations
 

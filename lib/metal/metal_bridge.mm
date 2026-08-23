@@ -11123,76 +11123,6 @@ bool checked_metal4_viewport(value raw, MTLViewport *result) {
 }
 
 extern "C" CAMLprim value
-caml_prismel_metal_command4_render_encoder_set_front_facing_winding(
-    value raw_encoder, value raw_winding) {
-  CAMLparam2(raw_encoder, raw_winding);
-  @autoreleasepool {
-    if (@available(macOS 26.0, *)) {
-      @try {
-        id<MTL4RenderCommandEncoder> encoder =
-            object_of_handle(raw_encoder, Handle_kind::Render_encoder4);
-        const intnat winding = Long_val(raw_winding);
-        if (winding < 0 || winding > 1) {
-          CAMLreturn(result_error_text(
-              "Metal 4 front-facing winding is invalid"));
-        }
-        [encoder setFrontFacingWinding:static_cast<MTLWinding>(winding)];
-        CAMLreturn(result_unit());
-      } @catch (NSException *exception) {
-        CAMLreturn(result_error(exception.reason));
-      }
-    }
-    CAMLreturn(result_error_text("Metal 4 commands require macOS 26"));
-  }
-}
-
-extern "C" CAMLprim value
-caml_prismel_metal_command4_render_encoder_set_cull_mode(
-    value raw_encoder, value raw_mode) {
-  CAMLparam2(raw_encoder, raw_mode);
-  @autoreleasepool {
-    if (@available(macOS 26.0, *)) {
-      @try {
-        id<MTL4RenderCommandEncoder> encoder =
-            object_of_handle(raw_encoder, Handle_kind::Render_encoder4);
-        const intnat mode = Long_val(raw_mode);
-        if (mode < 0 || mode > 2) {
-          CAMLreturn(result_error_text("Metal 4 cull mode is invalid"));
-        }
-        [encoder setCullMode:static_cast<MTLCullMode>(mode)];
-        CAMLreturn(result_unit());
-      } @catch (NSException *exception) {
-        CAMLreturn(result_error(exception.reason));
-      }
-    }
-    CAMLreturn(result_error_text("Metal 4 commands require macOS 26"));
-  }
-}
-
-extern "C" CAMLprim value
-caml_prismel_metal_command4_render_encoder_set_depth_clip_mode(
-    value raw_encoder, value raw_mode) {
-  CAMLparam2(raw_encoder, raw_mode);
-  @autoreleasepool {
-    if (@available(macOS 26.0, *)) {
-      @try {
-        id<MTL4RenderCommandEncoder> encoder =
-            object_of_handle(raw_encoder, Handle_kind::Render_encoder4);
-        const intnat mode = Long_val(raw_mode);
-        if (mode < 0 || mode > 1) {
-          CAMLreturn(result_error_text("Metal 4 depth-clip mode is invalid"));
-        }
-        [encoder setDepthClipMode:static_cast<MTLDepthClipMode>(mode)];
-        CAMLreturn(result_unit());
-      } @catch (NSException *exception) {
-        CAMLreturn(result_error(exception.reason));
-      }
-    }
-    CAMLreturn(result_error_text("Metal 4 commands require macOS 26"));
-  }
-}
-
-extern "C" CAMLprim value
 caml_prismel_metal_command4_render_encoder_set_depth_bias(
     value raw_encoder, value raw_bias) {
   CAMLparam2(raw_encoder, raw_bias);
@@ -11301,30 +11231,6 @@ caml_prismel_metal_command4_render_encoder_set_scissor_rects(
         }
         [encoder setScissorRects:rects.data()
                            count:static_cast<NSUInteger>(count)];
-        CAMLreturn(result_unit());
-      } @catch (NSException *exception) {
-        CAMLreturn(result_error(exception.reason));
-      }
-    }
-    CAMLreturn(result_error_text("Metal 4 commands require macOS 26"));
-  }
-}
-
-extern "C" CAMLprim value
-caml_prismel_metal_command4_render_encoder_set_triangle_fill_mode(
-    value raw_encoder, value raw_mode) {
-  CAMLparam2(raw_encoder, raw_mode);
-  @autoreleasepool {
-    if (@available(macOS 26.0, *)) {
-      @try {
-        id<MTL4RenderCommandEncoder> encoder =
-            object_of_handle(raw_encoder, Handle_kind::Render_encoder4);
-        const intnat mode = Long_val(raw_mode);
-        if (mode < 0 || mode > 1) {
-          CAMLreturn(result_error_text(
-              "Metal 4 triangle-fill mode is invalid"));
-        }
-        [encoder setTriangleFillMode:static_cast<MTLTriangleFillMode>(mode)];
         CAMLreturn(result_unit());
       } @catch (NSException *exception) {
         CAMLreturn(result_error(exception.reason));
@@ -12951,3 +12857,5 @@ extern "C" CAMLprim value caml_prismel_metal_command_buffer_error(value raw) {
   }
   CAMLreturn(result);
 }
+
+#include "metal_bridge_generated.inc"

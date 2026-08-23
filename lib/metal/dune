@@ -25,8 +25,38 @@
    --output %{targets})))
 
 (rule
+ (targets
+  metal_raw_generated.ml
+  metal_raw_generated.mli
+  metal_bridge_generated.inc
+  generated_binding_manifest.json)
+ (deps
+  generated_api_inventory.json
+  metal_bridge.mm
+  metal.ml
+  metal_raw.ml
+  metal_raw.mli
+  test_metal.ml
+  ../../tools/metal/binding_plan.ml
+  ../../tools/metal/generate_bindings.ml)
+ (action
+  (run %{exe:../../tools/metal/generate_bindings.exe}
+   --inventory %{dep:generated_api_inventory.json}
+   --plan-source %{dep:../../tools/metal/binding_plan.ml}
+   --generator-source %{dep:../../tools/metal/generate_bindings.ml}
+   --manual-native %{dep:metal_bridge.mm}
+   --manual-raw-ml %{dep:metal_raw.ml}
+   --manual-raw-mli %{dep:metal_raw.mli}
+   --safe-source %{dep:metal.ml}
+   --safe-tests %{dep:test_metal.ml}
+   --output-raw-ml metal_raw_generated.ml
+   --output-raw-mli metal_raw_generated.mli
+   --output-native metal_bridge_generated.inc
+   --output-manifest generated_binding_manifest.json)))
+
+(rule
  (targets metal_bridge.o libmetal_bridge_stubs.a dllmetal_bridge_stubs.so)
- (deps metal_bridge.mm c_library_flags.sexp)
+ (deps metal_bridge.mm metal_bridge_generated.inc c_library_flags.sexp)
  (action
   (run ./build_bridge.exe
    --sanitizers %{env:PRISMEL_METAL_SANITIZERS=}
@@ -40,8 +70,12 @@
 (library
  (name metal)
  (public_name prismel.metal)
- (modules Metal Metal_format Metal_raw Generated_provenance)
- (private_modules Metal_format Metal_raw Generated_provenance)
+ (modules Metal Metal_format Metal_raw Metal_raw_generated Generated_provenance)
+ (private_modules
+  Metal_format
+  Metal_raw
+  Metal_raw_generated
+  Generated_provenance)
  (libraries threads)
  (foreign_archives metal_bridge_stubs)
  (c_library_flags (:include c_library_flags.sexp)))

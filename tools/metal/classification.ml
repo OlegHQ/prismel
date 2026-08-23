@@ -385,16 +385,14 @@ let bound_identifiers =
           ; "setBlendColorRed:green:blue:alpha:"
           ; "setColorAttachmentMap:"
           ; "setColorStoreAction:atIndex:"
-          ; "setCullMode:"; "setDepthBias:slopeScale:clamp:"
-          ; "setDepthClipMode:"; "setDepthTestMinBound:maxBound:"
+          ; "setDepthBias:slopeScale:clamp:"
+          ; "setDepthTestMinBound:maxBound:"
           ; "setDepthStencilState:"; "setDepthStoreAction:"
-          ; "setFrontFacingWinding:"
           ; "setRenderPipelineState:"
           ; "setScissorRect:"; "setScissorRects:count:"
           ; "setStencilStoreAction:"
           ; "setStencilFrontReferenceValue:backReferenceValue:"
           ; "setStencilReferenceValue:"
-          ; "setTriangleFillMode:"
           ; "setVertexAmplificationCount:viewMappings:"
           ; "setVisibilityResultMode:offset:"
           ; "setViewport:"; "setViewports:count:"; "tileHeight"; "tileWidth"
@@ -1427,6 +1425,7 @@ let bound_identifiers =
       ; "MTLResourceHazardTrackingModeUntracked"
       ; "MTLResourceHazardTrackingModeTracked"
       ]
+  @ Binding_plan.bound_identifiers
 
 let bound_identifier_set = String_set.of_list bound_identifiers
 

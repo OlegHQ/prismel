@@ -1,7 +1,43 @@
 (library
  (name metal_inventory_classification)
  (wrapped false)
- (modules classification))
+ (modules binding_plan classification))
+
+(executable
+ (name generate_bindings)
+ (modules generate_bindings)
+ (libraries
+  compiler-libs.common
+  gpu_migration_support
+  metal_inventory_classification
+  yojson))
+
+(test
+ (name test_generate_bindings)
+ (modules test_generate_bindings)
+ (libraries gpu_migration_support yojson)
+ (deps
+  generate_bindings.exe
+  binding_plan.ml
+  generate_bindings.ml
+  ../../lib/metal/metal.cma
+  ../../lib/metal/generated_api_inventory.json
+  ../../lib/metal/metal_bridge.mm
+  ../../lib/metal/metal.ml
+  ../../lib/metal/metal_raw.ml
+  ../../lib/metal/metal_raw.mli
+  ../../lib/metal/test_metal.ml)
+ (action
+  (run %{test}
+   --generator %{exe:generate_bindings.exe}
+   --inventory %{dep:../../lib/metal/generated_api_inventory.json}
+   --plan-source %{dep:binding_plan.ml}
+   --generator-source %{dep:generate_bindings.ml}
+   --manual-native %{dep:../../lib/metal/metal_bridge.mm}
+   --manual-raw-ml %{dep:../../lib/metal/metal_raw.ml}
+   --manual-raw-mli %{dep:../../lib/metal/metal_raw.mli}
+   --safe-source %{dep:../../lib/metal/metal.ml}
+   --safe-tests %{dep:../../lib/metal/test_metal.ml})))
 
 (executable
  (name generate_inventory)
@@ -22,6 +58,7 @@
  (alias runtest)
  (deps
   generate_inventory.exe
+  binding_plan.ml
   classification.ml
   ../../lib/metal/generated_api_inventory.json
   ../../lib/metal/generated_provenance.ml)

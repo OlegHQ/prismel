@@ -28,6 +28,43 @@ macOS are `scope-excluded`; remaining declarations stay `unreviewed` until the
 corresponding Phase 2 slice lands. M1 is not green until the generated inventory
 contains no unreviewed in-scope declaration.
 
+Binding generation is a hybrid OCaml/Dune architecture. The declarative binding
+plan is keyed by identifiers from that pinned inventory and repeats the expected
+owner, kind, pinned normalized signature, and explicit availability contract.
+The inventory also records every enum value Clang materializes; a generated enum
+argument is accepted only when all cases in its SDK family have recorded values,
+and it names that complete expected family and its exact values. Plan resolution
+is fail-closed for an absent declaration, SDK/header/signature/enum-value drift,
+duplicate identifier, stale plan provenance, exact generated-symbol collision,
+or handwritten/generated overlap. Availability is reviewed explicitly against
+the pinned owner header because Clang's JSON rows do not expose the inherited
+introduced-version payload. Stable ordering, pinned inputs, content hashes, and
+emitted provenance keep generation deterministic and make Dune's
+generated-output regression checks fail on drift.
+
+The first generator template owns only one-argument enum-setter raw OCaml
+declarations and native adapter stubs; later mechanical templates must preserve
+the same closed typed model. Native adapters use direct, statically typed
+Objective-C selectors; neither generated nor handwritten code dispatches
+through `objc_msgSend`. Public types, domain and lifetime checks, ownership and
+retention, validation, capability policy, asynchronous completion, complex
+records, and multi-object operations remain handwritten in the safe layer. A
+generated raw declaration alone never makes an inventory declaration `bound`:
+the plan requires an independent safe-operation/test-evidence record, and the
+generator parses both OCaml syntax trees, locates the exact safe module/value and
+conformance function, and requires direct applications of the planned raw and
+public paths before composing the bound identifier set. Comments, strings,
+prefix names, and unrelated calls do not qualify as evidence.
+
+Migration is gradual. Each small family first receives deterministic per-entry
+golden assertions for generated OCaml, Objective-C++, validation domains,
+selectors, symbols, errors, and provenance, then replaces the equivalent
+handwritten raw/native glue without changing the public API. The
+handwritten and planned identifier sets are composed once and remain subject to
+the existing duplicate check throughout that migration. The generator,
+orchestration, fixtures, and checks remain OCaml/Dune-native; Python glue is not
+part of this architecture.
+
 ## Thread and ownership model
 
 Every public native operation requires both OCaml domain zero and the platform
