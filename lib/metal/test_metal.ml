@@ -532,6 +532,80 @@ void prismel_remap_mesh(
 }
 |}
 
+let raster_command_state_shader_source =
+  {|
+#include <metal_stdlib>
+using namespace metal;
+
+struct PrismelRasterStateVertex {
+  float4 position [[position]];
+  float4 color;
+};
+
+struct PrismelRasterArrayVertex {
+  float4 position [[position]];
+  float4 color;
+  uint viewport_index [[viewport_array_index]];
+};
+
+constant float2 prismel_raster_fullscreen_positions[3] = {
+  float2(-1.0f, -1.0f),
+  float2(3.0f, -1.0f),
+  float2(-1.0f, 3.0f)
+};
+
+constant float2 prismel_raster_triangle_positions[3] = {
+  float2(-0.75f, -0.75f),
+  float2(0.75f, -0.75f),
+  float2(0.0f, 0.75f)
+};
+
+vertex PrismelRasterStateVertex prismel_raster_fullscreen_vertex(
+    uint vertex_id [[vertex_id]]) {
+  PrismelRasterStateVertex result;
+  result.position = float4(
+      prismel_raster_fullscreen_positions[vertex_id], 0.5f, 1.0f);
+  result.color = float4(0.0f, 1.0f, 0.0f, 1.0f);
+  return result;
+}
+
+vertex PrismelRasterStateVertex prismel_raster_triangle_vertex(
+    uint vertex_id [[vertex_id]]) {
+  PrismelRasterStateVertex result;
+  result.position = float4(
+      prismel_raster_triangle_positions[vertex_id], 0.5f, 1.0f);
+  result.color = float4(0.0f, 1.0f, 0.0f, 1.0f);
+  return result;
+}
+
+vertex PrismelRasterStateVertex prismel_raster_outside_depth_vertex(
+    uint vertex_id [[vertex_id]]) {
+  PrismelRasterStateVertex result;
+  result.position = float4(
+      prismel_raster_fullscreen_positions[vertex_id], 2.0f, 1.0f);
+  result.color = float4(0.0f, 1.0f, 0.0f, 1.0f);
+  return result;
+}
+
+vertex PrismelRasterArrayVertex prismel_raster_array_vertex(
+    uint vertex_id [[vertex_id]],
+    uint amplification_id [[amplification_id]]) {
+  PrismelRasterArrayVertex result;
+  result.position = float4(
+      prismel_raster_fullscreen_positions[vertex_id], 0.5f, 1.0f);
+  result.color = amplification_id == 0u
+      ? float4(0.0f, 0.0f, 1.0f, 1.0f)
+      : float4(0.0f, 1.0f, 0.0f, 1.0f);
+  result.viewport_index = 0u;
+  return result;
+}
+
+fragment float4 prismel_raster_fragment(
+    PrismelRasterStateVertex input [[stage_in]]) {
+  return input.color;
+}
+|}
+
 let tile_shader_source =
   {|
 #include <metal_stdlib>
@@ -6530,6 +6604,536 @@ let test_metal4_render_encoder_state_commands device =
     true
   end
 
+let test_metal4_raster_state_commands device =
+  if not (get (Device.supports_family device Device.Metal4)) then false
+  else begin
+    let supports_depth_bounds =
+      get (Device.supports_family device Device.Apple10)
+    in
+    if not (get (Device.supports_vertex_amplification_count device 2)) then
+      fail "Metal 4 raster-state conformance requires two-view amplification";
+    let compiler = get (Compiler.create device) in
+    let library =
+      get
+        (Compiler.compile_source ~name:"metal4-raster-command-state"
+           compiler raster_command_state_shader_source)
+    in
+    let make_pipeline ?(max_vertex_amplification_count = 1) label vertex =
+      get
+        (Compiler.create_render_pipeline ~label
+           ~fragment:"prismel_raster_fragment"
+           ~max_vertex_amplification_count compiler ~library ~vertex)
+    in
+    let fullscreen_pipeline =
+      make_pipeline "Metal 4 raster fullscreen"
+        "prismel_raster_fullscreen_vertex"
+    in
+    let triangle_pipeline =
+      make_pipeline "Metal 4 raster triangle" "prismel_raster_triangle_vertex"
+    in
+    let outside_depth_pipeline =
+      make_pipeline "Metal 4 raster outside-depth"
+        "prismel_raster_outside_depth_vertex"
+    in
+    let array_pipeline =
+      make_pipeline ~max_vertex_amplification_count:2
+        "Metal 4 raster viewport array" "prismel_raster_array_vertex"
+    in
+    get (Library.destroy library);
+    get (Compiler.destroy compiler);
+    let depth_bounds_state =
+      if supports_depth_bounds then
+        Some
+          (get
+             (Depth_stencil.create ~label:"Metal 4 raster depth-bounds state"
+                ~depth_compare:Depth_stencil.Less_equal ~depth_write:false
+                device ()))
+      else None
+    in
+    let make_target label =
+      get
+        (Texture.create ~device
+           (Texture.descriptor_2d ~storage:Buffer.Shared
+              ~usage:[ Texture.Render_target ] ~format:Texture.Bgra8_unorm
+              ~width:8 ~height:8 ~label ()))
+    in
+    let validation_target = make_target "Metal 4 raster validation target" in
+    let cull_back_target = make_target "Metal 4 raster cull-back target" in
+    let cull_front_target = make_target "Metal 4 raster cull-front target" in
+    let clockwise_target = make_target "Metal 4 raster clockwise target" in
+    let fill_target = make_target "Metal 4 raster fill target" in
+    let lines_target = make_target "Metal 4 raster lines target" in
+    let clip_target = make_target "Metal 4 raster depth-clip target" in
+    let clamp_target = make_target "Metal 4 raster depth-clamp target" in
+    let bounds_pass_target =
+      if supports_depth_bounds then
+        Some (make_target "Metal 4 raster bounds-pass target")
+      else None
+    in
+    let bounds_drop_target =
+      if supports_depth_bounds then
+        Some (make_target "Metal 4 raster bounds-drop target")
+      else None
+    in
+    let scissor_target = make_target "Metal 4 raster scissor target" in
+    let array_target = make_target "Metal 4 raster array target" in
+    let depth_target =
+      get
+        (Texture.create ~device
+           (Texture.descriptor_2d ~storage:Buffer.Private
+              ~usage:[ Texture.Render_target ] ~format:Texture.Depth32_float
+              ~width:8 ~height:8 ~label:"Metal 4 raster bounds depth" ()))
+    in
+    let allocator =
+      get
+        (Command4.Allocator.create ~label:"Metal 4 raster-state allocator"
+           device)
+    in
+    let queue =
+      get (Command4.Queue.create ~label:"Metal 4 raster-state queue" device)
+    in
+    let commands =
+      get
+        (Command4.Command_buffer.create allocator
+           ~label:"Metal 4 raster-state commands" ())
+    in
+    let color_attachment target =
+      Command4.Render_encoder.color_attachment target
+    in
+    let full_viewport =
+      Command4.Render_encoder.viewport ~x:0. ~y:0. ~width:8. ~height:8.
+        ~z_near:0. ~z_far:1.
+    in
+    let full_scissor =
+      Command4.Render_encoder.scissor_rect ~x:0 ~y:0 ~width:8 ~height:8
+    in
+    let assert_no_new_handles label (before : Release_queue.stats) =
+      let after = get (Release_queue.stats ()) in
+      if after.total_created <> before.total_created then
+        fail "%s allocated native handles" label
+    in
+    let validation_encoder =
+      get
+        (Command4.Render_encoder.create
+           ~label:"Metal 4 raster validation encoder" commands
+           ~color_attachments:[ color_attachment validation_target ])
+    in
+    let before_validation = get (Release_queue.stats ()) in
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.set_viewports validation_encoder []));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.set_viewports validation_encoder
+            (List.init 17 (fun _ -> full_viewport))));
+    let invalid_viewports =
+      [ Command4.Render_encoder.viewport ~x:(-1.) ~y:0. ~width:8. ~height:8.
+          ~z_near:0. ~z_far:1.
+      ; Command4.Render_encoder.viewport ~x:0. ~y:0. ~width:0. ~height:8.
+          ~z_near:0. ~z_far:1.
+      ; Command4.Render_encoder.viewport ~x:7. ~y:0. ~width:2. ~height:8.
+          ~z_near:0. ~z_far:1.
+      ; Command4.Render_encoder.viewport ~x:0. ~y:0. ~width:8. ~height:8.
+          ~z_near:(-0.1) ~z_far:1.
+      ; Command4.Render_encoder.viewport ~x:0. ~y:0. ~width:8. ~height:8.
+          ~z_near:0. ~z_far:1.1
+      ; Command4.Render_encoder.viewport ~x:0. ~y:0. ~width:8. ~height:8.
+          ~z_near:0.75 ~z_far:0.25
+      ; Command4.Render_encoder.viewport ~x:8. ~y:0.
+          ~width:(Int64.float_of_bits 1L) ~height:8. ~z_near:0. ~z_far:1.
+      ; Command4.Render_encoder.viewport ~x:nan ~y:0. ~width:8. ~height:8.
+          ~z_near:0. ~z_far:1.
+      ; Command4.Render_encoder.viewport ~x:0. ~y:0. ~width:infinity
+          ~height:8. ~z_near:0. ~z_far:1.
+      ]
+    in
+    List.iter
+      (fun viewport ->
+        ignore
+          (expect_error Invalid_argument
+             (Command4.Render_encoder.set_viewport validation_encoder
+                viewport));
+        ignore
+          (expect_error Invalid_argument
+             (Command4.Render_encoder.set_viewports validation_encoder
+                [ viewport ])))
+      invalid_viewports;
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.set_scissor_rects validation_encoder []));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.set_scissor_rects validation_encoder
+            (List.init 17 (fun _ -> full_scissor))));
+    let invalid_scissors =
+      [ Command4.Render_encoder.scissor_rect ~x:(-1) ~y:0 ~width:8 ~height:8
+      ; Command4.Render_encoder.scissor_rect ~x:0 ~y:0 ~width:0 ~height:8
+      ; Command4.Render_encoder.scissor_rect ~x:7 ~y:0 ~width:2 ~height:8
+      ; Command4.Render_encoder.scissor_rect ~x:0 ~y:7 ~width:8 ~height:2
+      ; Command4.Render_encoder.scissor_rect ~x:0 ~y:0 ~width:max_int
+          ~height:1
+      ]
+    in
+    List.iter
+      (fun rect ->
+        ignore
+          (expect_error Invalid_argument
+             (Command4.Render_encoder.set_scissor_rect validation_encoder
+                rect));
+        ignore
+          (expect_error Invalid_argument
+             (Command4.Render_encoder.set_scissor_rects validation_encoder
+                [ rect ])))
+      invalid_scissors;
+    List.iter
+      (fun (depth_bias, slope_scale, clamp) ->
+        ignore
+          (expect_error Invalid_argument
+             (Command4.Render_encoder.set_depth_bias validation_encoder
+                ~depth_bias ~slope_scale ~clamp)))
+      [ (nan, 0., 0.); (0., infinity, 0.); (0., 0., neg_infinity)
+      ; (Float.max_float, 0., 0.)
+      ];
+    get
+      (Command4.Render_encoder.set_depth_bias validation_encoder
+         ~depth_bias:0x1.fffffep+127 ~slope_scale:0. ~clamp:0.);
+    List.iter
+      (fun (min_bound, max_bound) ->
+        ignore
+          (expect_error Invalid_argument
+             (Command4.Render_encoder.set_depth_test_bounds validation_encoder
+                ~min_bound ~max_bound)))
+      [ (nan, 1.); (0., infinity); (-0.1, 1.); (0., 1.1); (0.75, 0.25)
+      ; (Float.max_float, 1.)
+      ];
+    ignore
+      (expect_error
+         (if supports_depth_bounds then Invalid_state else Unsupported)
+         (Command4.Render_encoder.set_depth_test_bounds validation_encoder
+            ~min_bound:0.25 ~max_bound:0.75));
+    get
+      (Command4.Render_encoder.set_depth_test_bounds validation_encoder
+         ~min_bound:0. ~max_bound:1.);
+    assert_no_new_handles "raster-state validation setters" before_validation;
+    get (Command4.Render_encoder.end_encoding validation_encoder);
+    let before_destroyed = get (Release_queue.stats ()) in
+    let destroyed_operations =
+      [ (fun () ->
+          Command4.Render_encoder.set_viewport validation_encoder
+            full_viewport)
+      ; (fun () ->
+          Command4.Render_encoder.set_viewports validation_encoder
+            [ full_viewport ])
+      ; (fun () ->
+          Command4.Render_encoder.set_scissor_rect validation_encoder
+            full_scissor)
+      ; (fun () ->
+          Command4.Render_encoder.set_scissor_rects validation_encoder
+            [ full_scissor ])
+      ; (fun () ->
+          Command4.Render_encoder.set_front_facing_winding validation_encoder
+            Command4.Render_encoder.Counter_clockwise)
+      ; (fun () ->
+          Command4.Render_encoder.set_cull_mode validation_encoder
+            Command4.Render_encoder.Cull_none)
+      ; (fun () ->
+          Command4.Render_encoder.set_depth_clip_mode validation_encoder
+            Command4.Render_encoder.Depth_clip)
+      ; (fun () ->
+          Command4.Render_encoder.set_depth_bias validation_encoder
+            ~depth_bias:0. ~slope_scale:0. ~clamp:0.)
+      ; (fun () ->
+          Command4.Render_encoder.set_depth_test_bounds validation_encoder
+            ~min_bound:0. ~max_bound:1.)
+      ; (fun () ->
+          Command4.Render_encoder.set_triangle_fill_mode validation_encoder
+            Command4.Render_encoder.Triangle_fill)
+      ]
+    in
+    List.iter
+      (fun operation -> ignore (expect_error Destroyed (operation ())))
+      destroyed_operations;
+    assert_no_new_handles "destroyed raster-state setters" before_destroyed;
+    let encode_draw ?depth_attachment ~label ~target ~pipeline configure =
+      let encoder =
+        get
+          (Command4.Render_encoder.create ?depth_attachment ~label commands
+             ~color_attachments:[ color_attachment target ])
+      in
+      get (Command4.Render_encoder.set_pipeline encoder pipeline);
+      configure encoder;
+      get
+        (Command4.Render_encoder.draw_primitives encoder
+           Command4.Render_encoder.Triangle ~vertex_start:0 ~vertex_count:3);
+      get (Command4.Render_encoder.end_encoding encoder)
+    in
+    encode_draw ~label:"Metal 4 raster cull-back encoder"
+      ~target:cull_back_target ~pipeline:fullscreen_pipeline (fun encoder ->
+        get (Command4.Render_encoder.set_viewport encoder full_viewport);
+        get
+          (Command4.Render_encoder.set_front_facing_winding encoder
+             Command4.Render_encoder.Counter_clockwise);
+        get
+          (Command4.Render_encoder.set_cull_mode encoder
+             Command4.Render_encoder.Cull_none);
+        get
+          (Command4.Render_encoder.set_cull_mode encoder
+             Command4.Render_encoder.Cull_back);
+        get
+          (Command4.Render_encoder.set_triangle_fill_mode encoder
+             Command4.Render_encoder.Triangle_fill);
+        get
+          (Command4.Render_encoder.set_depth_bias encoder ~depth_bias:0.125
+             ~slope_scale:0.5 ~clamp:0.25);
+        ignore
+          (expect_error Parent_has_dependents
+             (Render_pipeline.destroy fullscreen_pipeline));
+        ignore
+          (expect_error Parent_has_dependents
+             (Texture.destroy cull_back_target)));
+    encode_draw ~label:"Metal 4 raster cull-front encoder"
+      ~target:cull_front_target ~pipeline:fullscreen_pipeline (fun encoder ->
+        get
+          (Command4.Render_encoder.set_front_facing_winding encoder
+             Command4.Render_encoder.Counter_clockwise);
+        get
+          (Command4.Render_encoder.set_cull_mode encoder
+             Command4.Render_encoder.Cull_front));
+    encode_draw ~label:"Metal 4 raster clockwise encoder"
+      ~target:clockwise_target ~pipeline:fullscreen_pipeline (fun encoder ->
+        get
+          (Command4.Render_encoder.set_front_facing_winding encoder
+             Command4.Render_encoder.Clockwise);
+        get
+          (Command4.Render_encoder.set_cull_mode encoder
+             Command4.Render_encoder.Cull_front));
+    encode_draw ~label:"Metal 4 raster fill encoder" ~target:fill_target
+      ~pipeline:triangle_pipeline (fun encoder ->
+        get
+          (Command4.Render_encoder.set_triangle_fill_mode encoder
+             Command4.Render_encoder.Triangle_fill));
+    encode_draw ~label:"Metal 4 raster lines encoder" ~target:lines_target
+      ~pipeline:triangle_pipeline (fun encoder ->
+        get
+          (Command4.Render_encoder.set_triangle_fill_mode encoder
+             Command4.Render_encoder.Triangle_lines));
+    encode_draw ~label:"Metal 4 raster depth-clip encoder" ~target:clip_target
+      ~pipeline:outside_depth_pipeline (fun encoder ->
+        get
+          (Command4.Render_encoder.set_depth_clip_mode encoder
+             Command4.Render_encoder.Depth_clip));
+    encode_draw ~label:"Metal 4 raster depth-clamp encoder"
+      ~target:clamp_target ~pipeline:outside_depth_pipeline (fun encoder ->
+        get
+          (Command4.Render_encoder.set_depth_clip_mode encoder
+             Command4.Render_encoder.Depth_clamp));
+    let bounds_attachment () =
+      Command4.Render_encoder.depth_attachment ~clear_depth:0.5 depth_target
+    in
+    (if supports_depth_bounds then
+       match
+         depth_bounds_state, bounds_pass_target, bounds_drop_target
+       with
+       | Some depth_bounds_state, Some bounds_pass_target,
+         Some bounds_drop_target ->
+           encode_draw ~depth_attachment:(bounds_attachment ())
+             ~label:"Metal 4 raster bounds-pass encoder"
+             ~target:bounds_pass_target ~pipeline:fullscreen_pipeline
+             (fun encoder ->
+               get
+                 (Command4.Render_encoder.set_depth_stencil_state encoder
+                    (Some depth_bounds_state));
+               get
+                 (Command4.Render_encoder.set_depth_test_bounds encoder
+                    ~min_bound:0.25 ~max_bound:0.75);
+               ignore
+                 (expect_error Parent_has_dependents
+                    (Texture.destroy depth_target)));
+           encode_draw ~depth_attachment:(bounds_attachment ())
+             ~label:"Metal 4 raster bounds-drop encoder"
+             ~target:bounds_drop_target ~pipeline:fullscreen_pipeline
+             (fun encoder ->
+               get
+                 (Command4.Render_encoder.set_depth_stencil_state encoder
+                    (Some depth_bounds_state));
+               get
+                 (Command4.Render_encoder.set_depth_test_bounds encoder
+                    ~min_bound:0.75 ~max_bound:1.))
+       | _ -> fail "Apple10 depth-bounds fixtures are incomplete"
+     else
+       let encoder =
+         get
+           (Command4.Render_encoder.create
+              ~label:"Metal 4 unsupported depth-bounds encoder"
+              ~depth_attachment:(bounds_attachment ()) commands
+              ~color_attachments:[ color_attachment validation_target ])
+       in
+       get (Command4.Render_encoder.set_pipeline encoder fullscreen_pipeline);
+       let before_bounds = get (Release_queue.stats ()) in
+       ignore
+         (expect_error Unsupported
+            (Command4.Render_encoder.set_depth_test_bounds encoder
+               ~min_bound:0.25 ~max_bound:0.75));
+       ignore
+         (expect_error Unsupported
+            (Command4.Render_encoder.set_depth_test_bounds encoder
+               ~min_bound:0.75 ~max_bound:1.));
+       assert_no_new_handles "unsupported M1 depth bounds" before_bounds;
+       ignore
+         (expect_error Parent_has_dependents (Texture.destroy depth_target));
+       get (Command4.Render_encoder.end_encoding encoder));
+    let exact_scissor =
+      Command4.Render_encoder.scissor_rect ~x:2 ~y:1 ~width:3 ~height:4
+    in
+    encode_draw ~label:"Metal 4 raster scissor encoder"
+      ~target:scissor_target ~pipeline:fullscreen_pipeline (fun encoder ->
+        get (Command4.Render_encoder.set_scissor_rect encoder exact_scissor));
+    let left_viewport =
+      Command4.Render_encoder.viewport ~x:0. ~y:0. ~width:4. ~height:8.
+        ~z_near:0. ~z_far:1.
+    in
+    let right_viewport =
+      Command4.Render_encoder.viewport ~x:4. ~y:0. ~width:4. ~height:8.
+        ~z_near:0. ~z_far:1.
+    in
+    let top_left_scissor =
+      Command4.Render_encoder.scissor_rect ~x:0 ~y:0 ~width:4 ~height:4
+    in
+    let bottom_right_scissor =
+      Command4.Render_encoder.scissor_rect ~x:4 ~y:4 ~width:4 ~height:4
+    in
+    let first_view_mapping =
+      Command4.Render_encoder.vertex_amplification_view_mapping ()
+    in
+    let second_view_mapping =
+      Command4.Render_encoder.vertex_amplification_view_mapping
+        ~viewport_array_index_offset:1 ()
+    in
+    encode_draw ~label:"Metal 4 raster viewport-array encoder"
+      ~target:array_target ~pipeline:array_pipeline (fun encoder ->
+        get
+          (Command4.Render_encoder.set_viewports encoder
+             [ left_viewport; right_viewport ]);
+        get
+          (Command4.Render_encoder.set_scissor_rects encoder
+             [ top_left_scissor; bottom_right_scissor ]);
+        get
+          (Command4.Render_encoder.set_vertex_amplification_count encoder
+             ~view_mappings:[ first_view_mapping; second_view_mapping ] 2));
+    get (Command4.Command_buffer.end_recording commands);
+    let submission = get (Command4.Queue.commit queue [ commands ]) in
+    get (Command4.Submission.wait submission);
+    let read_target target =
+      get
+        (Texture.read_bytes target
+           ~region:
+             { Texture.x = 0; y = 0; z = 0; width = 8; height = 8; depth = 1 }
+           ~mip_level:0 ~slice:0 ~bytes_per_row:32 ~bytes_per_image:256)
+    in
+    let check_pixel_bgra ~label ~x ~y (blue, green, red, alpha) pixels =
+      let offset = ((y * 8) + x) * 4 in
+      let actual =
+        ( Char.code (Bytes.get pixels offset)
+        , Char.code (Bytes.get pixels (offset + 1))
+        , Char.code (Bytes.get pixels (offset + 2))
+        , Char.code (Bytes.get pixels (offset + 3)) )
+      in
+      if actual <> (blue, green, red, alpha) then
+        let actual_blue, actual_green, actual_red, actual_alpha = actual in
+        fail
+          "%s produced BGRA (%d, %d, %d, %d) instead of (%d, %d, %d, %d) at (%d, %d)"
+          label actual_blue actual_green actual_red actual_alpha blue green red
+          alpha x y
+    in
+    let transparent = (0, 0, 0, 0) in
+    let green = (0, 255, 0, 255) in
+    let blue = (255, 0, 0, 255) in
+    check_solid_bgra ~label:"Metal 4 CCW/back cull plus depth bias" ~blue:0
+      ~green:255 ~red:0 ~alpha:255 (read_target cull_back_target);
+    check_solid_bgra ~label:"Metal 4 CCW/front cull" ~blue:0 ~green:0 ~red:0
+      ~alpha:0 (read_target cull_front_target);
+    check_solid_bgra ~label:"Metal 4 clockwise/front cull" ~blue:0 ~green:255
+      ~red:0 ~alpha:255 (read_target clockwise_target);
+    let fill_pixels = read_target fill_target in
+    let lines_pixels = read_target lines_target in
+    check_pixel_bgra ~label:"Metal 4 triangle fill interior" ~x:4 ~y:4 green
+      fill_pixels;
+    check_pixel_bgra ~label:"Metal 4 triangle lines interior" ~x:4 ~y:4
+      transparent lines_pixels;
+    let line_pixel_found = ref false in
+    for index = 0 to 63 do
+      let offset = index * 4 in
+      if
+        Char.code (Bytes.get lines_pixels offset) = 0
+        && Char.code (Bytes.get lines_pixels (offset + 1)) = 255
+        && Char.code (Bytes.get lines_pixels (offset + 2)) = 0
+        && Char.code (Bytes.get lines_pixels (offset + 3)) = 255
+      then line_pixel_found := true
+    done;
+    if not !line_pixel_found then
+      fail "Metal 4 triangle-lines draw produced no exact green edge pixel";
+    check_solid_bgra ~label:"Metal 4 clipped out-of-depth draw" ~blue:0
+      ~green:0 ~red:0 ~alpha:0 (read_target clip_target);
+    check_solid_bgra ~label:"Metal 4 clamped out-of-depth draw" ~blue:0
+      ~green:255 ~red:0 ~alpha:255 (read_target clamp_target);
+    (match bounds_pass_target, bounds_drop_target with
+    | Some bounds_pass_target, Some bounds_drop_target ->
+        check_solid_bgra ~label:"Metal 4 passing depth bounds" ~blue:0
+          ~green:255 ~red:0 ~alpha:255 (read_target bounds_pass_target);
+        check_solid_bgra ~label:"Metal 4 rejecting depth bounds" ~blue:0
+          ~green:0 ~red:0 ~alpha:0 (read_target bounds_drop_target)
+    | None, None -> ()
+    | _ -> fail "depth-bounds target capability split is inconsistent");
+    let scissor_pixels = read_target scissor_target in
+    for y = 0 to 7 do
+      for x = 0 to 7 do
+        let expected =
+          if x >= 2 && x < 5 && y >= 1 && y < 5 then green else transparent
+        in
+        check_pixel_bgra ~label:"Metal 4 exact scissor rectangle" ~x ~y
+          expected scissor_pixels
+      done
+    done;
+    let array_pixels = read_target array_target in
+    for y = 0 to 7 do
+      for x = 0 to 7 do
+        let expected =
+          if x < 4 && y < 4 then blue
+          else if x >= 4 && y >= 4 then green
+          else transparent
+        in
+        check_pixel_bgra ~label:"Metal 4 viewport/scissor arrays" ~x ~y
+          expected array_pixels
+      done
+    done;
+    List.iter
+      (fun pipeline -> get (Render_pipeline.destroy pipeline))
+      [ fullscreen_pipeline; triangle_pipeline; outside_depth_pipeline
+      ; array_pipeline
+      ];
+    Option.iter (fun state -> get (Depth_stencil.destroy state))
+      depth_bounds_state;
+    List.iter
+      (fun target -> get (Texture.destroy target))
+      [ validation_target; cull_back_target; cull_front_target
+      ; clockwise_target; fill_target; lines_target; clip_target; clamp_target
+      ; scissor_target; array_target; depth_target
+      ];
+    List.iter
+      (fun target -> get (Texture.destroy target))
+      (List.filter_map (fun target -> target)
+         [ bounds_pass_target; bounds_drop_target ]);
+    get (Command4.Submission.destroy submission);
+    get (Command4.Command_buffer.destroy commands);
+    get (Command4.Allocator.reset allocator);
+    get (Command4.Queue.destroy queue);
+    get (Command4.Allocator.destroy allocator);
+    Printf.printf
+      "Metal 4 raster/viewport/scissor command conformance passed (%s depth bounds)\n%!"
+      (if supports_depth_bounds then "executed" else "Apple10-gated");
+    true
+  end
+
 let test_metal4_render_linking_commands device =
   if not (get (Device.supports_family device Device.Metal4)) then false
   else begin
@@ -7368,6 +7972,7 @@ let () =
     ignore (test_metal4_vertex_descriptor_commands device);
     ignore (test_metal4_render_descriptor_state_commands device);
     ignore (test_metal4_render_encoder_state_commands device);
+    ignore (test_metal4_raster_state_commands device);
     ignore (test_metal4_render_linking_commands device);
     ignore (test_metal4_mesh_commands device);
     ignore (test_metal4_tile_commands device);
@@ -9178,6 +9783,6 @@ let () =
         stats.external_deallocations
         stats.external_deallocation_mismatches;
     Printf.printf
-      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/compiler-task/pipeline-dataset/binary-function/static-link/reflection/compute/render/mesh/object/tile/command4-argument-table/compute/render/indexed/instanced/indirect/depth/stencil/blend/vertex-layout/descriptor-state/alpha-to-one/vertex-amplification/color-remap/render-link/mesh/tile conformance passed on %s\n%!"
+      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/compiler-task/pipeline-dataset/binary-function/static-link/reflection/compute/render/mesh/object/tile/command4-argument-table/compute/render/indexed/instanced/indirect/depth/stencil/blend/vertex-layout/descriptor-state/alpha-to-one/vertex-amplification/color-remap/raster/viewport/scissor/render-link/mesh/tile conformance passed on %s\n%!"
       info.name
   end

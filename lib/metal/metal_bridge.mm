@@ -10876,6 +10876,302 @@ caml_prismel_metal_command4_render_encoder_set_viewport(
   }
 }
 
+bool checked_ocaml_float32(value raw, float *result) {
+  const double number = Double_val(raw);
+  if (!std::isfinite(number) ||
+      std::abs(number) > std::numeric_limits<float>::max()) {
+    return false;
+  }
+  *result = static_cast<float>(number);
+  return true;
+}
+
+bool checked_metal4_scissor_rect(value raw, MTLScissorRect *result) {
+  NSUInteger x = 0;
+  NSUInteger y = 0;
+  NSUInteger width = 0;
+  NSUInteger height = 0;
+  if (!nsuinteger_from_ocaml_int64(Field(raw, 0), &x) ||
+      !nsuinteger_from_ocaml_int64(Field(raw, 1), &y) ||
+      !nsuinteger_from_ocaml_int64(Field(raw, 2), &width) ||
+      !nsuinteger_from_ocaml_int64(Field(raw, 3), &height) || width == 0 ||
+      height == 0) {
+    return false;
+  }
+  result->x = x;
+  result->y = y;
+  result->width = width;
+  result->height = height;
+  return true;
+}
+
+bool checked_metal4_viewport(value raw, MTLViewport *result) {
+  const double origin_x = Double_val(Field(raw, 0));
+  const double origin_y = Double_val(Field(raw, 1));
+  const double width = Double_val(Field(raw, 2));
+  const double height = Double_val(Field(raw, 3));
+  const double z_near = Double_val(Field(raw, 4));
+  const double z_far = Double_val(Field(raw, 5));
+  if (!std::isfinite(origin_x) || !std::isfinite(origin_y) ||
+      !std::isfinite(width) || !std::isfinite(height) ||
+      !std::isfinite(z_near) || !std::isfinite(z_far) || origin_x < 0.0 ||
+      origin_y < 0.0 || width <= 0.0 || height <= 0.0 || z_near < 0.0 ||
+      z_near > 1.0 || z_far < 0.0 || z_far > 1.0 || z_near > z_far) {
+    return false;
+  }
+  result->originX = origin_x;
+  result->originY = origin_y;
+  result->width = width;
+  result->height = height;
+  result->znear = z_near;
+  result->zfar = z_far;
+  return true;
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_command4_render_encoder_set_front_facing_winding(
+    value raw_encoder, value raw_winding) {
+  CAMLparam2(raw_encoder, raw_winding);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4RenderCommandEncoder> encoder =
+            object_of_handle(raw_encoder, Handle_kind::Render_encoder4);
+        const intnat winding = Long_val(raw_winding);
+        if (winding < 0 || winding > 1) {
+          CAMLreturn(result_error_text(
+              "Metal 4 front-facing winding is invalid"));
+        }
+        [encoder setFrontFacingWinding:static_cast<MTLWinding>(winding)];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("Metal 4 commands require macOS 26"));
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_command4_render_encoder_set_cull_mode(
+    value raw_encoder, value raw_mode) {
+  CAMLparam2(raw_encoder, raw_mode);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4RenderCommandEncoder> encoder =
+            object_of_handle(raw_encoder, Handle_kind::Render_encoder4);
+        const intnat mode = Long_val(raw_mode);
+        if (mode < 0 || mode > 2) {
+          CAMLreturn(result_error_text("Metal 4 cull mode is invalid"));
+        }
+        [encoder setCullMode:static_cast<MTLCullMode>(mode)];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("Metal 4 commands require macOS 26"));
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_command4_render_encoder_set_depth_clip_mode(
+    value raw_encoder, value raw_mode) {
+  CAMLparam2(raw_encoder, raw_mode);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4RenderCommandEncoder> encoder =
+            object_of_handle(raw_encoder, Handle_kind::Render_encoder4);
+        const intnat mode = Long_val(raw_mode);
+        if (mode < 0 || mode > 1) {
+          CAMLreturn(result_error_text("Metal 4 depth-clip mode is invalid"));
+        }
+        [encoder setDepthClipMode:static_cast<MTLDepthClipMode>(mode)];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("Metal 4 commands require macOS 26"));
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_command4_render_encoder_set_depth_bias(
+    value raw_encoder, value raw_bias) {
+  CAMLparam2(raw_encoder, raw_bias);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4RenderCommandEncoder> encoder =
+            object_of_handle(raw_encoder, Handle_kind::Render_encoder4);
+        float depth_bias = 0.0f;
+        float slope_scale = 0.0f;
+        float clamp = 0.0f;
+        if (!checked_ocaml_float32(Field(raw_bias, 0), &depth_bias) ||
+            !checked_ocaml_float32(Field(raw_bias, 1), &slope_scale) ||
+            !checked_ocaml_float32(Field(raw_bias, 2), &clamp)) {
+          CAMLreturn(result_error_text("Metal 4 depth bias is invalid"));
+        }
+        [encoder setDepthBias:depth_bias slopeScale:slope_scale clamp:clamp];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("Metal 4 commands require macOS 26"));
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_command4_render_encoder_set_depth_test_bounds(
+    value raw_encoder, value raw_bounds) {
+  CAMLparam2(raw_encoder, raw_bounds);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4RenderCommandEncoder> encoder =
+            object_of_handle(raw_encoder, Handle_kind::Render_encoder4);
+        const double minimum = Double_val(Field(raw_bounds, 0));
+        const double maximum = Double_val(Field(raw_bounds, 1));
+        if (!std::isfinite(minimum) || !std::isfinite(maximum) ||
+            minimum < 0.0 || minimum > 1.0 || maximum < 0.0 ||
+            maximum > 1.0 || minimum > maximum) {
+          CAMLreturn(result_error_text(
+              "Metal 4 depth-test bounds are invalid"));
+        }
+        if ((minimum != 0.0 || maximum != 1.0) &&
+            ![encoder.commandBuffer.device
+                supportsFamily:MTLGPUFamilyApple10]) {
+          CAMLreturn(result_error_text(
+              "active Metal 4 depth-test bounds require Apple GPU family 10"));
+        }
+        [encoder setDepthTestMinBound:static_cast<float>(minimum)
+                              maxBound:static_cast<float>(maximum)];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("Metal 4 commands require macOS 26"));
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_command4_render_encoder_set_scissor_rect(
+    value raw_encoder, value raw_rect) {
+  CAMLparam2(raw_encoder, raw_rect);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4RenderCommandEncoder> encoder =
+            object_of_handle(raw_encoder, Handle_kind::Render_encoder4);
+        MTLScissorRect rect = {};
+        if (!checked_metal4_scissor_rect(raw_rect, &rect)) {
+          CAMLreturn(result_error_text(
+              "Metal 4 scissor rectangle is invalid"));
+        }
+        [encoder setScissorRect:rect];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("Metal 4 commands require macOS 26"));
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_command4_render_encoder_set_scissor_rects(
+    value raw_encoder, value raw_rects) {
+  CAMLparam2(raw_encoder, raw_rects);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4RenderCommandEncoder> encoder =
+            object_of_handle(raw_encoder, Handle_kind::Render_encoder4);
+        const mlsize_t count = Wosize_val(raw_rects);
+        if (count == 0 || count > 16) {
+          CAMLreturn(result_error_text(
+              "Metal 4 scissor-rectangle count is invalid"));
+        }
+        std::array<MTLScissorRect, 16> rects{};
+        for (mlsize_t index = 0; index < count; ++index) {
+          if (!checked_metal4_scissor_rect(Field(raw_rects, index),
+                                           &rects[index])) {
+            CAMLreturn(result_error_text(
+                "Metal 4 scissor rectangle is invalid"));
+          }
+        }
+        [encoder setScissorRects:rects.data()
+                           count:static_cast<NSUInteger>(count)];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("Metal 4 commands require macOS 26"));
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_command4_render_encoder_set_triangle_fill_mode(
+    value raw_encoder, value raw_mode) {
+  CAMLparam2(raw_encoder, raw_mode);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4RenderCommandEncoder> encoder =
+            object_of_handle(raw_encoder, Handle_kind::Render_encoder4);
+        const intnat mode = Long_val(raw_mode);
+        if (mode < 0 || mode > 1) {
+          CAMLreturn(result_error_text(
+              "Metal 4 triangle-fill mode is invalid"));
+        }
+        [encoder setTriangleFillMode:static_cast<MTLTriangleFillMode>(mode)];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("Metal 4 commands require macOS 26"));
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_command4_render_encoder_set_viewports(
+    value raw_encoder, value raw_viewports) {
+  CAMLparam2(raw_encoder, raw_viewports);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4RenderCommandEncoder> encoder =
+            object_of_handle(raw_encoder, Handle_kind::Render_encoder4);
+        const mlsize_t count = Wosize_val(raw_viewports);
+        if (count == 0 || count > 16) {
+          CAMLreturn(result_error_text(
+              "Metal 4 viewport count is invalid"));
+        }
+        std::array<MTLViewport, 16> viewports{};
+        for (mlsize_t index = 0; index < count; ++index) {
+          if (!checked_metal4_viewport(Field(raw_viewports, index),
+                                       &viewports[index])) {
+            CAMLreturn(result_error_text("Metal 4 viewport is invalid"));
+          }
+        }
+        [encoder setViewports:viewports.data()
+                        count:static_cast<NSUInteger>(count)];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("Metal 4 commands require macOS 26"));
+  }
+}
+
 extern "C" CAMLprim value
 caml_prismel_metal_command4_render_encoder_set_vertex_amplification_count(
     value raw_encoder, value raw_buffer, value raw_count,

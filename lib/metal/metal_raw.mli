@@ -272,6 +272,14 @@ type metal4_vertex_amplification_view_mapping =
   ; render_target_array_index_offset : int64
   }
 
+(** Positional native ABI record for one Metal scissor rectangle. *)
+type metal4_scissor_rect =
+  { x : int64
+  ; y : int64
+  ; width : int64
+  ; height : int64
+  }
+
 (** Positional native ABI record for one immutable stencil face. *)
 type depth_stencil_face_descriptor =
   { compare_function : int
@@ -1038,6 +1046,43 @@ external command4_render_encoder_set_viewport :
   handle -> (float * float * float * float * float * float) ->
   (unit, string) result =
   "caml_prismel_metal_command4_render_encoder_set_viewport"
+
+external command4_render_encoder_set_viewports :
+  handle -> (float * float * float * float * float * float) array ->
+  (unit, string) result =
+  "caml_prismel_metal_command4_render_encoder_set_viewports"
+
+external command4_render_encoder_set_front_facing_winding :
+  handle -> int -> (unit, string) result =
+  "caml_prismel_metal_command4_render_encoder_set_front_facing_winding"
+
+external command4_render_encoder_set_cull_mode :
+  handle -> int -> (unit, string) result =
+  "caml_prismel_metal_command4_render_encoder_set_cull_mode"
+
+external command4_render_encoder_set_depth_clip_mode :
+  handle -> int -> (unit, string) result =
+  "caml_prismel_metal_command4_render_encoder_set_depth_clip_mode"
+
+external command4_render_encoder_set_depth_bias :
+  handle -> (float * float * float) -> (unit, string) result =
+  "caml_prismel_metal_command4_render_encoder_set_depth_bias"
+
+external command4_render_encoder_set_depth_test_bounds :
+  handle -> (float * float) -> (unit, string) result =
+  "caml_prismel_metal_command4_render_encoder_set_depth_test_bounds"
+
+external command4_render_encoder_set_scissor_rect :
+  handle -> metal4_scissor_rect -> (unit, string) result =
+  "caml_prismel_metal_command4_render_encoder_set_scissor_rect"
+
+external command4_render_encoder_set_scissor_rects :
+  handle -> metal4_scissor_rect array -> (unit, string) result =
+  "caml_prismel_metal_command4_render_encoder_set_scissor_rects"
+
+external command4_render_encoder_set_triangle_fill_mode :
+  handle -> int -> (unit, string) result =
+  "caml_prismel_metal_command4_render_encoder_set_triangle_fill_mode"
 
 external command4_render_encoder_draw_primitives :
   handle -> handle -> handle array -> (int * int * int) ->

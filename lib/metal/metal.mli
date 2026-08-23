@@ -1832,7 +1832,25 @@ module Command4 : sig
     type depth_attachment
     type stencil_attachment
     type viewport
+    type scissor_rect
     type vertex_amplification_view_mapping
+
+    type winding =
+      | Clockwise
+      | Counter_clockwise
+
+    type cull_mode =
+      | Cull_none
+      | Cull_front
+      | Cull_back
+
+    type depth_clip_mode =
+      | Depth_clip
+      | Depth_clamp
+
+    type triangle_fill_mode =
+      | Triangle_fill
+      | Triangle_lines
 
     type primitive =
       | Point
@@ -1931,7 +1949,42 @@ module Command4 : sig
     val viewport :
       x:float -> y:float -> width:float -> height:float -> z_near:float ->
       z_far:float -> viewport
+
+    (** Builds an integer-pixel scissor rectangle. Bounds are checked against
+        the render target when the rectangle is installed. *)
+    val scissor_rect :
+      x:int -> y:int -> width:int -> height:int -> scissor_rect
+
     val set_viewport : t -> viewport -> (unit, error) result
+
+    (** Installs one to sixteen in-target viewports selected by shader
+        [viewport_array_index] output. *)
+    val set_viewports : t -> viewport list -> (unit, error) result
+
+    val set_scissor_rect : t -> scissor_rect -> (unit, error) result
+
+    (** Installs one to sixteen in-target scissor rectangles selected by shader
+        [viewport_array_index] output. *)
+    val set_scissor_rects : t -> scissor_rect list -> (unit, error) result
+
+    val set_front_facing_winding : t -> winding -> (unit, error) result
+    val set_cull_mode : t -> cull_mode -> (unit, error) result
+    val set_depth_clip_mode : t -> depth_clip_mode -> (unit, error) result
+
+    (** Sets finite float32 constant, slope-scale, and clamp depth bias. *)
+    val set_depth_bias :
+      t -> depth_bias:float -> slope_scale:float -> clamp:float ->
+      (unit, error) result
+
+    (** Sets ordered finite depth bounds in the closed interval zero to one.
+        Any pair other than zero/one enables testing and requires a depth
+        attachment and an Apple10-or-newer GPU. *)
+    val set_depth_test_bounds :
+      t -> min_bound:float -> max_bound:float -> (unit, error) result
+
+    val set_triangle_fill_mode :
+      t -> triangle_fill_mode -> (unit, error) result
+
     val draw_primitives :
       t -> primitive -> vertex_start:int -> vertex_count:int ->
       (unit, error) result

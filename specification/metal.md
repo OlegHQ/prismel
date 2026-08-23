@@ -712,6 +712,47 @@ recording, pipeline/target destruction rejection while command-owned,
 ended-encoder rejection, and successful completion together cover the lifetime
 boundary.
 
+Metal 4 raster state is explicit and encoder-local. A live render encoder
+accepts typed front-face winding, cull, depth-clip, and triangle-fill modes plus
+single or array viewport and scissor state; none of these operations mutates the
+immutable pipeline or pass descriptor or installs process-global state. The
+array forms contain between one and sixteen entries. Every viewport has finite
+values, a nonnegative origin, positive dimensions wholly inside the render
+target, and ordered near/far depth values in `[0, 1]`. Every integer-pixel
+scissor likewise has a nonnegative origin and positive dimensions wholly inside
+the target. Both viewport and scissor validation compare each extent against
+the remaining target dimension by subtraction, avoiding an overflowing
+endpoint.
+
+Depth bias accepts only finite constant, slope-scale, and clamp components
+through the exact IEEE-754 `FLT_MAX` boundary (`0x1.fffffep+127`). Depth-test
+bounds are finite values ordered within `[0, 1]`. The disabled `[0, 1]` pair is
+valid on the qualified M1 and still reaches the native selector; any active pair
+requires both a depth attachment and an Apple10-or-newer GPU, matching Apple's
+February 2026 Metal Feature Set Tables. Safe and native validation reject active
+bounds as `Unsupported` before that selector on the Apple7/M1. Invalid geometry,
+counts, numeric values, missing depth state, or an ended encoder likewise fail
+at the typed boundary before the corresponding native setter. This surface is
+intentionally limited to
+`MTL4RenderCommandEncoder`; the conventional `MTLRenderCommandEncoder`
+selectors are not part of the binding.
+
+The M1 raster-state conformance target observes exact BGRA results: a
+counter-clockwise front face with back culling and nonzero depth bias is solid
+green `(0, 255, 0, 255)`, front culling is transparent `(0, 0, 0, 0)`, and
+clockwise winding with front culling is green. Filled-triangle center is green,
+line-mode center is transparent with an exact green edge pixel, and a `z = 2`
+triangle is transparent under `Depth_clip` but green under `Depth_clamp`. The
+scissor target is green only for `x = 2..4, y = 1..4`; two viewport/scissor
+entries produce blue `(255, 0, 0, 255)` in the top-left quadrant, green in the
+bottom-right, and transparent cross-quadrants. Active depth bounds with or
+without an attachment return typed `Unsupported` on Apple7/M1 without new
+handles, while `[0, 1]` succeeds; the conditional Apple10 branch retains exact
+stored-depth pass/drop assertions. Invalid arrays, geometry, depth, nonfinite or
+over-float32 values, and ended-encoder calls allocate no handles. The source
+library and compiler are destroyed before encoding, bound pipeline/color/depth
+destruction is rejected, and all resources release after completion.
+
 The M1 capability scan accepts amplification counts through eight and first
 rejects nine; synchronous and asynchronous conventional and mesh compilation
 reject zero or nine before native handle allocation. Separate four-sample
@@ -850,6 +891,9 @@ render/mesh alpha-to-one control and enabled targets,
 command-time two-output amplification with an exact split target, deterministic
 identity reset and conventional/mesh attachment swaps, typed rejections, and
 completion-owned pipeline, target, and native-map lifetimes,
+encoder-local raster, viewport, and scissor state with exact cull/fill/clip and
+array targets, Apple10-gated depth bounds, no-allocation validation, and
+completion-owned pipeline and attachment lifetimes,
 typed static/dynamic vertex layouts with exact direct/indexed targets,
 typed static/dynamic vertex, fragment, object, mesh, and tile linking with
 destroyed source handles, exact green conventional/direct-mesh targets, an

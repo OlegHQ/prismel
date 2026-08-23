@@ -10501,6 +10501,30 @@ module Command4 = struct
       ; z_far : float
       }
 
+    type scissor_rect =
+      { x : int
+      ; y : int
+      ; width : int
+      ; height : int
+      }
+
+    type winding =
+      | Clockwise
+      | Counter_clockwise
+
+    type cull_mode =
+      | Cull_none
+      | Cull_front
+      | Cull_back
+
+    type depth_clip_mode =
+      | Depth_clip
+      | Depth_clamp
+
+    type triangle_fill_mode =
+      | Triangle_fill
+      | Triangle_lines
+
     type primitive =
       | Point
       | Line
@@ -10542,6 +10566,9 @@ module Command4 = struct
     let finite_color color =
       Float.is_finite color.red && Float.is_finite color.green
       && Float.is_finite color.blue && Float.is_finite color.alpha
+
+    let finite_float32 value =
+      Float.is_finite value && Float.abs value <= 0x1.fffffep+127
 
     let load_code = function
       | Load_dont_care -> 0
@@ -11175,16 +11202,13 @@ module Command4 = struct
 
     let set_blend_color (value : t) color =
       let operation = "Metal.Command4.Render_encoder.set_blend_color" in
-      let float32 value =
-        Float.is_finite value && Float.abs value <= 3.402823466e38
-      in
       on_main operation (fun () ->
         match ensure_live operation value.lifetime with
         | Error _ as failure -> failure
         | Ok ()
           when not
-                 (float32 color.red && float32 color.green
-                 && float32 color.blue && float32 color.alpha) ->
+                 (finite_float32 color.red && finite_float32 color.green
+                 && finite_float32 color.blue && finite_float32 color.alpha) ->
             error operation Invalid_argument
               "blend-color components must be finite float32 values"
         | Ok () ->
@@ -11263,38 +11287,244 @@ module Command4 = struct
     let viewport ~x ~y ~width ~height ~z_near ~z_far =
       { x; y; width; height; z_near; z_far }
 
+    let scissor_rect ~x ~y ~width ~height = { x; y; width; height }
+
+    let validate_viewport operation (value : t) (viewport : viewport) =
+      let fields =
+        [ viewport.x; viewport.y; viewport.width; viewport.height
+        ; viewport.z_near; viewport.z_far
+        ]
+      in
+      if not (List.for_all Float.is_finite fields) then
+        error operation Invalid_argument "viewport values must be finite"
+      else if
+        viewport.x < 0. || viewport.y < 0. || viewport.width <= 0.
+        || viewport.height <= 0.
+        || viewport.width > float value.width -. viewport.x
+        || viewport.height > float value.height -. viewport.y
+        || viewport.z_near < 0. || viewport.z_near > 1.
+        || viewport.z_far < 0. || viewport.z_far > 1.
+        || viewport.z_near > viewport.z_far
+      then
+        error operation Invalid_argument
+          "viewport lies outside the render target or depth range"
+      else Ok ()
+
+    let raw_viewport (viewport : viewport) =
+      ( viewport.x, viewport.y, viewport.width, viewport.height
+      , viewport.z_near, viewport.z_far )
+
     let set_viewport (value : t) viewport =
       let operation = "Metal.Command4.Render_encoder.set_viewport" in
+      on_main operation (fun () ->
+        let ( let* ) result callback = Result.bind result callback in
+        let* () = ensure_live operation value.lifetime in
+        let* () = validate_viewport operation value viewport in
+        match
+          Metal_raw.command4_render_encoder_set_viewport value.raw
+            (raw_viewport viewport)
+        with
+        | Ok () -> Ok ()
+        | Error message -> native_error operation message)
+
+    let set_viewports (value : t) viewports =
+      let operation = "Metal.Command4.Render_encoder.set_viewports" in
+      on_main operation (fun () ->
+        let ( let* ) result callback = Result.bind result callback in
+        let* () = ensure_live operation value.lifetime in
+        let count = List.length viewports in
+        if count = 0 || count > 16 then
+          error operation Invalid_argument
+            "viewport arrays must contain between one and sixteen entries"
+        else
+          let rec validate = function
+            | [] -> Ok ()
+            | viewport :: rest ->
+                let* () = validate_viewport operation value viewport in
+                validate rest
+          in
+          let* () = validate viewports in
+          match
+            Metal_raw.command4_render_encoder_set_viewports value.raw
+              (Array.of_list (List.map raw_viewport viewports))
+          with
+          | Ok () -> Ok ()
+          | Error message -> native_error operation message)
+
+    let validate_scissor_rect operation (value : t) (rect : scissor_rect) =
+      if rect.x < 0 || rect.y < 0 || rect.width <= 0 || rect.height <= 0 then
+        error operation Invalid_argument
+          "scissor coordinates must be nonnegative and dimensions positive"
+      else if
+        rect.x > value.width - rect.width
+        || rect.y > value.height - rect.height
+      then
+        error operation Invalid_argument
+          "scissor rectangle lies outside the render target"
+      else Ok ()
+
+    let raw_scissor_rect (rect : scissor_rect) =
+      ({ Metal_raw.x = Int64.of_int rect.x
+       ; y = Int64.of_int rect.y
+       ; width = Int64.of_int rect.width
+       ; height = Int64.of_int rect.height
+       }
+        : Metal_raw.metal4_scissor_rect)
+
+    let set_scissor_rect (value : t) rect =
+      let operation = "Metal.Command4.Render_encoder.set_scissor_rect" in
+      on_main operation (fun () ->
+        let ( let* ) result callback = Result.bind result callback in
+        let* () = ensure_live operation value.lifetime in
+        let* () = validate_scissor_rect operation value rect in
+        match
+          Metal_raw.command4_render_encoder_set_scissor_rect value.raw
+            (raw_scissor_rect rect)
+        with
+        | Ok () -> Ok ()
+        | Error message -> native_error operation message)
+
+    let set_scissor_rects (value : t) rects =
+      let operation = "Metal.Command4.Render_encoder.set_scissor_rects" in
+      on_main operation (fun () ->
+        let ( let* ) result callback = Result.bind result callback in
+        let* () = ensure_live operation value.lifetime in
+        let count = List.length rects in
+        if count = 0 || count > 16 then
+          error operation Invalid_argument
+            "scissor arrays must contain between one and sixteen entries"
+        else
+          let rec validate = function
+            | [] -> Ok ()
+            | rect :: rest ->
+                let* () = validate_scissor_rect operation value rect in
+                validate rest
+          in
+          let* () = validate rects in
+          match
+            Metal_raw.command4_render_encoder_set_scissor_rects value.raw
+              (Array.of_list (List.map raw_scissor_rect rects))
+          with
+          | Ok () -> Ok ()
+          | Error message -> native_error operation message)
+
+    let winding_code = function Clockwise -> 0 | Counter_clockwise -> 1
+
+    let set_front_facing_winding (value : t) winding =
+      let operation =
+        "Metal.Command4.Render_encoder.set_front_facing_winding"
+      in
       on_main operation (fun () ->
         match ensure_live operation value.lifetime with
         | Error _ as failure -> failure
         | Ok () ->
-            let fields =
-              [ viewport.x; viewport.y; viewport.width; viewport.height
-              ; viewport.z_near; viewport.z_far
-              ]
-            in
-            if not (List.for_all Float.is_finite fields) then
-              error operation Invalid_argument "viewport values must be finite"
-            else if
-              viewport.x < 0. || viewport.y < 0. || viewport.width <= 0.
-              || viewport.height <= 0.
-              || viewport.x +. viewport.width > float value.width
-              || viewport.y +. viewport.height > float value.height
-              || viewport.z_near < 0. || viewport.z_near > 1.
-              || viewport.z_far < 0. || viewport.z_far > 1.
-              || viewport.z_near > viewport.z_far
-            then
-              error operation Invalid_argument
-                "viewport lies outside the render target or depth range"
-            else
-              match
-                Metal_raw.command4_render_encoder_set_viewport value.raw
-                  ( viewport.x, viewport.y, viewport.width, viewport.height
-                  , viewport.z_near, viewport.z_far )
-              with
-              | Ok () -> Ok ()
-              | Error message -> native_error operation message)
+            (match
+               Metal_raw.command4_render_encoder_set_front_facing_winding
+                 value.raw (winding_code winding)
+             with
+             | Ok () -> Ok ()
+             | Error message -> native_error operation message))
+
+    let cull_mode_code = function
+      | Cull_none -> 0
+      | Cull_front -> 1
+      | Cull_back -> 2
+
+    let set_cull_mode (value : t) mode =
+      let operation = "Metal.Command4.Render_encoder.set_cull_mode" in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () ->
+            (match
+               Metal_raw.command4_render_encoder_set_cull_mode value.raw
+                 (cull_mode_code mode)
+             with
+             | Ok () -> Ok ()
+             | Error message -> native_error operation message))
+
+    let depth_clip_mode_code = function Depth_clip -> 0 | Depth_clamp -> 1
+
+    let set_depth_clip_mode (value : t) mode =
+      let operation = "Metal.Command4.Render_encoder.set_depth_clip_mode" in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () ->
+            (match
+               Metal_raw.command4_render_encoder_set_depth_clip_mode value.raw
+                 (depth_clip_mode_code mode)
+             with
+             | Ok () -> Ok ()
+             | Error message -> native_error operation message))
+
+    let set_depth_bias (value : t) ~depth_bias ~slope_scale ~clamp =
+      let operation = "Metal.Command4.Render_encoder.set_depth_bias" in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok ()
+          when not
+                 (finite_float32 depth_bias && finite_float32 slope_scale
+                 && finite_float32 clamp) ->
+            error operation Invalid_argument
+              "depth-bias components must be finite float32 values"
+        | Ok () ->
+            (match
+               Metal_raw.command4_render_encoder_set_depth_bias value.raw
+                 (depth_bias, slope_scale, clamp)
+             with
+             | Ok () -> Ok ()
+             | Error message -> native_error operation message))
+
+    let set_depth_test_bounds (value : t) ~min_bound ~max_bound =
+      let operation = "Metal.Command4.Render_encoder.set_depth_test_bounds" in
+      on_main operation (fun () ->
+        let active = min_bound <> 0. || max_bound <> 1. in
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok ()
+          when not (finite_float32 min_bound && finite_float32 max_bound)
+               || min_bound < 0. || max_bound > 1. || min_bound > max_bound ->
+            error operation Invalid_argument
+              "depth-test bounds must be finite, ordered, and within [0, 1]"
+        | Ok ()
+          when active
+               && not
+                    (Metal_raw.device_supports_family
+                       value.command_buffer.allocator.device.raw
+                       (Device.family_code Device.Apple10)) ->
+            error operation Unsupported
+              "depth bounds testing requires an Apple10-or-newer GPU"
+        | Ok () when active && Option.is_none value.depth_format ->
+            error operation Invalid_state
+              "active depth bounds testing requires a depth attachment"
+        | Ok () ->
+            (match
+               Metal_raw.command4_render_encoder_set_depth_test_bounds
+                 value.raw (min_bound, max_bound)
+             with
+             | Ok () -> Ok ()
+             | Error message -> native_error operation message))
+
+    let triangle_fill_mode_code = function
+      | Triangle_fill -> 0
+      | Triangle_lines -> 1
+
+    let set_triangle_fill_mode (value : t) mode =
+      let operation =
+        "Metal.Command4.Render_encoder.set_triangle_fill_mode"
+      in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () ->
+            (match
+               Metal_raw.command4_render_encoder_set_triangle_fill_mode
+                 value.raw (triangle_fill_mode_code mode)
+             with
+             | Ok () -> Ok ()
+             | Error message -> native_error operation message))
 
     let primitive_code = function
       | Point -> 0

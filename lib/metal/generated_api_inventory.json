@@ -2,11 +2,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 1790,
+    "bound": 1822,
     "scope-excluded": 7,
-    "unreviewed": 3488
+    "unreviewed": 3456
   },
-  "classification_source_sha256": "7ed1855d0229da9efff18aac089ea74a168d2b8f9039d846bb78e16aaf113c7b",
+  "classification_source_sha256": "ea59189e574399933d45b6267c3c29a3a851669406028fe0d5f3d2c0da789a82",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "header_aggregate_sha256": "c2ee1e44c76606cf05fa81d1a8314dadfa49efe900342e8bcb3670363c16f0d1",
@@ -5729,38 +5729,38 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "enum-case:MTLCullMode:MTLCullModeBack",
       "kind": "enum-case",
       "line": 55,
       "name": "MTLCullModeBack",
       "owner": "MTLCullMode",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLCullMode"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "enum-case:MTLCullMode:MTLCullModeFront",
       "kind": "enum-case",
       "line": 54,
       "name": "MTLCullModeFront",
       "owner": "MTLCullMode",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLCullMode"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "enum-case:MTLCullMode:MTLCullModeNone",
       "kind": "enum-case",
       "line": 53,
       "name": "MTLCullModeNone",
       "owner": "MTLCullMode",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLCullMode"
     },
     {
@@ -7117,26 +7117,26 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "enum-case:MTLDepthClipMode:MTLDepthClipModeClamp",
       "kind": "enum-case",
       "line": 65,
       "name": "MTLDepthClipModeClamp",
       "owner": "MTLDepthClipMode",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLDepthClipMode"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "enum-case:MTLDepthClipMode:MTLDepthClipModeClip",
       "kind": "enum-case",
       "line": 64,
       "name": "MTLDepthClipModeClip",
       "owner": "MTLDepthClipMode",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLDepthClipMode"
     },
     {
@@ -13377,26 +13377,26 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "enum-case:MTLTriangleFillMode:MTLTriangleFillModeFill",
       "kind": "enum-case",
       "line": 69,
       "name": "MTLTriangleFillModeFill",
       "owner": "MTLTriangleFillMode",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLTriangleFillMode"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "enum-case:MTLTriangleFillMode:MTLTriangleFillModeLines",
       "kind": "enum-case",
       "line": 70,
       "name": "MTLTriangleFillModeLines",
       "owner": "MTLTriangleFillMode",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLTriangleFillMode"
     },
     {
@@ -14199,26 +14199,26 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "enum-case:MTLWinding:MTLWindingClockwise",
       "kind": "enum-case",
       "line": 59,
       "name": "MTLWindingClockwise",
       "owner": "MTLWinding",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLWinding"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "enum-case:MTLWinding:MTLWindingCounterClockwise",
       "kind": "enum-case",
       "line": 60,
       "name": "MTLWindingCounterClockwise",
       "owner": "MTLWinding",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLWinding"
     },
     {
@@ -14850,14 +14850,14 @@
         "AvailabilityAttr",
         "EnumExtensibilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "enum:MTLCullMode",
       "kind": "enum",
       "line": 52,
       "name": "MTLCullMode",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -14925,14 +14925,14 @@
         "AvailabilityAttr",
         "EnumExtensibilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "enum:MTLDepthClipMode",
       "kind": "enum",
       "line": 63,
       "name": "MTLDepthClipMode",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -16044,14 +16044,14 @@
         "AvailabilityAttr",
         "EnumExtensibilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "enum:MTLTriangleFillMode",
       "kind": "enum",
       "line": 68,
       "name": "MTLTriangleFillMode",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -16119,14 +16119,14 @@
         "AvailabilityAttr",
         "EnumExtensibilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "enum:MTLWinding",
       "kind": "enum",
       "line": 58,
       "name": "MTLWinding",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -17667,50 +17667,50 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "field:MTLScissorRect:height",
       "kind": "field",
       "line": null,
       "name": "height",
       "owner": "MTLScissorRect",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "field:MTLScissorRect:width",
       "kind": "field",
       "line": null,
       "name": "width",
       "owner": "MTLScissorRect",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "field:MTLScissorRect:x",
       "kind": "field",
       "line": 45,
       "name": "x",
       "owner": "MTLScissorRect",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "field:MTLScissorRect:y",
       "kind": "field",
       "line": null,
       "name": "y",
       "owner": "MTLScissorRect",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
@@ -24708,38 +24708,38 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderCommandEncoder.h",
       "id": "method:-[MTL4RenderCommandEncoder setCullMode:]",
       "kind": "method",
       "line": 122,
       "name": "setCullMode:",
       "owner": "MTL4RenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLCullMode) -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderCommandEncoder.h",
       "id": "method:-[MTL4RenderCommandEncoder setDepthBias:slopeScale:clamp:]",
       "kind": "method",
       "line": 138,
       "name": "setDepthBias:slopeScale:clamp:",
       "owner": "MTL4RenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (float, float, float) -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderCommandEncoder.h",
       "id": "method:-[MTL4RenderCommandEncoder setDepthClipMode:]",
       "kind": "method",
       "line": 127,
       "name": "setDepthClipMode:",
       "owner": "MTL4RenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLDepthClipMode) -> void"
     },
     {
@@ -24768,26 +24768,26 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderCommandEncoder.h",
       "id": "method:-[MTL4RenderCommandEncoder setDepthTestMinBound:maxBound:]",
       "kind": "method",
       "line": 152,
       "name": "setDepthTestMinBound:maxBound:",
       "owner": "MTL4RenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (float, float) -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderCommandEncoder.h",
       "id": "method:-[MTL4RenderCommandEncoder setFrontFacingWinding:]",
       "kind": "method",
       "line": 612,
       "name": "setFrontFacingWinding:",
       "owner": "MTL4RenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLWinding) -> void"
     },
     {
@@ -24816,26 +24816,26 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderCommandEncoder.h",
       "id": "method:-[MTL4RenderCommandEncoder setScissorRect:]",
       "kind": "method",
       "line": 160,
       "name": "setScissorRect:",
       "owner": "MTL4RenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLScissorRect) -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderCommandEncoder.h",
       "id": "method:-[MTL4RenderCommandEncoder setScissorRects:count:]",
       "kind": "method",
       "line": 171,
       "name": "setScissorRects:count:",
       "owner": "MTL4RenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (const MTLScissorRect * _Nonnull, NSUInteger) -> void"
     },
     {
@@ -24888,14 +24888,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderCommandEncoder.h",
       "id": "method:-[MTL4RenderCommandEncoder setTriangleFillMode:]",
       "kind": "method",
       "line": 178,
       "name": "setTriangleFillMode:",
       "owner": "MTL4RenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLTriangleFillMode) -> void"
     },
     {
@@ -24924,14 +24924,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderCommandEncoder.h",
       "id": "method:-[MTL4RenderCommandEncoder setViewports:count:]",
       "kind": "method",
       "line": 101,
       "name": "setViewports:count:",
       "owner": "MTL4RenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (const MTLViewport * _Nonnull, NSUInteger) -> void"
     },
     {
@@ -65073,14 +65073,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "record:MTLScissorRect",
       "kind": "record",
       "line": 44,
       "name": "MTLScissorRect",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "struct"
     },
     {
@@ -66123,14 +66123,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "typedef:MTLCullMode",
       "kind": "typedef",
       "line": 52,
       "name": "MTLCullMode",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "enum MTLCullMode"
     },
     {
@@ -66183,14 +66183,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "typedef:MTLDepthClipMode",
       "kind": "typedef",
       "line": 63,
       "name": "MTLDepthClipMode",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "enum MTLDepthClipMode"
     },
     {
@@ -67172,14 +67172,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "typedef:MTLScissorRect",
       "kind": "typedef",
       "line": 46,
       "name": "MTLScissorRect",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "struct MTLScissorRect"
     },
     {
@@ -67558,14 +67558,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "typedef:MTLTriangleFillMode",
       "kind": "typedef",
       "line": 68,
       "name": "MTLTriangleFillMode",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "enum MTLTriangleFillMode"
     },
     {
@@ -67656,14 +67656,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "typedef:MTLWinding",
       "kind": "typedef",
       "line": 58,
       "name": "MTLWinding",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "enum MTLWinding"
     },
     {
