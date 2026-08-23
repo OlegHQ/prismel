@@ -13,12 +13,24 @@ let () =
   let device = get (Device.system_default ()) in
   let queue = get (Command_queue.create device) in
   let layer = get (Metal_layer.create device (Metal_layer.default ~width:8 ~height:8)) in
+  expect Unsupported
+    (Metal_layer.configure layer
+       { (Metal_layer.default ~width:8 ~height:8) with
+         format = Texture.Rgba8_unorm
+       });
+  get
+    (Metal_layer.configure layer
+       (Metal_layer.default ~width:16 ~height:8));
+  if Metal_layer.size layer <> (16, 8) then fail "layer resize snapshot drift";
   let drawable =
     match get (Drawable.acquire layer) with
     | Ok drawable -> drawable
     | Error Drawable.Timeout_or_unavailable -> fail "unexpected drawable loss"
   in
   let texture = get (Drawable.texture drawable) in
+  let texture_descriptor = Texture.descriptor texture in
+  if texture_descriptor.width <> 16 || texture_descriptor.height <> 8 then
+    fail "drawable texture metadata did not reflect the acquired texture";
   expect Parent_has_dependents (Drawable.destroy drawable);
   let commands = get (Command_buffer.create queue ()) in
   let encoder = get (Render_encoder.create commands ~target:texture ()) in
