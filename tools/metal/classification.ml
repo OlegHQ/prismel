@@ -55,6 +55,7 @@ let bound_identifiers =
   ; "class:MTLFunctionConstantValues"
   ; "class:MTLHeapDescriptor"
   ; "class:MTLLinkedFunctions"
+  ; "class:MTLLogicalToPhysicalColorAttachmentMap"
   ; "class:MTLResidencySetDescriptor"
   ; "class:MTLRenderPipelineReflection"
   ; "class:MTLRenderPassAttachmentDescriptor"
@@ -146,6 +147,7 @@ let bound_identifiers =
   ; "record:MTLSize"
   ; "record:MTLSizeAndAlign"
   ; "record:MTLTextureSwizzleChannels"
+  ; "record:MTLVertexAmplificationViewMapping"
   ; "record:MTLViewport"
   ; "field:MTLClearColor:alpha"
   ; "field:MTLClearColor:blue"
@@ -166,6 +168,8 @@ let bound_identifiers =
   ; "field:MTLTextureSwizzleChannels:blue"
   ; "field:MTLTextureSwizzleChannels:green"
   ; "field:MTLTextureSwizzleChannels:red"
+  ; "field:MTLVertexAmplificationViewMapping:renderTargetArrayIndexOffset"
+  ; "field:MTLVertexAmplificationViewMapping:viewportArrayIndexOffset"
   ; "field:MTLViewport:height"
   ; "field:MTLViewport:originX"
   ; "field:MTLViewport:originY"
@@ -291,6 +295,7 @@ let bound_identifiers =
   ; "typedef:MTLTextureSwizzle"
   ; "typedef:MTLTextureSwizzleChannels"
   ; "typedef:MTLTextureUsage"
+  ; "typedef:MTLVertexAmplificationViewMapping"
   ; "typedef:MTLVertexFormat"
   ; "typedef:MTLVertexStepFunction"
   ; "typedef:MTLViewport"
@@ -360,18 +365,20 @@ let bound_identifiers =
           ; "drawPrimitives:vertexStart:vertexCount:instanceCount:baseInstance:"
           ; "setArgumentTable:atStages:"
           ; "setBlendColorRed:green:blue:alpha:"
+          ; "setColorAttachmentMap:"
           ; "setDepthStencilState:"
           ; "setRenderPipelineState:"
           ; "setStencilFrontReferenceValue:backReferenceValue:"
           ; "setStencilReferenceValue:"
+          ; "setVertexAmplificationCount:viewMappings:"
           ; "setViewport:"; "tileHeight"; "tileWidth"
           ] )
       ; ( "MTL4RenderPassDescriptor"
         , [ "colorAttachments"; "defaultRasterSampleCount"; "depthAttachment"
           ; "renderTargetHeight"; "renderTargetWidth"
           ; "setDefaultRasterSampleCount:"; "setRenderTargetHeight:"
-          ; "setRenderTargetWidth:"
-          ; "stencilAttachment"
+          ; "setRenderTargetWidth:"; "setSupportColorAttachmentMapping:"
+          ; "stencilAttachment"; "supportColorAttachmentMapping"
           ] )
       ; ( "MTL4Compiler"
         , [ "device"; "label"
@@ -694,6 +701,10 @@ let bound_identifiers =
           ] )
       ; ( "MTLLinkedFunctions"
         , [ "functions"; "setFunctions:" ] )
+      ; ( "MTLLogicalToPhysicalColorAttachmentMap"
+        , [ "getPhysicalIndexForLogicalIndex:"; "reset"
+          ; "setPhysicalIndex:forLogicalIndex:"
+          ] )
       ; ( "MTLBinding"
         , [ "access"; "index"; "isArgument"; "isUsed"; "name"; "type" ] )
       ; ( "MTLBufferBinding"
@@ -893,6 +904,7 @@ let bound_identifiers =
       ; ( "MTL4RenderPassDescriptor"
         , [ "colorAttachments"; "defaultRasterSampleCount"; "depthAttachment"
           ; "renderTargetHeight"; "renderTargetWidth"; "stencilAttachment"
+          ; "supportColorAttachmentMapping"
           ] )
       ; "MTLAllocation", [ "allocatedSize" ]
       ; "MTLBinaryArchive", [ "device"; "label" ]

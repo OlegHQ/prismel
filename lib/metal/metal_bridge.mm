@@ -10436,6 +10436,8 @@ extern "C" CAMLprim value caml_prismel_metal_command4_render_encoder_create(
         value raw_width = Field(raw_descriptor, 3);
         value raw_height = Field(raw_descriptor, 4);
         value raw_label = Field(raw_descriptor, 5);
+        const intnat support_color_attachment_mapping_code =
+            Long_val(Field(raw_descriptor, 6));
         const mlsize_t count = Wosize_val(raw_attachments);
         const intnat width = Long_val(raw_width);
         const intnat height = Long_val(raw_height);
@@ -10447,15 +10449,30 @@ extern "C" CAMLprim value caml_prismel_metal_command4_render_encoder_create(
                 "Metal 4 render-encoder label is not valid UTF-8"));
           }
         }
-        if (count == 0 || count > 8 || width <= 0 || height <= 0) {
+        if (count == 0 || count > 8 || width <= 0 || height <= 0 ||
+            support_color_attachment_mapping_code < 0 ||
+            support_color_attachment_mapping_code > 1) {
           CAMLreturn(result_error_text(
               "Metal 4 render-pass attachments or dimensions are invalid"));
         }
+        const bool support_color_attachment_mapping =
+            support_color_attachment_mapping_code == 1;
         MTL4RenderPassDescriptor *descriptor =
             [[MTL4RenderPassDescriptor alloc] init];
+        if (descriptor.supportColorAttachmentMapping) {
+          CAMLreturn(result_error_text(
+              "Metal changed the Metal 4 color-attachment-mapping default"));
+        }
+        descriptor.supportColorAttachmentMapping = YES;
+        if (!descriptor.supportColorAttachmentMapping) {
+          CAMLreturn(result_error_text(
+              "Metal discarded checked render-pass mapping support"));
+        }
         descriptor.renderTargetWidth = static_cast<NSUInteger>(width);
         descriptor.renderTargetHeight = static_cast<NSUInteger>(height);
         descriptor.defaultRasterSampleCount = 1;
+        descriptor.supportColorAttachmentMapping =
+            support_color_attachment_mapping;
         NSMutableArray<id<MTLTexture>> *textures =
             [[NSMutableArray alloc] initWithCapacity:count];
         for (mlsize_t index = 0; index < count; ++index) {
@@ -10579,6 +10596,14 @@ extern "C" CAMLprim value caml_prismel_metal_command4_render_encoder_create(
                 "Metal changed checked Metal 4 stencil attachment properties"));
           }
           [textures addObject:texture];
+        }
+        if (descriptor.renderTargetWidth != static_cast<NSUInteger>(width) ||
+            descriptor.renderTargetHeight != static_cast<NSUInteger>(height) ||
+            descriptor.defaultRasterSampleCount != 1 ||
+            descriptor.supportColorAttachmentMapping !=
+                support_color_attachment_mapping) {
+          CAMLreturn(result_error_text(
+              "Metal changed checked Metal 4 render-pass properties"));
         }
         id<MTL4RenderCommandEncoder> encoder =
             [state.commandBuffer renderCommandEncoderWithDescriptor:descriptor];
@@ -10842,6 +10867,183 @@ caml_prismel_metal_command4_render_encoder_set_viewport(
             Double_val(Field(raw_viewport, 5)),
         };
         [encoder setViewport:viewport];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("Metal 4 commands require macOS 26"));
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_command4_render_encoder_set_vertex_amplification_count(
+    value raw_encoder, value raw_buffer, value raw_count,
+    value raw_mappings) {
+  CAMLparam4(raw_encoder, raw_buffer, raw_count, raw_mappings);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4RenderCommandEncoder> encoder =
+            object_of_handle(raw_encoder, Handle_kind::Render_encoder4);
+        PrismelMetal4CommandBufferState *command_buffer =
+            command_buffer4_state_of_handle(raw_buffer);
+        const intnat count = Long_val(raw_count);
+        if (encoder.commandBuffer != command_buffer.commandBuffer || count < 1 ||
+            count > 2) {
+          CAMLreturn(result_error_text(
+              "Metal 4 vertex amplification arguments are invalid"));
+        }
+        std::array<MTLVertexAmplificationViewMapping, 2> mappings{};
+        const MTLVertexAmplificationViewMapping *mapping_pointer = nullptr;
+        if (Is_block(raw_mappings)) {
+          value raw_mapping_array = Field(raw_mappings, 0);
+          if (Wosize_val(raw_mapping_array) !=
+              static_cast<mlsize_t>(count)) {
+            CAMLreturn(result_error_text(
+                "Metal 4 vertex amplification mapping count is invalid"));
+          }
+          for (intnat index = 0; index < count; ++index) {
+            value raw_mapping =
+                Field(raw_mapping_array, static_cast<mlsize_t>(index));
+            const std::int64_t viewport_offset =
+                Int64_val(Field(raw_mapping, 0));
+            const std::int64_t render_target_offset =
+                Int64_val(Field(raw_mapping, 1));
+            if (viewport_offset < 0 || render_target_offset < 0 ||
+                static_cast<std::uint64_t>(viewport_offset) >
+                    std::numeric_limits<std::uint32_t>::max() ||
+                static_cast<std::uint64_t>(render_target_offset) >
+                    std::numeric_limits<std::uint32_t>::max()) {
+              CAMLreturn(result_error_text(
+                  "Metal 4 vertex amplification mapping is out of range"));
+            }
+            MTLVertexAmplificationViewMapping &mapping =
+                mappings[static_cast<std::size_t>(index)];
+            mapping.viewportArrayIndexOffset =
+                static_cast<std::uint32_t>(viewport_offset);
+            mapping.renderTargetArrayIndexOffset =
+                static_cast<std::uint32_t>(render_target_offset);
+          }
+          mapping_pointer = mappings.data();
+        }
+        [encoder
+            setVertexAmplificationCount:static_cast<NSUInteger>(count)
+                             viewMappings:mapping_pointer];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("Metal 4 commands require macOS 26"));
+  }
+}
+
+API_AVAILABLE(macos(26.0))
+MTLLogicalToPhysicalColorAttachmentMap *
+new_checked_color_attachment_map(
+    const std::array<NSUInteger, 8> &expected_mapping,
+    NSString *__autoreleasing *failure) {
+  MTLLogicalToPhysicalColorAttachmentMap *mapping =
+      [[MTLLogicalToPhysicalColorAttachmentMap alloc] init];
+  if (mapping == nil) {
+    *failure = @"Metal failed to allocate a color-attachment map";
+    return nil;
+  }
+  for (NSUInteger logical_index = 0; logical_index < 8; ++logical_index) {
+    [mapping setPhysicalIndex:7 - logical_index
+              forLogicalIndex:logical_index];
+    if ([mapping getPhysicalIndexForLogicalIndex:logical_index] !=
+        7 - logical_index) {
+      *failure = @"Metal changed checked color-attachment map properties";
+      return nil;
+    }
+  }
+  [mapping reset];
+  for (NSUInteger logical_index = 0; logical_index < 8; ++logical_index) {
+    if ([mapping getPhysicalIndexForLogicalIndex:logical_index] !=
+        logical_index) {
+      *failure = @"Metal changed color-attachment map reset semantics";
+      return nil;
+    }
+    [mapping setPhysicalIndex:expected_mapping[logical_index]
+              forLogicalIndex:logical_index];
+  }
+  for (NSUInteger logical_index = 0; logical_index < 8; ++logical_index) {
+    if ([mapping getPhysicalIndexForLogicalIndex:logical_index] !=
+        expected_mapping[logical_index]) {
+      *failure = @"Metal changed the requested color-attachment mapping";
+      return nil;
+    }
+  }
+  MTLLogicalToPhysicalColorAttachmentMap *copied_mapping = [mapping copy];
+  if (copied_mapping == nil) {
+    *failure = @"Metal failed to copy a checked color-attachment map";
+    return nil;
+  }
+  for (NSUInteger logical_index = 0; logical_index < 8; ++logical_index) {
+    if ([copied_mapping getPhysicalIndexForLogicalIndex:logical_index] !=
+        expected_mapping[logical_index]) {
+      *failure = @"Metal changed copied color-attachment map properties";
+      return nil;
+    }
+  }
+  return mapping;
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_command4_render_encoder_set_color_attachment_map(
+    value raw_encoder, value raw_buffer, value raw_map) {
+  CAMLparam3(raw_encoder, raw_buffer, raw_map);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4RenderCommandEncoder> encoder =
+            object_of_handle(raw_encoder, Handle_kind::Render_encoder4);
+        PrismelMetal4CommandBufferState *command_buffer =
+            command_buffer4_state_of_handle(raw_buffer);
+        if (encoder.commandBuffer != command_buffer.commandBuffer) {
+          CAMLreturn(result_error_text(
+              "Metal 4 color-attachment map belongs to another command buffer"));
+        }
+        std::array<NSUInteger, 8> expected_mapping{};
+        for (NSUInteger index = 0; index < expected_mapping.size(); ++index) {
+          expected_mapping[index] = index;
+        }
+        if (Is_block(raw_map)) {
+          value raw_indices = Field(raw_map, 0);
+          const mlsize_t count = Wosize_val(raw_indices);
+          if (count == 0 || count > 8) {
+            CAMLreturn(result_error_text(
+                "Metal 4 color-attachment mapping count is invalid"));
+          }
+          std::array<bool, 8> physical_indices_seen{};
+          for (mlsize_t logical_index = 0; logical_index < count;
+               ++logical_index) {
+            const intnat physical_index =
+                Long_val(Field(raw_indices, logical_index));
+            if (physical_index < 0 ||
+                physical_index >= static_cast<intnat>(count) ||
+                physical_indices_seen[
+                    static_cast<std::size_t>(physical_index)]) {
+              CAMLreturn(result_error_text(
+                  "Metal 4 color-attachment mapping is not a permutation"));
+            }
+            physical_indices_seen[static_cast<std::size_t>(physical_index)] =
+                true;
+            expected_mapping[logical_index] =
+                static_cast<NSUInteger>(physical_index);
+          }
+        }
+        NSString *validation_failure = nil;
+        MTLLogicalToPhysicalColorAttachmentMap *mapping =
+            new_checked_color_attachment_map(expected_mapping,
+                                             &validation_failure);
+        if (mapping == nil) {
+          CAMLreturn(result_error(validation_failure));
+        }
+        [encoder setColorAttachmentMap:mapping];
+        [command_buffer retainEncodedObject:mapping];
         CAMLreturn(result_unit());
       } @catch (NSException *exception) {
         CAMLreturn(result_error(exception.reason));

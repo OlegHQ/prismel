@@ -1205,6 +1205,8 @@ type command4_render_encoder =
   ; color_formats : pixel_format list
   ; depth_format : pixel_format option
   ; stencil_format : pixel_format option
+  ; support_color_attachment_mapping : bool
+  ; mutable vertex_amplification_count : int
   ; mutable pipeline : render_pipeline option
   ; mutable mesh_limits : mesh_pipeline_limits option
   ; mutable tile_limits : tile_pipeline_limits option
@@ -10439,6 +10441,11 @@ module Command4 = struct
   module Render_encoder = struct
     type t = command4_render_encoder
 
+    type vertex_amplification_view_mapping =
+      { viewport_array_index_offset : int
+      ; render_target_array_index_offset : int
+      }
+
     type color =
       { red : float
       ; green : float
@@ -10526,6 +10533,11 @@ module Command4 = struct
     let stencil_attachment ?(load_action = Stencil_clear)
         ?(store_action = Store) ?(clear_stencil = Int32.zero) texture =
       { texture; load_action; store_action; clear_stencil }
+
+    let vertex_amplification_view_mapping
+        ?(viewport_array_index_offset = 0)
+        ?(render_target_array_index_offset = 0) () =
+      { viewport_array_index_offset; render_target_array_index_offset }
 
     let finite_color color =
       Float.is_finite color.red && Float.is_finite color.green
@@ -10695,6 +10707,7 @@ module Command4 = struct
         : Metal_raw.metal4_render_stencil_attachment)
 
     let create ?label ?depth_attachment ?stencil_attachment
+        ?(support_color_attachment_mapping = false)
         (command_buffer : Command_buffer.t) ~color_attachments =
       let operation = "Metal.Command4.Render_encoder.create" in
       on_main operation (fun () ->
@@ -10747,6 +10760,7 @@ module Command4 = struct
                              ; width
                              ; height
                              ; label
+                             ; support_color_attachment_mapping
                              }
                            in
                            match
@@ -10789,6 +10803,8 @@ module Command4 = struct
                                        (fun (attachment : stencil_attachment) ->
                                          attachment.texture.descriptor.format)
                                        stencil_attachment
+                                 ; support_color_attachment_mapping
+                                 ; vertex_amplification_count = 1
                                  ; pipeline = None
                                  ; mesh_limits = None
                                  ; tile_limits = None
@@ -10913,6 +10929,16 @@ module Command4 = struct
                   | Ok () when pipeline.color_formats <> value.color_formats ->
                       error operation Invalid_argument
                         "pipeline color formats do not match the render pass"
+                  | Ok ()
+                    when pipeline.color_attachment_mapping = Inherited
+                         && not value.support_color_attachment_mapping ->
+                      error operation Invalid_argument
+                        "an inherited color-attachment mapping pipeline requires render-pass mapping support"
+                  | Ok ()
+                    when value.vertex_amplification_count
+                         > pipeline.max_vertex_amplification_count ->
+                      error operation Invalid_argument
+                        "pipeline maximum is below the active vertex amplification count"
                   | Ok () ->
                       let limits =
                         match pipeline.kind with
@@ -10939,6 +10965,136 @@ module Command4 = struct
                                value.mesh_limits <- mesh_limits;
                                value.tile_limits <- tile_limits;
                                Ok ()))))
+
+    let uint32_offset value =
+      value >= 0 && Int64.compare (Int64.of_int value) 0xFFFF_FFFFL <= 0
+
+    let raw_view_mapping (mapping : vertex_amplification_view_mapping) =
+      ({ Metal_raw.viewport_array_index_offset =
+           Int64.of_int mapping.viewport_array_index_offset
+       ; render_target_array_index_offset =
+           Int64.of_int mapping.render_target_array_index_offset
+       }
+        : Metal_raw.metal4_vertex_amplification_view_mapping)
+
+    let set_vertex_amplification_count (value : t) ?view_mappings count =
+      let operation =
+        "Metal.Command4.Render_encoder.set_vertex_amplification_count"
+      in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () when count <= 0 || count > 2 ->
+            error operation Invalid_argument
+              "Metal 4 vertex amplification count must be between one and two"
+        | Ok () ->
+            (match value.pipeline with
+             | None ->
+                 error operation Invalid_state
+                   "vertex amplification requires a bound render pipeline"
+             | Some pipeline when pipeline.kind = Tile ->
+                 error operation Invalid_state
+                   "vertex amplification is unavailable for tile pipelines"
+             | Some pipeline
+               when count > pipeline.max_vertex_amplification_count ->
+                 error operation Invalid_argument
+                   "vertex amplification count exceeds the pipeline maximum"
+             | Some _
+               when not
+                      (Metal_raw.device_supports_vertex_amplification_count
+                         value.command_buffer.allocator.device.raw count) ->
+                 error operation Unsupported
+                   "the Metal device does not support the vertex amplification count"
+             | Some _ ->
+                 let mapping_validation =
+                   match view_mappings with
+                   | None -> Ok ()
+                   | Some mappings when List.length mappings <> count ->
+                       error operation Invalid_argument
+                         "the view-mapping count must equal the vertex amplification count"
+                   | Some mappings
+                     when List.exists
+                            (fun mapping ->
+                              not
+                                (uint32_offset
+                                   mapping.viewport_array_index_offset
+                                 && uint32_offset
+                                      mapping.render_target_array_index_offset))
+                            mappings ->
+                       error operation Invalid_argument
+                         "vertex amplification view offsets must fit uint32"
+                   | Some _ -> Ok ()
+                 in
+                 (match mapping_validation with
+                  | Error _ as failure -> failure
+                  | Ok () ->
+                      let raw_mappings =
+                        Option.map
+                          (fun mappings ->
+                            Array.of_list (List.map raw_view_mapping mappings))
+                          view_mappings
+                      in
+                      match
+                        Metal_raw
+                        .command4_render_encoder_set_vertex_amplification_count
+                          value.raw value.command_buffer.raw count raw_mappings
+                      with
+                      | Error message -> native_error operation message
+                      | Ok () ->
+                          value.vertex_amplification_count <- count;
+                          Ok ())))
+
+    let validate_color_attachment_map operation attachment_count = function
+      | None -> Ok None
+      | Some physical_indices
+        when List.length physical_indices <> attachment_count ->
+          error operation Invalid_argument
+            "the color-attachment map must cover every render attachment"
+      | Some physical_indices
+        when List.exists
+               (fun index -> index < 0 || index >= attachment_count)
+               physical_indices ->
+          error operation Invalid_argument
+            "a mapped physical color-attachment index is out of range"
+      | Some physical_indices
+        when List.length (List.sort_uniq Int.compare physical_indices)
+             <> attachment_count ->
+          error operation Invalid_argument
+            "the color-attachment map must be a permutation"
+      | Some physical_indices -> Ok (Some (Array.of_list physical_indices))
+
+    let set_color_attachment_map (value : t) physical_indices =
+      let operation =
+        "Metal.Command4.Render_encoder.set_color_attachment_map"
+      in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () when not value.support_color_attachment_mapping ->
+            error operation Invalid_state
+              "the render pass did not enable color-attachment mapping"
+        | Ok () ->
+            (match value.pipeline with
+             | None ->
+                 error operation Invalid_state
+                   "color-attachment mapping requires a bound render pipeline"
+             | Some pipeline
+               when pipeline.color_attachment_mapping <> Inherited ->
+                 error operation Invalid_state
+                   "the bound pipeline does not inherit its color-attachment mapping"
+             | Some _ ->
+                 (match
+                    validate_color_attachment_map operation
+                      (List.length value.color_formats) physical_indices
+                  with
+                  | Error _ as failure -> failure
+                  | Ok raw_map ->
+                      match
+                        Metal_raw.command4_render_encoder_set_color_attachment_map
+                          value.raw value.command_buffer.raw raw_map
+                      with
+                      | Error message -> native_error operation message
+                      | Ok () -> Ok ())))
 
     let set_depth_stencil_state (value : t) state =
       let operation =

@@ -263,6 +263,13 @@ type metal4_render_pass_descriptor =
   ; width : int
   ; height : int
   ; label : string option
+  ; support_color_attachment_mapping : bool
+  }
+
+(** Positional native ABI record for one amplified vertex view. *)
+type metal4_vertex_amplification_view_mapping =
+  { viewport_array_index_offset : int64
+  ; render_target_array_index_offset : int64
   }
 
 (** Positional native ABI record for one immutable stencil face. *)
@@ -995,6 +1002,16 @@ external command4_render_encoder_create :
 external command4_render_encoder_set_pipeline :
   handle -> handle -> handle -> (unit, string) result =
   "caml_prismel_metal_command4_render_encoder_set_pipeline"
+
+external command4_render_encoder_set_vertex_amplification_count :
+  handle -> handle -> int ->
+  metal4_vertex_amplification_view_mapping array option ->
+  (unit, string) result =
+  "caml_prismel_metal_command4_render_encoder_set_vertex_amplification_count"
+
+external command4_render_encoder_set_color_attachment_map :
+  handle -> handle -> int array option -> (unit, string) result =
+  "caml_prismel_metal_command4_render_encoder_set_color_attachment_map"
 
 external command4_render_encoder_set_depth_stencil :
   handle -> handle -> handle option -> (unit, string) result =

@@ -1832,6 +1832,7 @@ module Command4 : sig
     type depth_attachment
     type stencil_attachment
     type viewport
+    type vertex_amplification_view_mapping
 
     type primitive =
       | Point
@@ -1870,14 +1871,37 @@ module Command4 : sig
       ?load_action:stencil_load_action -> ?store_action:store_action ->
       ?clear_stencil:int32 -> Texture.t -> stencil_attachment
 
+    (** Describes the unsigned 32-bit viewport- and render-target-array index
+        offsets for one amplified vertex output. Values are checked when the
+        mapping is installed on an encoder. *)
+    val vertex_amplification_view_mapping :
+      ?viewport_array_index_offset:int ->
+      ?render_target_array_index_offset:int -> unit ->
+      vertex_amplification_view_mapping
+
     val create :
       ?label:string -> ?depth_attachment:depth_attachment ->
-      ?stencil_attachment:stencil_attachment -> Command_buffer.t ->
+      ?stencil_attachment:stencil_attachment ->
+      ?support_color_attachment_mapping:bool -> Command_buffer.t ->
       color_attachments:color_attachment list -> (t, error) result
 
     (** Binds a conventional, mesh, or tile render pipeline whose sample count
         and ordered color formats match the render pass. *)
     val set_pipeline : t -> Render_pipeline.t -> (unit, error) result
+
+    (** Sets the number of amplified vertex outputs for subsequent conventional
+        or mesh draws. Metal 4 accepts one or two outputs; the count must also
+        fit the bound pipeline and device. When present, [view_mappings] has
+        exactly one unsigned-32-bit offset pair per output. *)
+    val set_vertex_amplification_count :
+      t -> ?view_mappings:vertex_amplification_view_mapping list -> int ->
+      (unit, error) result
+
+    (** Installs a complete logical-to-physical color-attachment permutation,
+        or clears it to Metal's identity mapping with [None]. The pass must
+        opt in at creation and the bound pipeline must use [Inherited]. *)
+    val set_color_attachment_map :
+      t -> int list option -> (unit, error) result
 
     (** Binds immutable depth/stencil state. Active depth testing or writes
         require a depth attachment, and an explicit stencil face requires a

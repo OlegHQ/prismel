@@ -671,16 +671,53 @@ preserves those native semantics and still assigns and reads back the final
 requested indirect state. It then sets and reads back the exact alpha states,
 amplification count, and mapping state on conventional and mesh descriptors;
 the synchronous and asynchronous compiler paths share that checked
-construction. Command-time vertex amplification and logical-to-physical color-
-attachment remapping are not inferred from those compile-time promises and
-remain open until their encoder and map-object surfaces are implemented.
+construction.
+
+The Metal 4 command path keeps amplification and color remapping explicit.
+Render-pass creation defaults color-attachment mapping support off and must opt
+in before binding an `Inherited` pipeline. `MTL4RenderPassDescriptor` has no
+reset method, so the bridge checks a fresh false value, a poison true set/read,
+and the separate final descriptor's exact requested value.
+`set_color_attachment_map` interprets each list position as a logical output and
+its value as the corresponding physical attachment; an explicit map must cover
+every attachment exactly once, remain in range, and therefore be a complete
+permutation. Supplying no map deterministically installs an explicitly reset
+identity map rather than relying on undocumented `nil` semantics. The native
+boundary verifies the map object's set/get, reset-to-identity, and copy
+semantics before encoding it, and retains the checked object through command
+completion.
+
+`set_vertex_amplification_count` requires a bound conventional or mesh pipeline
+and accepts only Metal's documented command-time count of one or two. The count
+must also fit the compiled pipeline maximum and the device capability. Optional
+view mappings either remain absent or contain exactly one entry per amplified
+output; both viewport-array and render-target-array offsets must be nonnegative
+and fit `uint32`. Rebinding a pipeline whose maximum is below the active count
+is rejected. These checks are repeated at the native boundary before passing
+the exact `MTLVertexAmplificationViewMapping` records to Metal; no conventional
+`MTLRenderCommandEncoder` or `MTLRenderPassDescriptor` path is involved.
+
+The M1 conformance shader uses `amplification_id` with count two and two explicit
+zero-offset view mappings to produce one exact 8×8 vertical split: left BGRA
+blue `(255, 0, 0, 255)` and right green `(0, 255, 0, 255)`. A second shader
+writes logical output zero red and one green. The explicit identity reset sends
+them to physical targets zero and one respectively, while permutation `[1; 0]`
+produces physical zero green and physical one red for both conventional and
+mesh pipelines. Count zero or three, count two against a pipeline maximum of
+one, wrong-cardinality, negative, or over-`uint32` explicit view mappings,
+missing pass opt-in or pipeline, an `Identity` pipeline, and incomplete,
+duplicate, or out-of-range attachment maps are rejected by the typed boundary
+without new native handles. Source library and compiler destruction before
+recording, pipeline/target destruction rejection while command-owned,
+ended-encoder rejection, and successful completion together cover the lifetime
+boundary.
 
 The M1 capability scan accepts amplification counts through eight and first
 rejects nine; synchronous and asynchronous conventional and mesh compilation
 reject zero or nine before native handle allocation. Separate four-sample
 compile-only pipelines verify `alpha_to_coverage = true`,
-`alpha_to_one = false`, and `Inherited` mapping without claiming the still-open
-encoder boundary. For executed single-sample `Bgra8_unorm` pipelines, the
+`alpha_to_one = false`, and `Inherited` mapping independently of command
+execution. For executed single-sample `Bgra8_unorm` pipelines, the
 conventional and mesh fragments output RGBA `(0.25, 0.5, 0.75, 0.25)` with
 blending disabled. Controls preserve exact BGRA `(191, 128, 64, 64)`, while
 asynchronously compiled alpha-to-one pipelines force exact BGRA
@@ -810,6 +847,9 @@ typed render/mesh blend policy and a pixel-exact constant-blended target,
 reset-verified render/mesh/tile descriptor state, amplification capability and
 no-allocation rejection, four-sample alpha/mapping compilation, and exact
 render/mesh alpha-to-one control and enabled targets,
+command-time two-output amplification with an exact split target, deterministic
+identity reset and conventional/mesh attachment swaps, typed rejections, and
+completion-owned pipeline, target, and native-map lifetimes,
 typed static/dynamic vertex layouts with exact direct/indexed targets,
 typed static/dynamic vertex, fragment, object, mesh, and tile linking with
 destroyed source handles, exact green conventional/direct-mesh targets, an

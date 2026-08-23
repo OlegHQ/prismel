@@ -449,6 +449,89 @@ void prismel_descriptor_state_mesh(
 }
 |}
 
+let render_command_state_shader_source =
+  {|
+#include <metal_stdlib>
+using namespace metal;
+
+struct PrismelCommandStateVertex {
+  float4 position [[position]];
+  float4 color;
+};
+
+constant float2 prismel_command_positions[3] = {
+  float2(-1.0f, -1.0f),
+  float2(3.0f, -1.0f),
+  float2(-1.0f, 3.0f)
+};
+
+vertex PrismelCommandStateVertex prismel_amplified_vertex(
+    uint vertex_id [[vertex_id]],
+    uint amplification_id [[amplification_id]]) {
+  const float x_offset = amplification_id == 0u ? -0.5f : 0.5f;
+  PrismelCommandStateVertex result;
+  result.position = float4(
+      prismel_command_positions[vertex_id].x * 0.5f + x_offset,
+      prismel_command_positions[vertex_id].y,
+      0.0f,
+      1.0f);
+  result.color = amplification_id == 0u
+      ? float4(0.0f, 0.0f, 1.0f, 1.0f)
+      : float4(0.0f, 1.0f, 0.0f, 1.0f);
+  return result;
+}
+
+fragment float4 prismel_amplified_fragment(
+    PrismelCommandStateVertex input [[stage_in]]) {
+  return input.color;
+}
+
+vertex PrismelCommandStateVertex prismel_remap_vertex(
+    uint vertex_id [[vertex_id]]) {
+  PrismelCommandStateVertex result;
+  result.position = float4(
+      prismel_command_positions[vertex_id], 0.0f, 1.0f);
+  result.color = float4(0.0f);
+  return result;
+}
+
+struct PrismelRemapOutputs {
+  float4 logical_zero [[color(0)]];
+  float4 logical_one [[color(1)]];
+};
+
+fragment PrismelRemapOutputs prismel_remap_fragment() {
+  PrismelRemapOutputs result;
+  result.logical_zero = float4(1.0f, 0.0f, 0.0f, 1.0f);
+  result.logical_one = float4(0.0f, 1.0f, 0.0f, 1.0f);
+  return result;
+}
+
+using PrismelCommandStateMesh = metal::mesh<
+    PrismelCommandStateVertex,
+    void,
+    3,
+    1,
+    metal::topology::triangle>;
+
+[[mesh]]
+void prismel_remap_mesh(
+    PrismelCommandStateMesh output_mesh,
+    uint thread_index [[thread_index_in_threadgroup]]) {
+  if (thread_index < 3) {
+    PrismelCommandStateVertex output_vertex;
+    output_vertex.position = float4(
+        prismel_command_positions[thread_index], 0.0f, 1.0f);
+    output_vertex.color = float4(0.0f);
+    output_mesh.set_vertex(thread_index, output_vertex);
+    output_mesh.set_index(thread_index, thread_index);
+  }
+  if (thread_index == 0) {
+    output_mesh.set_primitive_count(1);
+  }
+}
+|}
+
 let tile_shader_source =
   {|
 #include <metal_stdlib>
@@ -6094,6 +6177,359 @@ let test_metal4_render_descriptor_state_commands device =
     true
   end
 
+let test_metal4_render_encoder_state_commands device =
+  let supports_metal4 = get (Device.supports_family device Device.Metal4) in
+  let supports_mesh =
+    get (Device.supports_family device Device.Apple7)
+    || get (Device.supports_family device Device.Mac2)
+  in
+  if not supports_metal4 || not supports_mesh then false
+  else begin
+    let compiler = get (Compiler.create device) in
+    let library =
+      get
+        (Compiler.compile_source ~name:"metal4-render-command-state"
+           compiler render_command_state_shader_source)
+    in
+    let remap_attachments =
+      [ Render_pipeline.color_attachment Texture.Bgra8_unorm
+      ; Render_pipeline.color_attachment Texture.Bgra8_unorm
+      ]
+    in
+    let amplification_pipeline =
+      get
+        (Compiler.create_render_pipeline
+           ~label:"Metal 4 amplified render"
+           ~fragment:"prismel_amplified_fragment"
+           ~max_vertex_amplification_count:2 compiler ~library
+           ~vertex:"prismel_amplified_vertex")
+    in
+    let limited_amplification_pipeline =
+      get
+        (Compiler.create_render_pipeline
+           ~label:"Metal 4 limited amplified render"
+           ~fragment:"prismel_amplified_fragment"
+           ~max_vertex_amplification_count:1 compiler ~library
+           ~vertex:"prismel_amplified_vertex")
+    in
+    let inherited_pipeline =
+      get
+        (Compiler.create_render_pipeline
+           ~label:"Metal 4 inherited remap render"
+           ~fragment:"prismel_remap_fragment"
+           ~color_attachments:remap_attachments
+           ~color_attachment_mapping:Render_pipeline.Inherited compiler
+           ~library ~vertex:"prismel_remap_vertex")
+    in
+    let identity_pipeline =
+      get
+        (Compiler.create_render_pipeline
+           ~label:"Metal 4 identity remap render"
+           ~fragment:"prismel_remap_fragment"
+           ~color_attachments:remap_attachments
+           ~color_attachment_mapping:Render_pipeline.Identity compiler
+           ~library ~vertex:"prismel_remap_vertex")
+    in
+    let inherited_mesh_pipeline =
+      get
+        (Compiler.create_mesh_pipeline
+           ~label:"Metal 4 inherited remap mesh"
+           ~fragment:"prismel_remap_fragment"
+           ~max_total_threads_per_mesh_threadgroup:3
+           ~required_threads_per_mesh_threadgroup:(3, 1, 1)
+           ~color_attachments:remap_attachments
+           ~color_attachment_mapping:Render_pipeline.Inherited compiler
+           ~library ~mesh:"prismel_remap_mesh")
+    in
+    get (Library.destroy library);
+    get (Compiler.destroy compiler);
+    let zero_view_mapping =
+      Command4.Render_encoder.vertex_amplification_view_mapping ()
+    in
+    let negative_view_mapping =
+      Command4.Render_encoder.vertex_amplification_view_mapping
+        ~viewport_array_index_offset:(-1) ()
+    in
+    let overflow_view_mapping =
+      Command4.Render_encoder.vertex_amplification_view_mapping
+        ~render_target_array_index_offset:max_int ()
+    in
+    let make_target label =
+      get
+        (Texture.create ~device
+           (Texture.descriptor_2d ~storage:Buffer.Shared
+              ~usage:[ Texture.Render_target ] ~format:Texture.Bgra8_unorm
+              ~width:8 ~height:8 ~label ()))
+    in
+    let amplification_target = make_target "Metal 4 amplification target" in
+    let identity_zero = make_target "Metal 4 identity physical zero" in
+    let identity_one = make_target "Metal 4 identity physical one" in
+    let swapped_zero = make_target "Metal 4 swapped physical zero" in
+    let swapped_one = make_target "Metal 4 swapped physical one" in
+    let mesh_swapped_zero = make_target "Metal 4 mesh swapped physical zero" in
+    let mesh_swapped_one = make_target "Metal 4 mesh swapped physical one" in
+    let allocator =
+      get
+        (Command4.Allocator.create ~label:"Metal 4 render-state allocator"
+           device)
+    in
+    let queue =
+      get (Command4.Queue.create ~label:"Metal 4 render-state queue" device)
+    in
+    let commands =
+      get
+        (Command4.Command_buffer.create allocator
+           ~label:"Metal 4 render-state commands" ())
+    in
+    let attachments first second =
+      [ Command4.Render_encoder.color_attachment first
+      ; Command4.Render_encoder.color_attachment second
+      ]
+    in
+    let assert_no_new_handles label (before : Release_queue.stats) =
+      let after = get (Release_queue.stats ()) in
+      if after.total_created <> before.total_created then
+        fail "%s allocated native handles" label
+    in
+    let unsupported_map_encoder =
+      get
+        (Command4.Render_encoder.create
+           ~label:"Metal 4 unsupported color-map encoder" commands
+           ~color_attachments:(attachments identity_zero identity_one))
+    in
+    let before_unsupported_map = get (Release_queue.stats ()) in
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.set_pipeline unsupported_map_encoder
+            inherited_pipeline));
+    ignore
+      (expect_error Invalid_state
+         (Command4.Render_encoder.set_color_attachment_map
+            unsupported_map_encoder (Some [ 1; 0 ])));
+    assert_no_new_handles "unsupported color-map rejection"
+      before_unsupported_map;
+    get (Command4.Render_encoder.end_encoding unsupported_map_encoder);
+    let invalid_pipeline_encoder =
+      get
+        (Command4.Render_encoder.create
+           ~label:"Metal 4 invalid color-map pipeline encoder"
+           ~support_color_attachment_mapping:true commands
+           ~color_attachments:(attachments identity_zero identity_one))
+    in
+    let before_invalid_pipeline = get (Release_queue.stats ()) in
+    ignore
+      (expect_error Invalid_state
+         (Command4.Render_encoder.set_color_attachment_map
+            invalid_pipeline_encoder (Some [ 1; 0 ])));
+    get
+      (Command4.Render_encoder.set_pipeline invalid_pipeline_encoder
+         identity_pipeline);
+    ignore
+      (expect_error Invalid_state
+         (Command4.Render_encoder.set_color_attachment_map
+            invalid_pipeline_encoder (Some [ 1; 0 ])));
+    assert_no_new_handles "invalid color-map pipeline rejections"
+      before_invalid_pipeline;
+    get (Command4.Render_encoder.end_encoding invalid_pipeline_encoder);
+    let reset_encoder =
+      get
+        (Command4.Render_encoder.create
+           ~label:"Metal 4 reset color-map encoder"
+           ~support_color_attachment_mapping:true commands
+           ~color_attachments:(attachments identity_zero identity_one))
+    in
+    get (Command4.Render_encoder.set_pipeline reset_encoder inherited_pipeline);
+    let before_invalid_maps = get (Release_queue.stats ()) in
+    List.iter
+      (fun map ->
+        ignore
+          (expect_error Invalid_argument
+             (Command4.Render_encoder.set_color_attachment_map reset_encoder
+                (Some map))))
+      [ [ 0 ]; [ 0; 0 ]; [ 0; 2 ]; [ 0; -1 ] ];
+    assert_no_new_handles "invalid color-map permutations" before_invalid_maps;
+    get
+      (Command4.Render_encoder.set_color_attachment_map reset_encoder
+         (Some [ 1; 0 ]));
+    get (Command4.Render_encoder.set_color_attachment_map reset_encoder None);
+    ignore
+      (expect_error Parent_has_dependents
+         (Render_pipeline.destroy inherited_pipeline));
+    ignore (expect_error Parent_has_dependents (Texture.destroy identity_zero));
+    get
+      (Command4.Render_encoder.draw_primitives reset_encoder
+         Command4.Render_encoder.Triangle ~vertex_start:0 ~vertex_count:3);
+    get (Command4.Render_encoder.end_encoding reset_encoder);
+    ignore
+      (expect_error Destroyed
+         (Command4.Render_encoder.set_color_attachment_map reset_encoder
+            (Some [ 1; 0 ])));
+    let swapped_encoder =
+      get
+        (Command4.Render_encoder.create
+           ~label:"Metal 4 swapped color-map encoder"
+           ~support_color_attachment_mapping:true commands
+           ~color_attachments:(attachments swapped_zero swapped_one))
+    in
+    get
+      (Command4.Render_encoder.set_pipeline swapped_encoder inherited_pipeline);
+    get
+      (Command4.Render_encoder.set_color_attachment_map swapped_encoder
+         (Some [ 1; 0 ]));
+    get
+      (Command4.Render_encoder.draw_primitives swapped_encoder
+         Command4.Render_encoder.Triangle ~vertex_start:0 ~vertex_count:3);
+    get (Command4.Render_encoder.end_encoding swapped_encoder);
+    let mesh_swapped_encoder =
+      get
+        (Command4.Render_encoder.create
+           ~label:"Metal 4 mesh swapped color-map encoder"
+           ~support_color_attachment_mapping:true commands
+           ~color_attachments:
+             (attachments mesh_swapped_zero mesh_swapped_one))
+    in
+    get
+      (Command4.Render_encoder.set_pipeline mesh_swapped_encoder
+         inherited_mesh_pipeline);
+    get
+      (Command4.Render_encoder.set_color_attachment_map mesh_swapped_encoder
+         (Some [ 1; 0 ]));
+    get
+      (Command4.Render_encoder.draw_mesh_threadgroups mesh_swapped_encoder
+         ~threadgroups:(1, 1, 1) ~mesh_threadgroup:(3, 1, 1) ());
+    get (Command4.Render_encoder.end_encoding mesh_swapped_encoder);
+    let limited_encoder =
+      get
+        (Command4.Render_encoder.create
+           ~label:"Metal 4 limited amplification encoder" commands
+           ~color_attachments:
+             [ Command4.Render_encoder.color_attachment amplification_target ])
+    in
+    let before_limited_amplification = get (Release_queue.stats ()) in
+    ignore
+      (expect_error Invalid_state
+         (Command4.Render_encoder.set_vertex_amplification_count
+            limited_encoder 2));
+    get
+      (Command4.Render_encoder.set_pipeline limited_encoder
+         limited_amplification_pipeline);
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.set_vertex_amplification_count
+            limited_encoder 0));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.set_vertex_amplification_count
+            limited_encoder 3));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.set_vertex_amplification_count
+            limited_encoder 2));
+    get
+      (Command4.Render_encoder.set_vertex_amplification_count limited_encoder
+         1);
+    assert_no_new_handles "limited vertex-amplification rejections"
+      before_limited_amplification;
+    get (Command4.Render_encoder.end_encoding limited_encoder);
+    let amplification_encoder =
+      get
+        (Command4.Render_encoder.create
+           ~label:"Metal 4 amplification encoder" commands
+           ~color_attachments:
+             [ Command4.Render_encoder.color_attachment amplification_target ])
+    in
+    get
+      (Command4.Render_encoder.set_pipeline amplification_encoder
+         amplification_pipeline);
+    let before_invalid_amplification = get (Release_queue.stats ()) in
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.set_vertex_amplification_count
+            amplification_encoder ~view_mappings:[ zero_view_mapping ] 2));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.set_vertex_amplification_count
+            amplification_encoder
+            ~view_mappings:[ negative_view_mapping; zero_view_mapping ] 2));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.set_vertex_amplification_count
+            amplification_encoder
+            ~view_mappings:[ zero_view_mapping; overflow_view_mapping ] 2));
+    assert_no_new_handles "invalid vertex-amplification mappings"
+      before_invalid_amplification;
+    get
+      (Command4.Render_encoder.set_vertex_amplification_count
+         amplification_encoder
+         ~view_mappings:[ zero_view_mapping; zero_view_mapping ] 2);
+    let before_limited_rebind = get (Release_queue.stats ()) in
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.set_pipeline amplification_encoder
+            limited_amplification_pipeline));
+    assert_no_new_handles "limited pipeline rebind rejection"
+      before_limited_rebind;
+    ignore
+      (expect_error Parent_has_dependents
+         (Render_pipeline.destroy amplification_pipeline));
+    ignore
+      (expect_error Parent_has_dependents
+         (Texture.destroy amplification_target));
+    get
+      (Command4.Render_encoder.draw_primitives amplification_encoder
+         Command4.Render_encoder.Triangle ~vertex_start:0 ~vertex_count:3);
+    get (Command4.Render_encoder.end_encoding amplification_encoder);
+    ignore
+      (expect_error Destroyed
+         (Command4.Render_encoder.set_vertex_amplification_count
+            amplification_encoder 1));
+    get (Command4.Command_buffer.end_recording commands);
+    let submission = get (Command4.Queue.commit queue [ commands ]) in
+    get (Command4.Submission.wait submission);
+    let read_target target =
+      get
+        (Texture.read_bytes target
+           ~region:
+             { Texture.x = 0; y = 0; z = 0; width = 8; height = 8; depth = 1 }
+           ~mip_level:0 ~slice:0 ~bytes_per_row:32 ~bytes_per_image:256)
+    in
+    let red label target =
+      check_solid_bgra ~label ~blue:0 ~green:0 ~red:255 ~alpha:255
+        (read_target target)
+    in
+    let green label target =
+      check_solid_bgra ~label ~blue:0 ~green:255 ~red:0 ~alpha:255
+        (read_target target)
+    in
+    red "Metal 4 reset identity physical zero" identity_zero;
+    green "Metal 4 reset identity physical one" identity_one;
+    green "Metal 4 swapped physical zero" swapped_zero;
+    red "Metal 4 swapped physical one" swapped_one;
+    green "Metal 4 mesh swapped physical zero" mesh_swapped_zero;
+    red "Metal 4 mesh swapped physical one" mesh_swapped_one;
+    check_vertical_split_bgra ~label:"Metal 4 amplified render"
+      ~left:(255, 0, 0, 255) ~right:(0, 255, 0, 255)
+      (read_target amplification_target);
+    List.iter
+      (fun pipeline -> get (Render_pipeline.destroy pipeline))
+      [ amplification_pipeline; limited_amplification_pipeline
+      ; inherited_pipeline; identity_pipeline; inherited_mesh_pipeline
+      ];
+    List.iter
+      (fun target -> get (Texture.destroy target))
+      [ amplification_target; identity_zero; identity_one; swapped_zero
+      ; swapped_one; mesh_swapped_zero; mesh_swapped_one
+      ];
+    get (Command4.Submission.destroy submission);
+    get (Command4.Command_buffer.destroy commands);
+    get (Command4.Allocator.reset allocator);
+    get (Command4.Queue.destroy queue);
+    get (Command4.Allocator.destroy allocator);
+    Printf.printf
+      "Metal 4 vertex-amplification/color-remap command conformance passed\n%!";
+    true
+  end
+
 let test_metal4_render_linking_commands device =
   if not (get (Device.supports_family device Device.Metal4)) then false
   else begin
@@ -6931,6 +7367,7 @@ let () =
     ignore (test_metal4_blend_commands device);
     ignore (test_metal4_vertex_descriptor_commands device);
     ignore (test_metal4_render_descriptor_state_commands device);
+    ignore (test_metal4_render_encoder_state_commands device);
     ignore (test_metal4_render_linking_commands device);
     ignore (test_metal4_mesh_commands device);
     ignore (test_metal4_tile_commands device);
@@ -8741,6 +9178,6 @@ let () =
         stats.external_deallocations
         stats.external_deallocation_mismatches;
     Printf.printf
-      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/compiler-task/pipeline-dataset/binary-function/static-link/reflection/compute/render/mesh/object/tile/command4-argument-table/compute/render/indexed/instanced/indirect/depth/stencil/blend/vertex-layout/descriptor-state/alpha-to-one/render-link/mesh/tile conformance passed on %s\n%!"
+      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/compiler-task/pipeline-dataset/binary-function/static-link/reflection/compute/render/mesh/object/tile/command4-argument-table/compute/render/indexed/instanced/indirect/depth/stencil/blend/vertex-layout/descriptor-state/alpha-to-one/vertex-amplification/color-remap/render-link/mesh/tile conformance passed on %s\n%!"
       info.name
   end
