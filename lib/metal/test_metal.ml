@@ -5571,6 +5571,217 @@ let test_metal4_vertex_descriptor_commands device =
     true
   end
 
+let test_metal4_render_linking_commands device =
+  if not (get (Device.supports_family device Device.Metal4)) then false
+  else begin
+    let compiler = get (Compiler.create device) in
+    let binary_library =
+      get
+        (Compiler.compile_source ~name:"metal4-render-link-binary" compiler
+           shader_source)
+    in
+    let visible_source =
+      get (Function.find ~library:binary_library "linked_identity")
+    in
+    let binary_function =
+      get
+        (Compiler.create_binary_function ~pipeline_independent:true compiler
+           ~source:visible_source ~name:"metal4-render-linked-identity")
+    in
+    let dynamic_source =
+      get
+        (Library.compile_dynamic_source ~device
+           ~label:"Metal 4 render preload source"
+           ~install_name:"@rpath/prismel-render-link.dylib"
+           dynamic_library_source)
+    in
+    let preloaded_library =
+      get
+        (Compiler.create_dynamic_library ~label:"Metal 4 render preload"
+           compiler dynamic_source)
+    in
+    let render_library =
+      get
+        (Compiler.compile_source ~name:"metal4-render-link-client" compiler
+           render_shader_source)
+    in
+    let vertex_linking =
+      Compiler.stage_linking ~binary_functions:[ binary_function ]
+        ~max_call_stack_depth:2 ()
+    in
+    let fragment_linking =
+      Compiler.stage_linking ~preloaded_libraries:[ preloaded_library ]
+        ~max_call_stack_depth:3 ()
+    in
+    let before_invalid = get (Release_queue.stats ()) in
+    ignore
+      (expect_error Invalid_argument
+         (Compiler.create_render_pipeline
+            ~fragment:"prismel_green_fragment"
+            ~vertex_dynamic_linking:
+              (Compiler.stage_linking ~max_call_stack_depth:0 ())
+            compiler ~library:render_library
+            ~vertex:"prismel_fullscreen_vertex"));
+    ignore
+      (expect_error Invalid_argument
+         (Compiler.create_render_pipeline
+            ~fragment:"prismel_green_fragment"
+            ~vertex_dynamic_linking:vertex_linking compiler
+            ~library:render_library
+            ~vertex:"prismel_fullscreen_vertex"));
+    ignore
+      (expect_error Invalid_argument
+         (Compiler.create_render_pipeline
+            ~fragment:"prismel_green_fragment"
+            ~support_vertex_binary_linking:true
+            ~vertex_dynamic_linking:
+              (Compiler.stage_linking
+                 ~binary_functions:[ binary_function; binary_function ] ())
+            compiler ~library:render_library
+            ~vertex:"prismel_fullscreen_vertex"));
+    ignore
+      (expect_error Invalid_argument
+         (Compiler.create_render_pipeline
+            ~fragment:"prismel_green_fragment"
+            ~fragment_dynamic_linking:
+              (Compiler.stage_linking
+                 ~preloaded_libraries:
+                   [ preloaded_library; preloaded_library ] ())
+            compiler ~library:render_library
+            ~vertex:"prismel_fullscreen_vertex"));
+    let after_invalid = get (Release_queue.stats ()) in
+    if after_invalid.total_created <> before_invalid.total_created then
+      fail "invalid render dynamic linking allocated native handles";
+    let create_synchronous_pipeline () =
+      Compiler.create_render_pipeline
+        ~label:"Metal 4 dynamically linked render"
+        ~fragment:"prismel_green_fragment"
+        ~support_vertex_binary_linking:true
+        ~support_fragment_binary_linking:true
+        ~vertex_dynamic_linking:vertex_linking
+        ~fragment_dynamic_linking:fragment_linking compiler
+        ~library:render_library
+        ~vertex:"prismel_fullscreen_vertex"
+    in
+    let create_asynchronous_pipeline () =
+      Compiler.create_render_pipeline_async
+        ~label:"Metal 4 asynchronously linked render"
+        ~fragment:"prismel_green_fragment"
+        ~support_vertex_binary_linking:true
+        ~support_fragment_binary_linking:true
+        ~vertex_dynamic_linking:vertex_linking
+        ~fragment_dynamic_linking:fragment_linking compiler
+        ~library:render_library
+        ~vertex:"prismel_fullscreen_vertex"
+    in
+    let synchronous_pipeline = get (create_synchronous_pipeline ()) in
+    let asynchronous_pipeline, asynchronous_task =
+      if get (Device.supports_family device Device.Apple9) then begin
+        let task = get (create_asynchronous_pipeline ()) in
+        get (Compiler_task.wait task);
+        let pipeline =
+          match get (Compiler_task.poll task) with
+          | Compiler_task.Complete (Ok pipeline) -> pipeline
+          | Complete (Error error) ->
+              fail "asynchronous dynamically linked render failed: %s"
+                (Format.asprintf "%a" pp_error error)
+          | Pending ->
+              fail "waited dynamically linked render task remained pending"
+        in
+        Some pipeline, Some task
+      end
+      else begin
+        let before_async = get (Release_queue.stats ()) in
+        ignore
+          (expect_error Unsupported
+             (create_asynchronous_pipeline ()));
+        let after_async = get (Release_queue.stats ()) in
+        if after_async.total_created <> before_async.total_created then
+          fail "unsupported async render linking allocated a native handle";
+        None, None
+      end
+    in
+    get (Function.destroy visible_source);
+    get (Binary_function.destroy binary_function);
+    get (Dynamic_library.destroy preloaded_library);
+    get (Library.destroy dynamic_source);
+    get (Library.destroy binary_library);
+    get (Library.destroy render_library);
+    Option.iter (fun task -> get (Compiler_task.destroy task)) asynchronous_task;
+    get (Compiler.destroy compiler);
+    let pipelines =
+      synchronous_pipeline :: Option.to_list asynchronous_pipeline
+    in
+    let make_target index =
+      get
+        (Texture.create ~device
+           (Texture.descriptor_2d ~storage:Buffer.Shared
+              ~usage:[ Texture.Render_target ] ~format:Texture.Bgra8_unorm
+              ~width:8 ~height:8
+              ~label:(Printf.sprintf "Metal 4 linked render target %d" index)
+              ()))
+    in
+    let targets = List.mapi (fun index _ -> make_target index) pipelines in
+    let allocator =
+      get
+        (Command4.Allocator.create ~label:"Metal 4 linked render allocator"
+           device)
+    in
+    let queue =
+      get (Command4.Queue.create ~label:"Metal 4 linked render queue" device)
+    in
+    let commands =
+      get
+        (Command4.Command_buffer.create allocator
+           ~label:"Metal 4 linked render commands" ())
+    in
+    List.iter2
+      (fun pipeline target ->
+        let encoder =
+          get
+            (Command4.Render_encoder.create commands
+               ~color_attachments:
+                 [ Command4.Render_encoder.color_attachment target ])
+        in
+        get (Command4.Render_encoder.set_pipeline encoder pipeline);
+        get
+          (Command4.Render_encoder.draw_primitives encoder
+             Command4.Render_encoder.Triangle ~vertex_start:0 ~vertex_count:3);
+        get (Command4.Render_encoder.end_encoding encoder))
+      pipelines targets;
+    get (Command4.Command_buffer.end_recording commands);
+    let submission = get (Command4.Queue.commit queue [ commands ]) in
+    get (Command4.Submission.wait submission);
+    List.iteri
+      (fun index target ->
+        let pixels =
+          get
+            (Texture.read_bytes target
+               ~region:
+                 { Texture.x = 0
+                 ; y = 0
+                 ; z = 0
+                 ; width = 8
+                 ; height = 8
+                 ; depth = 1
+                 }
+               ~mip_level:0 ~slice:0 ~bytes_per_row:32 ~bytes_per_image:256)
+        in
+        check_solid_bgra
+          ~label:(Printf.sprintf "Metal 4 linked render draw %d" index)
+          ~blue:0 ~green:255 ~red:0 ~alpha:255 pixels)
+      targets;
+    List.iter (fun pipeline -> get (Render_pipeline.destroy pipeline)) pipelines;
+    List.iter (fun target -> get (Texture.destroy target)) targets;
+    get (Command4.Submission.destroy submission);
+    get (Command4.Command_buffer.destroy commands);
+    get (Command4.Allocator.reset allocator);
+    get (Command4.Queue.destroy queue);
+    get (Command4.Allocator.destroy allocator);
+    Printf.printf "Metal 4 render-stage dynamic-link conformance passed\n%!";
+    true
+  end
+
 let test_metal4_mesh_commands device =
   if
     not (get (Device.supports_family device Device.Metal4))
@@ -6032,6 +6243,7 @@ let () =
     ignore (test_metal4_stencil_commands device);
     ignore (test_metal4_blend_commands device);
     ignore (test_metal4_vertex_descriptor_commands device);
+    ignore (test_metal4_render_linking_commands device);
     ignore (test_metal4_mesh_commands device);
     ignore (test_metal4_tile_commands device);
     ignore (test_metal4_compute_commands device);
@@ -7841,6 +8053,6 @@ let () =
         stats.external_deallocations
         stats.external_deallocation_mismatches;
     Printf.printf
-      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/compiler-task/pipeline-dataset/binary-function/static-link/reflection/compute/render/mesh/object/tile/command4-argument-table/compute/render/indexed/instanced/indirect/depth/stencil/blend/vertex-layout/mesh/tile conformance passed on %s\n%!"
+      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/compiler-task/pipeline-dataset/binary-function/static-link/reflection/compute/render/mesh/object/tile/command4-argument-table/compute/render/indexed/instanced/indirect/depth/stencil/blend/vertex-layout/render-link/mesh/tile conformance passed on %s\n%!"
       info.name
   end

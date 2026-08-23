@@ -78,6 +78,12 @@ type metal4_static_linking_descriptor =
   ; groups : (string * metal4_function_reference array) array
   }
 
+type metal4_stage_dynamic_linking_descriptor =
+  { max_call_stack_depth : int64
+  ; binary_linked_functions : handle array
+  ; preloaded_libraries : handle array
+  }
+
 (** Positional native ABI record for synchronous Metal 4 compute compilation. *)
 type metal4_compute_descriptor =
   { label : string option
@@ -150,6 +156,10 @@ type metal4_render_descriptor =
   ; support_indirect_commands : bool
   ; lookup_archives : handle array
   ; vertex_descriptor : metal4_vertex_descriptor option
+  ; support_vertex_binary_linking : bool
+  ; support_fragment_binary_linking : bool
+  ; vertex_dynamic_linking : metal4_stage_dynamic_linking_descriptor option
+  ; fragment_dynamic_linking : metal4_stage_dynamic_linking_descriptor option
   }
 
 type metal4_mesh_descriptor =

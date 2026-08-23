@@ -2,11 +2,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 1692,
+    "bound": 1705,
     "scope-excluded": 7,
-    "unreviewed": 3586
+    "unreviewed": 3573
   },
-  "classification_source_sha256": "516bfe1af07e295c4e5ea41318ee2dacd5d80195236b457a96fd9e8fd93e5666",
+  "classification_source_sha256": "b5032b404f236626d591168d60a1bcdc91be248f559f6634d7b5ffebbce0fa8b",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "header_aggregate_sha256": "c2ee1e44c76606cf05fa81d1a8314dadfa49efe900342e8bcb3670363c16f0d1",
@@ -1074,14 +1074,14 @@
         "AvailabilityAttr",
         "VisibilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4LinkingDescriptor.h",
       "id": "class:MTL4RenderPipelineDynamicLinkingDescriptor",
       "kind": "class",
       "line": 72,
       "name": "MTL4RenderPipelineDynamicLinkingDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -21862,28 +21862,28 @@
       "attributes": [
         "NSReturnsRetainedAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4Compiler.h",
       "id": "method:-[MTL4Compiler newRenderPipelineStateWithDescriptor:dynamicLinkingDescriptor:compilerTaskOptions:completionHandler:]",
       "kind": "method",
       "line": 322,
       "name": "newRenderPipelineStateWithDescriptor:dynamicLinkingDescriptor:compilerTaskOptions:completionHandler:",
       "owner": "MTL4Compiler",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTL4PipelineDescriptor * _Nonnull __strong, MTL4RenderPipelineDynamicLinkingDescriptor * _Nullable __strong, MTL4CompilerTaskOptions * _Nullable __strong, MTLNewRenderPipelineStateCompletionHandler  _Nonnull __strong) -> id<MTL4CompilerTask> _Nonnull"
     },
     {
       "attributes": [
         "NSReturnsRetainedAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4Compiler.h",
       "id": "method:-[MTL4Compiler newRenderPipelineStateWithDescriptor:dynamicLinkingDescriptor:compilerTaskOptions:error:]",
       "kind": "method",
       "line": 190,
       "name": "newRenderPipelineStateWithDescriptor:dynamicLinkingDescriptor:compilerTaskOptions:error:",
       "owner": "MTL4Compiler",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTL4PipelineDescriptor * _Nonnull __strong, MTL4RenderPipelineDynamicLinkingDescriptor * _Nullable __strong, MTL4CompilerTaskOptions * _Nullable __strong, NSError *__autoreleasing  _Nullable * _Nullable) -> id<MTLRenderPipelineState> _Nullable"
     },
     {
@@ -25992,14 +25992,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "method:-[MTL4RenderPipelineDescriptor setSupportFragmentBinaryLinking:]",
       "kind": "method",
       "line": null,
       "name": "setSupportFragmentBinaryLinking:",
       "owner": "MTL4RenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -26016,14 +26016,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "method:-[MTL4RenderPipelineDescriptor setSupportVertexBinaryLinking:]",
       "kind": "method",
       "line": null,
       "name": "setSupportVertexBinaryLinking:",
       "owner": "MTL4RenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -26064,14 +26064,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "method:-[MTL4RenderPipelineDescriptor supportFragmentBinaryLinking]",
       "kind": "method",
       "line": 217,
       "name": "supportFragmentBinaryLinking",
       "owner": "MTL4RenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -26088,14 +26088,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "method:-[MTL4RenderPipelineDescriptor supportVertexBinaryLinking]",
       "kind": "method",
       "line": 213,
       "name": "supportVertexBinaryLinking",
       "owner": "MTL4RenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -26136,14 +26136,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4LinkingDescriptor.h",
       "id": "method:-[MTL4RenderPipelineDynamicLinkingDescriptor fragmentLinkingDescriptor]",
       "kind": "method",
       "line": 78,
       "name": "fragmentLinkingDescriptor",
       "owner": "MTL4RenderPipelineDynamicLinkingDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTL4PipelineStageDynamicLinkingDescriptor * _Nonnull"
     },
     {
@@ -26184,14 +26184,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4LinkingDescriptor.h",
       "id": "method:-[MTL4RenderPipelineDynamicLinkingDescriptor vertexLinkingDescriptor]",
       "kind": "method",
       "line": 75,
       "name": "vertexLinkingDescriptor",
       "owner": "MTL4RenderPipelineDynamicLinkingDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTL4PipelineStageDynamicLinkingDescriptor * _Nonnull"
     },
     {
@@ -53257,14 +53257,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "property:MTL4RenderPipelineDescriptor:supportFragmentBinaryLinking",
       "kind": "property",
       "line": 217,
       "name": "supportFragmentBinaryLinking",
       "owner": "MTL4RenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "BOOL"
     },
     {
@@ -53281,14 +53281,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "property:MTL4RenderPipelineDescriptor:supportVertexBinaryLinking",
       "kind": "property",
       "line": 213,
       "name": "supportVertexBinaryLinking",
       "owner": "MTL4RenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "BOOL"
     },
     {
@@ -53329,14 +53329,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4LinkingDescriptor.h",
       "id": "property:MTL4RenderPipelineDynamicLinkingDescriptor:fragmentLinkingDescriptor",
       "kind": "property",
       "line": 78,
       "name": "fragmentLinkingDescriptor",
       "owner": "MTL4RenderPipelineDynamicLinkingDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTL4PipelineStageDynamicLinkingDescriptor * _Nonnull"
     },
     {
@@ -53377,14 +53377,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4LinkingDescriptor.h",
       "id": "property:MTL4RenderPipelineDynamicLinkingDescriptor:vertexLinkingDescriptor",
       "kind": "property",
       "line": 75,
       "name": "vertexLinkingDescriptor",
       "owner": "MTL4RenderPipelineDynamicLinkingDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTL4PipelineStageDynamicLinkingDescriptor * _Nonnull"
     },
     {

@@ -667,6 +667,22 @@ interleaved `Float2` positions and normalized `Uchar4` colors, then verifies a
 static-stride direct draw as exact BGRA `(51, 34, 17, 255)` and a dynamic-stride
 indexed draw as exact BGRA `(47, 101, 203, 255)` across separate 8×8 targets.
 
+Conventional render pipelines also accept immutable per-stage dynamic-linking
+policy for the vertex and fragment stages. Each `Compiler.stage_linking` value
+contains a positive maximum call-stack depth, checked binary functions, and
+checked preloaded dynamic libraries. Binary functions require the corresponding
+pipeline support flag; every handle must be live, belong to the compiler's
+device, and be unique within its stage. The native boundary copies the two
+stage descriptors into `MTL4RenderPipelineDynamicLinkingDescriptor` and reads
+back the support flags, depth, and exact function/library identities after
+validating unique dynamic-library install names. Synchronous compilation and
+execution are supported on the M1. Asynchronous dynamic render linking is
+rejected without native allocation before Apple9/M3 because that older driver
+cannot safely serialize the request. The M1 conformance path destroys every
+source function, binary function, dynamic library, source library, and compiler
+before drawing through the compiled pipeline, then verifies an exact green 8×8
+BGRA target.
+
 `Command4.Compute_encoder` binds a checked compute pipeline and an optional
 argument table, then dispatches positive direct grid/threadgroup dimensions
 whose threadgroup cardinality fits the compiled pipeline limit. Each dispatch
@@ -704,7 +720,8 @@ The M1 conformance path compiles an exact 32×32 full-tile pipeline, clears its
 argument-table slot immediately after dispatch, and verifies the retained shared
 buffer contains the tile shader's exact value `23` after commit feedback.
 
-Dynamic render linking and positive offline `.metallib` provenance remain open.
+Mesh/object/tile-stage dynamic render linking and positive offline `.metallib`
+provenance remain open.
 
 `test_metal.exe` runs a real M1 compute kernel, wrong-domain and invalid-state
 cases, full labeled shader diagnostics, function-constant introspection and
@@ -735,6 +752,8 @@ immutable depth compare/write state and a pixel-exact depth-ordered target,
 front/back stencil policy and a pixel-exact reference-rejected target,
 typed render/mesh blend policy and a pixel-exact constant-blended target,
 typed static/dynamic vertex layouts with exact direct/indexed targets,
+typed vertex/fragment dynamic render linking with destroyed source handles and
+an exact green target,
 argument-table-backed Metal 4 compute execution, direct and object-stage mesh
 command execution with two pixel-exact offscreen targets, and exact full-tile
 command execution through a completion-retained output buffer,

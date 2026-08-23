@@ -1428,6 +1428,20 @@ module Compiler : sig
     ; groups : (string * static_function list) list
     }
 
+  type stage_linking = private
+    { binary_functions : Binary_function.t list
+    ; preloaded_libraries : Dynamic_library.t list
+    ; max_call_stack_depth : int
+    }
+
+  (** Builds immutable dynamic-link inputs for one render stage. A supplied
+      value always creates a stage linking descriptor, even when its function
+      and library lists are empty. *)
+  val stage_linking :
+    ?binary_functions:Binary_function.t list ->
+    ?preloaded_libraries:Dynamic_library.t list ->
+    ?max_call_stack_depth:int -> unit -> stage_linking
+
   (** Creates a synchronous Metal 4 compiler. A supplied pipeline dataset is
       retained by the compiler until compiler destruction. *)
   val create :
@@ -1510,12 +1524,18 @@ module Compiler : sig
       formats or typed color attachments, but not both. Vertex-only pipelines
       use a void-returning vertex function, disable rasterization, and use no
       color attachments. An optional immutable vertex descriptor enables
-      Metal stage-in attribute fetch. *)
+      Metal stage-in attribute fetch. Optional vertex and fragment linking
+      values carry stage-specific binary functions, preloaded libraries, and
+      maximum call-stack depth. *)
   val create_render_pipeline :
     ?label:string -> ?fragment:string -> ?reflection:bool ->
     ?raster_sample_count:int -> ?color_formats:Texture.format list ->
     ?color_attachments:Render_pipeline.color_attachment list ->
     ?vertex_descriptor:Vertex_descriptor.t ->
+    ?support_vertex_binary_linking:bool ->
+    ?support_fragment_binary_linking:bool ->
+    ?vertex_dynamic_linking:stage_linking ->
+    ?fragment_dynamic_linking:stage_linking ->
     ?rasterization_enabled:bool ->
     ?primitive_topology:Render_pipeline.primitive_topology ->
     ?support_indirect_command_buffers:bool ->
@@ -1524,12 +1544,16 @@ module Compiler : sig
 
   (** The native task retains its library and render descriptor through
       completion; [Compiler_task.poll] materializes the result on the initial
-      domain. *)
+      domain. Asynchronous dynamic linking requires Apple9/M3 or newer. *)
   val create_render_pipeline_async :
     ?label:string -> ?fragment:string -> ?reflection:bool ->
     ?raster_sample_count:int -> ?color_formats:Texture.format list ->
     ?color_attachments:Render_pipeline.color_attachment list ->
     ?vertex_descriptor:Vertex_descriptor.t ->
+    ?support_vertex_binary_linking:bool ->
+    ?support_fragment_binary_linking:bool ->
+    ?vertex_dynamic_linking:stage_linking ->
+    ?fragment_dynamic_linking:stage_linking ->
     ?rasterization_enabled:bool ->
     ?primitive_topology:Render_pipeline.primitive_topology ->
     ?support_indirect_command_buffers:bool ->

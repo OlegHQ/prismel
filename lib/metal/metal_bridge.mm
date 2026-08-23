@@ -264,6 +264,8 @@ API_AVAILABLE(macos(26.0))
 API_AVAILABLE(macos(26.0))
 @interface PrismelMetalCheckedRenderRequest : NSObject
 @property(nonatomic, strong) MTL4PipelineDescriptor *descriptor;
+@property(nonatomic, strong, nullable)
+    MTL4RenderPipelineDynamicLinkingDescriptor *dynamicLinking;
 @property(nonatomic, strong, nullable) MTL4CompilerTaskOptions *taskOptions;
 @property(nonatomic, copy, nullable) NSString *label;
 @property(nonatomic) BOOL reflectionRequested;
@@ -7730,6 +7732,119 @@ bool checked_threadgroup_size(value raw_width, value raw_height,
 }
 
 API_AVAILABLE(macos(26.0))
+bool configure_render_stage_dynamic_linking(
+    MTL4PipelineStageDynamicLinkingDescriptor *descriptor,
+    value raw_linking, id<MTLDevice> device, bool support_binary_linking,
+    NSString *stage, NSString *__autoreleasing *failure) {
+  if (!Is_block(raw_linking)) {
+    return true;
+  }
+  value raw_descriptor = Field(raw_linking, 0);
+  NSUInteger max_call_stack_depth = 0;
+  if (!nsuinteger_from_ocaml_int64(Field(raw_descriptor, 0),
+                                   &max_call_stack_depth) ||
+      max_call_stack_depth == 0) {
+    *failure = [NSString
+        stringWithFormat:@"Metal 4 %@ dynamic-link depth is invalid", stage];
+    return false;
+  }
+  std::vector<id<MTL4BinaryFunction>> binary_functions =
+      binary_functions_of_array(Field(raw_descriptor, 1));
+  if (!binary_functions.empty() && !support_binary_linking) {
+    *failure = [NSString
+        stringWithFormat:@"Metal 4 %@ binary linking is disabled", stage];
+    return false;
+  }
+  NSMutableArray<id<MTL4BinaryFunction>> *binary_array =
+      [NSMutableArray arrayWithCapacity:binary_functions.size()];
+  NSMutableSet<id<MTL4BinaryFunction>> *binary_set = [NSMutableSet set];
+  for (id<MTL4BinaryFunction> function : binary_functions) {
+    if (!device.supportsFunctionPointers ||
+        [binary_set containsObject:function]) {
+      *failure = [NSString
+          stringWithFormat:@"Metal 4 %@ binary function is incompatible or duplicated",
+                           stage];
+      return false;
+    }
+    [binary_set addObject:function];
+    [binary_array addObject:function];
+  }
+  std::vector<id<MTLDynamicLibrary>> preloaded_libraries =
+      dynamic_libraries_of_array(Field(raw_descriptor, 2));
+  NSMutableArray<id<MTLDynamicLibrary>> *preloaded_array =
+      [NSMutableArray arrayWithCapacity:preloaded_libraries.size()];
+  NSMutableSet<NSString *> *install_names = [NSMutableSet set];
+  for (id<MTLDynamicLibrary> library : preloaded_libraries) {
+    if (!device.supportsDynamicLibraries ||
+        library.device.registryID != device.registryID ||
+        library.installName == nil ||
+        [install_names containsObject:library.installName]) {
+      *failure = [NSString
+          stringWithFormat:@"Metal 4 %@ preloaded library is incompatible or duplicated",
+                           stage];
+      return false;
+    }
+    [install_names addObject:library.installName];
+    [preloaded_array addObject:library];
+  }
+  descriptor.maxCallStackDepth = max_call_stack_depth;
+  descriptor.binaryLinkedFunctions = binary_array;
+  descriptor.preloadedLibraries = preloaded_array;
+  if (descriptor.maxCallStackDepth != max_call_stack_depth ||
+      descriptor.binaryLinkedFunctions.count != binary_array.count ||
+      descriptor.preloadedLibraries.count != preloaded_array.count) {
+    *failure = [NSString
+        stringWithFormat:@"Metal changed checked %@ dynamic-link properties",
+                         stage];
+    return false;
+  }
+  for (NSUInteger index = 0; index < binary_array.count; ++index) {
+    if (descriptor.binaryLinkedFunctions[index] != binary_array[index]) {
+      *failure = [NSString
+          stringWithFormat:@"Metal changed checked %@ binary function identity",
+                           stage];
+      return false;
+    }
+  }
+  for (NSUInteger index = 0; index < preloaded_array.count; ++index) {
+    if (descriptor.preloadedLibraries[index] != preloaded_array[index]) {
+      *failure = [NSString
+          stringWithFormat:@"Metal changed checked %@ preloaded library identity",
+                           stage];
+      return false;
+    }
+  }
+  return true;
+}
+
+API_AVAILABLE(macos(26.0))
+MTL4RenderPipelineDynamicLinkingDescriptor *
+checked_render_dynamic_linking_descriptor(
+    value raw_vertex, value raw_fragment, id<MTLDevice> device,
+    bool support_vertex, bool support_fragment,
+    NSString *__autoreleasing *failure) {
+  if (!Is_block(raw_vertex) && !Is_block(raw_fragment)) {
+    return nil;
+  }
+  MTL4RenderPipelineDynamicLinkingDescriptor *descriptor =
+      [[MTL4RenderPipelineDynamicLinkingDescriptor alloc] init];
+  if (descriptor.vertexLinkingDescriptor == nil ||
+      descriptor.fragmentLinkingDescriptor == nil ||
+      !configure_render_stage_dynamic_linking(
+          descriptor.vertexLinkingDescriptor, raw_vertex, device,
+          support_vertex, @"vertex", failure) ||
+      !configure_render_stage_dynamic_linking(
+          descriptor.fragmentLinkingDescriptor, raw_fragment, device,
+          support_fragment, @"fragment", failure)) {
+    if (*failure == nil) {
+      *failure = @"Metal returned incomplete render dynamic-link descriptors";
+    }
+    return nil;
+  }
+  return descriptor;
+}
+
+API_AVAILABLE(macos(26.0))
 PrismelMetalCheckedRenderRequest *checked_render_request(
     value raw_descriptor, id<MTL4Compiler> compiler,
     NSString *__autoreleasing *failure) {
@@ -7803,8 +7918,29 @@ PrismelMetalCheckedRenderRequest *checked_render_request(
       ? MTL4IndirectCommandBufferSupportStateEnabled
       : MTL4IndirectCommandBufferSupportStateDisabled;
   descriptor.supportIndirectCommandBuffers = indirect_support;
+  const bool support_vertex_binary_linking =
+      Bool_val(Field(raw_descriptor, 12));
+  const bool support_fragment_binary_linking =
+      Bool_val(Field(raw_descriptor, 13));
+  if ((support_vertex_binary_linking || support_fragment_binary_linking) &&
+      !compiler.device.supportsFunctionPointers) {
+    *failure = @"Metal 4 render binary linking requires function pointers";
+    return nil;
+  }
+  descriptor.supportVertexBinaryLinking = support_vertex_binary_linking;
+  descriptor.supportFragmentBinaryLinking = support_fragment_binary_linking;
   if (!configure_render_vertex_descriptor(
           descriptor, Field(raw_descriptor, 11), failure)) {
+    return nil;
+  }
+  MTL4RenderPipelineDynamicLinkingDescriptor *dynamic_linking =
+      checked_render_dynamic_linking_descriptor(
+          Field(raw_descriptor, 14), Field(raw_descriptor, 15),
+          compiler.device, support_vertex_binary_linking,
+          support_fragment_binary_linking, failure);
+  if ((Is_block(Field(raw_descriptor, 14)) ||
+       Is_block(Field(raw_descriptor, 15))) &&
+      dynamic_linking == nil) {
     return nil;
   }
   if (!configure_render_color_attachments(descriptor.colorAttachments,
@@ -7836,6 +7972,10 @@ PrismelMetalCheckedRenderRequest *checked_render_request(
       descriptor.inputPrimitiveTopology !=
           static_cast<MTLPrimitiveTopologyClass>(topology_code) ||
       descriptor.supportIndirectCommandBuffers != indirect_support ||
+      descriptor.supportVertexBinaryLinking !=
+          support_vertex_binary_linking ||
+      descriptor.supportFragmentBinaryLinking !=
+          support_fragment_binary_linking ||
       (reflection_requested &&
        (descriptor.options == nil ||
         descriptor.options.shaderReflection != expected_reflection)) ||
@@ -7854,6 +7994,7 @@ PrismelMetalCheckedRenderRequest *checked_render_request(
   PrismelMetalCheckedRenderRequest *request =
       [[PrismelMetalCheckedRenderRequest alloc] init];
   request.descriptor = descriptor;
+  request.dynamicLinking = dynamic_linking;
   request.taskOptions = task_options;
   request.label = expected_label;
   request.reflectionRequested = reflection_requested;
@@ -8221,10 +8362,14 @@ id<MTLRenderPipelineState> compile_checked_render_pipeline(
     id<MTL4Compiler> compiler, PrismelMetalCheckedRenderRequest *request,
     NSString *__autoreleasing *failure) {
   NSError *error = nil;
-  id<MTLRenderPipelineState> pipeline =
-      [compiler newRenderPipelineStateWithDescriptor:request.descriptor
-                                 compilerTaskOptions:request.taskOptions
-                                               error:&error];
+  id<MTLRenderPipelineState> pipeline = request.dynamicLinking == nil
+      ? [compiler newRenderPipelineStateWithDescriptor:request.descriptor
+                                   compilerTaskOptions:request.taskOptions
+                                                 error:&error]
+      : [compiler newRenderPipelineStateWithDescriptor:request.descriptor
+                              dynamicLinkingDescriptor:request.dynamicLinking
+                                   compilerTaskOptions:request.taskOptions
+                                                 error:&error];
   if (pipeline == nil) {
     *failure = labeled_error_description(
         request.label, error,
@@ -8251,17 +8396,20 @@ PrismelMetalCompilerTaskState *start_checked_render_pipeline_task(
   state.retainedInputs = request;
   __weak PrismelMetalCompilerTaskState *weak_state = state;
   PrismelMetalCheckedRenderRequest *retained_request = request;
-  id<MTL4CompilerTask> task =
-      [compiler newRenderPipelineStateWithDescriptor:request.descriptor
-                                 compilerTaskOptions:request.taskOptions
-                                   completionHandler:^(id<MTLRenderPipelineState> pipeline,
-                                                       NSError *error) {
-                                     (void)retained_request;
-                                     PrismelMetalCompilerTaskState *strong_state =
-                                         weak_state;
-                                     [strong_state finishWithObject:pipeline
-                                                              error:error];
-                                   }];
+  MTLNewRenderPipelineStateCompletionHandler completion_handler =
+      ^(id<MTLRenderPipelineState> pipeline, NSError *error) {
+        (void)retained_request;
+        PrismelMetalCompilerTaskState *strong_state = weak_state;
+        [strong_state finishWithObject:pipeline error:error];
+      };
+  id<MTL4CompilerTask> task = request.dynamicLinking == nil
+      ? [compiler newRenderPipelineStateWithDescriptor:request.descriptor
+                                   compilerTaskOptions:request.taskOptions
+                                     completionHandler:completion_handler]
+      : [compiler newRenderPipelineStateWithDescriptor:request.descriptor
+                              dynamicLinkingDescriptor:request.dynamicLinking
+                                   compilerTaskOptions:request.taskOptions
+                                     completionHandler:completion_handler];
   if (task == nil) {
     *failure = labeled_error_description(
         request.label, nil,
