@@ -1,9 +1,9 @@
 type declaration = { id:string; kind:string; owner:string option; name:string; signature:string }
 type lane = Metadata | Mechanical | Handwritten_ownership
 type entry = { declaration:declaration; lane:lane }
-let headers = ["Metal/MTLDevice.h";"Metal/MTLDataType.h"]
-let expected_count = 119
-let expected_digest = "8d460a76b5f5e00d2bab8b55af7a148127272bee5099f97e9fd4f383573a0d6c"
+let headers = ["Metal/MTLDevice.h"]
+let expected_count = 94
+let expected_digest = "81285a3cf295bf0394f127daafbb8e75972f0cfe70c55e42a5937afc5a2eec71"
 let excluded_ids =
  ["method:-[MTLDevice newTextureViewPoolWithDescriptor:error:]";
   "method:-[MTLDevice sparseTileSizeWithTextureType:pixelFormat:sampleCount:]";
