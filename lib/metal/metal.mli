@@ -1201,6 +1201,11 @@ module Compiler : sig
     t -> source:Function.t -> name:string ->
     (Binary_function.t, error) result
 
+  val create_binary_function_async :
+    ?pipeline_independent:bool -> ?lookup_archives:Pipeline_archive.t list ->
+    t -> source:Function.t -> name:string ->
+    (Binary_function.t Compiler_task.t, error) result
+
   val create_compute_pipeline :
     ?label:string -> ?reflection:bool ->
     ?threadgroup_size_multiple:bool ->

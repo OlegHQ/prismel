@@ -2,11 +2,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 0,
-    "bound": 1143,
+    "bound": 1145,
     "scope-excluded": 7,
-    "unreviewed": 4136
+    "unreviewed": 4134
   },
-  "classification_source_sha256": "6e6617e0d5ef6b89ba43c5c7d384798411b6557738813dc0d87fbca72150820f",
+  "classification_source_sha256": "35c6ef96d56c0dfacc21b905fb9b153993b439e0dde5718229a346960a9b823e",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "header_aggregate_sha256": "c2ee1e44c76606cf05fa81d1a8314dadfa49efe900342e8bcb3670363c16f0d1",
@@ -21608,14 +21608,14 @@
       "attributes": [
         "NSReturnsRetainedAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4Compiler.h",
       "id": "method:-[MTL4Compiler newBinaryFunctionWithDescriptor:compilerTaskOptions:completionHandler:]",
       "kind": "method",
       "line": 359,
       "name": "newBinaryFunctionWithDescriptor:compilerTaskOptions:completionHandler:",
       "owner": "MTL4Compiler",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTL4BinaryFunctionDescriptor * _Nonnull __strong, MTL4CompilerTaskOptions * _Nullable __strong, MTL4NewBinaryFunctionCompletionHandler  _Nonnull __strong) -> id<MTL4CompilerTask> _Nonnull"
     },
     {
@@ -65411,14 +65411,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4Compiler.h",
       "id": "typedef:MTL4NewBinaryFunctionCompletionHandler",
       "kind": "typedef",
       "line": 80,
       "name": "MTL4NewBinaryFunctionCompletionHandler",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "void (^)(id<MTL4BinaryFunction>  _Nullable __strong, NSError * _Nullable __strong)"
     },
     {

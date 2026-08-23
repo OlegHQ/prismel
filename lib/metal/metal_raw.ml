@@ -621,6 +621,14 @@ external compiler_create_binary_function :
   handle -> metal4_binary_function_descriptor -> (handle, string) result =
   "caml_prismel_metal_compiler_create_binary_function"
 
+external compiler_create_binary_function_async :
+  handle -> metal4_binary_function_descriptor -> (handle, string) result =
+  "caml_prismel_metal_compiler_create_binary_function_async"
+
+external compiler_task_take_binary_function :
+  handle -> (((handle, string) result option, string) result) =
+  "caml_prismel_metal_compiler_task_take_binary_function"
+
 external compiler_create_compute_pipeline :
   handle -> metal4_compute_descriptor ->
   ((handle * pipeline_binding_info array), string) result =

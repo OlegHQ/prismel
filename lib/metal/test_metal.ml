@@ -2418,10 +2418,56 @@ let test_metal4_compiler device =
           (expect_error Invalid_argument
              (Compiler.create_binary_function compiler ~source:kernel_source
                 ~name:"invalid-kernel-binary"));
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.create_binary_function_async compiler
+                ~source:visible_source ~name:""));
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.create_binary_function_async compiler
+                ~source:kernel_source ~name:"invalid-async-kernel-binary"));
         let after_invalid_binary = get (Release_queue.stats ()) in
         if after_invalid_binary.total_created
            <> before_invalid_binary.total_created
         then fail "invalid Metal 4 binary functions allocated native handles";
+        let async_binary_library =
+          get
+            (Compiler.compile_source ~name:"async-binary-source" compiler
+               shader_source)
+        in
+        let async_binary_source =
+          get (Function.find ~library:async_binary_library "linked_identity")
+        in
+        let async_binary_task =
+          get
+            (Compiler.create_binary_function_async
+               ~pipeline_independent:true compiler
+               ~source:async_binary_source ~name:"async-visible-binary")
+        in
+        let async_binary_id = Compiler_task.id async_binary_task in
+        get (Function.destroy async_binary_source);
+        get (Library.destroy async_binary_library);
+        get (Compiler_task.wait async_binary_task);
+        if
+          not
+            (List.mem async_binary_id
+               (get (Compiler_task.drain_completions ())))
+        then fail "async binary-function completion ID was not drained";
+        let async_binary =
+          match get (Compiler_task.poll async_binary_task) with
+          | Compiler_task.Complete (Ok function_) -> function_
+          | Compiler_task.Complete (Error error) ->
+              fail "async binary-function compilation failed: %s"
+                (Format.asprintf "%a" pp_error error)
+          | Compiler_task.Pending ->
+              fail "waited async binary-function compilation remained pending"
+        in
+        if Binary_function.name async_binary <> "async-visible-binary"
+           || Binary_function.kind async_binary <> Function.Visible
+           || not (Binary_function.pipeline_independent async_binary)
+        then fail "async Metal 4 binary-function metadata is wrong";
+        get (Binary_function.destroy async_binary);
+        get (Compiler_task.destroy async_binary_task);
         let before_binary_finalizer = get (Release_queue.stats ()) in
         let allocate_unreleased_binary_function () =
           ignore

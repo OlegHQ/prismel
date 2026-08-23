@@ -140,12 +140,19 @@ typedef NS_ENUM(NSUInteger, PrismelMetalCompilerResultState) {
   PrismelMetalCompilerResultConsumed = 3,
 };
 
+typedef NS_ENUM(NSUInteger, PrismelMetalCompilerResultKind) {
+  PrismelMetalCompilerResultLibrary = 0,
+  PrismelMetalCompilerResultBinaryFunction = 1,
+};
+
 API_AVAILABLE(macos(26.0))
 @interface PrismelMetalCompilerTaskState : NSObject
 @property(nonatomic, readonly) std::uint64_t identifier;
 @property(nonatomic, strong) id<MTL4CompilerTask> task;
 @property(nonatomic, readonly) NSString *label;
-- (instancetype)initWithLabel:(nullable NSString *)label;
+@property(nonatomic, readonly) PrismelMetalCompilerResultKind resultKind;
+- (instancetype)initWithKind:(PrismelMetalCompilerResultKind)kind
+                        label:(nullable NSString *)label;
 - (void)finishWithObject:(nullable id)object error:(nullable NSError *)error;
 - (PrismelMetalCompilerResultState)takeObject:(id __autoreleasing *)object
                                         error:(NSError *__autoreleasing *)error;
@@ -155,17 +162,20 @@ API_AVAILABLE(macos(26.0))
   std::uint64_t _identifier;
   id<MTL4CompilerTask> _task;
   NSString *_label;
+  PrismelMetalCompilerResultKind _resultKind;
   id _resultObject;
   NSError *_resultError;
   PrismelMetalCompilerResultState _resultState;
   std::mutex _resultMutex;
 }
 
-- (instancetype)initWithLabel:(NSString *)label {
+- (instancetype)initWithKind:(PrismelMetalCompilerResultKind)kind
+                        label:(NSString *)label {
   self = [super init];
   if (self != nil) {
     _identifier = next_compiler_task_id.fetch_add(1, std::memory_order_relaxed);
     _label = [label copy];
+    _resultKind = kind;
     _resultState = PrismelMetalCompilerResultPending;
   }
   return self;
@@ -175,6 +185,7 @@ API_AVAILABLE(macos(26.0))
 - (id<MTL4CompilerTask>)task { return _task; }
 - (void)setTask:(id<MTL4CompilerTask>)task { _task = task; }
 - (NSString *)label { return _label; }
+- (PrismelMetalCompilerResultKind)resultKind { return _resultKind; }
 
 - (void)finishWithObject:(id)object error:(NSError *)error {
   {
@@ -1301,6 +1312,22 @@ MTL4BinaryFunctionDescriptor *checked_binary_function_descriptor(
   }
   *lookup_archives = [archive_array copy];
   return descriptor;
+}
+
+API_AVAILABLE(macos(26.0))
+MTL4CompilerTaskOptions *checked_compiler_task_options(
+    NSArray<id<MTL4Archive>> *lookup_archives,
+    NSString *__autoreleasing *failure) {
+  if (lookup_archives.count == 0) {
+    return nil;
+  }
+  MTL4CompilerTaskOptions *options = [[MTL4CompilerTaskOptions alloc] init];
+  options.lookupArchives = lookup_archives;
+  if (options.lookupArchives.count != lookup_archives.count) {
+    *failure = @"Metal changed checked compiler-task lookup archives";
+    return nil;
+  }
+  return options;
 }
 
 API_AVAILABLE(macos(26.0))
@@ -5873,7 +5900,8 @@ extern "C" CAMLprim value caml_prismel_metal_compiler_compile_library_async(
         }
         PrismelMetalCompilerTaskState *state =
             [[PrismelMetalCompilerTaskState alloc]
-                initWithLabel:expected_name];
+                initWithKind:PrismelMetalCompilerResultLibrary
+                         label:expected_name];
         __weak PrismelMetalCompilerTaskState *weak_state = state;
         id<MTL4CompilerTask> task =
             [compiler newLibraryWithDescriptor:descriptor
@@ -5955,6 +5983,10 @@ caml_prismel_metal_compiler_task_take_library(value raw) {
       @try {
         PrismelMetalCompilerTaskState *state =
             object_of_handle(raw, Handle_kind::Compiler_task);
+        if (state.resultKind != PrismelMetalCompilerResultLibrary) {
+          CAMLreturn(result_error_text(
+              "compiler task does not contain a library result"));
+        }
         id result_object = nil;
         NSError *result_error_value = nil;
         const PrismelMetalCompilerResultState result_state =
@@ -6071,14 +6103,11 @@ extern "C" CAMLprim value caml_prismel_metal_compiler_create_binary_function(
         if (descriptor == nil) {
           CAMLreturn(result_error(validation_failure));
         }
-        MTL4CompilerTaskOptions *task_options = nil;
-        if (lookup_archives.count != 0) {
-          task_options = [[MTL4CompilerTaskOptions alloc] init];
-          task_options.lookupArchives = lookup_archives;
-          if (task_options.lookupArchives.count != lookup_archives.count) {
-            CAMLreturn(result_error_text(
-                "Metal changed checked binary-function lookup archives"));
-          }
+        MTL4CompilerTaskOptions *task_options =
+            checked_compiler_task_options(lookup_archives,
+                                          &validation_failure);
+        if (lookup_archives.count != 0 && task_options == nil) {
+          CAMLreturn(result_error(validation_failure));
         }
         NSError *error = nil;
         id<MTL4BinaryFunction> function =
@@ -6100,6 +6129,123 @@ extern "C" CAMLprim value caml_prismel_metal_compiler_create_binary_function(
     }
   }
   CAMLreturn(result_ok(raw));
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_compiler_create_binary_function_async(
+    value raw_compiler, value raw_descriptor) {
+  CAMLparam2(raw_compiler, raw_descriptor);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4Compiler> compiler =
+            object_of_handle(raw_compiler, Handle_kind::Compiler);
+        NSArray<id<MTL4Archive>> *lookup_archives = nil;
+        NSString *validation_failure = nil;
+        MTL4BinaryFunctionDescriptor *descriptor =
+            checked_binary_function_descriptor(
+                raw_descriptor, compiler.device, &lookup_archives,
+                &validation_failure);
+        if (descriptor == nil) {
+          CAMLreturn(result_error(validation_failure));
+        }
+        MTL4CompilerTaskOptions *task_options =
+            checked_compiler_task_options(lookup_archives,
+                                          &validation_failure);
+        if (lookup_archives.count != 0 && task_options == nil) {
+          CAMLreturn(result_error(validation_failure));
+        }
+        PrismelMetalCompilerTaskState *state =
+            [[PrismelMetalCompilerTaskState alloc]
+                initWithKind:PrismelMetalCompilerResultBinaryFunction
+                         label:descriptor.name];
+        __weak PrismelMetalCompilerTaskState *weak_state = state;
+        id<MTL4CompilerTask> task =
+            [compiler newBinaryFunctionWithDescriptor:descriptor
+                                  compilerTaskOptions:task_options
+                                    completionHandler:^(id<MTL4BinaryFunction> function,
+                                                        NSError *error) {
+                                      PrismelMetalCompilerTaskState *strong_state =
+                                          weak_state;
+                                      [strong_state finishWithObject:function
+                                                               error:error];
+                                    }];
+        if (task == nil) {
+          CAMLreturn(result_error(labeled_error_description(
+              descriptor.name, nil,
+              @"Metal 4 asynchronous binary-function task creation failed")));
+        }
+        state.task = task;
+        if (state.identifier == 0 || task.compiler.device.registryID !=
+                                         compiler.device.registryID) {
+          CAMLreturn(result_error_text(
+              "Metal changed checked asynchronous compiler task properties"));
+        }
+        raw = allocate_handle(state, Handle_kind::Compiler_task);
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    } else {
+      CAMLreturn(result_error_text(
+          "asynchronous Metal 4 binary functions require macOS 26 or newer"));
+    }
+  }
+  CAMLreturn(result_ok(raw));
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_compiler_task_take_binary_function(value raw) {
+  CAMLparam1(raw);
+  CAMLlocal3(raw_function, completion, option);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        PrismelMetalCompilerTaskState *state =
+            object_of_handle(raw, Handle_kind::Compiler_task);
+        if (state.resultKind != PrismelMetalCompilerResultBinaryFunction) {
+          CAMLreturn(result_error_text(
+              "compiler task does not contain a binary-function result"));
+        }
+        id result_object = nil;
+        NSError *result_error_value = nil;
+        const PrismelMetalCompilerResultState result_state =
+            [state takeObject:&result_object error:&result_error_value];
+        if (result_state == PrismelMetalCompilerResultPending) {
+          CAMLreturn(result_ok(Val_none));
+        }
+        if (result_state == PrismelMetalCompilerResultConsumed) {
+          CAMLreturn(result_error_text(
+              "compiler task completion was already consumed"));
+        }
+        if (result_state == PrismelMetalCompilerResultFailure) {
+          completion = result_error(labeled_error_description(
+              state.label, result_error_value,
+              @"Metal 4 asynchronous binary-function compilation failed without NSError"));
+        } else {
+          id<MTL4BinaryFunction> function =
+              static_cast<id<MTL4BinaryFunction>>(result_object);
+          if (function == nil) {
+            completion = result_error_text(
+                "Metal returned no asynchronous binary function");
+          } else {
+            raw_function =
+                allocate_handle(function, Handle_kind::Binary_function);
+            completion = result_ok(raw_function);
+          }
+        }
+        option = caml_alloc(1, 0);
+        Store_field(option, 0, completion);
+        CAMLreturn(result_ok(option));
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    } else {
+      CAMLreturn(result_error_text(
+          "asynchronous Metal 4 binary functions require macOS 26 or newer"));
+    }
+  }
+  CAMLreturn(result_error_text("unreachable binary compiler-task result"));
 }
 
 extern "C" CAMLprim value

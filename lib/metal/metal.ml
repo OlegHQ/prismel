@@ -7338,26 +7338,35 @@ module Compiler = struct
                     (fun raw -> Library.make value.device raw)
                     raw)))
 
+  let prepare_binary_function operation (value : t) source ~name
+      ~pipeline_independent ~lookup_archives =
+    let ( let* ) result callback = Result.bind result callback in
+    let* () = ensure_live operation value.lifetime in
+    let* kind =
+      validate_binary_function_source operation value.device source ~name
+        ~pipeline_independent
+    in
+    let* () =
+      validate_pipeline_archives operation value.device lookup_archives
+    in
+    let descriptor =
+      binary_function_descriptor source ~name ~pipeline_independent
+        ~lookup_archives:
+          (Array.of_list
+             (List.map
+                (fun (archive : Pipeline_archive.t) -> archive.raw)
+                lookup_archives))
+    in
+    Ok (kind, descriptor)
+
   let create_binary_function ?(pipeline_independent = false)
       ?(lookup_archives = []) (value : t) ~(source : Function.t) ~name =
     let operation = "Metal.Compiler.create_binary_function" in
     on_main operation (fun () ->
       let ( let* ) result callback = Result.bind result callback in
-      let* () = ensure_live operation value.lifetime in
-      let* kind =
-        validate_binary_function_source operation value.device source ~name
-          ~pipeline_independent
-      in
-      let* () =
-        validate_pipeline_archives operation value.device lookup_archives
-      in
-      let descriptor =
-        binary_function_descriptor source ~name ~pipeline_independent
-          ~lookup_archives:
-            (Array.of_list
-               (List.map
-                  (fun (archive : Pipeline_archive.t) -> archive.raw)
-                  lookup_archives))
+      let* kind, descriptor =
+        prepare_binary_function operation value source ~name
+          ~pipeline_independent ~lookup_archives
       in
       match Metal_raw.compiler_create_binary_function value.raw descriptor with
       | Error message -> native_error operation message
@@ -7365,6 +7374,28 @@ module Compiler = struct
           Ok
             (Binary_function.make value.device ~pipeline_independent ~name
                ~kind raw))
+
+  let create_binary_function_async ?(pipeline_independent = false)
+      ?(lookup_archives = []) (value : t) ~(source : Function.t) ~name =
+    let operation = "Metal.Compiler.create_binary_function_async" in
+    on_main operation (fun () ->
+      let ( let* ) result callback = Result.bind result callback in
+      let* kind, descriptor =
+        prepare_binary_function operation value source ~name
+          ~pipeline_independent ~lookup_archives
+      in
+      match
+        Metal_raw.compiler_create_binary_function_async value.raw descriptor
+      with
+      | Error message -> native_error operation message
+      | Ok raw ->
+          Ok
+            (Compiler_task.make value
+               Metal_raw.compiler_task_take_binary_function
+               (fun raw ->
+                 Binary_function.make value.device ~pipeline_independent
+                   ~name ~kind raw)
+               raw))
 
   let product3 x y z =
     if x > max_int / y then None
