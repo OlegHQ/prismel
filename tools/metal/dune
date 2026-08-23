@@ -64,6 +64,7 @@
   binding_resource_manifest
   binding_resource_integration_partition
   binding_resource_safe_reachability
+  binding_rasterization_rate_reachability
   binding_argument_reflection_plan
   binding_argument_reflection_codegen
   binding_argument_reflection_evidence
@@ -451,6 +452,13 @@
  (name test_binding_resource_safe_reachability)
  (modules test_binding_resource_safe_reachability)
  (libraries metal_inventory_classification))
+
+(test
+ (name test_binding_rasterization_rate_reachability)
+ (modules test_binding_rasterization_rate_reachability)
+ (libraries metal_inventory_classification yojson)
+ (deps ../../lib/metal/generated_api_inventory.json)
+ (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
  (name test_binding_render_command_safe_reachability)
