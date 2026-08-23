@@ -285,6 +285,11 @@
  (modules test_metal_pipeline113_safe)
  (libraries metal))
 
+(test
+ (name test_metal_shader157_safe)
+ (modules test_metal_shader157_safe)
+ (libraries metal))
+
 (rule
  (targets test_presentation_lifecycle_native.exe)
  (deps ../../tools/metal/test_presentation_lifecycle_native.mm)
