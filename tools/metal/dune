@@ -48,6 +48,7 @@
   binding_metal4_manifest
   binding_metal4_callable_safe_reachability
   binding_metal4_second_slice_reachability
+  binding_metal4_native32_reachability
   binding_presentation_spec
   binding_presentation_plan
   binding_presentation_codegen
@@ -511,6 +512,11 @@
 (test
  (name test_binding_metal4_second_slice_reachability)
  (modules test_binding_metal4_second_slice_reachability)
+ (libraries metal_inventory_classification))
+
+(test
+ (name test_binding_metal4_native32_reachability)
+ (modules test_binding_metal4_native32_reachability)
  (libraries metal_inventory_classification))
 
 (test

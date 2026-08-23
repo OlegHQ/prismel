@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 3990,
+    "bound": 4022,
     "scope-excluded": 37,
-    "unreviewed": 1258
+    "unreviewed": 1226
   },
-  "classification_source_sha256": "ed450c7451bb957357d7406c9e33581f3ba7685ab8709678f69a202ee828658e",
+  "classification_source_sha256": "af207823c612a2ab3a45a0f24c849413c3c08b0f5bb83c0a1b25249a85fa0738",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -34895,7 +34895,7 @@
           "line": 89
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4Compiler.h",
       "id": "method:-[MTL4Compiler newMachineLearningPipelineStateWithDescriptor:error:]",
       "kind": "method",
@@ -34903,7 +34903,7 @@
       "macos_introduced": "26.0",
       "name": "newMachineLearningPipelineStateWithDescriptor:error:",
       "owner": "MTL4Compiler",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 ML, specialized-function, and stitched-function surface with owned graphs, checked compilation, and native conformance.",
       "signature": "instance (MTL4MachineLearningPipelineDescriptor * _Nonnull __strong, NSError *__autoreleasing  _Nullable * _Nullable) -> id<MTL4MachineLearningPipelineState> _Nullable"
     },
     {
@@ -37418,7 +37418,7 @@
           "line": 22
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4MachineLearningPipeline.h",
       "id": "method:-[MTL4MachineLearningPipelineDescriptor inputDimensionsAtBufferIndex:]",
       "kind": "method",
@@ -37426,7 +37426,7 @@
       "macos_introduced": "26.0",
       "name": "inputDimensionsAtBufferIndex:",
       "owner": "MTL4MachineLearningPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 ML, specialized-function, and stitched-function surface with owned graphs, checked compilation, and native conformance.",
       "signature": "instance (NSInteger) -> MTLTensorExtents * _Nullable"
     },
     {
@@ -37437,7 +37437,7 @@
           "line": 22
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4MachineLearningPipeline.h",
       "id": "method:-[MTL4MachineLearningPipelineDescriptor label]",
       "kind": "method",
@@ -37445,7 +37445,7 @@
       "macos_introduced": "26.0",
       "name": "label",
       "owner": "MTL4MachineLearningPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 ML, specialized-function, and stitched-function surface with owned graphs, checked compilation, and native conformance.",
       "signature": "instance () -> NSString * _Nullable"
     },
     {
@@ -37456,7 +37456,7 @@
           "line": 22
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4MachineLearningPipeline.h",
       "id": "method:-[MTL4MachineLearningPipelineDescriptor machineLearningFunctionDescriptor]",
       "kind": "method",
@@ -37464,7 +37464,7 @@
       "macos_introduced": "26.0",
       "name": "machineLearningFunctionDescriptor",
       "owner": "MTL4MachineLearningPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 ML, specialized-function, and stitched-function surface with owned graphs, checked compilation, and native conformance.",
       "signature": "instance () -> MTL4FunctionDescriptor * _Nullable"
     },
     {
@@ -37475,7 +37475,7 @@
           "line": 22
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4MachineLearningPipeline.h",
       "id": "method:-[MTL4MachineLearningPipelineDescriptor reset]",
       "kind": "method",
@@ -37483,7 +37483,7 @@
       "macos_introduced": "26.0",
       "name": "reset",
       "owner": "MTL4MachineLearningPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 ML, specialized-function, and stitched-function surface with owned graphs, checked compilation, and native conformance.",
       "signature": "instance () -> void"
     },
     {
@@ -37494,7 +37494,7 @@
           "line": 22
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4MachineLearningPipeline.h",
       "id": "method:-[MTL4MachineLearningPipelineDescriptor setInputDimensions:atBufferIndex:]",
       "kind": "method",
@@ -37502,7 +37502,7 @@
       "macos_introduced": "26.0",
       "name": "setInputDimensions:atBufferIndex:",
       "owner": "MTL4MachineLearningPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 ML, specialized-function, and stitched-function surface with owned graphs, checked compilation, and native conformance.",
       "signature": "instance (MTLTensorExtents * _Nullable __strong, NSInteger) -> void"
     },
     {
@@ -37513,7 +37513,7 @@
           "line": 22
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4MachineLearningPipeline.h",
       "id": "method:-[MTL4MachineLearningPipelineDescriptor setInputDimensions:withRange:]",
       "kind": "method",
@@ -37521,7 +37521,7 @@
       "macos_introduced": "26.0",
       "name": "setInputDimensions:withRange:",
       "owner": "MTL4MachineLearningPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 ML, specialized-function, and stitched-function surface with owned graphs, checked compilation, and native conformance.",
       "signature": "instance (NSArray<MTLTensorExtents *> * _Nonnull __strong, NSRange) -> void"
     },
     {
@@ -37532,7 +37532,7 @@
           "line": 22
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4MachineLearningPipeline.h",
       "id": "method:-[MTL4MachineLearningPipelineDescriptor setLabel:]",
       "kind": "method",
@@ -37540,7 +37540,7 @@
       "macos_introduced": "26.0",
       "name": "setLabel:",
       "owner": "MTL4MachineLearningPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 ML, specialized-function, and stitched-function surface with owned graphs, checked compilation, and native conformance.",
       "signature": "instance (NSString * _Nullable) -> void"
     },
     {
@@ -37551,7 +37551,7 @@
           "line": 22
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4MachineLearningPipeline.h",
       "id": "method:-[MTL4MachineLearningPipelineDescriptor setMachineLearningFunctionDescriptor:]",
       "kind": "method",
@@ -37559,7 +37559,7 @@
       "macos_introduced": "26.0",
       "name": "setMachineLearningFunctionDescriptor:",
       "owner": "MTL4MachineLearningPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 ML, specialized-function, and stitched-function surface with owned graphs, checked compilation, and native conformance.",
       "signature": "instance (MTL4FunctionDescriptor * _Nullable) -> void"
     },
     {
@@ -37570,7 +37570,7 @@
           "line": 64
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4MachineLearningPipeline.h",
       "id": "method:-[MTL4MachineLearningPipelineReflection bindings]",
       "kind": "method",
@@ -37578,7 +37578,7 @@
       "macos_introduced": "26.0",
       "name": "bindings",
       "owner": "MTL4MachineLearningPipelineReflection",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 ML, specialized-function, and stitched-function surface with owned graphs, checked compilation, and native conformance.",
       "signature": "instance () -> NSArray<id<MTLBinding>> * _Nonnull"
     },
     {
@@ -37589,7 +37589,7 @@
           "line": 75
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4MachineLearningPipeline.h",
       "id": "method:-[MTL4MachineLearningPipelineState device]",
       "kind": "method",
@@ -37597,7 +37597,7 @@
       "macos_introduced": "26.0",
       "name": "device",
       "owner": "MTL4MachineLearningPipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 ML, specialized-function, and stitched-function surface with owned graphs, checked compilation, and native conformance.",
       "signature": "instance () -> id<MTLDevice> _Nonnull"
     },
     {
@@ -37608,7 +37608,7 @@
           "line": 75
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4MachineLearningPipeline.h",
       "id": "method:-[MTL4MachineLearningPipelineState intermediatesHeapSize]",
       "kind": "method",
@@ -37616,7 +37616,7 @@
       "macos_introduced": "26.0",
       "name": "intermediatesHeapSize",
       "owner": "MTL4MachineLearningPipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 ML, specialized-function, and stitched-function surface with owned graphs, checked compilation, and native conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -37646,7 +37646,7 @@
           "line": 75
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4MachineLearningPipeline.h",
       "id": "method:-[MTL4MachineLearningPipelineState reflection]",
       "kind": "method",
@@ -37654,7 +37654,7 @@
       "macos_introduced": "26.0",
       "name": "reflection",
       "owner": "MTL4MachineLearningPipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 ML, specialized-function, and stitched-function surface with owned graphs, checked compilation, and native conformance.",
       "signature": "instance () -> MTL4MachineLearningPipelineReflection * _Nullable"
     },
     {
@@ -41883,7 +41883,7 @@
           "line": 23
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4SpecializedFunctionDescriptor.h",
       "id": "method:-[MTL4SpecializedFunctionDescriptor constantValues]",
       "kind": "method",
@@ -41891,7 +41891,7 @@
       "macos_introduced": "26.0",
       "name": "constantValues",
       "owner": "MTL4SpecializedFunctionDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 ML, specialized-function, and stitched-function surface with owned graphs, checked compilation, and native conformance.",
       "signature": "instance () -> MTLFunctionConstantValues * _Nullable"
     },
     {
@@ -41902,7 +41902,7 @@
           "line": 23
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4SpecializedFunctionDescriptor.h",
       "id": "method:-[MTL4SpecializedFunctionDescriptor functionDescriptor]",
       "kind": "method",
@@ -41910,7 +41910,7 @@
       "macos_introduced": "26.0",
       "name": "functionDescriptor",
       "owner": "MTL4SpecializedFunctionDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 ML, specialized-function, and stitched-function surface with owned graphs, checked compilation, and native conformance.",
       "signature": "instance () -> MTL4FunctionDescriptor * _Nullable"
     },
     {
@@ -41921,7 +41921,7 @@
           "line": 23
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4SpecializedFunctionDescriptor.h",
       "id": "method:-[MTL4SpecializedFunctionDescriptor setConstantValues:]",
       "kind": "method",
@@ -41929,7 +41929,7 @@
       "macos_introduced": "26.0",
       "name": "setConstantValues:",
       "owner": "MTL4SpecializedFunctionDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 ML, specialized-function, and stitched-function surface with owned graphs, checked compilation, and native conformance.",
       "signature": "instance (MTLFunctionConstantValues * _Nullable) -> void"
     },
     {
@@ -41940,7 +41940,7 @@
           "line": 23
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4SpecializedFunctionDescriptor.h",
       "id": "method:-[MTL4SpecializedFunctionDescriptor setFunctionDescriptor:]",
       "kind": "method",
@@ -41948,7 +41948,7 @@
       "macos_introduced": "26.0",
       "name": "setFunctionDescriptor:",
       "owner": "MTL4SpecializedFunctionDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 ML, specialized-function, and stitched-function surface with owned graphs, checked compilation, and native conformance.",
       "signature": "instance (MTL4FunctionDescriptor * _Nullable) -> void"
     },
     {
@@ -41959,7 +41959,7 @@
           "line": 23
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4SpecializedFunctionDescriptor.h",
       "id": "method:-[MTL4SpecializedFunctionDescriptor setSpecializedName:]",
       "kind": "method",
@@ -41967,7 +41967,7 @@
       "macos_introduced": "26.0",
       "name": "setSpecializedName:",
       "owner": "MTL4SpecializedFunctionDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 ML, specialized-function, and stitched-function surface with owned graphs, checked compilation, and native conformance.",
       "signature": "instance (NSString * _Nullable) -> void"
     },
     {
@@ -41978,7 +41978,7 @@
           "line": 23
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4SpecializedFunctionDescriptor.h",
       "id": "method:-[MTL4SpecializedFunctionDescriptor specializedName]",
       "kind": "method",
@@ -41986,7 +41986,7 @@
       "macos_introduced": "26.0",
       "name": "specializedName",
       "owner": "MTL4SpecializedFunctionDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 ML, specialized-function, and stitched-function surface with owned graphs, checked compilation, and native conformance.",
       "signature": "instance () -> NSString * _Nullable"
     },
     {
@@ -42111,7 +42111,7 @@
           "line": 21
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4StitchedFunctionDescriptor.h",
       "id": "method:-[MTL4StitchedFunctionDescriptor functionDescriptors]",
       "kind": "method",
@@ -42119,7 +42119,7 @@
       "macos_introduced": "26.0",
       "name": "functionDescriptors",
       "owner": "MTL4StitchedFunctionDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 ML, specialized-function, and stitched-function surface with owned graphs, checked compilation, and native conformance.",
       "signature": "instance () -> NSArray<MTL4FunctionDescriptor *> * _Nullable"
     },
     {
@@ -42130,7 +42130,7 @@
           "line": 21
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4StitchedFunctionDescriptor.h",
       "id": "method:-[MTL4StitchedFunctionDescriptor functionGraph]",
       "kind": "method",
@@ -42138,7 +42138,7 @@
       "macos_introduced": "26.0",
       "name": "functionGraph",
       "owner": "MTL4StitchedFunctionDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 ML, specialized-function, and stitched-function surface with owned graphs, checked compilation, and native conformance.",
       "signature": "instance () -> MTLFunctionStitchingGraph * _Nullable"
     },
     {
@@ -42149,7 +42149,7 @@
           "line": 21
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4StitchedFunctionDescriptor.h",
       "id": "method:-[MTL4StitchedFunctionDescriptor setFunctionDescriptors:]",
       "kind": "method",
@@ -42157,7 +42157,7 @@
       "macos_introduced": "26.0",
       "name": "setFunctionDescriptors:",
       "owner": "MTL4StitchedFunctionDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 ML, specialized-function, and stitched-function surface with owned graphs, checked compilation, and native conformance.",
       "signature": "instance (NSArray<MTL4FunctionDescriptor *> * _Nullable) -> void"
     },
     {
@@ -85359,7 +85359,7 @@
           "line": 22
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4MachineLearningPipeline.h",
       "id": "property:MTL4MachineLearningPipelineDescriptor:label",
       "kind": "property",
@@ -85367,7 +85367,7 @@
       "macos_introduced": "26.0",
       "name": "label",
       "owner": "MTL4MachineLearningPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 ML, specialized-function, and stitched-function surface with owned graphs, checked compilation, and native conformance.",
       "signature": "NSString * _Nullable"
     },
     {
@@ -85378,7 +85378,7 @@
           "line": 22
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4MachineLearningPipeline.h",
       "id": "property:MTL4MachineLearningPipelineDescriptor:machineLearningFunctionDescriptor",
       "kind": "property",
@@ -85386,7 +85386,7 @@
       "macos_introduced": "26.0",
       "name": "machineLearningFunctionDescriptor",
       "owner": "MTL4MachineLearningPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 ML, specialized-function, and stitched-function surface with owned graphs, checked compilation, and native conformance.",
       "signature": "MTL4FunctionDescriptor * _Nullable"
     },
     {
@@ -85397,7 +85397,7 @@
           "line": 64
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4MachineLearningPipeline.h",
       "id": "property:MTL4MachineLearningPipelineReflection:bindings",
       "kind": "property",
@@ -85405,7 +85405,7 @@
       "macos_introduced": "26.0",
       "name": "bindings",
       "owner": "MTL4MachineLearningPipelineReflection",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 ML, specialized-function, and stitched-function surface with owned graphs, checked compilation, and native conformance.",
       "signature": "NSArray<id<MTLBinding>> * _Nonnull"
     },
     {
@@ -85416,7 +85416,7 @@
           "line": 75
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4MachineLearningPipeline.h",
       "id": "property:MTL4MachineLearningPipelineState:device",
       "kind": "property",
@@ -85424,7 +85424,7 @@
       "macos_introduced": "26.0",
       "name": "device",
       "owner": "MTL4MachineLearningPipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 ML, specialized-function, and stitched-function surface with owned graphs, checked compilation, and native conformance.",
       "signature": "id<MTLDevice> _Nonnull"
     },
     {
@@ -85435,7 +85435,7 @@
           "line": 75
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4MachineLearningPipeline.h",
       "id": "property:MTL4MachineLearningPipelineState:intermediatesHeapSize",
       "kind": "property",
@@ -85443,7 +85443,7 @@
       "macos_introduced": "26.0",
       "name": "intermediatesHeapSize",
       "owner": "MTL4MachineLearningPipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 ML, specialized-function, and stitched-function surface with owned graphs, checked compilation, and native conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -85473,7 +85473,7 @@
           "line": 75
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4MachineLearningPipeline.h",
       "id": "property:MTL4MachineLearningPipelineState:reflection",
       "kind": "property",
@@ -85481,7 +85481,7 @@
       "macos_introduced": "26.0",
       "name": "reflection",
       "owner": "MTL4MachineLearningPipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 ML, specialized-function, and stitched-function surface with owned graphs, checked compilation, and native conformance.",
       "signature": "MTL4MachineLearningPipelineReflection * _Nullable"
     },
     {
@@ -87221,7 +87221,7 @@
           "line": 23
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4SpecializedFunctionDescriptor.h",
       "id": "property:MTL4SpecializedFunctionDescriptor:constantValues",
       "kind": "property",
@@ -87229,7 +87229,7 @@
       "macos_introduced": "26.0",
       "name": "constantValues",
       "owner": "MTL4SpecializedFunctionDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 ML, specialized-function, and stitched-function surface with owned graphs, checked compilation, and native conformance.",
       "signature": "MTLFunctionConstantValues * _Nullable"
     },
     {
@@ -87240,7 +87240,7 @@
           "line": 23
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4SpecializedFunctionDescriptor.h",
       "id": "property:MTL4SpecializedFunctionDescriptor:functionDescriptor",
       "kind": "property",
@@ -87248,7 +87248,7 @@
       "macos_introduced": "26.0",
       "name": "functionDescriptor",
       "owner": "MTL4SpecializedFunctionDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 ML, specialized-function, and stitched-function surface with owned graphs, checked compilation, and native conformance.",
       "signature": "MTL4FunctionDescriptor * _Nullable"
     },
     {
@@ -87259,7 +87259,7 @@
           "line": 23
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4SpecializedFunctionDescriptor.h",
       "id": "property:MTL4SpecializedFunctionDescriptor:specializedName",
       "kind": "property",
@@ -87267,7 +87267,7 @@
       "macos_introduced": "26.0",
       "name": "specializedName",
       "owner": "MTL4SpecializedFunctionDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 ML, specialized-function, and stitched-function surface with owned graphs, checked compilation, and native conformance.",
       "signature": "NSString * _Nullable"
     },
     {
@@ -87335,7 +87335,7 @@
           "line": 21
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4StitchedFunctionDescriptor.h",
       "id": "property:MTL4StitchedFunctionDescriptor:functionDescriptors",
       "kind": "property",
@@ -87343,7 +87343,7 @@
       "macos_introduced": "26.0",
       "name": "functionDescriptors",
       "owner": "MTL4StitchedFunctionDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 ML, specialized-function, and stitched-function surface with owned graphs, checked compilation, and native conformance.",
       "signature": "NSArray<MTL4FunctionDescriptor *> * _Nullable"
     },
     {

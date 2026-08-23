@@ -1,4 +1,4 @@
-type status = Pending_safe | Blocked
+type status = Promotable | Blocked
 let property owner name setter=["property:"^owner^":"^name;"method:-["^owner^" "^name^"]";"method:-["^owner^" "^setter^":]"]
 let ml_ids =
   [ "method:-[MTL4MachineLearningPipelineDescriptor inputDimensionsAtBufferIndex:]"; "method:-[MTL4MachineLearningPipelineDescriptor reset]"; "method:-[MTL4MachineLearningPipelineDescriptor setInputDimensions:atBufferIndex:]"; "method:-[MTL4MachineLearningPipelineDescriptor setInputDimensions:withRange:]"
@@ -12,7 +12,8 @@ let ml_ids =
 let specialized_ids=List.concat[property "MTL4SpecializedFunctionDescriptor" "functionDescriptor" "setFunctionDescriptor";property "MTL4SpecializedFunctionDescriptor" "specializedName" "setSpecializedName";property "MTL4SpecializedFunctionDescriptor" "constantValues" "setConstantValues"]
 let stitched_ids=["property:MTL4StitchedFunctionDescriptor:functionDescriptors";"method:-[MTL4StitchedFunctionDescriptor functionDescriptors]";"method:-[MTL4StitchedFunctionDescriptor setFunctionDescriptors:]";"method:-[MTL4StitchedFunctionDescriptor functionGraph]"]
 let pending_ids=List.sort_uniq String.compare(ml_ids@specialized_ids@stitched_ids)
+let promotable_ids=pending_ids
 let blocked_stitched_graph_ids=["property:MTL4StitchedFunctionDescriptor:functionGraph";"method:-[MTL4StitchedFunctionDescriptor setFunctionGraph:]"]
-let status id=if List.mem id pending_ids then Pending_safe else Blocked
+let status id=if List.mem id promotable_ids then Promotable else Blocked
 let validate()=if List.length ml_ids<>19||List.length specialized_ids<>9||List.length stitched_ids<>4||List.length pending_ids<>32||List.length blocked_stitched_graph_ids<>2 then failwith"Metal4 native32 reachability drift"
 let ()=validate()

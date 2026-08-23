@@ -985,6 +985,8 @@ let generator_source_sha256 entry_source =
   ; "tools/metal/binding_metal4_second_slice_reachability.mli"
   ; "tools/metal/binding_mesh_tile_compile_reachability.ml"
   ; "tools/metal/binding_mesh_tile_compile_reachability.mli"
+  ; "tools/metal/binding_metal4_native32_reachability.ml"
+  ; "tools/metal/binding_metal4_native32_reachability.mli"
   ; "tools/metal/binding_shader_safe_reachability.ml"
   ; "tools/metal/binding_shader_safe_reachability.mli"
   ; "tools/metal/binding_mesh_tile_safe_reachability.ml"
