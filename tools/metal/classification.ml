@@ -1581,4 +1581,7 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   then
     Bound,
       "Implemented by generated immutable render-pipeline descriptor records with checked native materialization, exact property round trips, and real pipeline conformance."
+  else if Binding_render_encoder_promotion.is_bound_identifier identifier then
+    Bound,
+      "Implemented by the owned classic render encoder, direct typed native calls, checked state/resource validation, completion retention, and real M1 conformance."
   else Unreviewed, "Binding classification pending during Phase 2."

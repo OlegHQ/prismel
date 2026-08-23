@@ -2116,6 +2116,8 @@ let generator_source_paths =
   ; "tools/metal/binding_render_pipeline_scalar_codegen.mli"
   ; "tools/metal/binding_render_pipeline_scalar_evidence.ml"
   ; "tools/metal/binding_render_pipeline_scalar_evidence.mli"
+  ; "tools/metal/binding_render_encoder_promotion.ml"
+  ; "tools/metal/binding_render_encoder_promotion.mli"
   ; "tools/metal/binding_descriptor_default_evidence.ml"
   ; "tools/metal/binding_descriptor_default_evidence.mli"
   ; "tools/metal/binding_argument_reflection_plan.ml"

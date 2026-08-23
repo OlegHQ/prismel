@@ -26,6 +26,7 @@
   binding_render_pipeline_scalar_plan
   binding_render_pipeline_scalar_codegen
   binding_render_pipeline_scalar_evidence
+  binding_render_encoder_promotion
   binding_argument_reflection_plan
   binding_argument_reflection_codegen
   binding_argument_reflection_evidence

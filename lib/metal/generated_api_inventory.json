@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 3468,
+    "bound": 3487,
     "scope-excluded": 37,
-    "unreviewed": 1780
+    "unreviewed": 1761
   },
-  "classification_source_sha256": "d628b52f560ab1ab163fdf93166e24b7a6a178a2a04abd0a2facd2791dc8b8e7",
+  "classification_source_sha256": "3dc2e8bed9a595065b6a091e438b39673ac42c0af75e18d3bdc3d1e1e7a63e6d",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -68192,7 +68192,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder drawPrimitives:vertexStart:vertexCount:instanceCount:]",
       "kind": "method",
@@ -68200,7 +68200,7 @@
       "macos_introduced": "10.11",
       "name": "drawPrimitives:vertexStart:vertexCount:instanceCount:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic render encoder, direct typed native calls, checked state/resource validation, completion retention, and real M1 conformance.",
       "signature": "instance (MTLPrimitiveType, NSUInteger, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -68361,7 +68361,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setBlendColorRed:green:blue:alpha:]",
       "kind": "method",
@@ -68369,7 +68369,7 @@
       "macos_introduced": "10.11",
       "name": "setBlendColorRed:green:blue:alpha:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic render encoder, direct typed native calls, checked state/resource validation, completion retention, and real M1 conformance.",
       "signature": "instance (float, float, float, float) -> void"
     },
     {
@@ -68455,7 +68455,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setCullMode:]",
       "kind": "method",
@@ -68463,7 +68463,7 @@
       "macos_introduced": "10.11",
       "name": "setCullMode:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic render encoder, direct typed native calls, checked state/resource validation, completion retention, and real M1 conformance.",
       "signature": "instance (MTLCullMode) -> void"
     },
     {
@@ -68474,7 +68474,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setDepthBias:slopeScale:clamp:]",
       "kind": "method",
@@ -68482,7 +68482,7 @@
       "macos_introduced": "10.11",
       "name": "setDepthBias:slopeScale:clamp:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic render encoder, direct typed native calls, checked state/resource validation, completion retention, and real M1 conformance.",
       "signature": "instance (float, float, float) -> void"
     },
     {
@@ -68637,7 +68637,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setFragmentBuffer:offset:atIndex:]",
       "kind": "method",
@@ -68645,7 +68645,7 @@
       "macos_introduced": "10.11",
       "name": "setFragmentBuffer:offset:atIndex:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic render encoder, direct typed native calls, checked state/resource validation, completion retention, and real M1 conformance.",
       "signature": "instance (id<MTLBuffer>  _Nullable __strong, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -68851,7 +68851,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setFragmentTexture:atIndex:]",
       "kind": "method",
@@ -68859,7 +68859,7 @@
       "macos_introduced": "10.11",
       "name": "setFragmentTexture:atIndex:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic render encoder, direct typed native calls, checked state/resource validation, completion retention, and real M1 conformance.",
       "signature": "instance (id<MTLTexture>  _Nullable __strong, NSUInteger) -> void"
     },
     {
@@ -68939,7 +68939,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setFrontFacingWinding:]",
       "kind": "method",
@@ -68947,7 +68947,7 @@
       "macos_introduced": "10.11",
       "name": "setFrontFacingWinding:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic render encoder, direct typed native calls, checked state/resource validation, completion retention, and real M1 conformance.",
       "signature": "instance (MTLWinding) -> void"
     },
     {
@@ -69483,7 +69483,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setRenderPipelineState:]",
       "kind": "method",
@@ -69491,7 +69491,7 @@
       "macos_introduced": "10.11",
       "name": "setRenderPipelineState:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic render encoder, direct typed native calls, checked state/resource validation, completion retention, and real M1 conformance.",
       "signature": "instance (id<MTLRenderPipelineState>  _Nonnull __strong) -> void"
     },
     {
@@ -69502,7 +69502,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setScissorRect:]",
       "kind": "method",
@@ -69510,7 +69510,7 @@
       "macos_introduced": "10.11",
       "name": "setScissorRect:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic render encoder, direct typed native calls, checked state/resource validation, completion retention, and real M1 conformance.",
       "signature": "instance (MTLScissorRect) -> void"
     },
     {
@@ -69552,7 +69552,7 @@
           "line": 468
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setStencilFrontReferenceValue:backReferenceValue:]",
       "kind": "method",
@@ -69560,7 +69560,7 @@
       "macos_introduced": "10.11",
       "name": "setStencilFrontReferenceValue:backReferenceValue:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic render encoder, direct typed native calls, checked state/resource validation, completion retention, and real M1 conformance.",
       "signature": "instance (uint32_t, uint32_t) -> void"
     },
     {
@@ -70090,7 +70090,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setTriangleFillMode:]",
       "kind": "method",
@@ -70098,7 +70098,7 @@
       "macos_introduced": "10.11",
       "name": "setTriangleFillMode:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic render encoder, direct typed native calls, checked state/resource validation, completion retention, and real M1 conformance.",
       "signature": "instance (MTLTriangleFillMode) -> void"
     },
     {
@@ -70159,7 +70159,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setVertexBuffer:offset:atIndex:]",
       "kind": "method",
@@ -70167,7 +70167,7 @@
       "macos_introduced": "10.11",
       "name": "setVertexBuffer:offset:atIndex:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic render encoder, direct typed native calls, checked state/resource validation, completion retention, and real M1 conformance.",
       "signature": "instance (id<MTLBuffer>  _Nullable __strong, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -70473,7 +70473,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setVertexTexture:atIndex:]",
       "kind": "method",
@@ -70481,7 +70481,7 @@
       "macos_introduced": "10.11",
       "name": "setVertexTexture:atIndex:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic render encoder, direct typed native calls, checked state/resource validation, completion retention, and real M1 conformance.",
       "signature": "instance (id<MTLTexture>  _Nullable __strong, NSUInteger) -> void"
     },
     {
@@ -70561,7 +70561,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setViewport:]",
       "kind": "method",
@@ -70569,7 +70569,7 @@
       "macos_introduced": "10.11",
       "name": "setViewport:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic render encoder, direct typed native calls, checked state/resource validation, completion retention, and real M1 conformance.",
       "signature": "instance (MTLViewport) -> void"
     },
     {
@@ -70605,7 +70605,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setVisibilityResultMode:offset:]",
       "kind": "method",
@@ -70613,7 +70613,7 @@
       "macos_introduced": "10.11",
       "name": "setVisibilityResultMode:offset:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic render encoder, direct typed native calls, checked state/resource validation, completion retention, and real M1 conformance.",
       "signature": "instance (MTLVisibilityResultMode, NSUInteger) -> void"
     },
     {
@@ -70655,7 +70655,7 @@
           "line": 836
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder tileHeight]",
       "kind": "method",
@@ -70663,7 +70663,7 @@
       "macos_introduced": "11.0",
       "name": "tileHeight",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic render encoder, direct typed native calls, checked state/resource validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -70680,7 +70680,7 @@
           "line": 829
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder tileWidth]",
       "kind": "method",
@@ -70688,7 +70688,7 @@
       "macos_introduced": "11.0",
       "name": "tileWidth",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic render encoder, direct typed native calls, checked state/resource validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -97853,7 +97853,7 @@
           "line": 836
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "property:MTLRenderCommandEncoder:tileHeight",
       "kind": "property",
@@ -97861,7 +97861,7 @@
       "macos_introduced": "11.0",
       "name": "tileHeight",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic render encoder, direct typed native calls, checked state/resource validation, completion retention, and real M1 conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -97878,7 +97878,7 @@
           "line": 829
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "property:MTLRenderCommandEncoder:tileWidth",
       "kind": "property",
@@ -97886,7 +97886,7 @@
       "macos_introduced": "11.0",
       "name": "tileWidth",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic render encoder, direct typed native calls, checked state/resource validation, completion retention, and real M1 conformance.",
       "signature": "NSUInteger"
     },
     {
