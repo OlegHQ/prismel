@@ -1955,3 +1955,12 @@ external mesh_descriptor_set_mechanical :
 external tile_descriptor_set_mechanical :
   handle -> string option -> mesh_tile_threadgroup_size -> (unit,string) result =
   "caml_prismel_metal_tile_descriptor_set_mechanical"
+
+(* Constructible Command-support event handles carry authoritative source
+   device identity because a shared event may expose a nil native device. *)
+external command_event_create :
+  handle -> ((handle * int64),string) result =
+  "caml_prismel_metal_command_event_create"
+external command_shared_event_create :
+  handle -> ((handle * int64),string) result =
+  "caml_prismel_metal_command_shared_event_create"
