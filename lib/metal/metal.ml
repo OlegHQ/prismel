@@ -17292,6 +17292,44 @@ module Blit_encoder = struct
 end
 
 module Resource100 = struct
+  module Resource_ops = struct
+    type t = Buffer of buffer | Texture of texture
+
+    let parts = function
+      | Buffer value -> value.raw, value.lifetime, value.device,
+          parent_heap value.parent
+      | Texture value -> value.raw, value.lifetime, value.device,
+          texture_heap value
+
+    let device value =
+      let operation = "Metal.Resource100.Resource.device" in
+      on_main operation (fun () ->
+        let raw, lifetime, expected, _ = parts value in
+        match ensure_live operation lifetime with
+        | Error _ as failure -> failure
+        | Ok () -> match Metal_raw.resource_resource_device raw with
+          | Error message -> native_error operation message
+          | Ok registry_id when registry_id <> expected.registry_id ->
+              error operation Device_mismatch
+                "resource device disagrees with its safe owner"
+          | Ok _ -> Ok expected)
+
+    let heap value =
+      let operation = "Metal.Resource100.Resource.heap" in
+      on_main operation (fun () ->
+        let raw, lifetime, _, expected = parts value in
+        match ensure_live operation lifetime with
+        | Error _ as failure -> failure
+        | Ok () -> match Metal_raw.resource_resource_heap raw with
+          | Error message -> native_error operation message
+          | Ok native ->
+              Option.iter (fun handle -> ignore (Metal_raw.destroy handle)) native;
+              if Option.is_some native <> Option.is_some expected then
+                native_error operation
+                  "resource heap disagrees with its safe parent graph"
+              else Ok expected)
+  end
+
   module Buffer_ops = struct
     let add_debug_marker (value:buffer) ~label ~offset ~length =
       let op="Metal.Resource100.Buffer.add_debug_marker"in on_main op(fun()->match ensure_buffer_usable op value with Error _ as e->e|Ok()->if contains_nul label then error op Invalid_argument "label contains a NUL byte"else if offset<0L||length<0L||offset>value.length||length>Int64.sub value.length offset then error op Invalid_argument "debug marker range exceeds the buffer"else match Metal_raw.resource_buffer_add_debug_marker value.raw label offset length with Error m->native_error op m|Ok()->Ok())

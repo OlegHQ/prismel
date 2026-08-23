@@ -2986,6 +2986,11 @@ module Blit_encoder : sig
 end
 
 module Resource100 : sig
+  module Resource_ops : sig
+    type t = Buffer of Buffer.t | Texture of Texture.t
+    val device : t -> (Device.t,error) result
+    val heap : t -> (Heap.t option,error) result
+  end
   module Buffer_ops : sig
     val add_debug_marker : Buffer.t -> label:string -> offset:int64 -> length:int64 -> (unit,error) result
     val remove_all_debug_markers : Buffer.t -> (unit,error) result

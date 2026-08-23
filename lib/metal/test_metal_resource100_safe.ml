@@ -15,8 +15,11 @@ let ()=
  for i=1 to 10000 do let x=get(Resource100.View_pool_descriptor.create~label:(string_of_int i)~count:4L())in if Resource100.View_pool_descriptor.count x<>4L then failwith"descriptor count";get(Resource100.View_pool_descriptor.destroy x)done;
  let device=get(Device.system_default())in let desc=get(Resource100.View_pool_descriptor.create~count:4L())in
  let texture=get(Texture.create~device(Texture.descriptor_2d~storage:Buffer.Shared~usage:[Texture.Shader_read;Texture.Shader_write]~format:Texture.Rgba8_unorm~width:4~height:4()))in
+ if get(Resource100.Resource_ops.device(Resource100.Resource_ops.Texture texture))!=device then failwith"resource device";
+ (match get(Resource100.Resource_ops.heap(Resource100.Resource_ops.Texture texture))with None->()|Some _->failwith"device texture heap");
  (match get(Resource100.Texture_ops.buffer_backing texture)with None->()|Some _->failwith"standalone texture has a buffer parent");
  let backing_buffer=get(Buffer.create~device~length:4096L~storage:Buffer.Shared())in
+ if get(Resource100.Resource_ops.device(Resource100.Resource_ops.Buffer backing_buffer))!=device then failwith"buffer device";
  (match get(Resource100.Buffer_ops.remote_view backing_buffer~device)with
   |None->()|Some remote->if Buffer.length remote<>4096L then failwith"remote buffer length"else get(Buffer.destroy remote));
  (match get(Resource100.Buffer_ops.remote_storage backing_buffer)with
