@@ -202,6 +202,7 @@ let bound_identifiers =
   ; "typedef:MTLTextureSwizzleChannels"
   ; "typedef:MTLTextureUsage"
   ; "typedef:MTLNewLibraryCompletionHandler"
+  ; "typedef:MTLNewComputePipelineStateCompletionHandler"
   ; "variable:swizzle"
   ]
   @ methods
@@ -234,6 +235,7 @@ let bound_identifiers =
           ; "newBinaryFunctionWithDescriptor:compilerTaskOptions:error:"
           ; "newBinaryFunctionWithDescriptor:compilerTaskOptions:completionHandler:"
           ; "newComputePipelineStateWithDescriptor:compilerTaskOptions:error:"
+          ; "newComputePipelineStateWithDescriptor:compilerTaskOptions:completionHandler:"
           ; "newComputePipelineStateWithDescriptor:dynamicLinkingDescriptor:compilerTaskOptions:error:"
           ; "newLibraryWithDescriptor:completionHandler:"
           ; "newLibraryWithDescriptor:error:"; "pipelineDataSetSerializer"
@@ -863,6 +865,11 @@ let bound_identifiers =
 
 let bound_identifier_set = String_set.of_list bound_identifiers
 
+let availability_gated_identifier_set =
+  String_set.of_list
+    [ "method:-[MTL4Compiler newComputePipelineStateWithDescriptor:dynamicLinkingDescriptor:compilerTaskOptions:completionHandler:]"
+    ]
+
 let name = function
   | Bound -> "bound"
   | Availability_gated -> "availability-gated"
@@ -872,6 +879,9 @@ let name = function
 let classify ~unavailable ~identifier =
   if unavailable then
     Scope_excluded, "Clang marks this declaration unavailable for macOS."
+  else if String_set.mem identifier availability_gated_identifier_set then
+    ( Availability_gated
+    , "Implemented with an Apple9/M3+ capability gate; the Apple7/M1 Metal 4 driver crashes while serializing this asynchronous dynamic-link request." )
   else if String_set.mem identifier bound_identifier_set then
     Bound, "Implemented by the ownership-aware prismel.metal safe layer."
   else Unreviewed, "Binding classification pending during Phase 2."

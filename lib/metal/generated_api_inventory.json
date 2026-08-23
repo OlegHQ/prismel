@@ -1,12 +1,12 @@
 {
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
-    "availability-gated": 0,
-    "bound": 1145,
+    "availability-gated": 1,
+    "bound": 1147,
     "scope-excluded": 7,
-    "unreviewed": 4134
+    "unreviewed": 4131
   },
-  "classification_source_sha256": "35c6ef96d56c0dfacc21b905fb9b153993b439e0dde5718229a346960a9b823e",
+  "classification_source_sha256": "6342718fa84f2d9daa4ba71b98977bd726a4f6ad912e4a7a68c3dccbe56430da",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "header_aggregate_sha256": "c2ee1e44c76606cf05fa81d1a8314dadfa49efe900342e8bcb3670363c16f0d1",
@@ -21636,14 +21636,14 @@
       "attributes": [
         "NSReturnsRetainedAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4Compiler.h",
       "id": "method:-[MTL4Compiler newComputePipelineStateWithDescriptor:compilerTaskOptions:completionHandler:]",
       "kind": "method",
       "line": 270,
       "name": "newComputePipelineStateWithDescriptor:compilerTaskOptions:completionHandler:",
       "owner": "MTL4Compiler",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTL4ComputePipelineDescriptor * _Nonnull __strong, MTL4CompilerTaskOptions * _Nullable __strong, MTLNewComputePipelineStateCompletionHandler  _Nonnull __strong) -> id<MTL4CompilerTask> _Nonnull"
     },
     {
@@ -21664,14 +21664,14 @@
       "attributes": [
         "NSReturnsRetainedAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "availability-gated",
       "header": "Metal/MTL4Compiler.h",
       "id": "method:-[MTL4Compiler newComputePipelineStateWithDescriptor:dynamicLinkingDescriptor:compilerTaskOptions:completionHandler:]",
       "kind": "method",
       "line": 284,
       "name": "newComputePipelineStateWithDescriptor:dynamicLinkingDescriptor:compilerTaskOptions:completionHandler:",
       "owner": "MTL4Compiler",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented with an Apple9/M3+ capability gate; the Apple7/M1 Metal 4 driver crashes while serializing this asynchronous dynamic-link request.",
       "signature": "instance (MTL4ComputePipelineDescriptor * _Nonnull __strong, MTL4PipelineStageDynamicLinkingDescriptor * _Nullable __strong, MTL4CompilerTaskOptions * _Nullable __strong, MTLNewComputePipelineStateCompletionHandler  _Nonnull __strong) -> id<MTL4CompilerTask> _Nonnull"
     },
     {
@@ -66814,14 +66814,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "typedef:MTLNewComputePipelineStateCompletionHandler",
       "kind": "typedef",
       "line": 43,
       "name": "MTLNewComputePipelineStateCompletionHandler",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "void (^)(id<MTLComputePipelineState>  _Nullable __strong, NSError * _Nullable __strong)"
     },
     {

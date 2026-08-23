@@ -664,8 +664,7 @@ type 'a compiler_task =
   ; compiler : compiler
   ; take :
       Metal_raw.handle ->
-      (((Metal_raw.handle, string) result option, string) result)
-  ; decode : Metal_raw.handle -> 'a
+      ((('a, string) result option, string) result)
   ; mutable consumed : bool
   }
 
@@ -7069,9 +7068,12 @@ module Compiler_task = struct
     | Pending
     | Complete of ('a, error) result
 
-  let make (compiler : compiler) take decode raw =
+  let make (compiler : compiler) raw_take decode raw =
+    let take raw =
+      Result.map (Option.map (Result.map decode)) (raw_take raw)
+    in
     let value =
-      { raw; lifetime = lifetime (); compiler; take; decode; consumed = false }
+      { raw; lifetime = lifetime (); compiler; take; consumed = false }
     in
     attach compiler.lifetime;
     attach_finalizer value value.lifetime compiler.lifetime;
@@ -7118,9 +7120,9 @@ module Compiler_task = struct
           (match value.take value.raw with
            | Error message -> native_error operation message
            | Ok None -> Ok Pending
-           | Ok (Some (Ok raw)) ->
+           | Ok (Some (Ok result)) ->
                value.consumed <- true;
-               Ok (Complete (Ok (value.decode raw)))
+               Ok (Complete (Ok result))
            | Ok (Some (Error message)) ->
                value.consumed <- true;
                Ok
@@ -7403,7 +7405,7 @@ module Compiler = struct
       let xy = x * y in
       if xy > max_int / z then None else Some (xy * z)
 
-  let create_compute_pipeline ?label ?(reflection = false)
+  let with_compute_descriptor operation callback ?label ?(reflection = false)
       ?(threadgroup_size_multiple = false)
       ?max_total_threads_per_threadgroup ?required_threads_per_threadgroup
       ?(support_binary_linking = false)
@@ -7412,7 +7414,6 @@ module Compiler = struct
       ?(preloaded_libraries = []) ?max_call_stack_depth
       ?(lookup_archives = []) (value : t) ~(library : Library.t)
       function_name =
-    let operation = "Metal.Compiler.create_compute_pipeline" in
     on_main operation (fun () ->
       let ( let* ) result callback = Result.bind result callback in
       let* () = ensure_live operation value.lifetime in
@@ -7424,6 +7425,13 @@ module Compiler = struct
       else if option_exists contains_nul label then
         error operation Invalid_argument
           "compute-pipeline label contains a NUL byte"
+      else if
+        not
+          (Array.exists (String.equal function_name)
+             (Metal_raw.library_function_names library.raw))
+      then
+        error operation Invalid_argument
+          "compute function is absent from the source library"
       else
         let* max_total_threads =
           match max_total_threads_per_threadgroup with
@@ -7534,14 +7542,78 @@ module Compiler = struct
               ; static_linking
               }
             in
-            match
-              Metal_raw.compiler_create_compute_pipeline value.raw descriptor
-            with
-            | Error message -> native_error operation message
-            | Ok (raw, raw_bindings) ->
-                Ok
-                  (Compute_pipeline.make value.device ~reflection raw
-                     raw_bindings))
+            callback reflection descriptor)
+
+  let create_compute_pipeline ?label ?(reflection = false)
+      ?(threadgroup_size_multiple = false)
+      ?max_total_threads_per_threadgroup ?required_threads_per_threadgroup
+      ?(support_binary_linking = false)
+      ?(support_indirect_command_buffers = false)
+      ?static_linking ?(binary_linked_functions = [])
+      ?(preloaded_libraries = []) ?max_call_stack_depth
+      ?(lookup_archives = []) (value : t) ~(library : Library.t)
+      function_name =
+    let operation = "Metal.Compiler.create_compute_pipeline" in
+    with_compute_descriptor operation
+      (fun reflection descriptor ->
+        match
+          Metal_raw.compiler_create_compute_pipeline value.raw descriptor
+        with
+        | Error message -> native_error operation message
+        | Ok (raw, raw_bindings) ->
+            Ok
+              (Compute_pipeline.make value.device ~reflection raw
+                 raw_bindings))
+      ?label ~reflection ~threadgroup_size_multiple
+      ?max_total_threads_per_threadgroup ?required_threads_per_threadgroup
+      ~support_binary_linking ~support_indirect_command_buffers
+      ?static_linking ~binary_linked_functions ~preloaded_libraries
+      ?max_call_stack_depth ~lookup_archives value ~library function_name
+
+  let create_compute_pipeline_async ?label ?(reflection = false)
+      ?(threadgroup_size_multiple = false)
+      ?max_total_threads_per_threadgroup ?required_threads_per_threadgroup
+      ?(support_binary_linking = false)
+      ?(support_indirect_command_buffers = false)
+      ?static_linking ?(binary_linked_functions = [])
+      ?(preloaded_libraries = []) ?max_call_stack_depth
+      ?(lookup_archives = []) (value : t) ~(library : Library.t)
+      function_name =
+    let operation = "Metal.Compiler.create_compute_pipeline_async" in
+    with_compute_descriptor operation
+      (fun reflection descriptor ->
+        let uses_dynamic_linking =
+          Array.length descriptor.preloaded_libraries <> 0
+          || Array.length descriptor.binary_linked_functions <> 0
+          || descriptor.max_call_stack_depth <> 0L
+        in
+        if
+          uses_dynamic_linking
+          && not
+               (Metal_raw.device_supports_family value.device.raw
+                  (Device.family_code Device.Apple9))
+        then
+          error operation Unsupported
+            "asynchronous dynamic compute linking requires an Apple9/M3-or-newer GPU"
+        else
+          match
+            Metal_raw.compiler_create_compute_pipeline_async value.raw
+              descriptor
+          with
+          | Error message -> native_error operation message
+          | Ok raw ->
+              Ok
+                (Compiler_task.make value
+                   Metal_raw.compiler_task_take_compute_pipeline
+                   (fun (raw, raw_bindings) ->
+                     Compute_pipeline.make value.device ~reflection raw
+                       raw_bindings)
+                   raw))
+      ?label ~reflection ~threadgroup_size_multiple
+      ?max_total_threads_per_threadgroup ?required_threads_per_threadgroup
+      ~support_binary_linking ~support_indirect_command_buffers
+      ?static_linking ~binary_linked_functions ~preloaded_libraries
+      ?max_call_stack_depth ~lookup_archives value ~library function_name
 
   let device (value : t) = value.device
   let generation (value : t) = Metal_raw.generation value.raw

@@ -634,6 +634,16 @@ external compiler_create_compute_pipeline :
   ((handle * pipeline_binding_info array), string) result =
   "caml_prismel_metal_compiler_create_compute_pipeline"
 
+external compiler_create_compute_pipeline_async :
+  handle -> metal4_compute_descriptor -> (handle, string) result =
+  "caml_prismel_metal_compiler_create_compute_pipeline_async"
+
+external compiler_task_take_compute_pipeline :
+  handle ->
+  ((((handle * pipeline_binding_info array), string) result option, string)
+    result) =
+  "caml_prismel_metal_compiler_task_take_compute_pipeline"
+
 external compute_pipeline_create : handle -> handle -> (handle, string) result =
   "caml_prismel_metal_compute_pipeline_create"
 

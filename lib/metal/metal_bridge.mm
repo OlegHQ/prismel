@@ -143,6 +143,7 @@ typedef NS_ENUM(NSUInteger, PrismelMetalCompilerResultState) {
 typedef NS_ENUM(NSUInteger, PrismelMetalCompilerResultKind) {
   PrismelMetalCompilerResultLibrary = 0,
   PrismelMetalCompilerResultBinaryFunction = 1,
+  PrismelMetalCompilerResultComputePipeline = 2,
 };
 
 API_AVAILABLE(macos(26.0))
@@ -151,8 +152,11 @@ API_AVAILABLE(macos(26.0))
 @property(nonatomic, strong) id<MTL4CompilerTask> task;
 @property(nonatomic, readonly) NSString *label;
 @property(nonatomic, readonly) PrismelMetalCompilerResultKind resultKind;
+@property(nonatomic, readonly) BOOL reflectionRequested;
+@property(nonatomic, strong, nullable) id retainedInputs;
 - (instancetype)initWithKind:(PrismelMetalCompilerResultKind)kind
-                        label:(nullable NSString *)label;
+                        label:(nullable NSString *)label
+          reflectionRequested:(BOOL)reflectionRequested;
 - (void)finishWithObject:(nullable id)object error:(nullable NSError *)error;
 - (PrismelMetalCompilerResultState)takeObject:(id __autoreleasing *)object
                                         error:(NSError *__autoreleasing *)error;
@@ -163,6 +167,8 @@ API_AVAILABLE(macos(26.0))
   id<MTL4CompilerTask> _task;
   NSString *_label;
   PrismelMetalCompilerResultKind _resultKind;
+  BOOL _reflectionRequested;
+  id _retainedInputs;
   id _resultObject;
   NSError *_resultError;
   PrismelMetalCompilerResultState _resultState;
@@ -170,12 +176,14 @@ API_AVAILABLE(macos(26.0))
 }
 
 - (instancetype)initWithKind:(PrismelMetalCompilerResultKind)kind
-                        label:(NSString *)label {
+                        label:(NSString *)label
+          reflectionRequested:(BOOL)reflectionRequested {
   self = [super init];
   if (self != nil) {
     _identifier = next_compiler_task_id.fetch_add(1, std::memory_order_relaxed);
     _label = [label copy];
     _resultKind = kind;
+    _reflectionRequested = reflectionRequested;
     _resultState = PrismelMetalCompilerResultPending;
   }
   return self;
@@ -186,6 +194,11 @@ API_AVAILABLE(macos(26.0))
 - (void)setTask:(id<MTL4CompilerTask>)task { _task = task; }
 - (NSString *)label { return _label; }
 - (PrismelMetalCompilerResultKind)resultKind { return _resultKind; }
+- (BOOL)reflectionRequested { return _reflectionRequested; }
+- (id)retainedInputs { return _retainedInputs; }
+- (void)setRetainedInputs:(id)retainedInputs {
+  _retainedInputs = retainedInputs;
+}
 
 - (void)finishWithObject:(id)object error:(NSError *)error {
   {
@@ -195,6 +208,7 @@ API_AVAILABLE(macos(26.0))
     }
     _resultObject = object;
     _resultError = error;
+    _retainedInputs = nil;
     _resultState = object == nil ? PrismelMetalCompilerResultFailure
                                  : PrismelMetalCompilerResultSuccess;
   }
@@ -216,6 +230,19 @@ API_AVAILABLE(macos(26.0))
   return state;
 }
 
+@end
+
+API_AVAILABLE(macos(26.0))
+@interface PrismelMetalCheckedComputeRequest : NSObject
+@property(nonatomic, strong) MTL4ComputePipelineDescriptor *descriptor;
+@property(nonatomic, strong, nullable)
+    MTL4PipelineStageDynamicLinkingDescriptor *dynamicLinking;
+@property(nonatomic, strong, nullable) MTL4CompilerTaskOptions *taskOptions;
+@property(nonatomic, copy, nullable) NSString *label;
+@property(nonatomic) BOOL reflectionRequested;
+@end
+
+@implementation PrismelMetalCheckedComputeRequest
 @end
 
 @interface PrismelMetalXpcRequest : NSObject
@@ -5901,12 +5928,16 @@ extern "C" CAMLprim value caml_prismel_metal_compiler_compile_library_async(
         PrismelMetalCompilerTaskState *state =
             [[PrismelMetalCompilerTaskState alloc]
                 initWithKind:PrismelMetalCompilerResultLibrary
-                         label:expected_name];
+                         label:expected_name
+           reflectionRequested:NO];
         __weak PrismelMetalCompilerTaskState *weak_state = state;
+        state.retainedInputs = descriptor;
+        MTL4LibraryDescriptor *retained_descriptor = descriptor;
         id<MTL4CompilerTask> task =
             [compiler newLibraryWithDescriptor:descriptor
                              completionHandler:^(id<MTLLibrary> library,
                                                  NSError *error) {
+                               (void)retained_descriptor;
                                PrismelMetalCompilerTaskState *strong_state =
                                    weak_state;
                                [strong_state finishWithObject:library
@@ -6159,13 +6190,21 @@ caml_prismel_metal_compiler_create_binary_function_async(
         PrismelMetalCompilerTaskState *state =
             [[PrismelMetalCompilerTaskState alloc]
                 initWithKind:PrismelMetalCompilerResultBinaryFunction
-                         label:descriptor.name];
+                         label:descriptor.name
+           reflectionRequested:NO];
         __weak PrismelMetalCompilerTaskState *weak_state = state;
+        state.retainedInputs =
+            task_options == nil ? @[ descriptor ]
+                                : @[ descriptor, task_options ];
+        MTL4BinaryFunctionDescriptor *retained_descriptor = descriptor;
+        MTL4CompilerTaskOptions *retained_task_options = task_options;
         id<MTL4CompilerTask> task =
             [compiler newBinaryFunctionWithDescriptor:descriptor
                                   compilerTaskOptions:task_options
                                     completionHandler:^(id<MTL4BinaryFunction> function,
                                                         NSError *error) {
+                                      (void)retained_descriptor;
+                                      (void)retained_task_options;
                                       PrismelMetalCompilerTaskState *strong_state =
                                           weak_state;
                                       [strong_state finishWithObject:function
@@ -6248,6 +6287,230 @@ caml_prismel_metal_compiler_task_take_binary_function(value raw) {
   CAMLreturn(result_error_text("unreachable binary compiler-task result"));
 }
 
+API_AVAILABLE(macos(26.0))
+PrismelMetalCheckedComputeRequest *checked_compute_request(
+    value raw_descriptor, id<MTL4Compiler> compiler,
+    NSString *__autoreleasing *failure) {
+  id<MTLLibrary> library =
+      object_of_handle(Field(raw_descriptor, 1), Handle_kind::Library);
+  if (library.device.registryID != compiler.device.registryID) {
+    *failure = @"Metal 4 compute library is incompatible with the compiler";
+    return nil;
+  }
+  NSString *expected_label = nil;
+  value raw_label = Field(raw_descriptor, 0);
+  if (Is_block(raw_label)) {
+    expected_label = string_from_ocaml(Field(raw_label, 0));
+    if (expected_label == nil) {
+      *failure = @"Metal 4 compute-pipeline label is not valid UTF-8";
+      return nil;
+    }
+  }
+  NSString *function_name = string_from_ocaml(Field(raw_descriptor, 2));
+  if (function_name == nil || function_name.length == 0) {
+    *failure = @"Metal 4 compute function name is not valid nonempty UTF-8";
+    return nil;
+  }
+  if (![library.functionNames containsObject:function_name]) {
+    *failure = @"Metal 4 compute function is absent from the source library";
+    return nil;
+  }
+  NSUInteger max_total_threads = 0;
+  NSUInteger required_width = 0;
+  NSUInteger required_height = 0;
+  NSUInteger required_depth = 0;
+  NSUInteger max_call_stack_depth = 0;
+  if (!nsuinteger_from_ocaml_int64(Field(raw_descriptor, 5),
+                                   &max_total_threads) ||
+      !nsuinteger_from_ocaml_int64(Field(raw_descriptor, 6),
+                                   &required_width) ||
+      !nsuinteger_from_ocaml_int64(Field(raw_descriptor, 7),
+                                   &required_height) ||
+      !nsuinteger_from_ocaml_int64(Field(raw_descriptor, 8),
+                                   &required_depth) ||
+      !nsuinteger_from_ocaml_int64(Field(raw_descriptor, 12),
+                                   &max_call_stack_depth)) {
+    *failure = @"Metal 4 compute descriptor contains an invalid cardinality";
+    return nil;
+  }
+  const bool no_required_threads = required_width == 0 &&
+                                   required_height == 0 &&
+                                   required_depth == 0;
+  if (!no_required_threads &&
+      (required_width == 0 || required_height == 0 || required_depth == 0 ||
+       required_width > NSUIntegerMax / required_height ||
+       required_width * required_height > NSUIntegerMax / required_depth ||
+       (max_total_threads != 0 &&
+        required_width * required_height * required_depth !=
+            max_total_threads))) {
+    *failure = @"Metal 4 required threadgroup dimensions are invalid";
+    return nil;
+  }
+  std::vector<id<MTLDynamicLibrary>> preloaded_libraries =
+      dynamic_libraries_of_array(Field(raw_descriptor, 11));
+  NSMutableArray<id<MTLDynamicLibrary>> *preloaded_array =
+      [NSMutableArray arrayWithCapacity:preloaded_libraries.size()];
+  NSMutableSet<NSString *> *install_names = [NSMutableSet set];
+  for (id<MTLDynamicLibrary> dynamic_library : preloaded_libraries) {
+    if (!compiler.device.supportsDynamicLibraries ||
+        dynamic_library.device.registryID != compiler.device.registryID ||
+        dynamic_library.installName == nil ||
+        [install_names containsObject:dynamic_library.installName]) {
+      *failure =
+          @"Metal 4 preloaded dynamic library is incompatible or duplicated";
+      return nil;
+    }
+    [install_names addObject:dynamic_library.installName];
+    [preloaded_array addObject:dynamic_library];
+  }
+  std::vector<id<MTL4BinaryFunction>> binary_functions =
+      binary_functions_of_array(Field(raw_descriptor, 14));
+  NSMutableArray<id<MTL4BinaryFunction>> *binary_function_array =
+      [NSMutableArray arrayWithCapacity:binary_functions.size()];
+  NSMutableSet<id<MTL4BinaryFunction>> *binary_function_set =
+      [NSMutableSet set];
+  for (id<MTL4BinaryFunction> function : binary_functions) {
+    if (!compiler.device.supportsFunctionPointers ||
+        [binary_function_set containsObject:function]) {
+      *failure =
+          @"Metal 4 binary linked function is incompatible or duplicated";
+      return nil;
+    }
+    [binary_function_set addObject:function];
+    [binary_function_array addObject:function];
+  }
+  if ((preloaded_array.count != 0 || binary_function_array.count != 0) &&
+      max_call_stack_depth == 0) {
+    *failure = @"Metal 4 dynamic linking requires a positive call-stack depth";
+    return nil;
+  }
+  std::vector<id<MTL4Archive>> lookup_archives =
+      pipeline_archives_of_array(Field(raw_descriptor, 13));
+  NSMutableArray<id<MTL4Archive>> *archive_array =
+      [NSMutableArray arrayWithCapacity:lookup_archives.size()];
+  NSMutableSet<id<MTL4Archive>> *archive_set = [NSMutableSet set];
+  for (id<MTL4Archive> archive : lookup_archives) {
+    if ([archive_set containsObject:archive]) {
+      *failure = @"Metal 4 lookup archive is duplicated";
+      return nil;
+    }
+    [archive_set addObject:archive];
+    [archive_array addObject:archive];
+  }
+  MTL4LibraryFunctionDescriptor *function_descriptor =
+      [[MTL4LibraryFunctionDescriptor alloc] init];
+  function_descriptor.name = function_name;
+  function_descriptor.library = library;
+  MTL4ComputePipelineDescriptor *descriptor =
+      [[MTL4ComputePipelineDescriptor alloc] init];
+  value raw_static_linking = Field(raw_descriptor, 15);
+  NSString *static_linking_failure = nil;
+  MTL4StaticLinkingDescriptor *static_linking =
+      checked_static_linking_descriptor(
+          raw_static_linking, compiler.device, &static_linking_failure);
+  if (Is_block(raw_static_linking) && static_linking == nil) {
+    *failure = static_linking_failure;
+    return nil;
+  }
+  if (expected_label != nil) {
+    descriptor.label = expected_label;
+  }
+  descriptor.computeFunctionDescriptor = function_descriptor;
+  descriptor.staticLinkingDescriptor = static_linking;
+  const bool threadgroup_size_multiple = Bool_val(Field(raw_descriptor, 4));
+  const bool support_binary_linking = Bool_val(Field(raw_descriptor, 9));
+  const auto indirect_command_support =
+      Bool_val(Field(raw_descriptor, 10))
+          ? MTL4IndirectCommandBufferSupportStateEnabled
+          : MTL4IndirectCommandBufferSupportStateDisabled;
+  descriptor.threadGroupSizeIsMultipleOfThreadExecutionWidth =
+      threadgroup_size_multiple;
+  descriptor.maxTotalThreadsPerThreadgroup = max_total_threads;
+  descriptor.requiredThreadsPerThreadgroup =
+      MTLSizeMake(required_width, required_height, required_depth);
+  descriptor.supportBinaryLinking = support_binary_linking;
+  descriptor.supportIndirectCommandBuffers = indirect_command_support;
+  const bool reflection_requested = Bool_val(Field(raw_descriptor, 3));
+  const MTL4ShaderReflection expected_reflection =
+      MTL4ShaderReflectionBindingInfo | MTL4ShaderReflectionBufferTypeInfo;
+  if (reflection_requested) {
+    MTL4PipelineOptions *options = [[MTL4PipelineOptions alloc] init];
+    options.shaderReflection = expected_reflection;
+    descriptor.options = options;
+  }
+  MTL4PipelineStageDynamicLinkingDescriptor *dynamic_linking = nil;
+  if (preloaded_array.count != 0 || binary_function_array.count != 0 ||
+      max_call_stack_depth != 0) {
+    dynamic_linking =
+        [[MTL4PipelineStageDynamicLinkingDescriptor alloc] init];
+    dynamic_linking.maxCallStackDepth = max_call_stack_depth;
+    dynamic_linking.binaryLinkedFunctions = binary_function_array;
+    dynamic_linking.preloadedLibraries = preloaded_array;
+  }
+  NSString *task_options_failure = nil;
+  MTL4CompilerTaskOptions *task_options =
+      checked_compiler_task_options(archive_array, &task_options_failure);
+  if (archive_array.count != 0 && task_options == nil) {
+    *failure = task_options_failure;
+    return nil;
+  }
+  MTL4FunctionDescriptor *stored_function = descriptor.computeFunctionDescriptor;
+  if (![stored_function isKindOfClass:[MTL4LibraryFunctionDescriptor class]]) {
+    *failure = @"Metal changed the Metal 4 compute function descriptor type";
+    return nil;
+  }
+  MTL4LibraryFunctionDescriptor *stored_library_function =
+      static_cast<MTL4LibraryFunctionDescriptor *>(stored_function);
+  if (stored_library_function.library != library ||
+      ![stored_library_function.name isEqualToString:function_name] ||
+      ((expected_label == nil) != (descriptor.label == nil)) ||
+      (expected_label != nil &&
+       ![descriptor.label isEqualToString:expected_label]) ||
+      descriptor.threadGroupSizeIsMultipleOfThreadExecutionWidth !=
+          threadgroup_size_multiple ||
+      descriptor.maxTotalThreadsPerThreadgroup != max_total_threads ||
+      descriptor.requiredThreadsPerThreadgroup.width != required_width ||
+      descriptor.requiredThreadsPerThreadgroup.height != required_height ||
+      descriptor.requiredThreadsPerThreadgroup.depth != required_depth ||
+      descriptor.supportBinaryLinking != support_binary_linking ||
+      descriptor.supportIndirectCommandBuffers != indirect_command_support ||
+      (static_linking == nil && descriptor.staticLinkingDescriptor != nil &&
+       (descriptor.staticLinkingDescriptor.functionDescriptors.count != 0 ||
+        descriptor.staticLinkingDescriptor.privateFunctionDescriptors.count !=
+            0 ||
+        descriptor.staticLinkingDescriptor.groups.count != 0)) ||
+      (static_linking != nil &&
+       (descriptor.staticLinkingDescriptor == nil ||
+        descriptor.staticLinkingDescriptor.functionDescriptors.count !=
+            static_linking.functionDescriptors.count ||
+        descriptor.staticLinkingDescriptor.privateFunctionDescriptors.count !=
+            static_linking.privateFunctionDescriptors.count ||
+        descriptor.staticLinkingDescriptor.groups.count !=
+            static_linking.groups.count)) ||
+      (reflection_requested &&
+       (descriptor.options == nil ||
+        descriptor.options.shaderReflection != expected_reflection)) ||
+      (!reflection_requested && descriptor.options != nil) ||
+      (dynamic_linking != nil &&
+       (dynamic_linking.maxCallStackDepth != max_call_stack_depth ||
+        dynamic_linking.binaryLinkedFunctions.count !=
+            binary_function_array.count ||
+        dynamic_linking.preloadedLibraries.count != preloaded_array.count)) ||
+      (task_options != nil &&
+       task_options.lookupArchives.count != archive_array.count)) {
+    *failure = @"Metal changed checked Metal 4 compute descriptor properties";
+    return nil;
+  }
+  PrismelMetalCheckedComputeRequest *request =
+      [[PrismelMetalCheckedComputeRequest alloc] init];
+  request.descriptor = descriptor;
+  request.dynamicLinking = dynamic_linking;
+  request.taskOptions = task_options;
+  request.label = expected_label;
+  request.reflectionRequested = reflection_requested;
+  return request;
+}
+
 extern "C" CAMLprim value
 caml_prismel_metal_compiler_create_compute_pipeline(value raw_compiler,
                                                       value raw_descriptor) {
@@ -6258,217 +6521,19 @@ caml_prismel_metal_compiler_create_compute_pipeline(value raw_compiler,
       @try {
         id<MTL4Compiler> compiler =
             object_of_handle(raw_compiler, Handle_kind::Compiler);
-        id<MTLLibrary> library =
-            object_of_handle(Field(raw_descriptor, 1), Handle_kind::Library);
-        if (library.device.registryID != compiler.device.registryID) {
-          CAMLreturn(result_error_text(
-              "Metal 4 compute library is incompatible with the compiler"));
+        NSString *validation_failure = nil;
+        PrismelMetalCheckedComputeRequest *request =
+            checked_compute_request(raw_descriptor, compiler,
+                                    &validation_failure);
+        if (request == nil) {
+          CAMLreturn(result_error(validation_failure));
         }
-        NSString *expected_label = nil;
-        value raw_label = Field(raw_descriptor, 0);
-        if (Is_block(raw_label)) {
-          expected_label = string_from_ocaml(Field(raw_label, 0));
-          if (expected_label == nil) {
-            CAMLreturn(result_error_text(
-                "Metal 4 compute-pipeline label is not valid UTF-8"));
-          }
-        }
-        NSString *function_name =
-            string_from_ocaml(Field(raw_descriptor, 2));
-        if (function_name == nil || function_name.length == 0) {
-          CAMLreturn(result_error_text(
-              "Metal 4 compute function name is not valid nonempty UTF-8"));
-        }
-        NSUInteger max_total_threads = 0;
-        NSUInteger required_width = 0;
-        NSUInteger required_height = 0;
-        NSUInteger required_depth = 0;
-        NSUInteger max_call_stack_depth = 0;
-        if (!nsuinteger_from_ocaml_int64(Field(raw_descriptor, 5),
-                                         &max_total_threads) ||
-            !nsuinteger_from_ocaml_int64(Field(raw_descriptor, 6),
-                                         &required_width) ||
-            !nsuinteger_from_ocaml_int64(Field(raw_descriptor, 7),
-                                         &required_height) ||
-            !nsuinteger_from_ocaml_int64(Field(raw_descriptor, 8),
-                                         &required_depth) ||
-            !nsuinteger_from_ocaml_int64(Field(raw_descriptor, 12),
-                                         &max_call_stack_depth)) {
-          CAMLreturn(result_error_text(
-              "Metal 4 compute descriptor contains an invalid cardinality"));
-        }
-        const bool no_required_threads = required_width == 0 &&
-                                         required_height == 0 &&
-                                         required_depth == 0;
-        if (!no_required_threads &&
-            (required_width == 0 || required_height == 0 ||
-             required_depth == 0 ||
-             required_width > NSUIntegerMax / required_height ||
-             required_width * required_height >
-                 NSUIntegerMax / required_depth ||
-             (max_total_threads != 0 &&
-              required_width * required_height * required_depth !=
-                  max_total_threads))) {
-          CAMLreturn(result_error_text(
-              "Metal 4 required threadgroup dimensions are invalid"));
-        }
-        std::vector<id<MTLDynamicLibrary>> preloaded_libraries =
-            dynamic_libraries_of_array(Field(raw_descriptor, 11));
-        NSMutableArray<id<MTLDynamicLibrary>> *preloaded_array =
-            [NSMutableArray arrayWithCapacity:preloaded_libraries.size()];
-        NSMutableSet<NSString *> *install_names = [NSMutableSet set];
-        for (id<MTLDynamicLibrary> dynamic_library : preloaded_libraries) {
-          if (!compiler.device.supportsDynamicLibraries ||
-              dynamic_library.device.registryID != compiler.device.registryID ||
-              dynamic_library.installName == nil ||
-              [install_names containsObject:dynamic_library.installName]) {
-            CAMLreturn(result_error_text(
-                "Metal 4 preloaded dynamic library is incompatible or duplicated"));
-          }
-          [install_names addObject:dynamic_library.installName];
-          [preloaded_array addObject:dynamic_library];
-        }
-        std::vector<id<MTL4BinaryFunction>> binary_functions =
-            binary_functions_of_array(Field(raw_descriptor, 14));
-        NSMutableArray<id<MTL4BinaryFunction>> *binary_function_array =
-            [NSMutableArray arrayWithCapacity:binary_functions.size()];
-        NSMutableSet<id<MTL4BinaryFunction>> *binary_function_set =
-            [NSMutableSet set];
-        for (id<MTL4BinaryFunction> function : binary_functions) {
-          if (!compiler.device.supportsFunctionPointers ||
-              [binary_function_set containsObject:function]) {
-            CAMLreturn(result_error_text(
-                "Metal 4 binary linked function is incompatible or duplicated"));
-          }
-          [binary_function_set addObject:function];
-          [binary_function_array addObject:function];
-        }
-        if ((preloaded_array.count != 0 || binary_function_array.count != 0) &&
-            max_call_stack_depth == 0) {
-          CAMLreturn(result_error_text(
-              "Metal 4 dynamic linking requires a positive call-stack depth"));
-        }
-        std::vector<id<MTL4Archive>> lookup_archives =
-            pipeline_archives_of_array(Field(raw_descriptor, 13));
-        NSMutableArray<id<MTL4Archive>> *archive_array =
-            [NSMutableArray arrayWithCapacity:lookup_archives.size()];
-        NSMutableSet<id<MTL4Archive>> *archive_set = [NSMutableSet set];
-        for (id<MTL4Archive> archive : lookup_archives) {
-          if ([archive_set containsObject:archive]) {
-            CAMLreturn(result_error_text(
-                "Metal 4 lookup archive is duplicated"));
-          }
-          [archive_set addObject:archive];
-          [archive_array addObject:archive];
-        }
-        MTL4LibraryFunctionDescriptor *function_descriptor =
-            [[MTL4LibraryFunctionDescriptor alloc] init];
-        function_descriptor.name = function_name;
-        function_descriptor.library = library;
-        MTL4ComputePipelineDescriptor *descriptor =
-            [[MTL4ComputePipelineDescriptor alloc] init];
-        value raw_static_linking = Field(raw_descriptor, 15);
-        NSString *static_linking_failure = nil;
-        MTL4StaticLinkingDescriptor *static_linking =
-            checked_static_linking_descriptor(
-                raw_static_linking, compiler.device, &static_linking_failure);
-        if (Is_block(raw_static_linking) && static_linking == nil) {
-          CAMLreturn(result_error(static_linking_failure));
-        }
-        if (expected_label != nil) {
-          descriptor.label = expected_label;
-        }
-        descriptor.computeFunctionDescriptor = function_descriptor;
-        descriptor.staticLinkingDescriptor = static_linking;
-        const bool threadgroup_size_multiple =
-            Bool_val(Field(raw_descriptor, 4));
-        const bool support_binary_linking =
-            Bool_val(Field(raw_descriptor, 9));
-        const auto indirect_command_support =
-            Bool_val(Field(raw_descriptor, 10))
-                ? MTL4IndirectCommandBufferSupportStateEnabled
-                : MTL4IndirectCommandBufferSupportStateDisabled;
-        descriptor.threadGroupSizeIsMultipleOfThreadExecutionWidth =
-            threadgroup_size_multiple;
-        descriptor.maxTotalThreadsPerThreadgroup = max_total_threads;
-        descriptor.requiredThreadsPerThreadgroup =
-            MTLSizeMake(required_width, required_height, required_depth);
-        descriptor.supportBinaryLinking = support_binary_linking;
-        descriptor.supportIndirectCommandBuffers = indirect_command_support;
-        const bool reflection_requested = Bool_val(Field(raw_descriptor, 3));
-        const MTL4ShaderReflection expected_reflection =
-            MTL4ShaderReflectionBindingInfo |
-            MTL4ShaderReflectionBufferTypeInfo;
-        if (reflection_requested) {
-          MTL4PipelineOptions *options = [[MTL4PipelineOptions alloc] init];
-          options.shaderReflection = expected_reflection;
-          descriptor.options = options;
-        }
-        MTL4PipelineStageDynamicLinkingDescriptor *dynamic_linking = nil;
-        if (preloaded_array.count != 0 || binary_function_array.count != 0 ||
-            max_call_stack_depth != 0) {
-          dynamic_linking =
-              [[MTL4PipelineStageDynamicLinkingDescriptor alloc] init];
-          dynamic_linking.maxCallStackDepth = max_call_stack_depth;
-          dynamic_linking.binaryLinkedFunctions = binary_function_array;
-          dynamic_linking.preloadedLibraries = preloaded_array;
-        }
-        MTL4CompilerTaskOptions *task_options = nil;
-        if (archive_array.count != 0) {
-          task_options = [[MTL4CompilerTaskOptions alloc] init];
-          task_options.lookupArchives = archive_array;
-        }
-        MTL4FunctionDescriptor *stored_function =
-            descriptor.computeFunctionDescriptor;
-        if (![stored_function
-                isKindOfClass:[MTL4LibraryFunctionDescriptor class]]) {
-          CAMLreturn(result_error_text(
-              "Metal changed the Metal 4 compute function descriptor type"));
-        }
-        MTL4LibraryFunctionDescriptor *stored_library_function =
-            static_cast<MTL4LibraryFunctionDescriptor *>(stored_function);
-        if (stored_library_function.library != library ||
-            ![stored_library_function.name isEqualToString:function_name] ||
-            ((expected_label == nil) != (descriptor.label == nil)) ||
-            (expected_label != nil &&
-             ![descriptor.label isEqualToString:expected_label]) ||
-            descriptor.threadGroupSizeIsMultipleOfThreadExecutionWidth !=
-                threadgroup_size_multiple ||
-            descriptor.maxTotalThreadsPerThreadgroup != max_total_threads ||
-            descriptor.requiredThreadsPerThreadgroup.width != required_width ||
-            descriptor.requiredThreadsPerThreadgroup.height != required_height ||
-            descriptor.requiredThreadsPerThreadgroup.depth != required_depth ||
-            descriptor.supportBinaryLinking != support_binary_linking ||
-            descriptor.supportIndirectCommandBuffers !=
-                indirect_command_support ||
-            (static_linking == nil &&
-             descriptor.staticLinkingDescriptor != nil &&
-             (descriptor.staticLinkingDescriptor.functionDescriptors.count != 0 ||
-              descriptor.staticLinkingDescriptor.privateFunctionDescriptors.count != 0 ||
-              descriptor.staticLinkingDescriptor.groups.count != 0)) ||
-            (static_linking != nil &&
-             (descriptor.staticLinkingDescriptor == nil ||
-              descriptor.staticLinkingDescriptor.functionDescriptors.count !=
-                  static_linking.functionDescriptors.count ||
-              descriptor.staticLinkingDescriptor.privateFunctionDescriptors.count !=
-                  static_linking.privateFunctionDescriptors.count ||
-              descriptor.staticLinkingDescriptor.groups.count !=
-                  static_linking.groups.count)) ||
-            (reflection_requested &&
-             (descriptor.options == nil ||
-              descriptor.options.shaderReflection != expected_reflection)) ||
-            (!reflection_requested && descriptor.options != nil) ||
-            (dynamic_linking != nil &&
-             (dynamic_linking.maxCallStackDepth != max_call_stack_depth ||
-              dynamic_linking.binaryLinkedFunctions.count !=
-                  binary_function_array.count ||
-              dynamic_linking.preloadedLibraries.count !=
-                  preloaded_array.count)) ||
-            (task_options != nil &&
-             task_options.lookupArchives.count != archive_array.count)) {
-          CAMLreturn(result_error_text(
-              "Metal changed checked Metal 4 compute descriptor properties"));
-        }
+        MTL4ComputePipelineDescriptor *descriptor = request.descriptor;
+        MTL4PipelineStageDynamicLinkingDescriptor *dynamic_linking =
+            request.dynamicLinking;
+        MTL4CompilerTaskOptions *task_options = request.taskOptions;
+        NSString *expected_label = request.label;
+        const bool reflection_requested = request.reflectionRequested;
         NSError *error = nil;
         id<MTLComputePipelineState> pipeline = dynamic_linking == nil
             ? [compiler newComputePipelineStateWithDescriptor:descriptor
@@ -6510,6 +6575,136 @@ caml_prismel_metal_compiler_create_compute_pipeline(value raw_compiler,
     }
   }
   CAMLreturn(result_ok(pair));
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_compiler_create_compute_pipeline_async(
+    value raw_compiler, value raw_descriptor) {
+  CAMLparam2(raw_compiler, raw_descriptor);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4Compiler> compiler =
+            object_of_handle(raw_compiler, Handle_kind::Compiler);
+        NSString *validation_failure = nil;
+        PrismelMetalCheckedComputeRequest *request =
+            checked_compute_request(raw_descriptor, compiler,
+                                    &validation_failure);
+        if (request == nil) {
+          CAMLreturn(result_error(validation_failure));
+        }
+        PrismelMetalCompilerTaskState *state =
+            [[PrismelMetalCompilerTaskState alloc]
+                initWithKind:PrismelMetalCompilerResultComputePipeline
+                         label:request.label
+           reflectionRequested:request.reflectionRequested];
+        __weak PrismelMetalCompilerTaskState *weak_state = state;
+        state.retainedInputs = request;
+        PrismelMetalCheckedComputeRequest *retained_request = request;
+        MTLNewComputePipelineStateCompletionHandler completion_handler =
+            ^(id<MTLComputePipelineState> pipeline, NSError *error) {
+              (void)retained_request;
+              PrismelMetalCompilerTaskState *strong_state = weak_state;
+              [strong_state finishWithObject:pipeline error:error];
+            };
+        id<MTL4CompilerTask> task = request.dynamicLinking == nil
+            ? [compiler newComputePipelineStateWithDescriptor:request.descriptor
+                                          compilerTaskOptions:request.taskOptions
+                                            completionHandler:completion_handler]
+            : [compiler newComputePipelineStateWithDescriptor:request.descriptor
+                                     dynamicLinkingDescriptor:request.dynamicLinking
+                                          compilerTaskOptions:request.taskOptions
+                                            completionHandler:completion_handler];
+        if (task == nil) {
+          CAMLreturn(result_error(labeled_error_description(
+              request.label, nil,
+              @"Metal 4 asynchronous compute-pipeline task creation failed")));
+        }
+        state.task = task;
+        if (state.identifier == 0 || task.compiler.device.registryID !=
+                                         compiler.device.registryID) {
+          CAMLreturn(result_error_text(
+              "Metal changed checked asynchronous compiler task properties"));
+        }
+        raw = allocate_handle(state, Handle_kind::Compiler_task);
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    } else {
+      CAMLreturn(result_error_text(
+          "asynchronous Metal 4 compute compilation requires macOS 26 or newer"));
+    }
+  }
+  CAMLreturn(result_ok(raw));
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_compiler_task_take_compute_pipeline(value raw) {
+  CAMLparam1(raw);
+  CAMLlocal5(raw_pipeline, bindings, pair, completion, option);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        PrismelMetalCompilerTaskState *state =
+            object_of_handle(raw, Handle_kind::Compiler_task);
+        if (state.resultKind != PrismelMetalCompilerResultComputePipeline) {
+          CAMLreturn(result_error_text(
+              "compiler task does not contain a compute-pipeline result"));
+        }
+        id result_object = nil;
+        NSError *result_error_value = nil;
+        const PrismelMetalCompilerResultState result_state =
+            [state takeObject:&result_object error:&result_error_value];
+        if (result_state == PrismelMetalCompilerResultPending) {
+          CAMLreturn(result_ok(Val_none));
+        }
+        if (result_state == PrismelMetalCompilerResultConsumed) {
+          CAMLreturn(result_error_text(
+              "compiler task completion was already consumed"));
+        }
+        if (result_state == PrismelMetalCompilerResultFailure) {
+          completion = result_error(labeled_error_description(
+              state.label, result_error_value,
+              @"Metal 4 asynchronous compute-pipeline compilation failed without NSError"));
+        } else {
+          id<MTLComputePipelineState> pipeline =
+              static_cast<id<MTLComputePipelineState>>(result_object);
+          MTLComputePipelineReflection *reflection = pipeline.reflection;
+          if (state.reflectionRequested && reflection == nil) {
+            completion = result_error_text(
+                "Metal 4 omitted requested asynchronous compute-pipeline reflection");
+          } else if (pipeline.device.registryID !=
+                         state.task.compiler.device.registryID ||
+                     ((state.label == nil) != (pipeline.label == nil)) ||
+                     (state.label != nil &&
+                      ![pipeline.label isEqualToString:state.label])) {
+            completion = result_error_text(
+                "Metal changed checked asynchronous compute-pipeline properties");
+          } else {
+            raw_pipeline =
+                allocate_handle(pipeline, Handle_kind::Compute_pipeline);
+            bindings = state.reflectionRequested
+                ? copy_pipeline_bindings(reflection)
+                : caml_alloc(0, 0);
+            pair = caml_alloc_tuple(2);
+            Store_field(pair, 0, raw_pipeline);
+            Store_field(pair, 1, bindings);
+            completion = result_ok(pair);
+          }
+        }
+        option = caml_alloc(1, 0);
+        Store_field(option, 0, completion);
+        CAMLreturn(result_ok(option));
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    } else {
+      CAMLreturn(result_error_text(
+          "asynchronous Metal 4 compute compilation requires macOS 26 or newer"));
+    }
+  }
+  CAMLreturn(result_error_text("unreachable compute compiler-task result"));
 }
 
 extern "C" CAMLprim value caml_prismel_metal_compute_pipeline_create(

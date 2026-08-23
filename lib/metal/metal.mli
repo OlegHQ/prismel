@@ -1220,6 +1220,23 @@ module Compiler : sig
     ?lookup_archives:Pipeline_archive.t list -> t -> library:Library.t ->
     string -> (Compute_pipeline.t, error) result
 
+  (** The task retains native descriptor inputs through completion. Dynamic
+      linking is capability-gated to Apple9/M3-or-newer GPUs because the
+      Apple7/M1 Metal 4 driver cannot safely serialize that async request. *)
+  val create_compute_pipeline_async :
+    ?label:string -> ?reflection:bool ->
+    ?threadgroup_size_multiple:bool ->
+    ?max_total_threads_per_threadgroup:int ->
+    ?required_threads_per_threadgroup:(int * int * int) ->
+    ?support_binary_linking:bool ->
+    ?support_indirect_command_buffers:bool ->
+    ?static_linking:static_linking ->
+    ?binary_linked_functions:Binary_function.t list ->
+    ?preloaded_libraries:Dynamic_library.t list ->
+    ?max_call_stack_depth:int ->
+    ?lookup_archives:Pipeline_archive.t list -> t -> library:Library.t ->
+    string -> (Compute_pipeline.t Compiler_task.t, error) result
+
   val device : t -> Device.t
   val generation : t -> int64
   val dataset : t -> Pipeline_dataset.t option

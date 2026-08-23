@@ -2397,12 +2397,76 @@ let test_metal4_compiler device =
           (expect_error Invalid_argument
              (Compiler.create_compute_pipeline ~max_call_stack_depth:0 compiler
                 ~library "increment"));
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.create_compute_pipeline_async compiler ~library ""));
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.create_compute_pipeline_async
+                ~required_threads_per_threadgroup:(1, 0, 1) compiler ~library
+                "increment"));
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.create_compute_pipeline_async compiler ~library
+                "missing_kernel"));
         let after_invalid_compilation = get (Release_queue.stats ()) in
         if after_invalid_compilation.total_created
            <> Int64.add before_invalid_compilation.total_created 1L
         then
           fail
             "invalid Metal 4 compiler inputs allocated native handles beyond the valid library";
+        let async_compute_library =
+          get
+            (Compiler.compile_source ~name:"async-compute-source" compiler
+               shader_source)
+        in
+        let async_compute_task =
+          get
+            (Compiler.create_compute_pipeline_async
+               ~label:"async reflected increment" ~reflection:true
+               ~max_total_threads_per_threadgroup:1
+               ~required_threads_per_threadgroup:(1, 1, 1) compiler
+               ~library:async_compute_library "increment")
+        in
+        let async_compute_id = Compiler_task.id async_compute_task in
+        get (Library.destroy async_compute_library);
+        get (Compiler_task.wait async_compute_task);
+        let async_compute_ids =
+          get (Compiler_task.drain_completions ())
+        in
+        if not (List.mem async_compute_id async_compute_ids)
+        then fail "async compute-pipeline completion IDs were not drained";
+        let async_compute_pipeline =
+          match get (Compiler_task.poll async_compute_task) with
+          | Compiler_task.Complete (Ok pipeline) -> pipeline
+          | Compiler_task.Complete (Error error) ->
+              fail "async compute-pipeline compilation failed: %s"
+                (Format.asprintf "%a" pp_error error)
+          | Compiler_task.Pending ->
+              fail "waited async compute-pipeline compilation remained pending"
+        in
+        if get (Compute_pipeline.label async_compute_pipeline)
+           <> Some "async reflected increment"
+        then fail "async Metal 4 compute-pipeline label did not round-trip";
+        let async_compute_bindings =
+          match Compute_pipeline.bindings async_compute_pipeline with
+          | Some bindings -> bindings
+          | None -> fail "async Metal 4 compute reflection is missing"
+        in
+        get
+          (Binding.validate_layout async_compute_bindings
+             ~expected:
+               [ { name = "values"
+                 ; index = 0L
+                 ; access = Binding.Read_write
+                 ; kind = Binding.Buffer_layout
+                 ; data_type = Some (Shader_type.Scalar Shader_type.Uint)
+                 }
+               ]);
+        run_pipeline_once device async_compute_pipeline ~initial:13l
+          ~expected:14l;
+        get (Compute_pipeline.destroy async_compute_pipeline);
+        get (Compiler_task.destroy async_compute_task);
         let visible_source =
           get (Function.find ~library "linked_identity")
         in
@@ -2649,6 +2713,52 @@ let test_metal4_compiler device =
            || not
                 (Device.same device (Binary_function.device captured_binary))
         then fail "Metal 4 binary-function metadata is wrong";
+        if get (Device.supports_family device Device.Apple9) then begin
+          let async_linked_pipeline_task =
+            get
+              (Compiler.create_compute_pipeline_async
+                 ~label:"async dynamically linked increment"
+                 ~support_binary_linking:true binary_compiler ~library
+                 ~binary_linked_functions:[ captured_binary ] "increment")
+          in
+          let async_linked_pipeline_id =
+            Compiler_task.id async_linked_pipeline_task
+          in
+          get (Compiler_task.wait async_linked_pipeline_task);
+          if
+            not
+              (List.mem async_linked_pipeline_id
+                 (get (Compiler_task.drain_completions ())))
+          then fail "async dynamically linked completion ID was not drained";
+          let async_linked_pipeline =
+            match get (Compiler_task.poll async_linked_pipeline_task) with
+            | Compiler_task.Complete (Ok pipeline) -> pipeline
+            | Compiler_task.Complete (Error error) ->
+                fail "async dynamically linked pipeline failed: %s"
+                  (Format.asprintf "%a" pp_error error)
+            | Compiler_task.Pending ->
+                fail
+                  "waited async dynamically linked pipeline remained pending"
+          in
+          get (Compiler_task.destroy async_linked_pipeline_task);
+          run_pipeline_once device async_linked_pipeline ~initial:31l
+            ~expected:32l;
+          get (Compute_pipeline.destroy async_linked_pipeline)
+        end
+        else begin
+          let before_async_dynamic = get (Release_queue.stats ()) in
+          ignore
+            (expect_error Unsupported
+               (Compiler.create_compute_pipeline_async
+                  ~support_binary_linking:true binary_compiler ~library
+                  ~binary_linked_functions:[ captured_binary ] "increment"));
+          let after_async_dynamic = get (Release_queue.stats ()) in
+          if after_async_dynamic.total_created
+             <> before_async_dynamic.total_created
+          then
+            fail
+              "unsupported async dynamic linking allocated a native handle"
+        end;
         let archive_seed_pipeline =
           get
             (Compiler.create_compute_pipeline
