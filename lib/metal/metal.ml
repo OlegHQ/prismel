@@ -1017,6 +1017,8 @@ type shader_attribute_descriptor_array = { raw:Metal_raw.handle; lifetime:lifeti
 type shader_attribute_descriptor = { raw:Metal_raw.handle; lifetime:lifetime; parent:shader_attribute_descriptor_array }
 type shader_buffer_layout_descriptor_array = { raw:Metal_raw.handle; lifetime:lifetime; parent:shader_stage_descriptor }
 type shader_stitching_input = { raw:Metal_raw.handle; lifetime:lifetime }
+type capture_manager={raw:Metal_raw.handle;lifetime:lifetime}
+type capture_descriptor={raw:Metal_raw.handle;lifetime:lifetime;mutable destination:int}
 
 type dynamic_library =
   { raw : Metal_raw.handle
@@ -8119,6 +8121,28 @@ module Shader_stitching_input = struct
   let set_argument_index(value:t) index=let operation="Metal.Shader_stitching_input.set_argument_index" in if index<0L then error operation Invalid_argument "argument index must be nonnegative"else on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.shader_stitching_input_set_index value.raw index with Error m->native_error operation m|Ok()->Ok())
   let destroyed(value:t)=is_destroyed value.lifetime
   let destroy(value:t)=destroy_leaf "Metal.Shader_stitching_input.destroy" value.lifetime value.raw ignore
+end
+
+module Capture = struct
+  type destination=Developer_tools|Gpu_trace_document
+  let destination_code=function Developer_tools->1|Gpu_trace_document->2
+  module Descriptor=struct
+    type t=capture_descriptor
+    let create ?(destination=Developer_tools)()=let operation="Metal.Capture.Descriptor.create"in on_main operation(fun()->match Metal_raw.command_capture_descriptor_create()with Error m->native_error operation m|Ok raw->let value:t={raw;lifetime=lifetime();destination=destination_code destination}in Gc.finalise(fun _->if Atomic.compare_and_set value.lifetime.destroyed false true then ignore(Metal_raw.destroy value.raw))value;match Metal_raw.command_capture_set_destination raw value.destination with Error m->ignore(Metal_raw.destroy raw);native_error operation m|Ok()->Ok value)
+    let destination(value:t)=if value.destination=1 then Developer_tools else Gpu_trace_document
+    let set_destination(value:t) destination=let operation="Metal.Capture.Descriptor.set_destination"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->let code=destination_code destination in match Metal_raw.command_capture_set_destination value.raw code with Error m->native_error operation m|Ok()->value.destination<-code;Ok())
+    let destroyed(value:t)=is_destroyed value.lifetime
+    let destroy(value:t)=destroy_leaf "Metal.Capture.Descriptor.destroy" value.lifetime value.raw ignore
+  end
+  module Manager=struct
+    type t=capture_manager
+    let shared()=let operation="Metal.Capture.Manager.shared"in on_main operation(fun()->match Metal_raw.command_capture_manager_shared()with Error m->native_error operation m|Ok raw->let value:t={raw;lifetime=lifetime()}in Gc.finalise(fun _->if Atomic.compare_and_set value.lifetime.destroyed false true then ignore(Metal_raw.destroy value.raw))value;Ok value)
+    let query operation raw(value:t)=on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match raw value.raw with Error m->native_error operation m|Ok x->Ok x)
+    let supports_destination value destination=query "Metal.Capture.Manager.supports_destination"(fun raw->Metal_raw.command_capture_supports_destination raw(destination_code destination))value
+    let is_capturing value=query "Metal.Capture.Manager.is_capturing" Metal_raw.command_capture_is_capturing value
+    let destroyed(value:t)=is_destroyed value.lifetime
+    let destroy(value:t)=destroy_leaf "Metal.Capture.Manager.destroy" value.lifetime value.raw ignore
+  end
 end
 
 let validate_linked_functions operation device linked_functions =

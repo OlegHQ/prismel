@@ -1285,6 +1285,26 @@ module Shader_stitching_input : sig
   val destroy:t->(unit,error)result
 end
 
+module Capture : sig
+  type destination=Developer_tools|Gpu_trace_document
+  module Descriptor:sig
+    type t
+    val create:?destination:destination->unit->(t,error)result
+    val destination:t->destination
+    val set_destination:t->destination->(unit,error)result
+    val destroyed:t->bool
+    val destroy:t->(unit,error)result
+  end
+  module Manager:sig
+    type t
+    val shared:unit->(t,error)result
+    val supports_destination:t->destination->(bool,error)result
+    val is_capturing:t->(bool,error)result
+    val destroyed:t->bool
+    val destroy:t->(unit,error)result
+  end
+end
+
 module Dynamic_library : sig
   type t
 
