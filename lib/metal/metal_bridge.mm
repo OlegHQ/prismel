@@ -14398,4 +14398,5 @@ extern "C" CAMLprim value caml_prismel_metal_pipeline_render_imageblock_length(v
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunguarded-availability-new"
 #include "../../tools/metal/metal_pipeline_ownership_callable_bridge.inc"
+#include "../../tools/metal/metal_pipeline_descriptor_mechanical_callable_bridge.inc"
 #pragma clang diagnostic pop

@@ -1988,6 +1988,36 @@ external pipeline_render_descriptor :
 external pipeline_compute_descriptor :
   handle -> pipeline_compute_ownership -> (handle,string) result =
   "caml_prismel_metal_pipeline_compute_descriptor"
+external pipeline_compute_descriptor_required_threads :
+  handle -> (mesh_tile_threadgroup_size,string) result =
+  "caml_prismel_metal_pipeline_compute_descriptor_required_threads"
+external pipeline_compute_descriptor_set_required_threads :
+  handle -> mesh_tile_threadgroup_size -> (unit,string) result =
+  "caml_prismel_metal_pipeline_compute_descriptor_set_required_threads"
+external pipeline_compute_descriptor_reset : handle -> (unit,string) result =
+  "caml_prismel_metal_pipeline_compute_descriptor_reset"
+external pipeline_render_descriptor_depth_format : handle -> (int64,string) result =
+  "caml_prismel_metal_pipeline_render_descriptor_depth_format"
+external pipeline_render_descriptor_set_depth_format : handle -> int64 -> (unit,string) result =
+  "caml_prismel_metal_pipeline_render_descriptor_set_depth_format"
+external pipeline_render_descriptor_input_topology : handle -> (int64,string) result =
+  "caml_prismel_metal_pipeline_render_descriptor_input_topology"
+external pipeline_render_descriptor_set_input_topology : handle -> int64 -> (unit,string) result =
+  "caml_prismel_metal_pipeline_render_descriptor_set_input_topology"
+external pipeline_render_descriptor_sample_count : handle -> (int64,string) result =
+  "caml_prismel_metal_pipeline_render_descriptor_sample_count"
+external pipeline_render_descriptor_set_sample_count : handle -> int64 -> (unit,string) result =
+  "caml_prismel_metal_pipeline_render_descriptor_set_sample_count"
+external pipeline_render_descriptor_stencil_format : handle -> (int64,string) result =
+  "caml_prismel_metal_pipeline_render_descriptor_stencil_format"
+external pipeline_render_descriptor_set_stencil_format : handle -> int64 -> (unit,string) result =
+  "caml_prismel_metal_pipeline_render_descriptor_set_stencil_format"
+external pipeline_render_descriptor_tessellation_winding : handle -> (int64,string) result =
+  "caml_prismel_metal_pipeline_render_descriptor_tessellation_winding"
+external pipeline_render_descriptor_set_tessellation_winding : handle -> int64 -> (unit,string) result =
+  "caml_prismel_metal_pipeline_render_descriptor_set_tessellation_winding"
+external pipeline_render_descriptor_reset : handle -> (unit,string) result =
+  "caml_prismel_metal_pipeline_render_descriptor_reset"
 external pipeline_render_compile :
   handle -> handle -> int64 ->
   ((handle * render_pipeline_reflection),string) result =
