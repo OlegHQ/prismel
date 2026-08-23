@@ -68,7 +68,8 @@ surface remains internal.
   native call, then retain. Rejections must not allocate handles or mutate the
   retention graph.
 - ICB execution requires a bound render pipeline whose
-  `support_indirect_command_buffers` flag is true. Direct ranges satisfy
+  internal `support_indirect_commands` flag (materialized from the public
+  `support_indirect_command_buffers` pipeline option) is true. Direct ranges satisfy
   `location >= 0`, `length > 0`, and `location + length <= max_command_count`
   without overflow. Indirect range-buffer offsets are nonnegative, 8-byte
   aligned, and leave room for `MTLIndirectCommandBufferExecutionRange`.
