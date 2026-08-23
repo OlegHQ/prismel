@@ -22,7 +22,10 @@ let fail format =
   Printf.ksprintf (fun message -> invalid_arg ("Metal struct plan: " ^ message)) format
 
 let relevant declaration =
-  String.equal declaration.classification "unreviewed"
+  (String.equal declaration.classification "unreviewed"
+   || (String.equal declaration.classification "bound"
+       && List.mem declaration.id
+            Binding_resource_safe_reachability.promotable_ids))
   && (String.equal declaration.kind "method"
       || String.equal declaration.kind "property")
   && Binding_struct_spec.mechanically_safe_signature declaration.signature

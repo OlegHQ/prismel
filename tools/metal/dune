@@ -39,6 +39,9 @@
   binding_presentation_coverage
   binding_presentation_integration
   binding_presentation_native_codegen
+  binding_resource_manifest
+  binding_resource_integration_partition
+  binding_resource_safe_reachability
   binding_argument_reflection_plan
   binding_argument_reflection_codegen
   binding_argument_reflection_evidence
@@ -420,6 +423,11 @@
 (test
  (name test_binding_presentation_public_audit)
  (modules test_binding_presentation_public_audit)
+ (libraries metal_inventory_classification))
+
+(test
+ (name test_binding_resource_safe_reachability)
+ (modules test_binding_resource_safe_reachability)
  (libraries metal_inventory_classification))
 
 (test

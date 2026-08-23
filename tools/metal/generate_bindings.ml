@@ -321,7 +321,10 @@ let validate_struct_native_output inventory
       | Some declaration -> declaration
       | None -> fail "generated Metal struct-native id is absent: %s" identifier
     in
-    if declaration.kind <> kind || declaration.classification <> "unreviewed"
+    if declaration.kind <> kind
+       || (declaration.classification <> "unreviewed"
+           && not (List.mem identifier
+                     Binding_resource_safe_reachability.promotable_ids))
        || not (String_set.mem identifier planned)
     then fail "generated Metal struct-native inventory mismatch: %s" identifier
   in
@@ -338,7 +341,9 @@ let validate_string_entries inventory entries =
     if declaration.kind <> kind || declaration.owner <> Some entry.Binding_string_spec.owner
        || declaration.header <> entry.header || declaration.signature <> signature
        || declaration.attributes <> entry.attributes
-       || declaration.classification <> "unreviewed"
+       || (declaration.classification <> "unreviewed"
+           && not (List.mem identifier
+                     Binding_resource_safe_reachability.promotable_ids))
        ||
        (match declaration.macos_introduced with
         | Some version ->
@@ -560,7 +565,9 @@ let validate_direct_method inventory
   validate_direct_availability entry.sdk_id entry.macos_introduced
     declaration.macos_introduced;
   let expected_classification =
-    if Binding_direct_plan.is_safe_device_identifier entry.sdk_id then "bound"
+    if Binding_direct_plan.is_safe_device_identifier entry.sdk_id
+       || List.mem entry.sdk_id Binding_resource_safe_reachability.promotable_ids
+    then "bound"
     else "unreviewed"
   in
   if declaration.classification <> expected_classification then
@@ -607,7 +614,9 @@ let validate_direct_property inventory
   validate_direct_availability property.sdk_id property.macos_introduced
     declaration.macos_introduced;
   let expected_classification =
-    if Binding_direct_plan.is_safe_device_identifier property.sdk_id then "bound"
+    if Binding_direct_plan.is_safe_device_identifier property.sdk_id
+       || List.mem property.sdk_id Binding_resource_safe_reachability.promotable_ids
+    then "bound"
     else "unreviewed"
   in
   if declaration.classification <> expected_classification then

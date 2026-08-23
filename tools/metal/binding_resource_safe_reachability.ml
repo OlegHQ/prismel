@@ -56,6 +56,22 @@ let public_operation id =
     "Metal.Resource100.Texture_view_pool.copy"
   else if contains id "setTextureView:atIndex:" then
     "Metal.Resource100.Texture_view_pool.set"
+  else if contains id "addDebugMarker" then
+    "Metal.Resource100.Buffer_ops.add_debug_marker"
+  else if contains id "newTextureViewWithPixelFormat" then
+    "Metal.Resource100.Texture_ops.view"
+  else if contains id "getBytes" then
+    "Metal.Resource100.Texture_ops.get_bytes"
+  else if contains id "replaceRegion" then
+    "Metal.Resource100.Texture_ops.replace_region"
+  else if contains id "MTLResourceStatePassDescriptor" then
+    "Metal.Resource100.Resource_state_pass.create"
+  else if contains id "resourceStateCommandEncoderWithDescriptor" then
+    "Metal.Resource100.Resource_state_pass.create_encoder"
+  else if contains id "updateFence" then
+    "Metal.Resource_state_encoder.update_fence"
+  else if contains id "waitForFence" then
+    "Metal.Resource_state_encoder.wait_for_fence"
   else if contains id "MTLResourceViewPool device"
        || contains id "MTLResourceViewPool:device" then
     "Metal.Resource100.Texture_view_pool.device"

@@ -72,6 +72,8 @@ let () =
                    ~prefix:"method:-[MTL4AccelerationStructureGeometryDescriptor "
                    id
             then "bound"
+            else if List.mem id Binding_resource_safe_reachability.promotable_ids
+            then "bound"
             else "unreviewed"
           in
           if not (String.equal (string_field "classification" symbol) expected) then

@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 3581,
+    "bound": 3622,
     "scope-excluded": 37,
-    "unreviewed": 1667
+    "unreviewed": 1626
   },
-  "classification_source_sha256": "e5b3c5eeebf4227deb2efb29a3d0de1cef34c4f62234d8d7d0eca8e837e9453d",
+  "classification_source_sha256": "2db1fff0892baeee574dc3a7a3a22a313b9096e609ca30f23c0db056f73318d2",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -1940,7 +1940,7 @@
           "line": 114
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLStageInputOutputDescriptor.h",
       "id": "class:MTLBufferLayoutDescriptor",
       "kind": "class",
@@ -1948,7 +1948,7 @@
       "macos_introduced": "10.12",
       "name": "MTLBufferLayoutDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": ""
     },
     {
@@ -3207,7 +3207,7 @@
           "line": 19
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResourceStatePass.h",
       "id": "class:MTLResourceStatePassSampleBufferAttachmentDescriptor",
       "kind": "class",
@@ -3215,7 +3215,7 @@
       "macos_introduced": "11.0",
       "name": "MTLResourceStatePassSampleBufferAttachmentDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": ""
     },
     {
@@ -3251,7 +3251,7 @@
           "line": 21
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResourceViewPool.h",
       "id": "class:MTLResourceViewPoolDescriptor",
       "kind": "class",
@@ -3259,7 +3259,7 @@
       "macos_introduced": "26.0",
       "name": "MTLResourceViewPoolDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": ""
     },
     {
@@ -48827,7 +48827,7 @@
           "line": 100
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBuffer.h",
       "id": "method:-[MTLBuffer removeAllDebugMarkers]",
       "kind": "method",
@@ -48835,7 +48835,7 @@
       "macos_introduced": "10.12",
       "name": "removeAllDebugMarkers",
       "owner": "MTLBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "instance () -> void"
     },
     {
@@ -48966,7 +48966,7 @@
           "line": 114
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLStageInputOutputDescriptor.h",
       "id": "method:-[MTLBufferLayoutDescriptor setStepFunction:]",
       "kind": "method",
@@ -48974,7 +48974,7 @@
       "macos_introduced": "10.12",
       "name": "setStepFunction:",
       "owner": "MTLBufferLayoutDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "instance (MTLStepFunction) -> void"
     },
     {
@@ -48985,7 +48985,7 @@
           "line": 114
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLStageInputOutputDescriptor.h",
       "id": "method:-[MTLBufferLayoutDescriptor setStepRate:]",
       "kind": "method",
@@ -48993,7 +48993,7 @@
       "macos_introduced": "10.12",
       "name": "setStepRate:",
       "owner": "MTLBufferLayoutDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -49004,7 +49004,7 @@
           "line": 114
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLStageInputOutputDescriptor.h",
       "id": "method:-[MTLBufferLayoutDescriptor setStride:]",
       "kind": "method",
@@ -49012,7 +49012,7 @@
       "macos_introduced": "10.12",
       "name": "setStride:",
       "owner": "MTLBufferLayoutDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -49023,7 +49023,7 @@
           "line": 114
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLStageInputOutputDescriptor.h",
       "id": "method:-[MTLBufferLayoutDescriptor stepFunction]",
       "kind": "method",
@@ -49031,7 +49031,7 @@
       "macos_introduced": "10.12",
       "name": "stepFunction",
       "owner": "MTLBufferLayoutDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "instance () -> MTLStepFunction"
     },
     {
@@ -49042,7 +49042,7 @@
           "line": 114
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLStageInputOutputDescriptor.h",
       "id": "method:-[MTLBufferLayoutDescriptor stepRate]",
       "kind": "method",
@@ -49050,7 +49050,7 @@
       "macos_introduced": "10.12",
       "name": "stepRate",
       "owner": "MTLBufferLayoutDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -49061,7 +49061,7 @@
           "line": 114
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLStageInputOutputDescriptor.h",
       "id": "method:-[MTLBufferLayoutDescriptor stride]",
       "kind": "method",
@@ -49069,7 +49069,7 @@
       "macos_introduced": "10.12",
       "name": "stride",
       "owner": "MTLBufferLayoutDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -57320,7 +57320,7 @@
           "line": 1425
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newTextureViewPoolWithDescriptor:error:]",
       "kind": "method",
@@ -57328,7 +57328,7 @@
       "macos_introduced": "26.0",
       "name": "newTextureViewPoolWithDescriptor:error:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "instance (MTLResourceViewPoolDescriptor * _Nonnull __strong, NSError * _Nullable __autoreleasing * _Nullable) -> id<MTLTextureViewPool> _Nullable"
     },
     {
@@ -57717,7 +57717,7 @@
           "line": 1102
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice sparseTileSizeWithTextureType:pixelFormat:sampleCount:]",
       "kind": "method",
@@ -57725,7 +57725,7 @@
       "macos_introduced": "11.0",
       "name": "sparseTileSizeWithTextureType:pixelFormat:sampleCount:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "instance (MTLTextureType, MTLPixelFormat, NSUInteger) -> MTLSize"
     },
     {
@@ -60268,7 +60268,7 @@
           "line": 166
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "method:-[MTLHeap resourceOptions]",
       "kind": "method",
@@ -60276,7 +60276,7 @@
       "macos_introduced": "10.15",
       "name": "resourceOptions",
       "owner": "MTLHeap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "instance () -> MTLResourceOptions"
     },
     {
@@ -75880,7 +75880,7 @@
           "line": 327
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResource.h",
       "id": "method:-[MTLResource allocatedSize]",
       "kind": "method",
@@ -75888,7 +75888,7 @@
       "macos_introduced": "10.13",
       "name": "allocatedSize",
       "owner": "MTLResource",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -76087,7 +76087,7 @@
           "line": 299
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResource.h",
       "id": "method:-[MTLResource resourceOptions]",
       "kind": "method",
@@ -76095,7 +76095,7 @@
       "macos_introduced": "10.15",
       "name": "resourceOptions",
       "owner": "MTLResource",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "instance () -> MTLResourceOptions"
     },
     {
@@ -76369,7 +76369,7 @@
           "line": 19
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResourceStatePass.h",
       "id": "method:-[MTLResourceStatePassSampleBufferAttachmentDescriptor endOfEncoderSampleIndex]",
       "kind": "method",
@@ -76377,7 +76377,7 @@
       "macos_introduced": "11.0",
       "name": "endOfEncoderSampleIndex",
       "owner": "MTLResourceStatePassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -76407,7 +76407,7 @@
           "line": 19
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResourceStatePass.h",
       "id": "method:-[MTLResourceStatePassSampleBufferAttachmentDescriptor setEndOfEncoderSampleIndex:]",
       "kind": "method",
@@ -76415,7 +76415,7 @@
       "macos_introduced": "11.0",
       "name": "setEndOfEncoderSampleIndex:",
       "owner": "MTLResourceStatePassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -76445,7 +76445,7 @@
           "line": 19
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResourceStatePass.h",
       "id": "method:-[MTLResourceStatePassSampleBufferAttachmentDescriptor setStartOfEncoderSampleIndex:]",
       "kind": "method",
@@ -76453,7 +76453,7 @@
       "macos_introduced": "11.0",
       "name": "setStartOfEncoderSampleIndex:",
       "owner": "MTLResourceStatePassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -76464,7 +76464,7 @@
           "line": 19
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResourceStatePass.h",
       "id": "method:-[MTLResourceStatePassSampleBufferAttachmentDescriptor startOfEncoderSampleIndex]",
       "kind": "method",
@@ -76472,7 +76472,7 @@
       "macos_introduced": "11.0",
       "name": "startOfEncoderSampleIndex",
       "owner": "MTLResourceStatePassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -76540,7 +76540,7 @@
           "line": 33
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResourceViewPool.h",
       "id": "method:-[MTLResourceViewPool copyResourceViewsFromPool:sourceRange:destinationIndex:]",
       "kind": "method",
@@ -76548,7 +76548,7 @@
       "macos_introduced": "26.0",
       "name": "copyResourceViewsFromPool:sourceRange:destinationIndex:",
       "owner": "MTLResourceViewPool",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLResourceViewPool>  _Nonnull __strong, NSRange, NSUInteger) -> MTLResourceID"
     },
     {
@@ -76559,7 +76559,7 @@
           "line": 33
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResourceViewPool.h",
       "id": "method:-[MTLResourceViewPool device]",
       "kind": "method",
@@ -76567,7 +76567,7 @@
       "macos_introduced": "26.0",
       "name": "device",
       "owner": "MTLResourceViewPool",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "instance () -> id<MTLDevice> _Nonnull"
     },
     {
@@ -76597,7 +76597,7 @@
           "line": 33
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResourceViewPool.h",
       "id": "method:-[MTLResourceViewPool resourceViewCount]",
       "kind": "method",
@@ -76605,7 +76605,7 @@
       "macos_introduced": "26.0",
       "name": "resourceViewCount",
       "owner": "MTLResourceViewPool",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -76616,7 +76616,7 @@
           "line": 21
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResourceViewPool.h",
       "id": "method:-[MTLResourceViewPoolDescriptor label]",
       "kind": "method",
@@ -76624,7 +76624,7 @@
       "macos_introduced": "26.0",
       "name": "label",
       "owner": "MTLResourceViewPoolDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "instance () -> NSString * _Nullable"
     },
     {
@@ -76635,7 +76635,7 @@
           "line": 21
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResourceViewPool.h",
       "id": "method:-[MTLResourceViewPoolDescriptor resourceViewCount]",
       "kind": "method",
@@ -76643,7 +76643,7 @@
       "macos_introduced": "26.0",
       "name": "resourceViewCount",
       "owner": "MTLResourceViewPoolDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -76654,7 +76654,7 @@
           "line": 21
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResourceViewPool.h",
       "id": "method:-[MTLResourceViewPoolDescriptor setLabel:]",
       "kind": "method",
@@ -76662,7 +76662,7 @@
       "macos_introduced": "26.0",
       "name": "setLabel:",
       "owner": "MTLResourceViewPoolDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "instance (NSString * _Nullable) -> void"
     },
     {
@@ -76673,7 +76673,7 @@
           "line": 21
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResourceViewPool.h",
       "id": "method:-[MTLResourceViewPoolDescriptor setResourceViewCount:]",
       "kind": "method",
@@ -76681,7 +76681,7 @@
       "macos_introduced": "26.0",
       "name": "setResourceViewCount:",
       "owner": "MTLResourceViewPoolDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -79457,7 +79457,7 @@
           "line": 312
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTexture isFramebufferOnly]",
       "kind": "method",
@@ -79465,7 +79465,7 @@
       "macos_introduced": "10.11",
       "name": "isFramebufferOnly",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -81113,7 +81113,7 @@
           "line": 20
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTextureViewPool.h",
       "id": "method:-[MTLTextureViewPool setTextureView:atIndex:]",
       "kind": "method",
@@ -81121,7 +81121,7 @@
       "macos_introduced": "26.0",
       "name": "setTextureView:atIndex:",
       "owner": "MTLTextureViewPool",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLTexture>  _Nonnull __strong, NSUInteger) -> MTLResourceID"
     },
     {
@@ -90291,7 +90291,7 @@
           "line": 114
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLStageInputOutputDescriptor.h",
       "id": "property:MTLBufferLayoutDescriptor:stepFunction",
       "kind": "property",
@@ -90299,7 +90299,7 @@
       "macos_introduced": "10.12",
       "name": "stepFunction",
       "owner": "MTLBufferLayoutDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "MTLStepFunction"
     },
     {
@@ -90310,7 +90310,7 @@
           "line": 114
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLStageInputOutputDescriptor.h",
       "id": "property:MTLBufferLayoutDescriptor:stepRate",
       "kind": "property",
@@ -90318,7 +90318,7 @@
       "macos_introduced": "10.12",
       "name": "stepRate",
       "owner": "MTLBufferLayoutDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -90329,7 +90329,7 @@
           "line": 114
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLStageInputOutputDescriptor.h",
       "id": "property:MTLBufferLayoutDescriptor:stride",
       "kind": "property",
@@ -90337,7 +90337,7 @@
       "macos_introduced": "10.12",
       "name": "stride",
       "owner": "MTLBufferLayoutDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -94751,7 +94751,7 @@
           "line": 166
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "property:MTLHeap:resourceOptions",
       "kind": "property",
@@ -94759,7 +94759,7 @@
       "macos_introduced": "10.15",
       "name": "resourceOptions",
       "owner": "MTLHeap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "MTLResourceOptions"
     },
     {
@@ -100484,7 +100484,7 @@
           "line": 327
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResource.h",
       "id": "property:MTLResource:allocatedSize",
       "kind": "property",
@@ -100492,7 +100492,7 @@
       "macos_introduced": "10.13",
       "name": "allocatedSize",
       "owner": "MTLResource",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -100641,7 +100641,7 @@
           "line": 299
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResource.h",
       "id": "property:MTLResource:resourceOptions",
       "kind": "property",
@@ -100649,7 +100649,7 @@
       "macos_introduced": "10.15",
       "name": "resourceOptions",
       "owner": "MTLResource",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "MTLResourceOptions"
     },
     {
@@ -100710,7 +100710,7 @@
           "line": 19
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResourceStatePass.h",
       "id": "property:MTLResourceStatePassSampleBufferAttachmentDescriptor:endOfEncoderSampleIndex",
       "kind": "property",
@@ -100718,7 +100718,7 @@
       "macos_introduced": "11.0",
       "name": "endOfEncoderSampleIndex",
       "owner": "MTLResourceStatePassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -100748,7 +100748,7 @@
           "line": 19
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResourceStatePass.h",
       "id": "property:MTLResourceStatePassSampleBufferAttachmentDescriptor:startOfEncoderSampleIndex",
       "kind": "property",
@@ -100756,7 +100756,7 @@
       "macos_introduced": "11.0",
       "name": "startOfEncoderSampleIndex",
       "owner": "MTLResourceStatePassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -100786,7 +100786,7 @@
           "line": 33
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResourceViewPool.h",
       "id": "property:MTLResourceViewPool:device",
       "kind": "property",
@@ -100794,7 +100794,7 @@
       "macos_introduced": "26.0",
       "name": "device",
       "owner": "MTLResourceViewPool",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "id<MTLDevice> _Nonnull"
     },
     {
@@ -100824,7 +100824,7 @@
           "line": 33
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResourceViewPool.h",
       "id": "property:MTLResourceViewPool:resourceViewCount",
       "kind": "property",
@@ -100832,7 +100832,7 @@
       "macos_introduced": "26.0",
       "name": "resourceViewCount",
       "owner": "MTLResourceViewPool",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -100843,7 +100843,7 @@
           "line": 21
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResourceViewPool.h",
       "id": "property:MTLResourceViewPoolDescriptor:label",
       "kind": "property",
@@ -100851,7 +100851,7 @@
       "macos_introduced": "26.0",
       "name": "label",
       "owner": "MTLResourceViewPoolDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "NSString * _Nullable"
     },
     {
@@ -100862,7 +100862,7 @@
           "line": 21
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResourceViewPool.h",
       "id": "property:MTLResourceViewPoolDescriptor:resourceViewCount",
       "kind": "property",
@@ -100870,7 +100870,7 @@
       "macos_introduced": "26.0",
       "name": "resourceViewCount",
       "owner": "MTLResourceViewPoolDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -102402,7 +102402,7 @@
           "line": 312
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLTexture:framebufferOnly",
       "kind": "property",
@@ -102410,7 +102410,7 @@
       "macos_introduced": "10.11",
       "name": "framebufferOnly",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "BOOL"
     },
     {
