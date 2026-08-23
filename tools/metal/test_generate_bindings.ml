@@ -26,6 +26,10 @@ type outputs =
   ; public_global_ml : string
   ; public_global_mli : string
   ; public_global_test : string
+  ; public_descriptor_ml : string
+  ; public_descriptor_mli : string
+  ; public_descriptor_test : string
+  ; native_descriptor_test : string
   }
 
 let parse_options () =
@@ -89,6 +93,10 @@ let outputs directory prefix =
   ; public_global_ml = path "_global.ml"
   ; public_global_mli = path "_global.mli"
   ; public_global_test = path "_global_test.ml"
+  ; public_descriptor_ml = path "_descriptor.ml"
+  ; public_descriptor_mli = path "_descriptor.mli"
+  ; public_descriptor_test = path "_descriptor_test.ml"
+  ; native_descriptor_test = path "_descriptor_test.mm"
   }
 
 let run inputs ?(plan_root = inputs.plan_root)
@@ -118,6 +126,10 @@ let run inputs ?(plan_root = inputs.plan_root)
     ; "--output-public-global-ml"; outputs.public_global_ml
     ; "--output-public-global-mli"; outputs.public_global_mli
     ; "--output-public-global-test"; outputs.public_global_test
+    ; "--output-public-descriptor-ml"; outputs.public_descriptor_ml
+    ; "--output-public-descriptor-mli"; outputs.public_descriptor_mli
+    ; "--output-public-descriptor-test"; outputs.public_descriptor_test
+    ; "--output-native-descriptor-test"; outputs.native_descriptor_test
     ]
 
 let require_success description result =
@@ -766,10 +778,16 @@ let native_binding_body symbol native =
   | Some definition_start ->
       let start = definition_start + 1 in
       let ending =
-        match find_from ~needle:"\nextern \"C\" CAMLprim value" native
-                (start + String.length symbol) with
-        | Some ending -> ending
-        | None -> String.length native
+        let after = start + String.length symbol in
+        let candidates =
+          [ find_from ~needle:"\nextern \"C\" CAMLprim value" native after
+          ; find_from ~needle:"\n\nAPI_AVAILABLE" native after
+          ]
+          |> List.filter_map Fun.id
+        in
+        match candidates with
+        | [] -> String.length native
+        | candidates -> List.fold_left min max_int candidates
       in
       String.sub native start (ending - start)
 
@@ -933,6 +951,28 @@ let generator_source_sha256 entry_source =
   ; "tools/metal/binding_global_string_evidence.mli"
   ; "tools/metal/binding_global_string_conformance_codegen.ml"
   ; "tools/metal/binding_global_string_conformance_codegen.mli"
+  ; "tools/metal/binding_descriptor_property_spec.ml"
+  ; "tools/metal/binding_descriptor_property_spec.mli"
+  ; "tools/metal/binding_descriptor_property_plan.ml"
+  ; "tools/metal/binding_descriptor_property_plan.mli"
+  ; "tools/metal/binding_descriptor_property_codegen.ml"
+  ; "tools/metal/binding_descriptor_property_codegen.mli"
+  ; "tools/metal/binding_descriptor_property_evidence.ml"
+  ; "tools/metal/binding_descriptor_property_evidence.mli"
+  ; "tools/metal/binding_render_pipeline_scalar_plan.ml"
+  ; "tools/metal/binding_render_pipeline_scalar_plan.mli"
+  ; "tools/metal/binding_render_pipeline_scalar_codegen.ml"
+  ; "tools/metal/binding_render_pipeline_scalar_codegen.mli"
+  ; "tools/metal/binding_render_pipeline_scalar_evidence.ml"
+  ; "tools/metal/binding_render_pipeline_scalar_evidence.mli"
+  ; "tools/metal/binding_descriptor_default_evidence.ml"
+  ; "tools/metal/binding_descriptor_default_evidence.mli"
+  ; "tools/metal/binding_argument_reflection_plan.ml"
+  ; "tools/metal/binding_argument_reflection_plan.mli"
+  ; "tools/metal/binding_argument_reflection_codegen.ml"
+  ; "tools/metal/binding_argument_reflection_codegen.mli"
+  ; "tools/metal/binding_argument_reflection_evidence.ml"
+  ; "tools/metal/binding_argument_reflection_evidence.mli"
   ; "tools/metal/binding_struct_spec.ml"
   ; "tools/metal/binding_struct_spec.mli"
   ; "tools/metal/binding_struct_plan.ml"
@@ -1599,6 +1639,13 @@ let check_manifest inputs outputs =
   ; "public value ML", "(* " ^ header ^ " *)\n\n", outputs.public_value_ml
   ; "public value MLI", "(* " ^ header ^ " *)\n\n", outputs.public_value_mli
   ; "public value test", "(* " ^ header ^ " *)\n\n", outputs.public_value_test
+  ; "public global ML", "(* " ^ header ^ " *)\n\n", outputs.public_global_ml
+  ; "public global MLI", "(* " ^ header ^ " *)\n\n", outputs.public_global_mli
+  ; "public global test", "(* " ^ header ^ " *)\n\n", outputs.public_global_test
+  ; "public descriptor ML", "(* " ^ header ^ " *)\n\n", outputs.public_descriptor_ml
+  ; "public descriptor MLI", "(* " ^ header ^ " *)\n\n", outputs.public_descriptor_mli
+  ; "public descriptor test", "(* " ^ header ^ " *)\n\n", outputs.public_descriptor_test
+  ; "native descriptor test", "/* " ^ header ^ " */\n\n", outputs.native_descriptor_test
   ]
   |> List.iter (fun (description, prefix, path) ->
     if not (String.starts_with ~prefix (read_file path)) then
@@ -1705,6 +1752,13 @@ let main () =
     ; first.public_value_ml, second.public_value_ml
     ; first.public_value_mli, second.public_value_mli
     ; first.public_value_test, second.public_value_test
+    ; first.public_global_ml, second.public_global_ml
+    ; first.public_global_mli, second.public_global_mli
+    ; first.public_global_test, second.public_global_test
+    ; first.public_descriptor_ml, second.public_descriptor_ml
+    ; first.public_descriptor_mli, second.public_descriptor_mli
+    ; first.public_descriptor_test, second.public_descriptor_test
+    ; first.native_descriptor_test, second.native_descriptor_test
     ]
     |> List.iter (fun (left, right) ->
       if read_file left <> read_file right then

@@ -55,8 +55,13 @@ let () =
             | Some symbol -> symbol
             | None -> fail "missing inventory ID: %s" id
           in
-          if not (String.equal (string_field "classification" symbol) "unreviewed") then
-            fail "expected unreviewed inventory ID: %s" id)
+          let expected =
+            if Binding_argument_reflection_evidence.is_bound_identifier id then
+              "bound"
+            else "unreviewed"
+          in
+          if not (String.equal (string_field "classification" symbol) expected) then
+            fail "expected %s inventory ID: %s" expected id)
         (inventory_ids entry);
       let property = Hashtbl.find inventory entry.property_sdk_id in
       if not (String.equal (string_field "signature" property) entry.signature) then
