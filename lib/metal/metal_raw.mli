@@ -1423,6 +1423,65 @@ external render_encoder_set_vertex_sampler_lod :
 external render_encoder_set_fragment_sampler_lod :
   handle -> handle -> float * float -> int -> (unit, string) result =
   "caml_prismel_metal_render_encoder_set_fragment_sampler_lod"
+
+val render_command_draw : handle -> int -> int64 -> int64 -> (unit,string) result
+val render_command_draw_instances : handle -> int -> int64 -> int64 -> int64 -> int64 -> (unit,string) result
+val render_command_depth_clip : handle -> int -> (unit,string) result
+val render_command_depth_bounds : handle -> float -> float -> (unit,string) result
+val render_command_fragment_buffer_offset : handle -> int64 -> int64 -> (unit,string) result
+val render_command_mesh_buffer_offset : handle -> int64 -> int64 -> (unit,string) result
+val render_command_object_buffer_offset : handle -> int64 -> int64 -> (unit,string) result
+val render_command_object_threadgroup_memory : handle -> int64 -> int64 -> (unit,string) result
+val render_command_stencil_reference : handle -> int64 -> (unit,string) result
+val render_command_tessellation_scale : handle -> float -> (unit,string) result
+val render_command_threadgroup_memory : handle -> int64 -> int64 -> int64 -> (unit,string) result
+val render_command_tile_buffer_offset : handle -> int64 -> int64 -> (unit,string) result
+val render_command_vertex_buffer_offset : handle -> int64 -> int64 -> (unit,string) result
+val render_command_vertex_buffer_offset_stride : handle -> int64 -> int64 -> int64 -> (unit,string) result
+val render_sample_attachment_create : unit -> (handle,string) result
+val render_sample_start_vertex : handle -> (int64,string) result
+val render_sample_set_start_vertex : handle -> int64 -> (unit,string) result
+val render_sample_end_vertex : handle -> (int64,string) result
+val render_sample_set_end_vertex : handle -> int64 -> (unit,string) result
+val render_sample_start_fragment : handle -> (int64,string) result
+val render_sample_set_start_fragment : handle -> int64 -> (unit,string) result
+val render_sample_end_fragment : handle -> (int64,string) result
+val render_sample_set_end_fragment : handle -> int64 -> (unit,string) result
+val render_sample_buffer : handle -> (handle option,string) result
+val render_sample_set_buffer : handle -> handle option -> (unit,string) result
+val render_sample_array_get : handle -> int64 -> (handle option,string) result
+val render_sample_array_set : handle -> int64 -> handle option -> (unit,string) result
+val render_stage_buffer : handle -> int -> handle option -> int64 -> int64 -> int64 -> (unit,string) result
+val render_stage_buffers : handle -> int -> handle option array -> int64 array -> int64 array -> int64 -> (unit,string) result
+val render_stage_bytes : handle -> int -> bytes -> int64 -> int64 -> (unit,string) result
+val render_stage_sampler : handle -> int -> handle option -> bool -> (float*float) -> int64 -> (unit,string) result
+val render_stage_samplers : handle -> int -> handle option array -> bool -> float array -> float array -> int64 -> (unit,string) result
+val render_stage_texture : handle -> int -> handle option -> int64 -> (unit,string) result
+val render_stage_textures : handle -> int -> handle option array -> int64 -> (unit,string) result
+val render_stage_acceleration : handle -> int -> handle option -> int64 -> (unit,string) result
+val render_stage_intersection : handle -> int -> handle option -> int64 -> (unit,string) result
+val render_stage_intersections : handle -> int -> handle option array -> int64 -> (unit,string) result
+val render_stage_visible : handle -> int -> handle option -> int64 -> (unit,string) result
+val render_stage_visibles : handle -> int -> handle option array -> int64 -> (unit,string) result
+type render_command_scissor = int64 * int64 * int64 * int64
+type render_command_viewport = float * float * float * float * float * float
+type render_command_view_mapping = int64 * int64
+val render_draw_indexed_patches_indirect : handle -> int64 -> handle -> int64 -> handle -> int64 -> handle -> int64 -> (unit,string) result
+val render_draw_indexed_patches : handle -> int64 -> int64 -> int64 -> handle -> int64 -> handle -> int64 -> int64 -> int64 -> (unit,string) result
+val render_draw_indexed : handle -> int -> int64 -> int -> handle -> int64 -> int64 -> int64 -> int64 -> (unit,string) result
+val render_draw_indexed_instances : handle -> int -> int64 -> int -> handle -> int64 -> int64 -> (unit,string) result
+val render_draw_indexed_basic : handle -> int -> int64 -> int -> handle -> int64 -> (unit,string) result
+val render_draw_indexed_indirect : handle -> int -> int -> handle -> int64 -> handle -> int64 -> (unit,string) result
+val render_draw_patches_indirect : handle -> int64 -> handle -> int64 -> handle -> int64 -> (unit,string) result
+val render_draw_patches : handle -> int64 -> int64 -> int64 -> handle -> int64 -> int64 -> int64 -> (unit,string) result
+val render_draw_indirect : handle -> int -> handle -> int64 -> (unit,string) result
+val render_sample_counters : handle -> handle -> int64 -> bool -> (unit,string) result
+val render_color_attachment_map : handle -> handle option -> (unit,string) result
+val render_depth_stencil : handle -> handle option -> (unit,string) result
+val render_scissors : handle -> render_command_scissor array -> (unit,string) result
+val render_tessellation_buffer : handle -> handle option -> int64 -> int64 -> (unit,string) result
+val render_vertex_amplification : handle -> render_command_view_mapping array -> (unit,string) result
+val render_viewports : handle -> render_command_viewport array -> (unit,string) result
 external render_encoder_draw :
   handle -> int -> int -> int -> (unit, string) result =
   "caml_prismel_metal_render_encoder_draw"

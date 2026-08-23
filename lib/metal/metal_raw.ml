@@ -1436,6 +1436,71 @@ external render_encoder_set_vertex_sampler_lod :
 external render_encoder_set_fragment_sampler_lod :
   handle -> handle -> float * float -> int -> (unit, string) result =
   "caml_prismel_metal_render_encoder_set_fragment_sampler_lod"
+
+(* Render-command102 raw ABI. High-arity calls name bytecode and native
+   companions explicitly; keep these declarations synchronized with the four
+   audited render-command native shards. *)
+external render_command_draw : handle -> int -> int64 -> int64 -> (unit,string) result = "caml_prismel_metal_render_command_draw"
+external render_command_draw_instances : handle -> int -> int64 -> int64 -> int64 -> int64 -> (unit,string) result = "caml_prismel_metal_render_command_draw_instances_bytecode" "caml_prismel_metal_render_command_draw_instances"
+external render_command_depth_clip : handle -> int -> (unit,string) result = "caml_prismel_metal_render_command_depth_clip"
+external render_command_depth_bounds : handle -> float -> float -> (unit,string) result = "caml_prismel_metal_render_command_depth_bounds"
+external render_command_fragment_buffer_offset : handle -> int64 -> int64 -> (unit,string) result = "caml_prismel_metal_render_command_fragment_buffer_offset"
+external render_command_mesh_buffer_offset : handle -> int64 -> int64 -> (unit,string) result = "caml_prismel_metal_render_command_mesh_buffer_offset"
+external render_command_object_buffer_offset : handle -> int64 -> int64 -> (unit,string) result = "caml_prismel_metal_render_command_object_buffer_offset"
+external render_command_object_threadgroup_memory : handle -> int64 -> int64 -> (unit,string) result = "caml_prismel_metal_render_command_object_threadgroup_memory"
+external render_command_stencil_reference : handle -> int64 -> (unit,string) result = "caml_prismel_metal_render_command_stencil_reference"
+external render_command_tessellation_scale : handle -> float -> (unit,string) result = "caml_prismel_metal_render_command_tessellation_scale"
+external render_command_threadgroup_memory : handle -> int64 -> int64 -> int64 -> (unit,string) result = "caml_prismel_metal_render_command_threadgroup_memory"
+external render_command_tile_buffer_offset : handle -> int64 -> int64 -> (unit,string) result = "caml_prismel_metal_render_command_tile_buffer_offset"
+external render_command_vertex_buffer_offset : handle -> int64 -> int64 -> (unit,string) result = "caml_prismel_metal_render_command_vertex_buffer_offset"
+external render_command_vertex_buffer_offset_stride : handle -> int64 -> int64 -> int64 -> (unit,string) result = "caml_prismel_metal_render_command_vertex_buffer_offset_stride"
+
+external render_sample_attachment_create : unit -> (handle,string) result = "caml_prismel_metal_render_sample_attachment_create"
+external render_sample_start_vertex : handle -> (int64,string) result = "caml_prismel_metal_render_sample_start_vertex"
+external render_sample_set_start_vertex : handle -> int64 -> (unit,string) result = "caml_prismel_metal_render_sample_set_start_vertex"
+external render_sample_end_vertex : handle -> (int64,string) result = "caml_prismel_metal_render_sample_end_vertex"
+external render_sample_set_end_vertex : handle -> int64 -> (unit,string) result = "caml_prismel_metal_render_sample_set_end_vertex"
+external render_sample_start_fragment : handle -> (int64,string) result = "caml_prismel_metal_render_sample_start_fragment"
+external render_sample_set_start_fragment : handle -> int64 -> (unit,string) result = "caml_prismel_metal_render_sample_set_start_fragment"
+external render_sample_end_fragment : handle -> (int64,string) result = "caml_prismel_metal_render_sample_end_fragment"
+external render_sample_set_end_fragment : handle -> int64 -> (unit,string) result = "caml_prismel_metal_render_sample_set_end_fragment"
+external render_sample_buffer : handle -> (handle option,string) result = "caml_prismel_metal_render_sample_buffer"
+external render_sample_set_buffer : handle -> handle option -> (unit,string) result = "caml_prismel_metal_render_sample_set_buffer"
+external render_sample_array_get : handle -> int64 -> (handle option,string) result = "caml_prismel_metal_render_sample_array_get"
+external render_sample_array_set : handle -> int64 -> handle option -> (unit,string) result = "caml_prismel_metal_render_sample_array_set"
+
+external render_stage_buffer : handle -> int -> handle option -> int64 -> int64 -> int64 -> (unit,string) result = "caml_prismel_metal_render_stage_buffer_bytecode" "caml_prismel_metal_render_stage_buffer"
+external render_stage_buffers : handle -> int -> handle option array -> int64 array -> int64 array -> int64 -> (unit,string) result = "caml_prismel_metal_render_stage_buffers_bytecode" "caml_prismel_metal_render_stage_buffers"
+external render_stage_bytes : handle -> int -> bytes -> int64 -> int64 -> (unit,string) result = "caml_prismel_metal_render_stage_bytes_bytecode" "caml_prismel_metal_render_stage_bytes"
+external render_stage_sampler : handle -> int -> handle option -> bool -> (float*float) -> int64 -> (unit,string) result = "caml_prismel_metal_render_stage_sampler_bytecode" "caml_prismel_metal_render_stage_sampler"
+external render_stage_samplers : handle -> int -> handle option array -> bool -> float array -> float array -> int64 -> (unit,string) result = "caml_prismel_metal_render_stage_samplers_bytecode" "caml_prismel_metal_render_stage_samplers"
+external render_stage_texture : handle -> int -> handle option -> int64 -> (unit,string) result = "caml_prismel_metal_render_stage_texture"
+external render_stage_textures : handle -> int -> handle option array -> int64 -> (unit,string) result = "caml_prismel_metal_render_stage_textures"
+external render_stage_acceleration : handle -> int -> handle option -> int64 -> (unit,string) result = "caml_prismel_metal_render_stage_acceleration"
+external render_stage_intersection : handle -> int -> handle option -> int64 -> (unit,string) result = "caml_prismel_metal_render_stage_intersection"
+external render_stage_intersections : handle -> int -> handle option array -> int64 -> (unit,string) result = "caml_prismel_metal_render_stage_intersections"
+external render_stage_visible : handle -> int -> handle option -> int64 -> (unit,string) result = "caml_prismel_metal_render_stage_visible"
+external render_stage_visibles : handle -> int -> handle option array -> int64 -> (unit,string) result = "caml_prismel_metal_render_stage_visibles"
+
+type render_command_scissor = int64 * int64 * int64 * int64
+type render_command_viewport = float * float * float * float * float * float
+type render_command_view_mapping = int64 * int64
+external render_draw_indexed_patches_indirect : handle -> int64 -> handle -> int64 -> handle -> int64 -> handle -> int64 -> (unit,string) result = "caml_prismel_metal_render_draw_indexed_patches_indirect_bytecode" "caml_prismel_metal_render_draw_indexed_patches_indirect"
+external render_draw_indexed_patches : handle -> int64 -> int64 -> int64 -> handle -> int64 -> handle -> int64 -> int64 -> int64 -> (unit,string) result = "caml_prismel_metal_render_draw_indexed_patches_bytecode" "caml_prismel_metal_render_draw_indexed_patches"
+external render_draw_indexed : handle -> int -> int64 -> int -> handle -> int64 -> int64 -> int64 -> int64 -> (unit,string) result = "caml_prismel_metal_render_draw_indexed_bytecode" "caml_prismel_metal_render_draw_indexed"
+external render_draw_indexed_instances : handle -> int -> int64 -> int -> handle -> int64 -> int64 -> (unit,string) result = "caml_prismel_metal_render_draw_indexed_instances_bytecode" "caml_prismel_metal_render_draw_indexed_instances"
+external render_draw_indexed_basic : handle -> int -> int64 -> int -> handle -> int64 -> (unit,string) result = "caml_prismel_metal_render_draw_indexed_basic_bytecode" "caml_prismel_metal_render_draw_indexed_basic"
+external render_draw_indexed_indirect : handle -> int -> int -> handle -> int64 -> handle -> int64 -> (unit,string) result = "caml_prismel_metal_render_draw_indexed_indirect_bytecode" "caml_prismel_metal_render_draw_indexed_indirect"
+external render_draw_patches_indirect : handle -> int64 -> handle -> int64 -> handle -> int64 -> (unit,string) result = "caml_prismel_metal_render_draw_patches_indirect_bytecode" "caml_prismel_metal_render_draw_patches_indirect"
+external render_draw_patches : handle -> int64 -> int64 -> int64 -> handle -> int64 -> int64 -> int64 -> (unit,string) result = "caml_prismel_metal_render_draw_patches_bytecode" "caml_prismel_metal_render_draw_patches"
+external render_draw_indirect : handle -> int -> handle -> int64 -> (unit,string) result = "caml_prismel_metal_render_draw_indirect"
+external render_sample_counters : handle -> handle -> int64 -> bool -> (unit,string) result = "caml_prismel_metal_render_sample_counters"
+external render_color_attachment_map : handle -> handle option -> (unit,string) result = "caml_prismel_metal_render_color_attachment_map"
+external render_depth_stencil : handle -> handle option -> (unit,string) result = "caml_prismel_metal_render_depth_stencil"
+external render_scissors : handle -> render_command_scissor array -> (unit,string) result = "caml_prismel_metal_render_scissors"
+external render_tessellation_buffer : handle -> handle option -> int64 -> int64 -> (unit,string) result = "caml_prismel_metal_render_tessellation_buffer"
+external render_vertex_amplification : handle -> render_command_view_mapping array -> (unit,string) result = "caml_prismel_metal_render_vertex_amplification"
+external render_viewports : handle -> render_command_viewport array -> (unit,string) result = "caml_prismel_metal_render_viewports"
 external render_encoder_draw :
   handle -> int -> int -> int -> (unit, string) result =
   "caml_prismel_metal_render_encoder_draw"
