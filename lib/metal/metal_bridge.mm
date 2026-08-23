@@ -920,6 +920,7 @@ enum class Handle_kind : std::uint32_t {
   Command_buffer,
   Compute_encoder,
   Render_encoder,
+  Parallel_render_encoder,
   Resource_state_encoder,
   Blit_encoder,
   Residency_set,
