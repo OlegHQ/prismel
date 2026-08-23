@@ -1666,6 +1666,8 @@ module Render_pipeline : sig
     val color_attachment_format : color_attachment -> Texture.format
     val mesh_descriptor : ?label:string -> ?object_function:Function.t -> ?fragment_function:Function.t -> ?binary_archives:Binary_archive.t list -> mesh_function:Function.t -> depth_format:Texture.format -> stencil_format:Texture.format -> required_mesh_threads:size3 -> required_object_threads:size3 -> unit -> (mesh_descriptor,error) result
     val tile_descriptor : ?label:string -> ?binary_archives:Binary_archive.t list -> ?preloaded_libraries:Dynamic_library.t list -> tile_function:Function.t -> required_threads:size3 -> unit -> (tile_descriptor,error) result
+    val compile_mesh : ?reflection:bool -> mesh_descriptor -> (t,error) result
+    val compile_tile : ?reflection:bool -> tile_descriptor -> (t,error) result
     val destroy_buffer : buffer_descriptor -> (unit,error) result
     val destroy_color : color_attachment -> (unit,error) result
     val destroy_mesh : mesh_descriptor -> (unit,error) result
@@ -2472,8 +2474,8 @@ module Command4 : sig
     val barrier : t -> after:stage list -> before:stage list -> ?before_queue:bool -> unit -> (unit,error) result
     val update_fence : t -> Fence.t -> after:stage list -> (unit,error) result
     val dispatch_threadgroups : t -> threadgroups:(int64*int64*int64) -> threads_per_threadgroup:(int64*int64*int64) -> (unit,error) result
-    val dispatch_indirect_threadgroups : t -> address:int64 -> threads_per_threadgroup:(int64*int64*int64) -> (unit,error) result
-    val dispatch_indirect_threads : t -> address:int64 -> (unit,error) result
+    val dispatch_indirect_threadgroups : t -> indirect_buffer:Buffer.t -> offset:int64 -> threads_per_threadgroup:(int64*int64*int64) -> (unit,error) result
+    val dispatch_indirect_threads : t -> indirect_buffer:Buffer.t -> offset:int64 -> (unit,error) result
     val set_imageblock_size : t -> width:int64 -> height:int64 -> (unit,error) result
     val stages : t -> (int64,error) result
     val fill_buffer : t -> Buffer.t -> offset:int64 -> length:int64 -> byte:int -> (unit,error) result
@@ -2489,7 +2491,7 @@ module Command4 : sig
     val buffer_to_texture : ?options:copy_options -> t -> source:Buffer.t -> source_offset:int64 -> bytes_per_row:int64 -> bytes_per_image:int64 -> size:(int64*int64*int64) -> destination:Texture.t -> destination_slice:int64 -> destination_level:int64 -> destination_origin:(int64*int64*int64) -> (unit,error) result
     val texture_to_buffer : ?options:copy_options -> t -> source:Texture.t -> source_slice:int64 -> source_level:int64 -> source_origin:(int64*int64*int64) -> size:(int64*int64*int64) -> destination:Buffer.t -> destination_offset:int64 -> bytes_per_row:int64 -> bytes_per_image:int64 -> (unit,error) result
     val execute_icb : t -> indirect_command_buffer_handle -> location:int64 -> length:int64 -> (unit,error) result
-    val execute_icb_indirect : t -> indirect_command_buffer_handle -> address:int64 -> (unit,error) result
+    val execute_icb_indirect : t -> indirect_command_buffer_handle -> indirect_buffer:Buffer.t -> offset:int64 -> (unit,error) result
     val optimize_icb : t -> indirect_command_buffer_handle -> location:int64 -> length:int64 -> (unit,error) result
     val reset_icb : t -> indirect_command_buffer_handle -> location:int64 -> length:int64 -> (unit,error) result
     val copy_icb : t -> source:indirect_command_buffer_handle -> source_location:int64 -> length:int64 -> destination:indirect_command_buffer_handle -> destination_index:int64 -> (unit,error) result
