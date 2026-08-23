@@ -42,6 +42,7 @@ let has_public_operation id =
   mem id Binding_resource_integration_partition.descriptor_owned
   || mem id Binding_resource_integration_partition.already_callable
   || mem id Binding_resource_integration_partition.graph_gated_scalars
+  || mem id Binding_resource_integration_partition.safe_ownership_tail
   || mem id pool_core
 
 let public_operation id =
@@ -78,6 +79,21 @@ let public_operation id =
     "Metal.Resource100.Texture_view_pool.device"
   else if contains id "resourceViewCount" then
     "Metal.Resource100.Texture_view_pool.count"
+  else if contains id "MTLBuffer newRemoteBufferViewForDevice" then
+    "Metal.Resource100.Buffer_ops.remote_view"
+  else if contains id "MTLBuffer remoteStorageBuffer"
+       || contains id "MTLBuffer:remoteStorageBuffer" then
+    "Metal.Resource100.Buffer_ops.remote_storage"
+  else if contains id "MTLResourceViewPool baseResourceID"
+       || contains id "MTLResourceViewPool:baseResourceID" then
+    "Metal.Resource100.Texture_view_pool.base_resource_id"
+  else if contains id "MTLResourceViewPool label"
+       || contains id "MTLResourceViewPool:label" then
+    "Metal.Resource100.Texture_view_pool.label"
+  else if contains id "MTLResource device" || contains id "MTLResource:device" then
+    "Metal.Resource100.Resource_ops.device"
+  else if contains id "MTLResource heap" || contains id "MTLResource:heap" then
+    "Metal.Resource100.Resource_ops.heap"
   else if mem id Binding_resource_integration_partition.graph_gated_scalars then
     "Metal.Resource100.Texture_ops.buffer_backing"
   else if mem id Binding_resource_integration_partition.already_callable then

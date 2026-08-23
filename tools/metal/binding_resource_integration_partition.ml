@@ -43,8 +43,26 @@ let validate () =
 let graph_gated_scalars =
   [ "property:MTLTexture:buffer"; "property:MTLTexture:bufferBytesPerRow"; "property:MTLTexture:bufferOffset" ]
 
-let handwritten_ownership = List.filter (fun id -> not (mem id graph_gated_scalars)) ownership_sensitive
+let safe_ownership_tail =
+  [ "method:-[MTLBuffer newRemoteBufferViewForDevice:]"
+  ; "method:-[MTLBuffer remoteStorageBuffer]"
+  ; "property:MTLBuffer:remoteStorageBuffer"
+  ; "method:-[MTLResourceViewPool baseResourceID]"
+  ; "property:MTLResourceViewPool:baseResourceID"
+  ; "method:-[MTLResourceViewPool label]"
+  ; "property:MTLResourceViewPool:label"
+  ; "method:-[MTLResource device]"
+  ; "property:MTLResource:device"
+  ; "method:-[MTLResource heap]"
+  ; "property:MTLResource:heap"
+  ]
+
+let handwritten_ownership =
+  List.filter
+    (fun id -> not (mem id graph_gated_scalars || mem id safe_ownership_tail))
+    ownership_sensitive
 
 let () =
   validate ();
-  if List.length handwritten_ownership <> 56 then failwith "resource handwritten56 drift"
+  if List.length safe_ownership_tail <> 11 then failwith "resource safe ownership11 drift";
+  if List.length handwritten_ownership <> 45 then failwith "resource handwritten45 drift"
