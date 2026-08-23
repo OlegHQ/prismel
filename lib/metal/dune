@@ -205,6 +205,8 @@
   ../../tools/metal/metal_mesh_tile_ownership_materializers.inc
   ../../tools/metal/metal_io_counter_ownership_materializers.inc
   ../../tools/metal/metal_mesh_tile_counter_callable_bridge.inc
+  ../../tools/metal/metal4_lifecycle_materializers.inc
+  ../../tools/metal/metal4_lifecycle_callable_bridge.inc
   c_library_flags.sexp)
  (action
   (run ./build_bridge.exe
