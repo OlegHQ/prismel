@@ -2914,3 +2914,44 @@ module IO : sig
     val destroy : t -> (unit, error) result
   end
 end
+
+
+module Pipeline_descriptor : sig
+  module Compute : sig
+    type t
+    type size3 = { width : int64; height : int64; depth : int64 }
+    val create :
+      ?preloaded_libraries:Dynamic_library.t list ->
+      ?stage_input:Shader_stage_descriptor.t -> Function.t -> (t, error) result
+    val required_threads : t -> (size3, error) result
+    val set_required_threads : t -> size3 -> (unit, error) result
+    val compile : ?reflection:bool -> t -> (Compute_pipeline.t, error) result
+    val reset : t -> (unit, error) result
+    val destroyed : t -> bool
+    val destroy : t -> (unit, error) result
+  end
+  module Render : sig
+    type t
+    type topology = Unspecified | Point | Line | Triangle
+    type winding = Clockwise | Counter_clockwise
+    val create :
+      ?fragment_function:Function.t -> ?binary_archives:Binary_archive.t list ->
+      ?vertex_preloaded_libraries:Dynamic_library.t list ->
+      ?fragment_preloaded_libraries:Dynamic_library.t list ->
+      Function.t -> (t, error) result
+    val depth_format : t -> (Texture.format option, error) result
+    val set_depth_format : t -> Texture.format -> (unit, error) result
+    val stencil_format : t -> (Texture.format option, error) result
+    val set_stencil_format : t -> Texture.format -> (unit, error) result
+    val input_topology : t -> (topology, error) result
+    val set_input_topology : t -> topology -> (unit, error) result
+    val sample_count : t -> (int, error) result
+    val set_sample_count : t -> int -> (unit, error) result
+    val tessellation_winding : t -> (winding, error) result
+    val set_tessellation_winding : t -> winding -> (unit, error) result
+    val compile : ?reflection:bool -> t -> (Render_pipeline.t, error) result
+    val reset : t -> (unit, error) result
+    val destroyed : t -> bool
+    val destroy : t -> (unit, error) result
+  end
+end

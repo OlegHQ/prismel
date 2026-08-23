@@ -1045,6 +1045,23 @@ type binary_archive =
   ; device : device
   }
 
+type pipeline113_compute_descriptor =
+  { raw : Metal_raw.handle; lifetime : lifetime; device : device
+  ; compute_function : function_handle
+  ; libraries : dynamic_library list
+  ; stage_input : shader_stage_descriptor option
+  ; mutable pipeline113_retained : bool
+  ; mutable pipeline113_valid : bool }
+
+type pipeline113_render_descriptor =
+  { raw : Metal_raw.handle; lifetime : lifetime; device : device
+  ; functions : function_handle list
+  ; archives : binary_archive list
+  ; vertex_libraries : dynamic_library list
+  ; fragment_libraries : dynamic_library list
+  ; mutable pipeline113_retained : bool
+  ; mutable pipeline113_valid : bool }
+
 type pipeline_dataset =
   { raw : Metal_raw.handle
   ; lifetime : lifetime
@@ -16844,5 +16861,336 @@ module IO = struct
     let destroy (value : t) =
       destroy_leaf "Metal.IO.Command_buffer.destroy" value.lifetime value.raw
         (fun () -> release_retained value; detach value.queue.lifetime)
+  end
+end
+
+
+module Pipeline_descriptor = struct
+  let positive_size (width, height, depth) =
+    width > 0L && height > 0L && depth > 0L
+
+  let validate_functions operation device values =
+    let rec loop = function
+      | [] -> Ok ()
+      | (item : function_handle) :: rest ->
+          Result.bind (ensure_live operation item.lifetime) (fun () ->
+            Result.bind (ensure_same_device operation device item.library.device)
+              (fun () -> loop rest))
+    in
+    loop values
+
+  let release_compute (value : pipeline113_compute_descriptor) =
+    if value.pipeline113_retained then begin
+      value.pipeline113_retained <- false;
+      detach value.compute_function.lifetime;
+      List.iter (fun (item : dynamic_library) -> detach item.lifetime)
+        value.libraries;
+      Option.iter
+        (fun (item : shader_stage_descriptor) -> detach item.lifetime)
+        value.stage_input
+    end
+
+  let release_render (value : pipeline113_render_descriptor) =
+    if value.pipeline113_retained then begin
+      value.pipeline113_retained <- false;
+      List.iter (fun (item : function_handle) -> detach item.lifetime)
+        value.functions;
+      List.iter (fun (item : binary_archive) -> detach item.lifetime)
+        value.archives;
+      List.iter (fun (item : dynamic_library) -> detach item.lifetime)
+        value.vertex_libraries;
+      List.iter (fun (item : dynamic_library) -> detach item.lifetime)
+        value.fragment_libraries
+    end
+
+  module Compute = struct
+    type t = pipeline113_compute_descriptor
+    type size3 = { width : int64; height : int64; depth : int64 }
+
+    let create ?(preloaded_libraries = []) ?stage_input
+        (compute_function : Function.t) =
+      let operation = "Metal.Pipeline_descriptor.Compute.create" in
+      on_main operation (fun () ->
+        let device = compute_function.library.device in
+        match ensure_live operation compute_function.lifetime with
+        | Error _ as failure -> failure
+        | Ok () when Function.kind_of_code
+                       (Metal_raw.function_kind compute_function.raw)
+                     <> Function.Kernel ->
+            error operation Invalid_argument
+              "compute descriptor function must be a kernel"
+        | Ok () ->
+            Result.bind
+              (validate_dynamic_libraries operation device preloaded_libraries)
+              (fun () ->
+                match stage_input with
+                | Some (stage : shader_stage_descriptor) ->
+                    Result.bind (ensure_live operation stage.lifetime) (fun () ->
+                      let ownership : Metal_raw.pipeline_compute_ownership =
+                        { compute_function = compute_function.raw
+                        ; preloaded_libraries = Array.of_list
+                            (List.map (fun (item : dynamic_library) -> item.raw)
+                               preloaded_libraries)
+                        ; stage_input_descriptor = Some stage.raw }
+                      in
+                      (match Metal_raw.pipeline_compute_descriptor device.raw ownership with
+                       | Error message -> native_error operation message
+                       | Ok raw ->
+                           let value : t =
+                             { raw; lifetime = lifetime (); device; compute_function
+                             ; libraries = preloaded_libraries; stage_input
+                             ; pipeline113_retained = true; pipeline113_valid = true }
+                           in
+                           attach device.lifetime; attach compute_function.lifetime;
+                           List.iter (fun (item : dynamic_library) -> attach item.lifetime)
+                             preloaded_libraries;
+                           attach stage.lifetime;
+                           attach_finalizer ~on_finalize:(fun () -> release_compute value)
+                             value value.lifetime device.lifetime;
+                           Ok value))
+                | None ->
+                    let ownership : Metal_raw.pipeline_compute_ownership =
+                      { compute_function = compute_function.raw
+                      ; preloaded_libraries = Array.of_list
+                          (List.map (fun (item : dynamic_library) -> item.raw)
+                             preloaded_libraries)
+                      ; stage_input_descriptor = None }
+                    in
+                    match Metal_raw.pipeline_compute_descriptor device.raw ownership with
+                    | Error message -> native_error operation message
+                    | Ok raw ->
+                        let value : t =
+                          { raw; lifetime = lifetime (); device; compute_function
+                          ; libraries = preloaded_libraries; stage_input
+                          ; pipeline113_retained = true; pipeline113_valid = true }
+                        in
+                        attach device.lifetime; attach compute_function.lifetime;
+                        List.iter (fun (item : dynamic_library) -> attach item.lifetime)
+                          preloaded_libraries;
+                        attach_finalizer ~on_finalize:(fun () -> release_compute value)
+                          value value.lifetime device.lifetime;
+                        Ok value))
+
+    let required_threads (value : t) =
+      let operation = "Metal.Pipeline_descriptor.Compute.required_threads" in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () ->
+            Result.map (fun (width, height, depth) -> { width; height; depth })
+              (Result.map_error (fun message ->
+                 { operation; kind = Native_error; message })
+                 (Metal_raw.pipeline_compute_descriptor_required_threads value.raw)))
+
+    let set_required_threads (value : t) ({ width; height; depth } : size3) =
+      let operation = "Metal.Pipeline_descriptor.Compute.set_required_threads" in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () when not (positive_size (width, height, depth)) ->
+            error operation Invalid_argument "required thread dimensions must be positive"
+        | Ok () ->
+            (match Metal_raw.pipeline_compute_descriptor_set_required_threads
+                     value.raw (width, height, depth) with
+             | Error message -> native_error operation message
+             | Ok () -> Ok ()))
+
+    let compile ?(reflection = false) (value : t) =
+      let operation = "Metal.Pipeline_descriptor.Compute.compile" in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () when not value.pipeline113_valid ->
+            error operation Invalid_state "compute descriptor was reset"
+        | Ok () ->
+            match Metal_raw.pipeline_compute_compile value.device.raw value.raw
+                    (if reflection then 3L else 0L) with
+            | Error message -> native_error operation message
+            | Ok (raw, bindings) ->
+                Ok (Compute_pipeline.make value.device ~reflection raw bindings))
+
+    let reset (value : t) =
+      let operation = "Metal.Pipeline_descriptor.Compute.reset" in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () ->
+            match Metal_raw.pipeline_compute_descriptor_reset value.raw with
+            | Error message -> native_error operation message
+            | Ok () -> value.pipeline113_valid <- false; release_compute value; Ok ())
+    let destroyed (value : t) = is_destroyed value.lifetime
+    let destroy (value : t) =
+      destroy_leaf "Metal.Pipeline_descriptor.Compute.destroy" value.lifetime
+        value.raw (fun () -> release_compute value; detach value.device.lifetime)
+  end
+
+  module Render = struct
+    type t = pipeline113_render_descriptor
+    type topology = Unspecified | Point | Line | Triangle
+    type winding = Clockwise | Counter_clockwise
+
+    let topology_code = function Unspecified -> 0L | Point -> 1L
+      | Line -> 2L | Triangle -> 3L
+    let topology_of_code operation = function
+      | 0L -> Ok Unspecified | 1L -> Ok Point | 2L -> Ok Line | 3L -> Ok Triangle
+      | code -> error operation Unsupported
+          (Printf.sprintf "unknown primitive topology %Ld" code)
+    let winding_code = function Clockwise -> 0L | Counter_clockwise -> 1L
+    let winding_of_code operation = function
+      | 0L -> Ok Clockwise | 1L -> Ok Counter_clockwise
+      | code -> error operation Unsupported
+          (Printf.sprintf "unknown winding %Ld" code)
+
+    let create ?fragment_function ?(binary_archives = [])
+        ?(vertex_preloaded_libraries = [])
+        ?(fragment_preloaded_libraries = []) (vertex_function : Function.t) =
+      let operation = "Metal.Pipeline_descriptor.Render.create" in
+      on_main operation (fun () ->
+        let device = vertex_function.library.device in
+        let functions = vertex_function :: Option.to_list fragment_function in
+        Result.bind (validate_functions operation device functions) (fun () ->
+          if Function.kind_of_code (Metal_raw.function_kind vertex_function.raw)
+             <> Function.Vertex then
+            error operation Invalid_argument "render descriptor requires a vertex function"
+          else if (match fragment_function with
+            | Some (item : function_handle) ->
+                Function.kind_of_code (Metal_raw.function_kind item.raw)
+                <> Function.Fragment
+            | None -> false) then
+            error operation Invalid_argument "fragment function has the wrong stage"
+          else Result.bind
+            (validate_binary_archives operation device binary_archives) (fun () ->
+            Result.bind
+              (validate_dynamic_libraries operation device vertex_preloaded_libraries)
+              (fun () -> Result.bind
+                (validate_dynamic_libraries operation device fragment_preloaded_libraries)
+                (fun () ->
+                  let ownership : Metal_raw.pipeline_render_ownership =
+                    { vertex_function = vertex_function.raw
+                    ; fragment_function = Option.map
+                        (fun (item : function_handle) -> item.raw) fragment_function
+                    ; binary_archives = Array.of_list
+                        (List.map (fun (item : binary_archive) -> item.raw) binary_archives)
+                    ; vertex_preloaded_libraries = Array.of_list
+                        (List.map (fun (item : dynamic_library) -> item.raw)
+                           vertex_preloaded_libraries)
+                    ; fragment_preloaded_libraries = Array.of_list
+                        (List.map (fun (item : dynamic_library) -> item.raw)
+                           fragment_preloaded_libraries)
+                    ; vertex_linked_functions = None
+                    ; fragment_linked_functions = None }
+                  in
+                  match Metal_raw.pipeline_render_descriptor device.raw ownership with
+                  | Error message -> native_error operation message
+                  | Ok raw ->
+                      let value : t =
+                        { raw; lifetime = lifetime (); device; functions
+                        ; archives = binary_archives
+                        ; vertex_libraries = vertex_preloaded_libraries
+                        ; fragment_libraries = fragment_preloaded_libraries
+                        ; pipeline113_retained = true; pipeline113_valid = true }
+                      in
+                      attach device.lifetime;
+                      List.iter (fun (item : function_handle) -> attach item.lifetime) functions;
+                      List.iter (fun (item : binary_archive) -> attach item.lifetime) binary_archives;
+                      List.iter (fun (item : dynamic_library) -> attach item.lifetime)
+                        (vertex_preloaded_libraries @ fragment_preloaded_libraries);
+                      attach_finalizer ~on_finalize:(fun () -> release_render value)
+                        value value.lifetime device.lifetime;
+                      Ok value)))))
+
+    let query operation native (value : t) =
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () -> match native value.raw with
+          | Error message -> native_error operation message | Ok result -> Ok result)
+    let set operation native (value : t) raw =
+      query operation (fun handle -> native handle raw) value
+
+    let depth_format value =
+      Result.map (fun code -> Metal_format.of_code (Int64.to_int code))
+        (query "Metal.Pipeline_descriptor.Render.depth_format"
+           Metal_raw.pipeline_render_descriptor_depth_format value)
+    let set_depth_format value format =
+      let operation = "Metal.Pipeline_descriptor.Render.set_depth_format" in
+      (match format with
+       | Texture.Depth16_unorm | Texture.Depth32_float
+       | Texture.Depth24_unorm_stencil8 | Texture.Depth32_float_stencil8 ->
+           set operation Metal_raw.pipeline_render_descriptor_set_depth_format
+             value (Int64.of_int (Metal_format.code format))
+       | _ -> error operation Invalid_argument
+           "depth attachment format is not depth-capable")
+    let stencil_format value =
+      Result.map (fun code -> Metal_format.of_code (Int64.to_int code))
+        (query "Metal.Pipeline_descriptor.Render.stencil_format"
+           Metal_raw.pipeline_render_descriptor_stencil_format value)
+    let set_stencil_format value format =
+      let operation = "Metal.Pipeline_descriptor.Render.set_stencil_format" in
+      (match format with
+       | Texture.Stencil8 | Texture.Depth24_unorm_stencil8
+       | Texture.Depth32_float_stencil8 ->
+           set operation Metal_raw.pipeline_render_descriptor_set_stencil_format
+             value (Int64.of_int (Metal_format.code format))
+       | _ -> error operation Invalid_argument
+           "stencil attachment format is not stencil-capable")
+    let input_topology value =
+      Result.bind (query "Metal.Pipeline_descriptor.Render.input_topology"
+        Metal_raw.pipeline_render_descriptor_input_topology value)
+        (topology_of_code "Metal.Pipeline_descriptor.Render.input_topology")
+    let set_input_topology value topology =
+      set "Metal.Pipeline_descriptor.Render.set_input_topology"
+        Metal_raw.pipeline_render_descriptor_set_input_topology value
+        (topology_code topology)
+    let sample_count value =
+      Result.map Int64.to_int
+        (query "Metal.Pipeline_descriptor.Render.sample_count"
+           Metal_raw.pipeline_render_descriptor_sample_count value)
+    let set_sample_count (value : t) count =
+      let operation = "Metal.Pipeline_descriptor.Render.set_sample_count" in
+      if count <= 0 then error operation Invalid_argument "sample count must be positive"
+      else Result.bind (Device.supports_texture_sample_count value.device count)
+        (function false -> error operation Unsupported "sample count is unsupported"
+        | true -> set operation Metal_raw.pipeline_render_descriptor_set_sample_count
+                    value (Int64.of_int count))
+    let tessellation_winding value =
+      Result.bind (query "Metal.Pipeline_descriptor.Render.tessellation_winding"
+        Metal_raw.pipeline_render_descriptor_tessellation_winding value)
+        (winding_of_code "Metal.Pipeline_descriptor.Render.tessellation_winding")
+    let set_tessellation_winding value winding =
+      set "Metal.Pipeline_descriptor.Render.set_tessellation_winding"
+        Metal_raw.pipeline_render_descriptor_set_tessellation_winding value
+        (winding_code winding)
+
+    let compile ?(reflection = false) (value : t) =
+      let operation = "Metal.Pipeline_descriptor.Render.compile" in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () when not value.pipeline113_valid ->
+            error operation Invalid_state "render descriptor was reset"
+        | Ok () ->
+            match Metal_raw.pipeline_render_descriptor_sample_count value.raw with
+            | Error message -> native_error operation message
+            | Ok sample_count ->
+                match Metal_raw.pipeline_render_compile value.device.raw value.raw
+                        (if reflection then 3L else 0L) with
+                | Error message -> native_error operation message
+                | Ok (raw, raw_reflection) ->
+                    Ok (Render_pipeline.make value.device ~kind:Render_pipeline.Render
+                      ~raster_sample_count:(Int64.to_int sample_count)
+                      ~color_formats:[] ~reflection raw raw_reflection))
+    let reset (value : t) =
+      let operation = "Metal.Pipeline_descriptor.Render.reset" in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () -> match Metal_raw.pipeline_render_descriptor_reset value.raw with
+          | Error message -> native_error operation message
+          | Ok () -> value.pipeline113_valid <- false; release_render value; Ok ())
+    let destroyed (value : t) = is_destroyed value.lifetime
+    let destroy (value : t) =
+      destroy_leaf "Metal.Pipeline_descriptor.Render.destroy" value.lifetime
+        value.raw (fun () -> release_render value; detach value.device.lifetime)
   end
 end
