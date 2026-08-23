@@ -2122,10 +2122,15 @@ let test_metal4_compiler device =
   end
   else begin
     let archive_path = Filename.temp_file "prismel-metal4-" ".metallib" in
+    let dynamic_path =
+      Filename.temp_file "prismel-metal4-dynamic-" ".metallib"
+    in
     Sys.remove archive_path;
+    Sys.remove dynamic_path;
     Fun.protect
       ~finally:(fun () ->
-        if Sys.file_exists archive_path then Sys.remove archive_path)
+        if Sys.file_exists archive_path then Sys.remove archive_path;
+        if Sys.file_exists dynamic_path then Sys.remove dynamic_path)
       (fun () ->
         let before_invalid_dataset = get (Release_queue.stats ()) in
         ignore
@@ -2415,6 +2420,167 @@ let test_metal4_compiler device =
         then
           fail
             "invalid Metal 4 compiler inputs allocated native handles beyond the valid library";
+        let before_invalid_dynamic = get (Release_queue.stats ()) in
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.create_dynamic_library compiler library));
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.create_dynamic_library_async compiler library));
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.load_dynamic_library compiler "relative.metallib"));
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.load_dynamic_library_async compiler
+                "relative.metallib"));
+        let after_invalid_dynamic = get (Release_queue.stats ()) in
+        if after_invalid_dynamic.total_created
+           <> before_invalid_dynamic.total_created
+        then
+          fail
+            "invalid Metal 4 dynamic-library inputs allocated native handles";
+        let dynamic_source =
+          get
+            (Library.compile_dynamic_source ~device
+               ~label:"Metal 4 dynamic source" ~install_name:dynamic_path
+               dynamic_library_source)
+        in
+        let compiler_dynamic =
+          get
+            (Compiler.create_dynamic_library
+               ~label:"Metal 4 compiler dynamic" compiler dynamic_source)
+        in
+        let unlabeled_compiler_dynamic =
+          get (Compiler.create_dynamic_library compiler dynamic_source)
+        in
+        let async_dynamic_task =
+          get
+            (Compiler.create_dynamic_library_async
+               ~label:"Metal 4 async dynamic" compiler dynamic_source)
+        in
+        let async_dynamic_id = Compiler_task.id async_dynamic_task in
+        get (Library.destroy dynamic_source);
+        get (Compiler_task.wait async_dynamic_task);
+        if
+          not
+            (List.mem async_dynamic_id
+               (get (Compiler_task.drain_completions ())))
+        then fail "async dynamic-library completion ID was not drained";
+        let async_dynamic =
+          match get (Compiler_task.poll async_dynamic_task) with
+          | Compiler_task.Complete (Ok library) -> library
+          | Compiler_task.Complete (Error error) ->
+              fail "async dynamic-library compilation failed: %s"
+                (Format.asprintf "%a" pp_error error)
+          | Compiler_task.Pending ->
+              fail "waited async dynamic-library compilation remained pending"
+        in
+        if get (Dynamic_library.label compiler_dynamic)
+           <> Some "Metal 4 compiler dynamic"
+           || get (Dynamic_library.label unlabeled_compiler_dynamic) <> None
+           || get (Dynamic_library.label async_dynamic)
+              <> Some "Metal 4 async dynamic"
+           || get (Dynamic_library.install_name compiler_dynamic)
+              <> dynamic_path
+           || get (Dynamic_library.install_name async_dynamic)
+              <> dynamic_path
+        then fail "Metal 4 compiler dynamic-library metadata is wrong";
+        get (Dynamic_library.serialize compiler_dynamic dynamic_path);
+        let loaded_compiler_dynamic =
+          get
+            (Compiler.load_dynamic_library
+               ~label:"Metal 4 loaded dynamic" compiler dynamic_path)
+        in
+        let async_loaded_dynamic_task =
+          get
+            (Compiler.load_dynamic_library_async
+               ~label:"Metal 4 async loaded dynamic" compiler dynamic_path)
+        in
+        let missing_dynamic_path = dynamic_path ^ ".missing" in
+        let missing_dynamic_task =
+          get
+            (Compiler.load_dynamic_library_async
+               ~label:"Metal 4 missing dynamic" compiler
+               missing_dynamic_path)
+        in
+        let async_loaded_dynamic_id =
+          Compiler_task.id async_loaded_dynamic_task
+        in
+        let missing_dynamic_id = Compiler_task.id missing_dynamic_task in
+        get (Compiler_task.wait async_loaded_dynamic_task);
+        get (Compiler_task.wait missing_dynamic_task);
+        let loaded_dynamic_ids =
+          get (Compiler_task.drain_completions ())
+        in
+        if not (List.mem async_loaded_dynamic_id loaded_dynamic_ids)
+           || not (List.mem missing_dynamic_id loaded_dynamic_ids)
+        then fail "async dynamic-library load IDs were not drained";
+        let async_loaded_dynamic =
+          match get (Compiler_task.poll async_loaded_dynamic_task) with
+          | Compiler_task.Complete (Ok library) -> library
+          | Compiler_task.Complete (Error error) ->
+              fail "async dynamic-library load failed: %s"
+                (Format.asprintf "%a" pp_error error)
+          | Compiler_task.Pending ->
+              fail "waited async dynamic-library load remained pending"
+        in
+        let missing_dynamic_diagnostic =
+          match get (Compiler_task.poll missing_dynamic_task) with
+          | Compiler_task.Complete (Error error) -> error
+          | Compiler_task.Complete (Ok library) ->
+              get (Dynamic_library.destroy library);
+              fail "missing async dynamic-library path unexpectedly loaded"
+          | Compiler_task.Pending ->
+              fail "waited missing dynamic-library load remained pending"
+        in
+        if get (Dynamic_library.label loaded_compiler_dynamic)
+           <> Some "Metal 4 loaded dynamic"
+           || get (Dynamic_library.label async_loaded_dynamic)
+              <> Some "Metal 4 async loaded dynamic"
+           || get (Dynamic_library.install_name loaded_compiler_dynamic)
+              <> dynamic_path
+           || get (Dynamic_library.install_name async_loaded_dynamic)
+              <> dynamic_path
+        then fail "loaded Metal 4 dynamic-library metadata is wrong";
+        if
+          not
+            (contains_substring missing_dynamic_diagnostic.message
+               "Metal 4 missing dynamic")
+          || not
+               (contains_substring missing_dynamic_diagnostic.message
+                  "domain=")
+        then fail "async dynamic-library load lost its diagnostic";
+        let dynamic_client_library =
+          get
+            (Dynamic_library.compile_source ~device
+               ~label:"Metal 4 dynamic client"
+               ~libraries:[ async_loaded_dynamic ] dynamic_client_source)
+        in
+        let dynamic_client_function =
+          get
+            (Function.find ~library:dynamic_client_library
+               "call_dynamic_library")
+        in
+        let compiler_dynamic_pipeline =
+          get
+            (Compute_pipeline.create
+               ~preloaded_libraries:[ async_loaded_dynamic ]
+               dynamic_client_function)
+        in
+        get (Function.destroy dynamic_client_function);
+        get (Library.destroy dynamic_client_library);
+        get (Dynamic_library.destroy async_loaded_dynamic);
+        get (Dynamic_library.destroy loaded_compiler_dynamic);
+        get (Dynamic_library.destroy async_dynamic);
+        get (Dynamic_library.destroy unlabeled_compiler_dynamic);
+        get (Dynamic_library.destroy compiler_dynamic);
+        get (Compiler_task.destroy missing_dynamic_task);
+        get (Compiler_task.destroy async_loaded_dynamic_task);
+        get (Compiler_task.destroy async_dynamic_task);
+        run_pipeline_once device compiler_dynamic_pipeline ~initial:20l
+          ~expected:33l;
+        get (Compute_pipeline.destroy compiler_dynamic_pipeline);
         let async_compute_library =
           get
             (Compiler.compile_source ~name:"async-compute-source" compiler

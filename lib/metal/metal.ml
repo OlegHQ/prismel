@@ -7340,6 +7340,100 @@ module Compiler = struct
                     (fun raw -> Library.make value.device raw)
                     raw)))
 
+  let validate_dynamic_library_source operation (value : t) ?label
+      (library : Library.t) =
+    let ( let* ) result callback = Result.bind result callback in
+    let* () = ensure_live operation value.lifetime in
+    let* () = ensure_live operation library.lifetime in
+    let* () = ensure_same_device operation value.device library.device in
+    let* () = Dynamic_library.check_support operation value.device in
+    if option_exists contains_nul label then
+      error operation Invalid_argument
+        "dynamic-library label contains a NUL byte"
+    else if
+      Library.kind_of_code (Metal_raw.library_kind library.raw)
+      <> Library.Dynamic_library_source
+    then
+      error operation Invalid_argument
+        "source library was not compiled as a dynamic library"
+    else
+      match Metal_raw.library_install_name library.raw with
+      | Some install_name when install_name <> "" -> Ok ()
+      | _ ->
+          error operation Invalid_argument
+            "dynamic-library source has no install name"
+
+  let create_dynamic_library ?label (value : t) (library : Library.t) =
+    let operation = "Metal.Compiler.create_dynamic_library" in
+    on_main operation (fun () ->
+      match validate_dynamic_library_source operation value ?label library with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match
+             Metal_raw.compiler_create_dynamic_library value.raw library.raw
+               label
+           with
+           | Error message -> native_error operation message
+           | Ok raw -> Ok (Dynamic_library.make value.device raw)))
+
+  let create_dynamic_library_async ?label (value : t)
+      (library : Library.t) =
+    let operation = "Metal.Compiler.create_dynamic_library_async" in
+    on_main operation (fun () ->
+      match validate_dynamic_library_source operation value ?label library with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match
+             Metal_raw.compiler_create_dynamic_library_async value.raw
+               library.raw label
+           with
+           | Error message -> native_error operation message
+           | Ok raw ->
+               Ok
+                 (Compiler_task.make value
+                    Metal_raw.compiler_task_take_dynamic_library
+                    (fun raw -> Dynamic_library.make value.device raw)
+                    raw)))
+
+  let validate_dynamic_library_path operation (value : t) ?label path =
+    let ( let* ) result callback = Result.bind result callback in
+    let* () = ensure_live operation value.lifetime in
+    let* () = Dynamic_library.check_support operation value.device in
+    let* () = validate_absolute_path operation path in
+    if option_exists contains_nul label then
+      error operation Invalid_argument
+        "dynamic-library label contains a NUL byte"
+    else Ok ()
+
+  let load_dynamic_library ?label (value : t) path =
+    let operation = "Metal.Compiler.load_dynamic_library" in
+    on_main operation (fun () ->
+      match validate_dynamic_library_path operation value ?label path with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match
+             Metal_raw.compiler_load_dynamic_library value.raw path label
+           with
+           | Error message -> native_error operation message
+           | Ok raw -> Ok (Dynamic_library.make value.device raw)))
+
+  let load_dynamic_library_async ?label (value : t) path =
+    let operation = "Metal.Compiler.load_dynamic_library_async" in
+    on_main operation (fun () ->
+      match validate_dynamic_library_path operation value ?label path with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match
+             Metal_raw.compiler_load_dynamic_library_async value.raw path label
+           with
+           | Error message -> native_error operation message
+           | Ok raw ->
+               Ok
+                 (Compiler_task.make value
+                    Metal_raw.compiler_task_take_dynamic_library
+                    (fun raw -> Dynamic_library.make value.device raw)
+                    raw)))
+
   let prepare_binary_function operation (value : t) source ~name
       ~pipeline_independent ~lookup_archives =
     let ( let* ) result callback = Result.bind result callback in

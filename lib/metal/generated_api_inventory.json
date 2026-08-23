@@ -2,11 +2,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 1147,
+    "bound": 1152,
     "scope-excluded": 7,
-    "unreviewed": 4131
+    "unreviewed": 4126
   },
-  "classification_source_sha256": "6342718fa84f2d9daa4ba71b98977bd726a4f6ad912e4a7a68c3dccbe56430da",
+  "classification_source_sha256": "f1b398cb6ee48bf113643690637078c7157b4d8ed9fb226cd3db2a277484f720",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "header_aggregate_sha256": "c2ee1e44c76606cf05fa81d1a8314dadfa49efe900342e8bcb3670363c16f0d1",
@@ -21692,56 +21692,56 @@
       "attributes": [
         "NSReturnsRetainedAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4Compiler.h",
       "id": "method:-[MTL4Compiler newDynamicLibrary:completionHandler:]",
       "kind": "method",
       "line": 248,
       "name": "newDynamicLibrary:completionHandler:",
       "owner": "MTL4Compiler",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (id<MTLLibrary>  _Nonnull __strong, MTLNewDynamicLibraryCompletionHandler  _Nonnull __strong) -> id<MTL4CompilerTask> _Nonnull"
     },
     {
       "attributes": [
         "NSReturnsRetainedAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4Compiler.h",
       "id": "method:-[MTL4Compiler newDynamicLibrary:error:]",
       "kind": "method",
       "line": 117,
       "name": "newDynamicLibrary:error:",
       "owner": "MTL4Compiler",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (id<MTLLibrary>  _Nonnull __strong, NSError *__autoreleasing  _Nullable * _Nullable) -> id<MTLDynamicLibrary> _Nullable"
     },
     {
       "attributes": [
         "NSReturnsRetainedAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4Compiler.h",
       "id": "method:-[MTL4Compiler newDynamicLibraryWithURL:completionHandler:]",
       "kind": "method",
       "line": 258,
       "name": "newDynamicLibraryWithURL:completionHandler:",
       "owner": "MTL4Compiler",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (NSURL * _Nonnull __strong, MTLNewDynamicLibraryCompletionHandler  _Nonnull __strong) -> id<MTL4CompilerTask> _Nonnull"
     },
     {
       "attributes": [
         "NSReturnsRetainedAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4Compiler.h",
       "id": "method:-[MTL4Compiler newDynamicLibraryWithURL:error:]",
       "kind": "method",
       "line": 126,
       "name": "newDynamicLibraryWithURL:error:",
       "owner": "MTL4Compiler",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (NSURL * _Nonnull __strong, NSError *__autoreleasing  _Nullable * _Nullable) -> id<MTLDynamicLibrary> _Nullable"
     },
     {
@@ -66838,14 +66838,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "typedef:MTLNewDynamicLibraryCompletionHandler",
       "kind": "typedef",
       "line": 47,
       "name": "MTLNewDynamicLibraryCompletionHandler",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "void (^)(id<MTLDynamicLibrary>  _Nullable __strong, NSError * _Nullable __strong)"
     },
     {

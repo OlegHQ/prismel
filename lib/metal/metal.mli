@@ -1194,6 +1194,25 @@ module Compiler : sig
     ?name:string -> t -> string ->
     (Library.t Compiler_task.t, error) result
 
+  (** Builds a dynamic library through the Metal 4 compiler. The input must be
+      a same-device [Library.Dynamic_library_source] with an install name. *)
+  val create_dynamic_library :
+    ?label:string -> t -> Library.t -> (Dynamic_library.t, error) result
+
+  (** The native task retains the source library through completion. *)
+  val create_dynamic_library_async :
+    ?label:string -> t -> Library.t ->
+    (Dynamic_library.t Compiler_task.t, error) result
+
+  (** Loads serialized dynamic-library device code from an absolute path. *)
+  val load_dynamic_library :
+    ?label:string -> t -> string -> (Dynamic_library.t, error) result
+
+  (** The native task retains the file URL through completion. *)
+  val load_dynamic_library_async :
+    ?label:string -> t -> string ->
+    (Dynamic_library.t Compiler_task.t, error) result
+
   (** Compiles a visible or intersection function to device machine code.
       Lookup archives are searched by Metal before compiling a miss. *)
   val create_binary_function :

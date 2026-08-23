@@ -203,6 +203,7 @@ let bound_identifiers =
   ; "typedef:MTLTextureUsage"
   ; "typedef:MTLNewLibraryCompletionHandler"
   ; "typedef:MTLNewComputePipelineStateCompletionHandler"
+  ; "typedef:MTLNewDynamicLibraryCompletionHandler"
   ; "variable:swizzle"
   ]
   @ methods
@@ -237,6 +238,10 @@ let bound_identifiers =
           ; "newComputePipelineStateWithDescriptor:compilerTaskOptions:error:"
           ; "newComputePipelineStateWithDescriptor:compilerTaskOptions:completionHandler:"
           ; "newComputePipelineStateWithDescriptor:dynamicLinkingDescriptor:compilerTaskOptions:error:"
+          ; "newDynamicLibrary:completionHandler:"
+          ; "newDynamicLibrary:error:"
+          ; "newDynamicLibraryWithURL:completionHandler:"
+          ; "newDynamicLibraryWithURL:error:"
           ; "newLibraryWithDescriptor:completionHandler:"
           ; "newLibraryWithDescriptor:error:"; "pipelineDataSetSerializer"
           ] )

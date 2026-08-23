@@ -483,20 +483,21 @@ capability, matching Metal's export distinction. Descriptor sources are needed
 only for synchronous compilation and can be destroyed before the resulting
 pipeline executes.
 
-`Compiler.compile_source_async`, `create_binary_function_async`, and
-`create_compute_pipeline_async` return typed `Compiler_task.t` values.
+`Compiler.compile_source_async`, compiler dynamic-library create/load,
+`create_binary_function_async`, and `create_compute_pipeline_async` return
+typed `Compiler_task.t` values where applicable.
 Metal worker completion blocks never enter the OCaml runtime or retain OCaml
 roots: they store the native result in task-local completion state and enqueue
 only a monotonically increasing ID into a process-wide 1,024-entry ring.
 `Compiler_task.drain_completions` and `poll` run on the initial domain, and only
-`poll` materializes the resulting owned library, binary function, or reflected
-compute pipeline. Results are one-shot; duplicate consumption is
-`Invalid_state`, task/compiler parent ownership is
-explicit, queue overflow is reported, and blocking `wait` releases the OCaml
+`poll` materializes the resulting owned library, dynamic library, binary
+function, or reflected compute pipeline. Results are one-shot; duplicate
+consumption is `Invalid_state`, task/compiler parent ownership is explicit,
+queue overflow is reported, and blocking `wait` releases the OCaml
 runtime lock. Async binary-function task creation uses the same descriptor and
 archive validation as its synchronous peer, and the task natively retains its
-descriptor inputs after their OCaml handles are destroyed. Remaining
-compute validation and native descriptor construction are likewise shared by
+descriptor inputs after their OCaml handles are destroyed. Compute validation
+and native descriptor construction are likewise shared by
 the synchronous and asynchronous entry points; in particular, absent function
 names are rejected before reaching Metal's assertion boundary. The ordinary
 async compute selector executes on M1 and preserves requested reflection after
@@ -504,8 +505,12 @@ the source library is destroyed. The async dynamic-linking selector is
 explicitly gated to Apple9/M3+ because macOS 26.4.1's Apple7/M1 driver faults in
 Metal's request serializer even while all descriptor inputs remain retained;
 the inventory classifies that selector as availability-gated pending the M3+
-lane. Remaining asynchronous dynamic-library tasks,
-synchronous/asynchronous render, mesh, and object pipelines, and positive offline
+lane. Compiler dynamic-library creation and URL loading share same-device,
+source-kind, install-name, absolute-path, label, and returned-object checks;
+their async blocks retain source/URL inputs through native completion, preserve
+full missing-file diagnostics, and produce a library that executes through an
+ordinary dynamically linked compute pipeline. Remaining synchronous and
+asynchronous render, mesh, and object pipelines, and positive offline
 `.metallib` provenance remain open M4 work.
 
 `test_metal.exe` runs a real M1 compute kernel, wrong-domain and invalid-state
@@ -517,8 +522,9 @@ metadata, `.metallib` path/error handling, Metal 4 compiler library and
 reflected compute creation, descriptor and binary dataset capture, serialized
 Metal 4 archive reload/strict binary lookup, binary-function compilation and
 dynamic pipeline linking, public/private/grouped static-link descriptors,
-asynchronous library success/error, binary-function, and reflected compute
-completion with bounded ID draining and M1 dynamic-link rejection,
+asynchronous library success/error, dynamic-library source/file success/error,
+binary-function, and reflected compute completion with bounded ID draining and
+M1 dynamic-link rejection,
 compiler/task/dataset parent ownership, and complete Metal 4 compile diagnostics,
 copied/no-copy external buffer ownership,
 shareable texture/handle/import lifetimes, single- and multi-plane IOSurface

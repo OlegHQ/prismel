@@ -605,6 +605,26 @@ external compiler_task_take_library :
   handle -> (((handle, string) result option, string) result) =
   "caml_prismel_metal_compiler_task_take_library"
 
+external compiler_create_dynamic_library :
+  handle -> handle -> string option -> (handle, string) result =
+  "caml_prismel_metal_compiler_create_dynamic_library"
+
+external compiler_load_dynamic_library :
+  handle -> string -> string option -> (handle, string) result =
+  "caml_prismel_metal_compiler_load_dynamic_library"
+
+external compiler_create_dynamic_library_async :
+  handle -> handle -> string option -> (handle, string) result =
+  "caml_prismel_metal_compiler_create_dynamic_library_async"
+
+external compiler_load_dynamic_library_async :
+  handle -> string -> string option -> (handle, string) result =
+  "caml_prismel_metal_compiler_load_dynamic_library_async"
+
+external compiler_task_take_dynamic_library :
+  handle -> (((handle, string) result option, string) result) =
+  "caml_prismel_metal_compiler_task_take_dynamic_library"
+
 external compiler_completion_drain : int -> int64 array =
   "caml_prismel_metal_compiler_completion_drain"
 

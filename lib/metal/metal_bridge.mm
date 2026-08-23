@@ -144,6 +144,7 @@ typedef NS_ENUM(NSUInteger, PrismelMetalCompilerResultKind) {
   PrismelMetalCompilerResultLibrary = 0,
   PrismelMetalCompilerResultBinaryFunction = 1,
   PrismelMetalCompilerResultComputePipeline = 2,
+  PrismelMetalCompilerResultDynamicLibrary = 3,
 };
 
 API_AVAILABLE(macos(26.0))
@@ -154,6 +155,8 @@ API_AVAILABLE(macos(26.0))
 @property(nonatomic, readonly) PrismelMetalCompilerResultKind resultKind;
 @property(nonatomic, readonly) BOOL reflectionRequested;
 @property(nonatomic, strong, nullable) id retainedInputs;
+@property(nonatomic, copy, nullable) NSString *expectedInstallName;
+@property(nonatomic, copy, nullable) NSString *diagnosticIdentity;
 - (instancetype)initWithKind:(PrismelMetalCompilerResultKind)kind
                         label:(nullable NSString *)label
           reflectionRequested:(BOOL)reflectionRequested;
@@ -169,6 +172,8 @@ API_AVAILABLE(macos(26.0))
   PrismelMetalCompilerResultKind _resultKind;
   BOOL _reflectionRequested;
   id _retainedInputs;
+  NSString *_expectedInstallName;
+  NSString *_diagnosticIdentity;
   id _resultObject;
   NSError *_resultError;
   PrismelMetalCompilerResultState _resultState;
@@ -198,6 +203,14 @@ API_AVAILABLE(macos(26.0))
 - (id)retainedInputs { return _retainedInputs; }
 - (void)setRetainedInputs:(id)retainedInputs {
   _retainedInputs = retainedInputs;
+}
+- (NSString *)expectedInstallName { return _expectedInstallName; }
+- (void)setExpectedInstallName:(NSString *)expectedInstallName {
+  _expectedInstallName = [expectedInstallName copy];
+}
+- (NSString *)diagnosticIdentity { return _diagnosticIdentity; }
+- (void)setDiagnosticIdentity:(NSString *)diagnosticIdentity {
+  _diagnosticIdentity = [diagnosticIdentity copy];
 }
 
 - (void)finishWithObject:(id)object error:(NSError *)error {
@@ -1550,6 +1563,48 @@ bool checked_compiler_library_result(id<MTLLibrary> library,
       (expected_name != nil &&
        ![library.label isEqualToString:expected_name])) {
     *failure = @"Metal changed checked compiler library properties";
+    return false;
+  }
+  return true;
+}
+
+API_AVAILABLE(macos(26.0))
+id<MTLLibrary> checked_compiler_dynamic_library_source(
+    value raw_library, id<MTL4Compiler> compiler,
+    NSString *__autoreleasing *install_name,
+    NSString *__autoreleasing *failure) {
+  id<MTLLibrary> library =
+      object_of_handle(raw_library, Handle_kind::Library);
+  if (!compiler.device.supportsDynamicLibraries ||
+      library.device.registryID != compiler.device.registryID ||
+      library.type != MTLLibraryTypeDynamic || library.installName == nil ||
+      library.installName.length == 0) {
+    *failure =
+        @"Metal 4 dynamic-library source is incompatible or lacks an install name";
+    return nil;
+  }
+  *install_name = library.installName;
+  return library;
+}
+
+API_AVAILABLE(macos(26.0))
+bool checked_compiler_dynamic_library_result(
+    id<MTLDynamicLibrary> library, id<MTL4Compiler> compiler,
+    NSString *expected_label, NSString *expected_install_name,
+    NSString *__autoreleasing *failure) {
+  if (library == nil) {
+    *failure = @"Metal returned no compiled dynamic library";
+    return false;
+  }
+  library.label = expected_label;
+  if (library.device.registryID != compiler.device.registryID ||
+      library.installName == nil || library.installName.length == 0 ||
+      (expected_install_name != nil &&
+       ![library.installName isEqualToString:expected_install_name]) ||
+      ((expected_label == nil) != (library.label == nil)) ||
+      (expected_label != nil &&
+       ![library.label isEqualToString:expected_label])) {
+    *failure = @"Metal changed checked compiler dynamic-library properties";
     return false;
   }
   return true;
@@ -6057,6 +6112,298 @@ caml_prismel_metal_compiler_task_take_library(value raw) {
     }
   }
   CAMLreturn(result_error_text("unreachable compiler-task result"));
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_compiler_create_dynamic_library(
+    value raw_compiler, value raw_library, value raw_label) {
+  CAMLparam3(raw_compiler, raw_library, raw_label);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4Compiler> compiler =
+            object_of_handle(raw_compiler, Handle_kind::Compiler);
+        NSString *expected_label = nil;
+        if (Is_block(raw_label)) {
+          expected_label = string_from_ocaml(Field(raw_label, 0));
+          if (expected_label == nil) {
+            CAMLreturn(result_error_text(
+                "Metal 4 dynamic-library label is not valid UTF-8"));
+          }
+        }
+        NSString *expected_install_name = nil;
+        NSString *validation_failure = nil;
+        id<MTLLibrary> source = checked_compiler_dynamic_library_source(
+            raw_library, compiler, &expected_install_name,
+            &validation_failure);
+        if (source == nil) {
+          CAMLreturn(result_error(validation_failure));
+        }
+        NSError *error = nil;
+        id<MTLDynamicLibrary> library =
+            [compiler newDynamicLibrary:source error:&error];
+        if (library == nil) {
+          CAMLreturn(result_error(labeled_error_description(
+              expected_label ?: expected_install_name, error,
+              @"Metal 4 dynamic-library compilation failed without NSError")));
+        }
+        if (!checked_compiler_dynamic_library_result(
+                library, compiler, expected_label, expected_install_name,
+                &validation_failure)) {
+          CAMLreturn(result_error(validation_failure));
+        }
+        raw = allocate_handle(library, Handle_kind::Dynamic_library);
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    } else {
+      CAMLreturn(result_error_text(
+          "Metal 4 dynamic libraries require macOS 26 or newer"));
+    }
+  }
+  CAMLreturn(result_ok(raw));
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_compiler_load_dynamic_library(
+    value raw_compiler, value raw_path, value raw_label) {
+  CAMLparam3(raw_compiler, raw_path, raw_label);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4Compiler> compiler =
+            object_of_handle(raw_compiler, Handle_kind::Compiler);
+        NSString *path = string_from_ocaml(raw_path);
+        if (!valid_absolute_path(path)) {
+          CAMLreturn(result_error_text(
+              "Metal 4 dynamic-library path must be a nonempty absolute UTF-8 path"));
+        }
+        NSString *expected_label = nil;
+        if (Is_block(raw_label)) {
+          expected_label = string_from_ocaml(Field(raw_label, 0));
+          if (expected_label == nil) {
+            CAMLreturn(result_error_text(
+                "Metal 4 dynamic-library label is not valid UTF-8"));
+          }
+        }
+        NSError *error = nil;
+        id<MTLDynamicLibrary> library =
+            [compiler newDynamicLibraryWithURL:[NSURL fileURLWithPath:path]
+                                         error:&error];
+        if (library == nil) {
+          CAMLreturn(result_error(labeled_error_description(
+              expected_label ?: path.lastPathComponent, error,
+              @"Metal 4 dynamic-library loading failed without NSError")));
+        }
+        NSString *validation_failure = nil;
+        if (!checked_compiler_dynamic_library_result(
+                library, compiler, expected_label, nil,
+                &validation_failure)) {
+          CAMLreturn(result_error(validation_failure));
+        }
+        raw = allocate_handle(library, Handle_kind::Dynamic_library);
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    } else {
+      CAMLreturn(result_error_text(
+          "Metal 4 dynamic libraries require macOS 26 or newer"));
+    }
+  }
+  CAMLreturn(result_ok(raw));
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_compiler_create_dynamic_library_async(
+    value raw_compiler, value raw_library, value raw_label) {
+  CAMLparam3(raw_compiler, raw_library, raw_label);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4Compiler> compiler =
+            object_of_handle(raw_compiler, Handle_kind::Compiler);
+        NSString *expected_label = nil;
+        if (Is_block(raw_label)) {
+          expected_label = string_from_ocaml(Field(raw_label, 0));
+          if (expected_label == nil) {
+            CAMLreturn(result_error_text(
+                "Metal 4 dynamic-library label is not valid UTF-8"));
+          }
+        }
+        NSString *expected_install_name = nil;
+        NSString *validation_failure = nil;
+        id<MTLLibrary> source = checked_compiler_dynamic_library_source(
+            raw_library, compiler, &expected_install_name,
+            &validation_failure);
+        if (source == nil) {
+          CAMLreturn(result_error(validation_failure));
+        }
+        PrismelMetalCompilerTaskState *state =
+            [[PrismelMetalCompilerTaskState alloc]
+                initWithKind:PrismelMetalCompilerResultDynamicLibrary
+                         label:expected_label
+           reflectionRequested:NO];
+        state.expectedInstallName = expected_install_name;
+        state.diagnosticIdentity =
+            expected_label ?: expected_install_name;
+        state.retainedInputs = source;
+        __weak PrismelMetalCompilerTaskState *weak_state = state;
+        id<MTLLibrary> retained_source = source;
+        id<MTL4CompilerTask> task =
+            [compiler newDynamicLibrary:source
+                      completionHandler:^(id<MTLDynamicLibrary> library,
+                                          NSError *error) {
+                        (void)retained_source;
+                        PrismelMetalCompilerTaskState *strong_state = weak_state;
+                        [strong_state finishWithObject:library error:error];
+                      }];
+        if (task == nil) {
+          CAMLreturn(result_error(labeled_error_description(
+              expected_label ?: expected_install_name, nil,
+              @"Metal 4 asynchronous dynamic-library task creation failed")));
+        }
+        state.task = task;
+        if (state.identifier == 0 || task.compiler.device.registryID !=
+                                         compiler.device.registryID) {
+          CAMLreturn(result_error_text(
+              "Metal changed checked asynchronous compiler task properties"));
+        }
+        raw = allocate_handle(state, Handle_kind::Compiler_task);
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    } else {
+      CAMLreturn(result_error_text(
+          "asynchronous Metal 4 dynamic libraries require macOS 26 or newer"));
+    }
+  }
+  CAMLreturn(result_ok(raw));
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_compiler_load_dynamic_library_async(
+    value raw_compiler, value raw_path, value raw_label) {
+  CAMLparam3(raw_compiler, raw_path, raw_label);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4Compiler> compiler =
+            object_of_handle(raw_compiler, Handle_kind::Compiler);
+        NSString *path = string_from_ocaml(raw_path);
+        if (!valid_absolute_path(path)) {
+          CAMLreturn(result_error_text(
+              "Metal 4 dynamic-library path must be a nonempty absolute UTF-8 path"));
+        }
+        NSString *expected_label = nil;
+        if (Is_block(raw_label)) {
+          expected_label = string_from_ocaml(Field(raw_label, 0));
+          if (expected_label == nil) {
+            CAMLreturn(result_error_text(
+                "Metal 4 dynamic-library label is not valid UTF-8"));
+          }
+        }
+        NSURL *url = [NSURL fileURLWithPath:path];
+        PrismelMetalCompilerTaskState *state =
+            [[PrismelMetalCompilerTaskState alloc]
+                initWithKind:PrismelMetalCompilerResultDynamicLibrary
+                         label:expected_label
+           reflectionRequested:NO];
+        state.retainedInputs = url;
+        state.diagnosticIdentity =
+            expected_label ?: path.lastPathComponent;
+        __weak PrismelMetalCompilerTaskState *weak_state = state;
+        NSURL *retained_url = url;
+        id<MTL4CompilerTask> task =
+            [compiler newDynamicLibraryWithURL:url
+                            completionHandler:^(id<MTLDynamicLibrary> library,
+                                                NSError *error) {
+                              (void)retained_url;
+                              PrismelMetalCompilerTaskState *strong_state =
+                                  weak_state;
+                              [strong_state finishWithObject:library
+                                                       error:error];
+                            }];
+        if (task == nil) {
+          CAMLreturn(result_error(labeled_error_description(
+              expected_label ?: path.lastPathComponent, nil,
+              @"Metal 4 asynchronous dynamic-library load task creation failed")));
+        }
+        state.task = task;
+        if (state.identifier == 0 || task.compiler.device.registryID !=
+                                         compiler.device.registryID) {
+          CAMLreturn(result_error_text(
+              "Metal changed checked asynchronous compiler task properties"));
+        }
+        raw = allocate_handle(state, Handle_kind::Compiler_task);
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    } else {
+      CAMLreturn(result_error_text(
+          "asynchronous Metal 4 dynamic libraries require macOS 26 or newer"));
+    }
+  }
+  CAMLreturn(result_ok(raw));
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_compiler_task_take_dynamic_library(value raw) {
+  CAMLparam1(raw);
+  CAMLlocal3(raw_library, completion, option);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        PrismelMetalCompilerTaskState *state =
+            object_of_handle(raw, Handle_kind::Compiler_task);
+        if (state.resultKind != PrismelMetalCompilerResultDynamicLibrary) {
+          CAMLreturn(result_error_text(
+              "compiler task does not contain a dynamic-library result"));
+        }
+        id result_object = nil;
+        NSError *result_error_value = nil;
+        const PrismelMetalCompilerResultState result_state =
+            [state takeObject:&result_object error:&result_error_value];
+        if (result_state == PrismelMetalCompilerResultPending) {
+          CAMLreturn(result_ok(Val_none));
+        }
+        if (result_state == PrismelMetalCompilerResultConsumed) {
+          CAMLreturn(result_error_text(
+              "compiler task completion was already consumed"));
+        }
+        if (result_state == PrismelMetalCompilerResultFailure) {
+          completion = result_error(labeled_error_description(
+              state.diagnosticIdentity, result_error_value,
+              @"Metal 4 asynchronous dynamic-library operation failed without NSError"));
+        } else {
+          id<MTLDynamicLibrary> library =
+              static_cast<id<MTLDynamicLibrary>>(result_object);
+          NSString *validation_failure = nil;
+          if (!checked_compiler_dynamic_library_result(
+                  library, state.task.compiler, state.label,
+                  state.expectedInstallName, &validation_failure)) {
+            completion = result_error(validation_failure);
+          } else {
+            raw_library =
+                allocate_handle(library, Handle_kind::Dynamic_library);
+            completion = result_ok(raw_library);
+          }
+        }
+        option = caml_alloc(1, 0);
+        Store_field(option, 0, completion);
+        CAMLreturn(result_ok(option));
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    } else {
+      CAMLreturn(result_error_text(
+          "asynchronous Metal 4 dynamic libraries require macOS 26 or newer"));
+    }
+  }
+  CAMLreturn(result_error_text("unreachable dynamic-library task result"));
 }
 
 extern "C" CAMLprim value caml_prismel_metal_compiler_completion_drain(
