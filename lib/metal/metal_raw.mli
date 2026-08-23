@@ -1386,6 +1386,8 @@ external layer_next_drawable : handle -> (handle option,string) result = "caml_p
 type presentation_layer_snapshot = int64 * float * float * int64 * bool * int64 * bool * bool * bool * bool
 external layer_native_snapshot : handle -> (presentation_layer_snapshot,string) result = "caml_prismel_metal_layer_native_snapshot"
 external layer_set_extended_range : handle -> bool -> (unit,string) result = "caml_prismel_metal_layer_set_extended_range"
+external layer_colorspace_name : handle -> (string option,string) result = "caml_prismel_metal_layer_colorspace_name"
+external layer_set_colorspace_name : handle -> string option -> (unit,string) result = "caml_prismel_metal_layer_set_colorspace_name"
 external drawable_native_layer : handle -> (handle,string) result = "caml_prismel_metal_drawable_native_layer"
 external drawable_texture : handle -> ((handle * int * int * int),string) result = "caml_prismel_metal_drawable_texture"
 external command_buffer_present_drawable : handle -> handle -> int -> float -> (unit,string) result = "caml_prismel_metal_command_buffer_present_drawable"
@@ -1403,6 +1405,8 @@ external render_pass_descriptor_set_sizes : handle -> int -> int -> int -> int -
 type presentation_render_pass_advanced = int64 * int64 * int64 * int64 * int64 * bool * (float * float) array
 external render_pass_advanced_set : handle -> presentation_render_pass_advanced -> (unit,string) result = "caml_prismel_metal_render_pass_advanced_set"
 external render_pass_advanced_get : handle -> (presentation_render_pass_advanced,string) result = "caml_prismel_metal_render_pass_advanced_get"
+external render_pass_reset_depth_stencil : handle -> (unit,string) result = "caml_prismel_metal_render_pass_reset_depth_stencil"
+external render_pass_sample_attachments : handle -> (handle,string) result = "caml_prismel_metal_render_pass_sample_attachments"
 external render_pass_descriptor_set_attachments :
   handle -> handle -> handle option -> handle option -> handle option ->
   float * float * float * float -> (unit,string) result =
