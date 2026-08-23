@@ -94,6 +94,7 @@ module Device : sig
     ; recommended_max_working_set_size : int64
     ; current_allocated_size : int64
     ; max_buffer_length : int64
+    ; max_threadgroup_memory_length : int64
     ; raytracing : bool
     ; raytracing_from_render : bool
     ; dynamic_libraries : bool

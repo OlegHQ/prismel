@@ -161,13 +161,34 @@ type expected_safe_api =
   ; test_call : string list
   }
 
+type expected_result =
+  { abi : string
+  ; objc_type : string
+  ; ocaml_type : string
+  ; overflow_error : string
+  }
+
+type expected_companion =
+  { sdk_id : string
+  ; kind : string
+  ; owner : string
+  ; name : string
+  ; header : string
+  ; signature : string
+  ; attributes : string list
+  }
+
 type expected_binding =
   { sdk_id : string
   ; selector : string
   ; ocaml_name : string
   ; c_symbol : string
   ; receiver_handle_kind : string
+  ; macos_major : int
+  ; macos_minor : int
   ; arguments : expected_argument list
+  ; result : expected_result option
+  ; companions : expected_companion list
   ; safe_api : expected_safe_api option
   }
 
@@ -179,6 +200,8 @@ let expected_bindings =
     ; c_symbol =
         "caml_prismel_metal_command4_compute_encoder_set_imageblock_size"
     ; receiver_handle_kind = "Compute_encoder4"
+    ; macos_major = 26
+    ; macos_minor = 0
     ; arguments =
         [ { name = "width"
           ; abi = "ocaml_int_to_nsuint"
@@ -193,6 +216,8 @@ let expected_bindings =
           ; error = "Metal 4 compute imageblock height must be nonnegative"
           }
         ]
+    ; result = None
+    ; companions = []
     ; safe_api = None
     }
   ; { sdk_id =
@@ -203,6 +228,8 @@ let expected_bindings =
     ; c_symbol =
         "caml_prismel_metal_command4_compute_encoder_set_threadgroup_memory_length"
     ; receiver_handle_kind = "Compute_encoder4"
+    ; macos_major = 26
+    ; macos_minor = 0
     ; arguments =
         [ { name = "length"
           ; abi = "ocaml_int_to_nsuint"
@@ -219,6 +246,8 @@ let expected_bindings =
               "Metal 4 compute threadgroup-memory index must be nonnegative"
           }
         ]
+    ; result = None
+    ; companions = []
     ; safe_api = None
     }
   ; { sdk_id = "method:-[MTL4RenderCommandEncoder setCullMode:]"
@@ -226,6 +255,8 @@ let expected_bindings =
     ; ocaml_name = "command4_render_encoder_set_cull_mode"
     ; c_symbol = "caml_prismel_metal_command4_render_encoder_set_cull_mode"
     ; receiver_handle_kind = "Render_encoder4"
+    ; macos_major = 26
+    ; macos_minor = 0
     ; arguments =
         [ { name = "mode"
           ; abi = "ocaml_int_to_objc_enum"
@@ -239,6 +270,8 @@ let expected_bindings =
           ; error = "Metal 4 cull mode is invalid"
           }
         ]
+    ; result = None
+    ; companions = []
     ; safe_api =
         Some
           { operation = "Metal.Command4.Render_encoder.set_cull_mode"
@@ -254,6 +287,8 @@ let expected_bindings =
     ; c_symbol =
         "caml_prismel_metal_command4_render_encoder_set_depth_clip_mode"
     ; receiver_handle_kind = "Render_encoder4"
+    ; macos_major = 26
+    ; macos_minor = 0
     ; arguments =
         [ { name = "mode"
           ; abi = "ocaml_int_to_objc_enum"
@@ -266,6 +301,8 @@ let expected_bindings =
           ; error = "Metal 4 depth-clip mode is invalid"
           }
         ]
+    ; result = None
+    ; companions = []
     ; safe_api =
         Some
           { operation = "Metal.Command4.Render_encoder.set_depth_clip_mode"
@@ -283,6 +320,8 @@ let expected_bindings =
     ; c_symbol =
         "caml_prismel_metal_command4_render_encoder_set_front_facing_winding"
     ; receiver_handle_kind = "Render_encoder4"
+    ; macos_major = 26
+    ; macos_minor = 0
     ; arguments =
         [ { name = "winding"
           ; abi = "ocaml_int_to_objc_enum"
@@ -295,6 +334,8 @@ let expected_bindings =
           ; error = "Metal 4 front-facing winding is invalid"
           }
         ]
+    ; result = None
+    ; companions = []
     ; safe_api =
         Some
           { operation =
@@ -314,6 +355,8 @@ let expected_bindings =
     ; c_symbol =
         "caml_prismel_metal_command4_render_encoder_set_object_threadgroup_memory_length"
     ; receiver_handle_kind = "Render_encoder4"
+    ; macos_major = 26
+    ; macos_minor = 0
     ; arguments =
         [ { name = "length"
           ; abi = "ocaml_int_to_nsuint"
@@ -330,6 +373,8 @@ let expected_bindings =
               "Metal 4 object threadgroup-memory index must be nonnegative"
           }
         ]
+    ; result = None
+    ; companions = []
     ; safe_api = None
     }
   ; { sdk_id =
@@ -339,6 +384,8 @@ let expected_bindings =
     ; c_symbol =
         "caml_prismel_metal_command4_render_encoder_set_threadgroup_memory_length"
     ; receiver_handle_kind = "Render_encoder4"
+    ; macos_major = 26
+    ; macos_minor = 0
     ; arguments =
         [ { name = "length"
           ; abi = "ocaml_int_to_nsuint"
@@ -362,6 +409,8 @@ let expected_bindings =
               "Metal 4 render threadgroup-memory index must be nonnegative"
           }
         ]
+    ; result = None
+    ; companions = []
     ; safe_api = None
     }
   ; { sdk_id = "method:-[MTL4RenderCommandEncoder setTriangleFillMode:]"
@@ -370,6 +419,8 @@ let expected_bindings =
     ; c_symbol =
         "caml_prismel_metal_command4_render_encoder_set_triangle_fill_mode"
     ; receiver_handle_kind = "Render_encoder4"
+    ; macos_major = 26
+    ; macos_minor = 0
     ; arguments =
         [ { name = "mode"
           ; abi = "ocaml_int_to_objc_enum"
@@ -382,6 +433,8 @@ let expected_bindings =
           ; error = "Metal 4 triangle-fill mode is invalid"
           }
         ]
+    ; result = None
+    ; companions = []
     ; safe_api =
         Some
           { operation = "Metal.Command4.Render_encoder.set_triangle_fill_mode"
@@ -390,6 +443,41 @@ let expected_bindings =
           ; test_value = "test_metal4_raster_state_commands"
           ; test_call =
               [ "Command4"; "Render_encoder"; "set_triangle_fill_mode" ]
+          }
+    }
+  ; { sdk_id = "method:-[MTLDevice maxThreadgroupMemoryLength]"
+    ; selector = "maxThreadgroupMemoryLength"
+    ; ocaml_name = "device_max_threadgroup_memory_length"
+    ; c_symbol = "caml_prismel_metal_device_max_threadgroup_memory_length"
+    ; receiver_handle_kind = "Device"
+    ; macos_major = 10
+    ; macos_minor = 13
+    ; arguments = []
+    ; result =
+        Some
+          { abi = "objc_nsuint_to_checked_ocaml_int64"
+          ; objc_type = "NSUInteger"
+          ; ocaml_type = "int64"
+          ; overflow_error =
+              "Metal returned a threadgroup-memory limit outside signed 64-bit range"
+          }
+    ; companions =
+        [ { sdk_id = "property:MTLDevice:maxThreadgroupMemoryLength"
+          ; kind = "property"
+          ; owner = "MTLDevice"
+          ; name = "maxThreadgroupMemoryLength"
+          ; header = "Metal/MTLDevice.h"
+          ; signature = "NSUInteger"
+          ; attributes = [ "AvailabilityAttr" ]
+          }
+        ]
+    ; safe_api =
+        Some
+          { operation = "Metal.Device.info"
+          ; module_path = [ "Device" ]
+          ; value_name = "info"
+          ; test_value = "test_device_info"
+          ; test_call = [ "Device"; "info" ]
           }
     }
   ]
@@ -415,7 +503,7 @@ let json_string_list name value =
     | `String value -> value
     | _ -> fail "generated manifest field %s contains a non-string" name)
 
-let check_argument sdk_id expected value =
+let check_argument sdk_id (expected : expected_argument) value =
   if json_string "name" value <> expected.name
      || json_string "abi" value <> expected.abi
      || json_string "objc_type" value <> expected.objc_type
@@ -452,7 +540,30 @@ let check_argument sdk_id expected value =
       if member "cases" value <> None then
         fail "generated manifest scalar argument has enum cases for %s" sdk_id
 
-let check_entry expected value =
+let check_result sdk_id (expected : expected_result) value =
+  if json_string "abi" value <> expected.abi
+     || json_string "objc_type" value <> expected.objc_type
+     || json_string "ocaml_type" value <> expected.ocaml_type
+     || json_string "overflow_error" value <> expected.overflow_error
+  then fail "generated manifest result drift for %s" sdk_id
+
+let check_companion parent_sdk_id (expected : expected_companion) value =
+  let require field expected_value =
+    let actual = json_string field value in
+    if actual <> expected_value then
+      fail "generated manifest companion %s drift for %s: expected %s, found %s"
+        field parent_sdk_id expected_value actual
+  in
+  require "sdk_id" expected.sdk_id;
+  require "kind" expected.kind;
+  require "owner" expected.owner;
+  require "name" expected.name;
+  require "header" expected.header;
+  require "signature" expected.signature;
+  if json_string_list "attributes" value <> expected.attributes then
+    fail "generated manifest companion attributes drift for %s" parent_sdk_id
+
+let check_entry (expected : expected_binding) value =
   let require field expected_value =
     let actual = json_string field value in
     if actual <> expected_value then
@@ -464,11 +575,29 @@ let check_entry expected value =
   require "ocaml_name" expected.ocaml_name;
   require "c_symbol" expected.c_symbol;
   require "receiver_handle_kind" expected.receiver_handle_kind;
-  require "template" "direct_void_scalar";
+  require "macos_introduced"
+    (Printf.sprintf "%d.%d" expected.macos_major expected.macos_minor);
+  require "template"
+    (match expected.result with
+     | None -> "direct_void_scalar"
+     | Some _ -> "direct_getter");
   let arguments = json_list "arguments" value in
   if List.length arguments <> List.length expected.arguments then
     fail "generated manifest argument-list drift for %s" expected.sdk_id;
   List.iter2 (check_argument expected.sdk_id) expected.arguments arguments;
+  (match expected.result, member "result" value with
+   | None, None -> ()
+   | None, Some _ ->
+       fail "generated manifest void binding unexpectedly records a result for %s"
+         expected.sdk_id
+   | Some _, None ->
+       fail "generated manifest getter result is absent for %s" expected.sdk_id
+   | Some expected_result, Some result ->
+       check_result expected.sdk_id expected_result result);
+  let companions = json_list "companions" value in
+  if List.length companions <> List.length expected.companions then
+    fail "generated manifest companion-list drift for %s" expected.sdk_id;
+  List.iter2 (check_companion expected.sdk_id) expected.companions companions;
   match expected.safe_api, member_exn "safe_api" value with
   | None, `Null -> ()
   | None, _ ->
@@ -508,6 +637,16 @@ let find_from ~needle value start =
   in
   search start
 
+let replace_once ~needle ~replacement value =
+  if count_occurrences ~needle value <> 1 then
+    fail "replacement fixture must contain exactly one occurrence of %S" needle;
+  match find_from ~needle value 0 with
+  | None -> assert false
+  | Some start ->
+      String.sub value 0 start ^ replacement
+      ^ String.sub value (start + String.length needle)
+          (String.length value - start - String.length needle)
+
 let native_binding_body symbol native =
   match find_from ~needle:symbol native 0 with
   | None -> fail "generated native binding is absent: %s" symbol
@@ -520,53 +659,85 @@ let native_binding_body symbol native =
       in
       String.sub native start (ending - start)
 
-let selector_pieces expected =
-  let pieces = String.split_on_char ':' expected.selector in
-  let pieces =
-    match List.rev pieces with
-    | "" :: reversed -> List.rev reversed
-    | _ -> fail "golden selector must end in a colon: %s" expected.selector
-  in
-  if List.length pieces <> List.length expected.arguments then
-    fail "golden selector/argument cardinality mismatch for %s" expected.sdk_id;
-  pieces
+let selector_pieces (expected : expected_binding) =
+  if expected.arguments = [] then [ expected.selector ]
+  else
+    let pieces = String.split_on_char ':' expected.selector in
+    let pieces =
+      match List.rev pieces with
+      | "" :: reversed -> List.rev reversed
+      | _ -> fail "golden selector must end in a colon: %s" expected.selector
+    in
+    if List.length pieces <> List.length expected.arguments then
+      fail "golden selector/argument cardinality mismatch for %s" expected.sdk_id;
+    pieces
 
-let raw_external expected =
+let receiver_names (expected : expected_binding) =
+  match expected.receiver_handle_kind with
+  | "Device" -> "raw_device", "device"
+  | "Compute_encoder4" | "Render_encoder4" -> "raw_encoder", "encoder"
+  | other -> fail "unknown golden receiver kind for %s: %s" expected.sdk_id other
+
+let receiver_objc_type (expected : expected_binding) =
+  match expected.receiver_handle_kind with
+  | "Device" -> "id<MTLDevice>"
+  | "Compute_encoder4" -> "id<MTL4ComputeCommandEncoder>"
+  | "Render_encoder4" -> "id<MTL4RenderCommandEncoder>"
+  | other -> fail "unknown golden receiver kind for %s: %s" expected.sdk_id other
+
+let raw_external (expected : expected_binding) =
+  let result_type =
+    match expected.result with
+    | None -> "(unit, string) result"
+    | Some result -> Printf.sprintf "(%s, string) result" result.ocaml_type
+  in
   let types =
     "Types.handle"
-    :: (List.map (fun _ -> "int") expected.arguments
-        @ [ "(unit, string) result" ])
+    :: (List.map (fun _ -> "int") expected.arguments @ [ result_type ])
   in
   Printf.sprintf "external %s :\n    %s =\n    %S" expected.ocaml_name
     (String.concat " -> " types) expected.c_symbol
 
-let native_signature expected =
+let native_signature (expected : expected_binding) =
+  let raw_receiver, _ = receiver_names expected in
   let arguments =
-    "value raw_encoder"
+    ("value " ^ raw_receiver)
     :: List.map
-         (fun argument -> "value raw_" ^ argument.name)
+         (fun (argument : expected_argument) -> "value raw_" ^ argument.name)
          expected.arguments
   in
-  Printf.sprintf "%s(\n    %s) {" expected.c_symbol
-    (String.concat ", " arguments)
+  match expected.result with
+  | None ->
+      Printf.sprintf "%s(\n    %s) {" expected.c_symbol
+        (String.concat ", " arguments)
+  | Some _ ->
+      Printf.sprintf "%s(%s) {" expected.c_symbol
+        (String.concat ", " arguments)
 
-let native_camlparam expected =
+let native_camlparam (expected : expected_binding) =
+  let raw_receiver, _ = receiver_names expected in
   let arguments =
-    "raw_encoder"
-    :: List.map (fun argument -> "raw_" ^ argument.name) expected.arguments
+    raw_receiver
+    :: List.map
+         (fun (argument : expected_argument) -> "raw_" ^ argument.name)
+         expected.arguments
   in
   Printf.sprintf "CAMLparam%d(%s);" (List.length arguments)
     (String.concat ", " arguments)
 
-let native_call expected =
-  let components =
-    List.map2
-      (fun piece argument ->
-        Printf.sprintf "%s:static_cast<%s>(%s)" piece argument.objc_type
-          argument.name)
-      (selector_pieces expected) expected.arguments
-  in
-  Printf.sprintf "[encoder %s];" (String.concat " " components)
+let native_call (expected : expected_binding) =
+  let _, receiver = receiver_names expected in
+  match expected.arguments with
+  | [] -> Printf.sprintf "[%s %s]" receiver expected.selector
+  | arguments ->
+      let components =
+        List.map2
+          (fun piece (argument : expected_argument) ->
+            Printf.sprintf "%s:static_cast<%s>(%s)" piece argument.objc_type
+              argument.name)
+          (selector_pieces expected) arguments
+      in
+      Printf.sprintf "[%s %s]" receiver (String.concat " " components)
 
 let enum_validation name cases =
   let values = List.map snd cases |> List.sort Int.compare in
@@ -584,7 +755,7 @@ let enum_validation name cases =
       |> List.map (fun value -> Printf.sprintf "%s != %d" name value)
       |> String.concat " && "
 
-let argument_validation argument =
+let argument_validation (argument : expected_argument) =
   match argument.kind with
   | Enum_int cases -> enum_validation argument.name cases
   | Unsigned_int { minimum; multiple_of } ->
@@ -599,10 +770,18 @@ let argument_validation argument =
       in
       String.concat " || " conditions
 
-let native_argument_conversion argument =
+let native_argument_conversion (argument : expected_argument) =
   Printf.sprintf
     "const intnat %s = Long_val(raw_%s);\n        if (%s) {\n          CAMLreturn(result_error_text(%S));\n        }"
     argument.name argument.name (argument_validation argument) argument.error
+
+let native_getter_core expected result =
+  let raw_receiver, receiver = receiver_names expected in
+  Printf.sprintf
+    "  CAMLlocal2(result, copied_result);\n  @autoreleasepool {\n    if (@available(macOS %d.%d, *)) {\n      @try {\n        %s %s =\n            object_of_handle(%s, Handle_kind::%s);\n        const NSUInteger native_result = %s;\n        if (native_result > static_cast<NSUInteger>(INT64_MAX)) {\n          CAMLreturn(result_error_text(%S));\n        }\n        copied_result = caml_copy_int64(\n            static_cast<std::int64_t>(native_result));\n        result = result_ok(copied_result);\n        CAMLreturn(result);"
+    expected.macos_major expected.macos_minor (receiver_objc_type expected)
+    receiver raw_receiver expected.receiver_handle_kind (native_call expected)
+    result.overflow_error
 
 let check_manifest inputs outputs =
   let value = read_file outputs.manifest |> Yojson.Safe.from_string in
@@ -633,6 +812,7 @@ let check_manifest inputs outputs =
   List.iter
     (fun expected ->
       let native_body = native_binding_body expected.c_symbol native in
+      let raw_receiver, _ = receiver_names expected in
       [ ( "raw ML OCaml name"
         , raw_external expected
         , raw_ml )
@@ -642,7 +822,7 @@ let check_manifest inputs outputs =
       ; "native signature", native_signature expected, native_body
       ; "native CAMLparam", native_camlparam expected, native_body
       ; ( "native receiver kind"
-        , "object_of_handle(raw_encoder, Handle_kind::"
+        , "object_of_handle(" ^ raw_receiver ^ ", Handle_kind::"
           ^ expected.receiver_handle_kind ^ ");"
         , native_body )
       ; "native direct selector", native_call expected, native_body
@@ -650,23 +830,32 @@ let check_manifest inputs outputs =
       |> List.iter (fun (description, needle, contents) ->
         if count_occurrences ~needle contents <> 1 then
           fail "%s must occur exactly once for %s" description expected.sdk_id);
-      List.iter
-        (fun argument ->
-          let conversion = native_argument_conversion argument in
-          if count_occurrences ~needle:conversion native_body <> 1 then
-            fail "native argument conversion/validation drift for %s argument %s"
-              expected.sdk_id argument.name;
-          if count_occurrences ~needle:argument.error native_body <> 1 then
-            fail "native validation error must occur once for %s argument %s"
-              expected.sdk_id argument.name;
-          match argument.kind with
-          | Enum_int _ -> ()
-          | Unsigned_int { multiple_of = None; _ } ->
-              if contains ~needle:(argument.name ^ " % ") native_body then
-                fail "native scalar validation gained an unexpected multiple for %s"
-                  expected.sdk_id
-          | Unsigned_int { multiple_of = Some _; _ } -> ())
-        expected.arguments)
+      match expected.result with
+      | None ->
+          List.iter
+            (fun argument ->
+              let conversion = native_argument_conversion argument in
+              if count_occurrences ~needle:conversion native_body <> 1 then
+                fail
+                  "native argument conversion/validation drift for %s argument %s"
+                  expected.sdk_id argument.name;
+              if count_occurrences ~needle:argument.error native_body <> 1 then
+                fail "native validation error must occur once for %s argument %s"
+                  expected.sdk_id argument.name;
+              match argument.kind with
+              | Enum_int _ -> ()
+              | Unsigned_int { multiple_of = None; _ } ->
+                  if contains ~needle:(argument.name ^ " % ") native_body then
+                    fail
+                      "native scalar validation gained an unexpected multiple for %s"
+                      expected.sdk_id
+              | Unsigned_int { multiple_of = Some _; _ } -> ())
+            expected.arguments
+      | Some result ->
+          let core = native_getter_core expected result in
+          if count_occurrences ~needle:core native_body <> 1 then
+            fail "native getter ordered/rooted core must occur once for %s"
+              expected.sdk_id)
     expected_bindings
 
 let main () =
@@ -756,6 +945,30 @@ let main () =
       (run inputs ~inventory:scalar_drift_inventory
          ~manual_native:inputs.manual_native
          (outputs directory "scalar-drift"));
+    let getter_drift_inventory =
+      Filename.concat directory "getter-drift.json"
+    in
+    read_file inputs.inventory |> Yojson.Safe.from_string
+    |> replace_symbol_field
+         ~target:"method:-[MTLDevice maxThreadgroupMemoryLength]"
+         ~field:"signature" (`String "instance () -> NSInteger")
+    |> pretty_json |> write_file getter_drift_inventory;
+    require_failure "SDK getter-signature drift test" "Metal inventory drift"
+      (run inputs ~inventory:getter_drift_inventory
+         ~manual_native:inputs.manual_native
+         (outputs directory "getter-drift"));
+    let property_drift_inventory =
+      Filename.concat directory "property-drift.json"
+    in
+    read_file inputs.inventory |> Yojson.Safe.from_string
+    |> replace_symbol_field
+         ~target:"property:MTLDevice:maxThreadgroupMemoryLength"
+         ~field:"signature" (`String "NSInteger")
+    |> pretty_json |> write_file property_drift_inventory;
+    require_failure "SDK companion-property drift test" "Metal inventory drift"
+      (run inputs ~inventory:property_drift_inventory
+         ~manual_native:inputs.manual_native
+         (outputs directory "property-drift"));
     let enum_drift_inventory = Filename.concat directory "enum-drift.json" in
     read_file inputs.inventory |> Yojson.Safe.from_string
     |> replace_symbol_field
@@ -808,6 +1021,40 @@ let main () =
       "does not call generated raw binding"
       (run inputs ~safe_source:prefix_safe_source ~inventory:inputs.inventory
          ~manual_native:inputs.manual_native (outputs directory "prefix-safe"));
+    let transitive_tests = Filename.concat directory "transitive-tests.ml" in
+    write_file transitive_tests
+      "let test_metal4_raster_state_commands encoder =\n\
+       \  ignore\n\
+       \    (Command4.Render_encoder.set_cull_mode encoder (Obj.magic 0));\n\
+       \  ignore\n\
+       \    (Command4.Render_encoder.set_depth_clip_mode encoder (Obj.magic 0));\n\
+       \  ignore\n\
+       \    (Command4.Render_encoder.set_front_facing_winding encoder\n\
+       \       (Obj.magic 0));\n\
+       \  ignore\n\
+       \    (Command4.Render_encoder.set_triangle_fill_mode encoder\n\
+       \       (Obj.magic 0))\n\
+       let test_device_info device = ignore (Device.info device)\n\
+       let run_generated_conformance encoder device =\n\
+       \  test_metal4_raster_state_commands encoder;\n\
+       \  test_device_info device\n\
+       let main () =\n\
+       \  run_generated_conformance (Obj.magic ()) (Obj.magic ())\n\
+       let () = main ()\n";
+    require_success "transitive conformance reachability test"
+      (run inputs ~safe_tests:transitive_tests ~inventory:inputs.inventory
+         ~manual_native:inputs.manual_native
+         (outputs directory "transitive-tests"));
+    let unreachable_tests = Filename.concat directory "unreachable-tests.ml" in
+    read_file inputs.safe_tests
+    |> replace_once ~needle:"let info = test_device_info device in"
+         ~replacement:"let info = get (Device.info device) in"
+    |> write_file unreachable_tests;
+    require_failure "unreachable conformance helper test"
+      "conformance function is not reachable from an executable top-level runner"
+      (run inputs ~safe_tests:unreachable_tests ~inventory:inputs.inventory
+         ~manual_native:inputs.manual_native
+         (outputs directory "unreachable-tests"));
     let string_tests = Filename.concat directory "string-tests.ml" in
     write_file string_tests
       "let test_metal4_raster_state_commands () =\n\

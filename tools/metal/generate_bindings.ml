@@ -38,6 +38,13 @@ let receiver_spec = function
       ; raw_name = "raw_encoder"
       ; local_name = "encoder"
       }
+  | Binding_plan.Device ->
+      { owner = "MTLDevice"
+      ; objc_type = "id<MTLDevice>"
+      ; handle_kind = "Device"
+      ; raw_name = "raw_device"
+      ; local_name = "device"
+      }
 
 let enum_objc_type = function
   | Binding_plan.Winding -> "MTLWinding"
@@ -206,19 +213,78 @@ let validate_enum_cases inventory binding_id enum_type
         fail "generated Metal enum case must be bound: %s" case.sdk_id)
     cases
 
-let validate_entry inventory entry =
-  let declaration =
-    match String_map.find_opt entry.Binding_plan.sdk_id inventory with
-    | Some declaration -> declaration
-    | None ->
-        fail "generated Metal identifier is absent from the pinned inventory: %s"
-          entry.sdk_id
+let compare_declaration identifier field expected actual =
+  if expected <> actual then
+    fail "Metal inventory drift for %s (%s): expected %S, found %S" identifier
+      field expected actual
+
+let require_declaration inventory identifier =
+  match String_map.find_opt identifier inventory with
+  | Some declaration -> declaration
+  | None ->
+      fail "generated Metal identifier is absent from the pinned inventory: %s"
+        identifier
+
+let validate_companion inventory safe_api (companion : Binding_plan.companion) =
+  let declaration = require_declaration inventory companion.sdk_id in
+  let compare field expected actual =
+    compare_declaration companion.sdk_id field expected actual
   in
+  compare "kind" companion.kind declaration.kind;
+  (match declaration.owner with
+   | Some owner -> compare "owner" companion.owner owner
+   | None ->
+       fail "Metal inventory drift for %s: owner is absent" companion.sdk_id);
+  compare "name" companion.name declaration.name;
+  compare "header" companion.header declaration.header;
+  compare "signature" companion.signature declaration.signature;
+  if companion.attributes <> declaration.attributes then
+    fail "Metal inventory drift for %s (attributes)" companion.sdk_id;
+  match safe_api with
+  | Some _ when declaration.classification <> "bound" ->
+      fail "safe generated Metal companion must be bound, found %s for %s"
+        declaration.classification companion.sdk_id
+  | None when declaration.classification = "bound" ->
+      fail "generated Metal companion lacks safe-API evidence: %s"
+        companion.sdk_id
+  | Some _ | None -> ()
+
+let generation_identity = function
+  | Binding_plan.Direct_void binding ->
+      binding.ocaml_name, binding.c_symbol, binding.receiver
+  | Binding_plan.Direct_getter binding ->
+      binding.ocaml_name, binding.c_symbol, binding.receiver
+
+let generated_identity entry =
+  match entry.Binding_plan.disposition with
+  | Binding_plan.Generate generation -> generation_identity generation
+  | Binding_plan.Manual | Binding_plan.Exclude _ | Binding_plan.Pending ->
+      fail "internal error: non-generated Metal binding %s" entry.sdk_id
+
+let generated_ocaml_name entry =
+  let ocaml_name, _, _ = generated_identity entry in
+  ocaml_name
+
+let generated_c_symbol entry =
+  let _, c_symbol, _ = generated_identity entry in
+  c_symbol
+
+let validate_binding_identity entry generation =
+  let ocaml_name, c_symbol, receiver_kind = generation_identity generation in
+  validate_identifier "OCaml external name" ~initial:`Lower ocaml_name;
+  validate_identifier "C primitive symbol" ~initial:`Any_letter c_symbol;
+  if not (String.starts_with ~prefix:"caml_prismel_metal_" c_symbol) then
+    fail "generated Metal C symbol has the wrong namespace: %s" c_symbol;
+  let receiver = receiver_spec receiver_kind in
+  compare_declaration entry.Binding_plan.sdk_id "generated receiver owner"
+    entry.expect.owner receiver.owner;
+  receiver
+
+let validate_entry inventory entry =
+  let declaration = require_declaration inventory entry.Binding_plan.sdk_id in
   let expect = entry.expect in
   let compare field expected actual =
-    if expected <> actual then
-      fail "Metal inventory drift for %s (%s): expected %S, found %S"
-        entry.sdk_id field expected actual
+    compare_declaration entry.sdk_id field expected actual
   in
   compare "kind" expect.kind declaration.kind;
   (match declaration.owner with
@@ -236,21 +302,15 @@ let validate_entry inventory entry =
    | None when declaration.classification = "bound" ->
        fail "generated Metal identifier lacks safe-API evidence: %s" entry.sdk_id
    | Some _ | None -> ());
+  List.iter (validate_companion inventory entry.safe_api) entry.companions;
   let availability = expect.availability in
   if availability.macos_major <= 0 || availability.macos_minor < 0 then
     fail "invalid macOS availability for Metal binding %s" entry.sdk_id;
   if availability.unavailable_error = "" then
     fail "empty availability error for Metal binding %s" entry.sdk_id;
   match entry.disposition with
-  | Binding_plan.Generate (Binding_plan.Direct_void binding) ->
-      validate_identifier "OCaml external name" ~initial:`Lower binding.ocaml_name;
-      validate_identifier "C primitive symbol" ~initial:`Any_letter binding.c_symbol;
-      if not (String.starts_with ~prefix:"caml_prismel_metal_" binding.c_symbol)
-      then
-        fail "generated Metal C symbol has the wrong namespace: %s"
-          binding.c_symbol;
-      let receiver = receiver_spec binding.receiver in
-      compare "generated receiver owner" expect.owner receiver.owner;
+  | Binding_plan.Generate (Binding_plan.Direct_void binding as generation) ->
+      ignore (validate_binding_identity entry generation);
       let argument_count = List.length binding.arguments in
       ignore (selector_pieces expect.name argument_count);
       if argument_count + 1 > 5 then
@@ -293,15 +353,19 @@ let validate_entry inventory entry =
            |> String.concat ", ")
       in
       compare "template-derived signature" expected_signature expect.signature
+  | Binding_plan.Generate (Binding_plan.Direct_getter binding as generation) ->
+      ignore (validate_binding_identity entry generation);
+      ignore (selector_pieces expect.name 0);
+      (match binding.result with
+       | Binding_plan.Nsuint_to_checked_int64 { overflow_error } ->
+           if overflow_error = "" then
+             fail "generated Metal getter %s has an empty overflow error"
+               binding.ocaml_name;
+           compare "template-derived signature" "instance () -> NSUInteger"
+             expect.signature)
   | Binding_plan.Manual | Binding_plan.Exclude _ | Binding_plan.Pending ->
       fail "non-generated disposition reached the Metal generator for %s"
         entry.sdk_id
-
-let generated_binding entry =
-  match entry.Binding_plan.disposition with
-  | Binding_plan.Generate (Binding_plan.Direct_void binding) -> binding
-  | Binding_plan.Manual | Binding_plan.Exclude _ | Binding_plan.Pending ->
-      fail "internal error: non-generated Metal binding %s" entry.sdk_id
 
 let identifier_start character =
   (character >= 'a' && character <= 'z')
@@ -505,11 +569,114 @@ let value_expression name structure =
   | [] -> None
   | _ -> fail "duplicate safe-evidence OCaml value binding: %s" name
 
-let validate_safe_api safe_structure test_structure entry =
+let rec is_function_expression expression =
+  match expression.Parsetree.pexp_desc with
+  | Parsetree.Pexp_function _ -> true
+  | Parsetree.Pexp_constraint (expression, _)
+  | Parsetree.Pexp_coerce (expression, _, _)
+  | Parsetree.Pexp_poly (expression, _) -> is_function_expression expression
+  | _ -> false
+
+let function_execution_expressions expression =
+  let rec descend expression =
+    match expression.Parsetree.pexp_desc with
+    | Parsetree.Pexp_function
+        (_, _, Parsetree.Pfunction_body expression) -> descend expression
+    | Parsetree.Pexp_function
+        (_, _, Parsetree.Pfunction_cases (cases, _, _)) ->
+        List.concat_map
+          (fun case -> Option.to_list case.Parsetree.pc_guard @ [ case.pc_rhs ])
+          cases
+    | Parsetree.Pexp_constraint (expression, _)
+    | Parsetree.Pexp_coerce (expression, _, _)
+    | Parsetree.Pexp_poly (expression, _) -> descend expression
+    | _ -> [ expression ]
+  in
+  descend expression
+
+let direct_local_calls expressions =
+  let calls = ref String_set.empty in
+  let expr iterator expression =
+    match expression.Parsetree.pexp_desc with
+    | Parsetree.Pexp_function _ | Parsetree.Pexp_lazy _ -> ()
+    | Parsetree.Pexp_apply
+        ({ pexp_desc = Pexp_ident identifier; _ }, _arguments) ->
+        (match identifier.txt with
+         | Longident.Lident name -> calls := String_set.add name !calls
+         | Longident.Ldot _ | Longident.Lapply _ -> ());
+        Ast_iterator.default_iterator.expr iterator expression
+    | _ -> Ast_iterator.default_iterator.expr iterator expression
+  in
+  let iterator = { Ast_iterator.default_iterator with expr } in
+  List.iter (iterator.expr iterator) expressions;
+  !calls
+
+let reachable_top_level_values structure =
+  let bindings =
+    List.fold_left
+      (fun bindings item ->
+        match item.Parsetree.pstr_desc with
+        | Parsetree.Pstr_value (_, value_bindings) ->
+            List.fold_left
+              (fun bindings binding ->
+                match pattern_name binding.Parsetree.pvb_pat with
+                | None -> bindings
+                | Some name ->
+                    String_map.update name
+                      (function
+                        | None -> Some [ binding.pvb_expr ]
+                        | Some expressions ->
+                            Some (binding.pvb_expr :: expressions))
+                      bindings)
+              bindings value_bindings
+        | _ -> bindings)
+      String_map.empty structure
+  in
+  let graph =
+    String_map.map
+      (fun expressions ->
+        expressions
+        |> List.concat_map function_execution_expressions
+        |> direct_local_calls)
+      bindings
+  in
+  let roots =
+    structure
+    |> List.concat_map (fun item ->
+      match item.Parsetree.pstr_desc with
+      | Parsetree.Pstr_eval (expression, _) -> [ expression ]
+      | Parsetree.Pstr_value (_, value_bindings) ->
+          List.filter_map
+            (fun binding ->
+              match pattern_name binding.Parsetree.pvb_pat with
+              | None -> Some binding.pvb_expr
+              | Some _ when not (is_function_expression binding.pvb_expr) ->
+                  Some binding.pvb_expr
+              | Some _ -> None)
+            value_bindings
+      | _ -> [])
+    |> direct_local_calls
+  in
+  let rec visit reachable pending =
+    match pending with
+    | [] -> reachable
+    | name :: rest when String_set.mem name reachable -> visit reachable rest
+    | name :: rest ->
+        let reachable = String_set.add name reachable in
+        let successors =
+          match String_map.find_opt name graph with
+          | None -> []
+          | Some successors -> String_set.elements successors
+        in
+        visit reachable (successors @ rest)
+  in
+  visit String_set.empty (String_set.elements roots)
+
+let validate_safe_api safe_structure test_structure reachable_test_values entry =
   match entry.Binding_plan.safe_api with
   | None -> ()
   | Some evidence ->
-      let binding = generated_binding entry in
+      let ocaml_name = generated_ocaml_name entry in
       if evidence.operation = "" || evidence.module_path = []
          || evidence.value_name = "" || evidence.test_value = ""
          || evidence.test_call = []
@@ -537,7 +704,7 @@ let validate_safe_api safe_structure test_structure entry =
               entry.sdk_id
       in
       if not
-           (expression_calls [ "Metal_raw"; binding.ocaml_name ] safe_expression)
+           (expression_calls [ "Metal_raw"; ocaml_name ] safe_expression)
       then
         fail "safe Metal operation does not call generated raw binding %s"
           entry.sdk_id;
@@ -550,6 +717,10 @@ let validate_safe_api safe_structure test_structure entry =
       in
       if not (expression_calls evidence.test_call test_expression) then
         fail "conformance function does not call generated Metal operation %s"
+          entry.sdk_id;
+      if not (String_set.mem evidence.test_value reachable_test_values) then
+        fail
+          "conformance function is not reachable from an executable top-level runner for generated Metal binding %s"
           entry.sdk_id
 
 let validate_plan inventory manual_native manual_raw_ml manual_raw_mli safe_source
@@ -557,15 +728,23 @@ let validate_plan inventory manual_native manual_raw_ml manual_raw_mli safe_sour
   let entries = Binding_plan.generated_entries in
   if entries = [] then fail "Metal binding plan has no generated entries";
   reject_duplicates "SDK identifier"
-    (List.map (fun entry -> entry.Binding_plan.sdk_id) Binding_plan.entries);
+    (Binding_plan.entries
+     |> List.concat_map (fun entry ->
+       entry.Binding_plan.sdk_id
+       :: List.map
+            (fun (companion : Binding_plan.companion) -> companion.sdk_id)
+            entry.companions));
   reject_duplicates "generated OCaml name"
-    (List.map (fun entry -> (generated_binding entry).ocaml_name) entries);
+    (List.map generated_ocaml_name entries);
   reject_duplicates "generated C symbol"
-    (List.map (fun entry -> (generated_binding entry).c_symbol) entries);
+    (List.map generated_c_symbol entries);
   List.iter (validate_entry inventory) entries;
   let safe_structure = parse_implementation "Metal safe source" safe_source in
   let test_structure = parse_implementation "Metal conformance tests" safe_tests in
-  List.iter (validate_safe_api safe_structure test_structure) entries;
+  let reachable_test_values = reachable_top_level_values test_structure in
+  List.iter
+    (validate_safe_api safe_structure test_structure reachable_test_values)
+    entries;
   let manual_native_identifiers = c_identifiers manual_native in
   let manual_raw_tokens =
     let ml = ocaml_tokens manual_raw_ml in
@@ -576,16 +755,17 @@ let validate_plan inventory manual_native manual_raw_ml manual_raw_mli safe_sour
   in
   List.iter
     (fun entry ->
-      let binding = generated_binding entry in
-      if String_set.mem binding.c_symbol manual_native_identifiers then
+      let ocaml_name = generated_ocaml_name entry in
+      let c_symbol = generated_c_symbol entry in
+      if String_set.mem c_symbol manual_native_identifiers then
         fail "generated C symbol still exists in the handwritten bridge: %s"
-          binding.c_symbol;
-      if String_set.mem binding.ocaml_name manual_raw_tokens.identifiers then
+          c_symbol;
+      if String_set.mem ocaml_name manual_raw_tokens.identifiers then
         fail "generated OCaml external still exists in handwritten Metal_raw: %s"
-          binding.ocaml_name;
-      if String_set.mem binding.c_symbol manual_raw_tokens.strings then
+          ocaml_name;
+      if String_set.mem c_symbol manual_raw_tokens.strings then
         fail "generated C primitive still exists in handwritten Metal_raw: %s"
-          binding.c_symbol)
+          c_symbol)
     entries;
   List.sort
     (fun left right -> String.compare left.Binding_plan.sdk_id right.sdk_id)
@@ -601,20 +781,30 @@ let raw_type = function
   | Binding_plan.Unsigned_int _ -> "int"
 
 let add_raw_external output entry =
-  let binding = generated_binding entry in
+  let ocaml_name, c_symbol, _ = generated_identity entry in
   let arguments =
-    "Types.handle"
-    :: List.map (fun (argument : Binding_plan.argument) ->
-         raw_type argument.kind)
-         binding.arguments
-    @ [ "(unit, string) result" ]
+    match entry.Binding_plan.disposition with
+    | Binding_plan.Generate (Binding_plan.Direct_void binding) ->
+        "Types.handle"
+        :: List.map
+             (fun (argument : Binding_plan.argument) -> raw_type argument.kind)
+             binding.arguments
+        @ [ "(unit, string) result" ]
+    | Binding_plan.Generate (Binding_plan.Direct_getter binding) ->
+        let result_type =
+          match binding.result with
+          | Binding_plan.Nsuint_to_checked_int64 _ -> "int64"
+        in
+        [ "Types.handle"; Printf.sprintf "(%s, string) result" result_type ]
+    | Binding_plan.Manual | Binding_plan.Exclude _ | Binding_plan.Pending ->
+        fail "internal error: non-generated Metal binding %s" entry.sdk_id
   in
   Buffer.add_string output "  external ";
-  Buffer.add_string output binding.ocaml_name;
+  Buffer.add_string output ocaml_name;
   Buffer.add_string output " :\n    ";
   Buffer.add_string output (String.concat " -> " arguments);
   Buffer.add_string output " =\n    ";
-  Buffer.add_string output (Printf.sprintf "%S\n\n" binding.c_symbol)
+  Buffer.add_string output (Printf.sprintf "%S\n\n" c_symbol)
 
 let raw_ml ~header entries =
   let output = Buffer.create 4096 in
@@ -723,8 +913,8 @@ let camlparam arguments =
   if count < 1 || count > 5 then fail "unsupported CAMLparam arity: %d" count;
   Printf.sprintf "CAMLparam%d(%s);" count (String.concat ", " arguments)
 
-let add_native_binding output entry =
-  let binding = generated_binding entry in
+let add_native_void_binding output (entry : Binding_plan.entry)
+    (binding : Binding_plan.direct_void) =
   let receiver = receiver_spec binding.receiver in
   let raw_arguments =
     receiver.raw_name
@@ -758,6 +948,52 @@ let add_native_binding output entry =
     (c_string entry.expect.availability.unavailable_error);
   Buffer.add_string output "  }\n";
   Buffer.add_string output "}\n\n"
+
+let add_native_getter_binding output (entry : Binding_plan.entry)
+    (binding : Binding_plan.direct_getter) =
+  let receiver = receiver_spec binding.receiver in
+  Buffer.add_string output "extern \"C\" CAMLprim value\n";
+  Printf.bprintf output "%s(value %s) {\n" binding.c_symbol receiver.raw_name;
+  Printf.bprintf output "  %s\n" (camlparam [ receiver.raw_name ]);
+  Buffer.add_string output "  CAMLlocal2(result, copied_result);\n";
+  Buffer.add_string output "  @autoreleasepool {\n";
+  Printf.bprintf output "    if (@available(macOS %d.%d, *)) {\n"
+    entry.expect.availability.macos_major
+    entry.expect.availability.macos_minor;
+  Buffer.add_string output "      @try {\n";
+  Printf.bprintf output "        %s %s =\n" receiver.objc_type receiver.local_name;
+  Printf.bprintf output "            object_of_handle(%s, Handle_kind::%s);\n"
+    receiver.raw_name receiver.handle_kind;
+  (match binding.result with
+   | Binding_plan.Nsuint_to_checked_int64 { overflow_error } ->
+       Printf.bprintf output "        const NSUInteger native_result = %s;\n"
+         (objc_call receiver entry.expect.name []);
+       Buffer.add_string output
+         "        if (native_result > static_cast<NSUInteger>(INT64_MAX)) {\n";
+       Printf.bprintf output "          CAMLreturn(result_error_text(%s));\n"
+         (c_string overflow_error);
+       Buffer.add_string output "        }\n";
+       Buffer.add_string output
+         "        copied_result = caml_copy_int64(\n            static_cast<std::int64_t>(native_result));\n";
+       Buffer.add_string output "        result = result_ok(copied_result);\n";
+       Buffer.add_string output "        CAMLreturn(result);\n");
+  Buffer.add_string output "      } @catch (NSException *exception) {\n";
+  Buffer.add_string output "        CAMLreturn(result_error(exception.reason));\n";
+  Buffer.add_string output "      }\n";
+  Buffer.add_string output "    }\n";
+  Printf.bprintf output "    CAMLreturn(result_error_text(%s));\n"
+    (c_string entry.expect.availability.unavailable_error);
+  Buffer.add_string output "  }\n";
+  Buffer.add_string output "}\n\n"
+
+let add_native_binding output entry =
+  match entry.Binding_plan.disposition with
+  | Binding_plan.Generate (Binding_plan.Direct_void binding) ->
+      add_native_void_binding output entry binding
+  | Binding_plan.Generate (Binding_plan.Direct_getter binding) ->
+      add_native_getter_binding output entry binding
+  | Binding_plan.Manual | Binding_plan.Exclude _ | Binding_plan.Pending ->
+      fail "internal error: non-generated Metal binding %s" entry.sdk_id
 
 let native_include ~header entries =
   let output = Buffer.create 8192 in
@@ -800,38 +1036,74 @@ let argument_json (argument : Binding_plan.argument) =
           (match multiple_of with None -> `Null | Some value -> `Int value)
         ]
 
-let entry_json entry =
-  let binding = generated_binding entry in
-  let receiver = receiver_spec binding.receiver in
+let companion_json (companion : Binding_plan.companion) =
   `Assoc
-    [ "sdk_id", `String entry.Binding_plan.sdk_id
-    ; "owner", `String entry.expect.owner
-    ; "selector", `String entry.expect.name
-    ; "header", `String entry.expect.header
-    ; "signature", `String entry.expect.signature
-    ; "macos_introduced",
-      `String
-        (Printf.sprintf "%d.%d" entry.expect.availability.macos_major
-           entry.expect.availability.macos_minor)
-    ; "ocaml_name", `String binding.ocaml_name
-    ; "c_symbol", `String binding.c_symbol
-    ; "receiver_handle_kind", `String receiver.handle_kind
-    ; "arguments", `List (List.map argument_json binding.arguments)
-    ; "safe_api",
-      (match entry.safe_api with
-       | Some evidence ->
-           `Assoc
-             [ "operation", `String evidence.operation
-             ; "module_path",
-               `List (List.map (fun name -> `String name) evidence.module_path)
-             ; "value_name", `String evidence.value_name
-             ; "test_value", `String evidence.test_value
-             ; "test_call",
-               `List (List.map (fun name -> `String name) evidence.test_call)
-             ]
-       | None -> `Null)
-    ; "template", `String "direct_void_scalar"
+    [ "sdk_id", `String companion.sdk_id
+    ; "kind", `String companion.kind
+    ; "owner", `String companion.owner
+    ; "name", `String companion.name
+    ; "header", `String companion.header
+    ; "signature", `String companion.signature
+    ; "attributes", `List (List.map (fun value -> `String value) companion.attributes)
     ]
+
+let safe_api_json = function
+  | Some evidence ->
+      `Assoc
+        [ "operation", `String evidence.Binding_plan.operation
+        ; "module_path",
+          `List (List.map (fun name -> `String name) evidence.module_path)
+        ; "value_name", `String evidence.value_name
+        ; "test_value", `String evidence.test_value
+        ; "test_call",
+          `List (List.map (fun name -> `String name) evidence.test_call)
+        ]
+  | None -> `Null
+
+let result_json = function
+  | Binding_plan.Nsuint_to_checked_int64 { overflow_error } ->
+      `Assoc
+        [ "abi", `String "objc_nsuint_to_checked_ocaml_int64"
+        ; "objc_type", `String "NSUInteger"
+        ; "ocaml_type", `String "int64"
+        ; "overflow_error", `String overflow_error
+        ]
+
+let entry_json entry =
+  let ocaml_name, c_symbol, receiver_kind = generated_identity entry in
+  let receiver = receiver_spec receiver_kind in
+  let generation_fields =
+    match entry.Binding_plan.disposition with
+    | Binding_plan.Generate (Binding_plan.Direct_void binding) ->
+        [ "arguments", `List (List.map argument_json binding.arguments)
+        ; "template", `String "direct_void_scalar"
+        ]
+    | Binding_plan.Generate (Binding_plan.Direct_getter binding) ->
+        [ "arguments", `List []
+        ; "result", result_json binding.result
+        ; "template", `String "direct_getter"
+        ]
+    | Binding_plan.Manual | Binding_plan.Exclude _ | Binding_plan.Pending ->
+        fail "internal error: non-generated Metal binding %s" entry.sdk_id
+  in
+  `Assoc
+    ([ "sdk_id", `String entry.Binding_plan.sdk_id
+     ; "owner", `String entry.expect.owner
+     ; "selector", `String entry.expect.name
+     ; "header", `String entry.expect.header
+     ; "signature", `String entry.expect.signature
+     ; "macos_introduced",
+       `String
+         (Printf.sprintf "%d.%d" entry.expect.availability.macos_major
+            entry.expect.availability.macos_minor)
+     ; "ocaml_name", `String ocaml_name
+     ; "c_symbol", `String c_symbol
+     ; "receiver_handle_kind", `String receiver.handle_kind
+     ]
+     @ generation_fields
+     @ [ "companions", `List (List.map companion_json entry.companions)
+       ; "safe_api", safe_api_json entry.safe_api
+       ])
 
 let manifest ~sdk_version ~plan_sha256 ~generator_sha256 ~inventory_sha256
     ~raw_ml_contents ~raw_mli_contents ~native_contents entries =

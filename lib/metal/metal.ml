@@ -1759,6 +1759,7 @@ module Device = struct
     ; recommended_max_working_set_size : int64
     ; current_allocated_size : int64
     ; max_buffer_length : int64
+    ; max_threadgroup_memory_length : int64
     ; raytracing : bool
     ; raytracing_from_render : bool
     ; dynamic_libraries : bool
@@ -1783,30 +1784,36 @@ module Device = struct
   let destroyed (value : t) = is_destroyed value.lifetime
 
   let info (value : t) =
-    on_main "Metal.Device.info" (fun () ->
-      match ensure_live "Metal.Device.info" value.lifetime with
+    let operation = "Metal.Device.info" in
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
       | Error _ as failure -> failure
       | Ok () ->
-          Ok
-            { name = Metal_raw.device_name value.raw
-            ; registry_id = value.registry_id
-            ; low_power = Metal_raw.device_is_low_power value.raw
-            ; removable = Metal_raw.device_is_removable value.raw
-            ; headless = Metal_raw.device_is_headless value.raw
-            ; unified_memory = Metal_raw.device_has_unified_memory value.raw
-            ; recommended_max_working_set_size =
-                Metal_raw.device_recommended_max_working_set_size value.raw
-            ; current_allocated_size =
-                Metal_raw.device_current_allocated_size value.raw
-            ; max_buffer_length = Metal_raw.device_max_buffer_length value.raw
-            ; raytracing = Metal_raw.device_supports_raytracing value.raw
-            ; raytracing_from_render =
-                Metal_raw.device_supports_raytracing_from_render value.raw
-            ; dynamic_libraries =
-                Metal_raw.device_supports_dynamic_libraries value.raw
-            ; function_pointers =
-                Metal_raw.device_supports_function_pointers value.raw
-            })
+          (match Metal_raw.device_max_threadgroup_memory_length value.raw with
+           | Error message -> native_error operation message
+           | Ok max_threadgroup_memory_length ->
+               Ok
+                 { name = Metal_raw.device_name value.raw
+                 ; registry_id = value.registry_id
+                 ; low_power = Metal_raw.device_is_low_power value.raw
+                 ; removable = Metal_raw.device_is_removable value.raw
+                 ; headless = Metal_raw.device_is_headless value.raw
+                 ; unified_memory = Metal_raw.device_has_unified_memory value.raw
+                 ; recommended_max_working_set_size =
+                     Metal_raw.device_recommended_max_working_set_size value.raw
+                 ; current_allocated_size =
+                     Metal_raw.device_current_allocated_size value.raw
+                 ; max_buffer_length =
+                     Metal_raw.device_max_buffer_length value.raw
+                 ; max_threadgroup_memory_length
+                 ; raytracing = Metal_raw.device_supports_raytracing value.raw
+                 ; raytracing_from_render =
+                     Metal_raw.device_supports_raytracing_from_render value.raw
+                 ; dynamic_libraries =
+                     Metal_raw.device_supports_dynamic_libraries value.raw
+                 ; function_pointers =
+                     Metal_raw.device_supports_function_pointers value.raw
+                 }))
 
   let family_code = function
     | Apple1 -> 1001

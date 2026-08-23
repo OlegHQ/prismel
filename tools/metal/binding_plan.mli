@@ -1,6 +1,7 @@
 type receiver =
   | Render_encoder4
   | Compute_encoder4
+  | Device
 
 type enum_type =
   | Winding
@@ -52,8 +53,31 @@ type direct_void =
   ; arguments : argument list
   }
 
+type result_kind =
+  | Nsuint_to_checked_int64 of
+      { overflow_error : string
+      }
+
+type direct_getter =
+  { ocaml_name : string
+  ; c_symbol : string
+  ; receiver : receiver
+  ; result : result_kind
+  }
+
 type generation =
   | Direct_void of direct_void
+  | Direct_getter of direct_getter
+
+type companion =
+  { sdk_id : string
+  ; kind : string
+  ; owner : string
+  ; name : string
+  ; header : string
+  ; signature : string
+  ; attributes : string list
+  }
 
 type safe_api =
   { operation : string
@@ -72,6 +96,7 @@ type disposition =
 type entry =
   { sdk_id : string
   ; expect : expectation
+  ; companions : companion list
   ; disposition : disposition
   ; safe_api : safe_api option
   }

@@ -1,6 +1,7 @@
 type receiver =
   | Render_encoder4
   | Compute_encoder4
+  | Device
 
 type enum_type =
   | Winding
@@ -52,8 +53,31 @@ type direct_void =
   ; arguments : argument list
   }
 
+type result_kind =
+  | Nsuint_to_checked_int64 of
+      { overflow_error : string
+      }
+
+type direct_getter =
+  { ocaml_name : string
+  ; c_symbol : string
+  ; receiver : receiver
+  ; result : result_kind
+  }
+
 type generation =
   | Direct_void of direct_void
+  | Direct_getter of direct_getter
+
+type companion =
+  { sdk_id : string
+  ; kind : string
+  ; owner : string
+  ; name : string
+  ; header : string
+  ; signature : string
+  ; attributes : string list
+  }
 
 type safe_api =
   { operation : string
@@ -72,6 +96,7 @@ type disposition =
 type entry =
   { sdk_id : string
   ; expect : expectation
+  ; companions : companion list
   ; disposition : disposition
   ; safe_api : safe_api option
   }
@@ -84,12 +109,18 @@ let metal4_availability =
   ; unavailable_error = "Metal 4 commands require macOS 26"
   }
 
-let safe_api ~module_name ~value_name ~test_value =
-  { operation = "Metal.Command4." ^ module_name ^ "." ^ value_name
-  ; module_path = [ "Command4"; module_name ]
+let macos_10_13_availability =
+  { macos_major = 10
+  ; macos_minor = 13
+  ; unavailable_error = "Metal device limit requires macOS 10.13"
+  }
+
+let safe_api ~module_path ~value_name ~test_value =
+  { operation = String.concat "." ("Metal" :: module_path @ [ value_name ])
+  ; module_path
   ; value_name
   ; test_value
-  ; test_call = [ "Command4"; module_name; value_name ]
+  ; test_call = module_path @ [ value_name ]
   }
 
 let direct_void ~sdk_id ~owner ~header ~name ~signature ~ocaml_name ~c_symbol
@@ -104,6 +135,7 @@ let direct_void ~sdk_id ~owner ~header ~name ~signature ~ocaml_name ~c_symbol
       ; attributes = []
       ; availability = metal4_availability
       }
+  ; companions = []
   ; disposition =
       Generate
         (Direct_void
@@ -128,7 +160,8 @@ let enum_setter ~sdk_id ~name ~signature ~ocaml_name ~c_symbol ~argument_name
       ]
     ~safe_api:
       (Some
-         (safe_api ~module_name:"Render_encoder" ~value_name:safe_value
+         (safe_api ~module_path:[ "Command4"; "Render_encoder" ]
+            ~value_name:safe_value
             ~test_value:"test_metal4_raster_state_commands"))
 
 let unsigned_argument ?(minimum = 0) ?multiple_of name error =
@@ -274,6 +307,44 @@ let entries =
             "Metal 4 render threadgroup-memory index must be nonnegative"
         ]
       ~safe_api:None
+  ; { sdk_id = "method:-[MTLDevice maxThreadgroupMemoryLength]"
+    ; expect =
+        { kind = "method"
+        ; owner = "MTLDevice"
+        ; name = "maxThreadgroupMemoryLength"
+        ; header = "Metal/MTLDevice.h"
+        ; signature = "instance () -> NSUInteger"
+        ; attributes = [ "AvailabilityAttr" ]
+        ; availability = macos_10_13_availability
+        }
+    ; companions =
+        [ { sdk_id = "property:MTLDevice:maxThreadgroupMemoryLength"
+          ; kind = "property"
+          ; owner = "MTLDevice"
+          ; name = "maxThreadgroupMemoryLength"
+          ; header = "Metal/MTLDevice.h"
+          ; signature = "NSUInteger"
+          ; attributes = [ "AvailabilityAttr" ]
+          }
+        ]
+    ; disposition =
+        Generate
+          (Direct_getter
+             { ocaml_name = "device_max_threadgroup_memory_length"
+             ; c_symbol =
+                 "caml_prismel_metal_device_max_threadgroup_memory_length"
+             ; receiver = Device
+             ; result =
+                 Nsuint_to_checked_int64
+                   { overflow_error =
+                       "Metal returned a threadgroup-memory limit outside signed 64-bit range"
+                   }
+             })
+    ; safe_api =
+        Some
+          (safe_api ~module_path:[ "Device" ] ~value_name:"info"
+             ~test_value:"test_device_info")
+    }
   ]
 
 let generated_entries =
@@ -285,4 +356,7 @@ let generated_entries =
 let bound_identifiers =
   generated_entries
   |> List.filter (fun entry -> Option.is_some entry.safe_api)
-  |> List.map (fun entry -> entry.sdk_id)
+  |> List.concat_map (fun entry ->
+    entry.sdk_id
+    :: List.map (fun (companion : companion) -> companion.sdk_id)
+         entry.companions)

@@ -1,11 +1,11 @@
 {
-  "binding_plan_source_sha256": "f99cc03a70bb0f5b374a6c57bc435b7cc60d3e78bde2c4fd497be1a00a495396",
+  "binding_plan_source_sha256": "5af5a69c1ec5a214190434c8c8ef3c17cab896b417e5b12e3b542e9bf054e49f",
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 1842,
+    "bound": 1844,
     "scope-excluded": 7,
-    "unreviewed": 3436
+    "unreviewed": 3434
   },
   "classification_source_sha256": "31fb7ff63641fff72ad8acc1553af2c320fcead21868a6fd524fc055dd33500d",
   "deployment_target": "14.0",
@@ -35232,14 +35232,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice maxThreadgroupMemoryLength]",
       "kind": "method",
       "line": 938,
       "name": "maxThreadgroupMemoryLength",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -57685,14 +57685,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "property:MTLDevice:maxThreadgroupMemoryLength",
       "kind": "property",
       "line": 938,
       "name": "maxThreadgroupMemoryLength",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {

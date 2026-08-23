@@ -8506,6 +8506,20 @@ let test_metal4_compute_commands device =
     true
   end
 
+let test_device_info device =
+  let before = get (Release_queue.stats ()) in
+  let info = get (Device.info device) in
+  let after = get (Release_queue.stats ()) in
+  if after.total_created <> before.total_created then
+    fail "Device.info allocated a native handle";
+  if info.max_threadgroup_memory_length <= 0L then
+    fail "device maximum threadgroup-memory length is not positive";
+  if info.name = "Apple M1" && info.max_threadgroup_memory_length <> 32_768L
+  then
+    fail "Apple M1 maximum threadgroup-memory length is %Ld, expected 32768"
+      info.max_threadgroup_memory_length;
+  info
+
 let () =
   if Sys.os_type <> "Unix"
      || not (Sys.file_exists "/System/Library/Frameworks/Metal.framework")
@@ -8516,7 +8530,7 @@ let () =
     let device = get (Device.system_default ()) in
     let all_devices = get (Device.all ()) in
     if all_devices = [] then fail "MTLCopyAllDevices returned no devices";
-    let info = get (Device.info device) in
+    let info = test_device_info device in
     if info.name = "" || info.registry_id = 0L then
       fail "default device identity is incomplete";
     if info.max_buffer_length < 16L then fail "device buffer limit is invalid";

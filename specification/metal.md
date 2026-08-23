@@ -53,8 +53,10 @@ generated raw declaration alone never makes an inventory declaration `bound`:
 the plan requires an independent safe-operation/test-evidence record, and the
 generator parses both OCaml syntax trees, locates the exact safe module/value and
 conformance function, and requires direct applications of the planned raw and
-public paths before composing the bound identifier set. Comments, strings,
-prefix names, and unrelated calls do not qualify as evidence.
+public paths before composing the bound identifier set. The conformance
+function must also be reachable through the parsed call graph from an executable
+top-level initializer, so a defined but uninvoked test does not qualify.
+Comments, strings, prefix names, and unrelated calls do not qualify as evidence.
 
 The direct-void scalar template also supports multiple `NSUInteger` arguments.
 It emits the raw OCaml externals and statically typed native adapters, including
@@ -71,6 +73,22 @@ Their public completion needs handwritten pipeline and reflection checks,
 device memory-limit policy, and, for persistent render threadgroup memory,
 render-pass allocation validation. Generated raw/native glue alone is not a
 safe operation and does not make any of these inventory identifiers `bound`.
+
+The `Direct_getter` template covers no-argument scalar getters and validates
+the primary selector together with companion method/property closure metadata
+for the same Objective-C property. Its first completed slice binds
+`-[MTLDevice maxThreadgroupMemoryLength]` and
+`property:MTLDevice:maxThreadgroupMemoryLength` as one read-only closure. The
+native adapter reads `NSUInteger`, rejects values greater than `INT64_MAX`, and
+only then copies the value to OCaml `int64`; overflow is a typed error rather
+than signed wraparound. The existing safe `Device.info` record exposes the
+result as `max_threadgroup_memory_length`.
+
+That method/property closure moves exactly two declarations from `unreviewed`
+to `bound`, leaving 1,844 `bound` and 3,434 `unreviewed`. It provides the
+device-wide byte ceiling needed by later handwritten validation of compute and
+render threadgroup-memory budgets; it does not by itself complete any of the
+four raw setter slices above.
 
 Migration is gradual. Each small family first receives deterministic per-entry
 golden assertions for generated OCaml, Objective-C++, validation domains,
