@@ -12192,6 +12192,9 @@ module Command4 = struct
       | Uint16
       | Uint32
 
+    type timestamp_granularity = Relaxed | Precise
+    let timestamp_granularity_code=function Relaxed->0|Precise->1
+
     type stage =
       | Vertex
       | Fragment
@@ -13863,6 +13866,31 @@ module Command4 = struct
         with
         | Ok () -> Ok ()
         | Error message -> native_error operation message)
+
+    let remaining_call operation (value:t) callback =
+      on_main operation(fun()->Result.bind(ensure_live operation value.lifetime)(fun()->
+        if value.command_buffer.phase<>Command4_recording then error operation Invalid_state "command buffer is not recording"
+        else callback()))
+    let size64 (x,y,z)=Int64.of_int x,Int64.of_int y,Int64.of_int z
+    let draw value primitive ~vertex_start ~vertex_count ~instance_count =
+      let operation="Metal.Command4.Render_encoder.draw"in
+      if vertex_start<0L||vertex_count<=0L||instance_count<=0L then error operation Invalid_argument "draw range is invalid"else remaining_call operation value(fun()->Result.bind(ensure_conventional_pipeline operation value)(fun()->match Metal_raw.metal4_render_draw value.raw value.command_buffer.raw(primitive_code primitive,vertex_start,vertex_count,instance_count)with Error m->native_error operation m|Ok()->Ok()))
+    let draw_indexed value primitive index_type ~(index_buffer:Buffer.t) ~index_count ~index_length ~instance_count =
+      let operation="Metal.Command4.Render_encoder.draw_indexed"in
+      remaining_call operation value(fun()->Result.bind(ensure_conventional_pipeline operation value)(fun()->Result.bind(ensure_buffer_device operation value index_buffer)(fun()->let stride=index_stride index_type in if index_count<=0L||instance_count<=0L||index_length<=0L||Int64.rem index_length stride<>0L||index_length>index_buffer.length||index_count>Int64.div index_length stride then error operation Invalid_argument "indexed draw range is invalid"else match Metal_raw.metal4_render_draw_indexed value.raw value.command_buffer.raw(primitive_code primitive,index_count,index_type_code index_type,index_buffer.raw,index_length,instance_count)with Error m->native_error operation m|Ok()->retain_command4_buffer value.command_buffer index_buffer;Ok())))
+    let draw_mesh_threads_raw value ~threads ~object_threadgroup ~mesh_threadgroup =
+      let operation="Metal.Command4.Render_encoder.draw_mesh_threads_raw"in
+      if not(positive_size threads&&positive_size object_threadgroup&&positive_size mesh_threadgroup)then error operation Invalid_argument "mesh dimensions are invalid"else remaining_call operation value(fun()->match Metal_raw.metal4_render_mesh_threads value.raw value.command_buffer.raw(size64 threads,size64 object_threadgroup,size64 mesh_threadgroup)with Error m->native_error operation m|Ok()->Ok())
+    let draw_mesh_indirect value ~(indirect_buffer:Buffer.t) ~offset ~object_threadgroup ~mesh_threadgroup =
+      let operation="Metal.Command4.Render_encoder.draw_mesh_indirect"in remaining_call operation value(fun()->Result.bind(ensure_buffer_device operation value indirect_buffer)(fun()->if not(positive_size object_threadgroup&&positive_size mesh_threadgroup)||offset<0L||Int64.rem offset 4L<>0L||offset>Int64.sub indirect_buffer.length 12L then error operation Invalid_argument "indirect mesh arguments are invalid"else match Metal_raw.metal4_render_mesh_indirect value.raw value.command_buffer.raw((indirect_buffer.raw,offset,12L),size64 object_threadgroup,size64 mesh_threadgroup)with Error m->native_error operation m|Ok()->retain_command4_buffer value.command_buffer indirect_buffer;Ok()))
+    let execute_icb_range value (icb:indirect_command_buffer) ~location ~length =
+      let operation="Metal.Command4.Render_encoder.execute_icb_range"in remaining_call operation value(fun()->Result.bind(ensure_live operation icb.lifetime)(fun()->Result.bind(ensure_same_device operation value.command_buffer.allocator.device icb.device)(fun()->if location<0L||length<=0L||location>Int64.of_int icb.max_command_count||length>Int64.sub(Int64.of_int icb.max_command_count)location then error operation Invalid_argument "ICB range is invalid"else match Metal_raw.metal4_render_execute_icb_range value.raw value.command_buffer.raw(icb.raw,(location,length))with Error m->native_error operation m|Ok()->retain_command4_other value.command_buffer icb.lifetime;Ok())))
+    let execute_icb_indirect value (icb:indirect_command_buffer) ~(indirect_buffer:Buffer.t) ~offset =
+      let operation="Metal.Command4.Render_encoder.execute_icb_indirect"in remaining_call operation value(fun()->Result.bind(ensure_live operation icb.lifetime)(fun()->Result.bind(ensure_same_device operation value.command_buffer.allocator.device icb.device)(fun()->Result.bind(ensure_buffer_device operation value indirect_buffer)(fun()->if offset<0L||Int64.rem offset 4L<>0L||offset>Int64.sub indirect_buffer.length 4L then error operation Invalid_argument "indirect ICB range is invalid"else match Metal_raw.metal4_render_execute_icb_indirect value.raw value.command_buffer.raw(icb.raw,(indirect_buffer.raw,offset,4L))with Error m->native_error operation m|Ok()->retain_command4_other value.command_buffer icb.lifetime;retain_command4_buffer value.command_buffer indirect_buffer;Ok()))))
+    let set_threadgroup_memory value ?(object_stage=false) ~length ~index ~offset () =
+      let operation="Metal.Command4.Render_encoder.set_threadgroup_memory"in if length<0L||index<0L||offset<0L||Int64.rem offset 16L<>0L then error operation Invalid_argument "threadgroup memory arguments are invalid"else remaining_call operation value(fun()->match Metal_raw.metal4_render_memory value.raw value.command_buffer.raw(object_stage,length,index,offset)with Error m->native_error operation m|Ok()->Ok())
+    let write_timestamp value ~granularity ~after (heap:Counter_heap.t) ~index =
+      let operation="Metal.Command4.Render_encoder.write_timestamp"in remaining_call operation value(fun()->Result.bind(ensure_live operation heap.lifetime)(fun()->Result.bind(ensure_same_device operation value.command_buffer.allocator.device heap.device)(fun()->if index<0L||index>=heap.count||after=[]then error operation Invalid_argument "timestamp arguments are invalid"else let bits=List.fold_left(fun b stage->Int64.logor b(Int64.of_int(stage_bit stage)))0L after in match Metal_raw.metal4_render_timestamp value.raw value.command_buffer.raw(timestamp_granularity_code granularity,bits,heap.raw,index)with Error m->native_error operation m|Ok()->retain_command4_other value.command_buffer heap.lifetime;Ok())))
 
     let end_encoding (value : t) =
       let operation = "Metal.Command4.Render_encoder.end_encoding" in

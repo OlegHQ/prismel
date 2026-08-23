@@ -2254,6 +2254,7 @@ module Command4 : sig
     type index_type =
       | Uint16
       | Uint32
+    type timestamp_granularity = Relaxed | Precise
 
     type stage =
       | Vertex
@@ -2456,6 +2457,15 @@ module Command4 : sig
         promise are checked before encoding. *)
     val dispatch_threads_per_tile :
       t -> threads:(int * int * int) -> (unit, error) result
+
+    val draw : t -> primitive -> vertex_start:int64 -> vertex_count:int64 -> instance_count:int64 -> (unit,error) result
+    val draw_indexed : t -> primitive -> index_type -> index_buffer:Buffer.t -> index_count:int64 -> index_length:int64 -> instance_count:int64 -> (unit,error) result
+    val draw_mesh_threads_raw : t -> threads:(int*int*int) -> object_threadgroup:(int*int*int) -> mesh_threadgroup:(int*int*int) -> (unit,error) result
+    val draw_mesh_indirect : t -> indirect_buffer:Buffer.t -> offset:int64 -> object_threadgroup:(int*int*int) -> mesh_threadgroup:(int*int*int) -> (unit,error) result
+    val execute_icb_range : t -> indirect_command_buffer_handle -> location:int64 -> length:int64 -> (unit,error) result
+    val execute_icb_indirect : t -> indirect_command_buffer_handle -> indirect_buffer:Buffer.t -> offset:int64 -> (unit,error) result
+    val set_threadgroup_memory : t -> ?object_stage:bool -> length:int64 -> index:int64 -> offset:int64 -> unit -> (unit,error) result
+    val write_timestamp : t -> granularity:timestamp_granularity -> after:stage list -> Counter_heap.t -> index:int64 -> (unit,error) result
 
     (** Ends the encoder after every [Store_deferred] action is finalized. *)
     val end_encoding : t -> (unit, error) result

@@ -27,6 +27,18 @@ let ()=match Device.system_default()with
   get(Command4.Command_buffer.write_timestamp commands counter~index:1L);
   get(Command4.Command_buffer.resolve_counter commands counter~location:1L
     ~length:1L~destination~destination_offset:512L());
+  let render_target=get(Texture.create~device(Texture.descriptor_2d
+    ~storage:Buffer.Shared~usage:[Texture.Render_target]
+    ~format:Texture.Bgra8_unorm~width:4~height:4()))in
+  let attachment=Command4.Render_encoder.color_attachment render_target in
+  let render=get(Command4.Render_encoder.create commands~color_attachments:[attachment])in
+  expect Invalid_argument(Command4.Render_encoder.draw render
+    Command4.Render_encoder.Triangle~vertex_start:0L~vertex_count:0L~instance_count:1L);
+  get(Command4.Render_encoder.set_threadgroup_memory render~length:0L~index:0L~offset:0L());
+  get(Command4.Render_encoder.write_timestamp render
+    ~granularity:Command4.Render_encoder.Relaxed~after:[Command4.Render_encoder.Vertex]
+    counter~index:2L);
+  get(Command4.Render_encoder.end_encoding render);
   let encoder=get(Command4.Compute_encoder.create commands)in
   expect Invalid_argument(Command4.Compute_encoder.fill_buffer encoder source~offset:1000L~length:25L~byte:7);
   get(Command4.Compute_encoder.push_debug_group encoder"callable");
@@ -47,7 +59,7 @@ let ()=match Device.system_default()with
   get(Command4.Counter_heap.invalidate counter~location:0L~length:1L);
   ignore(get(Command4.Counter_heap.resolve counter~location:0L~length:1L));
   get(Command4.Submission.destroy submission);get(Command4.Command_buffer.destroy commands);
-  get(Buffer.destroy source);get(Buffer.destroy destination);get(Command4.Counter_heap.destroy counter);
+  get(Buffer.destroy source);get(Buffer.destroy destination);get(Texture.destroy render_target);get(Command4.Counter_heap.destroy counter);
   get(Residency_set.destroy residency);get(Command4.Queue.destroy queue);get(Command4.Allocator.destroy allocator);
   get(Binary_function.Descriptor.destroy binary_descriptor);get(Device.destroy device);
   print_endline"metal4 callable safe: ok"
