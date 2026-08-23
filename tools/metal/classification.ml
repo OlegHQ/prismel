@@ -24,6 +24,7 @@ let enum_cases owner names =
 
 let bound_identifiers =
   [ "class:MTL4CommandQueueDescriptor"
+  ; "class:MTLBinaryArchiveDescriptor"
   ; "class:MTLCompileOptions"
   ; "class:MTLComputePipelineDescriptor"
   ; "class:MTLComputePipelineReflection"
@@ -40,6 +41,7 @@ let bound_identifiers =
   ; "enum:MTL4VisibilityOptions"
   ; "enum:MTLBindingAccess"
   ; "enum:MTLBindingType"
+  ; "enum:MTLDataType"
   ; "enum:MTLCompareFunction"
   ; "enum:MTLBufferSparseTier"
   ; "enum:MTLCPUCacheMode"
@@ -47,7 +49,9 @@ let bound_identifiers =
   ; "enum:MTLHazardTrackingMode"
   ; "enum:MTLHeapType"
   ; "enum:MTLFunctionType"
+  ; "enum:MTLLibraryType"
   ; "enum:MTLPixelFormat"
+  ; "enum:MTLPipelineOption"
   ; "enum:MTLPurgeableState"
   ; "enum:MTLResourceOptions"
   ; "enum:MTLSamplerAddressMode"
@@ -105,6 +109,7 @@ let bound_identifiers =
   ; "protocol:MTL4CommandEncoder"
   ; "protocol:MTL4CommandQueue"
   ; "protocol:MTL4ComputeCommandEncoder"
+  ; "protocol:MTLBinaryArchive"
   ; "protocol:MTLBuffer"
   ; "protocol:MTLAllocation"
   ; "protocol:MTLBlitCommandEncoder"
@@ -116,6 +121,7 @@ let bound_identifiers =
   ; "protocol:MTLComputeCommandEncoder"
   ; "protocol:MTLComputePipelineState"
   ; "protocol:MTLDevice"
+  ; "protocol:MTLDynamicLibrary"
   ; "protocol:MTLEvent"
   ; "protocol:MTLFunction"
   ; "protocol:MTLHeap"
@@ -135,6 +141,7 @@ let bound_identifiers =
   ; "typedef:MTL4VisibilityOptions"
   ; "typedef:MTLBindingAccess"
   ; "typedef:MTLBindingType"
+  ; "typedef:MTLDataType"
   ; "typedef:MTLCompareFunction"
   ; "typedef:MTLBufferSparseTier"
   ; "typedef:MTLCPUCacheMode"
@@ -142,8 +149,10 @@ let bound_identifiers =
   ; "typedef:MTLHazardTrackingMode"
   ; "typedef:MTLHeapType"
   ; "typedef:MTLFunctionType"
+  ; "typedef:MTLLibraryType"
   ; "typedef:MTLOrigin"
   ; "typedef:MTLPixelFormat"
+  ; "typedef:MTLPipelineOption"
   ; "typedef:MTLPurgeableState"
   ; "typedef:MTLRegion"
   ; "typedef:MTLResourceOptions"
@@ -188,6 +197,11 @@ let bound_identifiers =
           ; "newTextureWithDescriptor:offset:bytesPerRow:"
           ] )
       ; "MTLAllocation", [ "allocatedSize" ]
+      ; ( "MTLBinaryArchive"
+        , [ "addComputePipelineFunctionsWithDescriptor:error:"; "device"
+          ; "label"; "serializeToURL:error:"; "setLabel:"
+          ] )
+      ; "MTLBinaryArchiveDescriptor", [ "setUrl:"; "url" ]
       ; ( "MTLBlitCommandEncoder"
         , [ "copyFromBuffer:sourceOffset:sourceBytesPerRow:sourceBytesPerImage:sourceSize:toTexture:destinationSlice:destinationLevel:destinationOrigin:"
           ] )
@@ -199,15 +213,20 @@ let bound_identifiers =
           ] )
       ; "MTLCommandEncoder", [ "endEncoding" ]
       ; ( "MTLCompileOptions"
-        , [ "fastMathEnabled"; "setFastMathEnabled:" ] )
+        , [ "fastMathEnabled"; "installName"; "libraries"; "libraryType"
+          ; "setFastMathEnabled:"; "setInstallName:"; "setLibraries:"
+          ; "setLibraryType:"
+          ] )
       ; ( "MTLComputeCommandEncoder"
         , [ "dispatchThreads:threadsPerThreadgroup:"
           ; "setBuffer:offset:atIndex:"
           ; "setComputePipelineState:"; "setTexture:atIndex:"
           ] )
       ; ( "MTLComputePipelineDescriptor"
-        , [ "computeFunction"; "label"; "linkedFunctions"
+        , [ "binaryArchives"; "computeFunction"; "label"; "linkedFunctions"
+          ; "preloadedLibraries"; "setBinaryArchives:"
           ; "setComputeFunction:"; "setLabel:"; "setLinkedFunctions:"
+          ; "setPreloadedLibraries:"
           ] )
       ; "MTLComputePipelineReflection", [ "bindings" ]
       ; ( "MTLComputePipelineState"
@@ -227,8 +246,11 @@ let bound_identifiers =
           ; "newBufferWithLength:options:placementSparsePageSize:"
           ; "newCommandAllocator"; "newCommandBuffer"
           ; "newCommandQueue"
+          ; "newBinaryArchiveWithDescriptor:error:"
           ; "newComputePipelineStateWithDescriptor:options:reflection:error:"
           ; "newComputePipelineStateWithFunction:error:"
+          ; "newDynamicLibrary:error:"; "newDynamicLibraryWithURL:error:"
+          ; "newLibraryWithURL:error:"
           ; "newLibraryWithSource:options:error:"
           ; "newHeapWithDescriptor:"
           ; "newResidencySetWithDescriptor:error:"
@@ -258,6 +280,10 @@ let bound_identifiers =
         , [ "index"; "name"; "required"; "type" ] )
       ; ( "MTLFunctionConstantValues"
         , [ "setConstantValue:type:withName:" ] )
+      ; ( "MTLDynamicLibrary"
+        , [ "device"; "installName"; "label"; "serializeToURL:error:"
+          ; "setLabel:"
+          ] )
       ; ( "MTLHeap"
         , [ "cpuCacheMode"; "currentAllocatedSize"; "hazardTrackingMode"
           ; "label"; "maxAvailableSizeWithAlignment:"
@@ -277,8 +303,10 @@ let bound_identifiers =
           ; "storageMode"; "type"
           ] )
       ; ( "MTLLibrary"
-        , [ "device"; "label"; "newFunctionWithName:"
+        , [ "device"; "functionNames"; "installName"; "label"
+          ; "newFunctionWithName:"
           ; "newFunctionWithName:constantValues:error:"; "setLabel:"
+          ; "type"
           ] )
       ; ( "MTLLinkedFunctions"
         , [ "functions"; "setFunctions:" ] )
@@ -372,10 +400,15 @@ let bound_identifiers =
       [ "MTL4CommandQueue", [ "device"; "label" ]
       ; "MTL4CommandQueueDescriptor", [ "label" ]
       ; "MTLAllocation", [ "allocatedSize" ]
+      ; "MTLBinaryArchive", [ "device"; "label" ]
+      ; "MTLBinaryArchiveDescriptor", [ "url" ]
       ; ( "MTLCommandBuffer", [ "error"; "label"; "status" ] )
-      ; "MTLCompileOptions", [ "fastMathEnabled" ]
+      ; ( "MTLCompileOptions"
+        , [ "fastMathEnabled"; "installName"; "libraries"; "libraryType" ] )
       ; ( "MTLComputePipelineDescriptor"
-        , [ "computeFunction"; "label"; "linkedFunctions" ] )
+        , [ "binaryArchives"; "computeFunction"; "label"; "linkedFunctions"
+          ; "preloadedLibraries"
+          ] )
       ; "MTLComputePipelineReflection", [ "bindings" ]
       ; ( "MTLComputePipelineState"
         , [ "device"; "label"; "maxTotalThreadsPerThreadgroup"
@@ -396,6 +429,8 @@ let bound_identifiers =
           ] )
       ; ( "MTLFunctionConstant"
         , [ "index"; "name"; "required"; "type" ] )
+      ; ( "MTLDynamicLibrary"
+        , [ "device"; "installName"; "label" ] )
       ; ( "MTLHeap"
         , [ "cpuCacheMode"; "currentAllocatedSize"; "hazardTrackingMode"
           ; "label"; "size"; "storageMode"; "type"; "usedSize"
@@ -405,7 +440,8 @@ let bound_identifiers =
           ; "maxCompatiblePlacementSparsePageSize"; "size"
           ; "sparsePageSize"; "storageMode"; "type"
           ] )
-      ; "MTLLibrary", [ "device"; "label" ]
+      ; ( "MTLLibrary"
+        , [ "device"; "functionNames"; "installName"; "label"; "type" ] )
       ; "MTLLinkedFunctions", [ "functions" ]
       ; ( "MTLBinding"
         , [ "access"; "argument"; "index"; "name"; "type"; "used" ] )
@@ -483,7 +519,10 @@ let bound_identifiers =
   @ enum_cases "MTLPipelineOption"
       [ "MTLPipelineOptionNone"; "MTLPipelineOptionArgumentInfo"
       ; "MTLPipelineOptionBindingInfo"; "MTLPipelineOptionBufferTypeInfo"
+      ; "MTLPipelineOptionFailOnBinaryArchiveMiss"
       ]
+  @ enum_cases "MTLLibraryType"
+      [ "MTLLibraryTypeExecutable"; "MTLLibraryTypeDynamic" ]
   @ enum_cases "MTLDataType"
       [ "MTLDataTypeNone"; "MTLDataTypeStruct"; "MTLDataTypeArray"
       ; "MTLDataTypeFloat"; "MTLDataTypeFloat2"; "MTLDataTypeFloat3"

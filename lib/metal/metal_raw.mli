@@ -53,6 +53,22 @@ type pipeline_binding_info =
   string * int * int * int64 * bool * bool * int64 * int64 * int * int * int
   * bool * int64 * int64 * int64 * int64 * int64
 
+type library_compile_descriptor =
+  { label : string option
+  ; library_type : int
+  ; install_name : string option
+  ; linked_libraries : handle array
+  }
+
+type compute_pipeline_descriptor =
+  { label : string option
+  ; reflection : bool
+  ; linked_functions : handle array
+  ; preloaded_libraries : handle array
+  ; binary_archives : handle array
+  ; fail_on_binary_archive_miss : bool
+  }
+
 external is_main_thread : unit -> bool = "caml_prismel_metal_is_main_thread"
 external generation : handle -> int64 = "caml_prismel_metal_generation"
 external destroyed : handle -> bool = "caml_prismel_metal_destroyed"
@@ -429,8 +445,24 @@ external library_compile :
   handle -> string -> string option -> (handle, string) result =
   "caml_prismel_metal_library_compile"
 
+external library_compile_descriptor :
+  handle -> string -> library_compile_descriptor -> (handle, string) result =
+  "caml_prismel_metal_library_compile_descriptor"
+
+external library_load_file :
+  handle -> string -> string option -> (handle, string) result =
+  "caml_prismel_metal_library_load_file"
+
 external library_label : handle -> string option =
   "caml_prismel_metal_library_label"
+
+external library_kind : handle -> int = "caml_prismel_metal_library_kind"
+
+external library_install_name : handle -> string option =
+  "caml_prismel_metal_library_install_name"
+
+external library_function_names : handle -> string array =
+  "caml_prismel_metal_library_function_names"
 
 external function_find : handle -> string -> (handle, string) result =
   "caml_prismel_metal_function_find"
@@ -450,11 +482,44 @@ external function_specialize :
   (handle, string) result
   = "caml_prismel_metal_function_specialize"
 
+external dynamic_library_create :
+  handle -> handle -> string option -> (handle, string) result =
+  "caml_prismel_metal_dynamic_library_create"
+
+external dynamic_library_load_file :
+  handle -> string -> string option -> (handle, string) result =
+  "caml_prismel_metal_dynamic_library_load_file"
+
+external dynamic_library_label : handle -> string option =
+  "caml_prismel_metal_dynamic_library_label"
+
+external dynamic_library_install_name : handle -> string =
+  "caml_prismel_metal_dynamic_library_install_name"
+
+external dynamic_library_serialize :
+  handle -> string -> (unit, string) result =
+  "caml_prismel_metal_dynamic_library_serialize"
+
+external binary_archive_create :
+  handle -> string option -> string option -> (handle, string) result =
+  "caml_prismel_metal_binary_archive_create"
+
+external binary_archive_label : handle -> string option =
+  "caml_prismel_metal_binary_archive_label"
+
+external binary_archive_add_compute :
+  handle -> handle -> handle array -> handle array -> (unit, string) result =
+  "caml_prismel_metal_binary_archive_add_compute"
+
+external binary_archive_serialize :
+  handle -> string -> (unit, string) result =
+  "caml_prismel_metal_binary_archive_serialize"
+
 external compute_pipeline_create : handle -> handle -> (handle, string) result =
   "caml_prismel_metal_compute_pipeline_create"
 
 external compute_pipeline_create_descriptor :
-  handle -> handle -> string option -> bool -> handle array ->
+  handle -> handle -> compute_pipeline_descriptor ->
   ((handle * pipeline_binding_info array), string) result
   = "caml_prismel_metal_compute_pipeline_create_descriptor"
 

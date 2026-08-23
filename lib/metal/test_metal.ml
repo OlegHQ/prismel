@@ -109,6 +109,29 @@ kernel void read_swizzle(texture2d<float, access::sample> source [[texture(0)]],
 }
 |}
 
+let dynamic_library_source =
+  {|
+#include <metal_stdlib>
+using namespace metal;
+
+extern "C" uint prismel_dynamic_add(uint value) {
+  return value + 13u;
+}
+|}
+
+let dynamic_client_source =
+  {|
+#include <metal_stdlib>
+using namespace metal;
+
+extern "C" uint prismel_dynamic_add(uint value);
+
+kernel void call_dynamic_library(device uint *values [[buffer(0)]],
+                                 uint index [[thread_position_in_grid]]) {
+  values[index] = prismel_dynamic_add(values[index]);
+}
+|}
+
 let input_values () =
   let bytes = Bytes.create 16 in
   [| 1l; 41l; 99l; -2l |]
@@ -1766,6 +1789,292 @@ let test_residency_set device =
     true
   end
 
+let run_pipeline_once device pipeline ~initial ~expected =
+  let bytes = Bytes.create 4 in
+  Bytes.set_int32_le bytes 0 initial;
+  let buffer =
+    get (Buffer.create ~device ~length:4L ~storage:Buffer.Shared ())
+  in
+  get (Buffer.write_bytes buffer ~dst_offset:0L bytes);
+  let queue = get (Command_queue.create device) in
+  let commands = get (Command_buffer.create queue ()) in
+  let encoder = get (Compute_encoder.create commands) in
+  get (Compute_encoder.set_pipeline encoder pipeline);
+  get (Compute_encoder.set_buffer encoder ~index:0 ~offset:0L buffer);
+  get
+    (Compute_encoder.dispatch_threads encoder ~threads:(1, 1, 1)
+       ~threadgroup:(1, 1, 1));
+  get (Compute_encoder.end_encoding encoder);
+  complete_commands commands;
+  let output = get (Buffer.read_bytes buffer ~offset:0L ~length:4) in
+  if Bytes.get_int32_le output 0 <> expected then
+    fail "pipeline asset produced %ld instead of %ld"
+      (Bytes.get_int32_le output 0) expected;
+  get (Command_queue.destroy queue);
+  get (Buffer.destroy buffer)
+
+let test_pipeline_assets device =
+  let archive_path = Filename.temp_file "prismel-metal-" ".archive" in
+  let dynamic_path = Filename.temp_file "prismel-metal-" ".dynamic" in
+  Sys.remove archive_path;
+  Sys.remove dynamic_path;
+  Fun.protect
+    ~finally:(fun () ->
+      if Sys.file_exists archive_path then Sys.remove archive_path;
+      if Sys.file_exists dynamic_path then Sys.remove dynamic_path)
+    (fun () ->
+      let missing_metallib = archive_path ^ ".missing.metallib" in
+      ignore
+        (expect_error Invalid_argument
+           (Library.load_file ~device "relative.metallib"));
+      ignore
+        (expect_error Invalid_argument
+           (Binary_archive.create ~path:"relative.archive" device));
+      let missing_library =
+        expect_error Native_error
+          (Library.load_file ~device ~label:"missing metallib diagnostic"
+             missing_metallib)
+      in
+      if not
+           (contains_substring missing_library.message
+              "missing metallib diagnostic")
+      then fail "metallib loading lost its labeled diagnostic";
+      let library =
+        get
+          (Library.compile_source ~device ~label:"pipeline asset library"
+             shader_source)
+      in
+      let device_info = get (Device.info device) in
+      let library_kind = get (Library.kind library) in
+      let library_install_name = get (Library.install_name library) in
+      let library_function_names = get (Library.function_names library) in
+      if library_kind <> Library.Executable_library
+         || Option.fold ~none:false ~some:(fun name -> name = "")
+              library_install_name
+         || not (List.mem "increment" library_function_names)
+      then
+        fail "executable Metal library metadata is wrong: kind=%s install=%s functions=%s"
+          (match library_kind with
+           | Library.Executable_library -> "executable"
+           | Library.Dynamic_library_source -> "dynamic"
+           | Library.Unknown_library_kind code -> Printf.sprintf "unknown(%d)" code)
+          (match library_install_name with None -> "none" | Some value -> value)
+          (String.concat "," library_function_names);
+      let function_ = get (Function.find ~library "increment") in
+      let archive_linked_function =
+        if device_info.function_pointers then
+          Some (get (Function.find ~library "linked_identity"))
+        else None
+      in
+      let before_archive_finalizer = get (Release_queue.stats ()) in
+      let allocate_unreleased_archive () =
+        ignore (get (Binary_archive.create device))
+      in
+      allocate_unreleased_archive ();
+      let after_archive_finalizer =
+        settle_finalizers
+          ~expected_live:before_archive_finalizer.live_handles
+      in
+      if
+        Int64.sub after_archive_finalizer.total_created
+          before_archive_finalizer.total_created
+        <> 1L
+        || Int64.sub after_archive_finalizer.total_released
+             before_archive_finalizer.total_released
+           <> 1L
+      then fail "binary-archive finalization did not release exactly one handle";
+      let archive =
+        get (Binary_archive.create ~label:"pipeline archive" device)
+      in
+      if not (Device.same device (Binary_archive.device archive))
+         || Binary_archive.generation archive <= 0L
+         || get (Binary_archive.label archive) <> Some "pipeline archive"
+      then
+        fail "binary archive label did not round-trip";
+      ignore
+        (expect_error Wrong_domain
+           (Domain.spawn (fun () -> Binary_archive.label archive)
+            |> Domain.join));
+      ignore
+        (expect_error Invalid_argument
+           (Binary_archive.serialize archive "relative.archive"));
+      ignore
+        (expect_error Invalid_argument
+           (Compute_pipeline.create ~fail_on_binary_archive_miss:true
+              function_));
+      get
+        (Binary_archive.add_compute_functions archive
+           ~linked_functions:(Option.to_list archive_linked_function)
+           function_);
+      get (Binary_archive.serialize archive archive_path);
+      if not (Sys.file_exists archive_path) then
+        fail "Metal did not serialize the binary archive";
+      let loaded_archive =
+        get
+          (Binary_archive.create ~path:archive_path
+             ~label:"loaded pipeline archive" device)
+      in
+      let before_duplicate_archive = get (Release_queue.stats ()) in
+      ignore
+        (expect_error Invalid_argument
+           (Compute_pipeline.create
+              ~binary_archives:[ loaded_archive; loaded_archive ] function_));
+      let after_duplicate_archive = get (Release_queue.stats ()) in
+      if after_duplicate_archive.total_created
+         <> before_duplicate_archive.total_created
+      then fail "duplicate binary archives allocated a native handle";
+      let archive_pipeline =
+        get
+          (Compute_pipeline.create
+             ~linked_functions:(Option.to_list archive_linked_function)
+             ~binary_archives:[ loaded_archive ]
+             ~fail_on_binary_archive_miss:true function_)
+      in
+      get (Binary_archive.destroy loaded_archive);
+      get (Binary_archive.destroy archive);
+      Option.iter
+        (fun value -> get (Function.destroy value))
+        archive_linked_function;
+      ignore (expect_error Destroyed (Binary_archive.label loaded_archive));
+      ignore
+        (expect_error Destroyed
+           (Binary_archive.serialize archive archive_path));
+      run_pipeline_once device archive_pipeline ~initial:41l ~expected:42l;
+      get (Compute_pipeline.destroy archive_pipeline);
+      if device_info.dynamic_libraries then begin
+        ignore
+          (expect_error Invalid_argument
+             (Library.compile_dynamic_source ~device ~install_name:""
+                dynamic_library_source));
+        ignore
+          (expect_error Invalid_argument
+             (Dynamic_library.load_file ~device "relative.dynamic"));
+        ignore
+          (expect_error Invalid_argument (Dynamic_library.create library));
+        let before_dynamic_finalizer = get (Release_queue.stats ()) in
+        let allocate_unreleased_dynamic_library () =
+          let source =
+            get
+              (Library.compile_dynamic_source ~device
+                 ~install_name:(dynamic_path ^ ".finalizer")
+                 dynamic_library_source)
+          in
+          ignore (get (Dynamic_library.create source))
+        in
+        allocate_unreleased_dynamic_library ();
+        let after_dynamic_finalizer =
+          settle_finalizers
+            ~expected_live:before_dynamic_finalizer.live_handles
+        in
+        if
+          Int64.sub after_dynamic_finalizer.total_created
+            before_dynamic_finalizer.total_created
+          <> 2L
+          || Int64.sub after_dynamic_finalizer.total_released
+               before_dynamic_finalizer.total_released
+             <> 2L
+        then
+          fail
+            "dynamic-library finalization did not release source and library handles";
+        let dynamic_source =
+          get
+            (Library.compile_dynamic_source ~device
+               ~label:"dynamic source library" ~install_name:dynamic_path
+               dynamic_library_source)
+        in
+        if get (Library.kind dynamic_source)
+           <> Library.Dynamic_library_source
+           || get (Library.install_name dynamic_source) <> Some dynamic_path
+        then fail "dynamic source-library metadata is wrong";
+        let dynamic_library =
+          get
+            (Dynamic_library.create ~label:"live dynamic library"
+               dynamic_source)
+        in
+        if get (Dynamic_library.label dynamic_library)
+           <> Some "live dynamic library"
+           || get (Dynamic_library.install_name dynamic_library) <> dynamic_path
+           || not (Device.same device (Dynamic_library.device dynamic_library))
+           || Dynamic_library.generation dynamic_library <= 0L
+        then fail "dynamic-library metadata is wrong";
+        ignore
+          (expect_error Wrong_domain
+             (Domain.spawn (fun () -> Dynamic_library.label dynamic_library)
+              |> Domain.join));
+        ignore
+          (expect_error Invalid_argument
+             (Dynamic_library.serialize dynamic_library "relative.dynamic"));
+        get (Dynamic_library.serialize dynamic_library dynamic_path);
+        if not (Sys.file_exists dynamic_path) then
+          fail "Metal did not serialize the dynamic library";
+        get (Library.destroy dynamic_source);
+        get (Dynamic_library.destroy dynamic_library);
+        ignore
+          (expect_error Destroyed
+             (Dynamic_library.label dynamic_library));
+        ignore
+          (expect_error Destroyed
+             (Dynamic_library.create dynamic_source));
+        let loaded_dynamic =
+          get
+            (Dynamic_library.load_file ~device ~label:"loaded dynamic library"
+               dynamic_path)
+        in
+        if get (Dynamic_library.install_name loaded_dynamic) <> dynamic_path
+        then fail "loaded dynamic-library install name changed";
+        let before_duplicate_dynamic = get (Release_queue.stats ()) in
+        ignore
+          (expect_error Invalid_argument
+             (Dynamic_library.compile_source ~device
+                ~libraries:[ loaded_dynamic; loaded_dynamic ]
+                dynamic_client_source));
+        let after_duplicate_dynamic = get (Release_queue.stats ()) in
+        if after_duplicate_dynamic.total_created
+           <> before_duplicate_dynamic.total_created
+        then fail "duplicate dynamic libraries allocated a native handle";
+        let client_library =
+          get
+            (Dynamic_library.compile_source ~device
+               ~label:"dynamic client library" ~libraries:[ loaded_dynamic ]
+               dynamic_client_source)
+        in
+        let client_function =
+          get (Function.find ~library:client_library "call_dynamic_library")
+        in
+        let dynamic_archive =
+          get
+            (Binary_archive.create ~label:"dynamic pipeline archive" device)
+        in
+        get
+          (Binary_archive.add_compute_functions dynamic_archive
+             ~preloaded_libraries:[ loaded_dynamic ] client_function);
+        if Sys.file_exists archive_path then Sys.remove archive_path;
+        get (Binary_archive.serialize dynamic_archive archive_path);
+        let loaded_dynamic_archive =
+          get (Binary_archive.create ~path:archive_path device)
+        in
+        let dynamic_pipeline =
+          get
+            (Compute_pipeline.create
+               ~preloaded_libraries:[ loaded_dynamic ]
+               ~binary_archives:[ loaded_dynamic_archive ]
+               ~fail_on_binary_archive_miss:true client_function)
+        in
+        get (Binary_archive.destroy loaded_dynamic_archive);
+        get (Binary_archive.destroy dynamic_archive);
+        get (Function.destroy client_function);
+        get (Library.destroy client_library);
+        get (Dynamic_library.destroy loaded_dynamic);
+        ignore
+          (expect_error Destroyed
+             (Compute_pipeline.create
+                ~preloaded_libraries:[ loaded_dynamic ] function_));
+        run_pipeline_once device dynamic_pipeline ~initial:29l ~expected:42l;
+        get (Compute_pipeline.destroy dynamic_pipeline)
+      end;
+      get (Function.destroy function_);
+      get (Library.destroy library))
+
 let () =
   if Sys.os_type <> "Unix"
      || not (Sys.file_exists "/System/Library/Frameworks/Metal.framework")
@@ -1780,6 +2089,7 @@ let () =
     if info.name = "" || info.registry_id = 0L then
       fail "default device identity is incomplete";
     if info.max_buffer_length < 16L then fail "device buffer limit is invalid";
+    test_pipeline_assets device;
     test_format_matrix device;
     test_texture_swizzle_and_compression device;
     let residency_sets_supported = test_residency_set device in
@@ -3586,6 +3896,6 @@ let () =
         stats.external_deallocations
         stats.external_deallocation_mismatches;
     Printf.printf
-      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/reflection/compute conformance passed on %s\n%!"
+      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/reflection/compute conformance passed on %s\n%!"
       info.name
   end

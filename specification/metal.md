@@ -409,28 +409,49 @@ unmap, barriers, and ownership on the qualified hardware. This completes the M3
 resource gate; the broader command and pipeline surfaces remain tracked by M4
 and M5 rather than being implied by that narrower gate.
 
-The first M4 shader slice keeps runtime MSL compilation explicit and
-deterministic (`fastMathEnabled = NO`), preserves the complete `NSError`
+The M4 shader and pipeline-asset slices keep runtime MSL compilation explicit and
+deterministic (`fastMathEnabled = NO`), preserve the complete `NSError`
 description, domain, code, and `userInfo`, and prefixes compile,
 specialization, and link failures with the caller's label. Libraries,
 specialized functions, and compute pipelines expose their observed native
-labels. `Function.constants` returns sorted name/type/index/required metadata,
+labels. Libraries also expose their Metal kind, install name, and sorted entry
+point names. `Library.load_file` provides an absolute-path `.metallib` boundary;
+the local Command Line Tools environment exercises its validation and complete
+missing-file diagnostic, while a valid offline artifact remains a full-Xcode
+qualification item. `Function.constants` returns sorted
+name/type/index/required metadata,
 while `Function.specialize` accepts checked bool, signed and unsigned
 8/16/32/64-bit, half, and float values and rejects malformed names,
 duplicates, and numeric ranges before native compilation. Compute descriptors
-accept same-device, unique visible linked functions and can request binding
+accept same-device, unique visible linked functions, preloaded dynamic
+libraries, binary archives, fail-on-archive-miss policy, and optional binding
 plus buffer-type reflection. `Binding.validate_layout` is the pure OCaml
 boundary used to compare generated metadata with reflected
 name/index/access/resource/data-type layouts without depending on Metal's
 returned array order. The M1 conformance path executes both a linked,
 reflected specialization and every supported scalar constant representation
-on the GPU. Dynamic libraries, binary archives and pipeline datasets,
-render/mesh/object pipelines, the Metal 4 compiler, and offline `.metallib`
-provenance remain open M4 work.
+on the GPU.
+
+`Dynamic_library` compiles a typed dynamic source library with an explicit
+install name, creates or loads the corresponding device library, serializes it
+to an absolute path, links a client library against unique same-device
+dependencies, and preloads those dependencies into compute pipelines. The M1
+test serializes and reloads a dynamic library, destroys every source and link
+handle after pipeline creation, and then executes the retained pipeline.
+`Binary_archive` creates or reloads an archive, adds compute descriptors with
+the same linked/preloaded inputs used for pipeline construction, serializes the
+archive, and supports strict archive-hit pipeline creation. Duplicate,
+cross-device, stale, unsupported, malformed-path, and wrong-function-kind
+arguments are rejected at the typed boundary before native handle allocation.
+Pipeline datasets, render/mesh/object pipelines, the Metal 4 compiler, and
+positive offline `.metallib` provenance remain open M4 work.
 
 `test_metal.exe` runs a real M1 compute kernel, wrong-domain and invalid-state
 cases, full labeled shader diagnostics, function-constant introspection and
 specialization, linked visible functions, reflected binding-layout validation,
+dynamic-library source/client linking and serialize/reload retention, binary
+archive population and serialize/reload strict-hit creation, compiled-library
+metadata, and `.metallib` path/error handling,
 copied/no-copy external buffer ownership,
 shareable texture/handle/import lifetimes, single- and multi-plane IOSurface
 ownership and byte visibility, buffer-backed 2D/texture-buffer creation across

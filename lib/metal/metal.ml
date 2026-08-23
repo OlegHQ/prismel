@@ -24,6 +24,14 @@ let native_error operation message = error operation Native_error message
 let contains_nul value = String.contains value '\000'
 let option_exists predicate = function Some value -> predicate value | None -> false
 
+let validate_absolute_path operation path =
+  if path = "" then error operation Invalid_argument "path is empty"
+  else if contains_nul path then
+    error operation Invalid_argument "path contains a NUL byte"
+  else if Filename.is_relative path then
+    error operation Invalid_argument "path must be absolute"
+  else Ok ()
+
 module Provenance = struct
   let sdk_version = Generated_provenance.sdk_version
   let deployment_target = Generated_provenance.deployment_target
@@ -303,6 +311,11 @@ type function_constant =
   ; index : int64
   ; required : bool
   }
+
+type library_kind =
+  | Executable_library
+  | Dynamic_library_source
+  | Unknown_library_kind of int
 
 type pixel_format = Metal_format.t
 
@@ -602,6 +615,18 @@ type function_handle =
   { raw : Metal_raw.handle
   ; lifetime : lifetime
   ; library : library
+  }
+
+type dynamic_library =
+  { raw : Metal_raw.handle
+  ; lifetime : lifetime
+  ; device : device
+  }
+
+type binary_archive =
+  { raw : Metal_raw.handle
+  ; lifetime : lifetime
+  ; device : device
   }
 
 type compute_pipeline =
@@ -5977,6 +6002,59 @@ end
 module Library = struct
   type t = library
 
+  type kind = library_kind =
+    | Executable_library
+    | Dynamic_library_source
+    | Unknown_library_kind of int
+
+  let kind_of_code = function
+    | 0 -> Executable_library
+    | 1 -> Dynamic_library_source
+    | code -> Unknown_library_kind code
+
+  let make device raw =
+    let value : t = { raw; lifetime = lifetime (); device } in
+    attach device.lifetime;
+    attach_finalizer value value.lifetime device.lifetime;
+    value
+
+  let validate_source operation source label =
+    if source = "" then
+      error operation Invalid_argument "shader source is empty"
+    else if contains_nul source then
+      error operation Invalid_argument "shader source contains a NUL byte"
+    else if option_exists contains_nul label then
+      error operation Invalid_argument "library label contains a NUL byte"
+    else Ok ()
+
+  let compile_descriptor_raw operation ~(device : Device.t) ?label
+      ~library_type ~install_name ~linked_libraries source =
+    on_main operation (fun () ->
+      match ensure_live operation device.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match validate_source operation source label with
+           | Error _ as failure -> failure
+           | Ok () when library_type = 1 && Option.is_none install_name ->
+               error operation Invalid_argument
+                 "a dynamic-library source requires an install name"
+           | Ok ()
+             when option_exists
+                    (fun value -> value = "" || contains_nul value)
+                    install_name ->
+               error operation Invalid_argument
+                 "library install name must be nonempty and contain no NUL byte"
+           | Ok () ->
+               let descriptor : Metal_raw.library_compile_descriptor =
+                 { label; library_type; install_name; linked_libraries }
+               in
+               match
+                 Metal_raw.library_compile_descriptor device.raw source
+                   descriptor
+               with
+               | Error message -> native_error operation message
+               | Ok raw -> Ok (make device raw)))
+
   let compile_source ?label ~(device : Device.t) source =
     on_main "Metal.Library.compile_source" (fun () ->
       match ensure_live "Metal.Library.compile_source" device.lifetime with
@@ -5993,11 +6071,36 @@ module Library = struct
       | Ok () ->
           (match Metal_raw.library_compile device.raw source label with
            | Error message -> native_error "Metal.Library.compile_source" message
-           | Ok raw ->
-               let value : t = { raw; lifetime = lifetime (); device } in
-               attach device.lifetime;
-               attach_finalizer value value.lifetime device.lifetime;
-               Ok value))
+           | Ok raw -> Ok (make device raw)))
+
+  let compile_dynamic_source ?label ~(device : Device.t) ~install_name source =
+    let operation = "Metal.Library.compile_dynamic_source" in
+    on_main operation (fun () ->
+      match ensure_live operation device.lifetime with
+      | Error _ as failure -> failure
+      | Ok ()
+        when not (Metal_raw.device_supports_dynamic_libraries device.raw) ->
+          error operation Unsupported
+            "the Metal device has no dynamic-library support"
+      | Ok () ->
+          compile_descriptor_raw operation ~device ?label ~library_type:1
+            ~install_name:(Some install_name) ~linked_libraries:[||] source)
+
+  let load_file ?label ~(device : Device.t) path =
+    let operation = "Metal.Library.load_file" in
+    on_main operation (fun () ->
+      match ensure_live operation device.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match validate_absolute_path operation path with
+           | Error _ as failure -> failure
+           | Ok () when option_exists contains_nul label ->
+               error operation Invalid_argument
+                 "library label contains a NUL byte"
+           | Ok () ->
+               match Metal_raw.library_load_file device.raw path label with
+               | Error message -> native_error operation message
+               | Ok raw -> Ok (make device raw)))
 
   let device (value : t) = value.device
   let generation (value : t) = Metal_raw.generation value.raw
@@ -6008,6 +6111,27 @@ module Library = struct
       match ensure_live "Metal.Library.label" value.lifetime with
       | Error _ as failure -> failure
       | Ok () -> Ok (Metal_raw.library_label value.raw))
+
+  let kind (value : t) =
+    on_main "Metal.Library.kind" (fun () ->
+      match ensure_live "Metal.Library.kind" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () -> Ok (kind_of_code (Metal_raw.library_kind value.raw)))
+
+  let install_name (value : t) =
+    on_main "Metal.Library.install_name" (fun () ->
+      match ensure_live "Metal.Library.install_name" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () -> Ok (Metal_raw.library_install_name value.raw))
+
+  let function_names (value : t) =
+    on_main "Metal.Library.function_names" (fun () ->
+      match ensure_live "Metal.Library.function_names" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          Ok
+            (Metal_raw.library_function_names value.raw
+             |> Array.to_list |> List.sort String.compare))
 
   let destroy (value : t) =
     destroy_parent "Metal.Library.destroy" value.lifetime value.raw
@@ -6201,99 +6325,412 @@ module Function = struct
       (fun () -> detach value.library.lifetime)
 end
 
-module Compute_pipeline = struct
-  type t = compute_pipeline
+let validate_linked_functions operation device linked_functions =
+  let rec loop names = function
+    | [] -> Ok ()
+    | (linked : Function.t) :: rest ->
+        (match ensure_live operation linked.lifetime with
+         | Error _ as failure -> failure
+         | Ok () ->
+             (match ensure_same_device operation device linked.library.device with
+              | Error _ as failure -> failure
+              | Ok () ->
+                  let name = Metal_raw.function_name linked.raw in
+                  if List.mem name names then
+                    error operation Invalid_argument
+                      "linked functions must have unique names"
+                  else
+                    match Function.kind_of_code (Metal_raw.function_kind linked.raw) with
+                    | Function.Visible -> loop (name :: names) rest
+                    | _ ->
+                        error operation Invalid_argument
+                          "linked functions must be visible Metal functions"))
+  in
+  loop [] linked_functions
 
-  let validate_linked operation device linked_functions =
-    let rec loop names = function
-      | [] -> Ok ()
-      | (linked : Function.t) :: rest ->
-          (match ensure_live operation linked.lifetime with
+let validate_dynamic_libraries operation device libraries =
+  let rec loop install_names = function
+    | [] -> Ok ()
+    | (library : dynamic_library) :: rest ->
+        (match ensure_live operation library.lifetime with
+         | Error _ as failure -> failure
+         | Ok () ->
+             (match ensure_same_device operation device library.device with
+              | Error _ as failure -> failure
+              | Ok () ->
+                  let install_name =
+                    Metal_raw.dynamic_library_install_name library.raw
+                  in
+                  if List.mem install_name install_names then
+                    error operation Invalid_argument
+                      "dynamic-library list contains a duplicate install name"
+                  else loop (install_name :: install_names) rest))
+  in
+  loop [] libraries
+
+let validate_binary_archives operation device archives =
+  let rec loop seen = function
+    | [] -> Ok ()
+    | (archive : binary_archive) :: rest ->
+        if
+          List.exists
+            (fun (value : binary_archive) ->
+              value.lifetime == archive.lifetime)
+            seen
+        then
+          error operation Invalid_argument
+            "binary-archive list contains a duplicate handle"
+        else
+          (match ensure_live operation archive.lifetime with
            | Error _ as failure -> failure
            | Ok () ->
-               (match ensure_same_device operation device linked.library.device with
+               (match ensure_same_device operation device archive.device with
                 | Error _ as failure -> failure
-                | Ok () ->
-                    let name = Metal_raw.function_name linked.raw in
-                    if List.mem name names then
-                      error operation Invalid_argument
-                        "linked functions must have unique names"
-                    else
-                      match Function.kind_of_code (Metal_raw.function_kind linked.raw) with
-                      | Function.Visible -> loop (name :: names) rest
-                      | _ ->
-                          error operation Invalid_argument
-                            "linked functions must be visible Metal functions"))
-    in
-    loop [] linked_functions
+                | Ok () -> loop (archive :: seen) rest))
+  in
+  loop [] archives
 
-  let create ?label ?(linked_functions = []) ?(reflection = false)
-      (function_value : Function.t) =
-    on_main "Metal.Compute_pipeline.create" (fun () ->
-      match ensure_live "Metal.Compute_pipeline.create" function_value.lifetime with
+module Dynamic_library = struct
+  type t = dynamic_library
+
+  let make device raw =
+    let value : t = { raw; lifetime = lifetime (); device } in
+    attach device.lifetime;
+    attach_finalizer value value.lifetime device.lifetime;
+    value
+
+  let check_support operation (device : Device.t) =
+    match ensure_live operation device.lifetime with
+    | Error _ as failure -> failure
+    | Ok () when not (Metal_raw.device_supports_dynamic_libraries device.raw) ->
+        error operation Unsupported
+          "the Metal device has no dynamic-library support"
+    | Ok () -> Ok ()
+
+  let create ?label (library : Library.t) =
+    let operation = "Metal.Dynamic_library.create" in
+    on_main operation (fun () ->
+      match ensure_live operation library.lifetime with
       | Error _ as failure -> failure
       | Ok () when option_exists contains_nul label ->
-          error "Metal.Compute_pipeline.create" Invalid_argument
-            "pipeline label contains a NUL byte"
+          error operation Invalid_argument
+            "dynamic-library label contains a NUL byte"
       | Ok () ->
-          let device = function_value.library.device in
-          (match Function.kind_of_code (Metal_raw.function_kind function_value.raw) with
-           | Function.Kernel ->
+          let device = library.device in
+          (match check_support operation device with
+           | Error _ as failure -> failure
+           | Ok ()
+             when Library.kind_of_code (Metal_raw.library_kind library.raw)
+                  <> Library.Dynamic_library_source ->
+               error operation Invalid_argument
+                 "source library was not compiled as a dynamic library"
+           | Ok () ->
+               match
+                 Metal_raw.dynamic_library_create device.raw library.raw label
+               with
+               | Error message -> native_error operation message
+               | Ok raw -> Ok (make device raw)))
+
+  let load_file ?label ~(device : Device.t) path =
+    let operation = "Metal.Dynamic_library.load_file" in
+    on_main operation (fun () ->
+      match check_support operation device with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match validate_absolute_path operation path with
+           | Error _ as failure -> failure
+           | Ok () when option_exists contains_nul label ->
+               error operation Invalid_argument
+                 "dynamic-library label contains a NUL byte"
+           | Ok () ->
+               match
+                 Metal_raw.dynamic_library_load_file device.raw path label
+               with
+               | Error message -> native_error operation message
+               | Ok raw -> Ok (make device raw)))
+
+  let compile_source ?label ~(device : Device.t) ~libraries source =
+    let operation = "Metal.Dynamic_library.compile_source" in
+    on_main operation (fun () ->
+      match check_support operation device with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match validate_dynamic_libraries operation device libraries with
+           | Error _ as failure -> failure
+           | Ok () ->
+               Library.compile_descriptor_raw operation ~device ?label
+                 ~library_type:0 ~install_name:None
+                 ~linked_libraries:
+                   (Array.of_list
+                      (List.map (fun (value : t) -> value.raw) libraries))
+                 source))
+
+  let device (value : t) = value.device
+  let generation (value : t) = Metal_raw.generation value.raw
+  let destroyed (value : t) = is_destroyed value.lifetime
+
+  let label (value : t) =
+    on_main "Metal.Dynamic_library.label" (fun () ->
+      match ensure_live "Metal.Dynamic_library.label" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () -> Ok (Metal_raw.dynamic_library_label value.raw))
+
+  let install_name (value : t) =
+    on_main "Metal.Dynamic_library.install_name" (fun () ->
+      match ensure_live "Metal.Dynamic_library.install_name" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () -> Ok (Metal_raw.dynamic_library_install_name value.raw))
+
+  let serialize (value : t) path =
+    let operation = "Metal.Dynamic_library.serialize" in
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match validate_absolute_path operation path with
+           | Error _ as failure -> failure
+           | Ok () ->
+               match Metal_raw.dynamic_library_serialize value.raw path with
+               | Error message -> native_error operation message
+               | Ok () -> Ok ()))
+
+  let destroy (value : t) =
+    destroy_leaf "Metal.Dynamic_library.destroy" value.lifetime value.raw
+      (fun () -> detach value.device.lifetime)
+end
+
+module Binary_archive = struct
+  type t = binary_archive
+
+  let make device raw =
+    let value : t = { raw; lifetime = lifetime (); device } in
+    attach device.lifetime;
+    attach_finalizer value value.lifetime device.lifetime;
+    value
+
+  let create ?path ?label (device : Device.t) =
+    let operation = "Metal.Binary_archive.create" in
+    on_main operation (fun () ->
+      match ensure_live operation device.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when option_exists contains_nul label ->
+          error operation Invalid_argument
+            "binary-archive label contains a NUL byte"
+      | Ok () ->
+          (match path with
+           | Some path ->
+               (match validate_absolute_path operation path with
+                | Error _ as failure -> failure
+                | Ok () ->
+                    (match
+                       Metal_raw.binary_archive_create device.raw (Some path)
+                         label
+                     with
+                     | Error message -> native_error operation message
+                     | Ok raw -> Ok (make device raw)))
+           | None ->
+               (match Metal_raw.binary_archive_create device.raw None label with
+                | Error message -> native_error operation message
+                | Ok raw -> Ok (make device raw))))
+
+  let add_compute_functions (value : t) ?(linked_functions = [])
+      ?(preloaded_libraries = []) (function_value : Function.t) =
+    let operation = "Metal.Binary_archive.add_compute_functions" in
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match ensure_live operation function_value.lifetime with
+           | Error _ as failure -> failure
+           | Ok () ->
                (match
-                  validate_linked "Metal.Compute_pipeline.create" device
-                    linked_functions
+                  ensure_same_device operation value.device
+                    function_value.library.device
                 with
                 | Error _ as failure -> failure
                 | Ok ()
-                  when linked_functions <> []
-                       && not
-                            (Metal_raw.device_supports_function_pointers
-                               device.raw) ->
-                    error "Metal.Compute_pipeline.create" Unsupported
-                      "linked functions require Metal function-pointer support"
+                  when Function.kind_of_code
+                         (Metal_raw.function_kind function_value.raw)
+                       <> Function.Kernel ->
+                    error operation Invalid_argument
+                      "archive compute entry point must be a kernel"
                 | Ok () ->
-                    let creation =
-                      if label = None && linked_functions = [] && not reflection
-                      then
-                        Result.map
-                          (fun raw -> raw, [||])
-                          (Metal_raw.compute_pipeline_create device.raw
-                             function_value.raw)
-                      else
-                        Metal_raw.compute_pipeline_create_descriptor device.raw
-                          function_value.raw label reflection
-                          (Array.of_list
-                             (List.map
-                                (fun (value : Function.t) -> value.raw)
-                                linked_functions))
+                    (match
+                       validate_linked_functions operation value.device
+                         linked_functions
+                     with
+                     | Error _ as failure -> failure
+                     | Ok ()
+                       when linked_functions <> []
+                            && not
+                                 (Metal_raw.device_supports_function_pointers
+                                    value.device.raw) ->
+                         error operation Unsupported
+                           "archived linked functions require Metal function-pointer support"
+                     | Ok () ->
+                         (match
+                            validate_dynamic_libraries operation value.device
+                              preloaded_libraries
+                          with
+                          | Error _ as failure -> failure
+                          | Ok ()
+                            when preloaded_libraries <> []
+                                 && not
+                                      (Metal_raw.device_supports_dynamic_libraries
+                                         value.device.raw) ->
+                              error operation Unsupported
+                                "archived preloads require Metal dynamic-library support"
+                          | Ok () ->
+                              match
+                                Metal_raw.binary_archive_add_compute value.raw
+                                  function_value.raw
+                                  (Array.of_list
+                                     (List.map
+                                        (fun (linked : Function.t) -> linked.raw)
+                                        linked_functions))
+                                  (Array.of_list
+                                     (List.map
+                                        (fun (library : Dynamic_library.t) ->
+                                          library.raw)
+                                        preloaded_libraries))
+                              with
+                              | Error message -> native_error operation message
+                              | Ok () -> Ok ())))))
+
+  let serialize (value : t) path =
+    let operation = "Metal.Binary_archive.serialize" in
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match validate_absolute_path operation path with
+           | Error _ as failure -> failure
+           | Ok () ->
+               match Metal_raw.binary_archive_serialize value.raw path with
+               | Error message -> native_error operation message
+               | Ok () -> Ok ()))
+
+  let device (value : t) = value.device
+  let generation (value : t) = Metal_raw.generation value.raw
+  let destroyed (value : t) = is_destroyed value.lifetime
+
+  let label (value : t) =
+    on_main "Metal.Binary_archive.label" (fun () ->
+      match ensure_live "Metal.Binary_archive.label" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () -> Ok (Metal_raw.binary_archive_label value.raw))
+
+  let destroy (value : t) =
+    destroy_leaf "Metal.Binary_archive.destroy" value.lifetime value.raw
+      (fun () -> detach value.device.lifetime)
+end
+
+module Compute_pipeline = struct
+  type t = compute_pipeline
+
+  let create ?label ?(linked_functions = []) ?(preloaded_libraries = [])
+      ?(binary_archives = []) ?(fail_on_binary_archive_miss = false)
+      ?(reflection = false) (function_value : Function.t) =
+    let operation = "Metal.Compute_pipeline.create" in
+    on_main operation (fun () ->
+      let ( let* ) value callback = Result.bind value callback in
+      let* () = ensure_live operation function_value.lifetime in
+      if option_exists contains_nul label then
+        error operation Invalid_argument "pipeline label contains a NUL byte"
+      else
+        let device = function_value.library.device in
+        if
+          Function.kind_of_code (Metal_raw.function_kind function_value.raw)
+          <> Function.Kernel
+        then
+          error operation Invalid_argument
+            "the pipeline entry point must be a Metal kernel function"
+        else
+          let* () =
+            validate_linked_functions operation device linked_functions
+          in
+          if
+            linked_functions <> []
+            && not (Metal_raw.device_supports_function_pointers device.raw)
+          then
+            error operation Unsupported
+              "linked functions require Metal function-pointer support"
+          else
+            let* () =
+              validate_dynamic_libraries operation device preloaded_libraries
+            in
+            if
+              preloaded_libraries <> []
+              && not (Metal_raw.device_supports_dynamic_libraries device.raw)
+            then
+              error operation Unsupported
+                "preloaded libraries require Metal dynamic-library support"
+            else
+              let* () =
+                validate_binary_archives operation device binary_archives
+              in
+              if fail_on_binary_archive_miss && binary_archives = [] then
+                error operation Invalid_argument
+                  "fail-on-archive-miss requires at least one binary archive"
+              else
+                let descriptor_required =
+                  label <> None || linked_functions <> []
+                  || preloaded_libraries <> [] || binary_archives <> []
+                  || fail_on_binary_archive_miss || reflection
+                in
+                let creation =
+                  if not descriptor_required then
+                    Result.map
+                      (fun raw -> raw, [||])
+                      (Metal_raw.compute_pipeline_create device.raw
+                         function_value.raw)
+                  else
+                    let descriptor : Metal_raw.compute_pipeline_descriptor =
+                      { label
+                      ; reflection
+                      ; linked_functions =
+                          Array.of_list
+                            (List.map
+                               (fun (value : Function.t) -> value.raw)
+                               linked_functions)
+                      ; preloaded_libraries =
+                          Array.of_list
+                            (List.map
+                               (fun (value : Dynamic_library.t) -> value.raw)
+                               preloaded_libraries)
+                      ; binary_archives =
+                          Array.of_list
+                            (List.map
+                               (fun (value : Binary_archive.t) -> value.raw)
+                               binary_archives)
+                      ; fail_on_binary_archive_miss
+                      }
                     in
-                    (match creation with
-                     | Error message ->
-                         native_error "Metal.Compute_pipeline.create" message
-                     | Ok (raw, raw_bindings) ->
-                         let bindings =
-                           if reflection then
-                             Some (Array.map Binding.of_raw raw_bindings)
-                           else None
-                         in
-                         let value : t =
-                           { raw
-                           ; lifetime = lifetime ()
-                           ; device
-                           ; bindings
-                           ; thread_execution_width =
-                               Metal_raw.compute_pipeline_thread_execution_width
-                                 raw
-                           ; max_total_threads =
-                               Metal_raw.compute_pipeline_max_total_threads raw
-                           }
-                         in
-                         attach device.lifetime;
-                         attach_finalizer value value.lifetime device.lifetime;
-                         Ok value))
-           | _ ->
-               error "Metal.Compute_pipeline.create" Invalid_argument
-                 "the pipeline entry point must be a Metal kernel function"))
+                    Metal_raw.compute_pipeline_create_descriptor device.raw
+                      function_value.raw descriptor
+                in
+                match creation with
+                | Error message -> native_error operation message
+                | Ok (raw, raw_bindings) ->
+                    let bindings =
+                      if reflection then
+                        Some (Array.map Binding.of_raw raw_bindings)
+                      else None
+                    in
+                    let value : t =
+                      { raw
+                      ; lifetime = lifetime ()
+                      ; device
+                      ; bindings
+                      ; thread_execution_width =
+                          Metal_raw.compute_pipeline_thread_execution_width raw
+                      ; max_total_threads =
+                          Metal_raw.compute_pipeline_max_total_threads raw
+                      }
+                    in
+                    attach device.lifetime;
+                    attach_finalizer value value.lifetime device.lifetime;
+                    Ok value)
 
   let device (value : t) = value.device
   let generation (value : t) = Metal_raw.generation value.raw

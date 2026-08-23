@@ -2,11 +2,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 0,
-    "bound": 937,
+    "bound": 992,
     "scope-excluded": 7,
-    "unreviewed": 4342
+    "unreviewed": 4287
   },
-  "classification_source_sha256": "6ac0ab0adf1dab5094b761065e22233d3bbe038d2e84550dc2f748cb586a9a1c",
+  "classification_source_sha256": "65636020e2a1d21a4d0cce7b5b419b0b49d4970467932fb5b4c099f283662be3",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "header_aggregate_sha256": "c2ee1e44c76606cf05fa81d1a8314dadfa49efe900342e8bcb3670363c16f0d1",
@@ -1419,14 +1419,14 @@
         "AvailabilityAttr",
         "VisibilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBinaryArchive.h",
       "id": "class:MTLBinaryArchiveDescriptor",
       "kind": "class",
       "line": 33,
       "name": "MTLBinaryArchiveDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -9031,26 +9031,26 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "enum-case:MTLLibraryType:MTLLibraryTypeDynamic",
       "kind": "enum-case",
       "line": 228,
       "name": "MTLLibraryTypeDynamic",
       "owner": "MTLLibraryType",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLLibraryType"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "enum-case:MTLLibraryType:MTLLibraryTypeExecutable",
       "kind": "enum-case",
       "line": 227,
       "name": "MTLLibraryTypeExecutable",
       "owner": "MTLLibraryType",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLLibraryType"
     },
     {
@@ -9467,14 +9467,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "enum-case:MTLPipelineOption:MTLPipelineOptionFailOnBinaryArchiveMiss",
       "kind": "enum-case",
       "line": 280,
       "name": "MTLPipelineOptionFailOnBinaryArchiveMiss",
       "owner": "MTLPipelineOption",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "(unnamed enum at /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Metal.framework/Headers/MTLDevice.h:274:9)"
     },
     {
@@ -14910,14 +14910,14 @@
         "AvailabilityAttr",
         "EnumExtensibilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDataType.h",
       "id": "enum:MTLDataType",
       "kind": "enum",
       "line": 16,
       "name": "MTLDataType",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -15287,14 +15287,14 @@
         "AvailabilityAttr",
         "EnumExtensibilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "enum:MTLLibraryType",
       "kind": "enum",
       "line": 226,
       "name": "MTLLibraryType",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -15466,14 +15466,14 @@
         "EnumExtensibilityAttr",
         "FlagEnumAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "enum:MTLPipelineOption",
       "kind": "enum",
       "line": 274,
       "name": "MTLPipelineOption",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -29617,14 +29617,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBinaryArchive.h",
       "id": "method:-[MTLBinaryArchive addComputePipelineFunctionsWithDescriptor:error:]",
       "kind": "method",
       "line": 82,
       "name": "addComputePipelineFunctionsWithDescriptor:error:",
       "owner": "MTLBinaryArchive",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLComputePipelineDescriptor * _Nonnull __strong, NSError *__autoreleasing  _Nullable * _Nullable) -> BOOL"
     },
     {
@@ -29697,74 +29697,74 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBinaryArchive.h",
       "id": "method:-[MTLBinaryArchive device]",
       "kind": "method",
       "line": 73,
       "name": "device",
       "owner": "MTLBinaryArchive",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> id<MTLDevice> _Nonnull"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBinaryArchive.h",
       "id": "method:-[MTLBinaryArchive label]",
       "kind": "method",
       "line": 67,
       "name": "label",
       "owner": "MTLBinaryArchive",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSString * _Nullable"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBinaryArchive.h",
       "id": "method:-[MTLBinaryArchive serializeToURL:error:]",
       "kind": "method",
       "line": 128,
       "name": "serializeToURL:error:",
       "owner": "MTLBinaryArchive",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (NSURL * _Nonnull __strong, NSError *__autoreleasing  _Nullable * _Nullable) -> BOOL"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBinaryArchive.h",
       "id": "method:-[MTLBinaryArchive setLabel:]",
       "kind": "method",
       "line": null,
       "name": "setLabel:",
       "owner": "MTLBinaryArchive",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (NSString * _Nullable) -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBinaryArchive.h",
       "id": "method:-[MTLBinaryArchiveDescriptor setUrl:]",
       "kind": "method",
       "line": null,
       "name": "setUrl:",
       "owner": "MTLBinaryArchiveDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (NSURL * _Nullable) -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBinaryArchive.h",
       "id": "method:-[MTLBinaryArchiveDescriptor url]",
       "kind": "method",
       "line": null,
       "name": "url",
       "owner": "MTLBinaryArchiveDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSURL * _Nullable"
     },
     {
@@ -31916,14 +31916,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLCompileOptions installName]",
       "kind": "method",
       "line": 352,
       "name": "installName",
       "owner": "MTLCompileOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSString * _Nullable"
     },
     {
@@ -31944,28 +31944,28 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLCompileOptions libraries]",
       "kind": "method",
       "line": 361,
       "name": "libraries",
       "owner": "MTLCompileOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSArray<id<MTLDynamicLibrary>> * _Nullable"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLCompileOptions libraryType]",
       "kind": "method",
       "line": 335,
       "name": "libraryType",
       "owner": "MTLCompileOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLLibraryType"
     },
     {
@@ -32124,14 +32124,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLCompileOptions setInstallName:]",
       "kind": "method",
       "line": null,
       "name": "setInstallName:",
       "owner": "MTLCompileOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (NSString * _Nullable) -> void"
     },
     {
@@ -32152,28 +32152,28 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLCompileOptions setLibraries:]",
       "kind": "method",
       "line": null,
       "name": "setLibraries:",
       "owner": "MTLCompileOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (NSArray<id<MTLDynamicLibrary>> * _Nullable) -> void"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLCompileOptions setLibraryType:]",
       "kind": "method",
       "line": null,
       "name": "setLibraryType:",
       "owner": "MTLCompileOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLLibraryType) -> void"
     },
     {
@@ -32932,14 +32932,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "method:-[MTLComputePipelineDescriptor binaryArchives]",
       "kind": "method",
       "line": 101,
       "name": "binaryArchives",
       "owner": "MTLComputePipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSArray<id<MTLBinaryArchive>> * _Nullable"
     },
     {
@@ -33040,14 +33040,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "method:-[MTLComputePipelineDescriptor preloadedLibraries]",
       "kind": "method",
       "line": 93,
       "name": "preloadedLibraries",
       "owner": "MTLComputePipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSArray<id<MTLDynamicLibrary>> * _Nonnull"
     },
     {
@@ -33080,14 +33080,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "method:-[MTLComputePipelineDescriptor setBinaryArchives:]",
       "kind": "method",
       "line": null,
       "name": "setBinaryArchives:",
       "owner": "MTLComputePipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (NSArray<id<MTLBinaryArchive>> * _Nullable) -> void"
     },
     {
@@ -33174,14 +33174,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "method:-[MTLComputePipelineDescriptor setPreloadedLibraries:]",
       "kind": "method",
       "line": null,
       "name": "setPreloadedLibraries:",
       "owner": "MTLComputePipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (NSArray<id<MTLDynamicLibrary>> * _Nonnull) -> void"
     },
     {
@@ -34535,14 +34535,14 @@
         "AvailabilityAttr",
         "NSReturnsRetainedAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newBinaryArchiveWithDescriptor:error:]",
       "kind": "method",
       "line": 1247,
       "name": "newBinaryArchiveWithDescriptor:error:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLBinaryArchiveDescriptor * _Nonnull __strong, NSError *__autoreleasing  _Nullable * _Nullable) -> id<MTLBinaryArchive> _Nullable"
     },
     {
@@ -34864,14 +34864,14 @@
         "AvailabilityAttr",
         "NSReturnsRetainedAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newDynamicLibrary:error:]",
       "kind": "method",
       "line": 1228,
       "name": "newDynamicLibrary:error:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (id<MTLLibrary>  _Nonnull __strong, NSError *__autoreleasing  _Nullable * _Nullable) -> id<MTLDynamicLibrary> _Nullable"
     },
     {
@@ -34879,14 +34879,14 @@
         "AvailabilityAttr",
         "NSReturnsRetainedAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newDynamicLibraryWithURL:error:]",
       "kind": "method",
       "line": 1238,
       "name": "newDynamicLibraryWithURL:error:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (NSURL * _Nonnull __strong, NSError *__autoreleasing  _Nullable * _Nullable) -> id<MTLDynamicLibrary> _Nullable"
     },
     {
@@ -35113,14 +35113,14 @@
         "AvailabilityAttr",
         "NSReturnsRetainedAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newLibraryWithURL:error:]",
       "kind": "method",
       "line": 772,
       "name": "newLibraryWithURL:error:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (NSURL * _Nonnull __strong, NSError *__autoreleasing  _Nullable * _Nullable) -> id<MTLLibrary> _Nullable"
     },
     {
@@ -36042,62 +36042,62 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDynamicLibrary.h",
       "id": "method:-[MTLDynamicLibrary device]",
       "kind": "method",
       "line": 59,
       "name": "device",
       "owner": "MTLDynamicLibrary",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> id<MTLDevice> _Nonnull"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDynamicLibrary.h",
       "id": "method:-[MTLDynamicLibrary installName]",
       "kind": "method",
       "line": 65,
       "name": "installName",
       "owner": "MTLDynamicLibrary",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSString * _Nonnull"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDynamicLibrary.h",
       "id": "method:-[MTLDynamicLibrary label]",
       "kind": "method",
       "line": 53,
       "name": "label",
       "owner": "MTLDynamicLibrary",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSString * _Nullable"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDynamicLibrary.h",
       "id": "method:-[MTLDynamicLibrary serializeToURL:error:]",
       "kind": "method",
       "line": 77,
       "name": "serializeToURL:error:",
       "owner": "MTLDynamicLibrary",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (NSURL * _Nonnull __strong, NSError *__autoreleasing  _Nullable * _Nullable) -> BOOL"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDynamicLibrary.h",
       "id": "method:-[MTLDynamicLibrary setLabel:]",
       "kind": "method",
       "line": null,
       "name": "setLabel:",
       "owner": "MTLDynamicLibrary",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (NSString * _Nullable) -> void"
     },
     {
@@ -39793,28 +39793,28 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLLibrary functionNames]",
       "kind": "method",
       "line": 543,
       "name": "functionNames",
       "owner": "MTLLibrary",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSArray<NSString *> * _Nonnull"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLLibrary installName]",
       "kind": "method",
       "line": 560,
       "name": "installName",
       "owner": "MTLLibrary",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSString * _Nullable"
     },
     {
@@ -39960,14 +39960,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLLibrary type]",
       "kind": "method",
       "line": 552,
       "name": "type",
       "owner": "MTLLibrary",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLLibraryType"
     },
     {
@@ -55015,38 +55015,38 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBinaryArchive.h",
       "id": "property:MTLBinaryArchive:device",
       "kind": "property",
       "line": 73,
       "name": "device",
       "owner": "MTLBinaryArchive",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "id<MTLDevice> _Nonnull"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBinaryArchive.h",
       "id": "property:MTLBinaryArchive:label",
       "kind": "property",
       "line": 67,
       "name": "label",
       "owner": "MTLBinaryArchive",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSString * _Nullable"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBinaryArchive.h",
       "id": "property:MTLBinaryArchiveDescriptor:url",
       "kind": "property",
       "line": 39,
       "name": "url",
       "owner": "MTLBinaryArchiveDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSURL * _Nullable"
     },
     {
@@ -55789,14 +55789,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "property:MTLCompileOptions:installName",
       "kind": "property",
       "line": 352,
       "name": "installName",
       "owner": "MTLCompileOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSString * _Nullable"
     },
     {
@@ -55817,28 +55817,28 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "property:MTLCompileOptions:libraries",
       "kind": "property",
       "line": 361,
       "name": "libraries",
       "owner": "MTLCompileOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSArray<id<MTLDynamicLibrary>> * _Nullable"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "property:MTLCompileOptions:libraryType",
       "kind": "property",
       "line": 335,
       "name": "libraryType",
       "owner": "MTLCompileOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLLibraryType"
     },
     {
@@ -56015,14 +56015,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "property:MTLComputePipelineDescriptor:binaryArchives",
       "kind": "property",
       "line": 101,
       "name": "binaryArchives",
       "owner": "MTLComputePipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSArray<id<MTLBinaryArchive>> * _Nullable"
     },
     {
@@ -56123,14 +56123,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "property:MTLComputePipelineDescriptor:preloadedLibraries",
       "kind": "property",
       "line": 93,
       "name": "preloadedLibraries",
       "owner": "MTLComputePipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSArray<id<MTLDynamicLibrary>> * _Nonnull"
     },
     {
@@ -57245,38 +57245,38 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDynamicLibrary.h",
       "id": "property:MTLDynamicLibrary:device",
       "kind": "property",
       "line": 59,
       "name": "device",
       "owner": "MTLDynamicLibrary",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "id<MTLDevice> _Nonnull"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDynamicLibrary.h",
       "id": "property:MTLDynamicLibrary:installName",
       "kind": "property",
       "line": 65,
       "name": "installName",
       "owner": "MTLDynamicLibrary",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSString * _Nonnull"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDynamicLibrary.h",
       "id": "property:MTLDynamicLibrary:label",
       "kind": "property",
       "line": 53,
       "name": "label",
       "owner": "MTLDynamicLibrary",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSString * _Nullable"
     },
     {
@@ -58871,28 +58871,28 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "property:MTLLibrary:functionNames",
       "kind": "property",
       "line": 543,
       "name": "functionNames",
       "owner": "MTLLibrary",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSArray<NSString *> * _Nonnull"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "property:MTLLibrary:installName",
       "kind": "property",
       "line": 560,
       "name": "installName",
       "owner": "MTLLibrary",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSString * _Nullable"
     },
     {
@@ -58911,14 +58911,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "property:MTLLibrary:type",
       "kind": "property",
       "line": 552,
       "name": "type",
       "owner": "MTLLibrary",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLLibraryType"
     },
     {
@@ -63859,14 +63859,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBinaryArchive.h",
       "id": "protocol:MTLBinaryArchive",
       "kind": "protocol",
       "line": 61,
       "name": "MTLBinaryArchive",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -64115,14 +64115,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDynamicLibrary.h",
       "id": "protocol:MTLDynamicLibrary",
       "kind": "protocol",
       "line": 47,
       "name": "MTLDynamicLibrary",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -66171,14 +66171,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDataType.h",
       "id": "typedef:MTLDataType",
       "kind": "typedef",
       "line": 16,
       "name": "MTLDataType",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "enum MTLDataType"
     },
     {
@@ -66670,14 +66670,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "typedef:MTLLibraryType",
       "kind": "typedef",
       "line": 226,
       "name": "MTLLibraryType",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "enum MTLLibraryType"
     },
     {
@@ -66948,14 +66948,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "typedef:MTLPipelineOption",
       "kind": "typedef",
       "line": 274,
       "name": "MTLPipelineOption",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {

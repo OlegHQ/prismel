@@ -527,6 +527,8 @@ enum class Handle_kind : std::uint32_t {
   Sampler,
   Library,
   Function,
+  Dynamic_library,
+  Binary_archive,
   Compute_pipeline,
   Command_queue,
   Command_buffer,
@@ -759,6 +761,29 @@ std::vector<id<MTLFunction>> functions_of_array(value raw_array) {
   return functions;
 }
 
+std::vector<id<MTLDynamicLibrary>> dynamic_libraries_of_array(
+    value raw_array) {
+  const mlsize_t count = Wosize_val(raw_array);
+  std::vector<id<MTLDynamicLibrary>> libraries;
+  libraries.reserve(count);
+  for (mlsize_t index = 0; index < count; ++index) {
+    libraries.push_back(object_of_handle(Field(raw_array, index),
+                                         Handle_kind::Dynamic_library));
+  }
+  return libraries;
+}
+
+std::vector<id<MTLBinaryArchive>> binary_archives_of_array(value raw_array) {
+  const mlsize_t count = Wosize_val(raw_array);
+  std::vector<id<MTLBinaryArchive>> archives;
+  archives.reserve(count);
+  for (mlsize_t index = 0; index < count; ++index) {
+    archives.push_back(object_of_handle(Field(raw_array, index),
+                                        Handle_kind::Binary_archive));
+  }
+  return archives;
+}
+
 value copy_function_constants(id<MTLFunction> function) {
   CAMLparam0();
   CAMLlocal4(array, tuple, name, index_value);
@@ -951,6 +976,18 @@ NSString *string_from_ocaml(value text) {
       initWithBytes:String_val(text)
              length:caml_string_length(text)
            encoding:NSUTF8StringEncoding];
+}
+
+bool valid_absolute_path(NSString *path) {
+  if (path == nil || path.length == 0 || !path.isAbsolutePath) {
+    return false;
+  }
+  for (NSUInteger index = 0; index < path.length; ++index) {
+    if ([path characterAtIndex:index] == 0) {
+      return false;
+    }
+  }
+  return true;
 }
 
 value copy_optional_string(NSString *text) {
@@ -4329,6 +4366,147 @@ extern "C" CAMLprim value caml_prismel_metal_library_compile(
   CAMLreturn(result_ok(raw));
 }
 
+extern "C" CAMLprim value caml_prismel_metal_library_compile_descriptor(
+    value raw_device, value raw_source, value raw_descriptor) {
+  CAMLparam3(raw_device, raw_source, raw_descriptor);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    @try {
+      id<MTLDevice> device = object_of_handle(raw_device, Handle_kind::Device);
+      NSString *source = string_from_ocaml(raw_source);
+      if (source == nil) {
+        CAMLreturn(result_error_text("Metal source is not valid UTF-8"));
+      }
+      NSString *expected_label = nil;
+      value raw_label = Field(raw_descriptor, 0);
+      if (Is_block(raw_label)) {
+        expected_label = string_from_ocaml(Field(raw_label, 0));
+        if (expected_label == nil) {
+          CAMLreturn(result_error_text("Metal library label is not valid UTF-8"));
+        }
+      }
+      const intnat library_type_code = Long_val(Field(raw_descriptor, 1));
+      if (library_type_code != 0 && library_type_code != 1) {
+        CAMLreturn(result_error_text("Metal library type is invalid"));
+      }
+      const MTLLibraryType library_type =
+          static_cast<MTLLibraryType>(library_type_code);
+      NSString *expected_install_name = nil;
+      value raw_install_name = Field(raw_descriptor, 2);
+      if (Is_block(raw_install_name)) {
+        expected_install_name =
+            string_from_ocaml(Field(raw_install_name, 0));
+        if (expected_install_name == nil) {
+          CAMLreturn(result_error_text(
+              "Metal library install name is not valid UTF-8"));
+        }
+      }
+      if ((library_type == MTLLibraryTypeDynamic) !=
+          (expected_install_name != nil)) {
+        CAMLreturn(result_error_text(
+            "Metal dynamic library type and install name disagree"));
+      }
+      std::vector<id<MTLDynamicLibrary>> linked_libraries =
+          dynamic_libraries_of_array(Field(raw_descriptor, 3));
+      NSMutableArray<id<MTLDynamicLibrary>> *linked_array =
+          [NSMutableArray arrayWithCapacity:linked_libraries.size()];
+      NSMutableSet<NSString *> *install_names = [NSMutableSet set];
+      for (id<MTLDynamicLibrary> linked : linked_libraries) {
+        if (linked.device.registryID != device.registryID ||
+            linked.installName == nil ||
+            [install_names containsObject:linked.installName]) {
+          CAMLreturn(result_error_text(
+              "Metal linked dynamic library is incompatible or duplicated"));
+        }
+        [install_names addObject:linked.installName];
+        [linked_array addObject:linked];
+      }
+      MTLCompileOptions *options = [[MTLCompileOptions alloc] init];
+      options.fastMathEnabled = NO;
+      options.libraryType = library_type;
+      options.installName = expected_install_name;
+      options.libraries = linked_array.count == 0 ? nil : linked_array;
+      if (options.libraryType != library_type ||
+          ((expected_install_name == nil) != (options.installName == nil)) ||
+          (expected_install_name != nil &&
+           ![options.installName isEqualToString:expected_install_name]) ||
+          options.libraries.count != linked_array.count) {
+        CAMLreturn(result_error_text(
+            "Metal changed checked library compile options"));
+      }
+      NSError *error = nil;
+      id<MTLLibrary> library = [device newLibraryWithSource:source
+                                                    options:options
+                                                      error:&error];
+      if (library == nil) {
+        CAMLreturn(result_error(labeled_error_description(
+            expected_label, error,
+            @"Metal source compilation failed without NSError")));
+      }
+      library.label = expected_label;
+      if (library.device.registryID != device.registryID ||
+          library.type != library_type ||
+          (library_type == MTLLibraryTypeDynamic &&
+           (((expected_install_name == nil) != (library.installName == nil)) ||
+            (expected_install_name != nil &&
+             ![library.installName isEqualToString:expected_install_name]))) ||
+          ((expected_label == nil) != (library.label == nil)) ||
+          (expected_label != nil &&
+           ![library.label isEqualToString:expected_label])) {
+        CAMLreturn(result_error_text(
+            "Metal changed checked library compilation properties"));
+      }
+      raw = allocate_handle(library, Handle_kind::Library);
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+  CAMLreturn(result_ok(raw));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_library_load_file(
+    value raw_device, value raw_path, value raw_label) {
+  CAMLparam3(raw_device, raw_path, raw_label);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    @try {
+      id<MTLDevice> device = object_of_handle(raw_device, Handle_kind::Device);
+      NSString *path = string_from_ocaml(raw_path);
+      if (!valid_absolute_path(path)) {
+        CAMLreturn(result_error_text(
+            "Metal library path must be a nonempty absolute UTF-8 path"));
+      }
+      NSURL *url = [NSURL fileURLWithPath:path];
+      NSString *expected_label = nil;
+      if (Is_block(raw_label)) {
+        expected_label = string_from_ocaml(Field(raw_label, 0));
+        if (expected_label == nil) {
+          CAMLreturn(result_error_text("Metal library label is not valid UTF-8"));
+        }
+      }
+      NSError *error = nil;
+      id<MTLLibrary> library = [device newLibraryWithURL:url error:&error];
+      if (library == nil) {
+        CAMLreturn(result_error(labeled_error_description(
+            expected_label ?: path.lastPathComponent, error,
+            @"Metal library loading failed without NSError")));
+      }
+      library.label = expected_label;
+      if (library.device.registryID != device.registryID ||
+          ((expected_label == nil) != (library.label == nil)) ||
+          (expected_label != nil &&
+           ![library.label isEqualToString:expected_label])) {
+        CAMLreturn(result_error_text(
+            "Metal changed checked loaded-library properties"));
+      }
+      raw = allocate_handle(library, Handle_kind::Library);
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+  CAMLreturn(result_ok(raw));
+}
+
 extern "C" CAMLprim value caml_prismel_metal_library_label(value raw) {
   CAMLparam1(raw);
   CAMLlocal1(result);
@@ -4337,6 +4515,41 @@ extern "C" CAMLprim value caml_prismel_metal_library_label(value raw) {
     result = copy_optional_string(library.label);
   }
   CAMLreturn(result);
+}
+
+extern "C" CAMLprim value caml_prismel_metal_library_kind(value raw) {
+  CAMLparam1(raw);
+  id<MTLLibrary> library = object_of_handle(raw, Handle_kind::Library);
+  CAMLreturn(Val_long(static_cast<intnat>(library.type)));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_library_install_name(value raw) {
+  CAMLparam1(raw);
+  CAMLlocal1(result);
+  @autoreleasepool {
+    id<MTLLibrary> library = object_of_handle(raw, Handle_kind::Library);
+    result = copy_optional_string(library.installName);
+  }
+  CAMLreturn(result);
+}
+
+extern "C" CAMLprim value caml_prismel_metal_library_function_names(
+    value raw) {
+  CAMLparam1(raw);
+  CAMLlocal2(array, name);
+  @autoreleasepool {
+    id<MTLLibrary> library = object_of_handle(raw, Handle_kind::Library);
+    NSArray<NSString *> *names = library.functionNames;
+    if (names.count > static_cast<NSUInteger>(Max_wosize)) {
+      caml_failwith("Metal library function-name list exceeds OCaml limits");
+    }
+    array = caml_alloc(static_cast<mlsize_t>(names.count), 0);
+    for (NSUInteger index = 0; index < names.count; ++index) {
+      name = caml_copy_string(names[index].UTF8String ?: "");
+      Store_field(array, static_cast<mlsize_t>(index), name);
+    }
+  }
+  CAMLreturn(array);
 }
 
 extern "C" CAMLprim value caml_prismel_metal_function_find(
@@ -4550,6 +4763,323 @@ extern "C" CAMLprim value caml_prismel_metal_function_specialize(
   CAMLreturn(result_ok(raw));
 }
 
+extern "C" CAMLprim value caml_prismel_metal_dynamic_library_create(
+    value raw_device, value raw_library, value raw_label) {
+  CAMLparam3(raw_device, raw_library, raw_label);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    @try {
+      id<MTLDevice> device = object_of_handle(raw_device, Handle_kind::Device);
+      id<MTLLibrary> library =
+          object_of_handle(raw_library, Handle_kind::Library);
+      if (!device.supportsDynamicLibraries ||
+          library.device.registryID != device.registryID ||
+          library.type != MTLLibraryTypeDynamic || library.installName == nil) {
+        CAMLreturn(result_error_text(
+            "Metal dynamic-library source is incompatible with the device"));
+      }
+      NSString *expected_label = nil;
+      if (Is_block(raw_label)) {
+        expected_label = string_from_ocaml(Field(raw_label, 0));
+        if (expected_label == nil) {
+          CAMLreturn(result_error_text(
+              "Metal dynamic-library label is not valid UTF-8"));
+        }
+      }
+      NSError *error = nil;
+      id<MTLDynamicLibrary> dynamic_library =
+          [device newDynamicLibrary:library error:&error];
+      if (dynamic_library == nil) {
+        CAMLreturn(result_error(labeled_error_description(
+            expected_label ?: library.installName, error,
+            @"Metal dynamic-library creation failed without NSError")));
+      }
+      dynamic_library.label = expected_label;
+      if (dynamic_library.device.registryID != device.registryID ||
+          dynamic_library.installName == nil ||
+          ![dynamic_library.installName isEqualToString:library.installName] ||
+          ((expected_label == nil) != (dynamic_library.label == nil)) ||
+          (expected_label != nil &&
+           ![dynamic_library.label isEqualToString:expected_label])) {
+        CAMLreturn(result_error_text(
+            "Metal changed checked dynamic-library creation properties"));
+      }
+      raw = allocate_handle(dynamic_library, Handle_kind::Dynamic_library);
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+  CAMLreturn(result_ok(raw));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_dynamic_library_load_file(
+    value raw_device, value raw_path, value raw_label) {
+  CAMLparam3(raw_device, raw_path, raw_label);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    @try {
+      id<MTLDevice> device = object_of_handle(raw_device, Handle_kind::Device);
+      if (!device.supportsDynamicLibraries) {
+        CAMLreturn(result_error_text(
+            "Metal device does not support dynamic libraries"));
+      }
+      NSString *path = string_from_ocaml(raw_path);
+      if (!valid_absolute_path(path)) {
+        CAMLreturn(result_error_text(
+            "Metal dynamic-library path must be a nonempty absolute UTF-8 path"));
+      }
+      NSString *expected_label = nil;
+      if (Is_block(raw_label)) {
+        expected_label = string_from_ocaml(Field(raw_label, 0));
+        if (expected_label == nil) {
+          CAMLreturn(result_error_text(
+              "Metal dynamic-library label is not valid UTF-8"));
+        }
+      }
+      NSError *error = nil;
+      id<MTLDynamicLibrary> dynamic_library =
+          [device newDynamicLibraryWithURL:[NSURL fileURLWithPath:path]
+                                     error:&error];
+      if (dynamic_library == nil) {
+        CAMLreturn(result_error(labeled_error_description(
+            expected_label ?: path.lastPathComponent, error,
+            @"Metal dynamic-library loading failed without NSError")));
+      }
+      dynamic_library.label = expected_label;
+      if (dynamic_library.device.registryID != device.registryID ||
+          dynamic_library.installName == nil ||
+          ((expected_label == nil) != (dynamic_library.label == nil)) ||
+          (expected_label != nil &&
+           ![dynamic_library.label isEqualToString:expected_label])) {
+        CAMLreturn(result_error_text(
+            "Metal changed checked loaded dynamic-library properties"));
+      }
+      raw = allocate_handle(dynamic_library, Handle_kind::Dynamic_library);
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+  CAMLreturn(result_ok(raw));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_dynamic_library_label(
+    value raw) {
+  CAMLparam1(raw);
+  CAMLlocal1(result);
+  @autoreleasepool {
+    id<MTLDynamicLibrary> library =
+        object_of_handle(raw, Handle_kind::Dynamic_library);
+    result = copy_optional_string(library.label);
+  }
+  CAMLreturn(result);
+}
+
+extern "C" CAMLprim value caml_prismel_metal_dynamic_library_install_name(
+    value raw) {
+  CAMLparam1(raw);
+  CAMLlocal1(result);
+  @autoreleasepool {
+    id<MTLDynamicLibrary> library =
+        object_of_handle(raw, Handle_kind::Dynamic_library);
+    result = caml_copy_string(library.installName.UTF8String ?: "");
+  }
+  CAMLreturn(result);
+}
+
+extern "C" CAMLprim value caml_prismel_metal_dynamic_library_serialize(
+    value raw, value raw_path) {
+  CAMLparam2(raw, raw_path);
+  @autoreleasepool {
+    @try {
+      id<MTLDynamicLibrary> library =
+          object_of_handle(raw, Handle_kind::Dynamic_library);
+      NSString *path = string_from_ocaml(raw_path);
+      if (!valid_absolute_path(path)) {
+        CAMLreturn(result_error_text(
+            "Metal dynamic-library path must be a nonempty absolute UTF-8 path"));
+      }
+      NSError *error = nil;
+      if (![library serializeToURL:[NSURL fileURLWithPath:path] error:&error]) {
+        CAMLreturn(result_error(labeled_error_description(
+            library.label ?: library.installName, error,
+            @"Metal dynamic-library serialization failed without NSError")));
+      }
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+  CAMLreturn(result_ok(Val_unit));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_binary_archive_create(
+    value raw_device, value raw_path, value raw_label) {
+  CAMLparam3(raw_device, raw_path, raw_label);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    @try {
+      id<MTLDevice> device = object_of_handle(raw_device, Handle_kind::Device);
+      NSString *path = nil;
+      if (Is_block(raw_path)) {
+        path = string_from_ocaml(Field(raw_path, 0));
+        if (!valid_absolute_path(path)) {
+          CAMLreturn(result_error_text(
+              "Metal binary-archive path must be a nonempty absolute UTF-8 path"));
+        }
+      }
+      NSString *expected_label = nil;
+      if (Is_block(raw_label)) {
+        expected_label = string_from_ocaml(Field(raw_label, 0));
+        if (expected_label == nil) {
+          CAMLreturn(result_error_text(
+              "Metal binary-archive label is not valid UTF-8"));
+        }
+      }
+      MTLBinaryArchiveDescriptor *descriptor =
+          [[MTLBinaryArchiveDescriptor alloc] init];
+      descriptor.url = path == nil ? nil : [NSURL fileURLWithPath:path];
+      if ((path == nil) != (descriptor.url == nil)) {
+        CAMLreturn(result_error_text(
+            "Metal changed checked binary-archive descriptor properties"));
+      }
+      NSError *error = nil;
+      id<MTLBinaryArchive> archive =
+          [device newBinaryArchiveWithDescriptor:descriptor error:&error];
+      if (archive == nil) {
+        CAMLreturn(result_error(labeled_error_description(
+            expected_label ?: path.lastPathComponent, error,
+            @"Metal binary-archive creation failed without NSError")));
+      }
+      archive.label = expected_label;
+      if (archive.device.registryID != device.registryID ||
+          ((expected_label == nil) != (archive.label == nil)) ||
+          (expected_label != nil &&
+           ![archive.label isEqualToString:expected_label])) {
+        CAMLreturn(result_error_text(
+            "Metal changed checked binary-archive creation properties"));
+      }
+      raw = allocate_handle(archive, Handle_kind::Binary_archive);
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+  CAMLreturn(result_ok(raw));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_binary_archive_label(value raw) {
+  CAMLparam1(raw);
+  CAMLlocal1(result);
+  @autoreleasepool {
+    id<MTLBinaryArchive> archive =
+        object_of_handle(raw, Handle_kind::Binary_archive);
+    result = copy_optional_string(archive.label);
+  }
+  CAMLreturn(result);
+}
+
+extern "C" CAMLprim value caml_prismel_metal_binary_archive_add_compute(
+    value raw_archive, value raw_function, value raw_linked_functions,
+    value raw_preloaded_libraries) {
+  CAMLparam4(raw_archive, raw_function, raw_linked_functions,
+             raw_preloaded_libraries);
+  @autoreleasepool {
+    @try {
+      id<MTLBinaryArchive> archive =
+          object_of_handle(raw_archive, Handle_kind::Binary_archive);
+      id<MTLFunction> function =
+          object_of_handle(raw_function, Handle_kind::Function);
+      if (function.device.registryID != archive.device.registryID ||
+          function.functionType != MTLFunctionTypeKernel) {
+        CAMLreturn(result_error_text(
+            "Metal archive compute function is incompatible"));
+      }
+      std::vector<id<MTLFunction>> linked_functions =
+          functions_of_array(raw_linked_functions);
+      if (!linked_functions.empty() &&
+          !archive.device.supportsFunctionPointers) {
+        CAMLreturn(result_error_text(
+            "Metal archive linked functions are unsupported by the device"));
+      }
+      NSMutableArray<id<MTLFunction>> *linked_array =
+          [NSMutableArray arrayWithCapacity:linked_functions.size()];
+      NSMutableSet<NSString *> *linked_names = [NSMutableSet set];
+      for (id<MTLFunction> linked : linked_functions) {
+        if (linked.device.registryID != archive.device.registryID ||
+            linked.functionType != MTLFunctionTypeVisible ||
+            [linked_names containsObject:linked.name]) {
+          CAMLreturn(result_error_text(
+              "Metal archive linked function is incompatible or duplicated"));
+        }
+        [linked_names addObject:linked.name];
+        [linked_array addObject:linked];
+      }
+      MTLComputePipelineDescriptor *descriptor =
+          [[MTLComputePipelineDescriptor alloc] init];
+      descriptor.computeFunction = function;
+      if (linked_array.count != 0) {
+        MTLLinkedFunctions *linked = [MTLLinkedFunctions linkedFunctions];
+        linked.functions = linked_array;
+        descriptor.linkedFunctions = linked;
+      }
+      std::vector<id<MTLDynamicLibrary>> preloaded_libraries =
+          dynamic_libraries_of_array(raw_preloaded_libraries);
+      if (!preloaded_libraries.empty() &&
+          !archive.device.supportsDynamicLibraries) {
+        CAMLreturn(result_error_text(
+            "Metal archive dynamic libraries are unsupported by the device"));
+      }
+      NSMutableArray<id<MTLDynamicLibrary>> *preloaded_array =
+          [NSMutableArray arrayWithCapacity:preloaded_libraries.size()];
+      NSMutableSet<NSString *> *install_names = [NSMutableSet set];
+      for (id<MTLDynamicLibrary> library : preloaded_libraries) {
+        if (library.device.registryID != archive.device.registryID ||
+            library.installName == nil ||
+            [install_names containsObject:library.installName]) {
+          CAMLreturn(result_error_text(
+              "Metal archive dynamic library is incompatible or duplicated"));
+        }
+        [install_names addObject:library.installName];
+        [preloaded_array addObject:library];
+      }
+      descriptor.preloadedLibraries = preloaded_array;
+      NSError *error = nil;
+      if (![archive addComputePipelineFunctionsWithDescriptor:descriptor
+                                                        error:&error]) {
+        CAMLreturn(result_error(labeled_error_description(
+            archive.label, error,
+            @"Metal binary-archive insertion failed without NSError")));
+      }
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+  CAMLreturn(result_ok(Val_unit));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_binary_archive_serialize(
+    value raw, value raw_path) {
+  CAMLparam2(raw, raw_path);
+  @autoreleasepool {
+    @try {
+      id<MTLBinaryArchive> archive =
+          object_of_handle(raw, Handle_kind::Binary_archive);
+      NSString *path = string_from_ocaml(raw_path);
+      if (!valid_absolute_path(path)) {
+        CAMLreturn(result_error_text(
+            "Metal binary-archive path must be a nonempty absolute UTF-8 path"));
+      }
+      NSError *error = nil;
+      if (![archive serializeToURL:[NSURL fileURLWithPath:path] error:&error]) {
+        CAMLreturn(result_error(labeled_error_description(
+            archive.label ?: path.lastPathComponent, error,
+            @"Metal binary-archive serialization failed without NSError")));
+      }
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+  CAMLreturn(result_ok(Val_unit));
+}
+
 extern "C" CAMLprim value caml_prismel_metal_compute_pipeline_create(
     value raw_device, value raw_function) {
   CAMLparam2(raw_device, raw_function);
@@ -4572,10 +5102,8 @@ extern "C" CAMLprim value caml_prismel_metal_compute_pipeline_create(
 
 extern "C" CAMLprim value
 caml_prismel_metal_compute_pipeline_create_descriptor(
-    value raw_device, value raw_function, value raw_label,
-    value raw_reflection, value raw_linked_functions) {
-  CAMLparam5(raw_device, raw_function, raw_label, raw_reflection,
-             raw_linked_functions);
+    value raw_device, value raw_function, value raw_descriptor) {
+  CAMLparam3(raw_device, raw_function, raw_descriptor);
   CAMLlocal3(raw, bindings, pair);
   @autoreleasepool {
     @try {
@@ -4588,6 +5116,7 @@ caml_prismel_metal_compute_pipeline_create_descriptor(
             "Metal compute entry point is incompatible with the device"));
       }
       NSString *expected_label = nil;
+      value raw_label = Field(raw_descriptor, 0);
       if (Is_block(raw_label)) {
         expected_label = string_from_ocaml(Field(raw_label, 0));
         if (expected_label == nil) {
@@ -4596,7 +5125,7 @@ caml_prismel_metal_compute_pipeline_create_descriptor(
         }
       }
       std::vector<id<MTLFunction>> linked_functions =
-          functions_of_array(raw_linked_functions);
+          functions_of_array(Field(raw_descriptor, 2));
       NSMutableSet<NSString *> *linked_names = [NSMutableSet set];
       NSMutableArray<id<MTLFunction>> *linked_array =
           [NSMutableArray arrayWithCapacity:linked_functions.size()];
@@ -4610,27 +5139,72 @@ caml_prismel_metal_compute_pipeline_create_descriptor(
         [linked_names addObject:linked.name];
         [linked_array addObject:linked];
       }
+      std::vector<id<MTLDynamicLibrary>> preloaded_libraries =
+          dynamic_libraries_of_array(Field(raw_descriptor, 3));
+      NSMutableArray<id<MTLDynamicLibrary>> *preloaded_array =
+          [NSMutableArray arrayWithCapacity:preloaded_libraries.size()];
+      NSMutableSet<NSString *> *install_names = [NSMutableSet set];
+      for (id<MTLDynamicLibrary> library : preloaded_libraries) {
+        if (!device.supportsDynamicLibraries ||
+            library.device.registryID != device.registryID ||
+            library.installName == nil ||
+            [install_names containsObject:library.installName]) {
+          CAMLreturn(result_error_text(
+              "Metal preloaded dynamic library is incompatible or duplicated"));
+        }
+        [install_names addObject:library.installName];
+        [preloaded_array addObject:library];
+      }
+      std::vector<id<MTLBinaryArchive>> binary_archives =
+          binary_archives_of_array(Field(raw_descriptor, 4));
+      NSMutableArray<id<MTLBinaryArchive>> *archive_array =
+          [NSMutableArray arrayWithCapacity:binary_archives.size()];
+      NSMutableSet<id<MTLBinaryArchive>> *archive_set = [NSMutableSet set];
+      for (id<MTLBinaryArchive> archive : binary_archives) {
+        if (archive.device.registryID != device.registryID ||
+            [archive_set containsObject:archive]) {
+          CAMLreturn(result_error_text(
+              "Metal binary archive is incompatible or duplicated"));
+        }
+        [archive_set addObject:archive];
+        [archive_array addObject:archive];
+      }
+      const bool fail_on_archive_miss = Bool_val(Field(raw_descriptor, 5));
+      if (fail_on_archive_miss && archive_array.count == 0) {
+        CAMLreturn(result_error_text(
+            "Metal fail-on-archive-miss has no binary archive"));
+      }
       MTLComputePipelineDescriptor *descriptor =
           [[MTLComputePipelineDescriptor alloc] init];
       descriptor.computeFunction = function;
-      descriptor.label = expected_label;
+      if (expected_label != nil) {
+        descriptor.label = expected_label;
+      }
       if (linked_array.count != 0) {
         MTLLinkedFunctions *linked = [MTLLinkedFunctions linkedFunctions];
         linked.functions = linked_array;
         descriptor.linkedFunctions = linked;
       }
+      descriptor.preloadedLibraries = preloaded_array;
+      descriptor.binaryArchives = archive_array;
       if (descriptor.computeFunction != function ||
           ((expected_label == nil) != (descriptor.label == nil)) ||
           (expected_label != nil &&
-           ![descriptor.label isEqualToString:expected_label])) {
+           ![descriptor.label isEqualToString:expected_label]) ||
+          descriptor.preloadedLibraries.count != preloaded_array.count ||
+          descriptor.binaryArchives.count != archive_array.count) {
         CAMLreturn(result_error_text(
             "Metal changed checked compute-pipeline descriptor properties"));
       }
-      const bool reflection_requested = Bool_val(raw_reflection);
-      const MTLPipelineOption options = reflection_requested
-          ? static_cast<MTLPipelineOption>(MTLPipelineOptionBindingInfo |
-                                           MTLPipelineOptionBufferTypeInfo)
+      const bool reflection_requested = Bool_val(Field(raw_descriptor, 1));
+      NSUInteger option_bits = reflection_requested
+          ? MTLPipelineOptionBindingInfo | MTLPipelineOptionBufferTypeInfo
           : MTLPipelineOptionNone;
+      if (fail_on_archive_miss) {
+        option_bits |= MTLPipelineOptionFailOnBinaryArchiveMiss;
+      }
+      const MTLPipelineOption options =
+          static_cast<MTLPipelineOption>(option_bits);
       MTLAutoreleasedComputePipelineReflection reflection = nil;
       NSError *error = nil;
       id<MTLComputePipelineState> pipeline =

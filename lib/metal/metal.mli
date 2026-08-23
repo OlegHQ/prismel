@@ -927,12 +927,29 @@ end
 module Library : sig
   type t
 
+  type kind =
+    | Executable_library
+    | Dynamic_library_source
+    | Unknown_library_kind of int
+
   val compile_source :
     ?label:string -> device:Device.t -> string -> (t, error) result
+
+  val compile_dynamic_source :
+    ?label:string -> device:Device.t -> install_name:string -> string ->
+    (t, error) result
+
+  (** Loads a compiled [.metallib]. The path must be absolute. *)
+  val load_file :
+    ?label:string -> device:Device.t -> string -> (t, error) result
+
   val device : t -> Device.t
   val generation : t -> int64
   val destroyed : t -> bool
   val label : t -> (string option, error) result
+  val kind : t -> (kind, error) result
+  val install_name : t -> (string option, error) result
+  val function_names : t -> (string list, error) result
   val destroy : t -> (unit, error) result
 end
 
@@ -984,12 +1001,61 @@ module Function : sig
   val destroy : t -> (unit, error) result
 end
 
+module Dynamic_library : sig
+  type t
+
+  val create : ?label:string -> Library.t -> (t, error) result
+  val load_file :
+    ?label:string -> device:Device.t -> string -> (t, error) result
+
+  (** Compiles an executable library whose unresolved symbols are linked
+      against the supplied same-device dynamic libraries. *)
+  val compile_source :
+    ?label:string -> device:Device.t -> libraries:t list -> string ->
+    (Library.t, error) result
+
+  val device : t -> Device.t
+  val generation : t -> int64
+  val destroyed : t -> bool
+  val label : t -> (string option, error) result
+  val install_name : t -> (string, error) result
+
+  (** Serializes device code and its source-library fallback to an absolute
+      file path. *)
+  val serialize : t -> string -> (unit, error) result
+  val destroy : t -> (unit, error) result
+end
+
+module Binary_archive : sig
+  type t
+
+  (** With no [path], creates an empty archive. An absolute [path] opens a
+      previously serialized archive. *)
+  val create :
+    ?path:string -> ?label:string -> Device.t -> (t, error) result
+
+  val add_compute_functions :
+    t -> ?linked_functions:Function.t list ->
+    ?preloaded_libraries:Dynamic_library.t list -> Function.t ->
+    (unit, error) result
+
+  val serialize : t -> string -> (unit, error) result
+  val device : t -> Device.t
+  val generation : t -> int64
+  val destroyed : t -> bool
+  val label : t -> (string option, error) result
+  val destroy : t -> (unit, error) result
+end
+
 module Compute_pipeline : sig
   type t
 
   val create :
-    ?label:string -> ?linked_functions:Function.t list -> ?reflection:bool ->
-    Function.t -> (t, error) result
+    ?label:string -> ?linked_functions:Function.t list ->
+    ?preloaded_libraries:Dynamic_library.t list ->
+    ?binary_archives:Binary_archive.t list ->
+    ?fail_on_binary_archive_miss:bool -> ?reflection:bool -> Function.t ->
+    (t, error) result
   val device : t -> Device.t
   val generation : t -> int64
   val label : t -> (string option, error) result
