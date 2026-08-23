@@ -31,6 +31,8 @@
   render_encoder_resource_adapter
   binding_render_encoder_manifest
   binding_render_command_safe_reachability
+  binding_pipeline_header_plan
+  binding_pipeline_state_safe_reachability
   binding_presentation_spec
   binding_presentation_plan
   binding_presentation_codegen
@@ -436,6 +438,13 @@
  (name test_binding_render_command_safe_reachability)
  (modules test_binding_render_command_safe_reachability)
  (libraries metal_inventory_classification))
+
+(test
+ (name test_binding_pipeline_state_safe_reachability)
+ (modules test_binding_pipeline_state_safe_reachability)
+ (libraries gpu_migration_support metal_inventory_classification yojson)
+ (deps ../../lib/metal/generated_api_inventory.json)
+ (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
  (name test_binding_presentation_native_codegen)

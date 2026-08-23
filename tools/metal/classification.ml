@@ -1626,4 +1626,10 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   then
     Bound,
       "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance."
+  else if
+    List.mem identifier
+      Binding_pipeline_state_safe_reachability.promotable_ids
+  then
+    Bound,
+      "Implemented by safe compute/render pipeline state queries with destroyed-handle and argument validation plus exact native conformance."
   else Unreviewed, "Binding classification pending during Phase 2."

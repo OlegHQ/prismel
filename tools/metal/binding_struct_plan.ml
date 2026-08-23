@@ -25,7 +25,10 @@ let relevant declaration =
   (String.equal declaration.classification "unreviewed"
    || (String.equal declaration.classification "bound"
        && List.mem declaration.id
-            Binding_resource_safe_reachability.promotable_ids))
+            Binding_resource_safe_reachability.promotable_ids
+          || String.equal declaration.classification "bound"
+             && List.mem declaration.id
+                  Binding_pipeline_state_safe_reachability.promotable_ids))
   && (String.equal declaration.kind "method"
       || String.equal declaration.kind "property")
   && Binding_struct_spec.mechanically_safe_signature declaration.signature

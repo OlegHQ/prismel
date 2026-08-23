@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 3679,
+    "bound": 3699,
     "scope-excluded": 37,
-    "unreviewed": 1569
+    "unreviewed": 1549
   },
-  "classification_source_sha256": "1cb43896f40ca80e31d7423145f1bf29729f8bb757604fd1a045fa3b242c5492",
+  "classification_source_sha256": "3de08f742238e60c780d2e06f853915d2e057e27592511b8b38f4e79a28c06b6",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -53897,7 +53897,7 @@
           "line": 263
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "method:-[MTLComputePipelineState gpuResourceID]",
       "kind": "method",
@@ -53905,7 +53905,7 @@
       "macos_introduced": "13.0",
       "name": "gpuResourceID",
       "owner": "MTLComputePipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe compute/render pipeline state queries with destroyed-handle and argument validation plus exact native conformance.",
       "signature": "instance () -> MTLResourceID"
     },
     {
@@ -53922,7 +53922,7 @@
           "line": 250
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "method:-[MTLComputePipelineState imageblockMemoryLengthForDimensions:]",
       "kind": "method",
@@ -53930,7 +53930,7 @@
       "macos_introduced": "11.0",
       "name": "imageblockMemoryLengthForDimensions:",
       "owner": "MTLComputePipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe compute/render pipeline state queries with destroyed-handle and argument validation plus exact native conformance.",
       "signature": "instance (MTLSize) -> NSUInteger"
     },
     {
@@ -54120,7 +54120,7 @@
           "line": 302
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "method:-[MTLComputePipelineState requiredThreadsPerThreadgroup]",
       "kind": "method",
@@ -54128,7 +54128,7 @@
       "macos_introduced": "26.0",
       "name": "requiredThreadsPerThreadgroup",
       "owner": "MTLComputePipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe compute/render pipeline state queries with destroyed-handle and argument validation plus exact native conformance.",
       "signature": "instance () -> MTLSize"
     },
     {
@@ -54145,7 +54145,7 @@
           "line": 296
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "method:-[MTLComputePipelineState shaderValidation]",
       "kind": "method",
@@ -54153,7 +54153,7 @@
       "macos_introduced": "15.0",
       "name": "shaderValidation",
       "owner": "MTLComputePipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe compute/render pipeline state queries with destroyed-handle and argument validation plus exact native conformance.",
       "signature": "instance () -> MTLShaderValidation"
     },
     {
@@ -54195,7 +54195,7 @@
           "line": 257
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "method:-[MTLComputePipelineState supportIndirectCommandBuffers]",
       "kind": "method",
@@ -54203,7 +54203,7 @@
       "macos_introduced": "11.0",
       "name": "supportIndirectCommandBuffers",
       "owner": "MTLComputePipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe compute/render pipeline state queries with destroyed-handle and argument validation plus exact native conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -74989,7 +74989,7 @@
           "line": 496
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineState gpuResourceID]",
       "kind": "method",
@@ -74997,7 +74997,7 @@
       "macos_introduced": "13.0",
       "name": "gpuResourceID",
       "owner": "MTLRenderPipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe compute/render pipeline state queries with destroyed-handle and argument validation plus exact native conformance.",
       "signature": "instance () -> MTLResourceID"
     },
     {
@@ -75014,7 +75014,7 @@
           "line": 451
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineState imageblockMemoryLengthForDimensions:]",
       "kind": "method",
@@ -75022,7 +75022,7 @@
       "macos_introduced": "11.0",
       "name": "imageblockMemoryLengthForDimensions:",
       "owner": "MTLRenderPipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe compute/render pipeline state queries with destroyed-handle and argument validation plus exact native conformance.",
       "signature": "instance (MTLSize) -> NSUInteger"
     },
     {
@@ -75039,7 +75039,7 @@
           "line": 445
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineState imageblockSampleLength]",
       "kind": "method",
@@ -75047,7 +75047,7 @@
       "macos_introduced": "11.0",
       "name": "imageblockSampleLength",
       "owner": "MTLRenderPipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe compute/render pipeline state queries with destroyed-handle and argument validation plus exact native conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -75438,7 +75438,7 @@
           "line": 532
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineState requiredThreadsPerTileThreadgroup]",
       "kind": "method",
@@ -75446,7 +75446,7 @@
       "macos_introduced": "26.0",
       "name": "requiredThreadsPerTileThreadgroup",
       "owner": "MTLRenderPipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe compute/render pipeline state queries with destroyed-handle and argument validation plus exact native conformance.",
       "signature": "instance () -> MTLSize"
     },
     {
@@ -75463,7 +75463,7 @@
           "line": 526
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineState shaderValidation]",
       "kind": "method",
@@ -75471,7 +75471,7 @@
       "macos_introduced": "15.0",
       "name": "shaderValidation",
       "owner": "MTLRenderPipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe compute/render pipeline state queries with destroyed-handle and argument validation plus exact native conformance.",
       "signature": "instance () -> MTLShaderValidation"
     },
     {
@@ -75488,7 +75488,7 @@
           "line": 454
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineState supportIndirectCommandBuffers]",
       "kind": "method",
@@ -75496,7 +75496,7 @@
       "macos_introduced": "10.14",
       "name": "supportIndirectCommandBuffers",
       "owner": "MTLRenderPipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe compute/render pipeline state queries with destroyed-handle and argument validation plus exact native conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -91938,7 +91938,7 @@
           "line": 263
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "property:MTLComputePipelineState:gpuResourceID",
       "kind": "property",
@@ -91946,7 +91946,7 @@
       "macos_introduced": "13.0",
       "name": "gpuResourceID",
       "owner": "MTLComputePipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe compute/render pipeline state queries with destroyed-handle and argument validation plus exact native conformance.",
       "signature": "MTLResourceID"
     },
     {
@@ -92032,7 +92032,7 @@
           "line": 302
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "property:MTLComputePipelineState:requiredThreadsPerThreadgroup",
       "kind": "property",
@@ -92040,7 +92040,7 @@
       "macos_introduced": "26.0",
       "name": "requiredThreadsPerThreadgroup",
       "owner": "MTLComputePipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe compute/render pipeline state queries with destroyed-handle and argument validation plus exact native conformance.",
       "signature": "MTLSize"
     },
     {
@@ -92057,7 +92057,7 @@
           "line": 296
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "property:MTLComputePipelineState:shaderValidation",
       "kind": "property",
@@ -92065,7 +92065,7 @@
       "macos_introduced": "15.0",
       "name": "shaderValidation",
       "owner": "MTLComputePipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe compute/render pipeline state queries with destroyed-handle and argument validation plus exact native conformance.",
       "signature": "MTLShaderValidation"
     },
     {
@@ -92107,7 +92107,7 @@
           "line": 257
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "property:MTLComputePipelineState:supportIndirectCommandBuffers",
       "kind": "property",
@@ -92115,7 +92115,7 @@
       "macos_introduced": "11.0",
       "name": "supportIndirectCommandBuffers",
       "owner": "MTLComputePipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe compute/render pipeline state queries with destroyed-handle and argument validation plus exact native conformance.",
       "signature": "BOOL"
     },
     {
@@ -99957,7 +99957,7 @@
           "line": 496
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineState:gpuResourceID",
       "kind": "property",
@@ -99965,7 +99965,7 @@
       "macos_introduced": "13.0",
       "name": "gpuResourceID",
       "owner": "MTLRenderPipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe compute/render pipeline state queries with destroyed-handle and argument validation plus exact native conformance.",
       "signature": "MTLResourceID"
     },
     {
@@ -99982,7 +99982,7 @@
           "line": 445
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineState:imageblockSampleLength",
       "kind": "property",
@@ -99990,7 +99990,7 @@
       "macos_introduced": "11.0",
       "name": "imageblockSampleLength",
       "owner": "MTLRenderPipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe compute/render pipeline state queries with destroyed-handle and argument validation plus exact native conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -100251,7 +100251,7 @@
           "line": 532
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineState:requiredThreadsPerTileThreadgroup",
       "kind": "property",
@@ -100259,7 +100259,7 @@
       "macos_introduced": "26.0",
       "name": "requiredThreadsPerTileThreadgroup",
       "owner": "MTLRenderPipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe compute/render pipeline state queries with destroyed-handle and argument validation plus exact native conformance.",
       "signature": "MTLSize"
     },
     {
@@ -100276,7 +100276,7 @@
           "line": 526
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineState:shaderValidation",
       "kind": "property",
@@ -100284,7 +100284,7 @@
       "macos_introduced": "15.0",
       "name": "shaderValidation",
       "owner": "MTLRenderPipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe compute/render pipeline state queries with destroyed-handle and argument validation plus exact native conformance.",
       "signature": "MTLShaderValidation"
     },
     {
@@ -100301,7 +100301,7 @@
           "line": 454
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineState:supportIndirectCommandBuffers",
       "kind": "property",
@@ -100309,7 +100309,7 @@
       "macos_introduced": "10.14",
       "name": "supportIndirectCommandBuffers",
       "owner": "MTLRenderPipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe compute/render pipeline state queries with destroyed-handle and argument validation plus exact native conformance.",
       "signature": "BOOL"
     },
     {

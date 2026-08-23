@@ -203,6 +203,8 @@ let require_classification declaration =
     if Binding_direct_plan.is_safe_device_identifier declaration.identifier
        || List.mem declaration.identifier
             Binding_resource_safe_reachability.promotable_ids
+       || List.mem declaration.identifier
+            Binding_pipeline_state_safe_reachability.promotable_ids
     then "bound"
     else "unreviewed"
   in
