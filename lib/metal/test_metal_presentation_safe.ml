@@ -1,0 +1,46 @@
+open Metal
+
+let fail format = Printf.ksprintf failwith format
+let get = function
+  | Ok value -> value
+  | Error error -> fail "%s" (Format.asprintf "%a" pp_error error)
+let expect kind = function
+  | Error error when error.kind = kind -> ()
+  | Error error -> fail "unexpected error: %s" (Format.asprintf "%a" pp_error error)
+  | Ok _ -> fail "expected rejection"
+
+let () =
+  let device = get (Device.system_default ()) in
+  let queue = get (Command_queue.create device) in
+  let layer = get (Metal_layer.create device (Metal_layer.default ~width:8 ~height:8)) in
+  let drawable =
+    match get (Drawable.acquire layer) with
+    | Ok drawable -> drawable
+    | Error Drawable.Timeout_or_unavailable -> fail "unexpected drawable loss"
+  in
+  let texture = get (Drawable.texture drawable) in
+  expect Parent_has_dependents (Drawable.destroy drawable);
+  let commands = get (Command_buffer.create queue ()) in
+  let encoder = get (Render_encoder.create commands ~target:texture ()) in
+  get (Render_encoder.end_encoding encoder);
+  get (Command_buffer.present commands drawable ());
+  let before = get (Release_queue.stats ()) in
+  expect Invalid_state (Command_buffer.present commands drawable ());
+  let after = get (Release_queue.stats ()) in
+  if before.total_created <> after.total_created || before.live_handles <> after.live_handles
+  then fail "duplicate presentation allocated a native handle";
+  expect Parent_has_dependents (Drawable.destroy drawable);
+  get (Command_buffer.commit commands);
+  get (Command_buffer.wait_until_completed commands);
+  get (Texture.destroy texture);
+  get (Drawable.destroy drawable);
+  get (Command_buffer.destroy commands);
+  let pass = get (Render_pass_descriptor.create ~width:8 ~height:8 ()) in
+  if Render_pass_descriptor.size pass <> (8,8)
+     || Render_pass_descriptor.array_length pass <> 1
+     || Render_pass_descriptor.sample_count pass <> 1
+  then fail "render-pass snapshot drift";
+  get (Render_pass_descriptor.destroy pass);
+  get (Metal_layer.destroy layer);
+  get (Command_queue.destroy queue);
+  get (Device.destroy device)

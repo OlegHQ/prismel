@@ -739,6 +739,42 @@ module Texture : sig
   val destroy : t -> (unit, error) result
 end
 
+module Metal_layer : sig
+  type t
+  type config =
+    { width:int; height:int; format:Texture.format; framebuffer_only:bool
+    ; maximum_drawables:int; allows_timeout:bool; display_sync:bool
+    ; presents_with_transaction:bool }
+  val default : width:int -> height:int -> config
+  val create : Device.t -> config -> (t,error) result
+  val configure : t -> config -> (unit,error) result
+  val device : t -> Device.t
+  val size : t -> int * int
+  val config : t -> config
+  val destroyed : t -> bool
+  val destroy : t -> (unit,error) result
+end
+
+module Drawable : sig
+  type t
+  type loss = Timeout_or_unavailable
+  val acquire : Metal_layer.t -> ((t,loss) result,error) result
+  val layer : t -> Metal_layer.t
+  val texture : t -> (Texture.t,error) result
+  val destroyed : t -> bool
+  val destroy : t -> (unit,error) result
+end
+
+module Render_pass_descriptor : sig
+  type t
+  val create : width:int -> height:int -> ?array_length:int -> ?sample_count:int -> unit -> (t,error) result
+  val size : t -> int * int
+  val array_length : t -> int
+  val sample_count : t -> int
+  val destroyed : t -> bool
+  val destroy : t -> (unit,error) result
+end
+
 module Fence : sig
   type t
   val create : Device.t -> (t, error) result
@@ -2338,6 +2374,7 @@ end
 
 module Command_buffer : sig
   type t
+  type present_time = Immediate | At_time of float | After_minimum_duration of float
 
   type status =
     | Not_enqueued
@@ -2354,6 +2391,8 @@ module Command_buffer : sig
   val use_residency_set : t -> Residency_set.t -> (unit, error) result
   val use_residency_sets : t -> Residency_set.t list -> (unit, error) result
   val status : t -> (status, error) result
+  val present :
+    t -> Drawable.t -> ?at:present_time -> unit -> (unit, error) result
   val commit : t -> (unit, error) result
   val wait_until_completed : t -> (unit, error) result
   val destroyed : t -> bool

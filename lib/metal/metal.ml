@@ -766,6 +766,23 @@ and fence =
   ; device : device
   }
 
+and metal_layer =
+  { raw : Metal_raw.handle; lifetime : lifetime; device : device
+  ; mutable layer_width : int; mutable layer_height : int
+  ; mutable layer_format : pixel_format; mutable framebuffer_only : bool
+  ; mutable maximum_drawables : int; mutable allows_timeout : bool
+  ; mutable display_sync : bool; mutable presents_with_transaction : bool }
+
+and metal_drawable =
+  { raw : Metal_raw.handle; lifetime : lifetime; layer : metal_layer
+  ; mutable drawable_texture : texture option
+  ; mutable presentation_scheduled : bool }
+
+and render_pass_descriptor =
+  { raw : Metal_raw.handle; lifetime : lifetime
+  ; pass_width : int; pass_height : int
+  ; pass_array_length : int; pass_sample_count : int }
+
 and external_memory =
   { raw : Metal_raw.handle
   ; lifetime : lifetime
@@ -827,6 +844,7 @@ and texture_io_surface_backing =
 
 and texture_parent =
   | Texture_resource of resource_parent
+  | Texture_drawable_resource of metal_drawable
   | Texture_buffer_resource of buffer_texture_backing
   | Texture_io_surface_resource of texture_io_surface_backing
   | Texture_view of texture
@@ -1368,6 +1386,7 @@ type command_resource =
   | Command_buffer_indirect of indirect_command_buffer
   | Command_buffer_fence of fence
   | Command_buffer_heap of heap
+  | Command_buffer_drawable of metal_drawable
 
 type command_buffer =
   { raw : Metal_raw.handle
@@ -1429,12 +1448,14 @@ let command_resource_lifetime = function
   | Command_buffer_indirect value -> value.lifetime
   | Command_buffer_fence value -> value.lifetime
   | Command_buffer_heap value -> value.lifetime
+  | Command_buffer_drawable value -> value.lifetime
 
 let rec command_texture_heap (value : texture) =
   match value.parent with
   | Texture_resource (Heap_resource heap) -> Some heap
   | Texture_resource (Device_resource _ | External_resource _)
   | Texture_io_surface_resource _ -> None
+  | Texture_drawable_resource _ -> None
   | Texture_buffer_resource backing ->
       (match backing.buffer.parent with
        | Heap_resource heap -> Some heap
@@ -1451,6 +1472,7 @@ let command_resource_heap = function
   | Command_buffer_render_pipeline _ | Command_residency_set _
   | Command_buffer_indirect _ | Command_buffer_fence _ -> None
   | Command_buffer_heap heap -> Some heap
+  | Command_buffer_drawable _ -> None
 
 let release_command_resources resources =
   let retained = !resources in
@@ -1649,7 +1671,8 @@ let retain_command_buffer_buffer (command_buffer : command_buffer) (buffer : buf
         | Command_buffer_buffer retained -> retained.lifetime == buffer.lifetime
         | Command_buffer_acceleration_structure _ | Command_buffer_texture _ | Command_buffer_sampler _ | Command_buffer_render_pipeline _
         | Command_buffer_indirect _ -> false
-        | Command_residency_set _ | Command_buffer_fence _ | Command_buffer_heap _ -> false)
+        | Command_residency_set _ | Command_buffer_fence _ | Command_buffer_heap _
+        | Command_buffer_drawable _ -> false)
       !(command_buffer.resources)
   in
   if not already_retained then begin
@@ -1671,7 +1694,8 @@ let retain_command_buffer_acceleration_structure
             retained.lifetime == value.lifetime
         | Command_buffer_buffer _ | Command_buffer_texture _ | Command_buffer_sampler _
         | Command_buffer_render_pipeline _ | Command_residency_set _
-        | Command_buffer_indirect _ | Command_buffer_fence _ | Command_buffer_heap _ -> false)
+        | Command_buffer_indirect _ | Command_buffer_fence _ | Command_buffer_heap _
+        | Command_buffer_drawable _ -> false)
       !(command_buffer.resources)
   in
   if not already_retained then begin
@@ -1689,7 +1713,8 @@ let retain_command_buffer_texture (command_buffer : command_buffer)
             retained.lifetime == texture.lifetime
         | Command_buffer_buffer _ | Command_buffer_acceleration_structure _ | Command_buffer_sampler _ | Command_buffer_render_pipeline _
         | Command_residency_set _
-        | Command_buffer_indirect _ | Command_buffer_fence _ | Command_buffer_heap _ -> false)
+        | Command_buffer_indirect _ | Command_buffer_fence _ | Command_buffer_heap _
+        | Command_buffer_drawable _ -> false)
       !(command_buffer.resources)
   in
   if not already_retained then begin
@@ -1720,7 +1745,8 @@ let retain_command_buffer_residency_set (command_buffer : command_buffer)
         | Command_buffer_buffer _ | Command_buffer_acceleration_structure _ | Command_buffer_texture _
         | Command_buffer_sampler _
         | Command_buffer_render_pipeline _
-        | Command_buffer_indirect _ | Command_buffer_fence _ | Command_buffer_heap _ -> false)
+        | Command_buffer_indirect _ | Command_buffer_fence _ | Command_buffer_heap _
+        | Command_buffer_drawable _ -> false)
       !(command_buffer.resources)
   in
   if not already_retained then begin
@@ -1738,7 +1764,8 @@ let retain_command_buffer_indirect (command_buffer : command_buffer)
         | Command_buffer_buffer _ | Command_buffer_acceleration_structure _ | Command_buffer_texture _
         | Command_buffer_sampler _
         | Command_buffer_render_pipeline _
-        | Command_residency_set _ | Command_buffer_fence _ | Command_buffer_heap _ -> false)
+        | Command_residency_set _ | Command_buffer_fence _ | Command_buffer_heap _
+        | Command_buffer_drawable _ -> false)
       !(command_buffer.resources)
   in
   if not already_retained then begin
@@ -1758,7 +1785,8 @@ let retain_command_buffer_render_pipeline (command_buffer : command_buffer)
            | Command_buffer_buffer _ | Command_buffer_acceleration_structure _ | Command_buffer_texture _
            | Command_buffer_sampler _
            | Command_residency_set _ | Command_buffer_indirect _
-           | Command_buffer_fence _ | Command_buffer_heap _ -> false)
+           | Command_buffer_fence _ | Command_buffer_heap _
+           | Command_buffer_drawable _ -> false)
          !(command_buffer.resources))
   then begin
     attach pipeline.lifetime;
@@ -1776,6 +1804,13 @@ let retain_command_buffer_heap (command_buffer : command_buffer) (value : heap) 
   if not (List.exists (function Command_buffer_heap x -> x.lifetime == value.lifetime | _ -> false) !(command_buffer.resources)) then begin
     attach value.lifetime; Atomic.incr value.active_uses;
     command_buffer.resources := Command_buffer_heap value :: !(command_buffer.resources)
+  end
+
+let retain_command_buffer_drawable (command_buffer : command_buffer)
+    (value : metal_drawable) =
+  if not (List.exists (function Command_buffer_drawable x -> x.lifetime == value.lifetime | _ -> false) !(command_buffer.resources)) then begin
+    attach value.lifetime;
+    command_buffer.resources := Command_buffer_drawable value :: !(command_buffer.resources)
   end
 
 let release_queue_residency_sets residency_sets =
@@ -1799,6 +1834,7 @@ let resource_parent_extra_device (device : device) = function
 
 let texture_parent_lifetime = function
   | Texture_resource parent -> resource_parent_lifetime parent
+  | Texture_drawable_resource drawable -> drawable.lifetime
   | Texture_buffer_resource backing -> backing.buffer.lifetime
   | Texture_io_surface_resource backing -> backing.surface.lifetime
   | Texture_view texture -> texture.lifetime
@@ -1806,7 +1842,8 @@ let texture_parent_lifetime = function
 let texture_parent_extra_device (device : device) = function
   | Texture_resource parent -> resource_parent_extra_device device parent
   | Texture_io_surface_resource _ -> Some device.lifetime
-  | Texture_buffer_resource _ | Texture_view _ -> None
+  | Texture_buffer_resource _ | Texture_view _
+  | Texture_drawable_resource _ -> None
 
 let resource_state () =
   { relinquished = Atomic.make false; purgeable = Atomic.make Nonvolatile }
@@ -1852,6 +1889,7 @@ let rec texture_heap (value : texture) =
   | Texture_resource parent -> parent_heap parent
   | Texture_buffer_resource backing -> parent_heap backing.buffer.parent
   | Texture_io_surface_resource _ -> None
+  | Texture_drawable_resource _ -> None
   | Texture_view parent -> texture_heap parent
 
 let ensure_heap_nonvolatile operation = function
@@ -4761,7 +4799,7 @@ module Texture = struct
       | Texture_resource (Heap_resource _) -> true
       | Texture_resource (Device_resource _ | External_resource _)
       | Texture_io_surface_resource _
-      | Texture_view _ -> false
+      | Texture_view _ | Texture_drawable_resource _ -> false
       | Texture_buffer_resource backing ->
           Option.is_some (parent_heap backing.buffer.parent)
     in
@@ -4783,20 +4821,21 @@ module Texture = struct
           | None, Texture_view texture -> texture.placement_sparse_page_size
           | None,
             (Texture_resource _ | Texture_buffer_resource _
-            | Texture_io_surface_resource _) -> None
+            | Texture_io_surface_resource _ | Texture_drawable_resource _) -> None
         in
         let state =
           match parent with
           | Texture_resource _ -> resource_state ()
           | Texture_buffer_resource backing -> backing.buffer.state
           | Texture_io_surface_resource _ -> resource_state ()
+          | Texture_drawable_resource _ -> resource_state ()
           | Texture_view texture -> texture.state
         in
         let placement_mappings =
           match parent with
           | Texture_view texture -> texture.placement_mappings
           | Texture_resource _ | Texture_buffer_resource _
-          | Texture_io_surface_resource _ -> ref []
+          | Texture_io_surface_resource _ | Texture_drawable_resource _ -> ref []
         in
         let value : t =
           { raw
@@ -4933,13 +4972,15 @@ module Texture = struct
     match value.parent with
     | Texture_buffer_resource backing -> Some backing
     | Texture_view parent -> buffer_backing parent
-    | Texture_resource _ | Texture_io_surface_resource _ -> None
+    | Texture_resource _ | Texture_io_surface_resource _
+    | Texture_drawable_resource _ -> None
 
   let rec io_surface_backing (value : t) =
     match value.parent with
     | Texture_io_surface_resource backing -> Some backing
     | Texture_view parent -> io_surface_backing parent
-    | Texture_resource _ | Texture_buffer_resource _ -> None
+    | Texture_resource _ | Texture_buffer_resource _
+    | Texture_drawable_resource _ -> None
 
   let sparse_tier (value : t) =
     let operation = "Metal.Texture.sparse_tier" in
@@ -5609,6 +5650,9 @@ module Texture = struct
            | Texture_io_surface_resource _ ->
                error "Metal.Texture.set_purgeable_state" Invalid_state
                  "IOSurface controls the backing allocation's purgeability"
+           | Texture_drawable_resource _ ->
+               error "Metal.Texture.set_purgeable_state" Invalid_state
+                 "drawable controls the presented texture"
            | Texture_resource parent ->
                (match
                   ensure_heap_nonvolatile "Metal.Texture.set_purgeable_state"
@@ -5658,6 +5702,9 @@ module Texture = struct
            | Texture_io_surface_resource _ ->
                error "Metal.Texture.make_aliasable" Invalid_state
                  "IOSurface-backed textures cannot become aliasable"
+           | Texture_drawable_resource _ ->
+               error "Metal.Texture.make_aliasable" Invalid_state
+                 "drawable-backed textures cannot become aliasable"
            | Texture_resource (Device_resource _) ->
                error "Metal.Texture.make_aliasable" Invalid_state
                  "only heap-backed textures can become aliasable"
@@ -5694,6 +5741,57 @@ module Texture = struct
         detach (texture_parent_lifetime value.parent);
         Option.iter detach
           (texture_parent_extra_device value.device value.parent))
+end
+
+module Metal_layer = struct
+  type t = metal_layer
+  type config =
+    { width:int; height:int; format:Texture.format; framebuffer_only:bool
+    ; maximum_drawables:int; allows_timeout:bool; display_sync:bool
+    ; presents_with_transaction:bool }
+  let default ~width ~height =
+    { width; height; format=Texture.Bgra8_unorm; framebuffer_only=false
+    ; maximum_drawables=3; allows_timeout=true; display_sync=false
+    ; presents_with_transaction=false }
+  let create (device : Device.t) config =
+    let operation="Metal.Metal_layer.create" in on_main operation(fun()->
+      match ensure_live operation device.lifetime with Error _ as e->e|Ok()->
+      if config.width<=0||config.height<=0||config.maximum_drawables<2||config.maximum_drawables>3 then error operation Invalid_argument "invalid drawable size or maximum count" else
+      match Metal_raw.layer_create device.raw with Error m->native_error operation m|Ok raw->
+      match Metal_raw.layer_configure raw config.width config.height (Metal_format.code config.format) (config.framebuffer_only,config.maximum_drawables,config.allows_timeout,config.display_sync,config.presents_with_transaction) with
+      | Error m->ignore(Metal_raw.destroy raw);native_error operation m
+      | Ok()->let value : t={raw;lifetime=lifetime();device;layer_width=config.width;layer_height=config.height;layer_format=config.format;framebuffer_only=config.framebuffer_only;maximum_drawables=config.maximum_drawables;allows_timeout=config.allows_timeout;display_sync=config.display_sync;presents_with_transaction=config.presents_with_transaction}in attach device.lifetime;attach_finalizer value value.lifetime device.lifetime;Ok value)
+  let device (value:t)=value.device
+  let size (value:t)=value.layer_width,value.layer_height
+  let config (value:t) =
+    { width=value.layer_width; height=value.layer_height
+    ; format=value.layer_format; framebuffer_only=value.framebuffer_only
+    ; maximum_drawables=value.maximum_drawables
+    ; allows_timeout=value.allows_timeout; display_sync=value.display_sync
+    ; presents_with_transaction=value.presents_with_transaction }
+  let configure (value:t) config = let operation="Metal.Metal_layer.configure" in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->if config.width<=0||config.height<=0||config.maximum_drawables<2||config.maximum_drawables>3 then error operation Invalid_argument "invalid drawable size or maximum count" else match Metal_raw.layer_configure value.raw config.width config.height(Metal_format.code config.format)(config.framebuffer_only,config.maximum_drawables,config.allows_timeout,config.display_sync,config.presents_with_transaction)with Error m->native_error operation m|Ok()->value.layer_width<-config.width;value.layer_height<-config.height;value.layer_format<-config.format;value.framebuffer_only<-config.framebuffer_only;value.maximum_drawables<-config.maximum_drawables;value.allows_timeout<-config.allows_timeout;value.display_sync<-config.display_sync;value.presents_with_transaction<-config.presents_with_transaction;Ok())
+  let destroyed (value:t)=is_destroyed value.lifetime
+  let destroy (value:t)=destroy_parent "Metal.Metal_layer.destroy" value.lifetime value.raw(fun()->detach value.device.lifetime)
+end
+
+module Drawable = struct
+  type t = metal_drawable
+  type loss = Timeout_or_unavailable
+  let acquire (layer:metal_layer) = let operation="Metal.Drawable.acquire" in on_main operation(fun()->match ensure_live operation layer.lifetime with Error _ as e->e|Ok()->match Metal_raw.layer_next_drawable layer.raw with Error m->native_error operation m|Ok None->Ok(Error Timeout_or_unavailable)|Ok(Some raw)->let value:t={raw;lifetime=lifetime();layer;drawable_texture=None;presentation_scheduled=false}in attach layer.lifetime;attach_finalizer value value.lifetime layer.lifetime;Ok(Ok value))
+  let layer (value:t)=value.layer
+  let texture (value:t)=let operation="Metal.Drawable.texture" in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match value.drawable_texture with Some texture->Ok texture|None->match Metal_raw.drawable_texture value.raw with Error m->native_error operation m|Ok raw->let descriptor=Texture.descriptor_2d ~storage:Buffer.Private ~usage:[Texture.Render_target] ~format:value.layer.layer_format ~width:value.layer.layer_width ~height:value.layer.layer_height()in let texture:texture={raw;lifetime=lifetime();device=value.layer.device;descriptor;parent=Texture_drawable_resource value;heap_offset=None;placement_sparse_page_size=None;allocation=None;state={relinquished=Atomic.make false;purgeable=Atomic.make Nonvolatile};placement_mappings=ref[]}in attach value.lifetime;attach_finalizer texture texture.lifetime value.lifetime;value.drawable_texture<-Some texture;Ok texture)
+  let destroyed (value:t)=is_destroyed value.lifetime
+  let destroy (value:t)=destroy_parent "Metal.Drawable.destroy" value.lifetime value.raw(fun()->detach value.layer.lifetime)
+end
+
+module Render_pass_descriptor = struct
+  type t=render_pass_descriptor
+  let create ~width ~height ?(array_length=1) ?(sample_count=1) ()=let operation="Metal.Render_pass_descriptor.create" in on_main operation(fun()->if width<=0||height<=0||array_length<=0||sample_count<=0 then error operation Invalid_argument "render pass sizes must be positive" else match Metal_raw.render_pass_descriptor_create()with Error m->native_error operation m|Ok raw->match Metal_raw.render_pass_descriptor_set_sizes raw width height array_length sample_count with Error m->ignore(Metal_raw.destroy raw);native_error operation m|Ok()->Ok({raw;lifetime=lifetime();pass_width=width;pass_height=height;pass_array_length=array_length;pass_sample_count=sample_count}:t))
+  let size (value:t)=value.pass_width,value.pass_height
+  let array_length (value:t)=value.pass_array_length
+  let sample_count (value:t)=value.pass_sample_count
+  let destroyed (value:t)=is_destroyed value.lifetime
+  let destroy (value:t)=destroy_parent "Metal.Render_pass_descriptor.destroy" value.lifetime value.raw(fun()->())
 end
 
 module Fence = struct
@@ -13666,6 +13764,7 @@ end
 
 module Command_buffer = struct
   type t = command_buffer
+  type present_time = Immediate | At_time of float | After_minimum_duration of float
 
   type status =
     | Not_enqueued
@@ -13726,7 +13825,8 @@ module Command_buffer = struct
         | Command_buffer_buffer _ | Command_buffer_acceleration_structure _
         | Command_buffer_texture _ | Command_buffer_sampler _
         | Command_buffer_render_pipeline _ | Command_buffer_indirect _
-        | Command_buffer_fence _ | Command_buffer_heap _ -> false)
+        | Command_buffer_fence _ | Command_buffer_heap _
+        | Command_buffer_drawable _ -> false)
       !(value.resources)
 
   let use operation ~bulk (value : t) residency_sets =
@@ -13798,6 +13898,18 @@ module Command_buffer = struct
                    (Option.value (Metal_raw.command_buffer_error value.raw)
                       ~default:"Metal command buffer failed without NSError")
              | value -> Unknown value))
+
+  let present (value:t) (drawable:metal_drawable) ?(at=Immediate) () =
+    let operation="Metal.Command_buffer.present" in on_main operation(fun()->
+      match ensure_live operation value.lifetime with Error _ as e->e|Ok() when value.phase<>Recording->error operation Invalid_state "command buffer is no longer recording"|Ok()->
+      match ensure_live operation drawable.lifetime with Error _ as e->e
+      | Ok() when drawable.presentation_scheduled ->
+          error operation Invalid_state "drawable is already scheduled for presentation"
+      | Ok()->
+      Result.bind(ensure_same_device operation value.queue.device drawable.layer.device)(fun()->
+      let mode,time=match at with Immediate->0,0.|At_time t->1,t|After_minimum_duration t->2,t in
+      if not(Float.is_finite time)||time<0. then error operation Invalid_argument "presentation time must be finite and nonnegative" else
+      match Metal_raw.command_buffer_present_drawable value.raw drawable.raw mode time with Error m->native_error operation m|Ok()->drawable.presentation_scheduled<-true;retain_command_buffer_drawable value drawable;Ok()))
 
   let commit (value : t) =
     on_main "Metal.Command_buffer.commit" (fun () ->
@@ -15216,6 +15328,7 @@ module Placement_mapping = struct
         error operation Invalid_argument
           "map the base placement sparse texture, not a view"
     | Texture_buffer_resource _ | Texture_io_surface_resource _
+    | Texture_drawable_resource _
     | Texture_resource (Heap_resource _ | External_resource _) ->
         error operation Invalid_argument
           "texture is not a device-owned placement sparse resource"

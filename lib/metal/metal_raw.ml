@@ -1375,6 +1375,13 @@ external command_buffer_render_encoder_attachments :
   "caml_prismel_metal_command_buffer_render_encoder_attachments"
 external device_create_fence : handle -> (handle, string) result =
   "caml_prismel_metal_device_create_fence"
+external layer_create : handle -> (handle,string) result = "caml_prismel_metal_layer_create"
+external layer_configure : handle -> int -> int -> int -> (bool*int*bool*bool*bool) -> (unit,string) result = "caml_prismel_metal_layer_configure"
+external layer_next_drawable : handle -> (handle option,string) result = "caml_prismel_metal_layer_next_drawable"
+external drawable_texture : handle -> (handle,string) result = "caml_prismel_metal_drawable_texture"
+external command_buffer_present_drawable : handle -> handle -> int -> float -> (unit,string) result = "caml_prismel_metal_command_buffer_present_drawable"
+external render_pass_descriptor_create : unit -> (handle,string) result = "caml_prismel_metal_render_pass_descriptor_create"
+external render_pass_descriptor_set_sizes : handle -> int -> int -> int -> int -> (unit,string) result = "caml_prismel_metal_render_pass_descriptor_set_sizes"
 external render_encoder_memory_barrier_scope : handle -> int -> int -> int -> (unit,string) result = "caml_prismel_metal_render_encoder_memory_barrier_scope"
 external render_encoder_memory_barrier_resources : handle -> handle array -> int -> int -> (unit,string) result = "caml_prismel_metal_render_encoder_memory_barrier_resources"
 external render_encoder_update_fence : handle -> handle -> int -> (unit,string) result = "caml_prismel_metal_render_encoder_update_fence"

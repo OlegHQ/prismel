@@ -923,6 +923,9 @@ enum class Handle_kind : std::uint32_t {
   Visible_function_table,
   Intersection_function_table,
   Fence,
+  Metal_layer,
+  Metal_drawable,
+  Render_pass_descriptor,
 };
 
 struct Handle {
@@ -13528,6 +13531,23 @@ extern "C" CAMLprim value caml_prismel_metal_device_create_fence(value raw_devic
   } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); } }
   CAMLreturn(result_ok(raw));
 }
+
+extern "C" CAMLprim value caml_prismel_metal_layer_create(value raw_device) {
+  CAMLparam1(raw_device); CAMLlocal1(raw); @autoreleasepool { @try {
+    CAMetalLayer *layer=[CAMetalLayer layer]; layer.device=object_of_handle(raw_device,Handle_kind::Device);
+    raw=allocate_handle(layer,Handle_kind::Metal_layer);
+  } @catch(NSException*x){CAMLreturn(result_error(x.reason));} } CAMLreturn(result_ok(raw));
+}
+extern "C" CAMLprim value caml_prismel_metal_layer_configure(value rl,value rw,value rh,value rf,value rflags){
+  CAMLparam5(rl,rw,rh,rf,rflags); @try { CAMetalLayer*l=object_of_handle(rl,Handle_kind::Metal_layer);
+    intnat w=Long_val(rw),h=Long_val(rh),format=Long_val(rf),maximum=Long_val(Field(rflags,1)); if(w<=0||h<=0||maximum<2||maximum>3||(format!=80&&format!=81&&format!=115))CAMLreturn(result_error_text("invalid Metal layer configuration"));
+    l.drawableSize=CGSizeMake(w,h);l.pixelFormat=(MTLPixelFormat)format;l.framebufferOnly=Bool_val(Field(rflags,0));l.maximumDrawableCount=Long_val(Field(rflags,1));l.allowsNextDrawableTimeout=Bool_val(Field(rflags,2));l.displaySyncEnabled=Bool_val(Field(rflags,3));l.presentsWithTransaction=Bool_val(Field(rflags,4));
+    CAMLreturn(result_unit()); } @catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+extern "C" CAMLprim value caml_prismel_metal_layer_next_drawable(value rl){CAMLparam1(rl);CAMLlocal3(raw,option,result);@autoreleasepool{@try{id<CAMetalDrawable>d=[object_of_handle(rl,Handle_kind::Metal_layer) nextDrawable];if(!d)CAMLreturn(result_ok(Val_none));raw=allocate_handle(d,Handle_kind::Metal_drawable);option=caml_alloc(1,0);Store_field(option,0,raw);result=result_ok(option);CAMLreturn(result);}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}}
+extern "C" CAMLprim value caml_prismel_metal_drawable_texture(value rd){CAMLparam1(rd);CAMLlocal2(raw,result);@autoreleasepool{@try{id<CAMetalDrawable>d=object_of_handle(rd,Handle_kind::Metal_drawable);if(!d.texture)CAMLreturn(result_error_text("drawable has no texture"));raw=allocate_handle(d.texture,Handle_kind::Texture);result=result_ok(raw);CAMLreturn(result);}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}}
+extern "C" CAMLprim value caml_prismel_metal_command_buffer_present_drawable(value rc,value rd,value rmode,value rt){CAMLparam4(rc,rd,rmode,rt);@try{id<MTLCommandBuffer>c=object_of_handle(rc,Handle_kind::Command_buffer);id<CAMetalDrawable>d=object_of_handle(rd,Handle_kind::Metal_drawable);switch(Long_val(rmode)){case 0:[c presentDrawable:d];break;case 1:[c presentDrawable:d atTime:Double_val(rt)];break;case 2:[c presentDrawable:d afterMinimumDuration:Double_val(rt)];break;default:CAMLreturn(result_error_text("invalid presentation mode"));}CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+extern "C" CAMLprim value caml_prismel_metal_render_pass_descriptor_create(value unit){CAMLparam1(unit);CAMLlocal1(raw);@autoreleasepool{raw=allocate_handle([MTLRenderPassDescriptor renderPassDescriptor],Handle_kind::Render_pass_descriptor);}CAMLreturn(result_ok(raw));}
+extern "C" CAMLprim value caml_prismel_metal_render_pass_descriptor_set_sizes(value rp,value rw,value rh,value ra,value rs){CAMLparam5(rp,rw,rh,ra,rs);MTLRenderPassDescriptor*p=object_of_handle(rp,Handle_kind::Render_pass_descriptor);intnat w=Long_val(rw),h=Long_val(rh),a=Long_val(ra),s=Long_val(rs);if(w<=0||h<=0||a<=0||s<=0)CAMLreturn(result_error_text("invalid render pass sizes"));p.renderTargetWidth=w;p.renderTargetHeight=h;p.renderTargetArrayLength=a;p.defaultRasterSampleCount=s;CAMLreturn(result_unit());}
 
 extern "C" CAMLprim value caml_prismel_metal_command_buffer_render_encoder_attachments(
     value raw_buffer,value raw_color,value raw_depth,value raw_stencil,value raw_clear) {
