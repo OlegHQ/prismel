@@ -2527,6 +2527,11 @@ module Render_encoder : sig
   val use_heaps : t -> Heap.t list -> stages:stage list -> (unit,error) result
   val use_resource : t -> resource -> usage:resource_usage list -> stages:stage list -> (unit,error) result
   val use_resources : t -> resource list -> usage:resource_usage list -> stages:stage list -> (unit,error) result
+  val set_stage_buffer : t -> stage:stage -> index:int -> offset:int64 -> ?stride:int64 -> Buffer.t option -> (unit,error) result
+  val set_stage_texture : t -> stage:stage -> index:int -> Texture.t option -> (unit,error) result
+  val set_stage_bytes : t -> stage:stage -> index:int -> bytes -> (unit,error) result
+  val set_depth_clip_mode : t -> clamp:bool -> (unit,error) result
+  val set_depth_bounds : t -> minimum:float -> maximum:float -> (unit,error) result
   val execute_indirect_commands : t -> Indirect_command_buffer.t -> location:int -> length:int -> (unit,error) result
   val execute_indirect_commands_indirect_range : t -> Indirect_command_buffer.t -> range_buffer:Buffer.t -> offset:int64 -> (unit,error) result
   val draw_triangles :

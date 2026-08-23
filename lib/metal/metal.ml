@@ -14868,6 +14868,75 @@ module Render_encoder = struct
   let use_resources (value : t) resources ~usage ~stages = let operation="Metal.Render_encoder.use_resources" in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->Result.bind(validate_nonempty operation "resources" resources)(fun()->Result.bind(validate_nonempty operation "usage" usage)(fun()->Result.bind(validate_nonempty operation "stages" stages)(fun()->let device=value.command_buffer.queue.device in if has_duplicate_lifetimes(List.map resource_lifetime resources)then error operation Invalid_argument "resources contain duplicate identities" else match List.find_map(fun r->match validate_resource operation device r with Ok()->None|Error e->Some e)resources with Some e->Error e|None->match Metal_raw.render_encoder_use_resources value.raw(Array.of_list(List.map resource_raw resources))(bits usage_code usage)(bits stage_code stages)with Error m->native_error operation m|Ok()->List.iter(retain_resource value.command_buffer)resources;Ok()))))
   let use_resource value resource ~usage ~stages=use_resources value [resource] ~usage ~stages
 
+  let binding_stage_code = function Vertex->0 | Fragment->1 | Tile->2 | Object->3 | Mesh->4
+
+  let set_stage_buffer (value : t) ~stage ~index ~offset ?(stride=0L)
+      (buffer : Buffer.t option) =
+    let operation="Metal.Render_encoder.set_stage_buffer" in
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with Error _ as e->e | Ok () ->
+      if stage=Fragment then error operation Unsupported "fragment single-buffer binding has no stride selector"
+      else if index<0 || index>=31 || offset<0L || stride<0L then
+        error operation Invalid_argument "invalid buffer binding index, offset, or stride"
+      else match buffer with
+      | Some b ->
+          Result.bind (ensure_buffer_usable operation b) (fun () ->
+          Result.bind (ensure_same_device operation value.command_buffer.queue.device b.device) (fun () ->
+          if offset>b.length then error operation Invalid_argument "buffer offset is outside the resource"
+          else match Metal_raw.render_stage_buffer value.raw (binding_stage_code stage)
+                       (Some b.raw) offset stride (Int64.of_int index) with
+          | Error m->native_error operation m
+          | Ok ()->retain_command_buffer_buffer value.command_buffer b; Ok ()))
+      | None ->
+          if offset<>0L || stride<>0L then error operation Invalid_argument "nil binding requires zero offset and stride"
+          else match Metal_raw.render_stage_buffer value.raw (binding_stage_code stage)
+                       None 0L 0L (Int64.of_int index) with
+          | Error m->native_error operation m | Ok ()->Ok ())
+
+  let set_stage_texture (value : t) ~stage ~index (texture : Texture.t option) =
+    let operation="Metal.Render_encoder.set_stage_texture" in
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with Error _ as e->e | Ok () ->
+      if index<0 || index>=31 then error operation Invalid_argument "texture index must be in [0, 31)"
+      else match texture with
+      | Some t ->
+          Result.bind (ensure_texture_usable operation t) (fun () ->
+          Result.bind (ensure_same_device operation value.command_buffer.queue.device t.device) (fun () ->
+          match Metal_raw.render_stage_texture value.raw (binding_stage_code stage)
+                  (Some t.raw) (Int64.of_int index) with
+          | Error m->native_error operation m
+          | Ok ()->retain_command_buffer_texture value.command_buffer t; Ok ()))
+      | None ->
+          match Metal_raw.render_stage_texture value.raw (binding_stage_code stage) None
+                  (Int64.of_int index) with
+          | Error m->native_error operation m | Ok ()->Ok ())
+
+  let set_stage_bytes (value : t) ~stage ~index bytes =
+    let operation="Metal.Render_encoder.set_stage_bytes" in
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with Error _ as e->e | Ok () ->
+      if index<0 || index>=31 || Bytes.length bytes=0 || Bytes.length bytes>4096 then
+        error operation Invalid_argument "inline binding requires index [0,31) and 1..4096 bytes"
+      else match Metal_raw.render_stage_bytes value.raw (binding_stage_code stage) bytes
+                   (Int64.of_int (Bytes.length bytes)) (Int64.of_int index) with
+      | Error m->native_error operation m | Ok ()->Ok ())
+
+  let set_depth_clip_mode (value : t) ~clamp =
+    let operation="Metal.Render_encoder.set_depth_clip_mode" in
+    on_main operation (fun () -> match ensure_live operation value.lifetime with
+      | Error _ as e->e | Ok () ->
+          match Metal_raw.render_command_depth_clip value.raw (if clamp then 1 else 0) with
+          | Error m->native_error operation m | Ok ()->Ok ())
+
+  let set_depth_bounds (value : t) ~minimum ~maximum =
+    let operation="Metal.Render_encoder.set_depth_bounds" in
+    on_main operation (fun () -> match ensure_live operation value.lifetime with
+      | Error _ as e->e | Ok () ->
+          if not(Float.is_finite minimum && Float.is_finite maximum) || minimum<0. || maximum>1. || minimum>maximum
+          then error operation Invalid_argument "depth bounds must be finite, ordered, and in [0,1]"
+          else match Metal_raw.render_command_depth_bounds value.raw minimum maximum with
+          | Error m->native_error operation m | Ok ()->Ok ())
+
   let pipeline_supports_icb operation (value : t) = match value.pipeline with None->error operation Invalid_state "no render pipeline is bound"|Some p->(match Metal_raw.generated_mtl_render_pipeline_state_support_indirect_command_buffers p.raw with Error m->native_error operation m|Ok b->Ok b)
   let execute_indirect_commands (value : t) (commands : indirect_command_buffer) ~location ~length = let operation="Metal.Render_encoder.execute_indirect_commands" in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match ensure_live operation commands.lifetime with Error _ as e->e|Ok()->Result.bind(ensure_same_device operation value.command_buffer.queue.device commands.device)(fun()->Result.bind(Indirect_command_buffer.validate_range operation commands ~location ~length)(fun()->Result.bind(pipeline_supports_icb operation value)(function false->error operation Unsupported "pipeline lacks indirect-command-buffer support"|true->match Metal_raw.render_encoder_execute_icb_range value.raw commands.raw location length with Error m->native_error operation m|Ok()->retain_command_buffer_indirect value.command_buffer commands;Ok()))))
   let execute_indirect_commands_indirect_range (value : t) (commands : indirect_command_buffer) ~(range_buffer : buffer) ~offset = let operation="Metal.Render_encoder.execute_indirect_commands_indirect_range" in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match ensure_live operation commands.lifetime with Error _ as e->e|Ok()->match ensure_buffer_usable operation range_buffer with Error _ as e->e|Ok() when offset<0L||Int64.rem offset 8L<>0L||offset>Int64.sub range_buffer.length 8L->error operation Invalid_argument "indirect range offset is invalid"|Ok()->Result.bind(ensure_same_device operation value.command_buffer.queue.device commands.device)(fun()->Result.bind(ensure_same_device operation value.command_buffer.queue.device range_buffer.device)(fun()->Result.bind(pipeline_supports_icb operation value)(function false->error operation Unsupported "pipeline lacks indirect-command-buffer support"|true->match Metal_raw.render_encoder_execute_icb_indirect_range value.raw commands.raw range_buffer.raw offset with Error m->native_error operation m|Ok()->retain_command_buffer_indirect value.command_buffer commands;retain_command_buffer_buffer value.command_buffer range_buffer;Ok()))))
