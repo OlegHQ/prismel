@@ -430,6 +430,36 @@
  (action (run %{test} %{dep:metal_presentation_typed_generated.mm}
                     %{dep:metal_presentation_raw_generated.ml})))
 
+(test
+ (name test_resource_descriptor_generated_symbols)
+ (modules test_resource_descriptor_generated_symbols)
+ (deps metal_resource_descriptor_owned_generated.inc))
+
+(test
+ (name test_resource_ownership_generated_symbols)
+ (modules test_resource_ownership_generated_symbols)
+ (deps metal_resource_ownership_generated.inc))
+
+(test
+ (name test_resource_scalar_generated_symbols)
+ (modules test_resource_scalar_generated_symbols)
+ (deps metal_resource_scalar_generated.inc))
+
+(rule
+ (targets test_resource100_conformance_native.exe)
+ (deps test_resource100_conformance_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -framework Foundation
+   -framework Metal %{dep:test_resource100_conformance_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_resource100_conformance_native.exe)
+ (action
+  (bash
+   "status=0; ./test_resource100_conformance_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
 (executable
  (name generate_inventory)
  (modules generate_inventory)

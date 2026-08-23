@@ -189,7 +189,13 @@
 
 (rule
  (targets metal_bridge.o libmetal_bridge_stubs.a dllmetal_bridge_stubs.so)
- (deps metal_bridge.mm metal_bridge_generated.inc c_library_flags.sexp)
+ (deps
+  metal_bridge.mm
+  metal_bridge_generated.inc
+  ../../tools/metal/metal_resource_descriptor_owned_generated.inc
+  ../../tools/metal/metal_resource_ownership_generated.inc
+  ../../tools/metal/metal_resource_scalar_generated.inc
+  c_library_flags.sexp)
  (action
   (run ./build_bridge.exe
    --sanitizers %{env:PRISMEL_METAL_SANITIZERS=}
@@ -255,6 +261,11 @@
 (test
  (name test_metal_presentation_safe)
  (modules test_metal_presentation_safe)
+ (libraries metal))
+
+(test
+ (name test_metal_resource100_safe)
+ (modules test_metal_resource100_safe)
  (libraries metal))
 
 (rule
