@@ -1633,6 +1633,7 @@ module Render_pipeline : sig
     val set_buffer_mutability : buffer_descriptor -> mutability -> (unit,error) result
     val buffer_mutability : buffer_descriptor -> mutability
     val create_color_attachment : Texture.format -> (color_attachment,error) result
+    val create_color_attachment_configured : ?blending:blend_state -> ?source_rgb:blend_factor -> ?destination_rgb:blend_factor -> ?rgb_operation:blend_operation -> ?source_alpha:blend_factor -> ?destination_alpha:blend_factor -> ?alpha_operation:blend_operation -> ?write_mask:color_write list -> Texture.format -> (color_attachment,error) result
     val color_attachment_format : color_attachment -> Texture.format
     val mesh_descriptor : ?label:string -> ?object_function:Function.t -> ?fragment_function:Function.t -> ?binary_archives:Binary_archive.t list -> mesh_function:Function.t -> depth_format:Texture.format -> stencil_format:Texture.format -> required_mesh_threads:size3 -> required_object_threads:size3 -> unit -> (mesh_descriptor,error) result
     val tile_descriptor : ?label:string -> ?binary_archives:Binary_archive.t list -> ?preloaded_libraries:Dynamic_library.t list -> tile_function:Function.t -> required_threads:size3 -> unit -> (tile_descriptor,error) result

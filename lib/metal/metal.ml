@@ -9047,6 +9047,15 @@ module Render_pipeline = struct
     let buffer_mutability(value:buffer_descriptor)=value.mutability
     let create_color_attachment format=let operation="Metal.Render_pipeline.Mesh_tile.color_attachment"in let safe=color_attachment format in on_main operation(fun()->match Metal_raw.mesh_color_attachment_create()with Error m->native_error operation m|Ok raw->let value:color_attachment={raw;lifetime=lifetime();value=safe}in Gc.finalise(fun _->if Atomic.compare_and_set value.lifetime.destroyed false true then ignore(Metal_raw.destroy value.raw))value;let r=raw_color_attachment safe in match Metal_raw.mesh_color_attachment_set raw(Int64.of_int r.pixel_format)r.source_rgb_blend_factor r.destination_rgb_blend_factor r.rgb_blend_operation r.source_alpha_blend_factor r.destination_alpha_blend_factor r.alpha_blend_operation(Int64.of_int r.write_mask)with Error m->ignore(Metal_raw.destroy raw);native_error operation m|Ok()->Ok value)
     let color_attachment_format(value:color_attachment)=value.value.format
+    let create_color_attachment_configured ?blending ?source_rgb ?destination_rgb ?rgb_operation ?source_alpha ?destination_alpha ?alpha_operation ?write_mask format=
+      let operation="Metal.Render_pipeline.Mesh_tile.color_attachment"in
+      let safe=color_attachment ?blending ?source_rgb ?destination_rgb ?rgb_operation ?source_alpha ?destination_alpha ?alpha_operation ?write_mask format in
+      on_main operation(fun()->match Metal_raw.mesh_color_attachment_create()with Error m->native_error operation m|Ok raw->
+        let value:color_attachment={raw;lifetime=lifetime();value=safe}in
+        Gc.finalise(fun _->if Atomic.compare_and_set value.lifetime.destroyed false true then ignore(Metal_raw.destroy value.raw))value;
+        let r=raw_color_attachment safe in
+        match Metal_raw.mesh_color_attachment_set raw(Int64.of_int r.pixel_format)r.source_rgb_blend_factor r.destination_rgb_blend_factor r.rgb_blend_operation r.source_alpha_blend_factor r.destination_alpha_blend_factor r.alpha_blend_operation(Int64.of_int r.write_mask)with
+        |Error m->ignore(Metal_raw.destroy raw);native_error operation m|Ok()->Ok value)
     let positive s=s.width>0L&&s.height>0L&&s.depth>0L
     let validate_functions operation device values=let rec loop=function []->Ok()|(x:function_handle)::xs->Result.bind(ensure_live operation x.lifetime)(fun()->Result.bind(ensure_same_device operation device x.library.device)(fun()->loop xs))in loop values
     let mesh_descriptor ?label ?object_function ?fragment_function ?(binary_archives=[]) ~mesh_function ~depth_format ~stencil_format ~required_mesh_threads ~required_object_threads ()=let operation="Metal.Render_pipeline.Mesh_tile.mesh_descriptor"in
