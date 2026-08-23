@@ -1,5 +1,6 @@
 type receiver =
   | Render_encoder4
+  | Compute_encoder4
 
 type enum_type =
   | Winding
@@ -16,6 +17,10 @@ type argument_kind =
   | Enum_int of
       { enum_type : enum_type
       ; cases : enum_case list
+      }
+  | Unsigned_int of
+      { minimum : int
+      ; multiple_of : int option
       }
 
 type argument =
@@ -79,14 +84,22 @@ let metal4_availability =
   ; unavailable_error = "Metal 4 commands require macOS 26"
   }
 
-let enum_setter ~sdk_id ~name ~signature ~ocaml_name ~c_symbol ~argument_name
-    ~enum_type ~cases ~error ~safe_value =
+let safe_api ~module_name ~value_name ~test_value =
+  { operation = "Metal.Command4." ^ module_name ^ "." ^ value_name
+  ; module_path = [ "Command4"; module_name ]
+  ; value_name
+  ; test_value
+  ; test_call = [ "Command4"; module_name; value_name ]
+  }
+
+let direct_void ~sdk_id ~owner ~header ~name ~signature ~ocaml_name ~c_symbol
+    ~receiver ~arguments ~safe_api =
   { sdk_id
   ; expect =
       { kind = "method"
-      ; owner = "MTL4RenderCommandEncoder"
+      ; owner
       ; name
-      ; header = "Metal/MTL4RenderCommandEncoder.h"
+      ; header
       ; signature
       ; attributes = []
       ; availability = metal4_availability
@@ -96,27 +109,30 @@ let enum_setter ~sdk_id ~name ~signature ~ocaml_name ~c_symbol ~argument_name
         (Direct_void
            { ocaml_name
            ; c_symbol
-           ; receiver = Render_encoder4
-           ; arguments =
-               [ { name = argument_name
-                 ; kind =
-                     Enum_int
-                       { enum_type
-                       ; cases
-                       }
-                 ; error
-                 }
-               ]
+           ; receiver
+           ; arguments
            })
-  ; safe_api =
-      Some
-        { operation = "Metal.Command4.Render_encoder." ^ safe_value
-        ; module_path = [ "Command4"; "Render_encoder" ]
-        ; value_name = safe_value
-        ; test_value = "test_metal4_raster_state_commands"
-        ; test_call = [ "Command4"; "Render_encoder"; safe_value ]
-        }
+  ; safe_api
   }
+
+let enum_setter ~sdk_id ~name ~signature ~ocaml_name ~c_symbol ~argument_name
+    ~enum_type ~cases ~error ~safe_value =
+  direct_void ~sdk_id ~owner:"MTL4RenderCommandEncoder"
+    ~header:"Metal/MTL4RenderCommandEncoder.h" ~name ~signature ~ocaml_name
+    ~c_symbol ~receiver:Render_encoder4
+    ~arguments:
+      [ { name = argument_name
+        ; kind = Enum_int { enum_type; cases }
+        ; error
+        }
+      ]
+    ~safe_api:
+      (Some
+         (safe_api ~module_name:"Render_encoder" ~value_name:safe_value
+            ~test_value:"test_metal4_raster_state_commands"))
+
+let unsigned_argument ?(minimum = 0) ?multiple_of name error =
+  { name; kind = Unsigned_int { minimum; multiple_of }; error }
 
 let entries =
   [ enum_setter
@@ -183,6 +199,81 @@ let entries =
         ]
       ~error:"Metal 4 triangle-fill mode is invalid"
       ~safe_value:"set_triangle_fill_mode"
+  ; direct_void
+      ~sdk_id:
+        "method:-[MTL4ComputeCommandEncoder setThreadgroupMemoryLength:atIndex:]"
+      ~owner:"MTL4ComputeCommandEncoder"
+      ~header:"Metal/MTL4ComputeCommandEncoder.h"
+      ~name:"setThreadgroupMemoryLength:atIndex:"
+      ~signature:"instance (NSUInteger, NSUInteger) -> void"
+      ~ocaml_name:"command4_compute_encoder_set_threadgroup_memory_length"
+      ~c_symbol:
+        "caml_prismel_metal_command4_compute_encoder_set_threadgroup_memory_length"
+      ~receiver:Compute_encoder4
+      ~arguments:
+        [ unsigned_argument ~multiple_of:16 "length"
+            "Metal 4 compute threadgroup-memory length must be nonnegative and a multiple of 16"
+        ; unsigned_argument "index"
+            "Metal 4 compute threadgroup-memory index must be nonnegative"
+        ]
+      ~safe_api:None
+  ; direct_void
+      ~sdk_id:
+        "method:-[MTL4ComputeCommandEncoder setImageblockWidth:height:]"
+      ~owner:"MTL4ComputeCommandEncoder"
+      ~header:"Metal/MTL4ComputeCommandEncoder.h"
+      ~name:"setImageblockWidth:height:"
+      ~signature:"instance (NSUInteger, NSUInteger) -> void"
+      ~ocaml_name:"command4_compute_encoder_set_imageblock_size"
+      ~c_symbol:
+        "caml_prismel_metal_command4_compute_encoder_set_imageblock_size"
+      ~receiver:Compute_encoder4
+      ~arguments:
+        [ unsigned_argument "width"
+            "Metal 4 compute imageblock width must be nonnegative"
+        ; unsigned_argument "height"
+            "Metal 4 compute imageblock height must be nonnegative"
+        ]
+      ~safe_api:None
+  ; direct_void
+      ~sdk_id:
+        "method:-[MTL4RenderCommandEncoder setObjectThreadgroupMemoryLength:atIndex:]"
+      ~owner:"MTL4RenderCommandEncoder"
+      ~header:"Metal/MTL4RenderCommandEncoder.h"
+      ~name:"setObjectThreadgroupMemoryLength:atIndex:"
+      ~signature:"instance (NSUInteger, NSUInteger) -> void"
+      ~ocaml_name:
+        "command4_render_encoder_set_object_threadgroup_memory_length"
+      ~c_symbol:
+        "caml_prismel_metal_command4_render_encoder_set_object_threadgroup_memory_length"
+      ~receiver:Render_encoder4
+      ~arguments:
+        [ unsigned_argument "length"
+            "Metal 4 object threadgroup-memory length must be nonnegative"
+        ; unsigned_argument "index"
+            "Metal 4 object threadgroup-memory index must be nonnegative"
+        ]
+      ~safe_api:None
+  ; direct_void
+      ~sdk_id:
+        "method:-[MTL4RenderCommandEncoder setThreadgroupMemoryLength:offset:atIndex:]"
+      ~owner:"MTL4RenderCommandEncoder"
+      ~header:"Metal/MTL4RenderCommandEncoder.h"
+      ~name:"setThreadgroupMemoryLength:offset:atIndex:"
+      ~signature:"instance (NSUInteger, NSUInteger, NSUInteger) -> void"
+      ~ocaml_name:"command4_render_encoder_set_threadgroup_memory_length"
+      ~c_symbol:
+        "caml_prismel_metal_command4_render_encoder_set_threadgroup_memory_length"
+      ~receiver:Render_encoder4
+      ~arguments:
+        [ unsigned_argument "length"
+            "Metal 4 render threadgroup-memory length must be nonnegative"
+        ; unsigned_argument "offset"
+            "Metal 4 render threadgroup-memory offset must be nonnegative"
+        ; unsigned_argument "index"
+            "Metal 4 render threadgroup-memory index must be nonnegative"
+        ]
+      ~safe_api:None
   ]
 
 let generated_entries =

@@ -56,6 +56,22 @@ conformance function, and requires direct applications of the planned raw and
 public paths before composing the bound identifier set. Comments, strings,
 prefix names, and unrelated calls do not qualify as evidence.
 
+The direct-void scalar template also supports multiple `NSUInteger` arguments.
+It emits the raw OCaml externals and statically typed native adapters, including
+the plan's nonnegative-minimum and optional multiple constraints, for these four
+selectors:
+
+- `-[MTL4ComputeCommandEncoder setThreadgroupMemoryLength:atIndex:]`
+- `-[MTL4ComputeCommandEncoder setImageblockWidth:height:]`
+- `-[MTL4RenderCommandEncoder setObjectThreadgroupMemoryLength:atIndex:]`
+- `-[MTL4RenderCommandEncoder setThreadgroupMemoryLength:offset:atIndex:]`
+
+These entries deliberately retain `safe_api = null` and remain `unreviewed`.
+Their public completion needs handwritten pipeline and reflection checks,
+device memory-limit policy, and, for persistent render threadgroup memory,
+render-pass allocation validation. Generated raw/native glue alone is not a
+safe operation and does not make any of these inventory identifiers `bound`.
+
 Migration is gradual. Each small family first receives deterministic per-entry
 golden assertions for generated OCaml, Objective-C++, validation domains,
 selectors, symbols, errors, and provenance, then replaces the equivalent

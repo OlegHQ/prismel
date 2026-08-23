@@ -138,55 +138,143 @@ let replace_symbol_field ~target ~field replacement value =
       `Assoc fields
   | _ -> fail "inventory root is not an object"
 
-type expected_binding =
-  { sdk_id : string
-  ; selector : string
-  ; ocaml_name : string
-  ; c_symbol : string
-  ; argument_name : string
+type expected_argument_kind =
+  | Enum_int of (string * int) list
+  | Unsigned_int of
+      { minimum : int
+      ; multiple_of : int option
+      }
+
+type expected_argument =
+  { name : string
+  ; abi : string
   ; objc_type : string
-  ; cases : (string * int) list
+  ; kind : expected_argument_kind
   ; error : string
-  ; operation : string
+  }
+
+type expected_safe_api =
+  { operation : string
+  ; module_path : string list
   ; value_name : string
   ; test_value : string
   ; test_call : string list
   }
 
+type expected_binding =
+  { sdk_id : string
+  ; selector : string
+  ; ocaml_name : string
+  ; c_symbol : string
+  ; receiver_handle_kind : string
+  ; arguments : expected_argument list
+  ; safe_api : expected_safe_api option
+  }
+
 let expected_bindings =
-  [ { sdk_id = "method:-[MTL4RenderCommandEncoder setCullMode:]"
+  [ { sdk_id =
+        "method:-[MTL4ComputeCommandEncoder setImageblockWidth:height:]"
+    ; selector = "setImageblockWidth:height:"
+    ; ocaml_name = "command4_compute_encoder_set_imageblock_size"
+    ; c_symbol =
+        "caml_prismel_metal_command4_compute_encoder_set_imageblock_size"
+    ; receiver_handle_kind = "Compute_encoder4"
+    ; arguments =
+        [ { name = "width"
+          ; abi = "ocaml_int_to_nsuint"
+          ; objc_type = "NSUInteger"
+          ; kind = Unsigned_int { minimum = 0; multiple_of = None }
+          ; error = "Metal 4 compute imageblock width must be nonnegative"
+          }
+        ; { name = "height"
+          ; abi = "ocaml_int_to_nsuint"
+          ; objc_type = "NSUInteger"
+          ; kind = Unsigned_int { minimum = 0; multiple_of = None }
+          ; error = "Metal 4 compute imageblock height must be nonnegative"
+          }
+        ]
+    ; safe_api = None
+    }
+  ; { sdk_id =
+        "method:-[MTL4ComputeCommandEncoder setThreadgroupMemoryLength:atIndex:]"
+    ; selector = "setThreadgroupMemoryLength:atIndex:"
+    ; ocaml_name =
+        "command4_compute_encoder_set_threadgroup_memory_length"
+    ; c_symbol =
+        "caml_prismel_metal_command4_compute_encoder_set_threadgroup_memory_length"
+    ; receiver_handle_kind = "Compute_encoder4"
+    ; arguments =
+        [ { name = "length"
+          ; abi = "ocaml_int_to_nsuint"
+          ; objc_type = "NSUInteger"
+          ; kind = Unsigned_int { minimum = 0; multiple_of = Some 16 }
+          ; error =
+              "Metal 4 compute threadgroup-memory length must be nonnegative and a multiple of 16"
+          }
+        ; { name = "index"
+          ; abi = "ocaml_int_to_nsuint"
+          ; objc_type = "NSUInteger"
+          ; kind = Unsigned_int { minimum = 0; multiple_of = None }
+          ; error =
+              "Metal 4 compute threadgroup-memory index must be nonnegative"
+          }
+        ]
+    ; safe_api = None
+    }
+  ; { sdk_id = "method:-[MTL4RenderCommandEncoder setCullMode:]"
     ; selector = "setCullMode:"
     ; ocaml_name = "command4_render_encoder_set_cull_mode"
     ; c_symbol = "caml_prismel_metal_command4_render_encoder_set_cull_mode"
-    ; argument_name = "mode"
-    ; objc_type = "MTLCullMode"
-    ; cases =
-        [ "enum-case:MTLCullMode:MTLCullModeNone", 0
-        ; "enum-case:MTLCullMode:MTLCullModeFront", 1
-        ; "enum-case:MTLCullMode:MTLCullModeBack", 2
+    ; receiver_handle_kind = "Render_encoder4"
+    ; arguments =
+        [ { name = "mode"
+          ; abi = "ocaml_int_to_objc_enum"
+          ; objc_type = "MTLCullMode"
+          ; kind =
+              Enum_int
+                [ "enum-case:MTLCullMode:MTLCullModeNone", 0
+                ; "enum-case:MTLCullMode:MTLCullModeFront", 1
+                ; "enum-case:MTLCullMode:MTLCullModeBack", 2
+                ]
+          ; error = "Metal 4 cull mode is invalid"
+          }
         ]
-    ; error = "Metal 4 cull mode is invalid"
-    ; operation = "Metal.Command4.Render_encoder.set_cull_mode"
-    ; value_name = "set_cull_mode"
-    ; test_value = "test_metal4_raster_state_commands"
-    ; test_call = [ "Command4"; "Render_encoder"; "set_cull_mode" ]
+    ; safe_api =
+        Some
+          { operation = "Metal.Command4.Render_encoder.set_cull_mode"
+          ; module_path = [ "Command4"; "Render_encoder" ]
+          ; value_name = "set_cull_mode"
+          ; test_value = "test_metal4_raster_state_commands"
+          ; test_call = [ "Command4"; "Render_encoder"; "set_cull_mode" ]
+          }
     }
   ; { sdk_id = "method:-[MTL4RenderCommandEncoder setDepthClipMode:]"
     ; selector = "setDepthClipMode:"
     ; ocaml_name = "command4_render_encoder_set_depth_clip_mode"
     ; c_symbol =
         "caml_prismel_metal_command4_render_encoder_set_depth_clip_mode"
-    ; argument_name = "mode"
-    ; objc_type = "MTLDepthClipMode"
-    ; cases =
-        [ "enum-case:MTLDepthClipMode:MTLDepthClipModeClip", 0
-        ; "enum-case:MTLDepthClipMode:MTLDepthClipModeClamp", 1
+    ; receiver_handle_kind = "Render_encoder4"
+    ; arguments =
+        [ { name = "mode"
+          ; abi = "ocaml_int_to_objc_enum"
+          ; objc_type = "MTLDepthClipMode"
+          ; kind =
+              Enum_int
+                [ "enum-case:MTLDepthClipMode:MTLDepthClipModeClip", 0
+                ; "enum-case:MTLDepthClipMode:MTLDepthClipModeClamp", 1
+                ]
+          ; error = "Metal 4 depth-clip mode is invalid"
+          }
         ]
-    ; error = "Metal 4 depth-clip mode is invalid"
-    ; operation = "Metal.Command4.Render_encoder.set_depth_clip_mode"
-    ; value_name = "set_depth_clip_mode"
-    ; test_value = "test_metal4_raster_state_commands"
-    ; test_call = [ "Command4"; "Render_encoder"; "set_depth_clip_mode" ]
+    ; safe_api =
+        Some
+          { operation = "Metal.Command4.Render_encoder.set_depth_clip_mode"
+          ; module_path = [ "Command4"; "Render_encoder" ]
+          ; value_name = "set_depth_clip_mode"
+          ; test_value = "test_metal4_raster_state_commands"
+          ; test_call =
+              [ "Command4"; "Render_encoder"; "set_depth_clip_mode" ]
+          }
     }
   ; { sdk_id =
         "method:-[MTL4RenderCommandEncoder setFrontFacingWinding:]"
@@ -194,35 +282,115 @@ let expected_bindings =
     ; ocaml_name = "command4_render_encoder_set_front_facing_winding"
     ; c_symbol =
         "caml_prismel_metal_command4_render_encoder_set_front_facing_winding"
-    ; argument_name = "winding"
-    ; objc_type = "MTLWinding"
-    ; cases =
-        [ "enum-case:MTLWinding:MTLWindingClockwise", 0
-        ; "enum-case:MTLWinding:MTLWindingCounterClockwise", 1
+    ; receiver_handle_kind = "Render_encoder4"
+    ; arguments =
+        [ { name = "winding"
+          ; abi = "ocaml_int_to_objc_enum"
+          ; objc_type = "MTLWinding"
+          ; kind =
+              Enum_int
+                [ "enum-case:MTLWinding:MTLWindingClockwise", 0
+                ; "enum-case:MTLWinding:MTLWindingCounterClockwise", 1
+                ]
+          ; error = "Metal 4 front-facing winding is invalid"
+          }
         ]
-    ; error = "Metal 4 front-facing winding is invalid"
-    ; operation = "Metal.Command4.Render_encoder.set_front_facing_winding"
-    ; value_name = "set_front_facing_winding"
-    ; test_value = "test_metal4_raster_state_commands"
-    ; test_call =
-        [ "Command4"; "Render_encoder"; "set_front_facing_winding" ]
+    ; safe_api =
+        Some
+          { operation =
+              "Metal.Command4.Render_encoder.set_front_facing_winding"
+          ; module_path = [ "Command4"; "Render_encoder" ]
+          ; value_name = "set_front_facing_winding"
+          ; test_value = "test_metal4_raster_state_commands"
+          ; test_call =
+              [ "Command4"; "Render_encoder"; "set_front_facing_winding" ]
+          }
+    }
+  ; { sdk_id =
+        "method:-[MTL4RenderCommandEncoder setObjectThreadgroupMemoryLength:atIndex:]"
+    ; selector = "setObjectThreadgroupMemoryLength:atIndex:"
+    ; ocaml_name =
+        "command4_render_encoder_set_object_threadgroup_memory_length"
+    ; c_symbol =
+        "caml_prismel_metal_command4_render_encoder_set_object_threadgroup_memory_length"
+    ; receiver_handle_kind = "Render_encoder4"
+    ; arguments =
+        [ { name = "length"
+          ; abi = "ocaml_int_to_nsuint"
+          ; objc_type = "NSUInteger"
+          ; kind = Unsigned_int { minimum = 0; multiple_of = None }
+          ; error =
+              "Metal 4 object threadgroup-memory length must be nonnegative"
+          }
+        ; { name = "index"
+          ; abi = "ocaml_int_to_nsuint"
+          ; objc_type = "NSUInteger"
+          ; kind = Unsigned_int { minimum = 0; multiple_of = None }
+          ; error =
+              "Metal 4 object threadgroup-memory index must be nonnegative"
+          }
+        ]
+    ; safe_api = None
+    }
+  ; { sdk_id =
+        "method:-[MTL4RenderCommandEncoder setThreadgroupMemoryLength:offset:atIndex:]"
+    ; selector = "setThreadgroupMemoryLength:offset:atIndex:"
+    ; ocaml_name = "command4_render_encoder_set_threadgroup_memory_length"
+    ; c_symbol =
+        "caml_prismel_metal_command4_render_encoder_set_threadgroup_memory_length"
+    ; receiver_handle_kind = "Render_encoder4"
+    ; arguments =
+        [ { name = "length"
+          ; abi = "ocaml_int_to_nsuint"
+          ; objc_type = "NSUInteger"
+          ; kind = Unsigned_int { minimum = 0; multiple_of = None }
+          ; error =
+              "Metal 4 render threadgroup-memory length must be nonnegative"
+          }
+        ; { name = "offset"
+          ; abi = "ocaml_int_to_nsuint"
+          ; objc_type = "NSUInteger"
+          ; kind = Unsigned_int { minimum = 0; multiple_of = None }
+          ; error =
+              "Metal 4 render threadgroup-memory offset must be nonnegative"
+          }
+        ; { name = "index"
+          ; abi = "ocaml_int_to_nsuint"
+          ; objc_type = "NSUInteger"
+          ; kind = Unsigned_int { minimum = 0; multiple_of = None }
+          ; error =
+              "Metal 4 render threadgroup-memory index must be nonnegative"
+          }
+        ]
+    ; safe_api = None
     }
   ; { sdk_id = "method:-[MTL4RenderCommandEncoder setTriangleFillMode:]"
     ; selector = "setTriangleFillMode:"
     ; ocaml_name = "command4_render_encoder_set_triangle_fill_mode"
     ; c_symbol =
         "caml_prismel_metal_command4_render_encoder_set_triangle_fill_mode"
-    ; argument_name = "mode"
-    ; objc_type = "MTLTriangleFillMode"
-    ; cases =
-        [ "enum-case:MTLTriangleFillMode:MTLTriangleFillModeFill", 0
-        ; "enum-case:MTLTriangleFillMode:MTLTriangleFillModeLines", 1
+    ; receiver_handle_kind = "Render_encoder4"
+    ; arguments =
+        [ { name = "mode"
+          ; abi = "ocaml_int_to_objc_enum"
+          ; objc_type = "MTLTriangleFillMode"
+          ; kind =
+              Enum_int
+                [ "enum-case:MTLTriangleFillMode:MTLTriangleFillModeFill", 0
+                ; "enum-case:MTLTriangleFillMode:MTLTriangleFillModeLines", 1
+                ]
+          ; error = "Metal 4 triangle-fill mode is invalid"
+          }
         ]
-    ; error = "Metal 4 triangle-fill mode is invalid"
-    ; operation = "Metal.Command4.Render_encoder.set_triangle_fill_mode"
-    ; value_name = "set_triangle_fill_mode"
-    ; test_value = "test_metal4_raster_state_commands"
-    ; test_call = [ "Command4"; "Render_encoder"; "set_triangle_fill_mode" ]
+    ; safe_api =
+        Some
+          { operation = "Metal.Command4.Render_encoder.set_triangle_fill_mode"
+          ; module_path = [ "Command4"; "Render_encoder" ]
+          ; value_name = "set_triangle_fill_mode"
+          ; test_value = "test_metal4_raster_state_commands"
+          ; test_call =
+              [ "Command4"; "Render_encoder"; "set_triangle_fill_mode" ]
+          }
     }
   ]
 
@@ -247,6 +415,43 @@ let json_string_list name value =
     | `String value -> value
     | _ -> fail "generated manifest field %s contains a non-string" name)
 
+let check_argument sdk_id expected value =
+  if json_string "name" value <> expected.name
+     || json_string "abi" value <> expected.abi
+     || json_string "objc_type" value <> expected.objc_type
+     || json_string "error" value <> expected.error
+  then fail "generated manifest argument drift for %s" sdk_id;
+  match expected.kind with
+  | Enum_int expected_cases ->
+      let cases =
+        json_list "cases" value
+        |> List.map (fun case -> json_string "sdk_id" case, json_int "value" case)
+      in
+      if cases <> expected_cases then
+        fail "generated manifest enum-case drift for %s argument %s" sdk_id
+          expected.name;
+      if member "minimum" value <> None || member "multiple_of" value <> None
+      then
+        fail "generated manifest enum argument has scalar constraints for %s"
+          sdk_id
+  | Unsigned_int { minimum; multiple_of } ->
+      if member_int "minimum" value <> Some minimum then
+        fail "generated manifest minimum drift for %s argument %s" sdk_id
+          expected.name;
+      let actual_multiple =
+        match member_exn "multiple_of" value with
+        | `Null -> None
+        | `Int value -> Some value
+        | _ ->
+            fail "generated manifest multiple_of is invalid for %s argument %s"
+              sdk_id expected.name
+      in
+      if actual_multiple <> multiple_of then
+        fail "generated manifest multiple_of drift for %s argument %s" sdk_id
+          expected.name;
+      if member "cases" value <> None then
+        fail "generated manifest scalar argument has enum cases for %s" sdk_id
+
 let check_entry expected value =
   let require field expected_value =
     let actual = json_string field value in
@@ -258,31 +463,29 @@ let check_entry expected value =
   require "selector" expected.selector;
   require "ocaml_name" expected.ocaml_name;
   require "c_symbol" expected.c_symbol;
-  require "receiver_handle_kind" "Render_encoder4";
-  let argument =
-    match json_list "arguments" value with
-    | [ argument ] -> argument
-    | _ -> fail "generated manifest must record one argument for %s" expected.sdk_id
-  in
-  if json_string "name" argument <> expected.argument_name
-     || json_string "objc_type" argument <> expected.objc_type
-     || json_string "abi" argument <> "ocaml_int_to_objc_enum"
-     || json_string "error" argument <> expected.error
-  then fail "generated manifest argument drift for %s" expected.sdk_id;
-  let cases =
-    json_list "cases" argument
-    |> List.map (fun case -> json_string "sdk_id" case, json_int "value" case)
-  in
-  if cases <> expected.cases then
-    fail "generated manifest enum-case drift for %s" expected.sdk_id;
-  let safe_api = member_exn "safe_api" value in
-  if json_string "operation" safe_api <> expected.operation
-     || json_string_list "module_path" safe_api
-        <> [ "Command4"; "Render_encoder" ]
-     || json_string "value_name" safe_api <> expected.value_name
-     || json_string "test_value" safe_api <> expected.test_value
-     || json_string_list "test_call" safe_api <> expected.test_call
-  then fail "generated manifest safe-API evidence drift for %s" expected.sdk_id
+  require "receiver_handle_kind" expected.receiver_handle_kind;
+  require "template" "direct_void_scalar";
+  let arguments = json_list "arguments" value in
+  if List.length arguments <> List.length expected.arguments then
+    fail "generated manifest argument-list drift for %s" expected.sdk_id;
+  List.iter2 (check_argument expected.sdk_id) expected.arguments arguments;
+  match expected.safe_api, member_exn "safe_api" value with
+  | None, `Null -> ()
+  | None, _ ->
+      fail "generated manifest raw-only binding has safe-API evidence for %s"
+        expected.sdk_id
+  | Some _, `Null ->
+      fail "generated manifest safe binding has null evidence for %s"
+        expected.sdk_id
+  | Some expected_safe_api, safe_api ->
+      if json_string "operation" safe_api <> expected_safe_api.operation
+         || json_string_list "module_path" safe_api
+            <> expected_safe_api.module_path
+         || json_string "value_name" safe_api <> expected_safe_api.value_name
+         || json_string "test_value" safe_api <> expected_safe_api.test_value
+         || json_string_list "test_call" safe_api
+            <> expected_safe_api.test_call
+      then fail "generated manifest safe-API evidence drift for %s" expected.sdk_id
 
 let count_occurrences ~needle value =
   let needle_length = String.length needle in
@@ -317,10 +520,95 @@ let native_binding_body symbol native =
       in
       String.sub native start (ending - start)
 
+let selector_pieces expected =
+  let pieces = String.split_on_char ':' expected.selector in
+  let pieces =
+    match List.rev pieces with
+    | "" :: reversed -> List.rev reversed
+    | _ -> fail "golden selector must end in a colon: %s" expected.selector
+  in
+  if List.length pieces <> List.length expected.arguments then
+    fail "golden selector/argument cardinality mismatch for %s" expected.sdk_id;
+  pieces
+
+let raw_external expected =
+  let types =
+    "Types.handle"
+    :: (List.map (fun _ -> "int") expected.arguments
+        @ [ "(unit, string) result" ])
+  in
+  Printf.sprintf "external %s :\n    %s =\n    %S" expected.ocaml_name
+    (String.concat " -> " types) expected.c_symbol
+
+let native_signature expected =
+  let arguments =
+    "value raw_encoder"
+    :: List.map
+         (fun argument -> "value raw_" ^ argument.name)
+         expected.arguments
+  in
+  Printf.sprintf "%s(\n    %s) {" expected.c_symbol
+    (String.concat ", " arguments)
+
+let native_camlparam expected =
+  let arguments =
+    "raw_encoder"
+    :: List.map (fun argument -> "raw_" ^ argument.name) expected.arguments
+  in
+  Printf.sprintf "CAMLparam%d(%s);" (List.length arguments)
+    (String.concat ", " arguments)
+
+let native_call expected =
+  let components =
+    List.map2
+      (fun piece argument ->
+        Printf.sprintf "%s:static_cast<%s>(%s)" piece argument.objc_type
+          argument.name)
+      (selector_pieces expected) expected.arguments
+  in
+  Printf.sprintf "[encoder %s];" (String.concat " " components)
+
+let enum_validation name cases =
+  let values = List.map snd cases |> List.sort Int.compare in
+  let rec consecutive = function
+    | [] | [ _ ] -> true
+    | left :: (right :: _ as rest) ->
+        right = left + 1 && consecutive rest
+  in
+  match values with
+  | minimum :: _ when consecutive values ->
+      let maximum = List.hd (List.rev values) in
+      Printf.sprintf "%s < %d || %s > %d" name minimum name maximum
+  | _ ->
+      values
+      |> List.map (fun value -> Printf.sprintf "%s != %d" name value)
+      |> String.concat " && "
+
+let argument_validation argument =
+  match argument.kind with
+  | Enum_int cases -> enum_validation argument.name cases
+  | Unsigned_int { minimum; multiple_of } ->
+      let conditions =
+        (if minimum = 0 then [ argument.name ^ " < 0" ]
+         else [ Printf.sprintf "%s < %d" argument.name minimum ])
+        @
+        match multiple_of with
+        | None -> []
+        | Some divisor ->
+            [ Printf.sprintf "%s %% %d != 0" argument.name divisor ]
+      in
+      String.concat " || " conditions
+
+let native_argument_conversion argument =
+  Printf.sprintf
+    "const intnat %s = Long_val(raw_%s);\n        if (%s) {\n          CAMLreturn(result_error_text(%S));\n        }"
+    argument.name argument.name (argument_validation argument) argument.error
+
 let check_manifest inputs outputs =
   let value = read_file outputs.manifest |> Yojson.Safe.from_string in
   if member_int "entry_count" value <> Some (List.length expected_bindings) then
-    fail "generated Metal manifest must record four golden bindings";
+    fail "generated Metal manifest must record %d golden bindings"
+      (List.length expected_bindings);
   if member_string "binding_plan_source_sha256" value
      <> Some (sha256 (read_file inputs.plan_source))
   then fail "generated Metal manifest has stale plan provenance";
@@ -346,29 +634,39 @@ let check_manifest inputs outputs =
     (fun expected ->
       let native_body = native_binding_body expected.c_symbol native in
       [ ( "raw ML OCaml name"
-        , "external " ^ expected.ocaml_name ^ " :"
+        , raw_external expected
         , raw_ml )
       ; ( "raw MLI OCaml name"
-        , "external " ^ expected.ocaml_name ^ " :"
+        , raw_external expected
         , raw_mli )
-      ; "raw ML primitive", Printf.sprintf "%S" expected.c_symbol, raw_ml
-      ; "raw MLI primitive", Printf.sprintf "%S" expected.c_symbol, raw_mli
-      ; "native primitive", expected.c_symbol, native_body
-      ; "native selector", "[encoder " ^ expected.selector, native_body
-      ; "native validation error", expected.error, native_body
+      ; "native signature", native_signature expected, native_body
+      ; "native CAMLparam", native_camlparam expected, native_body
+      ; ( "native receiver kind"
+        , "object_of_handle(raw_encoder, Handle_kind::"
+          ^ expected.receiver_handle_kind ^ ");"
+        , native_body )
+      ; "native direct selector", native_call expected, native_body
       ]
       |> List.iter (fun (description, needle, contents) ->
         if count_occurrences ~needle contents <> 1 then
           fail "%s must occur exactly once for %s" description expected.sdk_id);
-      let values = List.map snd expected.cases |> List.sort Int.compare in
-      let minimum = List.hd values in
-      let maximum = List.hd (List.rev values) in
-      let validation =
-        Printf.sprintf "%s < %d || %s > %d" expected.argument_name minimum
-          expected.argument_name maximum
-      in
-      if count_occurrences ~needle:validation native_body <> 1 then
-        fail "native enum validation is incomplete for %s" expected.sdk_id)
+      List.iter
+        (fun argument ->
+          let conversion = native_argument_conversion argument in
+          if count_occurrences ~needle:conversion native_body <> 1 then
+            fail "native argument conversion/validation drift for %s argument %s"
+              expected.sdk_id argument.name;
+          if count_occurrences ~needle:argument.error native_body <> 1 then
+            fail "native validation error must occur once for %s argument %s"
+              expected.sdk_id argument.name;
+          match argument.kind with
+          | Enum_int _ -> ()
+          | Unsigned_int { multiple_of = None; _ } ->
+              if contains ~needle:(argument.name ^ " % ") native_body then
+                fail "native scalar validation gained an unexpected multiple for %s"
+                  expected.sdk_id
+          | Unsigned_int { multiple_of = Some _; _ } -> ())
+        expected.arguments)
     expected_bindings
 
 let main () =
@@ -444,6 +742,20 @@ let main () =
     require_failure "SDK signature drift test" "Metal inventory drift"
       (run inputs ~inventory:drift_inventory
          ~manual_native:inputs.manual_native (outputs directory "drift"));
+    let scalar_drift_inventory =
+      Filename.concat directory "scalar-drift.json"
+    in
+    read_file inputs.inventory |> Yojson.Safe.from_string
+    |> replace_symbol_field
+         ~target:
+           "method:-[MTL4ComputeCommandEncoder setImageblockWidth:height:]"
+         ~field:"signature"
+         (`String "instance (NSInteger, NSUInteger) -> void")
+    |> pretty_json |> write_file scalar_drift_inventory;
+    require_failure "SDK scalar-signature drift test" "Metal inventory drift"
+      (run inputs ~inventory:scalar_drift_inventory
+         ~manual_native:inputs.manual_native
+         (outputs directory "scalar-drift"));
     let enum_drift_inventory = Filename.concat directory "enum-drift.json" in
     read_file inputs.inventory |> Yojson.Safe.from_string
     |> replace_symbol_field

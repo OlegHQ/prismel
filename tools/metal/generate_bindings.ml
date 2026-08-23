@@ -31,6 +31,13 @@ let receiver_spec = function
       ; raw_name = "raw_encoder"
       ; local_name = "encoder"
       }
+  | Binding_plan.Compute_encoder4 ->
+      { owner = "MTL4ComputeCommandEncoder"
+      ; objc_type = "id<MTL4ComputeCommandEncoder>"
+      ; handle_kind = "Compute_encoder4"
+      ; raw_name = "raw_encoder"
+      ; local_name = "encoder"
+      }
 
 let enum_objc_type = function
   | Binding_plan.Winding -> "MTLWinding"
@@ -150,6 +157,7 @@ let reject_duplicates description values =
 
 let expected_argument_type = function
   | Binding_plan.Enum_int { enum_type; cases = _ } -> enum_objc_type enum_type
+  | Binding_plan.Unsigned_int _ -> "NSUInteger"
 
 let validate_enum_cases inventory binding_id enum_type
     (cases : Binding_plan.enum_case list) =
@@ -258,7 +266,18 @@ let validate_entry inventory entry =
                 argument.name;
             (match argument.kind with
              | Binding_plan.Enum_int { enum_type; cases } ->
-                 validate_enum_cases inventory entry.sdk_id enum_type cases);
+                 validate_enum_cases inventory entry.sdk_id enum_type cases
+             | Binding_plan.Unsigned_int { minimum; multiple_of } ->
+                 if minimum < 0 then
+                   fail
+                     "generated Metal unsigned argument %s has a negative minimum"
+                     argument.name;
+                 (match multiple_of with
+                  | Some divisor when divisor <= 0 ->
+                      fail
+                        "generated Metal unsigned argument %s has a nonpositive multiple"
+                        argument.name
+                  | None | Some _ -> ()));
             argument.name)
           binding.arguments
       in
@@ -579,6 +598,7 @@ let generated_header ~plan_sha256 ~inventory_sha256 =
 
 let raw_type = function
   | Binding_plan.Enum_int _ -> "int"
+  | Binding_plan.Unsigned_int _ -> "int"
 
 let add_raw_external output entry =
   let binding = generated_binding entry in
@@ -658,12 +678,31 @@ let argument_conversion output (argument : Binding_plan.argument) =
       Printf.bprintf output "          CAMLreturn(result_error_text(%s));\n"
         (c_string argument.error);
       Buffer.add_string output "        }\n"
+  | Binding_plan.Unsigned_int { minimum; multiple_of } ->
+      Printf.bprintf output "        const intnat %s = Long_val(raw_%s);\n"
+        argument.name argument.name;
+      let conditions =
+        (if minimum = 0 then [ Printf.sprintf "%s < 0" argument.name ]
+         else [ Printf.sprintf "%s < %d" argument.name minimum ])
+        @
+        match multiple_of with
+        | None -> []
+        | Some divisor ->
+            [ Printf.sprintf "%s %% %d != 0" argument.name divisor ]
+      in
+      Printf.bprintf output "        if (%s) {\n"
+        (String.concat " || " conditions);
+      Printf.bprintf output "          CAMLreturn(result_error_text(%s));\n"
+        (c_string argument.error);
+      Buffer.add_string output "        }\n"
 
 let argument_expression (argument : Binding_plan.argument) =
   match argument.Binding_plan.kind with
   | Binding_plan.Enum_int { enum_type; _ } ->
       Printf.sprintf "static_cast<%s>(%s)" (enum_objc_type enum_type)
         argument.name
+  | Binding_plan.Unsigned_int _ ->
+      Printf.sprintf "static_cast<NSUInteger>(%s)" argument.name
 
 let objc_call receiver selector arguments =
   match arguments with
@@ -749,6 +788,16 @@ let argument_json (argument : Binding_plan.argument) =
                    ; "value", `Int case.value
                    ])
                cases)
+        ]
+  | Binding_plan.Unsigned_int { minimum; multiple_of } ->
+      `Assoc
+        [ "name", `String argument.name
+        ; "abi", `String "ocaml_int_to_nsuint"
+        ; "objc_type", `String "NSUInteger"
+        ; "error", `String argument.error
+        ; "minimum", `Int minimum
+        ; "multiple_of",
+          (match multiple_of with None -> `Null | Some value -> `Int value)
         ]
 
 let entry_json entry =

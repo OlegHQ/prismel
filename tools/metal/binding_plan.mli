@@ -1,5 +1,6 @@
 type receiver =
   | Render_encoder4
+  | Compute_encoder4
 
 type enum_type =
   | Winding
@@ -16,6 +17,10 @@ type argument_kind =
   | Enum_int of
       { enum_type : enum_type
       ; cases : enum_case list
+      }
+  | Unsigned_int of
+      { minimum : int
+      ; multiple_of : int option
       }
 
 type argument =
