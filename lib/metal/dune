@@ -213,6 +213,7 @@
   ../../tools/metal/metal_mesh_tile_mechanical_callable_bridge.inc
   ../../tools/metal/metal_command_event_constructors.inc
   ../../tools/metal/metal_io_constructors.inc
+  ../../tools/metal/metal_mesh_tile_pipeline_compile.inc
   c_library_flags.sexp)
  (action
   (run ./build_bridge.exe
