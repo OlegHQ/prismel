@@ -920,6 +920,9 @@ enum class Handle_kind : std::uint32_t {
   Machine_learning_descriptor4,
   Machine_learning_pipeline4,
   Machine_learning_encoder4,
+  Function_descriptor4,
+  Function_constants4,
+  Specialized_function_descriptor4,
   Depth_stencil,
   Indirect_command_buffer,
   Indirect_render_command,
@@ -14415,4 +14418,5 @@ extern "C" CAMLprim value caml_prismel_metal_pipeline_render_imageblock_length(v
 #include "../../tools/metal/metal4_compute_callable_bridge.inc"
 #include "../../tools/metal/metal4_remaining_callable_bridge.inc"
 #include "../../tools/metal/metal4_ml_callable_bridge.inc"
+#include "../../tools/metal/metal4_specialized_callable_bridge.inc"
 #pragma clang diagnostic pop

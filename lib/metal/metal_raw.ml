@@ -1840,6 +1840,11 @@ external metal4_ml_encoder_create : handle -> (handle,string) result = "caml_pri
 external metal4_ml_encoder_pipeline : handle -> handle -> handle -> (unit,string) result = "caml_prismel_metal4_ml_encoder_pipeline"
 external metal4_ml_encoder_table : handle -> handle -> handle option -> (unit,string) result = "caml_prismel_metal4_ml_encoder_table"
 external metal4_ml_encoder_dispatch : handle -> handle -> handle -> (unit,string) result = "caml_prismel_metal4_ml_encoder_dispatch"
+external metal4_function_descriptor : handle -> string -> (handle,string) result = "caml_prismel_metal4_function_descriptor"
+external metal4_function_constants : unit -> (handle,string) result = "caml_prismel_metal4_function_constants"
+external metal4_specialized_create : handle option -> string option -> handle option -> (handle,string) result = "caml_prismel_metal4_specialized_create"
+external metal4_specialized_get : handle -> ((handle option * string option * handle option),string) result = "caml_prismel_metal4_specialized_get"
+external metal4_specialized_set : handle -> handle option -> string option -> handle option -> (unit,string) result = "caml_prismel_metal4_specialized_set"
 
 (** Shader157 exact callable raw subset. Descriptor graphs, reflection,
     preprocessor dictionaries and callback compilation remain blocked. *)
