@@ -14342,6 +14342,7 @@ extern "C" CAMLprim value caml_prismel_metal_pipeline_render_imageblock_length(v
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunguarded-availability-new"
+#pragma clang diagnostic ignored "-Wunused-function"
 #include "../../tools/metal/metal_mesh_tile_ownership_materializers.inc"
 #include "../../tools/metal/metal_io_counter_ownership_materializers.inc"
 #include "../../tools/metal/metal_mesh_tile_counter_callable_bridge.inc"
