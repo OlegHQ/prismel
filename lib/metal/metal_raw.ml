@@ -1800,6 +1800,11 @@ external io_file_snapshot : handle -> (string option,string) result = "caml_pris
 external io_file_set_label : handle -> string option -> (unit,string) result = "caml_prismel_metal_io_file_set_label"
 external io_command_copy_status : handle -> handle -> int64 -> (unit,string) result = "caml_prismel_metal_io_command_copy_status"
 external io_command_load_texture : handle -> handle -> (int64 * int64 * int64 * int64 * int64 * int64 * int64 * int64 * int64 * int64 * handle * int64) -> (unit,string) result = "caml_prismel_metal_io_command_load_texture"
+type io_compression_context
+external io_compression_default_chunk : unit -> (int64,string) result = "caml_prismel_metal_io_compression_default_chunk"
+external io_compression_create : string -> int -> int64 -> (io_compression_context,string) result = "caml_prismel_metal_io_compression_create"
+external io_compression_append : io_compression_context -> bytes -> int64 -> int64 -> (unit,string) result = "caml_prismel_metal_io_compression_append"
+external io_compression_finish : io_compression_context -> (int,string) result = "caml_prismel_metal_io_compression_finish"
 
 (** Authoritative Metal4 lifecycle190 prepared CAML subset. The resource and
     compute-owner shards currently contain typed native helpers only, not OCaml
