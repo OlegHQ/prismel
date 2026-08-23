@@ -1622,6 +1622,25 @@ module Render_pipeline : sig
   val vertex_descriptor : t -> Vertex_descriptor.t option
   val reflection : t -> reflection option
   val label : t -> (string option, error) result
+  module Mesh_tile:sig
+    type size3={width:int64;height:int64;depth:int64}
+    type mutability=Default|Mutable|Immutable
+    type mesh_descriptor
+    type tile_descriptor
+    type buffer_descriptor
+    type color_attachment
+    val buffer_descriptor : ?mutability:mutability -> unit -> (buffer_descriptor,error) result
+    val set_buffer_mutability : buffer_descriptor -> mutability -> (unit,error) result
+    val buffer_mutability : buffer_descriptor -> mutability
+    val create_color_attachment : Texture.format -> (color_attachment,error) result
+    val color_attachment_format : color_attachment -> Texture.format
+    val mesh_descriptor : ?label:string -> ?object_function:Function.t -> ?fragment_function:Function.t -> ?binary_archives:Binary_archive.t list -> mesh_function:Function.t -> depth_format:Texture.format -> stencil_format:Texture.format -> required_mesh_threads:size3 -> required_object_threads:size3 -> unit -> (mesh_descriptor,error) result
+    val tile_descriptor : ?label:string -> ?binary_archives:Binary_archive.t list -> ?preloaded_libraries:Dynamic_library.t list -> tile_function:Function.t -> required_threads:size3 -> unit -> (tile_descriptor,error) result
+    val destroy_buffer : buffer_descriptor -> (unit,error) result
+    val destroy_color : color_attachment -> (unit,error) result
+    val destroy_mesh : mesh_descriptor -> (unit,error) result
+    val destroy_tile : tile_descriptor -> (unit,error) result
+  end
   val destroy : t -> (unit, error) result
 end
 
