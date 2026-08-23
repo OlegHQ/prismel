@@ -2927,6 +2927,11 @@ module Resource_state_encoder : sig
   val update_texture_mappings :
     t -> mode:mapping_mode -> Texture.t -> regions:tile_region array ->
     mip_levels:int array -> slices:int array -> (unit,error) result
+  val move_texture_mappings :
+    t -> source:Texture.t -> source_slice:int -> source_level:int ->
+    source_region:tile_region -> destination:Texture.t ->
+    destination_slice:int -> destination_level:int ->
+    destination_origin:(int * int * int) -> (unit,error) result
   val end_encoding : t -> (unit, error) result
   val destroyed : t -> bool
 end

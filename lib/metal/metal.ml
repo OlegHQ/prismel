@@ -16606,6 +16606,74 @@ module Resource_state_encoder = struct
     let operation="Metal.Resource_state_encoder.update_texture_mappings"in
     on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match ensure_texture_usable operation texture with Error _ as e->e|Ok()->match ensure_same_device operation value.command_buffer.queue.device texture.device with Error _ as e->e|Ok()->let count=Array.length regions in if count=0||Array.length mip_levels<>count||Array.length slices<>count then error operation Invalid_argument "mapping arrays must be nonempty and have equal lengths"else if not(match texture_heap texture with Some heap->heap.descriptor.kind=Sparse|None->false)then error operation Invalid_argument "texture is not sparse-heap-backed"else let descriptor=texture.descriptor in let rec validate i=if i=count then Ok()else let region=regions.(i)and mip=mip_levels.(i)and slice=slices.(i)in if mip<0||mip>=descriptor.mip_levels||slice<0||slice>=Texture.total_slices descriptor||region.x<0||region.y<0||region.z<0||region.width<=0||region.height<=0||region.depth<=0 then error operation Invalid_argument "mapping array contains an invalid mip, slice, or region"else validate(i+1)in match validate 0 with Error _ as e->e|Ok()->let native_regions=Array.map(fun r->(Int64.of_int r.x,Int64.of_int r.y,Int64.of_int r.z,Int64.of_int r.width,Int64.of_int r.height,Int64.of_int r.depth))regions and native_mips=Array.map Int64.of_int mip_levels and native_slices=Array.map Int64.of_int slices in match Metal_raw.resource_encoder_mappings value.raw texture.raw(Int64.of_int(mode_code mode))native_regions native_mips native_slices(Int64.of_int count)with Error m->native_error operation m|Ok()->retain_command_buffer_texture value.command_buffer texture;Ok())
 
+  let move_texture_mappings (value : t) ~(source : Texture.t) ~source_slice
+      ~source_level ~(source_region : tile_region) ~(destination : Texture.t)
+      ~destination_slice ~destination_level ~destination_origin =
+    let operation = "Metal.Resource_state_encoder.move_texture_mappings" in
+    on_main operation (fun () ->
+      Result.bind (ensure_live operation value.lifetime) (fun () ->
+      Result.bind (ensure_texture_usable operation source) (fun () ->
+      Result.bind (ensure_texture_usable operation destination) (fun () ->
+      Result.bind (ensure_same_device operation value.command_buffer.queue.device source.device) (fun () ->
+      Result.bind (ensure_same_device operation source.device destination.device) (fun () ->
+        let source_descriptor = source.descriptor
+        and destination_descriptor = destination.descriptor
+        and dx, dy, dz = destination_origin in
+        if source_descriptor.format <> destination_descriptor.format then
+          error operation Invalid_argument "mapping moves require identical formats"
+        else if source_level < 0 || source_level >= source_descriptor.mip_levels
+             || destination_level < 0
+             || destination_level >= destination_descriptor.mip_levels
+             || source_slice < 0
+             || source_slice >= Texture.total_slices source_descriptor
+             || destination_slice < 0
+             || destination_slice >= Texture.total_slices destination_descriptor
+             || source_region.x < 0 || source_region.y < 0 || source_region.z < 0
+             || source_region.width <= 0 || source_region.height <= 0
+             || source_region.depth <= 0 || dx < 0 || dy < 0 || dz < 0 then
+          error operation Invalid_argument "mapping move range is invalid"
+        else Result.bind (Texture.sparse_info_raw operation source) (function
+          | None -> error operation Invalid_argument "source texture is not sparse"
+          | Some source_info ->
+              Result.bind (Texture.sparse_info_raw operation destination) (function
+                | None -> error operation Invalid_argument
+                    "destination texture is not sparse"
+                | Some destination_info ->
+                    let tile_limit dimension level tile =
+                      ceil_div (Texture.mip_dimension dimension level) tile in
+                    let valid =
+                      valid_axis source_region.x source_region.width
+                        (tile_limit source_descriptor.width source_level source_info.tile_width)
+                      && valid_axis source_region.y source_region.height
+                        (tile_limit source_descriptor.height source_level source_info.tile_height)
+                      && valid_axis source_region.z source_region.depth
+                        (tile_limit source_descriptor.depth source_level source_info.tile_depth)
+                      && valid_axis dx source_region.width
+                        (tile_limit destination_descriptor.width destination_level destination_info.tile_width)
+                      && valid_axis dy source_region.height
+                        (tile_limit destination_descriptor.height destination_level destination_info.tile_height)
+                      && valid_axis dz source_region.depth
+                        (tile_limit destination_descriptor.depth destination_level destination_info.tile_depth)
+                    in
+                    if not valid then error operation Invalid_argument
+                        "mapping move exceeds a sparse mip extent"
+                    else
+                      let origin = Int64.of_int source_region.x,
+                        Int64.of_int source_region.y, Int64.of_int source_region.z
+                      and size = Int64.of_int source_region.width,
+                        Int64.of_int source_region.height, Int64.of_int source_region.depth
+                      and destination_origin =
+                        Int64.of_int dx, Int64.of_int dy, Int64.of_int dz in
+                      match Metal_raw.resource_encoder_move_texture value.raw source.raw
+                        (Int64.of_int source_slice) (Int64.of_int source_level)
+                        origin size destination.raw (Int64.of_int destination_slice)
+                        (Int64.of_int destination_level) destination_origin with
+                      | Error message -> native_error operation message
+                      | Ok () ->
+                          retain_command_buffer_texture value.command_buffer source;
+                          retain_command_buffer_texture value.command_buffer destination;
+                          Ok ()))))))))
+
   let end_encoding (value : t) =
     on_main "Metal.Resource_state_encoder.end_encoding" (fun () ->
       match ensure_live "Metal.Resource_state_encoder.end_encoding" value.lifetime with
