@@ -35,13 +35,26 @@ module String_map = Map.Make (String)
 
 let snake_case value =
   let output = Buffer.create (String.length value + 8) in
+  let uppercase character = character >= 'A' && character <= 'Z' in
+  let lowercase character = character >= 'a' && character <= 'z' in
+  let digit character = character >= '0' && character <= '9' in
   String.iteri
     (fun index character ->
       if character = '_' then Buffer.add_char output '_'
       else begin
-        if index > 0 && character >= 'A' && character <= 'Z' then
-          let previous = value.[index - 1] in
-          if previous >= 'a' && previous <= 'z' then Buffer.add_char output '_';
+        let previous = if index = 0 then None else Some value.[index - 1] in
+        let next =
+          if index + 1 = String.length value then None else Some value.[index + 1]
+        in
+        let starts_word =
+          uppercase character
+          &&
+          match previous, next with
+          | Some previous, _ when lowercase previous || digit previous -> true
+          | Some previous, Some next when uppercase previous && lowercase next -> true
+          | _ -> false
+        in
+        if starts_word then Buffer.add_char output '_';
         Buffer.add_char output (Char.lowercase_ascii character)
       end)
     value;

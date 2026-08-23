@@ -69,6 +69,17 @@ let () =
   assert (Binding_enum_implicit_codegen.case_count selected = 23);
   assert (Binding_enum_implicit_codegen.declaration_count selected = 37);
   assert (List.length (Binding_enum_implicit_codegen.identifiers selected) = 37);
+  let raw = Binding_enum_implicit_codegen.render_raw_ml selected in
+  assert (String.starts_with ~prefix:"module Implicit_enum_constants" raw);
+  assert
+    (let needle = "module Mtl_log_level" in
+     let needle_length = String.length needle in
+     let rec contains index =
+       index + needle_length <= String.length raw
+       &&
+       (String.sub raw index needle_length = needle || contains (index + 1))
+     in
+     contains 0);
   let native = Binding_enum_implicit_codegen.render_static_asserts selected in
   assert (String.length native > 1000);
   let malformed =
