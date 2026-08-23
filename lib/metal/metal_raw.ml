@@ -1796,6 +1796,10 @@ external io_command_snapshot : handle -> ((string option * string option * int),
 external io_command_simple : handle -> int -> string option -> (unit,string) result = "caml_prismel_metal_io_command_simple"
 external io_command_event : handle -> handle -> int64 -> bool -> (unit,string) result = "caml_prismel_metal_io_command_event"
 external io_command_handler : handle -> (unit -> unit) -> (nativeint,string) result = "caml_prismel_metal_io_command_handler"
+external io_file_snapshot : handle -> (string option,string) result = "caml_prismel_metal_io_file_snapshot"
+external io_file_set_label : handle -> string option -> (unit,string) result = "caml_prismel_metal_io_file_set_label"
+external io_command_copy_status : handle -> handle -> int64 -> (unit,string) result = "caml_prismel_metal_io_command_copy_status"
+external io_command_load_texture : handle -> handle -> (int64 * int64 * int64 * int64 * int64 * int64 * int64 * int64 * int64 * int64 * handle * int64) -> (unit,string) result = "caml_prismel_metal_io_command_load_texture"
 
 (** Authoritative Metal4 lifecycle190 prepared CAML subset. The resource and
     compute-owner shards currently contain typed native helpers only, not OCaml
