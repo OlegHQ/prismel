@@ -4,6 +4,9 @@
 val methods : Binding_direct_spec.method_entry list
 val properties : Binding_direct_spec.property_entry list
 val inventory_ids : string list
+val safe_device_properties : Binding_direct_spec.property_entry list
+val safe_device_identifiers : string list
+val is_safe_device_identifier : string -> bool
 
 val expected_method_count : int
 val expected_property_count : int

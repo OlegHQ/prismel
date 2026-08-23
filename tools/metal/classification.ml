@@ -1426,6 +1426,7 @@ let bound_identifiers =
       ; "MTLResourceHazardTrackingModeTracked"
       ]
   @ Binding_plan.bound_identifiers
+  @ Binding_direct_plan.safe_device_identifiers
 
 let bound_identifier_set = String_set.of_list bound_identifiers
 

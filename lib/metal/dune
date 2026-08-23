@@ -135,6 +135,11 @@
  (libraries metal))
 
 (test
+ (name test_device_generated_capabilities)
+ (modules test_device_generated_capabilities)
+ (libraries metal))
+
+(test
  (name test_metal_stress)
  (modules test_metal_stress)
  (libraries metal unix))

@@ -1770,6 +1770,36 @@ module Device = struct
     ; function_pointers : bool
     }
 
+  type argument_buffers_tier = Tier_1 | Tier_2 | Unknown_argument_buffers_tier of int64
+  type location = Built_in | Slot | External | Unspecified | Unknown_location of int64
+  type read_write_texture_tier =
+    | No_read_write_textures
+    | Read_write_tier_1
+    | Read_write_tier_2
+    | Unknown_read_write_texture_tier of int64
+
+  type capabilities =
+    { argument_buffers_tier : argument_buffers_tier
+    ; location : location
+    ; location_number : int64
+    ; max_argument_buffer_sampler_count : int64
+    ; max_transfer_rate : int64
+    ; maximum_concurrent_compilation_task_count : int64
+    ; peer_count : int64
+    ; peer_group_id : int64
+    ; peer_index : int64
+    ; programmable_sample_positions : bool
+    ; raster_order_groups : bool
+    ; read_write_texture_tier : read_write_texture_tier
+    ; supports_32_bit_float_filtering : bool
+    ; supports_32_bit_msaa : bool
+    ; supports_primitive_motion_blur : bool
+    ; supports_pull_model_interpolation : bool
+    ; supports_query_texture_lod : bool
+    ; supports_render_dynamic_libraries : bool
+    ; supports_shader_barycentric_coordinates : bool
+    }
+
   let system_default () =
     on_main "Metal.Device.system_default" (fun () ->
       match Metal_raw.default_device () with
@@ -1818,6 +1848,76 @@ module Device = struct
                  ; function_pointers =
                      Metal_raw.device_supports_function_pointers value.raw
                  }))
+
+  let capabilities (value : t) =
+    let operation = "Metal.Device.capabilities" in
+    let argument_buffers_tier_of_code = function
+      | 0L -> Tier_1
+      | 1L -> Tier_2
+      | code -> Unknown_argument_buffers_tier code
+    in
+    let location_of_code = function
+      | 0L -> Built_in
+      | 1L -> Slot
+      | 2L -> External
+      | 3L -> Unspecified
+      | code -> Unknown_location code
+    in
+    let read_write_texture_tier_of_code = function
+      | 0L -> No_read_write_textures
+      | 1L -> Read_write_tier_1
+      | 2L -> Read_write_tier_2
+      | code -> Unknown_read_write_texture_tier code
+    in
+    let native = function
+      | Ok value -> Ok value
+      | Error message -> native_error operation message
+    in
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          let ( let* ) result callback = Result.bind result callback in
+          let* argument_buffers_tier = native (Metal_raw.generated_mtl_device_argument_buffers_support value.raw) in
+          let* location = native (Metal_raw.generated_mtl_device_location value.raw) in
+          let* location_number = native (Metal_raw.generated_mtl_device_location_number value.raw) in
+          let* max_argument_buffer_sampler_count = native (Metal_raw.generated_mtl_device_max_argument_buffer_sampler_count value.raw) in
+          let* max_transfer_rate = native (Metal_raw.generated_mtl_device_max_transfer_rate value.raw) in
+          let* maximum_concurrent_compilation_task_count = native (Metal_raw.generated_mtl_device_maximum_concurrent_compilation_task_count value.raw) in
+          let* peer_count = native (Metal_raw.generated_mtl_device_peer_count value.raw) in
+          let* peer_group_id = native (Metal_raw.generated_mtl_device_peer_group_id value.raw) in
+          let* peer_index = native (Metal_raw.generated_mtl_device_peer_index value.raw) in
+          let* programmable_sample_positions = native (Metal_raw.generated_mtl_device_are_programmable_sample_positions_supported value.raw) in
+          let* raster_order_groups = native (Metal_raw.generated_mtl_device_are_raster_order_groups_supported value.raw) in
+          let* read_write_texture_tier = native (Metal_raw.generated_mtl_device_read_write_texture_support value.raw) in
+          let* supports_32_bit_float_filtering = native (Metal_raw.generated_mtl_device_supports32_bit_float_filtering value.raw) in
+          let* supports_32_bit_msaa = native (Metal_raw.generated_mtl_device_supports32_bit_msaa value.raw) in
+          let* supports_primitive_motion_blur = native (Metal_raw.generated_mtl_device_supports_primitive_motion_blur value.raw) in
+          let* supports_pull_model_interpolation = native (Metal_raw.generated_mtl_device_supports_pull_model_interpolation value.raw) in
+          let* supports_query_texture_lod = native (Metal_raw.generated_mtl_device_supports_query_texture_lod value.raw) in
+          let* supports_render_dynamic_libraries = native (Metal_raw.generated_mtl_device_supports_render_dynamic_libraries value.raw) in
+          let* supports_shader_barycentric_coordinates = native (Metal_raw.generated_mtl_device_supports_shader_barycentric_coordinates value.raw) in
+          Ok
+            { argument_buffers_tier = argument_buffers_tier_of_code argument_buffers_tier
+            ; location = location_of_code location
+            ; location_number
+            ; max_argument_buffer_sampler_count
+            ; max_transfer_rate
+            ; maximum_concurrent_compilation_task_count
+            ; peer_count
+            ; peer_group_id
+            ; peer_index
+            ; programmable_sample_positions
+            ; raster_order_groups
+            ; read_write_texture_tier = read_write_texture_tier_of_code read_write_texture_tier
+            ; supports_32_bit_float_filtering
+            ; supports_32_bit_msaa
+            ; supports_primitive_motion_blur
+            ; supports_pull_model_interpolation
+            ; supports_query_texture_lod
+            ; supports_render_dynamic_libraries
+            ; supports_shader_barycentric_coordinates
+            })
 
   let family_code = function
     | Apple1 -> 1001

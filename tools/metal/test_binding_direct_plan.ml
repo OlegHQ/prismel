@@ -198,10 +198,15 @@ let validate_availability identifier planned actual =
         "direct-plan %s has nullable baseline availability but a post-14.0 guard %s"
         identifier (Binding_availability.canonical planned)
 
-let require_unreviewed declaration =
-  if not (String.equal declaration.classification "unreviewed") then
-    fail "direct-plan declaration %s must be unreviewed, found %s"
-      declaration.identifier declaration.classification;
+let require_classification declaration =
+  let expected =
+    if Binding_direct_plan.is_safe_device_identifier declaration.identifier
+    then "bound"
+    else "unreviewed"
+  in
+  if not (String.equal declaration.classification expected) then
+    fail "direct-plan declaration %s must be %s, found %s"
+      declaration.identifier expected declaration.classification;
   if
     Option.is_some declaration.macos_introduced
     && declaration.availability_sources = []
@@ -241,7 +246,7 @@ let validate_method inventory (entry : Binding_direct_spec.method_entry) =
     fail "direct-plan attributes drift for %s" entry.sdk_id;
   validate_availability entry.sdk_id entry.macos_introduced
     declaration.macos_introduced;
-  require_unreviewed declaration;
+  require_classification declaration;
   if selector_arity entry.selector <> List.length entry.arguments then
     fail "direct-plan selector arity drift for %s" entry.sdk_id;
   if List.length entry.arguments + 1 > 5 then
@@ -266,7 +271,7 @@ let validate_property inventory methods_by_id
     fail "direct-property attributes drift for %s" entry.sdk_id;
   validate_availability entry.sdk_id entry.macos_introduced
     declaration.macos_introduced;
-  require_unreviewed declaration;
+  require_classification declaration;
   let expected_property_id =
     "property:" ^ entry.owner ^ ":" ^ entry.name
   in
@@ -496,8 +501,8 @@ let validate_plan inventory =
     fail "direct plan overlaps Binding_plan primary/companions: %s"
       (String.concat ", " overlap);
   Printf.printf
-    "Metal direct plan validates 59 methods, 40 properties, and 99 unique \
-     unreviewed inventory declarations\n%!"
+    "Metal direct plan validates 59 methods, 40 properties, 38 safe Device IDs, \
+     and 61 raw-only inventory declarations\n%!"
 
 let main () =
   let inventory_path = parse_options () in

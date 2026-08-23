@@ -946,6 +946,23 @@ let settle_finalizers ~expected_live =
   in
   loop 8
 
+let test_generated_device_capabilities device =
+  let before = get (Release_queue.stats ()) in
+  let capabilities = get (Device.capabilities device) in
+  let after = get (Release_queue.stats ()) in
+  if after.live_handles <> before.live_handles
+     || after.total_created <> before.total_created
+     || after.total_released <> before.total_released
+  then fail "Device.capabilities changed native handle accounting";
+  if capabilities.location_number < 0L
+     || capabilities.max_argument_buffer_sampler_count < 0L
+     || capabilities.max_transfer_rate < 0L
+     || capabilities.maximum_concurrent_compilation_task_count < 0L
+     || capabilities.peer_count < 0L
+     || capabilities.peer_index < 0L
+  then fail "Device.capabilities returned a negative unsigned value";
+  capabilities
+
 let complete_commands commands =
   get (Command_buffer.commit commands);
   get (Command_buffer.wait_until_completed commands);
@@ -8740,6 +8757,7 @@ let () =
     if info.name = "" || info.registry_id = 0L then
       fail "default device identity is incomplete";
     if info.max_buffer_length < 16L then fail "device buffer limit is invalid";
+    ignore (test_generated_device_capabilities device);
     test_pipeline_assets device;
     ignore (test_metal4_compiler device);
     ignore (test_metal4_render_commands device);

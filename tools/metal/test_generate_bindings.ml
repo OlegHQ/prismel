@@ -1729,7 +1729,7 @@ let main () =
          ~field:"classification" (`String "bound")
     |> pretty_json |> write_file direct_classification_drift_inventory;
     require_failure "direct-call classification drift test"
-      "raw-only generated Metal direct call must remain unreviewed"
+      "generated Metal direct-call classification must be unreviewed"
       (run inputs ~inventory:direct_classification_drift_inventory
          ~manual_native:inputs.manual_native
          (outputs directory "direct-classification-drift"));
@@ -1897,10 +1897,13 @@ let main () =
        \    (Command4.Compute_encoder.set_threadgroup_memory_length encoder\n\
        \       ~index:0 ~length:16)\n\
        let test_device_info device = ignore (Device.info device)\n\
+       let test_generated_device_capabilities device =\n\
+       \  ignore (Device.capabilities device)\n\
        let run_generated_conformance encoder pipeline compute_encoder device =\n\
        \  test_metal4_raster_state_commands encoder;\n\
        \  test_metal4_compute_commands pipeline compute_encoder;\n\
-       \  test_device_info device\n\
+       \  test_device_info device;\n\
+       \  test_generated_device_capabilities device\n\
        let main () =\n\
        \  run_generated_conformance (Obj.magic ()) (Obj.magic ())\n\
        \    (Obj.magic ()) (Obj.magic ())\n\

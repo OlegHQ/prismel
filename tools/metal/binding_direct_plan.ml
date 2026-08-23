@@ -13,6 +13,20 @@ let inventory_ids =
       (fun (entry : Binding_direct_spec.property_entry) -> entry.sdk_id)
       properties
 
+let safe_device_properties =
+  properties
+  |> List.filter (fun (entry : Binding_direct_spec.property_entry) ->
+    String.equal entry.owner "MTLDevice"
+    && not (String.equal entry.name "shouldMaximizeConcurrentCompilation"))
+
+let safe_device_identifiers =
+  safe_device_properties
+  |> List.concat_map (fun (entry : Binding_direct_spec.property_entry) ->
+    [ entry.sdk_id; entry.getter.sdk_id ])
+
+let is_safe_device_identifier identifier =
+  List.mem identifier safe_device_identifiers
+
 let expected_method_count = 59
 let expected_property_count = 40
 let expected_declaration_count = 99
@@ -55,6 +69,9 @@ let validate () =
   if List.length inventory_ids <> expected_declaration_count then
     fail "expected %d declarations, found %d" expected_declaration_count
       (List.length inventory_ids);
+  if List.length safe_device_properties <> 19
+     || List.length safe_device_identifiers <> 38
+  then fail "expected 19 safe Device properties and 38 identifiers";
   reject_duplicates "inventory identifier" inventory_ids;
   reject_duplicates "OCaml external"
     (List.map

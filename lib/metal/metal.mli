@@ -101,6 +101,38 @@ module Device : sig
     ; function_pointers : bool
     }
 
+  type argument_buffers_tier = Tier_1 | Tier_2 | Unknown_argument_buffers_tier of int64
+  type location = Built_in | Slot | External | Unspecified | Unknown_location of int64
+  type read_write_texture_tier =
+    | No_read_write_textures
+    | Read_write_tier_1
+    | Read_write_tier_2
+    | Unknown_read_write_texture_tier of int64
+
+  (** Scalar capabilities copied from the native device. Querying this record
+      creates no Metal handles and preserves native availability failures. *)
+  type capabilities =
+    { argument_buffers_tier : argument_buffers_tier
+    ; location : location
+    ; location_number : int64
+    ; max_argument_buffer_sampler_count : int64
+    ; max_transfer_rate : int64
+    ; maximum_concurrent_compilation_task_count : int64
+    ; peer_count : int64
+    ; peer_group_id : int64
+    ; peer_index : int64
+    ; programmable_sample_positions : bool
+    ; raster_order_groups : bool
+    ; read_write_texture_tier : read_write_texture_tier
+    ; supports_32_bit_float_filtering : bool
+    ; supports_32_bit_msaa : bool
+    ; supports_primitive_motion_blur : bool
+    ; supports_pull_model_interpolation : bool
+    ; supports_query_texture_lod : bool
+    ; supports_render_dynamic_libraries : bool
+    ; supports_shader_barycentric_coordinates : bool
+    }
+
   val system_default : unit -> (t, error) result
   val all : unit -> (t list, error) result
   val generation : t -> int64
@@ -108,6 +140,7 @@ module Device : sig
   val same : t -> t -> bool
   val destroyed : t -> bool
   val info : t -> (info, error) result
+  val capabilities : t -> (capabilities, error) result
   val supports_family : t -> family -> (bool, error) result
   val supports_texture_sample_count : t -> int -> (bool, error) result
 

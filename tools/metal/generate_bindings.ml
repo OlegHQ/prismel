@@ -530,10 +530,13 @@ let validate_direct_method inventory
     fail "Metal direct-call inventory attributes drift for %s" entry.sdk_id;
   validate_direct_availability entry.sdk_id entry.macos_introduced
     declaration.macos_introduced;
-  if declaration.classification <> "unreviewed" then
-    fail
-      "raw-only generated Metal direct call must remain unreviewed, found %s for %s"
-      declaration.classification entry.sdk_id;
+  let expected_classification =
+    if Binding_direct_plan.is_safe_device_identifier entry.sdk_id then "bound"
+    else "unreviewed"
+  in
+  if declaration.classification <> expected_classification then
+    fail "generated Metal direct-call classification must be %s, found %s for %s"
+      expected_classification declaration.classification entry.sdk_id;
   validate_identifier "direct-call OCaml external" ~initial:`Lower
     entry.ocaml_name;
   validate_identifier "direct-call C primitive" ~initial:`Any_letter
@@ -574,10 +577,13 @@ let validate_direct_property inventory
       property.sdk_id;
   validate_direct_availability property.sdk_id property.macos_introduced
     declaration.macos_introduced;
-  if declaration.classification <> "unreviewed" then
-    fail
-      "raw-only generated Metal direct property must remain unreviewed, found %s for %s"
-      declaration.classification property.sdk_id;
+  let expected_classification =
+    if Binding_direct_plan.is_safe_device_identifier property.sdk_id then "bound"
+    else "unreviewed"
+  in
+  if declaration.classification <> expected_classification then
+    fail "generated Metal direct-property classification must be %s, found %s for %s"
+      expected_classification declaration.classification property.sdk_id;
   let getter = property.getter in
   if getter.owner <> property.owner || getter.header <> property.header then
     fail "Metal direct-property getter ownership drift for %s" property.sdk_id;
@@ -1106,6 +1112,37 @@ let validate_safe_api safe_structure test_structure reachable_test_values entry 
           "conformance function is not reachable from an executable top-level runner for generated Metal binding %s"
           entry.sdk_id
 
+let validate_direct_safe_device safe_structure test_structure
+    reachable_test_values =
+  let operation = "Metal.Device.capabilities" in
+  let safe_expression =
+    match find_module_path [ "Device" ] safe_structure with
+    | None -> fail "safe Metal Device module is absent for direct capability bindings"
+    | Some structure ->
+        (match value_expression "capabilities" structure with
+        | Some expression -> expression
+        | None -> fail "safe Metal operation is absent: %s" operation)
+  in
+  List.iter
+    (fun (property : Binding_direct_spec.property_entry) ->
+      if not
+           (expression_calls [ "Metal_raw"; property.getter.ocaml_name ]
+              safe_expression)
+      then
+        fail "safe %s does not call generated raw getter for %s" operation
+          property.sdk_id)
+    Binding_direct_plan.safe_device_properties;
+  let test_value = "test_generated_device_capabilities" in
+  let test_expression =
+    match value_expression test_value test_structure with
+    | Some expression -> expression
+    | None -> fail "direct Device capability conformance function is absent"
+  in
+  if not (expression_calls [ "Device"; "capabilities" ] test_expression) then
+    fail "direct Device capability conformance does not call %s" operation;
+  if not (String_set.mem test_value reachable_test_values) then
+    fail "direct Device capability conformance is not reachable from the runner"
+
 let validate_plan inventory manual_native manual_raw_ml manual_raw_mli safe_source
     safe_tests =
   let entries = Binding_plan.generated_entries in
@@ -1128,6 +1165,7 @@ let validate_plan inventory manual_native manual_raw_ml manual_raw_mli safe_sour
   List.iter
     (validate_safe_api safe_structure test_structure reachable_test_values)
     entries;
+  validate_direct_safe_device safe_structure test_structure reachable_test_values;
   let manual_native_identifiers = c_identifiers manual_native in
   let manual_raw_tokens =
     let ml = ocaml_tokens manual_raw_ml in
@@ -2160,8 +2198,9 @@ let main () =
   write_file options.output_native native_contents;
   write_file options.output_manifest manifest_contents;
   Printf.printf
-    "generated %d checked-plan calls, %d raw-only direct calls, %d direct properties, %d explicit-value enum declarations, and %d implicit-value enum declarations\n%!"
+    "generated %d checked-plan calls, %d direct calls (%d safe Device IDs), %d direct properties, %d explicit-value enum declarations, and %d implicit-value enum declarations\n%!"
     (List.length entries) (List.length direct_methods)
+    (List.length Binding_direct_plan.safe_device_identifiers)
     (List.length direct_properties) enum_selection.declaration_count
     (Binding_enum_implicit_codegen.declaration_count implicit_enum_selection)
 

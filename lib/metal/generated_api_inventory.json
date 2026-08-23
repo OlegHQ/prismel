@@ -1,13 +1,13 @@
 {
-  "binding_plan_source_sha256": "99864e743e59c8b2981c14e53e1207e79116224849961991c158257164d167c7",
+  "binding_plan_source_sha256": "2c121f3be6fc006082aa55ad4161d777792b8c59898e0752fbd107360d5c8026",
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 1847,
+    "bound": 1885,
     "scope-excluded": 27,
-    "unreviewed": 3411
+    "unreviewed": 3373
   },
-  "classification_source_sha256": "31fb7ff63641fff72ad8acc1553af2c320fcead21868a6fd524fc055dd33500d",
+  "classification_source_sha256": "c2fb8d3cecd62653074bdfc7a1d67488f9641e3495ac0e11713572ca2ca22813",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "271bd5614a6f2ca840ce89a551c7fe0eff087fb6bd30e651d7acd230226f04a1",
@@ -54942,7 +54942,7 @@
           "line": 953
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice areProgrammableSamplePositionsSupported]",
       "kind": "method",
@@ -54950,7 +54950,7 @@
       "macos_introduced": "10.13",
       "name": "areProgrammableSamplePositionsSupported",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -54967,7 +54967,7 @@
           "line": 573
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice areRasterOrderGroupsSupported]",
       "kind": "method",
@@ -54975,7 +54975,7 @@
       "macos_introduced": "10.13",
       "name": "areRasterOrderGroupsSupported",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -54992,7 +54992,7 @@
           "line": 566
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice argumentBuffersSupport]",
       "kind": "method",
@@ -55000,7 +55000,7 @@
       "macos_introduced": "10.13",
       "name": "argumentBuffersSupport",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLArgumentBuffersTier"
     },
     {
@@ -55417,7 +55417,7 @@
           "line": 538
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice locationNumber]",
       "kind": "method",
@@ -55425,7 +55425,7 @@
       "macos_introduced": "10.15",
       "name": "locationNumber",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -55442,7 +55442,7 @@
           "line": 529
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice location]",
       "kind": "method",
@@ -55450,7 +55450,7 @@
       "macos_introduced": "10.15",
       "name": "location",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLDeviceLocation"
     },
     {
@@ -55467,7 +55467,7 @@
           "line": 945
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice maxArgumentBufferSamplerCount]",
       "kind": "method",
@@ -55475,7 +55475,7 @@
       "macos_introduced": "10.14",
       "name": "maxArgumentBufferSamplerCount",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -55567,7 +55567,7 @@
           "line": 546
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice maxTransferRate]",
       "kind": "method",
@@ -55575,7 +55575,7 @@
       "macos_introduced": "10.15",
       "name": "maxTransferRate",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> uint64_t"
     },
     {
@@ -55592,7 +55592,7 @@
           "line": 1321
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice maximumConcurrentCompilationTaskCount]",
       "kind": "method",
@@ -55600,7 +55600,7 @@
       "macos_introduced": "13.3",
       "name": "maximumConcurrentCompilationTaskCount",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -57392,7 +57392,7 @@
           "line": 1034
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice peerCount]",
       "kind": "method",
@@ -57400,7 +57400,7 @@
       "macos_introduced": "10.15",
       "name": "peerCount",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> uint32_t"
     },
     {
@@ -57417,7 +57417,7 @@
           "line": 1021
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice peerGroupID]",
       "kind": "method",
@@ -57425,7 +57425,7 @@
       "macos_introduced": "10.15",
       "name": "peerGroupID",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> uint64_t"
     },
     {
@@ -57442,7 +57442,7 @@
           "line": 1028
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice peerIndex]",
       "kind": "method",
@@ -57450,7 +57450,7 @@
       "macos_introduced": "10.15",
       "name": "peerIndex",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> uint32_t"
     },
     {
@@ -57492,7 +57492,7 @@
           "line": 559
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice readWriteTextureSupport]",
       "kind": "method",
@@ -57500,7 +57500,7 @@
       "macos_introduced": "10.13",
       "name": "readWriteTextureSupport",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLReadWriteTextureTier"
     },
     {
@@ -57767,7 +57767,7 @@
           "line": 580
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice supports32BitFloatFiltering]",
       "kind": "method",
@@ -57775,7 +57775,7 @@
       "macos_introduced": "11.0",
       "name": "supports32BitFloatFiltering",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -57792,7 +57792,7 @@
           "line": 587
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice supports32BitMSAA]",
       "kind": "method",
@@ -57800,7 +57800,7 @@
       "macos_introduced": "11.0",
       "name": "supports32BitMSAA",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -58017,7 +58017,7 @@
           "line": 1306
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice supportsPrimitiveMotionBlur]",
       "kind": "method",
@@ -58025,7 +58025,7 @@
       "macos_introduced": "11.0",
       "name": "supportsPrimitiveMotionBlur",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -58042,7 +58042,7 @@
           "line": 608
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice supportsPullModelInterpolation]",
       "kind": "method",
@@ -58050,7 +58050,7 @@
       "macos_introduced": "11.0",
       "name": "supportsPullModelInterpolation",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -58067,7 +58067,7 @@
           "line": 594
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice supportsQueryTextureLOD]",
       "kind": "method",
@@ -58075,7 +58075,7 @@
       "macos_introduced": "11.0",
       "name": "supportsQueryTextureLOD",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -58167,7 +58167,7 @@
           "line": 1218
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice supportsRenderDynamicLibraries]",
       "kind": "method",
@@ -58175,7 +58175,7 @@
       "macos_introduced": "12.0",
       "name": "supportsRenderDynamicLibraries",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -58192,7 +58192,7 @@
           "line": 622
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice supportsShaderBarycentricCoordinates]",
       "kind": "method",
@@ -58200,7 +58200,7 @@
       "macos_introduced": "10.15",
       "name": "supportsShaderBarycentricCoordinates",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -92584,7 +92584,7 @@
           "line": 566
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "property:MTLDevice:argumentBuffersSupport",
       "kind": "property",
@@ -92592,7 +92592,7 @@
       "macos_introduced": "10.13",
       "name": "argumentBuffersSupport",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLArgumentBuffersTier"
     },
     {
@@ -92759,7 +92759,7 @@
           "line": 529
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "property:MTLDevice:location",
       "kind": "property",
@@ -92767,7 +92767,7 @@
       "macos_introduced": "10.15",
       "name": "location",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLDeviceLocation"
     },
     {
@@ -92784,7 +92784,7 @@
           "line": 538
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "property:MTLDevice:locationNumber",
       "kind": "property",
@@ -92792,7 +92792,7 @@
       "macos_introduced": "10.15",
       "name": "locationNumber",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
@@ -92834,7 +92834,7 @@
           "line": 945
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "property:MTLDevice:maxArgumentBufferSamplerCount",
       "kind": "property",
@@ -92842,7 +92842,7 @@
       "macos_introduced": "10.14",
       "name": "maxArgumentBufferSamplerCount",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
@@ -92934,7 +92934,7 @@
           "line": 546
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "property:MTLDevice:maxTransferRate",
       "kind": "property",
@@ -92942,7 +92942,7 @@
       "macos_introduced": "10.15",
       "name": "maxTransferRate",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "uint64_t"
     },
     {
@@ -92959,7 +92959,7 @@
           "line": 1321
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "property:MTLDevice:maximumConcurrentCompilationTaskCount",
       "kind": "property",
@@ -92967,7 +92967,7 @@
       "macos_introduced": "13.3",
       "name": "maximumConcurrentCompilationTaskCount",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
@@ -93003,7 +93003,7 @@
           "line": 1034
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "property:MTLDevice:peerCount",
       "kind": "property",
@@ -93011,7 +93011,7 @@
       "macos_introduced": "10.15",
       "name": "peerCount",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "uint32_t"
     },
     {
@@ -93028,7 +93028,7 @@
           "line": 1021
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "property:MTLDevice:peerGroupID",
       "kind": "property",
@@ -93036,7 +93036,7 @@
       "macos_introduced": "10.15",
       "name": "peerGroupID",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "uint64_t"
     },
     {
@@ -93053,7 +93053,7 @@
           "line": 1028
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "property:MTLDevice:peerIndex",
       "kind": "property",
@@ -93061,7 +93061,7 @@
       "macos_introduced": "10.15",
       "name": "peerIndex",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "uint32_t"
     },
     {
@@ -93078,7 +93078,7 @@
           "line": 953
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "property:MTLDevice:programmableSamplePositionsSupported",
       "kind": "property",
@@ -93086,7 +93086,7 @@
       "macos_introduced": "10.13",
       "name": "programmableSamplePositionsSupported",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "BOOL"
     },
     {
@@ -93103,7 +93103,7 @@
           "line": 573
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "property:MTLDevice:rasterOrderGroupsSupported",
       "kind": "property",
@@ -93111,7 +93111,7 @@
       "macos_introduced": "10.13",
       "name": "rasterOrderGroupsSupported",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "BOOL"
     },
     {
@@ -93128,7 +93128,7 @@
           "line": 559
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "property:MTLDevice:readWriteTextureSupport",
       "kind": "property",
@@ -93136,7 +93136,7 @@
       "macos_introduced": "10.13",
       "name": "readWriteTextureSupport",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLReadWriteTextureTier"
     },
     {
@@ -93278,7 +93278,7 @@
           "line": 580
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "property:MTLDevice:supports32BitFloatFiltering",
       "kind": "property",
@@ -93286,7 +93286,7 @@
       "macos_introduced": "11.0",
       "name": "supports32BitFloatFiltering",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "BOOL"
     },
     {
@@ -93303,7 +93303,7 @@
           "line": 587
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "property:MTLDevice:supports32BitMSAA",
       "kind": "property",
@@ -93311,7 +93311,7 @@
       "macos_introduced": "11.0",
       "name": "supports32BitMSAA",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "BOOL"
     },
     {
@@ -93453,7 +93453,7 @@
           "line": 1306
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "property:MTLDevice:supportsPrimitiveMotionBlur",
       "kind": "property",
@@ -93461,7 +93461,7 @@
       "macos_introduced": "11.0",
       "name": "supportsPrimitiveMotionBlur",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "BOOL"
     },
     {
@@ -93478,7 +93478,7 @@
           "line": 608
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "property:MTLDevice:supportsPullModelInterpolation",
       "kind": "property",
@@ -93486,7 +93486,7 @@
       "macos_introduced": "11.0",
       "name": "supportsPullModelInterpolation",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "BOOL"
     },
     {
@@ -93503,7 +93503,7 @@
           "line": 594
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "property:MTLDevice:supportsQueryTextureLOD",
       "kind": "property",
@@ -93511,7 +93511,7 @@
       "macos_introduced": "11.0",
       "name": "supportsQueryTextureLOD",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "BOOL"
     },
     {
@@ -93578,7 +93578,7 @@
           "line": 1218
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "property:MTLDevice:supportsRenderDynamicLibraries",
       "kind": "property",
@@ -93586,7 +93586,7 @@
       "macos_introduced": "12.0",
       "name": "supportsRenderDynamicLibraries",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "BOOL"
     },
     {
@@ -93603,7 +93603,7 @@
           "line": 622
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "property:MTLDevice:supportsShaderBarycentricCoordinates",
       "kind": "property",
@@ -93611,7 +93611,7 @@
       "macos_introduced": "10.15",
       "name": "supportsShaderBarycentricCoordinates",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "BOOL"
     },
     {
