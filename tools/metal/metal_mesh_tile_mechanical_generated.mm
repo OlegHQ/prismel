@@ -15,12 +15,12 @@ extern "C" void prismel_mtl_color_attachment_set_mechanical(
 extern "C" void prismel_mtl_mesh_descriptor_set_mechanical(
     MTLMeshRenderPipelineDescriptor *v, NSString *label, MTLPixelFormat depth,
     MTLPixelFormat stencil, MTLSize mesh_threads, MTLSize object_threads) {
-  v.label=label; v.depthAttachmentPixelFormat=depth; v.stencilAttachmentPixelFormat=stencil;
+  if(label!=nil)v.label=label; v.depthAttachmentPixelFormat=depth; v.stencilAttachmentPixelFormat=stencil;
   if (@available(macOS 26.0,*)) { v.requiredThreadsPerMeshThreadgroup=mesh_threads;
     v.requiredThreadsPerObjectThreadgroup=object_threads; }
 }
 extern "C" void prismel_mtl_tile_descriptor_set_mechanical(
     MTLTileRenderPipelineDescriptor *v, NSString *label, MTLSize threads) {
-  v.label=label; if (@available(macOS 26.0,*)) v.requiredThreadsPerThreadgroup=threads;
+  if(label!=nil)v.label=label; if (@available(macOS 26.0,*)) v.requiredThreadsPerThreadgroup=threads;
 }
 extern "C" NSUInteger prismel_mtl_mesh_tile_mechanical_id_count(void) { return 48; }
