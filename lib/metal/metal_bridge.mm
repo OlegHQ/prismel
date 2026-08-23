@@ -13561,6 +13561,18 @@ extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_visibility(
   CAMLreturn(result_unit());
 }
 
+extern "C" CAMLprim value caml_prismel_metal_render_encoder_tile_width(value raw) {
+  CAMLparam1(raw);
+  id<MTLRenderCommandEncoder> encoder = object_of_handle(raw, Handle_kind::Render_encoder);
+  CAMLreturn(Val_long((intnat)encoder.tileWidth));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_render_encoder_tile_height(value raw) {
+  CAMLparam1(raw);
+  id<MTLRenderCommandEncoder> encoder = object_of_handle(raw, Handle_kind::Render_encoder);
+  CAMLreturn(Val_long((intnat)encoder.tileHeight));
+}
+
 extern "C" CAMLprim value caml_prismel_metal_render_encoder_end(value raw) {
   CAMLparam1(raw);
   id<MTLRenderCommandEncoder> encoder =

@@ -2401,6 +2401,8 @@ module Render_encoder : sig
   val set_stencil_reference_value : t -> int32 -> (unit, error) result
   val set_visibility_result :
     t -> mode:visibility -> offset:int64 -> (unit, error) result
+  val tile_width : t -> (int, error) result
+  val tile_height : t -> (int, error) result
   val draw_triangles :
     t -> first:int -> count:int -> ?instances:int -> unit ->
     (unit, error) result

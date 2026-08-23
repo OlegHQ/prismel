@@ -1375,6 +1375,10 @@ external render_encoder_set_stencil_reference :
 external render_encoder_set_visibility :
   handle -> int -> int64 -> (unit, string) result =
   "caml_prismel_metal_render_encoder_set_visibility"
+external render_encoder_tile_width : handle -> int =
+  "caml_prismel_metal_render_encoder_tile_width"
+external render_encoder_tile_height : handle -> int =
+  "caml_prismel_metal_render_encoder_tile_height"
 
 external command_buffer_resource_state_encoder :
   handle -> (handle, string) result

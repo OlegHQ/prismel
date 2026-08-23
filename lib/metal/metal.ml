@@ -14032,6 +14032,18 @@ module Render_encoder = struct
            | Ok () -> Ok ()
            | Error message -> native_error "Metal.Render_encoder.set_visibility_result" message))
 
+  let tile_width (value : t) =
+    on_main "Metal.Render_encoder.tile_width" (fun () ->
+      match ensure_live "Metal.Render_encoder.tile_width" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () -> Ok (Metal_raw.render_encoder_tile_width value.raw))
+
+  let tile_height (value : t) =
+    on_main "Metal.Render_encoder.tile_height" (fun () ->
+      match ensure_live "Metal.Render_encoder.tile_height" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () -> Ok (Metal_raw.render_encoder_tile_height value.raw))
+
   let draw_triangles (value : t) ~first ~count ?(instances = 1) () =
     let operation = "Metal.Render_encoder.draw_triangles" in
     on_main operation (fun () ->

@@ -31,6 +31,9 @@ let () =
             ~width:1 ~height:1 ()))
   in
   let before = get (Release_queue.stats ()) in
+  let tile_width = get (Render_encoder.tile_width encoder) in
+  let tile_height = get (Render_encoder.tile_height encoder) in
+  if tile_width <= 0 || tile_height <= 0 then fail "invalid tile dimensions";
   expect Invalid_argument
     (Render_encoder.set_viewport encoder
        { x = 0.; y = 0.; width = 9.; height = 8.; znear = 0.; zfar = 1. });
@@ -67,6 +70,7 @@ let () =
   get (Render_encoder.set_fragment_texture encoder ~index:0 sampled);
   expect Parent_has_dependents (Texture.destroy sampled);
   get (Render_encoder.end_encoding encoder);
+  expect Destroyed (Render_encoder.tile_width encoder);
   expect Destroyed (Render_encoder.set_cull_mode encoder Render_encoder.Cull_back);
   get (Command_buffer.commit commands);
   get (Command_buffer.wait_until_completed commands);
