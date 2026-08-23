@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 3953,
+    "bound": 3988,
     "scope-excluded": 37,
-    "unreviewed": 1295
+    "unreviewed": 1260
   },
-  "classification_source_sha256": "05c3f8a24a6be6a1e7e951ec3f2bf2912d43a84ef9868e8daf7ad9192930a4a5",
+  "classification_source_sha256": "e89f05922be0e5bd21ec68f08b0def374e4920df3a8a80f70e5d3932c9765b5d",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -33278,7 +33278,7 @@
           "line": 23
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4BinaryFunction.h",
       "id": "method:-[MTL4BinaryFunction functionType]",
       "kind": "method",
@@ -33286,7 +33286,7 @@
       "macos_introduced": "26.0",
       "name": "functionType",
       "owner": "MTL4BinaryFunction",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 command-buffer resource, binary-function descriptor, and render-command slice with ownership retention and native conformance.",
       "signature": "instance () -> MTLFunctionType"
     },
     {
@@ -33297,7 +33297,7 @@
           "line": 23
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4BinaryFunction.h",
       "id": "method:-[MTL4BinaryFunction name]",
       "kind": "method",
@@ -33305,7 +33305,7 @@
       "macos_introduced": "26.0",
       "name": "name",
       "owner": "MTL4BinaryFunction",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 command-buffer resource, binary-function descriptor, and render-command slice with ownership retention and native conformance.",
       "signature": "instance () -> NSString * _Nullable"
     },
     {
@@ -33677,7 +33677,7 @@
           "line": 45
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandBuffer.h",
       "id": "method:-[MTL4CommandBuffer popDebugGroup]",
       "kind": "method",
@@ -33685,7 +33685,7 @@
       "macos_introduced": "26.0",
       "name": "popDebugGroup",
       "owner": "MTL4CommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 command-buffer resource, binary-function descriptor, and render-command slice with ownership retention and native conformance.",
       "signature": "instance () -> void"
     },
     {
@@ -33696,7 +33696,7 @@
           "line": 45
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandBuffer.h",
       "id": "method:-[MTL4CommandBuffer pushDebugGroup:]",
       "kind": "method",
@@ -33704,7 +33704,7 @@
       "macos_introduced": "26.0",
       "name": "pushDebugGroup:",
       "owner": "MTL4CommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 command-buffer resource, binary-function descriptor, and render-command slice with ownership retention and native conformance.",
       "signature": "instance (NSString * _Nonnull __strong) -> void"
     },
     {
@@ -33759,7 +33759,7 @@
           "line": 211
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandBuffer.h",
       "id": "method:-[MTL4CommandBuffer resolveCounterHeap:withRange:intoBuffer:waitFence:updateFence:]",
       "kind": "method",
@@ -33767,7 +33767,7 @@
       "macos_introduced": "26.0",
       "name": "resolveCounterHeap:withRange:intoBuffer:waitFence:updateFence:",
       "owner": "MTL4CommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 command-buffer resource, binary-function descriptor, and render-command slice with ownership retention and native conformance.",
       "signature": "instance (id<MTL4CounterHeap>  _Nonnull __strong, NSRange, MTL4BufferRange, id<MTLFence>  _Nullable __strong, id<MTLFence>  _Nullable __strong) -> void"
     },
     {
@@ -33797,7 +33797,7 @@
           "line": 45
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandBuffer.h",
       "id": "method:-[MTL4CommandBuffer useResidencySet:]",
       "kind": "method",
@@ -33805,7 +33805,7 @@
       "macos_introduced": "26.0",
       "name": "useResidencySet:",
       "owner": "MTL4CommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 command-buffer resource, binary-function descriptor, and render-command slice with ownership retention and native conformance.",
       "signature": "instance (id<MTLResidencySet>  _Nonnull __strong) -> void"
     },
     {
@@ -33816,7 +33816,7 @@
           "line": 45
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandBuffer.h",
       "id": "method:-[MTL4CommandBuffer useResidencySets:count:]",
       "kind": "method",
@@ -33824,7 +33824,7 @@
       "macos_introduced": "26.0",
       "name": "useResidencySets:count:",
       "owner": "MTL4CommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 command-buffer resource, binary-function descriptor, and render-command slice with ownership retention and native conformance.",
       "signature": "instance (id<MTLResidencySet>  _Nonnull const __unsafe_unretained * _Nonnull, NSUInteger) -> void"
     },
     {
@@ -33841,7 +33841,7 @@
           "line": 174
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandBuffer.h",
       "id": "method:-[MTL4CommandBuffer writeTimestampIntoHeap:atIndex:]",
       "kind": "method",
@@ -33849,7 +33849,7 @@
       "macos_introduced": "26.0",
       "name": "writeTimestampIntoHeap:atIndex:",
       "owner": "MTL4CommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 command-buffer resource, binary-function descriptor, and render-command slice with ownership retention and native conformance.",
       "signature": "instance (id<MTL4CounterHeap>  _Nonnull __strong, NSUInteger) -> void"
     },
     {
@@ -39223,7 +39223,7 @@
           "line": 57
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderCommandEncoder.h",
       "id": "method:-[MTL4RenderCommandEncoder drawIndexedPrimitives:indexCount:indexType:indexBuffer:indexBufferLength:instanceCount:]",
       "kind": "method",
@@ -39231,7 +39231,7 @@
       "macos_introduced": "26.0",
       "name": "drawIndexedPrimitives:indexCount:indexType:indexBuffer:indexBufferLength:instanceCount:",
       "owner": "MTL4RenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 command-buffer resource, binary-function descriptor, and render-command slice with ownership retention and native conformance.",
       "signature": "instance (MTLPrimitiveType, NSUInteger, MTLIndexType, MTLGPUAddress, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -39299,7 +39299,7 @@
           "line": 57
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderCommandEncoder.h",
       "id": "method:-[MTL4RenderCommandEncoder drawMeshThreadgroupsWithIndirectBuffer:threadsPerObjectThreadgroup:threadsPerMeshThreadgroup:]",
       "kind": "method",
@@ -39307,7 +39307,7 @@
       "macos_introduced": "26.0",
       "name": "drawMeshThreadgroupsWithIndirectBuffer:threadsPerObjectThreadgroup:threadsPerMeshThreadgroup:",
       "owner": "MTL4RenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 command-buffer resource, binary-function descriptor, and render-command slice with ownership retention and native conformance.",
       "signature": "instance (MTLGPUAddress, MTLSize, MTLSize) -> void"
     },
     {
@@ -39318,7 +39318,7 @@
           "line": 57
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderCommandEncoder.h",
       "id": "method:-[MTL4RenderCommandEncoder drawMeshThreads:threadsPerObjectThreadgroup:threadsPerMeshThreadgroup:]",
       "kind": "method",
@@ -39326,7 +39326,7 @@
       "macos_introduced": "26.0",
       "name": "drawMeshThreads:threadsPerObjectThreadgroup:threadsPerMeshThreadgroup:",
       "owner": "MTL4RenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 command-buffer resource, binary-function descriptor, and render-command slice with ownership retention and native conformance.",
       "signature": "instance (MTLSize, MTLSize, MTLSize) -> void"
     },
     {
@@ -39375,7 +39375,7 @@
           "line": 57
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderCommandEncoder.h",
       "id": "method:-[MTL4RenderCommandEncoder drawPrimitives:vertexStart:vertexCount:instanceCount:]",
       "kind": "method",
@@ -39383,7 +39383,7 @@
       "macos_introduced": "26.0",
       "name": "drawPrimitives:vertexStart:vertexCount:instanceCount:",
       "owner": "MTL4RenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 command-buffer resource, binary-function descriptor, and render-command slice with ownership retention and native conformance.",
       "signature": "instance (MTLPrimitiveType, NSUInteger, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -39413,7 +39413,7 @@
           "line": 57
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderCommandEncoder.h",
       "id": "method:-[MTL4RenderCommandEncoder executeCommandsInBuffer:indirectBuffer:]",
       "kind": "method",
@@ -39421,7 +39421,7 @@
       "macos_introduced": "26.0",
       "name": "executeCommandsInBuffer:indirectBuffer:",
       "owner": "MTL4RenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 command-buffer resource, binary-function descriptor, and render-command slice with ownership retention and native conformance.",
       "signature": "instance (id<MTLIndirectCommandBuffer>  _Nonnull __strong, MTLGPUAddress) -> void"
     },
     {
@@ -39432,7 +39432,7 @@
           "line": 57
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderCommandEncoder.h",
       "id": "method:-[MTL4RenderCommandEncoder executeCommandsInBuffer:withRange:]",
       "kind": "method",
@@ -39440,7 +39440,7 @@
       "macos_introduced": "26.0",
       "name": "executeCommandsInBuffer:withRange:",
       "owner": "MTL4RenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 command-buffer resource, binary-function descriptor, and render-command slice with ownership retention and native conformance.",
       "signature": "instance (id<MTLIndirectCommandBuffer>  _Nonnull __strong, NSRange) -> void"
     },
     {
@@ -39660,7 +39660,7 @@
           "line": 57
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderCommandEncoder.h",
       "id": "method:-[MTL4RenderCommandEncoder setObjectThreadgroupMemoryLength:atIndex:]",
       "kind": "method",
@@ -39668,7 +39668,7 @@
       "macos_introduced": "26.0",
       "name": "setObjectThreadgroupMemoryLength:atIndex:",
       "owner": "MTL4RenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 command-buffer resource, binary-function descriptor, and render-command slice with ownership retention and native conformance.",
       "signature": "instance (NSUInteger, NSUInteger) -> void"
     },
     {
@@ -39793,7 +39793,7 @@
           "line": 57
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderCommandEncoder.h",
       "id": "method:-[MTL4RenderCommandEncoder setThreadgroupMemoryLength:offset:atIndex:]",
       "kind": "method",
@@ -39801,7 +39801,7 @@
       "macos_introduced": "26.0",
       "name": "setThreadgroupMemoryLength:offset:atIndex:",
       "owner": "MTL4RenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 command-buffer resource, binary-function descriptor, and render-command slice with ownership retention and native conformance.",
       "signature": "instance (NSUInteger, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -39945,7 +39945,7 @@
           "line": 57
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderCommandEncoder.h",
       "id": "method:-[MTL4RenderCommandEncoder writeTimestampWithGranularity:afterStage:intoHeap:atIndex:]",
       "kind": "method",
@@ -39953,7 +39953,7 @@
       "macos_introduced": "26.0",
       "name": "writeTimestampWithGranularity:afterStage:intoHeap:atIndex:",
       "owner": "MTL4RenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 command-buffer resource, binary-function descriptor, and render-command slice with ownership retention and native conformance.",
       "signature": "instance (MTL4TimestampGranularity, MTLRenderStages, id<MTL4CounterHeap>  _Nonnull __strong, NSUInteger) -> void"
     },
     {
@@ -40553,7 +40553,7 @@
           "line": 127
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "method:-[MTL4RenderPipelineBinaryFunctionsDescriptor fragmentAdditionalBinaryFunctions]",
       "kind": "method",
@@ -40561,7 +40561,7 @@
       "macos_introduced": "26.0",
       "name": "fragmentAdditionalBinaryFunctions",
       "owner": "MTL4RenderPipelineBinaryFunctionsDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 command-buffer resource, binary-function descriptor, and render-command slice with ownership retention and native conformance.",
       "signature": "instance () -> NSArray<id<MTL4BinaryFunction>> * _Nullable"
     },
     {
@@ -40572,7 +40572,7 @@
           "line": 127
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "method:-[MTL4RenderPipelineBinaryFunctionsDescriptor meshAdditionalBinaryFunctions]",
       "kind": "method",
@@ -40580,7 +40580,7 @@
       "macos_introduced": "26.0",
       "name": "meshAdditionalBinaryFunctions",
       "owner": "MTL4RenderPipelineBinaryFunctionsDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 command-buffer resource, binary-function descriptor, and render-command slice with ownership retention and native conformance.",
       "signature": "instance () -> NSArray<id<MTL4BinaryFunction>> * _Nullable"
     },
     {
@@ -40591,7 +40591,7 @@
           "line": 127
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "method:-[MTL4RenderPipelineBinaryFunctionsDescriptor objectAdditionalBinaryFunctions]",
       "kind": "method",
@@ -40599,7 +40599,7 @@
       "macos_introduced": "26.0",
       "name": "objectAdditionalBinaryFunctions",
       "owner": "MTL4RenderPipelineBinaryFunctionsDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 command-buffer resource, binary-function descriptor, and render-command slice with ownership retention and native conformance.",
       "signature": "instance () -> NSArray<id<MTL4BinaryFunction>> * _Nullable"
     },
     {
@@ -40610,7 +40610,7 @@
           "line": 127
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "method:-[MTL4RenderPipelineBinaryFunctionsDescriptor reset]",
       "kind": "method",
@@ -40618,7 +40618,7 @@
       "macos_introduced": "26.0",
       "name": "reset",
       "owner": "MTL4RenderPipelineBinaryFunctionsDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 command-buffer resource, binary-function descriptor, and render-command slice with ownership retention and native conformance.",
       "signature": "instance () -> void"
     },
     {
@@ -40629,7 +40629,7 @@
           "line": 127
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "method:-[MTL4RenderPipelineBinaryFunctionsDescriptor setFragmentAdditionalBinaryFunctions:]",
       "kind": "method",
@@ -40637,7 +40637,7 @@
       "macos_introduced": "26.0",
       "name": "setFragmentAdditionalBinaryFunctions:",
       "owner": "MTL4RenderPipelineBinaryFunctionsDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 command-buffer resource, binary-function descriptor, and render-command slice with ownership retention and native conformance.",
       "signature": "instance (NSArray<id<MTL4BinaryFunction>> * _Nullable) -> void"
     },
     {
@@ -40648,7 +40648,7 @@
           "line": 127
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "method:-[MTL4RenderPipelineBinaryFunctionsDescriptor setMeshAdditionalBinaryFunctions:]",
       "kind": "method",
@@ -40656,7 +40656,7 @@
       "macos_introduced": "26.0",
       "name": "setMeshAdditionalBinaryFunctions:",
       "owner": "MTL4RenderPipelineBinaryFunctionsDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 command-buffer resource, binary-function descriptor, and render-command slice with ownership retention and native conformance.",
       "signature": "instance (NSArray<id<MTL4BinaryFunction>> * _Nullable) -> void"
     },
     {
@@ -40667,7 +40667,7 @@
           "line": 127
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "method:-[MTL4RenderPipelineBinaryFunctionsDescriptor setObjectAdditionalBinaryFunctions:]",
       "kind": "method",
@@ -40675,7 +40675,7 @@
       "macos_introduced": "26.0",
       "name": "setObjectAdditionalBinaryFunctions:",
       "owner": "MTL4RenderPipelineBinaryFunctionsDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 command-buffer resource, binary-function descriptor, and render-command slice with ownership retention and native conformance.",
       "signature": "instance (NSArray<id<MTL4BinaryFunction>> * _Nullable) -> void"
     },
     {
@@ -40686,7 +40686,7 @@
           "line": 127
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "method:-[MTL4RenderPipelineBinaryFunctionsDescriptor setTileAdditionalBinaryFunctions:]",
       "kind": "method",
@@ -40694,7 +40694,7 @@
       "macos_introduced": "26.0",
       "name": "setTileAdditionalBinaryFunctions:",
       "owner": "MTL4RenderPipelineBinaryFunctionsDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 command-buffer resource, binary-function descriptor, and render-command slice with ownership retention and native conformance.",
       "signature": "instance (NSArray<id<MTL4BinaryFunction>> * _Nullable) -> void"
     },
     {
@@ -40705,7 +40705,7 @@
           "line": 127
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "method:-[MTL4RenderPipelineBinaryFunctionsDescriptor setVertexAdditionalBinaryFunctions:]",
       "kind": "method",
@@ -40713,7 +40713,7 @@
       "macos_introduced": "26.0",
       "name": "setVertexAdditionalBinaryFunctions:",
       "owner": "MTL4RenderPipelineBinaryFunctionsDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 command-buffer resource, binary-function descriptor, and render-command slice with ownership retention and native conformance.",
       "signature": "instance (NSArray<id<MTL4BinaryFunction>> * _Nullable) -> void"
     },
     {
@@ -40724,7 +40724,7 @@
           "line": 127
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "method:-[MTL4RenderPipelineBinaryFunctionsDescriptor tileAdditionalBinaryFunctions]",
       "kind": "method",
@@ -40732,7 +40732,7 @@
       "macos_introduced": "26.0",
       "name": "tileAdditionalBinaryFunctions",
       "owner": "MTL4RenderPipelineBinaryFunctionsDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 command-buffer resource, binary-function descriptor, and render-command slice with ownership retention and native conformance.",
       "signature": "instance () -> NSArray<id<MTL4BinaryFunction>> * _Nullable"
     },
     {
@@ -40743,7 +40743,7 @@
           "line": 127
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "method:-[MTL4RenderPipelineBinaryFunctionsDescriptor vertexAdditionalBinaryFunctions]",
       "kind": "method",
@@ -40751,7 +40751,7 @@
       "macos_introduced": "26.0",
       "name": "vertexAdditionalBinaryFunctions",
       "owner": "MTL4RenderPipelineBinaryFunctionsDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 command-buffer resource, binary-function descriptor, and render-command slice with ownership retention and native conformance.",
       "signature": "instance () -> NSArray<id<MTL4BinaryFunction>> * _Nullable"
     },
     {
@@ -84116,7 +84116,7 @@
           "line": 23
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4BinaryFunction.h",
       "id": "property:MTL4BinaryFunction:functionType",
       "kind": "property",
@@ -84124,7 +84124,7 @@
       "macos_introduced": "26.0",
       "name": "functionType",
       "owner": "MTL4BinaryFunction",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 command-buffer resource, binary-function descriptor, and render-command slice with ownership retention and native conformance.",
       "signature": "MTLFunctionType"
     },
     {
@@ -84135,7 +84135,7 @@
           "line": 23
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4BinaryFunction.h",
       "id": "property:MTL4BinaryFunction:name",
       "kind": "property",
@@ -84143,7 +84143,7 @@
       "macos_introduced": "26.0",
       "name": "name",
       "owner": "MTL4BinaryFunction",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 command-buffer resource, binary-function descriptor, and render-command slice with ownership retention and native conformance.",
       "signature": "NSString * _Nullable"
     },
     {
@@ -86556,7 +86556,7 @@
           "line": 127
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "property:MTL4RenderPipelineBinaryFunctionsDescriptor:fragmentAdditionalBinaryFunctions",
       "kind": "property",
@@ -86564,7 +86564,7 @@
       "macos_introduced": "26.0",
       "name": "fragmentAdditionalBinaryFunctions",
       "owner": "MTL4RenderPipelineBinaryFunctionsDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 command-buffer resource, binary-function descriptor, and render-command slice with ownership retention and native conformance.",
       "signature": "NSArray<id<MTL4BinaryFunction>> * _Nullable"
     },
     {
@@ -86575,7 +86575,7 @@
           "line": 127
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "property:MTL4RenderPipelineBinaryFunctionsDescriptor:meshAdditionalBinaryFunctions",
       "kind": "property",
@@ -86583,7 +86583,7 @@
       "macos_introduced": "26.0",
       "name": "meshAdditionalBinaryFunctions",
       "owner": "MTL4RenderPipelineBinaryFunctionsDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 command-buffer resource, binary-function descriptor, and render-command slice with ownership retention and native conformance.",
       "signature": "NSArray<id<MTL4BinaryFunction>> * _Nullable"
     },
     {
@@ -86594,7 +86594,7 @@
           "line": 127
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "property:MTL4RenderPipelineBinaryFunctionsDescriptor:objectAdditionalBinaryFunctions",
       "kind": "property",
@@ -86602,7 +86602,7 @@
       "macos_introduced": "26.0",
       "name": "objectAdditionalBinaryFunctions",
       "owner": "MTL4RenderPipelineBinaryFunctionsDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 command-buffer resource, binary-function descriptor, and render-command slice with ownership retention and native conformance.",
       "signature": "NSArray<id<MTL4BinaryFunction>> * _Nullable"
     },
     {
@@ -86613,7 +86613,7 @@
           "line": 127
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "property:MTL4RenderPipelineBinaryFunctionsDescriptor:tileAdditionalBinaryFunctions",
       "kind": "property",
@@ -86621,7 +86621,7 @@
       "macos_introduced": "26.0",
       "name": "tileAdditionalBinaryFunctions",
       "owner": "MTL4RenderPipelineBinaryFunctionsDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 command-buffer resource, binary-function descriptor, and render-command slice with ownership retention and native conformance.",
       "signature": "NSArray<id<MTL4BinaryFunction>> * _Nullable"
     },
     {
@@ -86632,7 +86632,7 @@
           "line": 127
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "property:MTL4RenderPipelineBinaryFunctionsDescriptor:vertexAdditionalBinaryFunctions",
       "kind": "property",
@@ -86640,7 +86640,7 @@
       "macos_introduced": "26.0",
       "name": "vertexAdditionalBinaryFunctions",
       "owner": "MTL4RenderPipelineBinaryFunctionsDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 command-buffer resource, binary-function descriptor, and render-command slice with ownership retention and native conformance.",
       "signature": "NSArray<id<MTL4BinaryFunction>> * _Nullable"
     },
     {
