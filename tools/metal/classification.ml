@@ -1551,6 +1551,33 @@ let acceleration_ownership_identifier ~header ~kind ~signature identifier =
        || String.starts_with ~prefix:("method:-[" ^ owner ^ " ") identifier)
        acceleration_owners
 
+let acceleration_operation_bound_identifiers =
+  String_set.of_list
+    [ "protocol:MTLFunctionHandle"
+    ; "method:-[MTLComputePipelineState functionHandleWithFunction:]"
+    ; "class:MTLVisibleFunctionTableDescriptor"
+    ; "method:+[MTLVisibleFunctionTableDescriptor visibleFunctionTableDescriptor]"
+    ; "property:MTLVisibleFunctionTableDescriptor:functionCount"
+    ; "method:-[MTLVisibleFunctionTableDescriptor functionCount]"
+    ; "method:-[MTLVisibleFunctionTableDescriptor setFunctionCount:]"
+    ; "protocol:MTLVisibleFunctionTable"
+    ; "method:-[MTLComputePipelineState newVisibleFunctionTableWithDescriptor:]"
+    ; "property:MTLVisibleFunctionTable:gpuResourceID"
+    ; "method:-[MTLVisibleFunctionTable gpuResourceID]"
+    ; "method:-[MTLVisibleFunctionTable setFunction:atIndex:]"
+    ; "class:MTLIntersectionFunctionTableDescriptor"
+    ; "method:+[MTLIntersectionFunctionTableDescriptor intersectionFunctionTableDescriptor]"
+    ; "property:MTLIntersectionFunctionTableDescriptor:functionCount"
+    ; "method:-[MTLIntersectionFunctionTableDescriptor functionCount]"
+    ; "method:-[MTLIntersectionFunctionTableDescriptor setFunctionCount:]"
+    ; "protocol:MTLIntersectionFunctionTable"
+    ; "method:-[MTLComputePipelineState newIntersectionFunctionTableWithDescriptor:]"
+    ; "property:MTLIntersectionFunctionTable:gpuResourceID"
+    ; "method:-[MTLIntersectionFunctionTable gpuResourceID]"
+    ; "method:-[MTLIntersectionFunctionTable setFunction:atIndex:]"
+    ; "method:-[MTLIntersectionFunctionTable setBuffer:offset:atIndex:]"
+    ; "method:-[MTLIntersectionFunctionTable setVisibleFunctionTable:atBufferIndex:]" ]
+
 let classify ~unavailable ~identifier ~header ~kind ~signature =
   if unavailable then
     Scope_excluded, "Clang marks this declaration unavailable for macOS."
@@ -1567,6 +1594,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if acceleration_ownership_identifier ~header ~kind ~signature identifier then
     Bound,
       "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance."
+  else if String_set.mem identifier acceleration_operation_bound_identifiers then
+    Bound,
+      "Implemented by owned acceleration/function-table handles, checked capacity/index/device validation, retained bindings, typed direct selectors, and execute-or-capability-reject conformance."
   else if generated_public_enum_identifier identifier then
     Bound, "Implemented by the generated, typed prismel.metal pure-value enum surface."
   else if Binding_value_record_evidence.is_bound_identifier identifier then

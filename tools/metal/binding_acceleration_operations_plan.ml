@@ -30,9 +30,15 @@ let contains source needle =
   needle_length = 0 || loop 0
 
 let selected declaration =
-  declaration.classification = "unreviewed"
-  && (List.mem declaration.header complete_headers
+  (declaration.classification = "unreviewed"
+   || declaration.classification = "bound")
+  && ((List.mem declaration.header complete_headers
+       && List.mem declaration.kind
+            [ "class"; "protocol"; "typedef"; "property"; "method" ]
+       && declaration.id <> "typedef:MTLIntersectionFunctionSignature")
       || (declaration.kind = "method"
+          && declaration.header <> "Metal/MTLAccelerationStructure.h"
+          && declaration.header <> "Metal/MTL4AccelerationStructure.h"
           && List.exists
                (fun token ->
                  contains declaration.name token

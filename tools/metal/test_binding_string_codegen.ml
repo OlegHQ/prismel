@@ -11,8 +11,8 @@ let contains haystack needle =
 let () =
   let entries = Binding_string_codegen.qualified_entries () in
   let ids = List.concat_map Binding_string_spec.inventory_ids entries in
-  if List.length entries <> 3 then fail "expected 3 qualified properties";
-  if List.length ids <> 8 then fail "expected 8 qualified inventory IDs";
+  if List.length entries <> 4 then fail "expected 4 qualified properties";
+  if List.length ids <> 10 then fail "expected 10 qualified inventory IDs";
   let raw_ml = Binding_string_codegen.render_raw_ml entries in
   let raw_mli = Binding_string_codegen.render_raw_mli entries in
   let raw_body = Binding_string_codegen.render_raw_body entries in
@@ -24,6 +24,7 @@ let () =
   ; "generated_mtl_command_queue_label_set"
   ; "generated_mtl_command_encoder_label_get"
   ; "generated_mtl_command_encoder_label_set"
+  ; "generated_mtl_function_handle_name_get"
   ]
   |> List.iter (fun symbol ->
          if not (contains raw_ml symbol) then
@@ -33,12 +34,14 @@ let () =
   [ "id<MTL4BinaryFunction> binary_function"
   ; "id<MTLCommandQueue> command_queue"
   ; "id<MTLCommandEncoder> command_encoder"
+  ; "id<MTLFunctionHandle> function_handle"
   ; "[binary_function name]"
   ; "[command_queue label]"
   ; "[command_queue setLabel:native_value]"
   ; "command_encoder_of_handle(raw_receiver)"
   ; "[command_encoder label]"
   ; "[command_encoder setLabel:native_value]"
+  ; "[function_handle name]"
   ; "copy_optional_string(native_result)"
   ; "raw_value == Val_none ? nil : string_from_ocaml(Field(raw_value, 0))"
   ; "@available(macOS 26.0, *)"

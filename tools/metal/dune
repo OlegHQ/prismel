@@ -37,6 +37,10 @@
   binding_acceleration_ownership_codegen
   binding_acceleration_ownership_evidence
   binding_acceleration_ownership_adapter
+  binding_acceleration_operations_plan
+  binding_acceleration_operations_codegen
+  binding_acceleration_operations_evidence
+  binding_acceleration_operations_adapter
   binding_availability
   binding_availability_ast
   binding_receiver_catalog
@@ -159,6 +163,14 @@
   binding_acceleration_ownership_evidence.mli
   binding_acceleration_ownership_adapter.ml
   binding_acceleration_ownership_adapter.mli
+  binding_acceleration_operations_plan.ml
+  binding_acceleration_operations_plan.mli
+  binding_acceleration_operations_codegen.ml
+  binding_acceleration_operations_codegen.mli
+  binding_acceleration_operations_evidence.ml
+  binding_acceleration_operations_evidence.mli
+  binding_acceleration_operations_adapter.ml
+  binding_acceleration_operations_adapter.mli
   binding_plan.ml
   binding_plan.mli
   binding_plan_render.ml
@@ -301,6 +313,18 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (name test_binding_acceleration_operations)
+ (modules test_binding_acceleration_operations)
+ (libraries metal_inventory_classification yojson)
+ (deps ../../lib/metal/generated_api_inventory.json)
+ (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
+
+(test
+ (name test_binding_acceleration_operations_adapter)
+ (modules test_binding_acceleration_operations_adapter)
+ (libraries metal_inventory_classification))
+
+(test
  (name test_binding_direct_plan)
  (modules test_binding_direct_plan)
  (libraries
@@ -405,6 +429,14 @@
   binding_acceleration_ownership_evidence.mli
   binding_acceleration_ownership_adapter.ml
   binding_acceleration_ownership_adapter.mli
+  binding_acceleration_operations_plan.ml
+  binding_acceleration_operations_plan.mli
+  binding_acceleration_operations_codegen.ml
+  binding_acceleration_operations_codegen.mli
+  binding_acceleration_operations_evidence.ml
+  binding_acceleration_operations_evidence.mli
+  binding_acceleration_operations_adapter.ml
+  binding_acceleration_operations_adapter.mli
   binding_plan.ml
   binding_plan.mli
   binding_plan_render.ml

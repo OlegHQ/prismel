@@ -27,14 +27,6 @@ let render_safe_model
     selection.declarations;
   Buffer.contents output
 
-let snake value =
-  String.map
-    (function
-      | 'A' .. 'Z' as c -> Char.lowercase_ascii c
-      | ':' | '+' | '-' | '[' | ']' | ' ' -> '_'
-      | c -> c)
-    value
-
 let split_arguments arguments =
   if String.trim arguments = "" then []
   else
@@ -95,6 +87,8 @@ let native_result owner kind result =
 let render_native_calls
     (selection : Binding_acceleration_operations_plan.selection) =
   let output = Buffer.create 70000 in
+  Buffer.add_string output
+    "#pragma clang diagnostic push\n#pragma clang diagnostic ignored \"-Wnullability-completeness\"\n";
   selection.declarations
   |> List.filter
        (fun (value : Binding_acceleration_operations_plan.declaration) ->
@@ -128,6 +122,7 @@ let render_native_calls
             (if argument_index + 1 = List.length arguments then "" else " "))
           arguments);
     Buffer.add_string output "]; }\n");
+  Buffer.add_string output "#pragma clang diagnostic pop\n";
   Buffer.contents output
 
 let raw_type signature =

@@ -1018,7 +1018,9 @@ id<MTLResource> resource_of_handle(value raw,
   auto *handle = handle_of_value(raw);
   std::lock_guard<std::mutex> lock(handle_mutex);
   if (handle->kind != Handle_kind::Buffer &&
-      handle->kind != Handle_kind::Texture) {
+      handle->kind != Handle_kind::Texture &&
+      handle->kind != Handle_kind::Visible_function_table &&
+      handle->kind != Handle_kind::Intersection_function_table) {
     caml_failwith("Metal custom handle is not a resource");
   }
   if (handle->object == nullptr) {

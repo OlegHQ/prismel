@@ -19,6 +19,7 @@ let source_paths =
   @ Binding_argument_reflection_plan.source_paths
   @ Binding_acceleration_scalar_plan.source_paths
   @ Binding_acceleration_ownership_plan.source_paths
+  @ Binding_acceleration_operations_plan.source_paths
 
 let source_sha256 ~root =
   source_paths

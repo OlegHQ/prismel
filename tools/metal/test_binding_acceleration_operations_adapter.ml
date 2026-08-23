@@ -1,11 +1,11 @@
-type resource = { device : int64; id : int }
+type resource = { device : int64 }
 let check condition message = if not condition then failwith message
 
 let () =
   let open Binding_acceleration_operations_adapter in
   let table = create ~device:7L ~capacity:4 in
-  let buffer = { device = 7L; id = 1 } in
-  let visible = { device = 7L; id = 2 } in
+  let buffer = { device = 7L } in
+  let visible = { device = 7L } in
   check
     (set_buffer ~buffer_device:(fun value -> value.device) table ~index:0
        (Some (buffer, 16L)) = Ok ())
@@ -20,7 +20,7 @@ let () =
   check
     (Result.is_error
        (set_buffer ~buffer_device:(fun value -> value.device) table ~index:0
-          (Some ({ device = 8L; id = 3 }, 0L))))
+          (Some ({ device = 8L }, 0L))))
     "cross-device buffer accepted";
   check (Result.is_error (set_function table ~index:4 None))
     "out-of-range function accepted";

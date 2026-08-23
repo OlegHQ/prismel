@@ -406,7 +406,9 @@ let validate_receiver owner =
       require_nonempty "local name" owner receiver.local_name;
       compare_string owner "receiver raw name"
         ("raw_" ^ receiver.local_name) receiver.raw_name;
-      if receiver.accepted_handle_kinds <> [ "Buffer"; "Texture" ] then
+      if receiver.accepted_handle_kinds <>
+           [ "Buffer"; "Texture"; "Visible_function_table"
+           ; "Intersection_function_table" ] then
         fail "MTLResource receiver Handle_kind closure drift"
 
 let binding_plan_ids () =

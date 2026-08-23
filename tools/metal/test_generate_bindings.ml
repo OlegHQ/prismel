@@ -965,6 +965,8 @@ let generator_source_sha256 entry_source =
   ; "tools/metal/binding_render_pipeline_scalar_codegen.mli"
   ; "tools/metal/binding_render_pipeline_scalar_evidence.ml"
   ; "tools/metal/binding_render_pipeline_scalar_evidence.mli"
+  ; "tools/metal/binding_render_encoder_promotion.ml"
+  ; "tools/metal/binding_render_encoder_promotion.mli"
   ; "tools/metal/binding_descriptor_default_evidence.ml"
   ; "tools/metal/binding_descriptor_default_evidence.mli"
   ; "tools/metal/binding_argument_reflection_plan.ml"
@@ -987,6 +989,14 @@ let generator_source_sha256 entry_source =
   ; "tools/metal/binding_acceleration_ownership_evidence.mli"
   ; "tools/metal/binding_acceleration_ownership_adapter.ml"
   ; "tools/metal/binding_acceleration_ownership_adapter.mli"
+  ; "tools/metal/binding_acceleration_operations_plan.ml"
+  ; "tools/metal/binding_acceleration_operations_plan.mli"
+  ; "tools/metal/binding_acceleration_operations_codegen.ml"
+  ; "tools/metal/binding_acceleration_operations_codegen.mli"
+  ; "tools/metal/binding_acceleration_operations_evidence.ml"
+  ; "tools/metal/binding_acceleration_operations_evidence.mli"
+  ; "tools/metal/binding_acceleration_operations_adapter.ml"
+  ; "tools/metal/binding_acceleration_operations_adapter.mli"
   ; "tools/metal/binding_struct_spec.ml"
   ; "tools/metal/binding_struct_spec.mli"
   ; "tools/metal/binding_struct_plan.ml"
@@ -1111,13 +1121,13 @@ let check_struct_native_batch raw_ml raw_mli native value =
 
 let check_string_batch raw_ml raw_mli native value =
   let batch = member_exn "mechanical_string_batch" value in
-  if member_int "property_count" batch <> Some 3
-     || member_int "declaration_count" batch <> Some 8
+  if member_int "property_count" batch <> Some 4
+     || member_int "declaration_count" batch <> Some 10
      || member_int "safe_bound_count" batch <> Some 0
   then fail "generated Metal NSString cardinality drift";
   let identifiers = json_string_list "identifiers" batch in
-  if List.length identifiers <> 8
-     || List.length (List.sort_uniq String.compare identifiers) <> 8
+  if List.length identifiers <> 10
+     || List.length (List.sort_uniq String.compare identifiers) <> 10
   then fail "generated Metal NSString identifier closure drift";
   [ raw_ml, "generated_mtl4_binary_function_name_get"
   ; raw_mli, "generated_mtl_command_queue_label_set"

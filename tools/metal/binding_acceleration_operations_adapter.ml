@@ -25,7 +25,7 @@ let set_buffer ~buffer_device value ~index binding =
   | Error _ as error -> error
   | Ok () ->
       (match binding with
-      | Some (buffer, offset) when offset < 0L ->
+      | Some (_, offset) when offset < 0L ->
           Error "Metal function-table buffer offset is negative"
       | Some (buffer, _) when buffer_device buffer <> value.device ->
           Error "Metal function-table buffer belongs to another device"

@@ -359,8 +359,8 @@ let validate_string_entries inventory entries =
         entry.setter_sdk_id)
     entries;
   let identifiers = List.concat_map Binding_string_spec.inventory_ids entries in
-  if List.length entries <> 3 || List.length identifiers <> 8
-     || List.length (List.sort_uniq String.compare identifiers) <> 8
+  if List.length entries <> 4 || List.length identifiers <> 10
+     || List.length (List.sort_uniq String.compare identifiers) <> 10
   then fail "generated Metal NSString qualified cardinality drift"
 
 let validate_global_string_entries inventory entries =
@@ -2140,6 +2140,14 @@ let generator_source_paths =
   ; "tools/metal/binding_acceleration_ownership_evidence.mli"
   ; "tools/metal/binding_acceleration_ownership_adapter.ml"
   ; "tools/metal/binding_acceleration_ownership_adapter.mli"
+  ; "tools/metal/binding_acceleration_operations_plan.ml"
+  ; "tools/metal/binding_acceleration_operations_plan.mli"
+  ; "tools/metal/binding_acceleration_operations_codegen.ml"
+  ; "tools/metal/binding_acceleration_operations_codegen.mli"
+  ; "tools/metal/binding_acceleration_operations_evidence.ml"
+  ; "tools/metal/binding_acceleration_operations_evidence.mli"
+  ; "tools/metal/binding_acceleration_operations_adapter.ml"
+  ; "tools/metal/binding_acceleration_operations_adapter.mli"
   ; "tools/metal/binding_struct_spec.ml"
   ; "tools/metal/binding_struct_spec.mli"
   ; "tools/metal/binding_struct_plan.ml"
@@ -2454,6 +2462,19 @@ let main () =
     Binding_acceleration_ownership_plan.select acceleration_ownership_declarations
   in
   Binding_acceleration_ownership_evidence.validate acceleration_ownership_selection;
+  let acceleration_operation_declarations =
+    String_map.bindings inventory
+    |> List.map (fun (_, declaration) ->
+      { Binding_acceleration_operations_plan.id = declaration.identifier
+      ; kind = declaration.kind; owner = declaration.owner; name = declaration.name
+      ; header = declaration.header; signature = declaration.signature
+      ; macos_introduced = Option.map Binding_availability.canonical declaration.macos_introduced
+      ; classification = declaration.classification })
+  in
+  let acceleration_operation_selection =
+    Binding_acceleration_operations_plan.select acceleration_operation_declarations
+  in
+  Binding_acceleration_operations_evidence.validate acceleration_operation_selection;
   let manual_native = read_file options.manual_native in
   let manual_raw_ml = read_file options.manual_raw_ml in
   let manual_raw_mli = read_file options.manual_raw_mli in
@@ -2488,6 +2509,9 @@ let main () =
     ^ "\n"
     ^ Binding_acceleration_ownership_adapter.render_native_materializers
         acceleration_ownership_selection
+    ^ "\n"
+    ^ Binding_acceleration_operations_codegen.render_native_calls
+        acceleration_operation_selection
   in
   let manifest_contents =
     manifest ~sdk_version ~plan_sha256 ~generator_sha256 ~inventory_sha256

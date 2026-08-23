@@ -139,12 +139,20 @@ let receivers =
   ; direct "MTLAccelerationStructureCommandEncoder"
       "id<MTLAccelerationStructureCommandEncoder>" "Acceleration_encoder"
       "acceleration_encoder"
+  ; direct "MTLFunctionHandle" "id<MTLFunctionHandle>" "Function_handle"
+      "function_handle"
+  ; direct "MTLVisibleFunctionTable" "id<MTLVisibleFunctionTable>"
+      "Visible_function_table" "visible_function_table"
+  ; direct "MTLIntersectionFunctionTable" "id<MTLIntersectionFunctionTable>"
+      "Intersection_function_table" "intersection_function_table"
   ]
 
 let polymorphic_receivers =
   [ { sdk_owner = "MTLResource"
     ; objc_receiver_type = "id<MTLResource>"
-    ; accepted_handle_kinds = [ "Buffer"; "Texture" ]
+    ; accepted_handle_kinds =
+        [ "Buffer"; "Texture"; "Visible_function_table"
+        ; "Intersection_function_table" ]
     ; helper = "resource_of_handle"
     ; local_name = "resource"
     ; raw_name = "raw_resource"
@@ -191,10 +199,10 @@ let exclusions =
     }
   ]
 
-let expected_receiver_count = 37
+let expected_receiver_count = 40
 let expected_polymorphic_receiver_count = 3
-let expected_catalog_count = 40
-let expected_handle_kind_count = 43
+let expected_catalog_count = 43
+let expected_handle_kind_count = 46
 let expected_exclusion_count = 6
 
 let source_paths =
@@ -325,7 +333,9 @@ let validate_exact_polymorphism () =
         if receiver.accepted_handle_kinds <> expected then
           invalid_arg ("Metal " ^ owner ^ " Handle_kind set drift")
   in
-  require "MTLResource" [ "Buffer"; "Texture" ];
+  require "MTLResource"
+    [ "Buffer"; "Texture"; "Visible_function_table"
+    ; "Intersection_function_table" ];
   require "MTLAllocation" [ "Heap"; "Buffer"; "Texture" ];
   require "MTLCommandEncoder"
     [ "Compute_encoder"; "Resource_state_encoder"; "Blit_encoder"
