@@ -88,3 +88,40 @@ extern "C" CAMLprim value caml_prismel_counter_descriptor(
     result = result_ok(handle); CAMLreturn(result);
   } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); } }
 }
+
+extern "C" CAMLprim value caml_prismel_io_load_buffer(
+    value raw_commands, value raw_destination, value raw_destination_offset,
+    value raw_size, value raw_source, value raw_source_offset) {
+  CAMLparam5(raw_commands, raw_destination, raw_destination_offset, raw_size,
+             raw_source);
+  CAMLxparam1(raw_source_offset);
+  @autoreleasepool { @try {
+    int64_t destination_offset = Int64_val(raw_destination_offset);
+    int64_t size = Int64_val(raw_size);
+    int64_t source_offset = Int64_val(raw_source_offset);
+    if (destination_offset < 0 || size < 0 || source_offset < 0) {
+      CAMLreturn(result_error_text("IO load offsets and size must be non-negative"));
+    }
+    id<MTLIOCommandBuffer> commands = object_of_handle(
+        raw_commands, Handle_kind::Io_command_buffer);
+    id<MTLBuffer> destination = object_of_handle(
+        raw_destination, Handle_kind::Buffer);
+    id<MTLIOFileHandle> source = object_of_handle(
+        raw_source, Handle_kind::Io_file_handle);
+    NSString *failure = nil;
+    if (!prismel_io_load_buffer(
+            commands, destination, static_cast<NSUInteger>(destination_offset),
+            static_cast<NSUInteger>(size), source,
+            static_cast<NSUInteger>(source_offset), &failure)) {
+      CAMLreturn(result_error(failure));
+    }
+    CAMLreturn(result_unit());
+  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); } }
+}
+
+extern "C" CAMLprim value caml_prismel_io_load_buffer_bytecode(
+    value *argv, int argn) {
+  (void)argn;
+  return caml_prismel_io_load_buffer(argv[0], argv[1], argv[2], argv[3],
+                                    argv[4], argv[5]);
+}

@@ -963,6 +963,8 @@ enum class Handle_kind : std::uint32_t {
   Shared_event,
   Pipeline_buffer_descriptor,
   Color_attachment_descriptor,
+  Io_command_buffer,
+  Io_file_handle,
 };
 
 struct Handle {
