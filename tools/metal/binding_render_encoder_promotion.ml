@@ -4,6 +4,9 @@ let promotion_ids =
   ; "method:-[MTLRenderCommandEncoder setCullMode:]"
   ; "method:-[MTLRenderCommandEncoder setDepthBias:slopeScale:clamp:]"
   ; "method:-[MTLRenderCommandEncoder setFragmentBuffer:offset:atIndex:]"
+  ; "method:-[MTLRenderCommandEncoder setFragmentBytes:length:atIndex:]"
+  ; "method:-[MTLRenderCommandEncoder setFragmentSamplerState:atIndex:]"
+  ; "method:-[MTLRenderCommandEncoder setFragmentSamplerState:lodMinClamp:lodMaxClamp:atIndex:]"
   ; "method:-[MTLRenderCommandEncoder setFragmentTexture:atIndex:]"
   ; "method:-[MTLRenderCommandEncoder setFrontFacingWinding:]"
   ; "method:-[MTLRenderCommandEncoder setRenderPipelineState:]"
@@ -11,6 +14,9 @@ let promotion_ids =
   ; "method:-[MTLRenderCommandEncoder setStencilFrontReferenceValue:backReferenceValue:]"
   ; "method:-[MTLRenderCommandEncoder setTriangleFillMode:]"
   ; "method:-[MTLRenderCommandEncoder setVertexBuffer:offset:atIndex:]"
+  ; "method:-[MTLRenderCommandEncoder setVertexBytes:length:atIndex:]"
+  ; "method:-[MTLRenderCommandEncoder setVertexSamplerState:atIndex:]"
+  ; "method:-[MTLRenderCommandEncoder setVertexSamplerState:lodMinClamp:lodMaxClamp:atIndex:]"
   ; "method:-[MTLRenderCommandEncoder setVertexTexture:atIndex:]"
   ; "method:-[MTLRenderCommandEncoder setViewport:]"
   ; "method:-[MTLRenderCommandEncoder setVisibilityResultMode:offset:]"
@@ -20,7 +26,7 @@ let promotion_ids =
   ; "property:MTLRenderCommandEncoder:tileWidth"
   ]
 
-let expected_count = 19
+let expected_count = 25
 
 let () =
   if List.length promotion_ids <> expected_count

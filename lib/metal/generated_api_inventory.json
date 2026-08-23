@@ -3,9 +3,9 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 3487,
+    "bound": 3493,
     "scope-excluded": 37,
-    "unreviewed": 1761
+    "unreviewed": 1755
   },
   "classification_source_sha256": "3dc2e8bed9a595065b6a091e438b39673ac42c0af75e18d3bdc3d1e1e7a63e6d",
   "deployment_target": "14.0",
@@ -68706,7 +68706,7 @@
           "line": 359
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setFragmentBytes:length:atIndex:]",
       "kind": "method",
@@ -68714,7 +68714,7 @@
       "macos_introduced": "10.11",
       "name": "setFragmentBytes:length:atIndex:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic render encoder, direct typed native calls, checked state/resource validation, completion retention, and real M1 conformance.",
       "signature": "instance (const void * _Nonnull, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -68775,7 +68775,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setFragmentSamplerState:atIndex:]",
       "kind": "method",
@@ -68783,7 +68783,7 @@
       "macos_introduced": "10.11",
       "name": "setFragmentSamplerState:atIndex:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic render encoder, direct typed native calls, checked state/resource validation, completion retention, and real M1 conformance.",
       "signature": "instance (id<MTLSamplerState>  _Nullable __strong, NSUInteger) -> void"
     },
     {
@@ -68794,7 +68794,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setFragmentSamplerState:lodMinClamp:lodMaxClamp:atIndex:]",
       "kind": "method",
@@ -68802,7 +68802,7 @@
       "macos_introduced": "10.11",
       "name": "setFragmentSamplerState:lodMinClamp:lodMaxClamp:atIndex:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic render encoder, direct typed native calls, checked state/resource validation, completion retention, and real M1 conformance.",
       "signature": "instance (id<MTLSamplerState>  _Nullable __strong, float, float, NSUInteger) -> void"
     },
     {
@@ -70303,7 +70303,7 @@
           "line": 147
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setVertexBytes:length:atIndex:]",
       "kind": "method",
@@ -70311,7 +70311,7 @@
       "macos_introduced": "10.11",
       "name": "setVertexBytes:length:atIndex:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic render encoder, direct typed native calls, checked state/resource validation, completion retention, and real M1 conformance.",
       "signature": "instance (const void * _Nonnull, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -70397,7 +70397,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setVertexSamplerState:atIndex:]",
       "kind": "method",
@@ -70405,7 +70405,7 @@
       "macos_introduced": "10.11",
       "name": "setVertexSamplerState:atIndex:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic render encoder, direct typed native calls, checked state/resource validation, completion retention, and real M1 conformance.",
       "signature": "instance (id<MTLSamplerState>  _Nullable __strong, NSUInteger) -> void"
     },
     {
@@ -70416,7 +70416,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setVertexSamplerState:lodMinClamp:lodMaxClamp:atIndex:]",
       "kind": "method",
@@ -70424,7 +70424,7 @@
       "macos_introduced": "10.11",
       "name": "setVertexSamplerState:lodMinClamp:lodMaxClamp:atIndex:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic render encoder, direct typed native calls, checked state/resource validation, completion retention, and real M1 conformance.",
       "signature": "instance (id<MTLSamplerState>  _Nullable __strong, float, float, NSUInteger) -> void"
     },
     {
