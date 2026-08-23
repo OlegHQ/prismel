@@ -83,6 +83,7 @@ let () =
                     || List.mem id Binding_metal4_second_slice_reachability.promotable_ids
                     || List.mem id Binding_metal4_native32_reachability.promotable_ids
                     || List.mem id Binding_metal4_final9_reachability.promotable_ids
+                    || List.mem id Binding_metal4_pending41_reachability.remaining_promotable_ids
             then "bound"
             else "unreviewed"
           in

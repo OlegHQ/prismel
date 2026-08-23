@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4029,
+    "bound": 4035,
     "scope-excluded": 37,
-    "unreviewed": 1219
+    "unreviewed": 1213
   },
-  "classification_source_sha256": "2e8ac03cf269c69fef471ce0fb0a524f64d82a8dbe43492eef7ee1115bc169a5",
+  "classification_source_sha256": "7ff476e493a9cf58288fd9b8dc6f1030a7f8e92df2f93ece481d6e8dc6d4ddc0",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -32816,7 +32816,7 @@
           "line": 48
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4Archive.h",
       "id": "method:-[MTL4Archive newComputePipelineStateWithDescriptor:dynamicLinkingDescriptor:error:]",
       "kind": "method",
@@ -32824,7 +32824,7 @@
       "macos_introduced": "26.0",
       "name": "newComputePipelineStateWithDescriptor:dynamicLinkingDescriptor:error:",
       "owner": "MTL4Archive",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe Metal4 specialization compilation and archive-owned compute/render construction with checked ownership and native conformance.",
       "signature": "instance (MTL4ComputePipelineDescriptor * _Nonnull __strong, MTL4PipelineStageDynamicLinkingDescriptor * _Nonnull __strong, NSError *__autoreleasing  _Nullable * _Nullable) -> id<MTLComputePipelineState> _Nullable"
     },
     {
@@ -32837,7 +32837,7 @@
           "line": 48
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4Archive.h",
       "id": "method:-[MTL4Archive newComputePipelineStateWithDescriptor:error:]",
       "kind": "method",
@@ -32845,7 +32845,7 @@
       "macos_introduced": "26.0",
       "name": "newComputePipelineStateWithDescriptor:error:",
       "owner": "MTL4Archive",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe Metal4 specialization compilation and archive-owned compute/render construction with checked ownership and native conformance.",
       "signature": "instance (MTL4ComputePipelineDescriptor * _Nonnull __strong, NSError *__autoreleasing  _Nullable * _Nullable) -> id<MTLComputePipelineState> _Nullable"
     },
     {
@@ -32858,7 +32858,7 @@
           "line": 48
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4Archive.h",
       "id": "method:-[MTL4Archive newRenderPipelineStateWithDescriptor:dynamicLinkingDescriptor:error:]",
       "kind": "method",
@@ -32866,7 +32866,7 @@
       "macos_introduced": "26.0",
       "name": "newRenderPipelineStateWithDescriptor:dynamicLinkingDescriptor:error:",
       "owner": "MTL4Archive",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe Metal4 specialization compilation and archive-owned compute/render construction with checked ownership and native conformance.",
       "signature": "instance (MTL4PipelineDescriptor * _Nonnull __strong, MTL4RenderPipelineDynamicLinkingDescriptor * _Nonnull __strong, NSError *__autoreleasing  _Nullable * _Nullable) -> id<MTLRenderPipelineState> _Nullable"
     },
     {
@@ -32879,7 +32879,7 @@
           "line": 48
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4Archive.h",
       "id": "method:-[MTL4Archive newRenderPipelineStateWithDescriptor:error:]",
       "kind": "method",
@@ -32887,7 +32887,7 @@
       "macos_introduced": "26.0",
       "name": "newRenderPipelineStateWithDescriptor:error:",
       "owner": "MTL4Archive",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe Metal4 specialization compilation and archive-owned compute/render construction with checked ownership and native conformance.",
       "signature": "instance (MTL4PipelineDescriptor * _Nonnull __strong, NSError *__autoreleasing  _Nullable * _Nullable) -> id<MTLRenderPipelineState> _Nullable"
     },
     {
@@ -34921,7 +34921,7 @@
           "line": 348
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4Compiler.h",
       "id": "method:-[MTL4Compiler newRenderPipelineStateBySpecializationWithDescriptor:pipeline:completionHandler:]",
       "kind": "method",
@@ -34929,7 +34929,7 @@
       "macos_introduced": "26.0",
       "name": "newRenderPipelineStateBySpecializationWithDescriptor:pipeline:completionHandler:",
       "owner": "MTL4Compiler",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe Metal4 specialization compilation and archive-owned compute/render construction with checked ownership and native conformance.",
       "signature": "instance (MTL4PipelineDescriptor * _Nonnull __strong, id<MTLRenderPipelineState>  _Nonnull __strong, MTLNewRenderPipelineStateCompletionHandler  _Nonnull __strong) -> id<MTL4CompilerTask> _Nonnull"
     },
     {
@@ -34947,7 +34947,7 @@
           "line": 216
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4Compiler.h",
       "id": "method:-[MTL4Compiler newRenderPipelineStateBySpecializationWithDescriptor:pipeline:error:]",
       "kind": "method",
@@ -34955,7 +34955,7 @@
       "macos_introduced": "26.0",
       "name": "newRenderPipelineStateBySpecializationWithDescriptor:pipeline:error:",
       "owner": "MTL4Compiler",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe Metal4 specialization compilation and archive-owned compute/render construction with checked ownership and native conformance.",
       "signature": "instance (MTL4PipelineDescriptor * _Nonnull __strong, id<MTLRenderPipelineState>  _Nonnull __strong, NSError *__autoreleasing  _Nullable * _Nullable) -> id<MTLRenderPipelineState> _Nullable"
     },
     {

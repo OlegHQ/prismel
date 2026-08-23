@@ -335,7 +335,8 @@ let validate_struct_native_output inventory
                && not (List.mem identifier Binding_metal4_callable_safe_reachability.promotable_ids)
                && not (List.mem identifier Binding_metal4_second_slice_reachability.promotable_ids)
                && not (List.mem identifier Binding_metal4_native32_reachability.promotable_ids)
-               && not (List.mem identifier Binding_metal4_final9_reachability.promotable_ids))
+               && not (List.mem identifier Binding_metal4_final9_reachability.promotable_ids)
+               && not (List.mem identifier Binding_metal4_pending41_reachability.remaining_promotable_ids))
        || not (String_set.mem identifier planned)
     then fail "generated Metal struct-native inventory mismatch: %s" identifier
   in
@@ -365,7 +366,8 @@ let validate_string_entries inventory entries =
                && not (List.mem identifier Binding_metal4_callable_safe_reachability.promotable_ids)
                && not (List.mem identifier Binding_metal4_second_slice_reachability.promotable_ids)
                && not (List.mem identifier Binding_metal4_native32_reachability.promotable_ids)
-               && not (List.mem identifier Binding_metal4_final9_reachability.promotable_ids))
+               && not (List.mem identifier Binding_metal4_final9_reachability.promotable_ids)
+               && not (List.mem identifier Binding_metal4_pending41_reachability.remaining_promotable_ids))
        ||
        (match declaration.macos_introduced with
         | Some version ->
@@ -599,6 +601,7 @@ let validate_direct_method inventory
        || List.mem entry.sdk_id Binding_metal4_second_slice_reachability.promotable_ids
        || List.mem entry.sdk_id Binding_metal4_native32_reachability.promotable_ids
        || List.mem entry.sdk_id Binding_metal4_final9_reachability.promotable_ids
+       || List.mem entry.sdk_id Binding_metal4_pending41_reachability.remaining_promotable_ids
     then "bound"
     else "unreviewed"
   in
@@ -658,6 +661,7 @@ let validate_direct_property inventory
        || List.mem property.sdk_id Binding_metal4_second_slice_reachability.promotable_ids
        || List.mem property.sdk_id Binding_metal4_native32_reachability.promotable_ids
        || List.mem property.sdk_id Binding_metal4_final9_reachability.promotable_ids
+       || List.mem property.sdk_id Binding_metal4_pending41_reachability.remaining_promotable_ids
     then "bound"
     else "unreviewed"
   in
@@ -711,7 +715,8 @@ let validate_companion inventory safe_api (companion : Binding_plan.companion) =
               && not (List.mem companion.sdk_id Binding_metal4_callable_safe_reachability.promotable_ids)
               && not (List.mem companion.sdk_id Binding_metal4_second_slice_reachability.promotable_ids)
               && not (List.mem companion.sdk_id Binding_metal4_native32_reachability.promotable_ids)
-              && not (List.mem companion.sdk_id Binding_metal4_final9_reachability.promotable_ids) ->
+              && not (List.mem companion.sdk_id Binding_metal4_final9_reachability.promotable_ids)
+              && not (List.mem companion.sdk_id Binding_metal4_pending41_reachability.remaining_promotable_ids) ->
       fail "generated Metal companion lacks safe-API evidence: %s"
         companion.sdk_id
   | Some _ | None -> ()
@@ -770,7 +775,8 @@ let validate_entry inventory entry =
                && not (List.mem entry.sdk_id Binding_metal4_callable_safe_reachability.promotable_ids)
                && not (List.mem entry.sdk_id Binding_metal4_second_slice_reachability.promotable_ids)
                && not (List.mem entry.sdk_id Binding_metal4_native32_reachability.promotable_ids)
-               && not (List.mem entry.sdk_id Binding_metal4_final9_reachability.promotable_ids) ->
+               && not (List.mem entry.sdk_id Binding_metal4_final9_reachability.promotable_ids)
+               && not (List.mem entry.sdk_id Binding_metal4_pending41_reachability.remaining_promotable_ids) ->
        fail "generated Metal identifier lacks safe-API evidence: %s" entry.sdk_id
    | Some _ | None -> ());
   List.iter (validate_companion inventory entry.safe_api) entry.companions;
@@ -2201,6 +2207,8 @@ let generator_source_paths =
   ; "tools/metal/binding_metal4_native32_reachability.mli"
   ; "tools/metal/binding_metal4_final9_reachability.ml"
   ; "tools/metal/binding_metal4_final9_reachability.mli"
+  ; "tools/metal/binding_metal4_pending41_reachability.ml"
+  ; "tools/metal/binding_metal4_pending41_reachability.mli"
   ; "tools/metal/binding_shader_safe_reachability.ml"
   ; "tools/metal/binding_shader_safe_reachability.mli"
   ; "tools/metal/binding_mesh_tile_safe_reachability.ml"
