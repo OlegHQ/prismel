@@ -58,6 +58,20 @@ let () =
           let expected =
             if Binding_argument_reflection_evidence.is_bound_identifier id then
               "bound"
+            else if
+              String.starts_with
+                ~prefix:"property:MTLAccelerationStructureGeometryDescriptor:label"
+                id
+              || String.starts_with
+                   ~prefix:"method:-[MTLAccelerationStructureGeometryDescriptor "
+                   id
+              || String.starts_with
+                   ~prefix:"property:MTL4AccelerationStructureGeometryDescriptor:label"
+                   id
+              || String.starts_with
+                   ~prefix:"method:-[MTL4AccelerationStructureGeometryDescriptor "
+                   id
+            then "bound"
             else "unreviewed"
           in
           if not (String.equal (string_field "classification" symbol) expected) then

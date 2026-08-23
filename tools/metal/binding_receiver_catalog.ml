@@ -134,6 +134,11 @@ let receivers =
       "Indirect_render_command" "indirect_render_command"
   ; direct "MTLIndirectComputeCommand" "id<MTLIndirectComputeCommand>"
       "Indirect_compute_command" "indirect_compute_command"
+  ; direct "MTLAccelerationStructure" "id<MTLAccelerationStructure>"
+      "Acceleration_structure" "acceleration_structure"
+  ; direct "MTLAccelerationStructureCommandEncoder"
+      "id<MTLAccelerationStructureCommandEncoder>" "Acceleration_encoder"
+      "acceleration_encoder"
   ]
 
 let polymorphic_receivers =
@@ -154,7 +159,8 @@ let polymorphic_receivers =
   ; { sdk_owner = "MTLCommandEncoder"
     ; objc_receiver_type = "id<MTLCommandEncoder>"
     ; accepted_handle_kinds =
-        [ "Compute_encoder"; "Resource_state_encoder"; "Blit_encoder" ]
+        [ "Compute_encoder"; "Resource_state_encoder"; "Blit_encoder"
+        ; "Acceleration_encoder" ]
     ; helper = "command_encoder_of_handle"
     ; local_name = "command_encoder"
     ; raw_name = "raw_command_encoder"
@@ -185,10 +191,10 @@ let exclusions =
     }
   ]
 
-let expected_receiver_count = 35
+let expected_receiver_count = 37
 let expected_polymorphic_receiver_count = 3
-let expected_catalog_count = 38
-let expected_handle_kind_count = 41
+let expected_catalog_count = 40
+let expected_handle_kind_count = 43
 let expected_exclusion_count = 6
 
 let source_paths =
@@ -322,7 +328,8 @@ let validate_exact_polymorphism () =
   require "MTLResource" [ "Buffer"; "Texture" ];
   require "MTLAllocation" [ "Heap"; "Buffer"; "Texture" ];
   require "MTLCommandEncoder"
-    [ "Compute_encoder"; "Resource_state_encoder"; "Blit_encoder" ]
+    [ "Compute_encoder"; "Resource_state_encoder"; "Blit_encoder"
+    ; "Acceleration_encoder" ]
 
 let validate () =
   List.iter validate_receiver receivers;

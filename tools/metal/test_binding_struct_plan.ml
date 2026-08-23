@@ -25,8 +25,9 @@ let () =
     | None -> fail "inventory symbols is not a list"
   in
   let selection = Binding_struct_plan.select symbols in
-  if selection.method_count + selection.property_count < 100 then
-    fail "struct shard is not a production-sized batch";
+  if selection.method_count + selection.property_count
+     <> Binding_struct_plan.expected_declaration_count then
+    fail "struct shard cardinality drift";
   if not (Binding_struct_spec.contains_type "instance (MTLSize) -> void" "MTLSize")
   then fail "exact type token was not found";
   if Binding_struct_spec.contains_type "instance (MTLSizeAndAlign) -> void" "MTLSize"

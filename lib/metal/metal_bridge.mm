@@ -1047,7 +1047,8 @@ id<MTLCommandEncoder> command_encoder_of_handle(value raw) {
   std::lock_guard<std::mutex> lock(handle_mutex);
   if (handle->kind != Handle_kind::Compute_encoder &&
       handle->kind != Handle_kind::Resource_state_encoder &&
-      handle->kind != Handle_kind::Blit_encoder) {
+      handle->kind != Handle_kind::Blit_encoder &&
+      handle->kind != Handle_kind::Acceleration_encoder) {
     caml_failwith("Metal custom handle is not a command encoder");
   }
   if (handle->object == nullptr) {

@@ -24,7 +24,8 @@ let select declarations =
   let properties = declarations |> List.filter_map (fun property ->
     match property.kind, property.owner, ownership property.signature with
     | "property", Some owner, Some ownership
-      when property.classification = "unreviewed" && List.mem property.header headers ->
+      when (property.classification = "unreviewed" || property.classification = "bound")
+           && List.mem property.header headers ->
         let getter_id = "method:-[" ^ owner ^ " " ^ property.name ^ "]" in
         let setter_id = "method:-[" ^ owner ^ " set" ^ capitalize property.name ^ ":]" in
         let getter = match Hashtbl.find_opt table getter_id with Some value -> value | None -> fail "missing getter %s" getter_id in
@@ -40,4 +41,5 @@ let select declarations =
 let source_paths =
   [ "tools/metal/binding_acceleration_ownership_plan.ml"; "tools/metal/binding_acceleration_ownership_plan.mli"
   ; "tools/metal/binding_acceleration_ownership_codegen.ml"; "tools/metal/binding_acceleration_ownership_codegen.mli"
-  ; "tools/metal/binding_acceleration_ownership_evidence.ml"; "tools/metal/binding_acceleration_ownership_evidence.mli" ]
+  ; "tools/metal/binding_acceleration_ownership_evidence.ml"; "tools/metal/binding_acceleration_ownership_evidence.mli"
+  ; "tools/metal/binding_acceleration_ownership_adapter.ml"; "tools/metal/binding_acceleration_ownership_adapter.mli" ]

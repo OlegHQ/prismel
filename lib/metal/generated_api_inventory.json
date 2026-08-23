@@ -1,13 +1,13 @@
 {
-  "binding_plan_source_sha256": "460a63f8c1376eb84174deca59517bd6bc5c6cd85c14159d4973cdd05e0e3af1",
+  "binding_plan_source_sha256": "cb0114176fd13c2dd5fb84fda778effa3eb8d0e2d6b338a61010f17cfece7a74",
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 3322,
+    "bound": 3468,
     "scope-excluded": 37,
-    "unreviewed": 1926
+    "unreviewed": 1780
   },
-  "classification_source_sha256": "32dd5d8d4cc4595a03b8c04b4457881f670e8747dd916c9e006d8387e46235a5",
+  "classification_source_sha256": "d628b52f560ab1ab163fdf93166e24b7a6a178a2a04abd0a2facd2791dc8b8e7",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -30608,7 +30608,7 @@
           "line": 187
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4AccelerationStructureBoundingBoxGeometryDescriptor boundingBoxBuffer]",
       "kind": "method",
@@ -30616,7 +30616,7 @@
       "macos_introduced": "26.0",
       "name": "boundingBoxBuffer",
       "owner": "MTL4AccelerationStructureBoundingBoxGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> MTL4BufferRange"
     },
     {
@@ -30665,7 +30665,7 @@
           "line": 187
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4AccelerationStructureBoundingBoxGeometryDescriptor setBoundingBoxBuffer:]",
       "kind": "method",
@@ -30673,7 +30673,7 @@
       "macos_introduced": "26.0",
       "name": "setBoundingBoxBuffer:",
       "owner": "MTL4AccelerationStructureBoundingBoxGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (MTL4BufferRange) -> void"
     },
     {
@@ -30722,7 +30722,7 @@
           "line": 316
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4AccelerationStructureCurveGeometryDescriptor controlPointBuffer]",
       "kind": "method",
@@ -30730,7 +30730,7 @@
       "macos_introduced": "26.0",
       "name": "controlPointBuffer",
       "owner": "MTL4AccelerationStructureCurveGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> MTL4BufferRange"
     },
     {
@@ -30855,7 +30855,7 @@
           "line": 316
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4AccelerationStructureCurveGeometryDescriptor indexBuffer]",
       "kind": "method",
@@ -30863,7 +30863,7 @@
       "macos_introduced": "26.0",
       "name": "indexBuffer",
       "owner": "MTL4AccelerationStructureCurveGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> MTL4BufferRange"
     },
     {
@@ -30893,7 +30893,7 @@
           "line": 316
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4AccelerationStructureCurveGeometryDescriptor radiusBuffer]",
       "kind": "method",
@@ -30901,7 +30901,7 @@
       "macos_introduced": "26.0",
       "name": "radiusBuffer",
       "owner": "MTL4AccelerationStructureCurveGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> MTL4BufferRange"
     },
     {
@@ -30988,7 +30988,7 @@
           "line": 316
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4AccelerationStructureCurveGeometryDescriptor setControlPointBuffer:]",
       "kind": "method",
@@ -30996,7 +30996,7 @@
       "macos_introduced": "26.0",
       "name": "setControlPointBuffer:",
       "owner": "MTL4AccelerationStructureCurveGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (MTL4BufferRange) -> void"
     },
     {
@@ -31121,7 +31121,7 @@
           "line": 316
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4AccelerationStructureCurveGeometryDescriptor setIndexBuffer:]",
       "kind": "method",
@@ -31129,7 +31129,7 @@
       "macos_introduced": "26.0",
       "name": "setIndexBuffer:",
       "owner": "MTL4AccelerationStructureCurveGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (MTL4BufferRange) -> void"
     },
     {
@@ -31159,7 +31159,7 @@
           "line": 316
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4AccelerationStructureCurveGeometryDescriptor setRadiusBuffer:]",
       "kind": "method",
@@ -31167,7 +31167,7 @@
       "macos_introduced": "26.0",
       "name": "setRadiusBuffer:",
       "owner": "MTL4AccelerationStructureCurveGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (MTL4BufferRange) -> void"
     },
     {
@@ -31292,7 +31292,7 @@
           "line": 23
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4AccelerationStructureGeometryDescriptor label]",
       "kind": "method",
@@ -31300,7 +31300,7 @@
       "macos_introduced": "26.0",
       "name": "label",
       "owner": "MTL4AccelerationStructureGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> NSString * _Nullable"
     },
     {
@@ -31330,7 +31330,7 @@
           "line": 23
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4AccelerationStructureGeometryDescriptor primitiveDataBuffer]",
       "kind": "method",
@@ -31338,7 +31338,7 @@
       "macos_introduced": "26.0",
       "name": "primitiveDataBuffer",
       "owner": "MTL4AccelerationStructureGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> MTL4BufferRange"
     },
     {
@@ -31425,7 +31425,7 @@
           "line": 23
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4AccelerationStructureGeometryDescriptor setLabel:]",
       "kind": "method",
@@ -31433,7 +31433,7 @@
       "macos_introduced": "26.0",
       "name": "setLabel:",
       "owner": "MTL4AccelerationStructureGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (NSString * _Nullable) -> void"
     },
     {
@@ -31463,7 +31463,7 @@
           "line": 23
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4AccelerationStructureGeometryDescriptor setPrimitiveDataBuffer:]",
       "kind": "method",
@@ -31471,7 +31471,7 @@
       "macos_introduced": "26.0",
       "name": "setPrimitiveDataBuffer:",
       "owner": "MTL4AccelerationStructureGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (MTL4BufferRange) -> void"
     },
     {
@@ -31520,7 +31520,7 @@
           "line": 281
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4AccelerationStructureMotionBoundingBoxGeometryDescriptor boundingBoxBuffers]",
       "kind": "method",
@@ -31528,7 +31528,7 @@
       "macos_introduced": "26.0",
       "name": "boundingBoxBuffers",
       "owner": "MTL4AccelerationStructureMotionBoundingBoxGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> MTL4BufferRange"
     },
     {
@@ -31577,7 +31577,7 @@
           "line": 281
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4AccelerationStructureMotionBoundingBoxGeometryDescriptor setBoundingBoxBuffers:]",
       "kind": "method",
@@ -31585,7 +31585,7 @@
       "macos_introduced": "26.0",
       "name": "setBoundingBoxBuffers:",
       "owner": "MTL4AccelerationStructureMotionBoundingBoxGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (MTL4BufferRange) -> void"
     },
     {
@@ -31634,7 +31634,7 @@
           "line": 401
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4AccelerationStructureMotionCurveGeometryDescriptor controlPointBuffers]",
       "kind": "method",
@@ -31642,7 +31642,7 @@
       "macos_introduced": "26.0",
       "name": "controlPointBuffers",
       "owner": "MTL4AccelerationStructureMotionCurveGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> MTL4BufferRange"
     },
     {
@@ -31767,7 +31767,7 @@
           "line": 401
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4AccelerationStructureMotionCurveGeometryDescriptor indexBuffer]",
       "kind": "method",
@@ -31775,7 +31775,7 @@
       "macos_introduced": "26.0",
       "name": "indexBuffer",
       "owner": "MTL4AccelerationStructureMotionCurveGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> MTL4BufferRange"
     },
     {
@@ -31805,7 +31805,7 @@
           "line": 401
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4AccelerationStructureMotionCurveGeometryDescriptor radiusBuffers]",
       "kind": "method",
@@ -31813,7 +31813,7 @@
       "macos_introduced": "26.0",
       "name": "radiusBuffers",
       "owner": "MTL4AccelerationStructureMotionCurveGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> MTL4BufferRange"
     },
     {
@@ -31900,7 +31900,7 @@
           "line": 401
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4AccelerationStructureMotionCurveGeometryDescriptor setControlPointBuffers:]",
       "kind": "method",
@@ -31908,7 +31908,7 @@
       "macos_introduced": "26.0",
       "name": "setControlPointBuffers:",
       "owner": "MTL4AccelerationStructureMotionCurveGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (MTL4BufferRange) -> void"
     },
     {
@@ -32033,7 +32033,7 @@
           "line": 401
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4AccelerationStructureMotionCurveGeometryDescriptor setIndexBuffer:]",
       "kind": "method",
@@ -32041,7 +32041,7 @@
       "macos_introduced": "26.0",
       "name": "setIndexBuffer:",
       "owner": "MTL4AccelerationStructureMotionCurveGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (MTL4BufferRange) -> void"
     },
     {
@@ -32071,7 +32071,7 @@
           "line": 401
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4AccelerationStructureMotionCurveGeometryDescriptor setRadiusBuffers:]",
       "kind": "method",
@@ -32079,7 +32079,7 @@
       "macos_introduced": "26.0",
       "name": "setRadiusBuffers:",
       "owner": "MTL4AccelerationStructureMotionCurveGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (MTL4BufferRange) -> void"
     },
     {
@@ -32166,7 +32166,7 @@
           "line": 211
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4AccelerationStructureMotionTriangleGeometryDescriptor indexBuffer]",
       "kind": "method",
@@ -32174,7 +32174,7 @@
       "macos_introduced": "26.0",
       "name": "indexBuffer",
       "owner": "MTL4AccelerationStructureMotionTriangleGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> MTL4BufferRange"
     },
     {
@@ -32204,7 +32204,7 @@
           "line": 211
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4AccelerationStructureMotionTriangleGeometryDescriptor setIndexBuffer:]",
       "kind": "method",
@@ -32212,7 +32212,7 @@
       "macos_introduced": "26.0",
       "name": "setIndexBuffer:",
       "owner": "MTL4AccelerationStructureMotionTriangleGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (MTL4BufferRange) -> void"
     },
     {
@@ -32242,7 +32242,7 @@
           "line": 211
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4AccelerationStructureMotionTriangleGeometryDescriptor setTransformationMatrixBuffer:]",
       "kind": "method",
@@ -32250,7 +32250,7 @@
       "macos_introduced": "26.0",
       "name": "setTransformationMatrixBuffer:",
       "owner": "MTL4AccelerationStructureMotionTriangleGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (MTL4BufferRange) -> void"
     },
     {
@@ -32299,7 +32299,7 @@
           "line": 211
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4AccelerationStructureMotionTriangleGeometryDescriptor setVertexBuffers:]",
       "kind": "method",
@@ -32307,7 +32307,7 @@
       "macos_introduced": "26.0",
       "name": "setVertexBuffers:",
       "owner": "MTL4AccelerationStructureMotionTriangleGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (MTL4BufferRange) -> void"
     },
     {
@@ -32356,7 +32356,7 @@
           "line": 211
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4AccelerationStructureMotionTriangleGeometryDescriptor transformationMatrixBuffer]",
       "kind": "method",
@@ -32364,7 +32364,7 @@
       "macos_introduced": "26.0",
       "name": "transformationMatrixBuffer",
       "owner": "MTL4AccelerationStructureMotionTriangleGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> MTL4BufferRange"
     },
     {
@@ -32413,7 +32413,7 @@
           "line": 211
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4AccelerationStructureMotionTriangleGeometryDescriptor vertexBuffers]",
       "kind": "method",
@@ -32421,7 +32421,7 @@
       "macos_introduced": "26.0",
       "name": "vertexBuffers",
       "owner": "MTL4AccelerationStructureMotionTriangleGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> MTL4BufferRange"
     },
     {
@@ -32470,7 +32470,7 @@
           "line": 126
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4AccelerationStructureTriangleGeometryDescriptor indexBuffer]",
       "kind": "method",
@@ -32478,7 +32478,7 @@
       "macos_introduced": "26.0",
       "name": "indexBuffer",
       "owner": "MTL4AccelerationStructureTriangleGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> MTL4BufferRange"
     },
     {
@@ -32508,7 +32508,7 @@
           "line": 126
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4AccelerationStructureTriangleGeometryDescriptor setIndexBuffer:]",
       "kind": "method",
@@ -32516,7 +32516,7 @@
       "macos_introduced": "26.0",
       "name": "setIndexBuffer:",
       "owner": "MTL4AccelerationStructureTriangleGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (MTL4BufferRange) -> void"
     },
     {
@@ -32546,7 +32546,7 @@
           "line": 126
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4AccelerationStructureTriangleGeometryDescriptor setTransformationMatrixBuffer:]",
       "kind": "method",
@@ -32554,7 +32554,7 @@
       "macos_introduced": "26.0",
       "name": "setTransformationMatrixBuffer:",
       "owner": "MTL4AccelerationStructureTriangleGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (MTL4BufferRange) -> void"
     },
     {
@@ -32603,7 +32603,7 @@
           "line": 126
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4AccelerationStructureTriangleGeometryDescriptor setVertexBuffer:]",
       "kind": "method",
@@ -32611,7 +32611,7 @@
       "macos_introduced": "26.0",
       "name": "setVertexBuffer:",
       "owner": "MTL4AccelerationStructureTriangleGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (MTL4BufferRange) -> void"
     },
     {
@@ -32660,7 +32660,7 @@
           "line": 126
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4AccelerationStructureTriangleGeometryDescriptor transformationMatrixBuffer]",
       "kind": "method",
@@ -32668,7 +32668,7 @@
       "macos_introduced": "26.0",
       "name": "transformationMatrixBuffer",
       "owner": "MTL4AccelerationStructureTriangleGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> MTL4BufferRange"
     },
     {
@@ -32717,7 +32717,7 @@
           "line": 126
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4AccelerationStructureTriangleGeometryDescriptor vertexBuffer]",
       "kind": "method",
@@ -32725,7 +32725,7 @@
       "macos_introduced": "26.0",
       "name": "vertexBuffer",
       "owner": "MTL4AccelerationStructureTriangleGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> MTL4BufferRange"
     },
     {
@@ -36411,7 +36411,7 @@
           "line": 590
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4IndirectInstanceAccelerationStructureDescriptor instanceCountBuffer]",
       "kind": "method",
@@ -36419,7 +36419,7 @@
       "macos_introduced": "26.0",
       "name": "instanceCountBuffer",
       "owner": "MTL4IndirectInstanceAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> MTL4BufferRange"
     },
     {
@@ -36430,7 +36430,7 @@
           "line": 590
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4IndirectInstanceAccelerationStructureDescriptor instanceDescriptorBuffer]",
       "kind": "method",
@@ -36438,7 +36438,7 @@
       "macos_introduced": "26.0",
       "name": "instanceDescriptorBuffer",
       "owner": "MTL4IndirectInstanceAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> MTL4BufferRange"
     },
     {
@@ -36544,7 +36544,7 @@
           "line": 590
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4IndirectInstanceAccelerationStructureDescriptor motionTransformBuffer]",
       "kind": "method",
@@ -36552,7 +36552,7 @@
       "macos_introduced": "26.0",
       "name": "motionTransformBuffer",
       "owner": "MTL4IndirectInstanceAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> MTL4BufferRange"
     },
     {
@@ -36563,7 +36563,7 @@
           "line": 590
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4IndirectInstanceAccelerationStructureDescriptor motionTransformCountBuffer]",
       "kind": "method",
@@ -36571,7 +36571,7 @@
       "macos_introduced": "26.0",
       "name": "motionTransformCountBuffer",
       "owner": "MTL4IndirectInstanceAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> MTL4BufferRange"
     },
     {
@@ -36620,7 +36620,7 @@
           "line": 590
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4IndirectInstanceAccelerationStructureDescriptor setInstanceCountBuffer:]",
       "kind": "method",
@@ -36628,7 +36628,7 @@
       "macos_introduced": "26.0",
       "name": "setInstanceCountBuffer:",
       "owner": "MTL4IndirectInstanceAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (MTL4BufferRange) -> void"
     },
     {
@@ -36639,7 +36639,7 @@
           "line": 590
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4IndirectInstanceAccelerationStructureDescriptor setInstanceDescriptorBuffer:]",
       "kind": "method",
@@ -36647,7 +36647,7 @@
       "macos_introduced": "26.0",
       "name": "setInstanceDescriptorBuffer:",
       "owner": "MTL4IndirectInstanceAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (MTL4BufferRange) -> void"
     },
     {
@@ -36753,7 +36753,7 @@
           "line": 590
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4IndirectInstanceAccelerationStructureDescriptor setMotionTransformBuffer:]",
       "kind": "method",
@@ -36761,7 +36761,7 @@
       "macos_introduced": "26.0",
       "name": "setMotionTransformBuffer:",
       "owner": "MTL4IndirectInstanceAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (MTL4BufferRange) -> void"
     },
     {
@@ -36772,7 +36772,7 @@
           "line": 590
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4IndirectInstanceAccelerationStructureDescriptor setMotionTransformCountBuffer:]",
       "kind": "method",
@@ -36780,7 +36780,7 @@
       "macos_introduced": "26.0",
       "name": "setMotionTransformCountBuffer:",
       "owner": "MTL4IndirectInstanceAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (MTL4BufferRange) -> void"
     },
     {
@@ -36848,7 +36848,7 @@
           "line": 509
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4InstanceAccelerationStructureDescriptor instanceDescriptorBuffer]",
       "kind": "method",
@@ -36856,7 +36856,7 @@
       "macos_introduced": "26.0",
       "name": "instanceDescriptorBuffer",
       "owner": "MTL4InstanceAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> MTL4BufferRange"
     },
     {
@@ -36924,7 +36924,7 @@
           "line": 509
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4InstanceAccelerationStructureDescriptor motionTransformBuffer]",
       "kind": "method",
@@ -36932,7 +36932,7 @@
       "macos_introduced": "26.0",
       "name": "motionTransformBuffer",
       "owner": "MTL4InstanceAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> MTL4BufferRange"
     },
     {
@@ -37019,7 +37019,7 @@
           "line": 509
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4InstanceAccelerationStructureDescriptor setInstanceDescriptorBuffer:]",
       "kind": "method",
@@ -37027,7 +37027,7 @@
       "macos_introduced": "26.0",
       "name": "setInstanceDescriptorBuffer:",
       "owner": "MTL4InstanceAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (MTL4BufferRange) -> void"
     },
     {
@@ -37095,7 +37095,7 @@
           "line": 509
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4InstanceAccelerationStructureDescriptor setMotionTransformBuffer:]",
       "kind": "method",
@@ -37103,7 +37103,7 @@
       "macos_introduced": "26.0",
       "name": "setMotionTransformBuffer:",
       "owner": "MTL4InstanceAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (MTL4BufferRange) -> void"
     },
     {
@@ -38957,7 +38957,7 @@
           "line": 77
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4PrimitiveAccelerationStructureDescriptor geometryDescriptors]",
       "kind": "method",
@@ -38965,7 +38965,7 @@
       "macos_introduced": "26.0",
       "name": "geometryDescriptors",
       "owner": "MTL4PrimitiveAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> NSArray<MTL4AccelerationStructureGeometryDescriptor *> * _Nullable"
     },
     {
@@ -39071,7 +39071,7 @@
           "line": 77
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "method:-[MTL4PrimitiveAccelerationStructureDescriptor setGeometryDescriptors:]",
       "kind": "method",
@@ -39079,7 +39079,7 @@
       "macos_introduced": "26.0",
       "name": "setGeometryDescriptors:",
       "owner": "MTL4PrimitiveAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (NSArray<MTL4AccelerationStructureGeometryDescriptor *> * _Nullable) -> void"
     },
     {
@@ -42497,7 +42497,7 @@
           "line": 1207
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLAccelerationStructure gpuResourceID]",
       "kind": "method",
@@ -42505,7 +42505,7 @@
       "macos_introduced": "13.0",
       "name": "gpuResourceID",
       "owner": "MTLAccelerationStructure",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> MTLResourceID"
     },
     {
@@ -42554,7 +42554,7 @@
           "line": 314
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLAccelerationStructureBoundingBoxGeometryDescriptor boundingBoxBuffer]",
       "kind": "method",
@@ -42562,7 +42562,7 @@
       "macos_introduced": "11.0",
       "name": "boundingBoxBuffer",
       "owner": "MTLAccelerationStructureBoundingBoxGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> id<MTLBuffer> _Nullable"
     },
     {
@@ -42611,7 +42611,7 @@
           "line": 314
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLAccelerationStructureBoundingBoxGeometryDescriptor setBoundingBoxBuffer:]",
       "kind": "method",
@@ -42619,7 +42619,7 @@
       "macos_introduced": "11.0",
       "name": "setBoundingBoxBuffer:",
       "owner": "MTLAccelerationStructureBoundingBoxGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (id<MTLBuffer> _Nullable) -> void"
     },
     {
@@ -42990,7 +42990,7 @@
           "line": 547
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLAccelerationStructureCurveGeometryDescriptor controlPointBuffer]",
       "kind": "method",
@@ -42998,7 +42998,7 @@
       "macos_introduced": "14.0",
       "name": "controlPointBuffer",
       "owner": "MTLAccelerationStructureCurveGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> id<MTLBuffer> _Nullable"
     },
     {
@@ -43142,7 +43142,7 @@
           "line": 547
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLAccelerationStructureCurveGeometryDescriptor indexBuffer]",
       "kind": "method",
@@ -43150,7 +43150,7 @@
       "macos_introduced": "14.0",
       "name": "indexBuffer",
       "owner": "MTLAccelerationStructureCurveGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> id<MTLBuffer> _Nullable"
     },
     {
@@ -43199,7 +43199,7 @@
           "line": 547
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLAccelerationStructureCurveGeometryDescriptor radiusBuffer]",
       "kind": "method",
@@ -43207,7 +43207,7 @@
       "macos_introduced": "14.0",
       "name": "radiusBuffer",
       "owner": "MTLAccelerationStructureCurveGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> id<MTLBuffer> _Nullable"
     },
     {
@@ -43294,7 +43294,7 @@
           "line": 547
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLAccelerationStructureCurveGeometryDescriptor setControlPointBuffer:]",
       "kind": "method",
@@ -43302,7 +43302,7 @@
       "macos_introduced": "14.0",
       "name": "setControlPointBuffer:",
       "owner": "MTLAccelerationStructureCurveGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (id<MTLBuffer> _Nullable) -> void"
     },
     {
@@ -43446,7 +43446,7 @@
           "line": 547
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLAccelerationStructureCurveGeometryDescriptor setIndexBuffer:]",
       "kind": "method",
@@ -43454,7 +43454,7 @@
       "macos_introduced": "14.0",
       "name": "setIndexBuffer:",
       "owner": "MTLAccelerationStructureCurveGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (id<MTLBuffer> _Nullable) -> void"
     },
     {
@@ -43503,7 +43503,7 @@
           "line": 547
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLAccelerationStructureCurveGeometryDescriptor setRadiusBuffer:]",
       "kind": "method",
@@ -43511,7 +43511,7 @@
       "macos_introduced": "14.0",
       "name": "setRadiusBuffer:",
       "owner": "MTLAccelerationStructureCurveGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (id<MTLBuffer> _Nullable) -> void"
     },
     {
@@ -43699,7 +43699,7 @@
           "line": 155
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLAccelerationStructureGeometryDescriptor label]",
       "kind": "method",
@@ -43707,7 +43707,7 @@
       "macos_introduced": "12.0",
       "name": "label",
       "owner": "MTLAccelerationStructureGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> NSString * _Nullable"
     },
     {
@@ -43768,7 +43768,7 @@
           "line": 160
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLAccelerationStructureGeometryDescriptor primitiveDataBuffer]",
       "kind": "method",
@@ -43776,7 +43776,7 @@
       "macos_introduced": "13.0",
       "name": "primitiveDataBuffer",
       "owner": "MTLAccelerationStructureGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> id<MTLBuffer> _Nullable"
     },
     {
@@ -43881,7 +43881,7 @@
           "line": 155
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLAccelerationStructureGeometryDescriptor setLabel:]",
       "kind": "method",
@@ -43889,7 +43889,7 @@
       "macos_introduced": "12.0",
       "name": "setLabel:",
       "owner": "MTLAccelerationStructureGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (NSString * _Nullable) -> void"
     },
     {
@@ -43925,7 +43925,7 @@
           "line": 160
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLAccelerationStructureGeometryDescriptor setPrimitiveDataBuffer:]",
       "kind": "method",
@@ -43933,7 +43933,7 @@
       "macos_introduced": "13.0",
       "name": "setPrimitiveDataBuffer:",
       "owner": "MTLAccelerationStructureGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (id<MTLBuffer> _Nullable) -> void"
     },
     {
@@ -44019,7 +44019,7 @@
           "line": 432
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLAccelerationStructureMotionBoundingBoxGeometryDescriptor boundingBoxBuffers]",
       "kind": "method",
@@ -44027,7 +44027,7 @@
       "macos_introduced": "12.0",
       "name": "boundingBoxBuffers",
       "owner": "MTLAccelerationStructureMotionBoundingBoxGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> NSArray<MTLMotionKeyframeData *> * _Nonnull"
     },
     {
@@ -44076,7 +44076,7 @@
           "line": 432
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLAccelerationStructureMotionBoundingBoxGeometryDescriptor setBoundingBoxBuffers:]",
       "kind": "method",
@@ -44084,7 +44084,7 @@
       "macos_introduced": "12.0",
       "name": "setBoundingBoxBuffers:",
       "owner": "MTLAccelerationStructureMotionBoundingBoxGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (NSArray<MTLMotionKeyframeData *> * _Nonnull) -> void"
     },
     {
@@ -44133,7 +44133,7 @@
           "line": 661
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLAccelerationStructureMotionCurveGeometryDescriptor controlPointBuffers]",
       "kind": "method",
@@ -44141,7 +44141,7 @@
       "macos_introduced": "14.0",
       "name": "controlPointBuffers",
       "owner": "MTLAccelerationStructureMotionCurveGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> NSArray<MTLMotionKeyframeData *> * _Nonnull"
     },
     {
@@ -44285,7 +44285,7 @@
           "line": 661
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLAccelerationStructureMotionCurveGeometryDescriptor indexBuffer]",
       "kind": "method",
@@ -44293,7 +44293,7 @@
       "macos_introduced": "14.0",
       "name": "indexBuffer",
       "owner": "MTLAccelerationStructureMotionCurveGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> id<MTLBuffer> _Nullable"
     },
     {
@@ -44323,7 +44323,7 @@
           "line": 661
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLAccelerationStructureMotionCurveGeometryDescriptor radiusBuffers]",
       "kind": "method",
@@ -44331,7 +44331,7 @@
       "macos_introduced": "14.0",
       "name": "radiusBuffers",
       "owner": "MTLAccelerationStructureMotionCurveGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> NSArray<MTLMotionKeyframeData *> * _Nonnull"
     },
     {
@@ -44418,7 +44418,7 @@
           "line": 661
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLAccelerationStructureMotionCurveGeometryDescriptor setControlPointBuffers:]",
       "kind": "method",
@@ -44426,7 +44426,7 @@
       "macos_introduced": "14.0",
       "name": "setControlPointBuffers:",
       "owner": "MTLAccelerationStructureMotionCurveGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (NSArray<MTLMotionKeyframeData *> * _Nonnull) -> void"
     },
     {
@@ -44551,7 +44551,7 @@
           "line": 661
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLAccelerationStructureMotionCurveGeometryDescriptor setIndexBuffer:]",
       "kind": "method",
@@ -44559,7 +44559,7 @@
       "macos_introduced": "14.0",
       "name": "setIndexBuffer:",
       "owner": "MTLAccelerationStructureMotionCurveGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (id<MTLBuffer> _Nullable) -> void"
     },
     {
@@ -44608,7 +44608,7 @@
           "line": 661
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLAccelerationStructureMotionCurveGeometryDescriptor setRadiusBuffers:]",
       "kind": "method",
@@ -44616,7 +44616,7 @@
       "macos_introduced": "14.0",
       "name": "setRadiusBuffers:",
       "owner": "MTLAccelerationStructureMotionCurveGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (NSArray<MTLMotionKeyframeData *> * _Nonnull) -> void"
     },
     {
@@ -44722,7 +44722,7 @@
           "line": 367
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLAccelerationStructureMotionTriangleGeometryDescriptor indexBuffer]",
       "kind": "method",
@@ -44730,7 +44730,7 @@
       "macos_introduced": "12.0",
       "name": "indexBuffer",
       "owner": "MTLAccelerationStructureMotionTriangleGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> id<MTLBuffer> _Nullable"
     },
     {
@@ -44760,7 +44760,7 @@
           "line": 367
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLAccelerationStructureMotionTriangleGeometryDescriptor setIndexBuffer:]",
       "kind": "method",
@@ -44768,7 +44768,7 @@
       "macos_introduced": "12.0",
       "name": "setIndexBuffer:",
       "owner": "MTLAccelerationStructureMotionTriangleGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (id<MTLBuffer> _Nullable) -> void"
     },
     {
@@ -44823,7 +44823,7 @@
           "line": 413
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLAccelerationStructureMotionTriangleGeometryDescriptor setTransformationMatrixBuffer:]",
       "kind": "method",
@@ -44831,7 +44831,7 @@
       "macos_introduced": "13.0",
       "name": "setTransformationMatrixBuffer:",
       "owner": "MTLAccelerationStructureMotionTriangleGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (id<MTLBuffer> _Nullable) -> void"
     },
     {
@@ -44911,7 +44911,7 @@
           "line": 367
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLAccelerationStructureMotionTriangleGeometryDescriptor setVertexBuffers:]",
       "kind": "method",
@@ -44919,7 +44919,7 @@
       "macos_introduced": "12.0",
       "name": "setVertexBuffers:",
       "owner": "MTLAccelerationStructureMotionTriangleGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (NSArray<MTLMotionKeyframeData *> * _Nonnull) -> void"
     },
     {
@@ -45005,7 +45005,7 @@
           "line": 413
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLAccelerationStructureMotionTriangleGeometryDescriptor transformationMatrixBuffer]",
       "kind": "method",
@@ -45013,7 +45013,7 @@
       "macos_introduced": "13.0",
       "name": "transformationMatrixBuffer",
       "owner": "MTLAccelerationStructureMotionTriangleGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> id<MTLBuffer> _Nullable"
     },
     {
@@ -45068,7 +45068,7 @@
           "line": 367
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLAccelerationStructureMotionTriangleGeometryDescriptor vertexBuffers]",
       "kind": "method",
@@ -45076,7 +45076,7 @@
       "macos_introduced": "12.0",
       "name": "vertexBuffers",
       "owner": "MTLAccelerationStructureMotionTriangleGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> NSArray<MTLMotionKeyframeData *> * _Nonnull"
     },
     {
@@ -45321,7 +45321,7 @@
           "line": 243
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLAccelerationStructureTriangleGeometryDescriptor indexBuffer]",
       "kind": "method",
@@ -45329,7 +45329,7 @@
       "macos_introduced": "11.0",
       "name": "indexBuffer",
       "owner": "MTLAccelerationStructureTriangleGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> id<MTLBuffer> _Nullable"
     },
     {
@@ -45359,7 +45359,7 @@
           "line": 243
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLAccelerationStructureTriangleGeometryDescriptor setIndexBuffer:]",
       "kind": "method",
@@ -45367,7 +45367,7 @@
       "macos_introduced": "11.0",
       "name": "setIndexBuffer:",
       "owner": "MTLAccelerationStructureTriangleGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (id<MTLBuffer> _Nullable) -> void"
     },
     {
@@ -45422,7 +45422,7 @@
           "line": 295
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLAccelerationStructureTriangleGeometryDescriptor setTransformationMatrixBuffer:]",
       "kind": "method",
@@ -45430,7 +45430,7 @@
       "macos_introduced": "13.0",
       "name": "setTransformationMatrixBuffer:",
       "owner": "MTLAccelerationStructureTriangleGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (id<MTLBuffer> _Nullable) -> void"
     },
     {
@@ -45510,7 +45510,7 @@
           "line": 243
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLAccelerationStructureTriangleGeometryDescriptor setVertexBuffer:]",
       "kind": "method",
@@ -45518,7 +45518,7 @@
       "macos_introduced": "11.0",
       "name": "setVertexBuffer:",
       "owner": "MTLAccelerationStructureTriangleGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (id<MTLBuffer> _Nullable) -> void"
     },
     {
@@ -45623,7 +45623,7 @@
           "line": 295
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLAccelerationStructureTriangleGeometryDescriptor transformationMatrixBuffer]",
       "kind": "method",
@@ -45631,7 +45631,7 @@
       "macos_introduced": "13.0",
       "name": "transformationMatrixBuffer",
       "owner": "MTLAccelerationStructureTriangleGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> id<MTLBuffer> _Nullable"
     },
     {
@@ -45705,7 +45705,7 @@
           "line": 243
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLAccelerationStructureTriangleGeometryDescriptor vertexBuffer]",
       "kind": "method",
@@ -45713,7 +45713,7 @@
       "macos_introduced": "11.0",
       "name": "vertexBuffer",
       "owner": "MTLAccelerationStructureTriangleGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> id<MTLBuffer> _Nullable"
     },
     {
@@ -62731,7 +62731,7 @@
           "line": 1102
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLIndirectInstanceAccelerationStructureDescriptor instanceCountBuffer]",
       "kind": "method",
@@ -62739,7 +62739,7 @@
       "macos_introduced": "14.0",
       "name": "instanceCountBuffer",
       "owner": "MTLIndirectInstanceAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> id<MTLBuffer> _Nullable"
     },
     {
@@ -62769,7 +62769,7 @@
           "line": 1102
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLIndirectInstanceAccelerationStructureDescriptor instanceDescriptorBuffer]",
       "kind": "method",
@@ -62777,7 +62777,7 @@
       "macos_introduced": "14.0",
       "name": "instanceDescriptorBuffer",
       "owner": "MTLIndirectInstanceAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> id<MTLBuffer> _Nullable"
     },
     {
@@ -62908,7 +62908,7 @@
           "line": 1102
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLIndirectInstanceAccelerationStructureDescriptor motionTransformBuffer]",
       "kind": "method",
@@ -62916,7 +62916,7 @@
       "macos_introduced": "14.0",
       "name": "motionTransformBuffer",
       "owner": "MTLIndirectInstanceAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> id<MTLBuffer> _Nullable"
     },
     {
@@ -62946,7 +62946,7 @@
           "line": 1102
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLIndirectInstanceAccelerationStructureDescriptor motionTransformCountBuffer]",
       "kind": "method",
@@ -62954,7 +62954,7 @@
       "macos_introduced": "14.0",
       "name": "motionTransformCountBuffer",
       "owner": "MTLIndirectInstanceAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> id<MTLBuffer> _Nullable"
     },
     {
@@ -63015,7 +63015,7 @@
           "line": 1102
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLIndirectInstanceAccelerationStructureDescriptor setInstanceCountBuffer:]",
       "kind": "method",
@@ -63023,7 +63023,7 @@
       "macos_introduced": "14.0",
       "name": "setInstanceCountBuffer:",
       "owner": "MTLIndirectInstanceAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (id<MTLBuffer> _Nullable) -> void"
     },
     {
@@ -63053,7 +63053,7 @@
           "line": 1102
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLIndirectInstanceAccelerationStructureDescriptor setInstanceDescriptorBuffer:]",
       "kind": "method",
@@ -63061,7 +63061,7 @@
       "macos_introduced": "14.0",
       "name": "setInstanceDescriptorBuffer:",
       "owner": "MTLIndirectInstanceAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (id<MTLBuffer> _Nullable) -> void"
     },
     {
@@ -63192,7 +63192,7 @@
           "line": 1102
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLIndirectInstanceAccelerationStructureDescriptor setMotionTransformBuffer:]",
       "kind": "method",
@@ -63200,7 +63200,7 @@
       "macos_introduced": "14.0",
       "name": "setMotionTransformBuffer:",
       "owner": "MTLIndirectInstanceAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (id<MTLBuffer> _Nullable) -> void"
     },
     {
@@ -63230,7 +63230,7 @@
           "line": 1102
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLIndirectInstanceAccelerationStructureDescriptor setMotionTransformCountBuffer:]",
       "kind": "method",
@@ -63238,7 +63238,7 @@
       "macos_introduced": "14.0",
       "name": "setMotionTransformCountBuffer:",
       "owner": "MTLIndirectInstanceAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (id<MTLBuffer> _Nullable) -> void"
     },
     {
@@ -63876,7 +63876,7 @@
           "line": 1025
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLInstanceAccelerationStructureDescriptor instanceDescriptorBuffer]",
       "kind": "method",
@@ -63884,7 +63884,7 @@
       "macos_introduced": "11.0",
       "name": "instanceDescriptorBuffer",
       "owner": "MTLInstanceAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> id<MTLBuffer> _Nullable"
     },
     {
@@ -63964,7 +63964,7 @@
           "line": 1025
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLInstanceAccelerationStructureDescriptor instancedAccelerationStructures]",
       "kind": "method",
@@ -63972,7 +63972,7 @@
       "macos_introduced": "11.0",
       "name": "instancedAccelerationStructures",
       "owner": "MTLInstanceAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> NSArray<id<MTLAccelerationStructure>> * _Nullable"
     },
     {
@@ -64014,7 +64014,7 @@
           "line": 1065
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLInstanceAccelerationStructureDescriptor motionTransformBuffer]",
       "kind": "method",
@@ -64022,7 +64022,7 @@
       "macos_introduced": "12.0",
       "name": "motionTransformBuffer",
       "owner": "MTLInstanceAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> id<MTLBuffer> _Nullable"
     },
     {
@@ -64127,7 +64127,7 @@
           "line": 1025
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLInstanceAccelerationStructureDescriptor setInstanceDescriptorBuffer:]",
       "kind": "method",
@@ -64135,7 +64135,7 @@
       "macos_introduced": "11.0",
       "name": "setInstanceDescriptorBuffer:",
       "owner": "MTLInstanceAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (id<MTLBuffer> _Nullable) -> void"
     },
     {
@@ -64234,7 +64234,7 @@
           "line": 1025
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLInstanceAccelerationStructureDescriptor setInstancedAccelerationStructures:]",
       "kind": "method",
@@ -64242,7 +64242,7 @@
       "macos_introduced": "11.0",
       "name": "setInstancedAccelerationStructures:",
       "owner": "MTLInstanceAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (NSArray<id<MTLAccelerationStructure>> * _Nullable) -> void"
     },
     {
@@ -64259,7 +64259,7 @@
           "line": 1065
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLInstanceAccelerationStructureDescriptor setMotionTransformBuffer:]",
       "kind": "method",
@@ -64267,7 +64267,7 @@
       "macos_introduced": "12.0",
       "name": "setMotionTransformBuffer:",
       "owner": "MTLInstanceAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (id<MTLBuffer> _Nullable) -> void"
     },
     {
@@ -66425,7 +66425,7 @@
           "line": 346
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLMotionKeyframeData buffer]",
       "kind": "method",
@@ -66433,7 +66433,7 @@
       "macos_introduced": "12.0",
       "name": "buffer",
       "owner": "MTLMotionKeyframeData",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> id<MTLBuffer> _Nullable"
     },
     {
@@ -66463,7 +66463,7 @@
           "line": 346
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLMotionKeyframeData setBuffer:]",
       "kind": "method",
@@ -66471,7 +66471,7 @@
       "macos_introduced": "12.0",
       "name": "setBuffer:",
       "owner": "MTLMotionKeyframeData",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (id<MTLBuffer> _Nullable) -> void"
     },
     {
@@ -66935,7 +66935,7 @@
           "line": 200
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLPrimitiveAccelerationStructureDescriptor geometryDescriptors]",
       "kind": "method",
@@ -66943,7 +66943,7 @@
       "macos_introduced": "11.0",
       "name": "geometryDescriptors",
       "owner": "MTLPrimitiveAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance () -> NSArray<MTLAccelerationStructureGeometryDescriptor *> * _Nullable"
     },
     {
@@ -67079,7 +67079,7 @@
           "line": 200
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:-[MTLPrimitiveAccelerationStructureDescriptor setGeometryDescriptors:]",
       "kind": "method",
@@ -67087,7 +67087,7 @@
       "macos_introduced": "11.0",
       "name": "setGeometryDescriptors:",
       "owner": "MTLPrimitiveAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "instance (NSArray<MTLAccelerationStructureGeometryDescriptor *> * _Nullable) -> void"
     },
     {
@@ -82862,7 +82862,7 @@
           "line": 187
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "property:MTL4AccelerationStructureBoundingBoxGeometryDescriptor:boundingBoxBuffer",
       "kind": "property",
@@ -82870,7 +82870,7 @@
       "macos_introduced": "26.0",
       "name": "boundingBoxBuffer",
       "owner": "MTL4AccelerationStructureBoundingBoxGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "MTL4BufferRange"
     },
     {
@@ -82919,7 +82919,7 @@
           "line": 316
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "property:MTL4AccelerationStructureCurveGeometryDescriptor:controlPointBuffer",
       "kind": "property",
@@ -82927,7 +82927,7 @@
       "macos_introduced": "26.0",
       "name": "controlPointBuffer",
       "owner": "MTL4AccelerationStructureCurveGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "MTL4BufferRange"
     },
     {
@@ -83052,7 +83052,7 @@
           "line": 316
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "property:MTL4AccelerationStructureCurveGeometryDescriptor:indexBuffer",
       "kind": "property",
@@ -83060,7 +83060,7 @@
       "macos_introduced": "26.0",
       "name": "indexBuffer",
       "owner": "MTL4AccelerationStructureCurveGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "MTL4BufferRange"
     },
     {
@@ -83090,7 +83090,7 @@
           "line": 316
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "property:MTL4AccelerationStructureCurveGeometryDescriptor:radiusBuffer",
       "kind": "property",
@@ -83098,7 +83098,7 @@
       "macos_introduced": "26.0",
       "name": "radiusBuffer",
       "owner": "MTL4AccelerationStructureCurveGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "MTL4BufferRange"
     },
     {
@@ -83223,7 +83223,7 @@
           "line": 23
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "property:MTL4AccelerationStructureGeometryDescriptor:label",
       "kind": "property",
@@ -83231,7 +83231,7 @@
       "macos_introduced": "26.0",
       "name": "label",
       "owner": "MTL4AccelerationStructureGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "NSString * _Nullable"
     },
     {
@@ -83261,7 +83261,7 @@
           "line": 23
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "property:MTL4AccelerationStructureGeometryDescriptor:primitiveDataBuffer",
       "kind": "property",
@@ -83269,7 +83269,7 @@
       "macos_introduced": "26.0",
       "name": "primitiveDataBuffer",
       "owner": "MTL4AccelerationStructureGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "MTL4BufferRange"
     },
     {
@@ -83318,7 +83318,7 @@
           "line": 281
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "property:MTL4AccelerationStructureMotionBoundingBoxGeometryDescriptor:boundingBoxBuffers",
       "kind": "property",
@@ -83326,7 +83326,7 @@
       "macos_introduced": "26.0",
       "name": "boundingBoxBuffers",
       "owner": "MTL4AccelerationStructureMotionBoundingBoxGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "MTL4BufferRange"
     },
     {
@@ -83375,7 +83375,7 @@
           "line": 401
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "property:MTL4AccelerationStructureMotionCurveGeometryDescriptor:controlPointBuffers",
       "kind": "property",
@@ -83383,7 +83383,7 @@
       "macos_introduced": "26.0",
       "name": "controlPointBuffers",
       "owner": "MTL4AccelerationStructureMotionCurveGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "MTL4BufferRange"
     },
     {
@@ -83508,7 +83508,7 @@
           "line": 401
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "property:MTL4AccelerationStructureMotionCurveGeometryDescriptor:indexBuffer",
       "kind": "property",
@@ -83516,7 +83516,7 @@
       "macos_introduced": "26.0",
       "name": "indexBuffer",
       "owner": "MTL4AccelerationStructureMotionCurveGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "MTL4BufferRange"
     },
     {
@@ -83546,7 +83546,7 @@
           "line": 401
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "property:MTL4AccelerationStructureMotionCurveGeometryDescriptor:radiusBuffers",
       "kind": "property",
@@ -83554,7 +83554,7 @@
       "macos_introduced": "26.0",
       "name": "radiusBuffers",
       "owner": "MTL4AccelerationStructureMotionCurveGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "MTL4BufferRange"
     },
     {
@@ -83641,7 +83641,7 @@
           "line": 211
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "property:MTL4AccelerationStructureMotionTriangleGeometryDescriptor:indexBuffer",
       "kind": "property",
@@ -83649,7 +83649,7 @@
       "macos_introduced": "26.0",
       "name": "indexBuffer",
       "owner": "MTL4AccelerationStructureMotionTriangleGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "MTL4BufferRange"
     },
     {
@@ -83679,7 +83679,7 @@
           "line": 211
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "property:MTL4AccelerationStructureMotionTriangleGeometryDescriptor:transformationMatrixBuffer",
       "kind": "property",
@@ -83687,7 +83687,7 @@
       "macos_introduced": "26.0",
       "name": "transformationMatrixBuffer",
       "owner": "MTL4AccelerationStructureMotionTriangleGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "MTL4BufferRange"
     },
     {
@@ -83736,7 +83736,7 @@
           "line": 211
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "property:MTL4AccelerationStructureMotionTriangleGeometryDescriptor:vertexBuffers",
       "kind": "property",
@@ -83744,7 +83744,7 @@
       "macos_introduced": "26.0",
       "name": "vertexBuffers",
       "owner": "MTL4AccelerationStructureMotionTriangleGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "MTL4BufferRange"
     },
     {
@@ -83793,7 +83793,7 @@
           "line": 126
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "property:MTL4AccelerationStructureTriangleGeometryDescriptor:indexBuffer",
       "kind": "property",
@@ -83801,7 +83801,7 @@
       "macos_introduced": "26.0",
       "name": "indexBuffer",
       "owner": "MTL4AccelerationStructureTriangleGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "MTL4BufferRange"
     },
     {
@@ -83831,7 +83831,7 @@
           "line": 126
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "property:MTL4AccelerationStructureTriangleGeometryDescriptor:transformationMatrixBuffer",
       "kind": "property",
@@ -83839,7 +83839,7 @@
       "macos_introduced": "26.0",
       "name": "transformationMatrixBuffer",
       "owner": "MTL4AccelerationStructureTriangleGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "MTL4BufferRange"
     },
     {
@@ -83888,7 +83888,7 @@
           "line": 126
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "property:MTL4AccelerationStructureTriangleGeometryDescriptor:vertexBuffer",
       "kind": "property",
@@ -83896,7 +83896,7 @@
       "macos_introduced": "26.0",
       "name": "vertexBuffer",
       "owner": "MTL4AccelerationStructureTriangleGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "MTL4BufferRange"
     },
     {
@@ -84884,7 +84884,7 @@
           "line": 590
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "property:MTL4IndirectInstanceAccelerationStructureDescriptor:instanceCountBuffer",
       "kind": "property",
@@ -84892,7 +84892,7 @@
       "macos_introduced": "26.0",
       "name": "instanceCountBuffer",
       "owner": "MTL4IndirectInstanceAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "MTL4BufferRange"
     },
     {
@@ -84903,7 +84903,7 @@
           "line": 590
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "property:MTL4IndirectInstanceAccelerationStructureDescriptor:instanceDescriptorBuffer",
       "kind": "property",
@@ -84911,7 +84911,7 @@
       "macos_introduced": "26.0",
       "name": "instanceDescriptorBuffer",
       "owner": "MTL4IndirectInstanceAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "MTL4BufferRange"
     },
     {
@@ -85017,7 +85017,7 @@
           "line": 590
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "property:MTL4IndirectInstanceAccelerationStructureDescriptor:motionTransformBuffer",
       "kind": "property",
@@ -85025,7 +85025,7 @@
       "macos_introduced": "26.0",
       "name": "motionTransformBuffer",
       "owner": "MTL4IndirectInstanceAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "MTL4BufferRange"
     },
     {
@@ -85036,7 +85036,7 @@
           "line": 590
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "property:MTL4IndirectInstanceAccelerationStructureDescriptor:motionTransformCountBuffer",
       "kind": "property",
@@ -85044,7 +85044,7 @@
       "macos_introduced": "26.0",
       "name": "motionTransformCountBuffer",
       "owner": "MTL4IndirectInstanceAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "MTL4BufferRange"
     },
     {
@@ -85112,7 +85112,7 @@
           "line": 509
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "property:MTL4InstanceAccelerationStructureDescriptor:instanceDescriptorBuffer",
       "kind": "property",
@@ -85120,7 +85120,7 @@
       "macos_introduced": "26.0",
       "name": "instanceDescriptorBuffer",
       "owner": "MTL4InstanceAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "MTL4BufferRange"
     },
     {
@@ -85188,7 +85188,7 @@
           "line": 509
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "property:MTL4InstanceAccelerationStructureDescriptor:motionTransformBuffer",
       "kind": "property",
@@ -85196,7 +85196,7 @@
       "macos_introduced": "26.0",
       "name": "motionTransformBuffer",
       "owner": "MTL4InstanceAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "MTL4BufferRange"
     },
     {
@@ -86119,7 +86119,7 @@
           "line": 77
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "property:MTL4PrimitiveAccelerationStructureDescriptor:geometryDescriptors",
       "kind": "property",
@@ -86127,7 +86127,7 @@
       "macos_introduced": "26.0",
       "name": "geometryDescriptors",
       "owner": "MTL4PrimitiveAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "NSArray<MTL4AccelerationStructureGeometryDescriptor *> * _Nullable"
     },
     {
@@ -87531,7 +87531,7 @@
           "line": 1207
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "property:MTLAccelerationStructure:gpuResourceID",
       "kind": "property",
@@ -87539,7 +87539,7 @@
       "macos_introduced": "13.0",
       "name": "gpuResourceID",
       "owner": "MTLAccelerationStructure",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "MTLResourceID"
     },
     {
@@ -87569,7 +87569,7 @@
           "line": 314
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "property:MTLAccelerationStructureBoundingBoxGeometryDescriptor:boundingBoxBuffer",
       "kind": "property",
@@ -87577,7 +87577,7 @@
       "macos_introduced": "11.0",
       "name": "boundingBoxBuffer",
       "owner": "MTLAccelerationStructureBoundingBoxGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "id<MTLBuffer> _Nullable"
     },
     {
@@ -87645,7 +87645,7 @@
           "line": 547
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "property:MTLAccelerationStructureCurveGeometryDescriptor:controlPointBuffer",
       "kind": "property",
@@ -87653,7 +87653,7 @@
       "macos_introduced": "14.0",
       "name": "controlPointBuffer",
       "owner": "MTLAccelerationStructureCurveGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "id<MTLBuffer> _Nullable"
     },
     {
@@ -87797,7 +87797,7 @@
           "line": 547
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "property:MTLAccelerationStructureCurveGeometryDescriptor:indexBuffer",
       "kind": "property",
@@ -87805,7 +87805,7 @@
       "macos_introduced": "14.0",
       "name": "indexBuffer",
       "owner": "MTLAccelerationStructureCurveGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "id<MTLBuffer> _Nullable"
     },
     {
@@ -87854,7 +87854,7 @@
           "line": 547
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "property:MTLAccelerationStructureCurveGeometryDescriptor:radiusBuffer",
       "kind": "property",
@@ -87862,7 +87862,7 @@
       "macos_introduced": "14.0",
       "name": "radiusBuffer",
       "owner": "MTLAccelerationStructureCurveGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "id<MTLBuffer> _Nullable"
     },
     {
@@ -88031,7 +88031,7 @@
           "line": 155
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "property:MTLAccelerationStructureGeometryDescriptor:label",
       "kind": "property",
@@ -88039,7 +88039,7 @@
       "macos_introduced": "12.0",
       "name": "label",
       "owner": "MTLAccelerationStructureGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "NSString * _Nullable"
     },
     {
@@ -88075,7 +88075,7 @@
           "line": 160
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "property:MTLAccelerationStructureGeometryDescriptor:primitiveDataBuffer",
       "kind": "property",
@@ -88083,7 +88083,7 @@
       "macos_introduced": "13.0",
       "name": "primitiveDataBuffer",
       "owner": "MTLAccelerationStructureGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "id<MTLBuffer> _Nullable"
     },
     {
@@ -88169,7 +88169,7 @@
           "line": 432
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "property:MTLAccelerationStructureMotionBoundingBoxGeometryDescriptor:boundingBoxBuffers",
       "kind": "property",
@@ -88177,7 +88177,7 @@
       "macos_introduced": "12.0",
       "name": "boundingBoxBuffers",
       "owner": "MTLAccelerationStructureMotionBoundingBoxGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "NSArray<MTLMotionKeyframeData *> * _Nonnull"
     },
     {
@@ -88226,7 +88226,7 @@
           "line": 661
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "property:MTLAccelerationStructureMotionCurveGeometryDescriptor:controlPointBuffers",
       "kind": "property",
@@ -88234,7 +88234,7 @@
       "macos_introduced": "14.0",
       "name": "controlPointBuffers",
       "owner": "MTLAccelerationStructureMotionCurveGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "NSArray<MTLMotionKeyframeData *> * _Nonnull"
     },
     {
@@ -88359,7 +88359,7 @@
           "line": 661
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "property:MTLAccelerationStructureMotionCurveGeometryDescriptor:indexBuffer",
       "kind": "property",
@@ -88367,7 +88367,7 @@
       "macos_introduced": "14.0",
       "name": "indexBuffer",
       "owner": "MTLAccelerationStructureMotionCurveGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "id<MTLBuffer> _Nullable"
     },
     {
@@ -88416,7 +88416,7 @@
           "line": 661
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "property:MTLAccelerationStructureMotionCurveGeometryDescriptor:radiusBuffers",
       "kind": "property",
@@ -88424,7 +88424,7 @@
       "macos_introduced": "14.0",
       "name": "radiusBuffers",
       "owner": "MTLAccelerationStructureMotionCurveGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "NSArray<MTLMotionKeyframeData *> * _Nonnull"
     },
     {
@@ -88511,7 +88511,7 @@
           "line": 367
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "property:MTLAccelerationStructureMotionTriangleGeometryDescriptor:indexBuffer",
       "kind": "property",
@@ -88519,7 +88519,7 @@
       "macos_introduced": "12.0",
       "name": "indexBuffer",
       "owner": "MTLAccelerationStructureMotionTriangleGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "id<MTLBuffer> _Nullable"
     },
     {
@@ -88574,7 +88574,7 @@
           "line": 413
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "property:MTLAccelerationStructureMotionTriangleGeometryDescriptor:transformationMatrixBuffer",
       "kind": "property",
@@ -88582,7 +88582,7 @@
       "macos_introduced": "13.0",
       "name": "transformationMatrixBuffer",
       "owner": "MTLAccelerationStructureMotionTriangleGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "id<MTLBuffer> _Nullable"
     },
     {
@@ -88662,7 +88662,7 @@
           "line": 367
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "property:MTLAccelerationStructureMotionTriangleGeometryDescriptor:vertexBuffers",
       "kind": "property",
@@ -88670,7 +88670,7 @@
       "macos_introduced": "12.0",
       "name": "vertexBuffers",
       "owner": "MTLAccelerationStructureMotionTriangleGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "NSArray<MTLMotionKeyframeData *> * _Nonnull"
     },
     {
@@ -88801,7 +88801,7 @@
           "line": 243
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "property:MTLAccelerationStructureTriangleGeometryDescriptor:indexBuffer",
       "kind": "property",
@@ -88809,7 +88809,7 @@
       "macos_introduced": "11.0",
       "name": "indexBuffer",
       "owner": "MTLAccelerationStructureTriangleGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "id<MTLBuffer> _Nullable"
     },
     {
@@ -88864,7 +88864,7 @@
           "line": 295
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "property:MTLAccelerationStructureTriangleGeometryDescriptor:transformationMatrixBuffer",
       "kind": "property",
@@ -88872,7 +88872,7 @@
       "macos_introduced": "13.0",
       "name": "transformationMatrixBuffer",
       "owner": "MTLAccelerationStructureTriangleGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "id<MTLBuffer> _Nullable"
     },
     {
@@ -88952,7 +88952,7 @@
           "line": 243
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "property:MTLAccelerationStructureTriangleGeometryDescriptor:vertexBuffer",
       "kind": "property",
@@ -88960,7 +88960,7 @@
       "macos_introduced": "11.0",
       "name": "vertexBuffer",
       "owner": "MTLAccelerationStructureTriangleGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "id<MTLBuffer> _Nullable"
     },
     {
@@ -95738,7 +95738,7 @@
           "line": 1102
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "property:MTLIndirectInstanceAccelerationStructureDescriptor:instanceCountBuffer",
       "kind": "property",
@@ -95746,7 +95746,7 @@
       "macos_introduced": "14.0",
       "name": "instanceCountBuffer",
       "owner": "MTLIndirectInstanceAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "id<MTLBuffer> _Nullable"
     },
     {
@@ -95776,7 +95776,7 @@
           "line": 1102
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "property:MTLIndirectInstanceAccelerationStructureDescriptor:instanceDescriptorBuffer",
       "kind": "property",
@@ -95784,7 +95784,7 @@
       "macos_introduced": "14.0",
       "name": "instanceDescriptorBuffer",
       "owner": "MTLIndirectInstanceAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "id<MTLBuffer> _Nullable"
     },
     {
@@ -95915,7 +95915,7 @@
           "line": 1102
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "property:MTLIndirectInstanceAccelerationStructureDescriptor:motionTransformBuffer",
       "kind": "property",
@@ -95923,7 +95923,7 @@
       "macos_introduced": "14.0",
       "name": "motionTransformBuffer",
       "owner": "MTLIndirectInstanceAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "id<MTLBuffer> _Nullable"
     },
     {
@@ -95953,7 +95953,7 @@
           "line": 1102
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "property:MTLIndirectInstanceAccelerationStructureDescriptor:motionTransformCountBuffer",
       "kind": "property",
@@ -95961,7 +95961,7 @@
       "macos_introduced": "14.0",
       "name": "motionTransformCountBuffer",
       "owner": "MTLIndirectInstanceAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "id<MTLBuffer> _Nullable"
     },
     {
@@ -96060,7 +96060,7 @@
           "line": 1025
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "property:MTLInstanceAccelerationStructureDescriptor:instanceDescriptorBuffer",
       "kind": "property",
@@ -96068,7 +96068,7 @@
       "macos_introduced": "11.0",
       "name": "instanceDescriptorBuffer",
       "owner": "MTLInstanceAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "id<MTLBuffer> _Nullable"
     },
     {
@@ -96167,7 +96167,7 @@
           "line": 1025
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "property:MTLInstanceAccelerationStructureDescriptor:instancedAccelerationStructures",
       "kind": "property",
@@ -96175,7 +96175,7 @@
       "macos_introduced": "11.0",
       "name": "instancedAccelerationStructures",
       "owner": "MTLInstanceAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "NSArray<id<MTLAccelerationStructure>> * _Nullable"
     },
     {
@@ -96192,7 +96192,7 @@
           "line": 1065
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "property:MTLInstanceAccelerationStructureDescriptor:motionTransformBuffer",
       "kind": "property",
@@ -96200,7 +96200,7 @@
       "macos_introduced": "12.0",
       "name": "motionTransformBuffer",
       "owner": "MTLInstanceAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "id<MTLBuffer> _Nullable"
     },
     {
@@ -97187,7 +97187,7 @@
           "line": 346
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "property:MTLMotionKeyframeData:buffer",
       "kind": "property",
@@ -97195,7 +97195,7 @@
       "macos_introduced": "12.0",
       "name": "buffer",
       "owner": "MTLMotionKeyframeData",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "id<MTLBuffer> _Nullable"
     },
     {
@@ -97383,7 +97383,7 @@
           "line": 200
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "property:MTLPrimitiveAccelerationStructureDescriptor:geometryDescriptors",
       "kind": "property",
@@ -97391,7 +97391,7 @@
       "macos_introduced": "11.0",
       "name": "geometryDescriptors",
       "owner": "MTLPrimitiveAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance.",
       "signature": "NSArray<MTLAccelerationStructureGeometryDescriptor *> * _Nullable"
     },
     {

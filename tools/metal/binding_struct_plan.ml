@@ -13,10 +13,10 @@ type selection =
   ; owner_count : int
   }
 
-let expected_method_count = 96
-let expected_property_count = 47
-let expected_declaration_count = 143
-let expected_owner_count = 34
+let expected_method_count = 53
+let expected_property_count = 25
+let expected_declaration_count = 78
+let expected_owner_count = 24
 
 let fail format =
   Printf.ksprintf (fun message -> invalid_arg ("Metal struct plan: " ^ message)) format

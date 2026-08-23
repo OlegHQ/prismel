@@ -62,8 +62,21 @@ The M1 conformance lane reaches real sizing for triangle, bounding-box, curve,
 all three motion geometries, primitive, direct-instance, and indirect-instance
 graphs, and executes triangle build, refit, and copy. Its ten Apple9-dependent
 Metal 4 owner lanes reject before descriptor/resource allocation; those execute
-on the M3+ lane. Buffer, array, label, and resource-ID properties are excluded
-from this scalar batch and remain separately ownership-reviewed.
+on the M3+ lane.
+
+The companion 146-ID acceleration ownership batch covers 49 buffer,
+buffer-range, copied-string, retained-array, and resource-ID properties plus
+97 getter/setter companions across 22 owners. `Metal.Acceleration_structure`
+owns a device-attached native handle, and its immutable triangle descriptor
+consumes checked `Buffer.t` values. Size, allocation, build, refit, copy,
+compacted-size readback, and compact-copy operations enforce live handles,
+same-device identity, nonnegative overflow-safe ranges, exact native scratch
+requirements, command-encoder state, and completion-owned resource retention.
+Generated property materializers use typed direct Objective-C calls; copied
+strings/arrays cannot escape autorelease ownership, and injected retain failure
+unwinds every acquired child. M1 conformance executes the complete safe command
+lifecycle and checks explicit capability rejection for unavailable Metal 4
+owners.
 
 Clang's JSON availability attributes identify source expansions rather than
 carrying a directly reusable introduced-version payload. The OCaml inventory

@@ -1530,6 +1530,27 @@ let acceleration_scalar_identifier ~header ~kind ~signature identifier =
        || String.starts_with ~prefix:("method:-[" ^ owner ^ " ") identifier)
        acceleration_owners
 
+let acceleration_ownership_signature signature =
+  List.exists (fun owned ->
+    signature = owned || signature = "instance () -> " ^ owned
+    || signature = "instance (" ^ owned ^ ") -> void")
+    [ "id<MTLBuffer> _Nullable"; "NSString * _Nullable"; "MTLResourceID"
+    ; "MTL4BufferRange" ]
+  || String.starts_with ~prefix:"NSArray<" signature
+  || String.starts_with ~prefix:"instance () -> NSArray<" signature
+  || (String.starts_with ~prefix:"instance (NSArray<" signature
+      && String.ends_with ~suffix:") -> void" signature)
+
+let acceleration_ownership_identifier ~header ~kind ~signature identifier =
+  (header = "Metal/MTLAccelerationStructure.h"
+   || header = "Metal/MTL4AccelerationStructure.h")
+  && (kind = "property" || kind = "method")
+  && acceleration_ownership_signature signature
+  && List.exists (fun owner ->
+       String.starts_with ~prefix:("property:" ^ owner ^ ":") identifier
+       || String.starts_with ~prefix:("method:-[" ^ owner ^ " ") identifier)
+       acceleration_owners
+
 let classify ~unavailable ~identifier ~header ~kind ~signature =
   if unavailable then
     Scope_excluded, "Clang marks this declaration unavailable for macOS."
@@ -1543,6 +1564,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if acceleration_scalar_identifier ~header ~kind ~signature identifier then
     Bound,
       "Implemented by generated immutable acceleration-structure descriptor values with native execute-or-capability-reject conformance."
+  else if acceleration_ownership_identifier ~header ~kind ~signature identifier then
+    Bound,
+      "Implemented by safe owned acceleration structures, immutable buffer-backed descriptors, checked native materialization, completion retention, and execute-or-capability-reject conformance."
   else if generated_public_enum_identifier identifier then
     Bound, "Implemented by the generated, typed prismel.metal pure-value enum surface."
   else if Binding_value_record_evidence.is_bound_identifier identifier then
