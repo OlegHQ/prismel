@@ -126,6 +126,8 @@ let receivers =
       "Compute_encoder4" "compute_encoder4"
   ; direct "MTLDepthStencilState" "id<MTLDepthStencilState>" "Depth_stencil"
       "depth_stencil"
+  ; direct "MTLRenderCommandEncoder" "id<MTLRenderCommandEncoder>"
+      "Render_encoder" "render_encoder"
   ; direct "MTLIndirectCommandBuffer" "id<MTLIndirectCommandBuffer>"
       "Indirect_command_buffer" "indirect_command_buffer"
   ; direct "MTLIndirectRenderCommand" "id<MTLIndirectRenderCommand>"
@@ -183,10 +185,10 @@ let exclusions =
     }
   ]
 
-let expected_receiver_count = 34
+let expected_receiver_count = 35
 let expected_polymorphic_receiver_count = 3
-let expected_catalog_count = 37
-let expected_handle_kind_count = 40
+let expected_catalog_count = 38
+let expected_handle_kind_count = 41
 let expected_exclusion_count = 6
 
 let source_paths =
