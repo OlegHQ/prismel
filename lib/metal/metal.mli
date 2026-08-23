@@ -2556,6 +2556,8 @@ module Resource_state_encoder : sig
   val update_texture_mapping :
     t -> mode:mapping_mode -> Texture.t -> mip_level:int -> slice:int ->
     region:tile_region -> (unit, error) result
+  val update_fence : t -> Fence.t -> (unit,error) result
+  val wait_for_fence : t -> Fence.t -> (unit,error) result
   val end_encoding : t -> (unit, error) result
   val destroyed : t -> bool
 end
@@ -2618,4 +2620,63 @@ module Blit_encoder : sig
     destination_region:Texture.region -> (unit, error) result
   val end_encoding : t -> (unit, error) result
   val destroyed : t -> bool
+end
+
+module Resource100 : sig
+  module Buffer_ops : sig
+    val add_debug_marker : Buffer.t -> label:string -> offset:int64 -> length:int64 -> (unit,error) result
+    val remove_all_debug_markers : Buffer.t -> (unit,error) result
+  end
+  module Texture_ops : sig
+    val view : Texture.t -> format:Texture.format -> (Texture.t,error) result
+    val get_bytes : Texture.t -> bytes:bytes -> bytes_per_row:int -> region:Texture.region -> mip_level:int -> (unit,error) result
+    val replace_region : Texture.t -> region:Texture.region -> mip_level:int -> bytes:bytes -> bytes_per_row:int -> (unit,error) result
+  end
+  module Buffer_layout : sig
+    type t
+    type step_function = Constant | Per_vertex | Per_instance | Per_patch | Per_patch_control_point
+    val create : ?stride:int64 -> ?step_rate:int64 -> ?step_function:step_function -> unit -> (t,error) result
+    val stride : t -> int64
+    val step_rate : t -> int64
+    val step_function : t -> step_function
+    val set_stride : t -> int64 -> (unit,error) result
+    val set_step_rate : t -> int64 -> (unit,error) result
+    val set_step_function : t -> step_function -> (unit,error) result
+    val destroyed : t -> bool
+    val destroy : t -> (unit,error) result
+  end
+  module Sample_attachment : sig
+    type t
+    type sample_index = Dont_sample | Index of int64
+    val create : ?start:sample_index -> ?finish:sample_index -> unit -> (t,error) result
+    val range : t -> int64 * int64
+    val set_range : t -> start:sample_index -> finish:sample_index -> (unit,error) result
+    val destroyed : t -> bool
+    val destroy : t -> (unit,error) result
+  end
+  module View_pool_descriptor : sig
+    type t
+    val create : ?label:string -> count:int64 -> unit -> (t,error) result
+    val count : t -> int64
+    val label : t -> string option
+    val destroyed : t -> bool
+    val destroy : t -> (unit,error) result
+  end
+  module Texture_view_pool : sig
+    type t
+    val create : Device.t -> View_pool_descriptor.t -> (t,error) result
+    val device : t -> Device.t
+    val count : t -> int64
+    val set : t -> index:int -> Texture.t -> (int64,error) result
+    val copy : source:t -> source_index:int -> length:int -> destination:t -> destination_index:int -> (int64,error) result
+    val destroyed : t -> bool
+    val destroy : t -> (unit,error) result
+  end
+  module Resource_state_pass : sig
+    type t
+    val create : unit -> (t,error) result
+    val create_encoder : Command_buffer.t -> t -> (Resource_state_encoder.t,error) result
+    val destroyed : t -> bool
+    val destroy : t -> (unit,error) result
+  end
 end

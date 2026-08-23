@@ -1424,6 +1424,26 @@ type resource_state_encoder =
   ; command_buffer : command_buffer
   }
 
+type resource100_buffer_layout =
+  { raw : Metal_raw.handle; lifetime : lifetime
+  ; mutable stride : int64; mutable step_rate : int64
+  ; mutable step_function : int }
+
+type resource100_sample_attachment =
+  { raw : Metal_raw.handle; lifetime : lifetime
+  ; mutable start_index : int64; mutable end_index : int64 }
+
+type resource100_view_pool_descriptor =
+  { raw : Metal_raw.handle; lifetime : lifetime
+  ; view_count : int64; label : string option }
+
+type resource100_texture_view_pool =
+  { raw : Metal_raw.handle; lifetime : lifetime; device : device
+  ; view_count : int64; pool_views : texture option array }
+
+type resource100_state_pass =
+  { raw : Metal_raw.handle; lifetime : lifetime }
+
 type blit_encoder =
   { raw : Metal_raw.handle
   ; lifetime : lifetime
@@ -15257,6 +15277,11 @@ module Resource_state_encoder = struct
                                                value.command_buffer texture;
                                              Ok ()))))))
 
+  let fence_call operation raw_call (value:t) (fence:Fence.t) =
+    on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match ensure_live operation fence.lifetime with Error _ as e->e|Ok()->match ensure_same_device operation value.command_buffer.queue.device fence.device with Error _ as e->e|Ok()->match raw_call value.raw fence.raw with Error m->native_error operation m|Ok()->retain_command_buffer_fence value.command_buffer fence;Ok())
+  let update_fence value fence_value=fence_call "Metal.Resource_state_encoder.update_fence" Metal_raw.resource_encoder_update_fence value fence_value
+  let wait_for_fence value fence_value=fence_call "Metal.Resource_state_encoder.wait_for_fence" Metal_raw.resource_encoder_wait_fence value fence_value
+
   let end_encoding (value : t) =
     on_main "Metal.Resource_state_encoder.end_encoding" (fun () ->
       match ensure_live "Metal.Resource_state_encoder.end_encoding" value.lifetime with
@@ -15977,4 +16002,84 @@ module Blit_encoder = struct
                  detach value.command_buffer.lifetime
                end;
                Ok ()))
+end
+
+module Resource100 = struct
+  module Buffer_ops = struct
+    let add_debug_marker (value:buffer) ~label ~offset ~length =
+      let op="Metal.Resource100.Buffer.add_debug_marker"in on_main op(fun()->match ensure_buffer_usable op value with Error _ as e->e|Ok()->if contains_nul label then error op Invalid_argument "label contains a NUL byte"else if offset<0L||length<0L||offset>value.length||length>Int64.sub value.length offset then error op Invalid_argument "debug marker range exceeds the buffer"else match Metal_raw.resource_buffer_add_debug_marker value.raw label offset length with Error m->native_error op m|Ok()->Ok())
+    let remove_all_debug_markers (value:buffer)=let op="Metal.Resource100.Buffer.remove_all_debug_markers"in on_main op(fun()->match ensure_buffer_usable op value with Error _ as e->e|Ok()->match Metal_raw.resource_buffer_remove_all_debug_markers value.raw with Error m->native_error op m|Ok()->Ok())
+  end
+
+  module Texture_ops = struct
+    let view (source:texture) ~format =
+      let op="Metal.Resource100.Texture.view"in on_main op(fun()->match ensure_texture_usable op source with Error _ as e->e|Ok()->match Metal_raw.resource_texture_view source.raw(Int64.of_int(Metal_format.code format))with Error m->native_error op m|Ok None->error op Unsupported "Metal rejected the texture view format"|Ok(Some(raw,w,h,d,mips,samples,array_length,format_code,_kind,storage,cache,hazard,_usage))->
+      if w<>Int64.of_int source.descriptor.width||h<>Int64.of_int source.descriptor.height||d<>Int64.of_int source.descriptor.depth||mips<>Int64.of_int source.descriptor.mip_levels||samples<>Int64.of_int source.descriptor.sample_count||array_length<>Int64.of_int source.descriptor.array_length||format_code<>Metal_format.code format||storage<>storage_code source.descriptor.storage||cache<>cache_code source.descriptor.cpu_cache||hazard<>hazard_code source.descriptor.hazard_tracking then(ignore(Metal_raw.destroy raw);error op Native_error "texture view metadata disagrees with its safe parent")else let value:texture={raw;lifetime=lifetime();device=source.device;descriptor={source.descriptor with format};parent=Texture_view source;heap_offset=None;placement_sparse_page_size=None;allocation=None;state=source.state;placement_mappings=source.placement_mappings}in attach source.lifetime;attach_finalizer value value.lifetime source.lifetime;Ok value)
+    let validate_transfer op (value:texture) ~(region:Texture.region) ~mip_level ~bytes_per_row bytes =
+      if mip_level<0||mip_level>=value.descriptor.mip_levels||region.x<0||region.y<0||region.z<0||region.width<=0||region.height<=0||region.depth<=0||bytes_per_row<=0 then error op Invalid_argument "invalid texture transfer region"else if region.x+region.width>max 1(value.descriptor.width lsr mip_level)||region.y+region.height>max 1(value.descriptor.height lsr mip_level)||region.z+region.depth>max 1(value.descriptor.depth lsr mip_level)then error op Invalid_argument "texture transfer region is out of bounds"else let required=Int64.mul(Int64.of_int bytes_per_row)(Int64.of_int region.height)in if required>Int64.of_int(Bytes.length bytes)then error op Invalid_argument "texture transfer bytes are too short"else Ok()
+    let get_bytes (value:texture) ~bytes ~bytes_per_row ~region ~mip_level=let op="Metal.Resource100.Texture.get_bytes"in on_main op(fun()->match ensure_texture_usable op value with Error _ as e->e|Ok()->match validate_transfer op value~region~mip_level~bytes_per_row bytes with Error _ as e->e|Ok()->let r=(Int64.of_int region.x,Int64.of_int region.y,Int64.of_int region.z,Int64.of_int region.width,Int64.of_int region.height,Int64.of_int region.depth)in match Metal_raw.resource_texture_get_bytes value.raw bytes(Int64.of_int bytes_per_row)r(Int64.of_int mip_level)with Error m->native_error op m|Ok()->Ok())
+    let replace_region (value:texture) ~region ~mip_level ~bytes ~bytes_per_row=let op="Metal.Resource100.Texture.replace_region"in on_main op(fun()->match ensure_texture_usable op value with Error _ as e->e|Ok()->match validate_transfer op value~region~mip_level~bytes_per_row bytes with Error _ as e->e|Ok()->let r=(Int64.of_int region.x,Int64.of_int region.y,Int64.of_int region.z,Int64.of_int region.width,Int64.of_int region.height,Int64.of_int region.depth)in match Metal_raw.resource_texture_replace value.raw r(Int64.of_int mip_level)bytes(Int64.of_int bytes_per_row)with Error m->native_error op m|Ok()->Ok())
+  end
+
+  module Buffer_layout = struct
+    type t = resource100_buffer_layout
+    type step_function = Constant | Per_vertex | Per_instance | Per_patch | Per_patch_control_point
+    let step_code = function Constant->0|Per_vertex->1|Per_instance->2|Per_patch->3|Per_patch_control_point->4
+    let create ?(stride=0L) ?(step_rate=1L) ?(step_function=Per_vertex) () =
+      let operation="Metal.Resource100.Buffer_layout.create" in on_main operation(fun()->
+        if stride<0L||step_rate<0L then error operation Invalid_argument "stride and step rate must be nonnegative" else
+        match Metal_raw.resource_buffer_layout_create()with Error m->native_error operation m|Ok raw->
+        let unwind m=ignore(Metal_raw.destroy raw);native_error operation m in
+        match Metal_raw.resource_buffer_layout_set_stride raw stride with Error m->unwind m|Ok()->
+        match Metal_raw.resource_buffer_layout_set_step_rate raw step_rate with Error m->unwind m|Ok()->
+        match Metal_raw.resource_buffer_layout_set_step_function raw(Int64.of_int(step_code step_function))with Error m->unwind m|Ok()->
+        Ok{raw;lifetime=lifetime();stride;step_rate;step_function=step_code step_function})
+    let stride (t:t)=t.stride and step_rate (t:t)=t.step_rate
+    let step_function (t:t)=match t.step_function with 0->Constant|1->Per_vertex|2->Per_instance|3->Per_patch|_->Per_patch_control_point
+    let set_stride (t:t) stride=let op="Metal.Resource100.Buffer_layout.set_stride"in on_main op(fun()->match ensure_live op t.lifetime with Error _ as e->e|Ok()->if stride<0L then error op Invalid_argument "stride must be nonnegative"else match Metal_raw.resource_buffer_layout_set_stride t.raw stride with Error m->native_error op m|Ok()->t.stride<-stride;Ok())
+    let set_step_rate (t:t) rate=let op="Metal.Resource100.Buffer_layout.set_step_rate"in on_main op(fun()->match ensure_live op t.lifetime with Error _ as e->e|Ok()->if rate<0L then error op Invalid_argument "step rate must be nonnegative"else match Metal_raw.resource_buffer_layout_set_step_rate t.raw rate with Error m->native_error op m|Ok()->t.step_rate<-rate;Ok())
+    let set_step_function (t:t) value=let op="Metal.Resource100.Buffer_layout.set_step_function"in on_main op(fun()->match ensure_live op t.lifetime with Error _ as e->e|Ok()->let code=step_code value in match Metal_raw.resource_buffer_layout_set_step_function t.raw(Int64.of_int code)with Error m->native_error op m|Ok()->t.step_function<-code;Ok())
+    let destroyed (t:t)=is_destroyed t.lifetime
+    let destroy (t:t)=destroy_leaf "Metal.Resource100.Buffer_layout.destroy" t.lifetime t.raw(fun()->())
+  end
+
+  module Sample_attachment = struct
+    type t=resource100_sample_attachment
+    type sample_index=Dont_sample|Index of int64
+    let code = function Dont_sample -> -1L | Index n -> n
+    let valid=function Dont_sample->true|Index n->n>=0L
+    let create ?(start=Dont_sample)?(finish=Dont_sample)()=
+      let op="Metal.Resource100.Sample_attachment.create"in on_main op(fun()->if not(valid start&&valid finish)then error op Invalid_argument "sample indices must be nonnegative"else match Metal_raw.resource_sample_attachment_create()with Error m->native_error op m|Ok raw->let unwind m=ignore(Metal_raw.destroy raw);native_error op m in match Metal_raw.resource_sample_attachment_set_start raw(code start)with Error m->unwind m|Ok()->match Metal_raw.resource_sample_attachment_set_end raw(code finish)with Error m->unwind m|Ok()->Ok{raw;lifetime=lifetime();start_index=code start;end_index=code finish})
+    let set_range (t:t) ~start ~finish=let op="Metal.Resource100.Sample_attachment.set_range"in on_main op(fun()->match ensure_live op t.lifetime with Error _ as e->e|Ok()->if not(valid start&&valid finish)then error op Invalid_argument "sample indices must be nonnegative"else let old=t.start_index in match Metal_raw.resource_sample_attachment_set_start t.raw(code start)with Error m->native_error op m|Ok()->match Metal_raw.resource_sample_attachment_set_end t.raw(code finish)with Error m->ignore(Metal_raw.resource_sample_attachment_set_start t.raw old);native_error op m|Ok()->t.start_index<-code start;t.end_index<-code finish;Ok())
+    let range (t:t)=t.start_index,t.end_index
+    let destroyed (t:t)=is_destroyed t.lifetime
+    let destroy (t:t)=destroy_leaf "Metal.Resource100.Sample_attachment.destroy" t.lifetime t.raw(fun()->())
+  end
+
+  module View_pool_descriptor = struct
+    type t=resource100_view_pool_descriptor
+    let create ?label ~count ()=let op="Metal.Resource100.View_pool_descriptor.create"in on_main op(fun()->if count<=0L||count>Int64.of_int max_int then error op Invalid_argument "view count is outside the safe array range"else match label with Some s when contains_nul s->error op Invalid_argument "label contains a NUL byte"|_->match Metal_raw.resource_view_pool_descriptor_create()with Error m->native_error op m|Ok raw->let unwind m=ignore(Metal_raw.destroy raw);native_error op m in match Metal_raw.resource_view_pool_descriptor_set_count raw count with Error m->unwind m|Ok()->match Metal_raw.resource_view_pool_descriptor_set_label raw label with Error m->unwind m|Ok()->Ok{raw;lifetime=lifetime();view_count=count;label})
+    let count (t:t)=t.view_count and label (t:t)=t.label
+    let destroyed (t:t)=is_destroyed t.lifetime
+    let destroy (t:t)=destroy_leaf "Metal.Resource100.View_pool_descriptor.destroy" t.lifetime t.raw(fun()->())
+  end
+
+  module Texture_view_pool = struct
+    type t=resource100_texture_view_pool
+    let create(device:Device.t)(descriptor:View_pool_descriptor.t)=let op="Metal.Resource100.Texture_view_pool.create"in on_main op(fun()->match ensure_live op device.lifetime with Error _ as e->e|Ok()->match ensure_live op descriptor.lifetime with Error _ as e->e|Ok()->match Metal_raw.resource_device_new_view_pool device.raw descriptor.raw with Error m->native_error op m|Ok raw->let count=Int64.to_int descriptor.view_count in attach device.lifetime;Ok{raw;lifetime=lifetime();device;view_count=descriptor.view_count;pool_views=Array.make count None})
+    let device (t:t)=t.device and count (t:t)=t.view_count
+    let set (t:t) ~index(texture:Texture.t)=let op="Metal.Resource100.Texture_view_pool.set"in on_main op(fun()->match ensure_live op t.lifetime with Error _ as e->e|Ok()->match ensure_live op texture.lifetime with Error _ as e->e|Ok()->match ensure_same_device op t.device texture.device with Error _ as e->e|Ok()->if index<0||index>=Array.length t.pool_views then error op Invalid_argument "view index is out of range"else match Metal_raw.resource_texture_pool_set t.raw texture.raw(Int64.of_int index)with Error m->native_error op m|Ok id->Option.iter(fun (old:texture)->detach old.lifetime)t.pool_views.(index);attach texture.lifetime;t.pool_views.(index)<-Some texture;Ok id)
+    let copy ~(source:t) ~source_index ~length ~(destination:t) ~destination_index=let op="Metal.Resource100.Texture_view_pool.copy"in on_main op(fun()->match ensure_live op source.lifetime with Error _ as e->e|Ok()->match ensure_live op destination.lifetime with Error _ as e->e|Ok()->match ensure_same_device op source.device destination.device with Error _ as e->e|Ok()->if source_index<0||destination_index<0||length<0||source_index>Array.length source.pool_views-length||destination_index>Array.length destination.pool_views-length then error op Invalid_argument "view pool copy range is invalid"else match Metal_raw.resource_pool_copy destination.raw source.raw(Int64.of_int source_index)(Int64.of_int length)(Int64.of_int destination_index)with Error m->native_error op m|Ok id->for i=0 to length-1 do let di=destination_index+i in Option.iter(fun (old:texture)->detach old.lifetime)destination.pool_views.(di);let next=source.pool_views.(source_index+i)in Option.iter(fun (x:texture)->attach x.lifetime)next;destination.pool_views.(di)<-next done;Ok id)
+    let destroyed (t:t)=is_destroyed t.lifetime
+    let destroy (t:t)=destroy_parent "Metal.Resource100.Texture_view_pool.destroy" t.lifetime t.raw(fun()->Array.iter(Option.iter(fun (x:texture)->detach x.lifetime))t.pool_views;detach t.device.lifetime)
+  end
+
+
+  module Resource_state_pass = struct
+    type t=resource100_state_pass
+    let create()=let op="Metal.Resource100.Resource_state_pass.create"in on_main op(fun()->match Metal_raw.resource_pass_create()with Error m->native_error op m|Ok raw->Ok{raw;lifetime=lifetime()})
+    let create_encoder (commands:Command_buffer.t)(pass:t)=let op="Metal.Resource100.Resource_state_pass.create_encoder"in on_main op(fun()->match ensure_live op commands.lifetime with Error _ as e->e|Ok()when commands.phase<>Recording->error op Invalid_state "command buffer is no longer recording"|Ok()->match ensure_live op pass.lifetime with Error _ as e->e|Ok()->if dependent_count commands.lifetime<>0 then error op Invalid_state "command buffer already has an open encoder"else match Metal_raw.resource_command_buffer_state_encoder commands.raw pass.raw with Error m->native_error op m|Ok raw->let value:resource_state_encoder={raw;lifetime=lifetime();command_buffer=commands}in attach commands.lifetime;attach_finalizer value value.lifetime commands.lifetime;Ok value)
+    let destroyed(t:t)=is_destroyed t.lifetime
+    let destroy(t:t)=destroy_leaf "Metal.Resource100.Resource_state_pass.destroy" t.lifetime t.raw(fun()->())
+  end
 end
