@@ -17,6 +17,10 @@ let ()=
  let texture=get(Texture.create~device(Texture.descriptor_2d~storage:Buffer.Shared~usage:[Texture.Shader_read;Texture.Shader_write]~format:Texture.Rgba8_unorm~width:4~height:4()))in
  (match get(Resource100.Texture_ops.buffer_backing texture)with None->()|Some _->failwith"standalone texture has a buffer parent");
  let backing_buffer=get(Buffer.create~device~length:4096L~storage:Buffer.Shared())in
+ (match get(Resource100.Buffer_ops.remote_view backing_buffer~device)with
+  |None->()|Some remote->if Buffer.length remote<>4096L then failwith"remote buffer length"else get(Buffer.destroy remote));
+ (match get(Resource100.Buffer_ops.remote_storage backing_buffer)with
+  |None->()|Some remote->if Buffer.length remote<>4096L then failwith"remote storage length"else get(Buffer.destroy remote));
  let backed=get(Texture.create_from_buffer~buffer:backing_buffer~offset:0L~bytes_per_row:256
    (Texture.descriptor_2d~storage:Buffer.Shared~usage:[Texture.Shader_read]
       ~format:Texture.Rgba8_unorm~width:4~height:4()))in

@@ -17296,6 +17296,48 @@ module Resource100 = struct
     let add_debug_marker (value:buffer) ~label ~offset ~length =
       let op="Metal.Resource100.Buffer.add_debug_marker"in on_main op(fun()->match ensure_buffer_usable op value with Error _ as e->e|Ok()->if contains_nul label then error op Invalid_argument "label contains a NUL byte"else if offset<0L||length<0L||offset>value.length||length>Int64.sub value.length offset then error op Invalid_argument "debug marker range exceeds the buffer"else match Metal_raw.resource_buffer_add_debug_marker value.raw label offset length with Error m->native_error op m|Ok()->Ok())
     let remove_all_debug_markers (value:buffer)=let op="Metal.Resource100.Buffer.remove_all_debug_markers"in on_main op(fun()->match ensure_buffer_usable op value with Error _ as e->e|Ok()->match Metal_raw.resource_buffer_remove_all_debug_markers value.raw with Error m->native_error op m|Ok()->Ok())
+
+    let wrap_snapshot operation (device : device)
+        (raw, length, storage_code', cache_code', hazard_code') =
+      let reject message = ignore (Metal_raw.destroy raw); native_error operation message in
+      let storage = match storage_code' with
+        | 0 -> Some Shared | 1 -> Some Managed | 2 -> Some Private | _ -> None
+      and cpu_cache = match cache_code' with
+        | 0 -> Some Default_cache | 1 -> Some Write_combined | _ -> None
+      and hazard_tracking = match hazard_code' with
+        | 0 -> Some Default_hazard_tracking | 1 -> Some Untracked
+        | 2 -> Some Tracked | _ -> None
+      in
+      match storage, cpu_cache, hazard_tracking with
+      | Some storage, Some cpu_cache, Some hazard_tracking when length > 0L ->
+          Buffer.finish_create operation ~device ~parent:(Device_resource device)
+            ~length ~storage ~cpu_cache ~hazard_tracking ~heap_offset:None
+            ~allocation:None ~label:None raw
+      | _ -> reject "remote buffer returned invalid resource metadata"
+
+    let remote_view (source : buffer) ~(device : device) =
+      let operation = "Metal.Resource100.Buffer.remote_view" in
+      on_main operation (fun () ->
+        match ensure_buffer_usable operation source with
+        | Error _ as failure -> failure
+        | Ok () -> match ensure_live operation device.lifetime with
+          | Error _ as failure -> failure
+          | Ok () -> match Metal_raw.resource_buffer_remote_view source.raw device.raw with
+            | Error message -> native_error operation message
+            | Ok None -> Ok None
+            | Ok (Some snapshot) -> Result.map Option.some
+                (wrap_snapshot operation device snapshot))
+
+    let remote_storage (source : buffer) =
+      let operation = "Metal.Resource100.Buffer.remote_storage" in
+      on_main operation (fun () ->
+        match ensure_buffer_usable operation source with
+        | Error _ as failure -> failure
+        | Ok () -> match Metal_raw.resource_buffer_remote_storage source.raw with
+          | Error message -> native_error operation message
+          | Ok None -> Ok None
+          | Ok (Some snapshot) -> Result.map Option.some
+              (wrap_snapshot operation source.device snapshot))
   end
 
   module Texture_ops = struct

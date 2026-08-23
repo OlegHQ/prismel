@@ -2989,6 +2989,8 @@ module Resource100 : sig
   module Buffer_ops : sig
     val add_debug_marker : Buffer.t -> label:string -> offset:int64 -> length:int64 -> (unit,error) result
     val remove_all_debug_markers : Buffer.t -> (unit,error) result
+    val remote_view : Buffer.t -> device:Device.t -> (Buffer.t option,error) result
+    val remote_storage : Buffer.t -> (Buffer.t option,error) result
   end
   module Texture_ops : sig
     val view : Texture.t -> format:Texture.format -> (Texture.t,error) result
