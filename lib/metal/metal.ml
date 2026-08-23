@@ -7047,6 +7047,105 @@ let validate_pipeline_archives operation device archives =
 module Compiler = struct
   type t = compiler
 
+  type static_function =
+    { library : Library.t
+    ; name : string
+    }
+
+  type static_linking =
+    { functions : static_function list
+    ; private_functions : static_function list
+    ; groups : (string * static_function list) list
+    }
+
+  let validate_static_functions operation device category functions =
+    let rec loop names reversed = function
+      | [] -> Ok (Array.of_list (List.rev reversed))
+      | function_ :: rest ->
+          (match ensure_live operation function_.library.lifetime with
+           | Error _ as failure -> failure
+           | Ok () ->
+               (match
+                  ensure_same_device operation device function_.library.device
+                with
+                | Error _ as failure -> failure
+                | Ok ()
+                  when function_.name = "" || contains_nul function_.name ->
+                    error operation Invalid_argument
+                      (category
+                       ^ " function name must be nonempty and contain no NUL byte")
+                | Ok () when List.mem function_.name names ->
+                    error operation Invalid_argument
+                      (category ^ " function list contains a duplicate name")
+                | Ok () ->
+                    loop (function_.name :: names)
+                      ((function_.library.raw, function_.name) :: reversed)
+                      rest))
+    in
+    loop [] [] functions
+
+  let validate_static_linking operation device = function
+    | None -> Ok None
+    | Some ({ functions; private_functions; groups } : static_linking) ->
+        let ( let* ) result callback = Result.bind result callback in
+        if functions = [] && private_functions = [] && groups = [] then
+          error operation Invalid_argument
+            "static-linking descriptor must contain at least one function"
+        else
+          let* raw_functions =
+            validate_static_functions operation device "public static-linked"
+              functions
+          in
+          let* raw_private_functions =
+            validate_static_functions operation device "private static-linked"
+              private_functions
+          in
+          let public_names = List.map (fun value -> value.name) functions in
+          let private_names =
+            List.map (fun value -> value.name) private_functions
+          in
+          if List.exists (fun name -> List.mem name private_names) public_names
+          then
+            error operation Invalid_argument
+              "a static-linked function cannot be both public and private"
+          else
+            let rec validate_groups names reversed = function
+              | [] -> Ok (Array.of_list (List.rev reversed))
+              | (name, _) :: _
+                when name = "" || contains_nul name ->
+                  error operation Invalid_argument
+                    "static-link group name must be nonempty and contain no NUL byte"
+              | (name, _) :: _ when List.mem name names ->
+                  error operation Invalid_argument
+                    "static-link groups contain a duplicate name"
+              | (_, []) :: _ ->
+                  error operation Invalid_argument
+                    "static-link groups must contain at least one function"
+              | (name, functions) :: rest ->
+                  let* raw_group =
+                    validate_static_functions operation device
+                      ("static-link group " ^ name) functions
+                  in
+                  validate_groups (name :: names)
+                    ((name, raw_group) :: reversed) rest
+            in
+            let* raw_groups = validate_groups [] [] groups in
+            if
+              (functions <> [] || groups <> [])
+              && not
+                   (Metal_raw.device_supports_function_pointers device.raw)
+            then
+              error operation Unsupported
+                "public static linking requires Metal function-pointer support"
+            else
+              Ok
+                (Some
+                   ({ functions = raw_functions
+                    ; private_functions = raw_private_functions
+                    ; groups = raw_groups
+                    }
+                     : Metal_raw.metal4_static_linking_descriptor))
+
   let make device dataset raw =
     let value : t = { raw; lifetime = lifetime (); device; dataset } in
     attach device.lifetime;
@@ -7142,8 +7241,8 @@ module Compiler = struct
       ?max_total_threads_per_threadgroup ?required_threads_per_threadgroup
       ?(support_binary_linking = false)
       ?(support_indirect_command_buffers = false)
-      ?(binary_linked_functions = []) ?(preloaded_libraries = [])
-      ?max_call_stack_depth
+      ?static_linking ?(binary_linked_functions = [])
+      ?(preloaded_libraries = []) ?max_call_stack_depth
       ?(lookup_archives = []) (value : t) ~(library : Library.t)
       function_name =
     let operation = "Metal.Compiler.create_compute_pipeline" in
@@ -7206,6 +7305,9 @@ module Compiler = struct
             validate_binary_functions operation value.device
               binary_linked_functions
           in
+          let* static_linking =
+            validate_static_linking operation value.device static_linking
+          in
           if binary_linked_functions <> [] && not support_binary_linking then
             error operation Invalid_argument
               "binary linked functions require binary-linking support"
@@ -7262,6 +7364,7 @@ module Compiler = struct
                     (List.map
                        (fun (function_ : Binary_function.t) -> function_.raw)
                        binary_linked_functions)
+              ; static_linking
               }
             in
             match

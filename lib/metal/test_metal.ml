@@ -142,6 +142,34 @@ using namespace metal;
 }
 |}
 
+let static_client_source =
+  {|
+#include <metal_stdlib>
+using namespace metal;
+
+uint prismel_local_add(uint value) {
+  return value + 17u;
+}
+
+kernel void call_static_library(device uint *values [[buffer(0)]]) {
+  values[0] = prismel_local_add(values[0]);
+}
+|}
+
+let static_provider_source =
+  {|
+#include <metal_stdlib>
+using namespace metal;
+
+[[visible]] uint public_static_identity(uint value) {
+  return value;
+}
+
+[[visible]] uint private_static_identity(uint value) {
+  return value;
+}
+|}
+
 let input_values () =
   let bytes = Bytes.create 16 in
   [| 1l; 41l; 99l; -2l |]
@@ -2282,6 +2310,115 @@ let test_metal4_compiler device =
         then
           fail
             "Metal 4 binary-function finalization did not release one handle";
+        let static_visible : Compiler.static_function =
+          { library; name = "linked_identity" }
+        in
+        let empty_static : Compiler.static_linking =
+          { functions = []; private_functions = []; groups = [] }
+        in
+        let invalid_static_name : Compiler.static_linking =
+          { functions = [ { library; name = "invalid\000name" } ]
+          ; private_functions = []
+          ; groups = []
+          }
+        in
+        let before_invalid_static = get (Release_queue.stats ()) in
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.create_compute_pipeline ~static_linking:empty_static
+                compiler ~library "increment"));
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.create_compute_pipeline
+                ~static_linking:invalid_static_name compiler ~library
+                "increment"));
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.create_compute_pipeline
+                ~static_linking:
+                  { functions = [ static_visible; static_visible ]
+                  ; private_functions = []
+                  ; groups = []
+                  }
+                compiler ~library "increment"));
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.create_compute_pipeline
+                ~static_linking:
+                  { functions = [ static_visible ]
+                  ; private_functions = [ static_visible ]
+                  ; groups = []
+                  }
+                compiler ~library "increment"));
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.create_compute_pipeline
+                ~static_linking:
+                  { functions = [ static_visible ]
+                  ; private_functions = []
+                  ; groups = [ "empty", [] ]
+                  }
+                compiler ~library "increment"));
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.create_compute_pipeline
+                ~static_linking:
+                  { functions = [ static_visible ]
+                  ; private_functions = []
+                  ; groups =
+                      [ "identity", [ static_visible ]
+                      ; "identity", [ static_visible ]
+                      ]
+                  }
+                compiler ~library "increment"));
+        let after_invalid_static = get (Release_queue.stats ()) in
+        if after_invalid_static.total_created
+           <> before_invalid_static.total_created
+        then fail "invalid Metal 4 static linking allocated native handles";
+        let static_provider =
+          get
+            (Compiler.compile_source ~name:"static-provider" compiler
+               static_provider_source)
+        in
+        let static_client =
+          get
+            (Compiler.compile_source ~name:"static-client" compiler
+               static_client_source)
+        in
+        let static_public : Compiler.static_function =
+          { library = static_provider; name = "public_static_identity" }
+        in
+        let static_private : Compiler.static_function =
+          { library = static_provider; name = "private_static_identity" }
+        in
+        let static_linking : Compiler.static_linking =
+          { functions = [ static_public ]
+          ; private_functions = [ static_private ]
+          ; groups = [ "identity", [ static_public ] ]
+          }
+        in
+        let static_pipeline =
+          get
+            (Compiler.create_compute_pipeline ~static_linking compiler
+               ~library:static_client "call_static_library")
+        in
+        get (Library.destroy static_client);
+        get (Library.destroy static_provider);
+        ignore
+          (expect_error Destroyed
+             (Compiler.create_compute_pipeline
+                ~static_linking:
+                  { functions = []
+                  ; private_functions =
+                      [ { library = static_client
+                        ; name = "call_static_library"
+                        }
+                      ]
+                  ; groups = []
+                  }
+                compiler ~library "increment"));
+        run_pipeline_once device static_pipeline ~initial:25l ~expected:42l;
+        get (Compute_pipeline.destroy static_pipeline);
         let pipeline =
           get
             (Compiler.create_compute_pipeline
@@ -2405,6 +2542,11 @@ let test_metal4_compiler device =
                ~source:visible_source ~name:"metal4-linked-identity")
         in
         let before_duplicate_binary = get (Release_queue.stats ()) in
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.create_compute_pipeline
+                ~binary_linked_functions:[ archived_binary ] lookup_compiler
+                ~library "increment"));
         ignore
           (expect_error Invalid_argument
              (Compiler.create_compute_pipeline
@@ -4284,6 +4426,6 @@ let () =
         stats.external_deallocations
         stats.external_deallocation_mismatches;
     Printf.printf
-      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/pipeline-dataset/binary-function/reflection/compute conformance passed on %s\n%!"
+      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/pipeline-dataset/binary-function/static-link/reflection/compute conformance passed on %s\n%!"
       info.name
   end

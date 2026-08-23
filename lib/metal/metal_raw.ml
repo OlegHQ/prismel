@@ -69,6 +69,15 @@ type compute_pipeline_descriptor =
   ; fail_on_binary_archive_miss : bool
   }
 
+(** Library handle and function name used by Metal 4 static linking. *)
+type metal4_function_reference = handle * string
+
+type metal4_static_linking_descriptor =
+  { functions : metal4_function_reference array
+  ; private_functions : metal4_function_reference array
+  ; groups : (string * metal4_function_reference array) array
+  }
+
 (** Positional native ABI record for synchronous Metal 4 compute compilation. *)
 type metal4_compute_descriptor =
   { label : string option
@@ -86,6 +95,7 @@ type metal4_compute_descriptor =
   ; max_call_stack_depth : int64
   ; lookup_archives : handle array
   ; binary_linked_functions : handle array
+  ; static_linking : metal4_static_linking_descriptor option
   }
 
 (** Positional native ABI record for a Metal 4 binary-function lookup or

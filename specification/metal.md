@@ -475,9 +475,14 @@ metadata from the name and function-type properties of successfully compiled
 visible binary functions. Those unreliable readbacks are not exposed as
 authoritative metadata: the safe value records the checked descriptor identity
 and source kind, while archive reload and actual pipeline linking validate the
-native result. Asynchronous compiler tasks, static-link descriptors,
-render/mesh/object pipelines, and positive offline `.metallib` provenance
-remain open M4 work.
+native result. Compute compilation also accepts an immutable static-linking
+value with checked same-device library/name references, public functions,
+private functions, and unique nonempty function groups. Public/group linking
+is function-pointer gated; private-only linking remains available without that
+capability, matching Metal's export distinction. Descriptor sources are needed
+only for synchronous compilation and can be destroyed before the resulting
+pipeline executes. Asynchronous compiler tasks, render/mesh/object pipelines,
+and positive offline `.metallib` provenance remain open M4 work.
 
 `test_metal.exe` runs a real M1 compute kernel, wrong-domain and invalid-state
 cases, full labeled shader diagnostics, function-constant introspection and
@@ -487,8 +492,8 @@ archive population and serialize/reload strict-hit creation, compiled-library
 metadata, `.metallib` path/error handling, Metal 4 compiler library and
 reflected compute creation, descriptor and binary dataset capture, serialized
 Metal 4 archive reload/strict binary lookup, binary-function compilation and
-dynamic pipeline linking, compiler/dataset parent ownership, and complete
-Metal 4 compile diagnostics,
+dynamic pipeline linking, public/private/grouped static-link descriptors,
+compiler/dataset parent ownership, and complete Metal 4 compile diagnostics,
 copied/no-copy external buffer ownership,
 shareable texture/handle/import lifetimes, single- and multi-plane IOSurface
 ownership and byte visibility, buffer-backed 2D/texture-buffer creation across

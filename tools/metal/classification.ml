@@ -35,6 +35,7 @@ let bound_identifiers =
   ; "class:MTL4PipelineDescriptor"
   ; "class:MTL4PipelineOptions"
   ; "class:MTL4PipelineStageDynamicLinkingDescriptor"
+  ; "class:MTL4StaticLinkingDescriptor"
   ; "class:MTLBinaryArchiveDescriptor"
   ; "class:MTLCompileOptions"
   ; "class:MTLComputePipelineDescriptor"
@@ -240,10 +241,12 @@ let bound_identifiers =
         , [ "computeFunctionDescriptor"; "maxTotalThreadsPerThreadgroup"
           ; "requiredThreadsPerThreadgroup"; "setComputeFunctionDescriptor:"
           ; "setMaxTotalThreadsPerThreadgroup:"
-          ; "setRequiredThreadsPerThreadgroup:"; "setSupportBinaryLinking:"
+          ; "setRequiredThreadsPerThreadgroup:"; "setStaticLinkingDescriptor:"
+          ; "setSupportBinaryLinking:"
           ; "setSupportIndirectCommandBuffers:"
           ; "setThreadGroupSizeIsMultipleOfThreadExecutionWidth:"
-          ; "supportBinaryLinking"; "supportIndirectCommandBuffers"
+          ; "staticLinkingDescriptor"; "supportBinaryLinking"
+          ; "supportIndirectCommandBuffers"
           ; "threadGroupSizeIsMultipleOfThreadExecutionWidth"
           ] )
       ; ( "MTL4LibraryDescriptor"
@@ -266,6 +269,11 @@ let bound_identifiers =
         , [ "binaryLinkedFunctions"; "maxCallStackDepth"
           ; "preloadedLibraries"; "setBinaryLinkedFunctions:"
           ; "setMaxCallStackDepth:"; "setPreloadedLibraries:"
+          ] )
+      ; ( "MTL4StaticLinkingDescriptor"
+        , [ "functionDescriptors"; "groups"; "privateFunctionDescriptors"
+          ; "setFunctionDescriptors:"; "setGroups:"
+          ; "setPrivateFunctionDescriptors:"
           ] )
       ; ( "MTLBuffer"
         , [ "contents"; "didModifyRange:"; "length"; "sparseBufferTier"
@@ -485,7 +493,8 @@ let bound_identifiers =
       ; "MTL4CompilerTaskOptions", [ "lookupArchives" ]
       ; ( "MTL4ComputePipelineDescriptor"
         , [ "computeFunctionDescriptor"; "maxTotalThreadsPerThreadgroup"
-          ; "requiredThreadsPerThreadgroup"; "supportBinaryLinking"
+          ; "requiredThreadsPerThreadgroup"; "staticLinkingDescriptor"
+          ; "supportBinaryLinking"
           ; "supportIndirectCommandBuffers"
           ; "threadGroupSizeIsMultipleOfThreadExecutionWidth"
           ] )
@@ -498,6 +507,8 @@ let bound_identifiers =
         , [ "binaryLinkedFunctions"; "maxCallStackDepth"
           ; "preloadedLibraries"
           ] )
+      ; ( "MTL4StaticLinkingDescriptor"
+        , [ "functionDescriptors"; "groups"; "privateFunctionDescriptors" ] )
       ; "MTL4CommandQueue", [ "device"; "label" ]
       ; "MTL4CommandQueueDescriptor", [ "label" ]
       ; "MTLAllocation", [ "allocatedSize" ]

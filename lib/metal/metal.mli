@@ -1132,6 +1132,20 @@ end
 module Compiler : sig
   type t
 
+  type static_function =
+    { library : Library.t
+    ; name : string
+    }
+
+  (** Functions are exported for function handles, private functions are linked
+      without requiring function-pointer support, and groups constrain named
+      indirect call sites. *)
+  type static_linking =
+    { functions : static_function list
+    ; private_functions : static_function list
+    ; groups : (string * static_function list) list
+    }
+
   (** Creates a synchronous Metal 4 compiler. A supplied pipeline dataset is
       retained by the compiler until compiler destruction. *)
   val create :
@@ -1157,6 +1171,7 @@ module Compiler : sig
     ?required_threads_per_threadgroup:(int * int * int) ->
     ?support_binary_linking:bool ->
     ?support_indirect_command_buffers:bool ->
+    ?static_linking:static_linking ->
     ?binary_linked_functions:Binary_function.t list ->
     ?preloaded_libraries:Dynamic_library.t list ->
     ?max_call_stack_depth:int ->

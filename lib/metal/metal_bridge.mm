@@ -1207,6 +1207,144 @@ MTL4BinaryFunctionDescriptor *checked_binary_function_descriptor(
 }
 
 API_AVAILABLE(macos(26.0))
+NSArray<MTL4FunctionDescriptor *> *checked_static_function_descriptors(
+    value raw_functions, id<MTLDevice> device, NSString *category,
+    NSString *__autoreleasing *failure) {
+  const mlsize_t count = Wosize_val(raw_functions);
+  NSMutableArray<MTL4FunctionDescriptor *> *descriptors =
+      [NSMutableArray arrayWithCapacity:count];
+  NSMutableSet<NSString *> *names = [NSMutableSet set];
+  for (mlsize_t index = 0; index < count; ++index) {
+    value raw_function = Field(raw_functions, index);
+    id<MTLLibrary> library =
+        object_of_handle(Field(raw_function, 0), Handle_kind::Library);
+    if (library.device.registryID != device.registryID) {
+      *failure = [NSString
+          stringWithFormat:@"%@ function is incompatible with the compiler",
+                           category];
+      return nil;
+    }
+    NSString *name = string_from_ocaml(Field(raw_function, 1));
+    if (name == nil || name.length == 0) {
+      *failure = [NSString
+          stringWithFormat:@"%@ function name is not valid nonempty UTF-8",
+                           category];
+      return nil;
+    }
+    if ([names containsObject:name]) {
+      *failure = [NSString
+          stringWithFormat:@"%@ function name is duplicated", category];
+      return nil;
+    }
+    [names addObject:name];
+    MTL4LibraryFunctionDescriptor *descriptor =
+        [[MTL4LibraryFunctionDescriptor alloc] init];
+    descriptor.library = library;
+    descriptor.name = name;
+    if (descriptor.library != library ||
+        ![descriptor.name isEqualToString:name]) {
+      *failure = [NSString
+          stringWithFormat:@"Metal changed checked %@ function properties",
+                           category];
+      return nil;
+    }
+    [descriptors addObject:descriptor];
+  }
+  return [descriptors copy];
+}
+
+API_AVAILABLE(macos(26.0))
+MTL4StaticLinkingDescriptor *checked_static_linking_descriptor(
+    value raw_option, id<MTLDevice> device,
+    NSString *__autoreleasing *failure) {
+  if (!Is_block(raw_option)) {
+    return nil;
+  }
+  value raw_descriptor = Field(raw_option, 0);
+  NSArray<MTL4FunctionDescriptor *> *functions =
+      checked_static_function_descriptors(
+          Field(raw_descriptor, 0), device, @"public static-linked", failure);
+  if (functions == nil) {
+    return nil;
+  }
+  NSArray<MTL4FunctionDescriptor *> *private_functions =
+      checked_static_function_descriptors(
+          Field(raw_descriptor, 1), device, @"private static-linked", failure);
+  if (private_functions == nil) {
+    return nil;
+  }
+  value raw_groups = Field(raw_descriptor, 2);
+  const mlsize_t group_count = Wosize_val(raw_groups);
+  NSMutableDictionary<NSString *, NSArray<MTL4FunctionDescriptor *> *> *groups =
+      [NSMutableDictionary dictionaryWithCapacity:group_count];
+  for (mlsize_t index = 0; index < group_count; ++index) {
+    value raw_group = Field(raw_groups, index);
+    NSString *name = string_from_ocaml(Field(raw_group, 0));
+    if (name == nil || name.length == 0) {
+      *failure = @"Metal 4 static-link group name is not valid nonempty UTF-8";
+      return nil;
+    }
+    if (groups[name] != nil) {
+      *failure = @"Metal 4 static-link group name is duplicated";
+      return nil;
+    }
+    NSArray<MTL4FunctionDescriptor *> *group_functions =
+        checked_static_function_descriptors(
+            Field(raw_group, 1), device,
+            [@"static-link group " stringByAppendingString:name], failure);
+    if (group_functions == nil) {
+      return nil;
+    }
+    if (group_functions.count == 0) {
+      *failure = @"Metal 4 static-link group contains no functions";
+      return nil;
+    }
+    groups[name] = group_functions;
+  }
+  if (functions.count == 0 && private_functions.count == 0 &&
+      groups.count == 0) {
+    *failure = @"Metal 4 static-linking descriptor contains no functions";
+    return nil;
+  }
+  if ((functions.count != 0 || groups.count != 0) &&
+      !device.supportsFunctionPointers) {
+    *failure = @"Metal 4 public static linking requires function pointers";
+    return nil;
+  }
+  NSMutableSet<NSString *> *public_names = [NSMutableSet set];
+  for (MTL4LibraryFunctionDescriptor *function in functions) {
+    [public_names addObject:function.name];
+  }
+  for (MTL4LibraryFunctionDescriptor *function in private_functions) {
+    if ([public_names containsObject:function.name]) {
+      *failure =
+          @"Metal 4 static-linked function cannot be public and private";
+      return nil;
+    }
+  }
+  MTL4StaticLinkingDescriptor *descriptor =
+      [[MTL4StaticLinkingDescriptor alloc] init];
+  descriptor.functionDescriptors =
+      functions.count == 0 ? nil : functions;
+  descriptor.privateFunctionDescriptors =
+      private_functions.count == 0 ? nil : private_functions;
+  descriptor.groups = groups.count == 0 ? nil : groups;
+  if (descriptor.functionDescriptors.count != functions.count ||
+      descriptor.privateFunctionDescriptors.count != private_functions.count ||
+      descriptor.groups.count != groups.count) {
+    *failure = @"Metal changed checked static-linking descriptor properties";
+    return nil;
+  }
+  for (NSString *name in groups) {
+    if (descriptor.groups[name].count != groups[name].count) {
+      *failure = @"Metal changed checked static-link group properties";
+      return nil;
+    }
+  }
+  return descriptor;
+}
+
+API_AVAILABLE(macos(26.0))
 bool synchronize_placement_mapping(id<MTL4CommandQueue> queue,
                                    void (^update)(void),
                                    NSString **failure) {
@@ -5755,10 +5893,19 @@ caml_prismel_metal_compiler_create_compute_pipeline(value raw_compiler,
         function_descriptor.library = library;
         MTL4ComputePipelineDescriptor *descriptor =
             [[MTL4ComputePipelineDescriptor alloc] init];
+        value raw_static_linking = Field(raw_descriptor, 15);
+        NSString *static_linking_failure = nil;
+        MTL4StaticLinkingDescriptor *static_linking =
+            checked_static_linking_descriptor(
+                raw_static_linking, compiler.device, &static_linking_failure);
+        if (Is_block(raw_static_linking) && static_linking == nil) {
+          CAMLreturn(result_error(static_linking_failure));
+        }
         if (expected_label != nil) {
           descriptor.label = expected_label;
         }
         descriptor.computeFunctionDescriptor = function_descriptor;
+        descriptor.staticLinkingDescriptor = static_linking;
         const bool threadgroup_size_multiple =
             Bool_val(Field(raw_descriptor, 4));
         const bool support_binary_linking =
@@ -5820,6 +5967,19 @@ caml_prismel_metal_compiler_create_compute_pipeline(value raw_compiler,
             descriptor.supportBinaryLinking != support_binary_linking ||
             descriptor.supportIndirectCommandBuffers !=
                 indirect_command_support ||
+            (static_linking == nil &&
+             descriptor.staticLinkingDescriptor != nil &&
+             (descriptor.staticLinkingDescriptor.functionDescriptors.count != 0 ||
+              descriptor.staticLinkingDescriptor.privateFunctionDescriptors.count != 0 ||
+              descriptor.staticLinkingDescriptor.groups.count != 0)) ||
+            (static_linking != nil &&
+             (descriptor.staticLinkingDescriptor == nil ||
+              descriptor.staticLinkingDescriptor.functionDescriptors.count !=
+                  static_linking.functionDescriptors.count ||
+              descriptor.staticLinkingDescriptor.privateFunctionDescriptors.count !=
+                  static_linking.privateFunctionDescriptors.count ||
+              descriptor.staticLinkingDescriptor.groups.count !=
+                  static_linking.groups.count)) ||
             (reflection_requested &&
              (descriptor.options == nil ||
               descriptor.options.shaderReflection != expected_reflection)) ||
