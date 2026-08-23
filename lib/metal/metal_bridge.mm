@@ -10430,14 +10430,34 @@ extern "C" CAMLprim value caml_prismel_metal_command4_render_encoder_create(
       @try {
         PrismelMetal4CommandBufferState *state =
             command_buffer4_state_of_handle(raw_buffer);
+        if (!Is_block(raw_descriptor) || Tag_val(raw_descriptor) != 0 ||
+            Wosize_val(raw_descriptor) != 9) {
+          CAMLreturn(result_error_text(
+              "Metal 4 render-pass descriptor shape is invalid"));
+        }
         value raw_attachments = Field(raw_descriptor, 0);
         value raw_depth_attachment = Field(raw_descriptor, 1);
         value raw_stencil_attachment = Field(raw_descriptor, 2);
         value raw_width = Field(raw_descriptor, 3);
         value raw_height = Field(raw_descriptor, 4);
         value raw_label = Field(raw_descriptor, 5);
+        value raw_support_color_attachment_mapping = Field(raw_descriptor, 6);
+        value raw_visibility_result_buffer = Field(raw_descriptor, 7);
+        value raw_visibility_result_type = Field(raw_descriptor, 8);
+        if (!Is_long(raw_support_color_attachment_mapping) ||
+            !Is_long(raw_visibility_result_type) ||
+            !((Is_long(raw_visibility_result_buffer) &&
+               Long_val(raw_visibility_result_buffer) == 0) ||
+              (Is_block(raw_visibility_result_buffer) &&
+               Tag_val(raw_visibility_result_buffer) == 0 &&
+               Wosize_val(raw_visibility_result_buffer) == 1))) {
+          CAMLreturn(result_error_text(
+              "Metal 4 render-pass descriptor fields are invalid"));
+        }
         const intnat support_color_attachment_mapping_code =
-            Long_val(Field(raw_descriptor, 6));
+            Long_val(raw_support_color_attachment_mapping);
+        const intnat visibility_result_type_code =
+            Long_val(raw_visibility_result_type);
         const mlsize_t count = Wosize_val(raw_attachments);
         const intnat width = Long_val(raw_width);
         const intnat height = Long_val(raw_height);
@@ -10451,17 +10471,35 @@ extern "C" CAMLprim value caml_prismel_metal_command4_render_encoder_create(
         }
         if (count == 0 || count > 8 || width <= 0 || height <= 0 ||
             support_color_attachment_mapping_code < 0 ||
-            support_color_attachment_mapping_code > 1) {
+            support_color_attachment_mapping_code > 1 ||
+            (visibility_result_type_code != MTLVisibilityResultTypeReset &&
+             visibility_result_type_code !=
+                 MTLVisibilityResultTypeAccumulate)) {
           CAMLreturn(result_error_text(
               "Metal 4 render-pass attachments or dimensions are invalid"));
         }
         const bool support_color_attachment_mapping =
             support_color_attachment_mapping_code == 1;
+        id<MTLBuffer> visibility_result_buffer = nil;
+        if (Is_block(raw_visibility_result_buffer)) {
+          visibility_result_buffer = object_of_handle(
+              Field(raw_visibility_result_buffer, 0), Handle_kind::Buffer);
+          if (visibility_result_buffer.device.registryID !=
+                  state.commandBuffer.device.registryID ||
+              visibility_result_buffer.length < 8) {
+            CAMLreturn(result_error_text(
+                "Metal 4 visibility-result buffer failed native validation"));
+          }
+        }
+        const MTLVisibilityResultType visibility_result_type =
+            static_cast<MTLVisibilityResultType>(visibility_result_type_code);
         MTL4RenderPassDescriptor *descriptor =
             [[MTL4RenderPassDescriptor alloc] init];
-        if (descriptor.supportColorAttachmentMapping) {
+        if (descriptor.visibilityResultBuffer != nil ||
+            descriptor.visibilityResultType != MTLVisibilityResultTypeReset ||
+            descriptor.supportColorAttachmentMapping) {
           CAMLreturn(result_error_text(
-              "Metal changed the Metal 4 color-attachment-mapping default"));
+              "Metal changed checked Metal 4 render-pass defaults"));
         }
         descriptor.supportColorAttachmentMapping = YES;
         if (!descriptor.supportColorAttachmentMapping) {
@@ -10473,6 +10511,8 @@ extern "C" CAMLprim value caml_prismel_metal_command4_render_encoder_create(
         descriptor.defaultRasterSampleCount = 1;
         descriptor.supportColorAttachmentMapping =
             support_color_attachment_mapping;
+        descriptor.visibilityResultBuffer = visibility_result_buffer;
+        descriptor.visibilityResultType = visibility_result_type;
         NSMutableArray<id<MTLTexture>> *textures =
             [[NSMutableArray alloc] initWithCapacity:count];
         for (mlsize_t index = 0; index < count; ++index) {
@@ -10481,6 +10521,10 @@ extern "C" CAMLprim value caml_prismel_metal_command4_render_encoder_create(
               Field(attachment_value, 0), Handle_kind::Texture);
           const intnat load_action = Long_val(Field(attachment_value, 1));
           const intnat store_action = Long_val(Field(attachment_value, 2));
+          const double clear_red = Double_val(Field(attachment_value, 3));
+          const double clear_green = Double_val(Field(attachment_value, 4));
+          const double clear_blue = Double_val(Field(attachment_value, 5));
+          const double clear_alpha = Double_val(Field(attachment_value, 6));
           if (texture.device.registryID != state.commandBuffer.device.registryID ||
               texture.textureType != MTLTextureType2D ||
               texture.sampleCount != 1 ||
@@ -10491,7 +10535,8 @@ extern "C" CAMLprim value caml_prismel_metal_command4_render_encoder_create(
                load_action != MTLLoadActionLoad &&
                load_action != MTLLoadActionClear) ||
               (store_action != MTLStoreActionDontCare &&
-               store_action != MTLStoreActionStore)) {
+               store_action != MTLStoreActionStore &&
+               store_action != MTLStoreActionUnknown)) {
             CAMLreturn(result_error_text(
                 "Metal 4 color attachment failed native validation"));
           }
@@ -10501,10 +10546,18 @@ extern "C" CAMLprim value caml_prismel_metal_command4_render_encoder_create(
           attachment.loadAction = static_cast<MTLLoadAction>(load_action);
           attachment.storeAction = static_cast<MTLStoreAction>(store_action);
           attachment.clearColor = MTLClearColorMake(
-              Double_val(Field(attachment_value, 3)),
-              Double_val(Field(attachment_value, 4)),
-              Double_val(Field(attachment_value, 5)),
-              Double_val(Field(attachment_value, 6)));
+              clear_red, clear_green, clear_blue, clear_alpha);
+          if (attachment.texture != texture ||
+              attachment.loadAction != static_cast<MTLLoadAction>(load_action) ||
+              attachment.storeAction !=
+                  static_cast<MTLStoreAction>(store_action) ||
+              attachment.clearColor.red != clear_red ||
+              attachment.clearColor.green != clear_green ||
+              attachment.clearColor.blue != clear_blue ||
+              attachment.clearColor.alpha != clear_alpha) {
+            CAMLreturn(result_error_text(
+                "Metal changed checked Metal 4 color attachment properties"));
+          }
           [textures addObject:texture];
         }
         if (Is_block(raw_depth_attachment)) {
@@ -10531,7 +10584,8 @@ extern "C" CAMLprim value caml_prismel_metal_command4_render_encoder_create(
                load_action != MTLLoadActionLoad &&
                load_action != MTLLoadActionClear) ||
               (store_action != MTLStoreActionDontCare &&
-               store_action != MTLStoreActionStore)) {
+               store_action != MTLStoreActionStore &&
+               store_action != MTLStoreActionUnknown)) {
             CAMLreturn(result_error_text(
                 "Metal 4 depth attachment failed native validation"));
           }
@@ -10577,7 +10631,8 @@ extern "C" CAMLprim value caml_prismel_metal_command4_render_encoder_create(
                load_action != MTLLoadActionLoad &&
                load_action != MTLLoadActionClear) ||
               (store_action != MTLStoreActionDontCare &&
-               store_action != MTLStoreActionStore)) {
+               store_action != MTLStoreActionStore &&
+               store_action != MTLStoreActionUnknown)) {
             CAMLreturn(result_error_text(
                 "Metal 4 stencil attachment failed native validation"));
           }
@@ -10601,7 +10656,9 @@ extern "C" CAMLprim value caml_prismel_metal_command4_render_encoder_create(
             descriptor.renderTargetHeight != static_cast<NSUInteger>(height) ||
             descriptor.defaultRasterSampleCount != 1 ||
             descriptor.supportColorAttachmentMapping !=
-                support_color_attachment_mapping) {
+                support_color_attachment_mapping ||
+            descriptor.visibilityResultBuffer != visibility_result_buffer ||
+            descriptor.visibilityResultType != visibility_result_type) {
           CAMLreturn(result_error_text(
               "Metal changed checked Metal 4 render-pass properties"));
         }
@@ -10630,6 +10687,9 @@ extern "C" CAMLprim value caml_prismel_metal_command4_render_encoder_create(
         }
         for (id<MTLTexture> texture in textures) {
           [state retainEncodedObject:texture];
+        }
+        if (visibility_result_buffer != nil) {
+          [state retainEncodedObject:visibility_result_buffer];
         }
         raw = allocate_handle(encoder, Handle_kind::Render_encoder4);
         created = caml_alloc_tuple(3);
@@ -10797,6 +10857,140 @@ caml_prismel_metal_command4_render_encoder_set_blend_color(
                             green:static_cast<float>(green)
                              blue:static_cast<float>(blue)
                             alpha:static_cast<float>(alpha)];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("Metal 4 commands require macOS 26"));
+  }
+}
+
+bool checked_metal4_store_action(value raw_action,
+                                 MTLStoreAction *store_action) {
+  if (!Is_long(raw_action)) {
+    return false;
+  }
+  const intnat code = Long_val(raw_action);
+  if (code != MTLStoreActionDontCare && code != MTLStoreActionStore) {
+    return false;
+  }
+  *store_action = static_cast<MTLStoreAction>(code);
+  return true;
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_command4_render_encoder_set_color_store_action(
+    value raw_encoder, value raw_store_action, value raw_index) {
+  CAMLparam3(raw_encoder, raw_store_action, raw_index);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4RenderCommandEncoder> encoder =
+            object_of_handle(raw_encoder, Handle_kind::Render_encoder4);
+        MTLStoreAction store_action;
+        if (!Is_long(raw_index) ||
+            !checked_metal4_store_action(raw_store_action, &store_action)) {
+          CAMLreturn(result_error_text(
+              "Metal 4 color store-action arguments are invalid"));
+        }
+        const intnat index = Long_val(raw_index);
+        if (index < 0 || index > 7) {
+          CAMLreturn(result_error_text(
+              "Metal 4 color store-action index is invalid"));
+        }
+        [encoder setColorStoreAction:store_action
+                             atIndex:static_cast<NSUInteger>(index)];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("Metal 4 commands require macOS 26"));
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_command4_render_encoder_set_depth_store_action(
+    value raw_encoder, value raw_store_action) {
+  CAMLparam2(raw_encoder, raw_store_action);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4RenderCommandEncoder> encoder =
+            object_of_handle(raw_encoder, Handle_kind::Render_encoder4);
+        MTLStoreAction store_action;
+        if (!checked_metal4_store_action(raw_store_action, &store_action)) {
+          CAMLreturn(result_error_text(
+              "Metal 4 depth store-action argument is invalid"));
+        }
+        [encoder setDepthStoreAction:store_action];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("Metal 4 commands require macOS 26"));
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_command4_render_encoder_set_stencil_store_action(
+    value raw_encoder, value raw_store_action) {
+  CAMLparam2(raw_encoder, raw_store_action);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4RenderCommandEncoder> encoder =
+            object_of_handle(raw_encoder, Handle_kind::Render_encoder4);
+        MTLStoreAction store_action;
+        if (!checked_metal4_store_action(raw_store_action, &store_action)) {
+          CAMLreturn(result_error_text(
+              "Metal 4 stencil store-action argument is invalid"));
+        }
+        [encoder setStencilStoreAction:store_action];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("Metal 4 commands require macOS 26"));
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_command4_render_encoder_set_visibility_result_mode(
+    value raw_encoder, value raw_mode, value raw_offset) {
+  CAMLparam3(raw_encoder, raw_mode, raw_offset);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4RenderCommandEncoder> encoder =
+            object_of_handle(raw_encoder, Handle_kind::Render_encoder4);
+        if (!Is_long(raw_mode) || !Is_block(raw_offset) ||
+            Tag_val(raw_offset) != Custom_tag) {
+          CAMLreturn(result_error_text(
+              "Metal 4 visibility-result arguments are invalid"));
+        }
+        const intnat mode = Long_val(raw_mode);
+        const std::int64_t signed_offset = Int64_val(raw_offset);
+        if ((mode != MTLVisibilityResultModeDisabled &&
+             mode != MTLVisibilityResultModeBoolean &&
+             mode != MTLVisibilityResultModeCounting) ||
+            signed_offset < 0) {
+          CAMLreturn(result_error_text(
+              "Metal 4 visibility-result arguments are invalid"));
+        }
+        const std::uint64_t offset =
+            static_cast<std::uint64_t>(signed_offset);
+        if (offset > std::numeric_limits<NSUInteger>::max() ||
+            (offset & 7u) != 0) {
+          CAMLreturn(result_error_text(
+              "Metal 4 visibility-result offset is invalid"));
+        }
+        [encoder
+            setVisibilityResultMode:static_cast<MTLVisibilityResultMode>(mode)
+                               offset:static_cast<NSUInteger>(offset)];
         CAMLreturn(result_unit());
       } @catch (NSException *exception) {
         CAMLreturn(result_error(exception.reason));

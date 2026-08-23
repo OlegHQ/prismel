@@ -264,6 +264,8 @@ type metal4_render_pass_descriptor =
   ; height : int
   ; label : string option
   ; support_color_attachment_mapping : bool
+  ; visibility_result_buffer : handle option
+  ; visibility_result_type : int
   }
 
 (** Positional native ABI record for one amplified vertex view. *)
@@ -1083,6 +1085,22 @@ external command4_render_encoder_set_scissor_rects :
 external command4_render_encoder_set_triangle_fill_mode :
   handle -> int -> (unit, string) result =
   "caml_prismel_metal_command4_render_encoder_set_triangle_fill_mode"
+
+external command4_render_encoder_set_color_store_action :
+  handle -> int -> int -> (unit, string) result =
+  "caml_prismel_metal_command4_render_encoder_set_color_store_action"
+
+external command4_render_encoder_set_depth_store_action :
+  handle -> int -> (unit, string) result =
+  "caml_prismel_metal_command4_render_encoder_set_depth_store_action"
+
+external command4_render_encoder_set_stencil_store_action :
+  handle -> int -> (unit, string) result =
+  "caml_prismel_metal_command4_render_encoder_set_stencil_store_action"
+
+external command4_render_encoder_set_visibility_result_mode :
+  handle -> int -> int64 -> (unit, string) result =
+  "caml_prismel_metal_command4_render_encoder_set_visibility_result_mode"
 
 external command4_render_encoder_draw_primitives :
   handle -> handle -> handle array -> (int * int * int) ->

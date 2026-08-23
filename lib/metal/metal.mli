@@ -1817,6 +1817,16 @@ module Command4 : sig
     type store_action =
       | Store_dont_care
       | Store
+      | Store_deferred
+
+    type visibility_result_mode =
+      | Visibility_disabled
+      | Visibility_boolean
+      | Visibility_counting
+
+    type visibility_result_type =
+      | Visibility_reset
+      | Visibility_accumulate
 
     type depth_load_action =
       | Depth_load_dont_care
@@ -1873,18 +1883,21 @@ module Command4 : sig
     val color :
       red:float -> green:float -> blue:float -> alpha:float -> color
 
-    (** Creates a base-level, single-sample 2D color attachment. *)
+    (** Creates a base-level, single-sample 2D color attachment.
+        [Store_deferred] must be finalized on the encoder before it ends. *)
     val color_attachment :
       ?load_action:load_action -> ?store_action:store_action -> Texture.t ->
       color_attachment
 
-    (** Creates a base-level, single-sample 2D depth attachment. *)
+    (** Creates a base-level, single-sample 2D depth attachment.
+        [Store_deferred] must be finalized on the encoder before it ends. *)
     val depth_attachment :
       ?load_action:depth_load_action -> ?store_action:store_action ->
       ?clear_depth:float -> Texture.t -> depth_attachment
 
     (** Creates a base-level, single-sample 2D stencil attachment. The clear
-        value is interpreted as an unsigned 32-bit bit pattern. *)
+        value is interpreted as an unsigned 32-bit bit pattern.
+        [Store_deferred] must be finalized on the encoder before it ends. *)
     val stencil_attachment :
       ?load_action:stencil_load_action -> ?store_action:store_action ->
       ?clear_stencil:int32 -> Texture.t -> stencil_attachment
@@ -1897,9 +1910,15 @@ module Command4 : sig
       ?render_target_array_index_offset:int -> unit ->
       vertex_amplification_view_mapping
 
+    (** Creates a render encoder and optionally configures a visibility-result
+        buffer containing one or more 64-bit slots. The buffer must be live,
+        same-device, and at least eight bytes. [Visibility_accumulate] requires
+        such a buffer; [Visibility_reset] remains the default. *)
     val create :
       ?label:string -> ?depth_attachment:depth_attachment ->
       ?stencil_attachment:stencil_attachment ->
+      ?visibility_result_buffer:Buffer.t ->
+      ?visibility_result_type:visibility_result_type ->
       ?support_color_attachment_mapping:bool -> Command_buffer.t ->
       color_attachments:color_attachment list -> (t, error) result
 
@@ -1985,6 +2004,23 @@ module Command4 : sig
     val set_triangle_fill_mode :
       t -> triangle_fill_mode -> (unit, error) result
 
+    (** Finalizes a [Store_deferred] color attachment exactly once. *)
+    val set_color_store_action :
+      t -> index:int -> store_action -> (unit, error) result
+
+    (** Finalizes a [Store_deferred] depth attachment exactly once. *)
+    val set_depth_store_action : t -> store_action -> (unit, error) result
+
+    (** Finalizes a [Store_deferred] stencil attachment exactly once. *)
+    val set_stencil_store_action : t -> store_action -> (unit, error) result
+
+    (** Configures one 64-bit visibility-result slot. Active boolean and
+        counting modes require the live buffer supplied to [create]; [offset]
+        must be nonnegative, eight-byte aligned, and in range. Disabled mode
+        requires only a nonnegative aligned offset. *)
+    val set_visibility_result_mode :
+      t -> visibility_result_mode -> offset:int64 -> (unit, error) result
+
     val draw_primitives :
       t -> primitive -> vertex_start:int -> vertex_count:int ->
       (unit, error) result
@@ -2039,6 +2075,7 @@ module Command4 : sig
     val dispatch_threads_per_tile :
       t -> threads:(int * int * int) -> (unit, error) result
 
+    (** Ends the encoder after every [Store_deferred] action is finalized. *)
     val end_encoding : t -> (unit, error) result
     val destroyed : t -> bool
   end

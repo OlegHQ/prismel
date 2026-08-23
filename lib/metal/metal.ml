@@ -1194,6 +1194,11 @@ type command4_submission =
   ; mutable outcome : (unit, error) result option
   }
 
+type render_store_action =
+  | Store_dont_care
+  | Store
+  | Store_deferred
+
 type command4_render_encoder =
   { raw : Metal_raw.handle
   ; lifetime : lifetime
@@ -1206,6 +1211,10 @@ type command4_render_encoder =
   ; depth_format : pixel_format option
   ; stencil_format : pixel_format option
   ; support_color_attachment_mapping : bool
+  ; visibility_result_buffer : buffer option
+  ; color_store_actions : render_store_action array
+  ; mutable depth_store_action : render_store_action option
+  ; mutable stencil_store_action : render_store_action option
   ; mutable vertex_amplification_count : int
   ; mutable pipeline : render_pipeline option
   ; mutable mesh_limits : mesh_pipeline_limits option
@@ -10458,9 +10467,19 @@ module Command4 = struct
       | Load
       | Clear of color
 
-    type store_action =
+    type store_action = render_store_action =
       | Store_dont_care
       | Store
+      | Store_deferred
+
+    type visibility_result_mode =
+      | Visibility_disabled
+      | Visibility_boolean
+      | Visibility_counting
+
+    type visibility_result_type =
+      | Visibility_reset
+      | Visibility_accumulate
 
     type depth_load_action =
       | Depth_load_dont_care
@@ -10575,7 +10594,14 @@ module Command4 = struct
       | Load -> 1
       | Clear _ -> 2
 
-    let store_code = function Store_dont_care -> 0 | Store -> 1
+    let store_code = function
+      | Store_dont_care -> 0
+      | Store -> 1
+      | Store_deferred -> 4
+
+    let visibility_result_type_code = function
+      | Visibility_reset -> 0
+      | Visibility_accumulate -> 1
 
     let depth_load_code = function
       | Depth_load_dont_care -> 0
@@ -10733,7 +10759,20 @@ module Command4 = struct
        }
         : Metal_raw.metal4_render_stencil_attachment)
 
+    let validate_visibility_result_buffer operation device = function
+      | None -> Ok ()
+      | Some (buffer : Buffer.t) ->
+          let ( let* ) result callback = Result.bind result callback in
+          let* () = ensure_buffer_usable operation buffer in
+          let* () = ensure_same_device operation device buffer.device in
+          if buffer.length < 8L then
+            error operation Invalid_argument
+              "a visibility-result buffer must contain at least eight bytes"
+          else Ok ()
+
     let create ?label ?depth_attachment ?stencil_attachment
+        ?visibility_result_buffer
+        ?(visibility_result_type = Visibility_reset)
         ?(support_color_attachment_mapping = false)
         (command_buffer : Command_buffer.t) ~color_attachments =
       let operation = "Metal.Command4.Render_encoder.create" in
@@ -10753,6 +10792,11 @@ module Command4 = struct
               "a render pass may contain at most eight color attachments"
         | Ok () when option_exists contains_nul label ->
             error operation Invalid_argument "label contains a NUL byte"
+        | Ok ()
+          when visibility_result_type = Visibility_accumulate
+               && Option.is_none visibility_result_buffer ->
+            error operation Invalid_argument
+              "accumulated visibility results require a result buffer"
         | Ok () ->
             (match
                validate_attachments operation command_buffer.allocator.device
@@ -10774,81 +10818,124 @@ module Command4 = struct
                        with
                        | Error _ as failure -> failure
                        | Ok () ->
-                           let raw_descriptor :
-                               Metal_raw.metal4_render_pass_descriptor =
-                             { color_attachments =
-                                 Array.of_list
-                                   (List.map raw_attachment color_attachments)
-                             ; depth_attachment =
-                                 Option.map raw_depth_attachment depth_attachment
-                             ; stencil_attachment =
-                                 Option.map raw_stencil_attachment
-                                   stencil_attachment
-                             ; width
-                             ; height
-                             ; label
-                             ; support_color_attachment_mapping
-                             }
-                           in
-                           match
-                             Metal_raw.command4_render_encoder_create
-                               command_buffer.raw raw_descriptor
-                           with
-                           | Error message -> native_error operation message
-                           | Ok (raw, tile_width, tile_height) ->
-                               List.iter
-                                 (fun (attachment : color_attachment) ->
-                                   retain_command4_texture command_buffer
-                                     attachment.texture)
-                                 color_attachments;
-                               Option.iter
-                                 (fun (attachment : depth_attachment) ->
-                                   retain_command4_texture command_buffer
-                                     attachment.texture)
-                                 depth_attachment;
-                               Option.iter
-                                 (fun (attachment : stencil_attachment) ->
-                                   retain_command4_texture command_buffer
-                                     attachment.texture)
-                                 stencil_attachment;
-                               let value : t =
-                                 { raw
-                                 ; lifetime = lifetime ()
-                                 ; command_buffer
-                                 ; width
-                                 ; height
-                                 ; tile_width
-                                 ; tile_height
-                                 ; color_formats
-                                 ; depth_format =
-                                     Option.map
-                                       (fun (attachment : depth_attachment) ->
-                                         attachment.texture.descriptor.format)
-                                       depth_attachment
-                                 ; stencil_format =
-                                     Option.map
-                                       (fun (attachment : stencil_attachment) ->
-                                         attachment.texture.descriptor.format)
-                                       stencil_attachment
-                                 ; support_color_attachment_mapping
-                                 ; vertex_amplification_count = 1
-                                 ; pipeline = None
-                                 ; mesh_limits = None
-                                 ; tile_limits = None
-                                 ; argument_tables = Array.make 5 None
-                                 }
-                               in
-                               attach command_buffer.lifetime;
-                               attach_finalizer
-                                 ~on_finalize:(fun () ->
-                                   if
-                                     command_buffer.phase = Command4_recording
-                                   then
-                                     command_buffer.phase <-
-                                       Command4_failed
-                                         "render encoder was abandoned before end_encoding")
-                                 value value.lifetime command_buffer.lifetime;
-                               Ok value))))
+                           (match
+                              validate_visibility_result_buffer operation
+                                command_buffer.allocator.device
+                                visibility_result_buffer
+                            with
+                            | Error _ as failure -> failure
+                            | Ok () ->
+                                let raw_descriptor :
+                                    Metal_raw.metal4_render_pass_descriptor =
+                                  { color_attachments =
+                                      Array.of_list
+                                        (List.map raw_attachment
+                                           color_attachments)
+                                  ; depth_attachment =
+                                      Option.map raw_depth_attachment
+                                        depth_attachment
+                                  ; stencil_attachment =
+                                      Option.map raw_stencil_attachment
+                                        stencil_attachment
+                                  ; width
+                                  ; height
+                                  ; label
+                                  ; support_color_attachment_mapping
+                                  ; visibility_result_buffer =
+                                      Option.map
+                                        (fun (buffer : Buffer.t) -> buffer.raw)
+                                        visibility_result_buffer
+                                  ; visibility_result_type =
+                                      visibility_result_type_code
+                                        visibility_result_type
+                                  }
+                                in
+                                match
+                                  Metal_raw.command4_render_encoder_create
+                                    command_buffer.raw raw_descriptor
+                                with
+                                | Error message -> native_error operation message
+                                | Ok (raw, tile_width, tile_height) ->
+                                    List.iter
+                                      (fun (attachment : color_attachment) ->
+                                        retain_command4_texture command_buffer
+                                          attachment.texture)
+                                      color_attachments;
+                                    Option.iter
+                                      (fun (attachment : depth_attachment) ->
+                                        retain_command4_texture command_buffer
+                                          attachment.texture)
+                                      depth_attachment;
+                                    Option.iter
+                                      (fun (attachment : stencil_attachment) ->
+                                        retain_command4_texture command_buffer
+                                          attachment.texture)
+                                      stencil_attachment;
+                                    Option.iter
+                                      (retain_command4_buffer command_buffer)
+                                      visibility_result_buffer;
+                                    let value : t =
+                                      { raw
+                                      ; lifetime = lifetime ()
+                                      ; command_buffer
+                                      ; width
+                                      ; height
+                                      ; tile_width
+                                      ; tile_height
+                                      ; color_formats
+                                      ; depth_format =
+                                          Option.map
+                                            (fun
+                                              (attachment : depth_attachment) ->
+                                              attachment.texture.descriptor.format)
+                                            depth_attachment
+                                      ; stencil_format =
+                                          Option.map
+                                            (fun
+                                              (attachment : stencil_attachment) ->
+                                              attachment.texture.descriptor.format)
+                                            stencil_attachment
+                                      ; support_color_attachment_mapping
+                                      ; visibility_result_buffer
+                                      ; color_store_actions =
+                                          Array.of_list
+                                            (List.map
+                                               (fun
+                                                 (attachment : color_attachment) ->
+                                                 attachment.store_action)
+                                               color_attachments)
+                                      ; depth_store_action =
+                                          Option.map
+                                            (fun
+                                              (attachment : depth_attachment) ->
+                                              attachment.store_action)
+                                            depth_attachment
+                                      ; stencil_store_action =
+                                          Option.map
+                                            (fun
+                                              (attachment : stencil_attachment) ->
+                                              attachment.store_action)
+                                            stencil_attachment
+                                      ; vertex_amplification_count = 1
+                                      ; pipeline = None
+                                      ; mesh_limits = None
+                                      ; tile_limits = None
+                                      ; argument_tables = Array.make 5 None
+                                      }
+                                    in
+                                    attach command_buffer.lifetime;
+                                    attach_finalizer
+                                      ~on_finalize:(fun () ->
+                                        if
+                                          command_buffer.phase
+                                          = Command4_recording
+                                        then
+                                          command_buffer.phase <-
+                                            Command4_failed
+                                              "render encoder was abandoned before end_encoding")
+                                      value value.lifetime
+                                      command_buffer.lifetime;
+                                    Ok value)))))
 
     let destroyed (value : t) = is_destroyed value.lifetime
 
@@ -11526,6 +11613,124 @@ module Command4 = struct
              | Ok () -> Ok ()
              | Error message -> native_error operation message))
 
+    let set_color_store_action (value : t) ~index action =
+      let operation =
+        "Metal.Command4.Render_encoder.set_color_store_action"
+      in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok ()
+          when index < 0 || index >= List.length value.color_formats ->
+            error operation Invalid_argument
+              "color store-action index is outside the render pass"
+        | Ok () when action = Store_deferred ->
+            error operation Invalid_argument
+              "a dynamic store action must finalize to dont-care or store"
+        | Ok () when value.color_store_actions.(index) <> Store_deferred ->
+            error operation Invalid_state
+              "the color attachment already has a final store action"
+        | Ok () ->
+            (match
+               Metal_raw.command4_render_encoder_set_color_store_action
+                 value.raw (store_code action) index
+             with
+             | Ok () ->
+                 value.color_store_actions.(index) <- action;
+                 Ok ()
+             | Error message -> native_error operation message))
+
+    let set_depth_store_action (value : t) action =
+      let operation =
+        "Metal.Command4.Render_encoder.set_depth_store_action"
+      in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () when Option.is_none value.depth_format ->
+            error operation Invalid_state
+              "a depth store action requires a depth attachment"
+        | Ok () when action = Store_deferred ->
+            error operation Invalid_argument
+              "a dynamic store action must finalize to dont-care or store"
+        | Ok () when value.depth_store_action <> Some Store_deferred ->
+            error operation Invalid_state
+              "the depth attachment already has a final store action"
+        | Ok () ->
+            (match
+               Metal_raw.command4_render_encoder_set_depth_store_action
+                 value.raw (store_code action)
+             with
+             | Ok () ->
+                 value.depth_store_action <- Some action;
+                 Ok ()
+             | Error message -> native_error operation message))
+
+    let set_stencil_store_action (value : t) action =
+      let operation =
+        "Metal.Command4.Render_encoder.set_stencil_store_action"
+      in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () when Option.is_none value.stencil_format ->
+            error operation Invalid_state
+              "a stencil store action requires a stencil attachment"
+        | Ok () when action = Store_deferred ->
+            error operation Invalid_argument
+              "a dynamic store action must finalize to dont-care or store"
+        | Ok () when value.stencil_store_action <> Some Store_deferred ->
+            error operation Invalid_state
+              "the stencil attachment already has a final store action"
+        | Ok () ->
+            (match
+               Metal_raw.command4_render_encoder_set_stencil_store_action
+                 value.raw (store_code action)
+             with
+             | Ok () ->
+                 value.stencil_store_action <- Some action;
+                 Ok ()
+             | Error message -> native_error operation message))
+
+    let visibility_result_mode_code = function
+      | Visibility_disabled -> 0
+      | Visibility_boolean -> 1
+      | Visibility_counting -> 2
+
+    let set_visibility_result_mode (value : t) mode ~offset =
+      let operation =
+        "Metal.Command4.Render_encoder.set_visibility_result_mode"
+      in
+      on_main operation (fun () ->
+        let ( let* ) result callback = Result.bind result callback in
+        let* () = ensure_live operation value.lifetime in
+        if offset < 0L || Int64.rem offset 8L <> 0L then
+          error operation Invalid_argument
+            "visibility-result offsets must be nonnegative multiples of eight"
+        else
+          let* () =
+            match mode, value.visibility_result_buffer with
+            | Visibility_disabled, _ -> Ok ()
+            | (Visibility_boolean | Visibility_counting), None ->
+                error operation Invalid_state
+                  "active visibility testing requires a result buffer"
+            | (Visibility_boolean | Visibility_counting), Some buffer ->
+                let* () = ensure_buffer_usable operation buffer in
+                if
+                  buffer.length < 8L
+                  || offset > Int64.sub buffer.length 8L
+                then
+                  error operation Invalid_argument
+                    "visibility-result slot exceeds the result buffer"
+                else Ok ()
+          in
+          match
+            Metal_raw.command4_render_encoder_set_visibility_result_mode
+              value.raw (visibility_result_mode_code mode) offset
+          with
+          | Ok () -> Ok ()
+          | Error message -> native_error operation message)
+
     let primitive_code = function
       | Point -> 0
       | Line -> 1
@@ -12027,6 +12232,14 @@ module Command4 = struct
       on_main operation (fun () ->
         match ensure_live operation value.lifetime with
         | Error _ as failure -> failure
+        | Ok ()
+          when Array.exists
+                 (fun action -> action = Store_deferred)
+                 value.color_store_actions
+               || value.depth_store_action = Some Store_deferred
+               || value.stencil_store_action = Some Store_deferred ->
+            error operation Invalid_state
+              "every deferred render-pass store action must be finalized"
         | Ok () ->
             (match Metal_raw.command4_render_encoder_end value.raw with
              | Error message -> native_error operation message

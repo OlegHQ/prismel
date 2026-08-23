@@ -753,6 +753,50 @@ over-float32 values, and ended-encoder calls allocate no handles. The source
 library and compiler are destroyed before encoding, bound pipeline/color/depth
 destruction is rejected, and all resources release after completion.
 
+Metal 4 render-pass creation optionally installs one visibility-result buffer
+and chooses `Visibility_reset` or `Visibility_accumulate` behavior. A supplied
+buffer must be live, belong to the command buffer's device, and contain at least
+one eight-byte result slot. The default reset behavior remains valid without a
+buffer, but accumulate requires a configured buffer. The native descriptor
+boundary assigns and reads back the exact buffer identity and result-type enum
+before encoder creation, and the command buffer retains that buffer through
+submission completion.
+
+`set_visibility_result_mode` selects disabled, boolean, or counting queries for
+subsequent draws. Every offset must be nonnegative and eight-byte aligned. An
+active boolean or counting query additionally requires the pass buffer and a
+complete in-range eight-byte slot; disabled mode needs neither a buffer nor a
+range-covered slot. An attachment may be created with `Store_deferred`, which
+maps narrowly to `MTLStoreActionUnknown` and promises a later dynamic decision.
+The color, depth, and stencil setters accept only `Store_dont_care` or `Store`,
+and only once for the corresponding unresolved deferred attachment. A color
+action requires the named color-attachment index, while depth and stencil
+actions require their corresponding pass attachments; already-final attachment
+state and a second finalization are rejected. Ending an encoder with any
+deferred action still unresolved is likewise rejected. All setters remain local
+to a live `MTL4RenderCommandEncoder` and reject invalid state before the native
+selector; no conventional `MTLRenderCommandEncoder` or
+`MTLRenderPassDescriptor` surface is bound.
+
+The M1 conformance shader writes one full 8×8 target. Its boolean visibility
+slot is `1` (the portable assertion remains the SDK-defined nonzero result), its
+counting slot is exactly `64`, disabling the query preserves a prior `64`, and a
+reset pass followed by an accumulate pass produces exactly `128`. A deferred
+color action finalized to `Store` yields solid BGRA green `(0, 255, 0, 255)`.
+Deferred depth finalized to `Store` preserves the red seed pass's depth so a
+later loaded far/`Less` green draw leaves a transparent target; deferred stencil
+likewise preserves reference `7`, allowing a later loaded `Equal` draw to yield
+solid green. The visibility render target is also exactly green.
+
+Undersized and destroyed buffers, plus a foreign-device buffer when available;
+accumulation or active queries without a buffer; invalid offsets or attachment
+indices; missing depth/stencil attachments; deferred setter arguments; repeated
+finalization; and partially unresolved encoder ends all reject without
+increasing the native handle count. The source library and compiler are
+destroyed before encoding. The result buffer remains command-owned while the
+encoder is active, after it ends, and before submission wait, then releases
+successfully after completion.
+
 The M1 capability scan accepts amplification counts through eight and first
 rejects nine; synchronous and asynchronous conventional and mesh compilation
 reject zero or nine before native handle allocation. Separate four-sample
@@ -894,6 +938,9 @@ completion-owned pipeline, target, and native-map lifetimes,
 encoder-local raster, viewport, and scissor state with exact cull/fill/clip and
 array targets, Apple10-gated depth bounds, no-allocation validation, and
 completion-owned pipeline and attachment lifetimes,
+one-shot deferred color/depth/stencil store finalization with exact persisted
+targets, exact reset/accumulate/disabled visibility slots, typed no-allocation
+rejections, and completion-owned result-buffer lifetime,
 typed static/dynamic vertex layouts with exact direct/indexed targets,
 typed static/dynamic vertex, fragment, object, mesh, and tile linking with
 destroyed source handles, exact green conventional/direct-mesh targets, an

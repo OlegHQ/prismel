@@ -7134,6 +7134,566 @@ let test_metal4_raster_state_commands device =
     true
   end
 
+let test_metal4_dynamic_store_visibility_commands device =
+  if not (get (Device.supports_family device Device.Metal4)) then false
+  else begin
+    let compiler = get (Compiler.create device) in
+    let library =
+      get
+        (Compiler.compile_source ~name:"metal4-dynamic-store-visibility"
+           compiler depth_render_shader_source)
+    in
+    let red_pipeline =
+      get
+        (Compiler.create_render_pipeline
+           ~label:"Metal 4 dynamic-store red pipeline"
+           ~fragment:"prismel_depth_red_fragment" compiler ~library
+           ~vertex:"prismel_depth_near_vertex")
+    in
+    let green_pipeline =
+      get
+        (Compiler.create_render_pipeline
+           ~label:"Metal 4 dynamic-store green pipeline"
+           ~fragment:"prismel_depth_green_fragment" compiler ~library
+           ~vertex:"prismel_depth_far_vertex")
+    in
+    get (Library.destroy library);
+    get (Compiler.destroy compiler);
+    let depth_state =
+      get
+        (Depth_stencil.create ~label:"Metal 4 dynamic-store depth state"
+           ~depth_compare:Depth_stencil.Less ~depth_write:true device ())
+    in
+    let stencil_write_face =
+      Depth_stencil.face ~compare:Depth_stencil.Always
+        ~pass:Depth_stencil.Replace ~read_mask:0xffl ~write_mask:0xffl ()
+    in
+    let stencil_test_face =
+      Depth_stencil.face ~compare:Depth_stencil.Equal
+        ~stencil_fail:Depth_stencil.Keep ~depth_fail:Depth_stencil.Keep
+        ~pass:Depth_stencil.Keep ~read_mask:0xffl ~write_mask:0l ()
+    in
+    let stencil_write_state =
+      get
+        (Depth_stencil.create ~label:"Metal 4 dynamic-store stencil write"
+           ~front_face:stencil_write_face ~back_face:stencil_write_face device
+           ())
+    in
+    let stencil_test_state =
+      get
+        (Depth_stencil.create ~label:"Metal 4 dynamic-store stencil test"
+           ~front_face:stencil_test_face ~back_face:stencil_test_face device ())
+    in
+    let make_color_target label =
+      get
+        (Texture.create ~device
+           (Texture.descriptor_2d ~storage:Buffer.Shared
+              ~usage:[ Texture.Render_target ] ~format:Texture.Bgra8_unorm
+              ~width:8 ~height:8 ~label ()))
+    in
+    let store_target = make_color_target "Metal 4 dynamic color-store target" in
+    let visibility_target =
+      make_color_target "Metal 4 visibility target"
+    in
+    let depth_seed_target =
+      make_color_target "Metal 4 dynamic depth seed color"
+    in
+    let depth_check_target =
+      make_color_target "Metal 4 dynamic depth check color"
+    in
+    let stencil_seed_target =
+      make_color_target "Metal 4 dynamic stencil seed color"
+    in
+    let stencil_check_target =
+      make_color_target "Metal 4 dynamic stencil check color"
+    in
+    let depth_target =
+      get
+        (Texture.create ~device
+           (Texture.descriptor_2d ~storage:Buffer.Private
+              ~usage:[ Texture.Render_target ] ~format:Texture.Depth32_float
+              ~width:8 ~height:8 ~label:"Metal 4 dynamic depth target" ()))
+    in
+    let stencil_target =
+      get
+        (Texture.create ~device
+           (Texture.descriptor_2d ~storage:Buffer.Private
+              ~usage:[ Texture.Render_target ] ~format:Texture.Stencil8
+              ~width:8 ~height:8 ~label:"Metal 4 dynamic stencil target" ()))
+    in
+    let visibility_buffer =
+      get (Buffer.create ~device ~length:40L ~storage:Buffer.Shared ())
+    in
+    get
+      (Buffer.write_bytes visibility_buffer ~dst_offset:0L
+         (Bytes.make 40 '\x5a'));
+    let undersized_visibility =
+      get (Buffer.create ~device ~length:7L ~storage:Buffer.Shared ())
+    in
+    let destroyed_visibility =
+      get (Buffer.create ~device ~length:8L ~storage:Buffer.Shared ())
+    in
+    get (Buffer.destroy destroyed_visibility);
+    let enumerated_devices = get (Device.all ()) in
+    let foreign_visibility =
+      enumerated_devices
+      |> List.find_opt (fun candidate -> not (Device.same device candidate))
+      |> Option.map (fun foreign_device ->
+           get
+             (Buffer.create ~device:foreign_device ~length:8L
+                ~storage:Buffer.Shared ()))
+    in
+    let allocator =
+      get
+        (Command4.Allocator.create
+           ~label:"Metal 4 dynamic-store/visibility allocator" device)
+    in
+    let queue =
+      get
+        (Command4.Queue.create ~label:"Metal 4 dynamic-store/visibility queue"
+           device)
+    in
+    let commands =
+      get
+        (Command4.Command_buffer.create allocator
+           ~label:"Metal 4 dynamic-store/visibility commands" ())
+    in
+    let color_attachment ?load_action ?store_action target =
+      Command4.Render_encoder.color_attachment ?load_action ?store_action
+        target
+    in
+    let assert_no_new_handles label (before : Release_queue.stats) =
+      let after = get (Release_queue.stats ()) in
+      if after.total_created <> before.total_created then
+        fail "%s allocated native handles" label
+    in
+    let before_invalid_create = get (Release_queue.stats ()) in
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.create
+            ~label:"Metal 4 undersized visibility encoder"
+            ~visibility_result_buffer:undersized_visibility commands
+            ~color_attachments:[ color_attachment visibility_target ]));
+    ignore
+      (expect_error Destroyed
+         (Command4.Render_encoder.create
+            ~label:"Metal 4 destroyed visibility encoder"
+            ~visibility_result_buffer:destroyed_visibility commands
+            ~color_attachments:[ color_attachment visibility_target ]));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.create
+            ~label:"Metal 4 missing accumulated visibility encoder"
+            ~visibility_result_type:Command4.Render_encoder.Visibility_accumulate
+            commands
+            ~color_attachments:[ color_attachment visibility_target ]));
+    Option.iter
+      (fun foreign_buffer ->
+        ignore
+          (expect_error Device_mismatch
+             (Command4.Render_encoder.create
+                ~label:"Metal 4 foreign visibility encoder"
+                ~visibility_result_buffer:foreign_buffer commands
+                ~color_attachments:[ color_attachment visibility_target ])))
+      foreign_visibility;
+    assert_no_new_handles "visibility encoder creation rejections"
+      before_invalid_create;
+    get (Buffer.destroy undersized_visibility);
+    Option.iter (fun buffer -> get (Buffer.destroy buffer)) foreign_visibility;
+    List.iter (fun candidate -> get (Device.destroy candidate))
+      enumerated_devices;
+    let no_visibility_encoder =
+      get
+        (Command4.Render_encoder.create
+           ~label:"Metal 4 no-visibility validation encoder" commands
+           ~color_attachments:[ color_attachment visibility_target ])
+    in
+    let before_no_visibility = get (Release_queue.stats ()) in
+    ignore
+      (expect_error Invalid_state
+         (Command4.Render_encoder.set_visibility_result_mode
+            no_visibility_encoder Command4.Render_encoder.Visibility_boolean
+            ~offset:0L));
+    ignore
+      (expect_error Invalid_state
+         (Command4.Render_encoder.set_visibility_result_mode
+            no_visibility_encoder Command4.Render_encoder.Visibility_counting
+            ~offset:0L));
+    get
+      (Command4.Render_encoder.set_visibility_result_mode
+         no_visibility_encoder Command4.Render_encoder.Visibility_disabled
+         ~offset:0L);
+    get
+      (Command4.Render_encoder.set_visibility_result_mode
+         no_visibility_encoder Command4.Render_encoder.Visibility_disabled
+         ~offset:4096L);
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.set_visibility_result_mode
+            no_visibility_encoder Command4.Render_encoder.Visibility_disabled
+            ~offset:(-8L)));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.set_visibility_result_mode
+            no_visibility_encoder Command4.Render_encoder.Visibility_disabled
+            ~offset:4L));
+    List.iter
+      (fun index ->
+        ignore
+          (expect_error Invalid_argument
+             (Command4.Render_encoder.set_color_store_action
+                no_visibility_encoder ~index Command4.Render_encoder.Store)))
+      [ -1; 1 ];
+    ignore
+      (expect_error Invalid_state
+         (Command4.Render_encoder.set_color_store_action no_visibility_encoder
+            ~index:0 Command4.Render_encoder.Store_dont_care));
+    ignore
+      (expect_error Invalid_state
+         (Command4.Render_encoder.set_color_store_action no_visibility_encoder
+            ~index:0 Command4.Render_encoder.Store));
+    ignore
+      (expect_error Invalid_state
+         (Command4.Render_encoder.set_depth_store_action no_visibility_encoder
+            Command4.Render_encoder.Store));
+    ignore
+      (expect_error Invalid_state
+         (Command4.Render_encoder.set_stencil_store_action
+            no_visibility_encoder Command4.Render_encoder.Store));
+    assert_no_new_handles "store/visibility setter validation"
+      before_no_visibility;
+    get (Command4.Render_encoder.end_encoding no_visibility_encoder);
+    let before_destroyed_setters = get (Release_queue.stats ()) in
+    List.iter
+      (fun operation -> ignore (expect_error Destroyed (operation ())))
+      [ (fun () ->
+          Command4.Render_encoder.set_color_store_action
+            no_visibility_encoder ~index:0 Command4.Render_encoder.Store)
+      ; (fun () ->
+          Command4.Render_encoder.set_depth_store_action no_visibility_encoder
+            Command4.Render_encoder.Store)
+      ; (fun () ->
+          Command4.Render_encoder.set_stencil_store_action
+            no_visibility_encoder Command4.Render_encoder.Store)
+      ; (fun () ->
+          Command4.Render_encoder.set_visibility_result_mode
+            no_visibility_encoder Command4.Render_encoder.Visibility_disabled
+            ~offset:0L)
+      ];
+    assert_no_new_handles "destroyed store/visibility setters"
+      before_destroyed_setters;
+    let unresolved_store_encoder =
+      get
+        (Command4.Render_encoder.create
+           ~label:"Metal 4 unresolved dynamic-store encoder"
+           ~depth_attachment:
+             (Command4.Render_encoder.depth_attachment
+                ~store_action:Command4.Render_encoder.Store_deferred
+                depth_target)
+           ~stencil_attachment:
+             (Command4.Render_encoder.stencil_attachment
+                ~store_action:Command4.Render_encoder.Store_deferred
+                stencil_target)
+           commands
+           ~color_attachments:
+             [ color_attachment
+                 ~store_action:Command4.Render_encoder.Store_deferred
+                 visibility_target
+             ])
+    in
+    let before_deferred_store = get (Release_queue.stats ()) in
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.set_color_store_action
+            unresolved_store_encoder ~index:0
+            Command4.Render_encoder.Store_deferred));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.set_depth_store_action
+            unresolved_store_encoder Command4.Render_encoder.Store_deferred));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.set_stencil_store_action
+            unresolved_store_encoder Command4.Render_encoder.Store_deferred));
+    ignore
+      (expect_error Invalid_state
+         (Command4.Render_encoder.end_encoding unresolved_store_encoder));
+    get
+      (Command4.Render_encoder.set_color_store_action unresolved_store_encoder
+         ~index:0 Command4.Render_encoder.Store_dont_care);
+    ignore
+      (expect_error Invalid_state
+         (Command4.Render_encoder.set_color_store_action
+            unresolved_store_encoder ~index:0 Command4.Render_encoder.Store));
+    ignore
+      (expect_error Invalid_state
+         (Command4.Render_encoder.end_encoding unresolved_store_encoder));
+    get
+      (Command4.Render_encoder.set_depth_store_action unresolved_store_encoder
+         Command4.Render_encoder.Store_dont_care);
+    ignore
+      (expect_error Invalid_state
+         (Command4.Render_encoder.set_depth_store_action
+            unresolved_store_encoder Command4.Render_encoder.Store));
+    ignore
+      (expect_error Invalid_state
+         (Command4.Render_encoder.end_encoding unresolved_store_encoder));
+    get
+      (Command4.Render_encoder.set_stencil_store_action
+         unresolved_store_encoder Command4.Render_encoder.Store_dont_care);
+    ignore
+      (expect_error Invalid_state
+         (Command4.Render_encoder.set_stencil_store_action
+            unresolved_store_encoder Command4.Render_encoder.Store));
+    assert_no_new_handles "deferred store-action finalization"
+      before_deferred_store;
+    get (Command4.Render_encoder.end_encoding unresolved_store_encoder);
+    let visibility_validation_encoder =
+      get
+        (Command4.Render_encoder.create
+           ~label:"Metal 4 visibility offset validation encoder"
+           ~visibility_result_buffer:visibility_buffer commands
+           ~color_attachments:[ color_attachment visibility_target ])
+    in
+    let before_invalid_offsets = get (Release_queue.stats ()) in
+    List.iter
+      (fun offset ->
+        ignore
+          (expect_error Invalid_argument
+             (Command4.Render_encoder.set_visibility_result_mode
+                visibility_validation_encoder
+                Command4.Render_encoder.Visibility_counting ~offset)))
+      [ -8L; 4L; 40L; Int64.sub Int64.max_int 7L ];
+    get
+      (Command4.Render_encoder.set_visibility_result_mode
+         visibility_validation_encoder
+         Command4.Render_encoder.Visibility_disabled ~offset:32L);
+    assert_no_new_handles "visibility offset validation"
+      before_invalid_offsets;
+    ignore
+      (expect_error Parent_has_dependents
+         (Buffer.destroy visibility_buffer));
+    get (Command4.Render_encoder.end_encoding visibility_validation_encoder);
+    let draw encoder pipeline =
+      get (Command4.Render_encoder.set_pipeline encoder pipeline);
+      get
+        (Command4.Render_encoder.draw_primitives encoder
+           Command4.Render_encoder.Triangle ~vertex_start:0 ~vertex_count:3)
+    in
+    let color_store_encoder =
+      get
+        (Command4.Render_encoder.create
+           ~label:"Metal 4 dynamic color-store encoder" commands
+           ~color_attachments:
+             [ color_attachment
+                 ~store_action:Command4.Render_encoder.Store_deferred
+                 store_target
+             ])
+    in
+    get
+      (Command4.Render_encoder.set_color_store_action color_store_encoder
+         ~index:0 Command4.Render_encoder.Store);
+    draw color_store_encoder green_pipeline;
+    ignore
+      (expect_error Parent_has_dependents (Texture.destroy store_target));
+    get (Command4.Render_encoder.end_encoding color_store_encoder);
+    let visibility_encoder =
+      get
+        (Command4.Render_encoder.create
+           ~label:"Metal 4 reset visibility encoder"
+           ~visibility_result_buffer:visibility_buffer commands
+           ~color_attachments:[ color_attachment visibility_target ])
+    in
+    get (Command4.Render_encoder.set_pipeline visibility_encoder green_pipeline);
+    let before_visibility_modes = get (Release_queue.stats ()) in
+    let visibility_draw mode offset =
+      get
+        (Command4.Render_encoder.set_visibility_result_mode visibility_encoder
+           mode ~offset);
+      get
+        (Command4.Render_encoder.draw_primitives visibility_encoder
+           Command4.Render_encoder.Triangle ~vertex_start:0 ~vertex_count:3)
+    in
+    visibility_draw Command4.Render_encoder.Visibility_boolean 0L;
+    visibility_draw Command4.Render_encoder.Visibility_counting 8L;
+    visibility_draw Command4.Render_encoder.Visibility_counting 16L;
+    visibility_draw Command4.Render_encoder.Visibility_disabled 16L;
+    visibility_draw Command4.Render_encoder.Visibility_counting 24L;
+    assert_no_new_handles "visibility result modes" before_visibility_modes;
+    ignore
+      (expect_error Parent_has_dependents
+         (Buffer.destroy visibility_buffer));
+    get (Command4.Render_encoder.end_encoding visibility_encoder);
+    let accumulate_encoder =
+      get
+        (Command4.Render_encoder.create
+           ~label:"Metal 4 accumulated visibility encoder"
+           ~visibility_result_buffer:visibility_buffer
+           ~visibility_result_type:
+             Command4.Render_encoder.Visibility_accumulate
+           commands
+           ~color_attachments:
+             [ color_attachment ~load_action:Command4.Render_encoder.Load
+                 visibility_target
+             ])
+    in
+    get (Command4.Render_encoder.set_pipeline accumulate_encoder green_pipeline);
+    get
+      (Command4.Render_encoder.set_visibility_result_mode accumulate_encoder
+         Command4.Render_encoder.Visibility_counting ~offset:24L);
+    get
+      (Command4.Render_encoder.draw_primitives accumulate_encoder
+         Command4.Render_encoder.Triangle ~vertex_start:0 ~vertex_count:3);
+    get (Command4.Render_encoder.end_encoding accumulate_encoder);
+    let depth_seed_encoder =
+      get
+        (Command4.Render_encoder.create
+           ~label:"Metal 4 dynamic depth-store encoder"
+           ~depth_attachment:
+             (Command4.Render_encoder.depth_attachment ~clear_depth:1.
+                ~store_action:Command4.Render_encoder.Store_deferred
+                depth_target)
+           commands
+           ~color_attachments:[ color_attachment depth_seed_target ])
+    in
+    get
+      (Command4.Render_encoder.set_depth_store_action depth_seed_encoder
+         Command4.Render_encoder.Store);
+    get
+      (Command4.Render_encoder.set_depth_stencil_state depth_seed_encoder
+         (Some depth_state));
+    draw depth_seed_encoder red_pipeline;
+    ignore
+      (expect_error Parent_has_dependents (Texture.destroy depth_target));
+    get (Command4.Render_encoder.end_encoding depth_seed_encoder);
+    let depth_check_encoder =
+      get
+        (Command4.Render_encoder.create
+           ~label:"Metal 4 loaded depth-store encoder"
+           ~depth_attachment:
+             (Command4.Render_encoder.depth_attachment
+                ~load_action:Command4.Render_encoder.Depth_load
+                ~store_action:Command4.Render_encoder.Store_dont_care
+                depth_target)
+           commands
+           ~color_attachments:[ color_attachment depth_check_target ])
+    in
+    get
+      (Command4.Render_encoder.set_depth_stencil_state depth_check_encoder
+         (Some depth_state));
+    draw depth_check_encoder green_pipeline;
+    get (Command4.Render_encoder.end_encoding depth_check_encoder);
+    let stencil_seed_encoder =
+      get
+        (Command4.Render_encoder.create
+           ~label:"Metal 4 dynamic stencil-store encoder"
+           ~stencil_attachment:
+             (Command4.Render_encoder.stencil_attachment ~clear_stencil:0l
+                ~store_action:Command4.Render_encoder.Store_deferred
+                stencil_target)
+           commands
+           ~color_attachments:[ color_attachment stencil_seed_target ])
+    in
+    get
+      (Command4.Render_encoder.set_stencil_store_action stencil_seed_encoder
+         Command4.Render_encoder.Store);
+    get
+      (Command4.Render_encoder.set_depth_stencil_state stencil_seed_encoder
+         (Some stencil_write_state));
+    get
+      (Command4.Render_encoder.set_stencil_reference stencil_seed_encoder 7l);
+    draw stencil_seed_encoder red_pipeline;
+    ignore
+      (expect_error Parent_has_dependents (Texture.destroy stencil_target));
+    get (Command4.Render_encoder.end_encoding stencil_seed_encoder);
+    let stencil_check_encoder =
+      get
+        (Command4.Render_encoder.create
+           ~label:"Metal 4 loaded stencil-store encoder"
+           ~stencil_attachment:
+             (Command4.Render_encoder.stencil_attachment
+                ~load_action:Command4.Render_encoder.Stencil_load
+                ~store_action:Command4.Render_encoder.Store_dont_care
+                stencil_target)
+           commands
+           ~color_attachments:[ color_attachment stencil_check_target ])
+    in
+    get
+      (Command4.Render_encoder.set_depth_stencil_state stencil_check_encoder
+         (Some stencil_test_state));
+    get
+      (Command4.Render_encoder.set_stencil_reference stencil_check_encoder 7l);
+    draw stencil_check_encoder green_pipeline;
+    get (Command4.Render_encoder.end_encoding stencil_check_encoder);
+    ignore
+      (expect_error Parent_has_dependents
+         (Buffer.destroy visibility_buffer));
+    get (Command4.Command_buffer.end_recording commands);
+    let submission = get (Command4.Queue.commit queue [ commands ]) in
+    ignore
+      (expect_error Parent_has_dependents
+         (Buffer.destroy visibility_buffer));
+    get (Command4.Submission.wait submission);
+    let read_target target =
+      get
+        (Texture.read_bytes target
+           ~region:
+             { Texture.x = 0; y = 0; z = 0; width = 8; height = 8; depth = 1 }
+           ~mip_level:0 ~slice:0 ~bytes_per_row:32 ~bytes_per_image:256)
+    in
+    check_solid_bgra ~label:"Metal 4 dynamic color store" ~blue:0 ~green:255
+      ~red:0 ~alpha:255 (read_target store_target);
+    check_solid_bgra ~label:"Metal 4 visibility draws" ~blue:0 ~green:255
+      ~red:0 ~alpha:255 (read_target visibility_target);
+    check_solid_bgra ~label:"Metal 4 dynamic depth seed" ~blue:0 ~green:0
+      ~red:255 ~alpha:255 (read_target depth_seed_target);
+    check_solid_bgra ~label:"Metal 4 dynamically stored depth" ~blue:0
+      ~green:0 ~red:0 ~alpha:0 (read_target depth_check_target);
+    check_solid_bgra ~label:"Metal 4 dynamic stencil seed" ~blue:0 ~green:0
+      ~red:255 ~alpha:255 (read_target stencil_seed_target);
+    check_solid_bgra ~label:"Metal 4 dynamically stored stencil" ~blue:0
+      ~green:255 ~red:0 ~alpha:255 (read_target stencil_check_target);
+    let visibility_results =
+      get (Buffer.read_bytes visibility_buffer ~offset:0L ~length:32)
+    in
+    let boolean_result = Bytes.get_int64_le visibility_results 0 in
+    let counting_result = Bytes.get_int64_le visibility_results 8 in
+    let disabled_result = Bytes.get_int64_le visibility_results 16 in
+    let accumulated_result = Bytes.get_int64_le visibility_results 24 in
+    if boolean_result = 0L then
+      fail "Metal 4 Boolean visibility result remained zero";
+    if counting_result <> 64L then
+      fail "Metal 4 Counting visibility result was %Ld instead of 64"
+        counting_result;
+    if disabled_result <> 64L then
+      fail "Metal 4 Disabled visibility mode changed 64 to %Ld"
+        disabled_result;
+    if accumulated_result <> 128L then
+      fail "Metal 4 accumulated visibility result was %Ld instead of 128"
+        accumulated_result;
+    get (Buffer.destroy visibility_buffer);
+    List.iter
+      (fun pipeline -> get (Render_pipeline.destroy pipeline))
+      [ red_pipeline; green_pipeline ];
+    List.iter
+      (fun state -> get (Depth_stencil.destroy state))
+      [ depth_state; stencil_write_state; stencil_test_state ];
+    List.iter
+      (fun texture -> get (Texture.destroy texture))
+      [ store_target; visibility_target; depth_seed_target; depth_check_target
+      ; stencil_seed_target; stencil_check_target; depth_target; stencil_target
+      ];
+    get (Command4.Submission.destroy submission);
+    get (Command4.Command_buffer.destroy commands);
+    get (Command4.Allocator.reset allocator);
+    get (Command4.Queue.destroy queue);
+    get (Command4.Allocator.destroy allocator);
+    Printf.printf
+      "Metal 4 dynamic-store/visibility conformance passed (Boolean %Ld, Counting 64, Disabled 64, Accumulated 128)\n%!"
+      boolean_result;
+    true
+  end
+
 let test_metal4_render_linking_commands device =
   if not (get (Device.supports_family device Device.Metal4)) then false
   else begin
@@ -7973,6 +8533,7 @@ let () =
     ignore (test_metal4_render_descriptor_state_commands device);
     ignore (test_metal4_render_encoder_state_commands device);
     ignore (test_metal4_raster_state_commands device);
+    ignore (test_metal4_dynamic_store_visibility_commands device);
     ignore (test_metal4_render_linking_commands device);
     ignore (test_metal4_mesh_commands device);
     ignore (test_metal4_tile_commands device);
@@ -9783,6 +10344,6 @@ let () =
         stats.external_deallocations
         stats.external_deallocation_mismatches;
     Printf.printf
-      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/compiler-task/pipeline-dataset/binary-function/static-link/reflection/compute/render/mesh/object/tile/command4-argument-table/compute/render/indexed/instanced/indirect/depth/stencil/blend/vertex-layout/descriptor-state/alpha-to-one/vertex-amplification/color-remap/raster/viewport/scissor/render-link/mesh/tile conformance passed on %s\n%!"
+      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/compiler-task/pipeline-dataset/binary-function/static-link/reflection/compute/render/mesh/object/tile/command4-argument-table/compute/render/indexed/instanced/indirect/depth/stencil/blend/vertex-layout/descriptor-state/alpha-to-one/vertex-amplification/color-remap/raster/viewport/scissor/dynamic-store/visibility/render-link/mesh/tile conformance passed on %s\n%!"
       info.name
   end

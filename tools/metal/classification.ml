@@ -130,6 +130,8 @@ let bound_identifiers =
   ; "enum:MTLTriangleFillMode"
   ; "enum:MTLVertexFormat"
   ; "enum:MTLVertexStepFunction"
+  ; "enum:MTLVisibilityResultMode"
+  ; "enum:MTLVisibilityResultType"
   ; "enum:MTLWinding"
   ; "function:MTLCopyAllDevices"
   ; "function:MTLClearColorMake"
@@ -311,6 +313,8 @@ let bound_identifiers =
   ; "typedef:MTLVertexAmplificationViewMapping"
   ; "typedef:MTLVertexFormat"
   ; "typedef:MTLVertexStepFunction"
+  ; "typedef:MTLVisibilityResultMode"
+  ; "typedef:MTLVisibilityResultType"
   ; "typedef:MTLWinding"
   ; "typedef:MTLViewport"
   ; "typedef:MTLNewLibraryCompletionHandler"
@@ -380,16 +384,19 @@ let bound_identifiers =
           ; "setArgumentTable:atStages:"
           ; "setBlendColorRed:green:blue:alpha:"
           ; "setColorAttachmentMap:"
+          ; "setColorStoreAction:atIndex:"
           ; "setCullMode:"; "setDepthBias:slopeScale:clamp:"
           ; "setDepthClipMode:"; "setDepthTestMinBound:maxBound:"
-          ; "setDepthStencilState:"
+          ; "setDepthStencilState:"; "setDepthStoreAction:"
           ; "setFrontFacingWinding:"
           ; "setRenderPipelineState:"
           ; "setScissorRect:"; "setScissorRects:count:"
+          ; "setStencilStoreAction:"
           ; "setStencilFrontReferenceValue:backReferenceValue:"
           ; "setStencilReferenceValue:"
           ; "setTriangleFillMode:"
           ; "setVertexAmplificationCount:viewMappings:"
+          ; "setVisibilityResultMode:offset:"
           ; "setViewport:"; "setViewports:count:"; "tileHeight"; "tileWidth"
           ] )
       ; ( "MTL4RenderPassDescriptor"
@@ -397,7 +404,9 @@ let bound_identifiers =
           ; "renderTargetHeight"; "renderTargetWidth"
           ; "setDefaultRasterSampleCount:"; "setRenderTargetHeight:"
           ; "setRenderTargetWidth:"; "setSupportColorAttachmentMapping:"
+          ; "setVisibilityResultBuffer:"; "setVisibilityResultType:"
           ; "stencilAttachment"; "supportColorAttachmentMapping"
+          ; "visibilityResultBuffer"; "visibilityResultType"
           ] )
       ; ( "MTL4Compiler"
         , [ "device"; "label"
@@ -924,6 +933,7 @@ let bound_identifiers =
         , [ "colorAttachments"; "defaultRasterSampleCount"; "depthAttachment"
           ; "renderTargetHeight"; "renderTargetWidth"; "stencilAttachment"
           ; "supportColorAttachmentMapping"
+          ; "visibilityResultBuffer"; "visibilityResultType"
           ] )
       ; "MTLAllocation", [ "allocatedSize" ]
       ; "MTLBinaryArchive", [ "device"; "label" ]
@@ -1106,11 +1116,19 @@ let bound_identifiers =
       ; "MTLRenderStageVertex"
       ]
   @ enum_cases "MTLStoreAction"
-      [ "MTLStoreActionDontCare"; "MTLStoreActionStore" ]
+      [ "MTLStoreActionDontCare"; "MTLStoreActionStore"
+      ; "MTLStoreActionUnknown"
+      ]
   @ enum_cases "MTLTriangleFillMode"
       [ "MTLTriangleFillModeFill"; "MTLTriangleFillModeLines" ]
   @ enum_cases "MTLWinding"
       [ "MTLWindingClockwise"; "MTLWindingCounterClockwise" ]
+  @ enum_cases "MTLVisibilityResultMode"
+      [ "MTLVisibilityResultModeDisabled"; "MTLVisibilityResultModeBoolean"
+      ; "MTLVisibilityResultModeCounting"
+      ]
+  @ enum_cases "MTLVisibilityResultType"
+      [ "MTLVisibilityResultTypeReset"; "MTLVisibilityResultTypeAccumulate" ]
   @ enum_cases "MTLBindingAccess"
       [ "MTLArgumentAccessReadOnly"; "MTLArgumentAccessReadWrite"
       ; "MTLArgumentAccessWriteOnly"; "MTLBindingAccessReadOnly"

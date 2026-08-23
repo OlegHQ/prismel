@@ -2,11 +2,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 1822,
+    "bound": 1842,
     "scope-excluded": 7,
-    "unreviewed": 3456
+    "unreviewed": 3436
   },
-  "classification_source_sha256": "ea59189e574399933d45b6267c3c29a3a851669406028fe0d5f3d2c0da789a82",
+  "classification_source_sha256": "a22f008e18eedb0f76f4d4f14d9e4916f66c7407ea15d95a21ef91f32ff012ca",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "header_aggregate_sha256": "c2ee1e44c76606cf05fa81d1a8314dadfa49efe900342e8bcb3670363c16f0d1",
@@ -12621,14 +12621,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "enum-case:MTLStoreAction:MTLStoreActionUnknown",
       "kind": "enum-case",
       "line": 43,
       "name": "MTLStoreActionUnknown",
       "owner": "MTLStoreAction",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLStoreAction"
     },
     {
@@ -14137,64 +14137,64 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "enum-case:MTLVisibilityResultMode:MTLVisibilityResultModeBoolean",
       "kind": "enum-case",
       "line": 40,
       "name": "MTLVisibilityResultModeBoolean",
       "owner": "MTLVisibilityResultMode",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLVisibilityResultMode"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "enum-case:MTLVisibilityResultMode:MTLVisibilityResultModeCounting",
       "kind": "enum-case",
       "line": 41,
       "name": "MTLVisibilityResultModeCounting",
       "owner": "MTLVisibilityResultMode",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLVisibilityResultMode"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "enum-case:MTLVisibilityResultMode:MTLVisibilityResultModeDisabled",
       "kind": "enum-case",
       "line": 39,
       "name": "MTLVisibilityResultModeDisabled",
       "owner": "MTLVisibilityResultMode",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLVisibilityResultMode"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "enum-case:MTLVisibilityResultType:MTLVisibilityResultTypeAccumulate",
       "kind": "enum-case",
       "line": 63,
       "name": "MTLVisibilityResultTypeAccumulate",
       "owner": "MTLVisibilityResultType",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLVisibilityResultType"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "enum-case:MTLVisibilityResultType:MTLVisibilityResultTypeReset",
       "kind": "enum-case",
       "line": 60,
       "name": "MTLVisibilityResultTypeReset",
       "owner": "MTLVisibilityResultType",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLVisibilityResultType"
     },
     {
@@ -16089,14 +16089,14 @@
         "AvailabilityAttr",
         "EnumExtensibilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "enum:MTLVisibilityResultMode",
       "kind": "enum",
       "line": 38,
       "name": "MTLVisibilityResultMode",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -16104,14 +16104,14 @@
         "AvailabilityAttr",
         "EnumExtensibilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "enum:MTLVisibilityResultType",
       "kind": "enum",
       "line": 57,
       "name": "MTLVisibilityResultType",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -24696,14 +24696,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderCommandEncoder.h",
       "id": "method:-[MTL4RenderCommandEncoder setColorStoreAction:atIndex:]",
       "kind": "method",
       "line": 237,
       "name": "setColorStoreAction:atIndex:",
       "owner": "MTL4RenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLStoreAction, NSUInteger) -> void"
     },
     {
@@ -24756,14 +24756,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderCommandEncoder.h",
       "id": "method:-[MTL4RenderCommandEncoder setDepthStoreAction:]",
       "kind": "method",
       "line": 244,
       "name": "setDepthStoreAction:",
       "owner": "MTL4RenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLStoreAction) -> void"
     },
     {
@@ -24864,14 +24864,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderCommandEncoder.h",
       "id": "method:-[MTL4RenderCommandEncoder setStencilStoreAction:]",
       "kind": "method",
       "line": 250,
       "name": "setStencilStoreAction:",
       "owner": "MTL4RenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLStoreAction) -> void"
     },
     {
@@ -24936,14 +24936,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderCommandEncoder.h",
       "id": "method:-[MTL4RenderCommandEncoder setVisibilityResultMode:offset:]",
       "kind": "method",
       "line": 228,
       "name": "setVisibilityResultMode:offset:",
       "owner": "MTL4RenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLVisibilityResultMode, NSUInteger) -> void"
     },
     {
@@ -25248,26 +25248,26 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPass.h",
       "id": "method:-[MTL4RenderPassDescriptor setVisibilityResultBuffer:]",
       "kind": "method",
       "line": null,
       "name": "setVisibilityResultBuffer:",
       "owner": "MTL4RenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (id<MTLBuffer> _Nullable) -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPass.h",
       "id": "method:-[MTL4RenderPassDescriptor setVisibilityResultType:]",
       "kind": "method",
       "line": null,
       "name": "setVisibilityResultType:",
       "owner": "MTL4RenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLVisibilityResultType) -> void"
     },
     {
@@ -25332,26 +25332,26 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPass.h",
       "id": "method:-[MTL4RenderPassDescriptor visibilityResultBuffer]",
       "kind": "method",
       "line": 97,
       "name": "visibilityResultBuffer",
       "owner": "MTL4RenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> id<MTLBuffer> _Nullable"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPass.h",
       "id": "method:-[MTL4RenderPassDescriptor visibilityResultType]",
       "kind": "method",
       "line": 100,
       "name": "visibilityResultType",
       "owner": "MTL4RenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLVisibilityResultType"
     },
     {
@@ -52945,26 +52945,26 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPass.h",
       "id": "property:MTL4RenderPassDescriptor:visibilityResultBuffer",
       "kind": "property",
       "line": 97,
       "name": "visibilityResultBuffer",
       "owner": "MTL4RenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "id<MTLBuffer> _Nullable"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPass.h",
       "id": "property:MTL4RenderPassDescriptor:visibilityResultType",
       "kind": "property",
       "line": 100,
       "name": "visibilityResultType",
       "owner": "MTL4RenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLVisibilityResultType"
     },
     {
@@ -67632,26 +67632,26 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "typedef:MTLVisibilityResultMode",
       "kind": "typedef",
       "line": 38,
       "name": "MTLVisibilityResultMode",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "enum MTLVisibilityResultMode"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "typedef:MTLVisibilityResultType",
       "kind": "typedef",
       "line": 57,
       "name": "MTLVisibilityResultType",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "enum MTLVisibilityResultType"
     },
     {
