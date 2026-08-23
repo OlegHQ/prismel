@@ -915,6 +915,8 @@ enum class Handle_kind : std::uint32_t {
   Argument_table4,
   Compute_encoder4,
   Counter_heap4,
+  Acceleration_descriptor4,
+  Binary_functions_descriptor4,
   Depth_stencil,
   Indirect_command_buffer,
   Indirect_render_command,
@@ -14408,4 +14410,5 @@ extern "C" CAMLprim value caml_prismel_metal_pipeline_render_imageblock_length(v
 #include "../../tools/metal/metal4_compute_owner_generated.inc"
 #include "../../tools/metal/metal4_counter_command_callable_bridge.inc"
 #include "../../tools/metal/metal4_compute_callable_bridge.inc"
+#include "../../tools/metal/metal4_remaining_callable_bridge.inc"
 #pragma clang diagnostic pop
