@@ -68,6 +68,11 @@ let bound_identifiers =
   ; "class:MTLTextureViewDescriptor"
   ; "class:MTLTileRenderPipelineColorAttachmentDescriptor"
   ; "class:MTLTileRenderPipelineColorAttachmentDescriptorArray"
+  ; "class:MTLVertexAttributeDescriptor"
+  ; "class:MTLVertexAttributeDescriptorArray"
+  ; "class:MTLVertexBufferLayoutDescriptor"
+  ; "class:MTLVertexBufferLayoutDescriptorArray"
+  ; "class:MTLVertexDescriptor"
   ; "enum:MTL4BinaryFunctionOptions"
   ; "enum:MTL4BlendState"
   ; "enum:MTL4CompilerTaskStatus"
@@ -115,6 +120,8 @@ let bound_identifiers =
   ; "enum:MTLTextureSparseTier"
   ; "enum:MTLTextureSwizzle"
   ; "enum:MTLTextureUsage"
+  ; "enum:MTLVertexFormat"
+  ; "enum:MTLVertexStepFunction"
   ; "function:MTLCopyAllDevices"
   ; "function:MTLClearColorMake"
   ; "function:MTLCreateSystemDefaultDevice"
@@ -123,6 +130,7 @@ let bound_identifiers =
   ; "function:MTLSizeMake"
   ; "function:MTLTextureSwizzleChannelsMake"
   ; "method:+[MTLLinkedFunctions linkedFunctions]"
+  ; "method:+[MTLVertexDescriptor vertexDescriptor]"
   ; "record:MTLOrigin"
   ; "record:MTLClearColor"
   ; "record:MTL4UpdateSparseBufferMappingOperation"
@@ -276,11 +284,14 @@ let bound_identifiers =
   ; "typedef:MTLTextureSwizzle"
   ; "typedef:MTLTextureSwizzleChannels"
   ; "typedef:MTLTextureUsage"
+  ; "typedef:MTLVertexFormat"
+  ; "typedef:MTLVertexStepFunction"
   ; "typedef:MTLViewport"
   ; "typedef:MTLNewLibraryCompletionHandler"
   ; "typedef:MTLNewComputePipelineStateCompletionHandler"
   ; "typedef:MTLNewDynamicLibraryCompletionHandler"
   ; "typedef:MTLNewRenderPipelineStateCompletionHandler"
+  ; "variable:MTLBufferLayoutStrideDynamic"
   ; "variable:swizzle"
   ]
   @ methods
@@ -412,8 +423,9 @@ let bound_identifiers =
           ; "setInputPrimitiveTopology:"; "setRasterSampleCount:"
           ; "setRasterizationEnabled:"
           ; "setSupportIndirectCommandBuffers:"
-          ; "setVertexFunctionDescriptor:"
-          ; "supportIndirectCommandBuffers"; "vertexFunctionDescriptor"
+          ; "setVertexDescriptor:"; "setVertexFunctionDescriptor:"
+          ; "supportIndirectCommandBuffers"; "vertexDescriptor"
+          ; "vertexFunctionDescriptor"
           ] )
       ; ( "MTL4MeshRenderPipelineDescriptor"
         , [ "colorAttachments"; "fragmentFunctionDescriptor"
@@ -729,6 +741,23 @@ let bound_identifiers =
         , [ "objectAtIndexedSubscript:"
           ; "setObject:atIndexedSubscript:"
           ] )
+      ; ( "MTLVertexAttributeDescriptor"
+        , [ "bufferIndex"; "format"; "offset"; "setBufferIndex:"
+          ; "setFormat:"; "setOffset:"
+          ] )
+      ; ( "MTLVertexAttributeDescriptorArray"
+        , [ "objectAtIndexedSubscript:"
+          ; "setObject:atIndexedSubscript:"
+          ] )
+      ; ( "MTLVertexBufferLayoutDescriptor"
+        , [ "setStepFunction:"; "setStepRate:"; "setStride:"
+          ; "stepFunction"; "stepRate"; "stride"
+          ] )
+      ; ( "MTLVertexBufferLayoutDescriptorArray"
+        , [ "objectAtIndexedSubscript:"
+          ; "setObject:atIndexedSubscript:"
+          ] )
+      ; "MTLVertexDescriptor", [ "attributes"; "layouts"; "reset" ]
       ; ( "MTLCommandQueue"
         , [ "addResidencySet:"; "addResidencySets:count:"; "commandBuffer"
           ; "removeResidencySet:"; "removeResidencySets:count:"
@@ -761,7 +790,7 @@ let bound_identifiers =
         , [ "colorAttachments"; "fragmentFunctionDescriptor"
           ; "inputPrimitiveTopology"; "rasterSampleCount"
           ; "rasterizationEnabled"; "supportIndirectCommandBuffers"
-          ; "vertexFunctionDescriptor"
+          ; "vertexDescriptor"; "vertexFunctionDescriptor"
           ] )
       ; ( "MTL4MeshRenderPipelineDescriptor"
         , [ "colorAttachments"; "fragmentFunctionDescriptor"
@@ -932,6 +961,11 @@ let bound_identifiers =
           ; "textureType"
           ] )
       ; "MTLTileRenderPipelineColorAttachmentDescriptor", [ "pixelFormat" ]
+      ; ( "MTLVertexAttributeDescriptor"
+        , [ "bufferIndex"; "format"; "offset" ] )
+      ; ( "MTLVertexBufferLayoutDescriptor"
+        , [ "stepFunction"; "stepRate"; "stride" ] )
+      ; "MTLVertexDescriptor", [ "attributes"; "layouts" ]
       ; "MTLBuffer", [ "gpuAddress"; "length"; "sparseBufferTier" ]
       ]
   @ enum_cases "MTL4VisibilityOptions"
@@ -1086,6 +1120,45 @@ let bound_identifiers =
       [ "MTLColorWriteMaskNone"; "MTLColorWriteMaskRed"
       ; "MTLColorWriteMaskGreen"; "MTLColorWriteMaskBlue"
       ; "MTLColorWriteMaskAlpha"; "MTLColorWriteMaskAll"
+      ]
+  @ enum_cases "MTLVertexFormat"
+      [ "MTLVertexFormatUChar2"; "MTLVertexFormatUChar3"
+      ; "MTLVertexFormatUChar4"; "MTLVertexFormatChar2"
+      ; "MTLVertexFormatChar3"; "MTLVertexFormatChar4"
+      ; "MTLVertexFormatUChar2Normalized"
+      ; "MTLVertexFormatUChar3Normalized"
+      ; "MTLVertexFormatUChar4Normalized"
+      ; "MTLVertexFormatChar2Normalized"
+      ; "MTLVertexFormatChar3Normalized"
+      ; "MTLVertexFormatChar4Normalized"; "MTLVertexFormatUShort2"
+      ; "MTLVertexFormatUShort3"; "MTLVertexFormatUShort4"
+      ; "MTLVertexFormatShort2"; "MTLVertexFormatShort3"
+      ; "MTLVertexFormatShort4"; "MTLVertexFormatUShort2Normalized"
+      ; "MTLVertexFormatUShort3Normalized"
+      ; "MTLVertexFormatUShort4Normalized"
+      ; "MTLVertexFormatShort2Normalized"
+      ; "MTLVertexFormatShort3Normalized"
+      ; "MTLVertexFormatShort4Normalized"; "MTLVertexFormatHalf2"
+      ; "MTLVertexFormatHalf3"; "MTLVertexFormatHalf4"
+      ; "MTLVertexFormatFloat"; "MTLVertexFormatFloat2"
+      ; "MTLVertexFormatFloat3"; "MTLVertexFormatFloat4"
+      ; "MTLVertexFormatInt"; "MTLVertexFormatInt2"
+      ; "MTLVertexFormatInt3"; "MTLVertexFormatInt4"
+      ; "MTLVertexFormatUInt"; "MTLVertexFormatUInt2"
+      ; "MTLVertexFormatUInt3"; "MTLVertexFormatUInt4"
+      ; "MTLVertexFormatInt1010102Normalized"
+      ; "MTLVertexFormatUInt1010102Normalized"
+      ; "MTLVertexFormatUChar4Normalized_BGRA"; "MTLVertexFormatUChar"
+      ; "MTLVertexFormatChar"; "MTLVertexFormatUCharNormalized"
+      ; "MTLVertexFormatCharNormalized"; "MTLVertexFormatUShort"
+      ; "MTLVertexFormatShort"; "MTLVertexFormatUShortNormalized"
+      ; "MTLVertexFormatShortNormalized"; "MTLVertexFormatHalf"
+      ; "MTLVertexFormatFloatRG11B10"; "MTLVertexFormatFloatRGB9E5"
+      ]
+  @ enum_cases "MTLVertexStepFunction"
+      [ "MTLVertexStepFunctionConstant"; "MTLVertexStepFunctionPerVertex"
+      ; "MTLVertexStepFunctionPerInstance"; "MTLVertexStepFunctionPerPatch"
+      ; "MTLVertexStepFunctionPerPatchControlPoint"
       ]
   @ enum_cases "MTLStencilOperation"
       [ "MTLStencilOperationKeep"; "MTLStencilOperationZero"

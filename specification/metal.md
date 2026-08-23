@@ -653,6 +653,20 @@ one-minus-blend-color factors, suppresses green writes, and verifies every BGRA
 pixel is exactly `(64, 255, 64, 255)`. A blend-enabled mesh pipeline separately
 executes with the default one/zero equation.
 
+`Vertex_descriptor` represents all 53 concrete macOS vertex formats, constant/
+per-vertex/per-instance/per-patch step policies, and static or command-time
+dynamic strides as canonical immutable OCaml data. Construction rejects empty,
+duplicate, out-of-range, unmatched, unused, or static-stride-overrunning
+attribute/layout combinations. Conventional synchronous and asynchronous
+render-pipeline compilation copies an optional descriptor into Metal and reads
+every format, offset, buffer index, stride, step function, and step rate back
+before compilation proceeds. A draw using such a pipeline requires a vertex
+argument table with every layout buffer bound; dynamic layouts additionally
+require the table's checked dynamic stride. The M1 conformance path fetches
+interleaved `Float2` positions and normalized `Uchar4` colors, then verifies a
+static-stride direct draw as exact BGRA `(51, 34, 17, 255)` and a dynamic-stride
+indexed draw as exact BGRA `(47, 101, 203, 255)` across separate 8×8 targets.
+
 `Command4.Compute_encoder` binds a checked compute pipeline and an optional
 argument table, then dispatches positive direct grid/threadgroup dimensions
 whose threadgroup cardinality fits the compiled pipeline limit. Each dispatch
@@ -690,8 +704,7 @@ The M1 conformance path compiles an exact 32×32 full-tile pipeline, clears its
 argument-table slot immediately after dispatch, and verifies the retained shared
 buffer contains the tile shader's exact value `23` after commit feedback.
 
-Vertex descriptors, dynamic render linking, and positive offline `.metallib`
-provenance remain open.
+Dynamic render linking and positive offline `.metallib` provenance remain open.
 
 `test_metal.exe` runs a real M1 compute kernel, wrong-domain and invalid-state
 cases, full labeled shader diagnostics, function-constant introspection and
@@ -721,6 +734,7 @@ direct/indexed indirect execution from checked packed OCaml buffers,
 immutable depth compare/write state and a pixel-exact depth-ordered target,
 front/back stencil policy and a pixel-exact reference-rejected target,
 typed render/mesh blend policy and a pixel-exact constant-blended target,
+typed static/dynamic vertex layouts with exact direct/indexed targets,
 argument-table-backed Metal 4 compute execution, direct and object-stage mesh
 command execution with two pixel-exact offscreen targets, and exact full-tile
 command execution through a completion-retained output buffer,

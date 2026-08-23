@@ -32,6 +32,318 @@ let validate_absolute_path operation path =
     error operation Invalid_argument "path must be absolute"
   else Ok ()
 
+module Vertex_descriptor = struct
+  type format =
+    | Uchar2
+    | Uchar3
+    | Uchar4
+    | Char2
+    | Char3
+    | Char4
+    | Uchar2_normalized
+    | Uchar3_normalized
+    | Uchar4_normalized
+    | Char2_normalized
+    | Char3_normalized
+    | Char4_normalized
+    | Ushort2
+    | Ushort3
+    | Ushort4
+    | Short2
+    | Short3
+    | Short4
+    | Ushort2_normalized
+    | Ushort3_normalized
+    | Ushort4_normalized
+    | Short2_normalized
+    | Short3_normalized
+    | Short4_normalized
+    | Half2
+    | Half3
+    | Half4
+    | Float
+    | Float2
+    | Float3
+    | Float4
+    | Int
+    | Int2
+    | Int3
+    | Int4
+    | Uint
+    | Uint2
+    | Uint3
+    | Uint4
+    | Int1010102_normalized
+    | Uint1010102_normalized
+    | Uchar4_normalized_bgra
+    | Uchar
+    | Char
+    | Uchar_normalized
+    | Char_normalized
+    | Ushort
+    | Short
+    | Ushort_normalized
+    | Short_normalized
+    | Half
+    | Float_rg11b10
+    | Float_rgb9e5
+
+  type step_function =
+    | Constant
+    | Per_vertex
+    | Per_instance
+    | Per_patch
+    | Per_patch_control_point
+
+  type stride =
+    | Static of int
+    | Dynamic
+
+  type attribute =
+    { index : int
+    ; format : format
+    ; offset : int
+    ; buffer_index : int
+    }
+
+  type layout =
+    { buffer_index : int
+    ; stride : stride
+    ; step_function : step_function
+    ; step_rate : int
+    }
+
+  type t =
+    { attributes : attribute list
+    ; layouts : layout list
+    }
+
+  let attribute ~index ~format ~offset ~buffer_index =
+    { index; format; offset; buffer_index }
+
+  let layout ?(step_function = Per_vertex) ?(step_rate = 1) ~buffer_index
+      ~stride () =
+    { buffer_index; stride; step_function; step_rate }
+
+  let format_code = function
+    | Uchar2 -> 1
+    | Uchar3 -> 2
+    | Uchar4 -> 3
+    | Char2 -> 4
+    | Char3 -> 5
+    | Char4 -> 6
+    | Uchar2_normalized -> 7
+    | Uchar3_normalized -> 8
+    | Uchar4_normalized -> 9
+    | Char2_normalized -> 10
+    | Char3_normalized -> 11
+    | Char4_normalized -> 12
+    | Ushort2 -> 13
+    | Ushort3 -> 14
+    | Ushort4 -> 15
+    | Short2 -> 16
+    | Short3 -> 17
+    | Short4 -> 18
+    | Ushort2_normalized -> 19
+    | Ushort3_normalized -> 20
+    | Ushort4_normalized -> 21
+    | Short2_normalized -> 22
+    | Short3_normalized -> 23
+    | Short4_normalized -> 24
+    | Half2 -> 25
+    | Half3 -> 26
+    | Half4 -> 27
+    | Float -> 28
+    | Float2 -> 29
+    | Float3 -> 30
+    | Float4 -> 31
+    | Int -> 32
+    | Int2 -> 33
+    | Int3 -> 34
+    | Int4 -> 35
+    | Uint -> 36
+    | Uint2 -> 37
+    | Uint3 -> 38
+    | Uint4 -> 39
+    | Int1010102_normalized -> 40
+    | Uint1010102_normalized -> 41
+    | Uchar4_normalized_bgra -> 42
+    | Uchar -> 45
+    | Char -> 46
+    | Uchar_normalized -> 47
+    | Char_normalized -> 48
+    | Ushort -> 49
+    | Short -> 50
+    | Ushort_normalized -> 51
+    | Short_normalized -> 52
+    | Half -> 53
+    | Float_rg11b10 -> 54
+    | Float_rgb9e5 -> 55
+
+  let format_size = function
+    | Uchar | Char | Uchar_normalized | Char_normalized -> 1
+    | Uchar2 | Char2 | Uchar2_normalized | Char2_normalized | Ushort | Short
+    | Ushort_normalized | Short_normalized | Half -> 2
+    | Uchar3 | Char3 | Uchar3_normalized | Char3_normalized -> 3
+    | Uchar4 | Char4 | Uchar4_normalized | Char4_normalized | Ushort2
+    | Short2 | Ushort2_normalized | Short2_normalized | Half2 | Float | Int
+    | Uint | Int1010102_normalized | Uint1010102_normalized
+    | Uchar4_normalized_bgra | Float_rg11b10 | Float_rgb9e5 -> 4
+    | Ushort3 | Short3 | Ushort3_normalized | Short3_normalized | Half3 -> 6
+    | Ushort4 | Short4 | Ushort4_normalized | Short4_normalized | Half4
+    | Float2 | Int2 | Uint2 -> 8
+    | Float3 | Int3 | Uint3 -> 12
+    | Float4 | Int4 | Uint4 -> 16
+
+  let step_function_code = function
+    | Constant -> 0
+    | Per_vertex -> 1
+    | Per_instance -> 2
+    | Per_patch -> 3
+    | Per_patch_control_point -> 4
+
+  let unique values =
+    let rec loop = function
+      | left :: right :: _ when left = right -> false
+      | _ :: rest -> loop rest
+      | [] -> true
+    in
+    loop (List.sort Int.compare values)
+
+  let create ~attributes ~layouts =
+    let operation = "Metal.Vertex_descriptor.create" in
+    let ( let* ) result callback = Result.bind result callback in
+    let invalid message = error operation Invalid_argument message in
+    let attribute_count = List.length attributes
+    and layout_count = List.length layouts in
+    let* () =
+      if attribute_count = 0 || attribute_count > 31 then
+        invalid "a vertex descriptor requires one to 31 attributes"
+      else if layout_count = 0 || layout_count > 31 then
+        invalid "a vertex descriptor requires one to 31 buffer layouts"
+      else Ok ()
+    in
+    let* () =
+      if
+        List.exists
+          (fun (attribute : attribute) ->
+            attribute.index < 0 || attribute.index >= 31
+            || attribute.buffer_index < 0 || attribute.buffer_index >= 31
+            || attribute.offset < 0
+            || attribute.offset > max_int - format_size attribute.format)
+          attributes
+      then invalid "vertex attribute index, buffer index, or offset is invalid"
+      else if
+        not
+          (unique
+             (List.map (fun (value : attribute) -> value.index) attributes))
+      then
+        invalid "vertex attribute indices must be unique"
+      else Ok ()
+    in
+    let* () =
+      if
+        List.exists
+          (fun (layout : layout) ->
+            layout.buffer_index < 0 || layout.buffer_index >= 31
+            || layout.step_rate <= 0
+            ||
+            match layout.stride with
+            | Static stride ->
+                stride < 0
+                || (stride = 0 && layout.step_function <> Constant)
+            | Dynamic -> false)
+          layouts
+      then invalid "vertex buffer layout index, stride, or step rate is invalid"
+      else if
+        not
+          (unique
+             (List.map (fun (value : layout) -> value.buffer_index) layouts))
+      then invalid "vertex buffer layout indices must be unique"
+      else Ok ()
+    in
+    let layout_for index =
+      List.find_opt
+        (fun (layout : layout) -> layout.buffer_index = index)
+        layouts
+    in
+    let* () =
+      if
+        List.exists
+          (fun (attribute : attribute) ->
+            Option.is_none (layout_for attribute.buffer_index))
+          attributes
+      then invalid "every vertex attribute requires a matching buffer layout"
+      else if
+        List.exists
+          (fun (layout : layout) ->
+            not
+              (List.exists
+                 (fun (attribute : attribute) ->
+                   attribute.buffer_index = layout.buffer_index)
+                 attributes))
+          layouts
+      then invalid "every vertex buffer layout must be used by an attribute"
+      else Ok ()
+    in
+    let* () =
+      let exceeds_static_stride (layout : layout) =
+        match layout.stride with
+        | Dynamic | Static 0 -> false
+        | Static stride ->
+            List.exists
+              (fun (attribute : attribute) ->
+                attribute.buffer_index = layout.buffer_index
+                && attribute.offset + format_size attribute.format > stride)
+              attributes
+      in
+      if List.exists exceeds_static_stride layouts then
+        invalid "a vertex attribute exceeds its static buffer stride"
+      else Ok ()
+    in
+    Ok
+      { attributes =
+          List.sort
+            (fun (left : attribute) (right : attribute) ->
+              Int.compare left.index right.index)
+            attributes
+      ; layouts =
+          List.sort
+            (fun (left : layout) (right : layout) ->
+              Int.compare left.buffer_index right.buffer_index)
+            layouts
+      }
+
+  let attributes value = value.attributes
+  let layouts value = value.layouts
+
+  let raw_attribute (value : attribute) =
+    ({ Metal_raw.attribute_index = value.index
+     ; vertex_format = format_code value.format
+     ; offset = Int64.of_int value.offset
+     ; buffer_index = value.buffer_index
+     }
+      : Metal_raw.metal4_vertex_attribute_descriptor)
+
+  let raw_layout (value : layout) =
+    ({ Metal_raw.buffer_index = value.buffer_index
+     ; stride =
+         (match value.stride with
+          | Static stride -> Some (Int64.of_int stride)
+          | Dynamic -> None)
+     ; step_function = step_function_code value.step_function
+     ; step_rate = Int64.of_int value.step_rate
+     }
+      : Metal_raw.metal4_vertex_layout_descriptor)
+
+  let raw value =
+    ({ Metal_raw.attributes =
+         Array.of_list (List.map raw_attribute value.attributes)
+     ; layouts = Array.of_list (List.map raw_layout value.layouts)
+     }
+      : Metal_raw.metal4_vertex_descriptor)
+end
+
 module Provenance = struct
   let sdk_version = Generated_provenance.sdk_version
   let deployment_target = Generated_provenance.deployment_target
@@ -794,6 +1106,7 @@ type render_pipeline =
   ; raster_sample_count : int
   ; color_formats : pixel_format list
   ; color_attachments : render_color_attachment list
+  ; vertex_descriptor : Vertex_descriptor.t option
   ; reflection : render_pipeline_reflection option
   ; mesh_constraints : mesh_pipeline_constraints option
   ; tile_constraints : tile_pipeline_constraints option
@@ -842,6 +1155,7 @@ type command4_argument_table =
   ; initialize_bindings : bool
   ; support_attribute_strides : bool
   ; buffers : buffer option array
+  ; buffer_strides : int option array
   ; textures : texture option array
   ; samplers : sampler option array
   }
@@ -7446,8 +7760,9 @@ module Render_pipeline = struct
 
   let topology_code = function Point -> 1 | Line -> 2 | Triangle -> 3
 
-  let make ?mesh_constraints ?tile_constraints ?color_attachments device ~kind
-      ~raster_sample_count ~color_formats ~reflection raw
+  let make ?mesh_constraints ?tile_constraints ?color_attachments
+      ?vertex_descriptor device ~kind ~raster_sample_count ~color_formats
+      ~reflection raw
       (raw_reflection : Metal_raw.render_pipeline_reflection) =
     let map values = Array.map Binding.of_raw values in
     let reflection =
@@ -7471,6 +7786,7 @@ module Render_pipeline = struct
       ; color_attachments =
           Option.value color_attachments
             ~default:(List.map color_attachment color_formats)
+      ; vertex_descriptor
       ; reflection
       ; mesh_constraints
       ; tile_constraints
@@ -7487,6 +7803,7 @@ module Render_pipeline = struct
   let raster_sample_count (value : t) = value.raster_sample_count
   let color_formats (value : t) = value.color_formats
   let color_attachments (value : t) = value.color_attachments
+  let vertex_descriptor (value : t) = value.vertex_descriptor
 
   let reflection (value : t) =
     Option.map
@@ -8509,7 +8826,7 @@ module Compiler = struct
 
   let with_render_descriptor operation callback ?label ?fragment
       ?(reflection = false) ?(raster_sample_count = 1)
-      ?color_formats ?color_attachments
+      ?color_formats ?color_attachments ?vertex_descriptor
       ?(rasterization_enabled = true)
       ?(primitive_topology = Render_pipeline.Triangle)
       ?(support_indirect_command_buffers = false) ?(lookup_archives = [])
@@ -8557,44 +8874,48 @@ module Compiler = struct
                 (List.map
                    (fun (archive : Pipeline_archive.t) -> archive.raw)
                    lookup_archives)
+          ; vertex_descriptor = Option.map Vertex_descriptor.raw vertex_descriptor
           }
         in
-        callback reflection color_attachments color_formats descriptor)
+        callback reflection vertex_descriptor color_attachments color_formats
+          descriptor)
 
   let create_render_pipeline ?label ?fragment ?(reflection = false)
       ?(raster_sample_count = 1)
-      ?color_formats ?color_attachments
+      ?color_formats ?color_attachments ?vertex_descriptor
       ?(rasterization_enabled = true)
       ?(primitive_topology = Render_pipeline.Triangle)
       ?(support_indirect_command_buffers = false) ?(lookup_archives = [])
       (value : t) ~(library : Library.t) ~vertex =
     let operation = "Metal.Compiler.create_render_pipeline" in
     with_render_descriptor operation
-      (fun reflection color_attachments color_formats descriptor ->
+      (fun reflection vertex_descriptor color_attachments color_formats
+           descriptor ->
         match Metal_raw.compiler_create_render_pipeline value.raw descriptor with
         | Error message -> native_error operation message
         | Ok (raw, raw_reflection) ->
             Ok
               (Render_pipeline.make value.device
                  ~kind:Render_pipeline.Render ~raster_sample_count
-                 ~color_formats ~color_attachments ~reflection raw
-                 raw_reflection))
+                 ~color_formats ~color_attachments ?vertex_descriptor
+                 ~reflection raw raw_reflection))
       ?label ?fragment ~reflection ~raster_sample_count ?color_formats
-      ?color_attachments
+      ?color_attachments ?vertex_descriptor
       ~rasterization_enabled ~primitive_topology
       ~support_indirect_command_buffers ~lookup_archives value ~library
       ~vertex
 
   let create_render_pipeline_async ?label ?fragment ?(reflection = false)
       ?(raster_sample_count = 1)
-      ?color_formats ?color_attachments
+      ?color_formats ?color_attachments ?vertex_descriptor
       ?(rasterization_enabled = true)
       ?(primitive_topology = Render_pipeline.Triangle)
       ?(support_indirect_command_buffers = false) ?(lookup_archives = [])
       (value : t) ~(library : Library.t) ~vertex =
     let operation = "Metal.Compiler.create_render_pipeline_async" in
     with_render_descriptor operation
-      (fun reflection color_attachments color_formats descriptor ->
+      (fun reflection vertex_descriptor color_attachments color_formats
+           descriptor ->
         match
           Metal_raw.compiler_create_render_pipeline_async value.raw descriptor
         with
@@ -8606,11 +8927,11 @@ module Compiler = struct
                  (fun (raw, raw_reflection) ->
                    Render_pipeline.make value.device
                      ~kind:Render_pipeline.Render ~raster_sample_count
-                     ~color_formats ~color_attachments ~reflection raw
-                     raw_reflection)
+                     ~color_formats ~color_attachments ?vertex_descriptor
+                     ~reflection raw raw_reflection)
                  raw))
       ?label ?fragment ~reflection ~raster_sample_count ?color_formats
-      ?color_attachments
+      ?color_attachments ?vertex_descriptor
       ~rasterization_enabled ~primitive_topology
       ~support_indirect_command_buffers ~lookup_archives value ~library
       ~vertex
@@ -9178,6 +9499,7 @@ module Command4 = struct
                  | Error message -> native_error operation message
                  | Ok raw ->
                      let buffers = Array.make max_buffers None
+                     and buffer_strides = Array.make max_buffers None
                      and textures = Array.make max_textures None
                      and samplers = Array.make max_samplers None in
                      let value : t =
@@ -9190,6 +9512,7 @@ module Command4 = struct
                        ; initialize_bindings
                        ; support_attribute_strides
                        ; buffers
+                       ; buffer_strides
                        ; textures
                        ; samplers
                        }
@@ -9265,6 +9588,7 @@ module Command4 = struct
                                replace_argument_binding
                                  (fun (candidate : buffer) -> candidate.lifetime)
                                  value.buffers index (Some buffer);
+                               value.buffer_strides.(index) <- attribute_stride;
                                Ok ()))))
 
     let clear_buffer (value : t) ~index =
@@ -9285,6 +9609,7 @@ module Command4 = struct
                      replace_argument_binding
                        (fun (candidate : buffer) -> candidate.lifetime)
                        value.buffers index None;
+                     value.buffer_strides.(index) <- None;
                      Ok ()))
 
     let set_texture (value : t) ~index (texture : Texture.t) =
@@ -10510,14 +10835,51 @@ module Command4 = struct
       else Ok ()
 
     let prepare_argument_tables operation (value : t) =
+      let validate_vertex_bindings () =
+        match value.pipeline with
+        | None -> Ok ()
+        | Some { vertex_descriptor = None; _ } -> Ok ()
+        | Some { vertex_descriptor = Some descriptor; _ } ->
+            (match value.argument_tables.(stage_index Vertex) with
+             | None ->
+                 error operation Invalid_state
+                   "a vertex descriptor requires a vertex argument table"
+             | Some table ->
+                 let rec loop = function
+                   | [] -> Ok ()
+                   | (layout : Vertex_descriptor.layout) :: rest ->
+                       if layout.buffer_index >= table.max_buffers then
+                         error operation Invalid_state
+                           "a vertex layout exceeds the argument-table capacity"
+                       else if Option.is_none table.buffers.(layout.buffer_index)
+                       then
+                         error operation Invalid_state
+                           "a vertex layout has no bound buffer"
+                       else
+                         (match
+                            layout.stride,
+                            table.buffer_strides.(layout.buffer_index)
+                          with
+                          | Vertex_descriptor.Dynamic, Some _ -> loop rest
+                          | Dynamic, None ->
+                              error operation Invalid_state
+                                "a dynamic vertex layout has no bound stride"
+                          | Static _, None -> loop rest
+                          | Static _, Some _ ->
+                              error operation Invalid_state
+                                "a static vertex layout received a dynamic stride")
+                 in
+                 loop (Vertex_descriptor.layouts descriptor))
+      in
+      let ( let* ) result callback = Result.bind result callback in
+      let* () = validate_vertex_bindings () in
       let tables = current_argument_tables value in
-      Result.map
-        (fun () ->
-          Array.of_list
-            (List.map
-               (fun (table : command4_argument_table) -> table.raw)
-               tables))
-        (retain_argument_tables operation value tables)
+      let* () = retain_argument_tables operation value tables in
+      Ok
+        (Array.of_list
+           (List.map
+              (fun (table : command4_argument_table) -> table.raw)
+              tables))
 
     let validate_index_range operation index_type (index_buffer : Buffer.t)
         ~index_offset ~index_count =

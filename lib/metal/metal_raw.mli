@@ -118,6 +118,25 @@ type metal4_render_color_attachment_descriptor =
   ; write_mask : int
   }
 
+type metal4_vertex_attribute_descriptor =
+  { attribute_index : int
+  ; vertex_format : int
+  ; offset : int64
+  ; buffer_index : int
+  }
+
+type metal4_vertex_layout_descriptor =
+  { buffer_index : int
+  ; stride : int64 option
+  ; step_function : int
+  ; step_rate : int64
+  }
+
+type metal4_vertex_descriptor =
+  { attributes : metal4_vertex_attribute_descriptor array
+  ; layouts : metal4_vertex_layout_descriptor array
+  }
+
 type metal4_render_descriptor =
   { label : string option
   ; library : handle
@@ -130,6 +149,7 @@ type metal4_render_descriptor =
   ; primitive_topology : int
   ; support_indirect_commands : bool
   ; lookup_archives : handle array
+  ; vertex_descriptor : metal4_vertex_descriptor option
   }
 
 type metal4_mesh_descriptor =

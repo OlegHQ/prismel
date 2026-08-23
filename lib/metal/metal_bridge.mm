@@ -7357,6 +7357,218 @@ bool checked_stored_render_function(
 }
 
 API_AVAILABLE(macos(26.0))
+NSUInteger checked_vertex_format_size(intnat format) {
+  switch (format) {
+  case MTLVertexFormatUChar:
+  case MTLVertexFormatChar:
+  case MTLVertexFormatUCharNormalized:
+  case MTLVertexFormatCharNormalized:
+    return 1;
+  case MTLVertexFormatUChar2:
+  case MTLVertexFormatChar2:
+  case MTLVertexFormatUChar2Normalized:
+  case MTLVertexFormatChar2Normalized:
+  case MTLVertexFormatUShort:
+  case MTLVertexFormatShort:
+  case MTLVertexFormatUShortNormalized:
+  case MTLVertexFormatShortNormalized:
+  case MTLVertexFormatHalf:
+    return 2;
+  case MTLVertexFormatUChar3:
+  case MTLVertexFormatChar3:
+  case MTLVertexFormatUChar3Normalized:
+  case MTLVertexFormatChar3Normalized:
+    return 3;
+  case MTLVertexFormatUChar4:
+  case MTLVertexFormatChar4:
+  case MTLVertexFormatUChar4Normalized:
+  case MTLVertexFormatChar4Normalized:
+  case MTLVertexFormatUShort2:
+  case MTLVertexFormatShort2:
+  case MTLVertexFormatUShort2Normalized:
+  case MTLVertexFormatShort2Normalized:
+  case MTLVertexFormatHalf2:
+  case MTLVertexFormatFloat:
+  case MTLVertexFormatInt:
+  case MTLVertexFormatUInt:
+  case MTLVertexFormatInt1010102Normalized:
+  case MTLVertexFormatUInt1010102Normalized:
+  case MTLVertexFormatUChar4Normalized_BGRA:
+  case MTLVertexFormatFloatRG11B10:
+  case MTLVertexFormatFloatRGB9E5:
+    return 4;
+  case MTLVertexFormatUShort3:
+  case MTLVertexFormatShort3:
+  case MTLVertexFormatUShort3Normalized:
+  case MTLVertexFormatShort3Normalized:
+  case MTLVertexFormatHalf3:
+    return 6;
+  case MTLVertexFormatUShort4:
+  case MTLVertexFormatShort4:
+  case MTLVertexFormatUShort4Normalized:
+  case MTLVertexFormatShort4Normalized:
+  case MTLVertexFormatHalf4:
+  case MTLVertexFormatFloat2:
+  case MTLVertexFormatInt2:
+  case MTLVertexFormatUInt2:
+    return 8;
+  case MTLVertexFormatFloat3:
+  case MTLVertexFormatInt3:
+  case MTLVertexFormatUInt3:
+    return 12;
+  case MTLVertexFormatFloat4:
+  case MTLVertexFormatInt4:
+  case MTLVertexFormatUInt4:
+    return 16;
+  default:
+    return 0;
+  }
+}
+
+API_AVAILABLE(macos(26.0))
+bool configure_render_vertex_descriptor(
+    MTL4RenderPipelineDescriptor *pipeline, value raw_vertex_descriptor,
+    NSString *__autoreleasing *failure) {
+  if (!Is_block(raw_vertex_descriptor)) {
+    return true;
+  }
+  value raw_descriptor = Field(raw_vertex_descriptor, 0);
+  value raw_attributes = Field(raw_descriptor, 0);
+  value raw_layouts = Field(raw_descriptor, 1);
+  const mlsize_t attribute_count = Wosize_val(raw_attributes);
+  const mlsize_t layout_count = Wosize_val(raw_layouts);
+  if (attribute_count == 0 || attribute_count > 31 || layout_count == 0 ||
+      layout_count > 31) {
+    *failure = @"Metal 4 vertex descriptor cardinality is invalid";
+    return false;
+  }
+  std::array<bool, 31> attribute_present{};
+  std::array<bool, 31> layout_present{};
+  std::array<bool, 31> layout_used{};
+  std::array<bool, 31> layout_dynamic{};
+  std::array<NSUInteger, 31> layout_strides{};
+  MTLVertexDescriptor *descriptor = [MTLVertexDescriptor vertexDescriptor];
+  [descriptor reset];
+  for (mlsize_t index = 0; index < layout_count; ++index) {
+    value raw_layout = Field(raw_layouts, index);
+    const intnat buffer_index = Long_val(Field(raw_layout, 0));
+    value raw_stride = Field(raw_layout, 1);
+    const intnat step_function = Long_val(Field(raw_layout, 2));
+    NSUInteger step_rate = 0;
+    if (buffer_index < 0 || buffer_index >= 31 ||
+        layout_present[static_cast<std::size_t>(buffer_index)] ||
+        step_function < 0 || step_function > 4 ||
+        !nsuinteger_from_ocaml_int64(Field(raw_layout, 3), &step_rate) ||
+        step_rate == 0) {
+      *failure = @"Metal 4 vertex buffer layout is invalid";
+      return false;
+    }
+    NSUInteger stride = MTLBufferLayoutStrideDynamic;
+    const bool dynamic = !Is_block(raw_stride);
+    if (!dynamic &&
+        (!nsuinteger_from_ocaml_int64(Field(raw_stride, 0), &stride) ||
+         (stride == 0 &&
+          step_function !=
+              static_cast<intnat>(MTLVertexStepFunctionConstant)))) {
+      *failure = @"Metal 4 vertex buffer stride is invalid";
+      return false;
+    }
+    MTLVertexBufferLayoutDescriptor *layout =
+        [[MTLVertexBufferLayoutDescriptor alloc] init];
+    layout.stride = stride;
+    layout.stepFunction = static_cast<MTLVertexStepFunction>(step_function);
+    layout.stepRate = step_rate;
+    [descriptor.layouts setObject:layout
+                 atIndexedSubscript:static_cast<NSUInteger>(buffer_index)];
+    const std::size_t slot = static_cast<std::size_t>(buffer_index);
+    layout_present[slot] = true;
+    layout_dynamic[slot] = dynamic;
+    layout_strides[slot] = stride;
+  }
+  for (mlsize_t index = 0; index < attribute_count; ++index) {
+    value raw_attribute = Field(raw_attributes, index);
+    const intnat attribute_index = Long_val(Field(raw_attribute, 0));
+    const intnat format = Long_val(Field(raw_attribute, 1));
+    NSUInteger offset = 0;
+    const intnat buffer_index = Long_val(Field(raw_attribute, 3));
+    const NSUInteger format_size = checked_vertex_format_size(format);
+    if (attribute_index < 0 || attribute_index >= 31 ||
+        attribute_present[static_cast<std::size_t>(attribute_index)] ||
+        buffer_index < 0 || buffer_index >= 31 ||
+        !layout_present[static_cast<std::size_t>(buffer_index)] ||
+        format_size == 0 ||
+        !nsuinteger_from_ocaml_int64(Field(raw_attribute, 2), &offset) ||
+        offset > std::numeric_limits<NSUInteger>::max() - format_size) {
+      *failure = @"Metal 4 vertex attribute is invalid";
+      return false;
+    }
+    const std::size_t layout_slot = static_cast<std::size_t>(buffer_index);
+    if (!layout_dynamic[layout_slot] && layout_strides[layout_slot] != 0 &&
+        offset + format_size > layout_strides[layout_slot]) {
+      *failure = @"Metal 4 vertex attribute exceeds its static stride";
+      return false;
+    }
+    MTLVertexAttributeDescriptor *attribute =
+        [[MTLVertexAttributeDescriptor alloc] init];
+    attribute.format = static_cast<MTLVertexFormat>(format);
+    attribute.offset = offset;
+    attribute.bufferIndex = static_cast<NSUInteger>(buffer_index);
+    [descriptor.attributes setObject:attribute
+                    atIndexedSubscript:static_cast<NSUInteger>(attribute_index)];
+    attribute_present[static_cast<std::size_t>(attribute_index)] = true;
+    layout_used[layout_slot] = true;
+  }
+  for (std::size_t index = 0; index < layout_present.size(); ++index) {
+    if (layout_present[index] && !layout_used[index]) {
+      *failure = @"Metal 4 vertex buffer layout has no attribute";
+      return false;
+    }
+  }
+  pipeline.vertexDescriptor = descriptor;
+  const MTLVertexDescriptor *stored = pipeline.vertexDescriptor;
+  if (stored == nil) {
+    *failure = @"Metal discarded the checked render vertex descriptor";
+    return false;
+  }
+  for (mlsize_t index = 0; index < layout_count; ++index) {
+    value raw_layout = Field(raw_layouts, index);
+    const NSUInteger buffer_index =
+        static_cast<NSUInteger>(Long_val(Field(raw_layout, 0)));
+    value raw_stride = Field(raw_layout, 1);
+    const NSUInteger expected_stride = Is_block(raw_stride)
+        ? static_cast<NSUInteger>(Int64_val(Field(raw_stride, 0)))
+        : MTLBufferLayoutStrideDynamic;
+    const MTLVertexBufferLayoutDescriptor *layout =
+        [stored.layouts objectAtIndexedSubscript:buffer_index];
+    if (layout.stride != expected_stride ||
+        layout.stepFunction != static_cast<MTLVertexStepFunction>(
+                                   Long_val(Field(raw_layout, 2))) ||
+        layout.stepRate !=
+            static_cast<NSUInteger>(Int64_val(Field(raw_layout, 3)))) {
+      *failure = @"Metal changed checked render vertex buffer properties";
+      return false;
+    }
+  }
+  for (mlsize_t index = 0; index < attribute_count; ++index) {
+    value raw_attribute = Field(raw_attributes, index);
+    const NSUInteger attribute_index =
+        static_cast<NSUInteger>(Long_val(Field(raw_attribute, 0)));
+    const MTLVertexAttributeDescriptor *attribute =
+        [stored.attributes objectAtIndexedSubscript:attribute_index];
+    if (attribute.format != static_cast<MTLVertexFormat>(
+                                Long_val(Field(raw_attribute, 1))) ||
+        attribute.offset !=
+            static_cast<NSUInteger>(Int64_val(Field(raw_attribute, 2))) ||
+        attribute.bufferIndex !=
+            static_cast<NSUInteger>(Long_val(Field(raw_attribute, 3)))) {
+      *failure = @"Metal changed checked render vertex attribute properties";
+      return false;
+    }
+  }
+  return true;
+}
+
+API_AVAILABLE(macos(26.0))
 bool configure_render_color_attachments(
     MTL4RenderPipelineColorAttachmentDescriptorArray *attachments,
     value raw_attachments, bool rasterization_enabled,
@@ -7591,6 +7803,10 @@ PrismelMetalCheckedRenderRequest *checked_render_request(
       ? MTL4IndirectCommandBufferSupportStateEnabled
       : MTL4IndirectCommandBufferSupportStateDisabled;
   descriptor.supportIndirectCommandBuffers = indirect_support;
+  if (!configure_render_vertex_descriptor(
+          descriptor, Field(raw_descriptor, 11), failure)) {
+    return nil;
+  }
   if (!configure_render_color_attachments(descriptor.colorAttachments,
                                           raw_attachments,
                                           rasterization_enabled, failure)) {

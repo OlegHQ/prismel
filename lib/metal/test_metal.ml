@@ -233,6 +233,35 @@ fragment float4 prismel_instanced_fragment(
 }
 |}
 
+let vertex_descriptor_shader_source =
+  {|
+#include <metal_stdlib>
+using namespace metal;
+
+struct PrismelDescriptorVertex {
+  float2 position [[attribute(0)]];
+  float4 color [[attribute(1)]];
+};
+
+struct PrismelDescriptorVertexOut {
+  float4 position [[position]];
+  float4 color;
+};
+
+vertex PrismelDescriptorVertexOut prismel_descriptor_vertex(
+    PrismelDescriptorVertex input [[stage_in]]) {
+  PrismelDescriptorVertexOut result;
+  result.position = float4(input.position, 0.0f, 1.0f);
+  result.color = input.color;
+  return result;
+}
+
+fragment float4 prismel_descriptor_fragment(
+    PrismelDescriptorVertexOut input [[stage_in]]) {
+  return input.color;
+}
+|}
+
 let depth_render_shader_source =
   {|
 #include <metal_stdlib>
@@ -427,6 +456,20 @@ let float32_values values =
     (fun index value ->
       Bytes.set_int32_le bytes (index * 4) (Int32.bits_of_float value))
     values;
+  bytes
+
+let descriptor_vertex_values ~stride ~red ~green ~blue =
+  if stride < 12 then invalid_arg "descriptor vertex stride is too small";
+  let bytes = Bytes.make (stride * 3) '\000' in
+  [| -1., -1.; 3., -1.; -1., 3. |]
+  |> Array.iteri (fun index (x, y) ->
+    let offset = index * stride in
+    Bytes.set_int32_le bytes offset (Int32.bits_of_float x);
+    Bytes.set_int32_le bytes (offset + 4) (Int32.bits_of_float y);
+    Bytes.set_uint8 bytes (offset + 8) red;
+    Bytes.set_uint8 bytes (offset + 9) green;
+    Bytes.set_uint8 bytes (offset + 10) blue;
+    Bytes.set_uint8 bytes (offset + 11) 255);
   bytes
 
 let shared_float_buffer device values =
@@ -5293,6 +5336,241 @@ let test_metal4_blend_commands device =
     true
   end
 
+let test_metal4_vertex_descriptor_commands device =
+  if not (get (Device.supports_family device Device.Metal4)) then false
+  else begin
+    let position =
+      Vertex_descriptor.attribute ~index:0 ~format:Vertex_descriptor.Float2
+        ~offset:0 ~buffer_index:0
+    in
+    let color =
+      Vertex_descriptor.attribute ~index:1
+        ~format:Vertex_descriptor.Uchar4_normalized ~offset:8 ~buffer_index:0
+    in
+    ignore
+      (expect_error Invalid_argument
+         (Vertex_descriptor.create ~attributes:[] ~layouts:[]));
+    ignore
+      (expect_error Invalid_argument
+         (Vertex_descriptor.create ~attributes:[ position; position ]
+            ~layouts:
+              [ Vertex_descriptor.layout ~buffer_index:0
+                  ~stride:(Vertex_descriptor.Static 12) ()
+              ]));
+    ignore
+      (expect_error Invalid_argument
+         (Vertex_descriptor.create ~attributes:[ position ] ~layouts:[]));
+    ignore
+      (expect_error Invalid_argument
+         (Vertex_descriptor.create ~attributes:[ position; color ]
+            ~layouts:
+              [ Vertex_descriptor.layout ~buffer_index:0
+                  ~stride:(Vertex_descriptor.Static 8) ()
+              ]));
+    ignore
+      (expect_error Invalid_argument
+         (Vertex_descriptor.create ~attributes:[ position; color ]
+            ~layouts:
+              [ Vertex_descriptor.layout ~buffer_index:0
+                  ~stride:(Vertex_descriptor.Static 0) ()
+              ]));
+    let static_descriptor =
+      get
+        (Vertex_descriptor.create ~attributes:[ color; position ]
+           ~layouts:
+             [ Vertex_descriptor.layout ~buffer_index:0
+                 ~stride:(Vertex_descriptor.Static 12) ()
+             ])
+    in
+    let dynamic_descriptor =
+      get
+        (Vertex_descriptor.create ~attributes:[ position; color ]
+           ~layouts:
+             [ Vertex_descriptor.layout ~buffer_index:0
+                 ~stride:Vertex_descriptor.Dynamic ()
+             ])
+    in
+    let canonical_static_layout =
+      match Vertex_descriptor.layouts static_descriptor with
+      | [ { Vertex_descriptor.buffer_index = 0
+          ; stride = Vertex_descriptor.Static 12
+          ; step_function = Vertex_descriptor.Per_vertex
+          ; step_rate = 1
+          } ] -> true
+      | _ -> false
+    in
+    if
+      Vertex_descriptor.attributes static_descriptor <> [ position; color ]
+      || not canonical_static_layout
+    then fail "Metal vertex descriptor canonicalization is wrong";
+    let compiler = get (Compiler.create device) in
+    let library =
+      get
+        (Compiler.compile_source ~name:"metal4-command-vertex-library"
+           compiler vertex_descriptor_shader_source)
+    in
+    let static_pipeline =
+      get
+        (Compiler.create_render_pipeline
+           ~label:"Metal 4 static vertex descriptor"
+           ~fragment:"prismel_descriptor_fragment"
+           ~vertex_descriptor:static_descriptor compiler ~library
+           ~vertex:"prismel_descriptor_vertex")
+    in
+    let dynamic_task =
+      get
+        (Compiler.create_render_pipeline_async
+           ~label:"Metal 4 dynamic vertex descriptor"
+           ~fragment:"prismel_descriptor_fragment"
+           ~vertex_descriptor:dynamic_descriptor compiler ~library
+           ~vertex:"prismel_descriptor_vertex")
+    in
+    get (Compiler_task.wait dynamic_task);
+    let dynamic_pipeline =
+      match get (Compiler_task.poll dynamic_task) with
+      | Compiler_task.Complete (Ok pipeline) -> pipeline
+      | Complete (Error error) ->
+          fail "dynamic vertex-pipeline compilation failed: %s"
+            (Format.asprintf "%a" pp_error error)
+      | Pending -> fail "waited dynamic vertex-pipeline task remained pending"
+    in
+    if
+      Render_pipeline.vertex_descriptor static_pipeline
+      <> Some static_descriptor
+      || Render_pipeline.vertex_descriptor dynamic_pipeline
+         <> Some dynamic_descriptor
+    then fail "Metal 4 vertex-pipeline metadata is wrong";
+    let static_vertices =
+      get
+        (Buffer.create_copy ~device ~storage:Buffer.Shared
+           (descriptor_vertex_values ~stride:12 ~red:17 ~green:34 ~blue:51))
+    in
+    let dynamic_vertices =
+      get
+        (Buffer.create_copy ~device ~storage:Buffer.Shared
+           (descriptor_vertex_values ~stride:16 ~red:203 ~green:101 ~blue:47))
+    in
+    let index_bytes = Bytes.make 6 '\000' in
+    Array.iteri
+      (fun index value -> Bytes.set_uint16_le index_bytes (index * 2) value)
+      [| 0; 1; 2 |];
+    let indices =
+      get (Buffer.create_copy ~device ~storage:Buffer.Shared index_bytes)
+    in
+    let static_arguments =
+      get
+        (Command4.Argument_table.create
+           ~label:"Metal 4 static vertex arguments" ~max_buffers:1 device ())
+    in
+    let dynamic_arguments =
+      get
+        (Command4.Argument_table.create
+           ~label:"Metal 4 dynamic vertex arguments"
+           ~support_attribute_strides:true ~max_buffers:1 device ())
+    in
+    get
+      (Command4.Argument_table.set_buffer static_arguments ~index:0
+         static_vertices);
+    get
+      (Command4.Argument_table.set_buffer dynamic_arguments ~index:0
+         dynamic_vertices);
+    let make_target label =
+      get
+        (Texture.create ~device
+           (Texture.descriptor_2d ~storage:Buffer.Shared
+              ~usage:[ Texture.Render_target ] ~format:Texture.Bgra8_unorm
+              ~width:8 ~height:8 ~label ()))
+    in
+    let static_target = make_target "Metal 4 static vertex target" in
+    let dynamic_target = make_target "Metal 4 dynamic vertex target" in
+    let allocator =
+      get (Command4.Allocator.create ~label:"Metal 4 vertex allocator" device)
+    in
+    let queue =
+      get (Command4.Queue.create ~label:"Metal 4 vertex queue" device)
+    in
+    let commands =
+      get
+        (Command4.Command_buffer.create allocator
+           ~label:"Metal 4 vertex commands" ())
+    in
+    let attachment target = Command4.Render_encoder.color_attachment target in
+    let static_encoder =
+      get
+        (Command4.Render_encoder.create
+           ~label:"Metal 4 static vertex encoder" commands
+           ~color_attachments:[ attachment static_target ])
+    in
+    get (Command4.Render_encoder.set_pipeline static_encoder static_pipeline);
+    ignore
+      (expect_error Invalid_state
+         (Command4.Render_encoder.draw_primitives static_encoder
+            Command4.Render_encoder.Triangle ~vertex_start:0 ~vertex_count:3));
+    get
+      (Command4.Render_encoder.set_argument_table static_encoder
+         ~stages:[ Command4.Render_encoder.Vertex ] (Some static_arguments));
+    get
+      (Command4.Render_encoder.draw_primitives static_encoder
+         Command4.Render_encoder.Triangle ~vertex_start:0 ~vertex_count:3);
+    get (Command4.Render_encoder.end_encoding static_encoder);
+    let dynamic_encoder =
+      get
+        (Command4.Render_encoder.create
+           ~label:"Metal 4 dynamic vertex encoder" commands
+           ~color_attachments:[ attachment dynamic_target ])
+    in
+    get (Command4.Render_encoder.set_pipeline dynamic_encoder dynamic_pipeline);
+    get
+      (Command4.Render_encoder.set_argument_table dynamic_encoder
+         ~stages:[ Command4.Render_encoder.Vertex ] (Some dynamic_arguments));
+    ignore
+      (expect_error Invalid_state
+         (Command4.Render_encoder.draw_indexed_primitives dynamic_encoder
+            Command4.Render_encoder.Triangle Command4.Render_encoder.Uint16
+            ~index_buffer:indices ~index_offset:0L ~index_count:3));
+    get
+      (Command4.Argument_table.set_buffer dynamic_arguments ~index:0
+         ~attribute_stride:16 dynamic_vertices);
+    get
+      (Command4.Render_encoder.draw_indexed_primitives dynamic_encoder
+         Command4.Render_encoder.Triangle Command4.Render_encoder.Uint16
+         ~index_buffer:indices ~index_offset:0L ~index_count:3);
+    get (Command4.Render_encoder.end_encoding dynamic_encoder);
+    get (Command4.Command_buffer.end_recording commands);
+    let submission = get (Command4.Queue.commit queue [ commands ]) in
+    get (Command4.Submission.wait submission);
+    let read_target target =
+      get
+        (Texture.read_bytes target
+           ~region:
+             { Texture.x = 0; y = 0; z = 0; width = 8; height = 8; depth = 1 }
+           ~mip_level:0 ~slice:0 ~bytes_per_row:32 ~bytes_per_image:256)
+    in
+    check_solid_bgra ~label:"Metal 4 static vertex draw" ~blue:51 ~green:34
+      ~red:17 ~alpha:255 (read_target static_target);
+    check_solid_bgra ~label:"Metal 4 dynamic indexed vertex draw" ~blue:47
+      ~green:101 ~red:203 ~alpha:255 (read_target dynamic_target);
+    get (Render_pipeline.destroy static_pipeline);
+    get (Render_pipeline.destroy dynamic_pipeline);
+    get (Command4.Argument_table.destroy static_arguments);
+    get (Command4.Argument_table.destroy dynamic_arguments);
+    get (Buffer.destroy static_vertices);
+    get (Buffer.destroy dynamic_vertices);
+    get (Buffer.destroy indices);
+    get (Texture.destroy static_target);
+    get (Texture.destroy dynamic_target);
+    get (Command4.Submission.destroy submission);
+    get (Command4.Command_buffer.destroy commands);
+    get (Command4.Allocator.reset allocator);
+    get (Command4.Queue.destroy queue);
+    get (Command4.Allocator.destroy allocator);
+    get (Compiler_task.destroy dynamic_task);
+    get (Library.destroy library);
+    get (Compiler.destroy compiler);
+    Printf.printf "Metal 4 static/dynamic vertex-layout conformance passed\n%!";
+    true
+  end
+
 let test_metal4_mesh_commands device =
   if
     not (get (Device.supports_family device Device.Metal4))
@@ -5753,6 +6031,7 @@ let () =
     ignore (test_metal4_depth_commands device);
     ignore (test_metal4_stencil_commands device);
     ignore (test_metal4_blend_commands device);
+    ignore (test_metal4_vertex_descriptor_commands device);
     ignore (test_metal4_mesh_commands device);
     ignore (test_metal4_tile_commands device);
     ignore (test_metal4_compute_commands device);
@@ -7562,6 +7841,6 @@ let () =
         stats.external_deallocations
         stats.external_deallocation_mismatches;
     Printf.printf
-      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/compiler-task/pipeline-dataset/binary-function/static-link/reflection/compute/render/mesh/object/tile/command4-argument-table/compute/render/indexed/instanced/indirect/depth/stencil/blend/mesh/tile conformance passed on %s\n%!"
+      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/compiler-task/pipeline-dataset/binary-function/static-link/reflection/compute/render/mesh/object/tile/command4-argument-table/compute/render/indexed/instanced/indirect/depth/stencil/blend/vertex-layout/mesh/tile conformance passed on %s\n%!"
       info.name
   end

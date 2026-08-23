@@ -1122,6 +1122,107 @@ module Compute_pipeline : sig
   val destroy : t -> (unit, error) result
 end
 
+module Vertex_descriptor : sig
+  type format =
+    | Uchar2
+    | Uchar3
+    | Uchar4
+    | Char2
+    | Char3
+    | Char4
+    | Uchar2_normalized
+    | Uchar3_normalized
+    | Uchar4_normalized
+    | Char2_normalized
+    | Char3_normalized
+    | Char4_normalized
+    | Ushort2
+    | Ushort3
+    | Ushort4
+    | Short2
+    | Short3
+    | Short4
+    | Ushort2_normalized
+    | Ushort3_normalized
+    | Ushort4_normalized
+    | Short2_normalized
+    | Short3_normalized
+    | Short4_normalized
+    | Half2
+    | Half3
+    | Half4
+    | Float
+    | Float2
+    | Float3
+    | Float4
+    | Int
+    | Int2
+    | Int3
+    | Int4
+    | Uint
+    | Uint2
+    | Uint3
+    | Uint4
+    | Int1010102_normalized
+    | Uint1010102_normalized
+    | Uchar4_normalized_bgra
+    | Uchar
+    | Char
+    | Uchar_normalized
+    | Char_normalized
+    | Ushort
+    | Short
+    | Ushort_normalized
+    | Short_normalized
+    | Half
+    | Float_rg11b10
+    | Float_rgb9e5
+
+  type step_function =
+    | Constant
+    | Per_vertex
+    | Per_instance
+    | Per_patch
+    | Per_patch_control_point
+
+  type stride =
+    | Static of int
+    | Dynamic
+
+  type attribute = private
+    { index : int
+    ; format : format
+    ; offset : int
+    ; buffer_index : int
+    }
+
+  type layout = private
+    { buffer_index : int
+    ; stride : stride
+    ; step_function : step_function
+    ; step_rate : int
+    }
+
+  type t
+
+  val attribute :
+    index:int -> format:format -> offset:int -> buffer_index:int -> attribute
+
+  val layout :
+    ?step_function:step_function -> ?step_rate:int -> buffer_index:int ->
+    stride:stride -> unit -> layout
+
+  (** Validates and canonicalizes one immutable vertex input layout. Attribute
+      and buffer indices are unique values between zero and 30 inclusive. Every
+      attribute has a matching used layout; static strides contain their
+      attributes. Only a constant layout may use a zero static stride. *)
+  val create :
+    attributes:attribute list -> layouts:layout list -> (t, error) result
+
+  val attributes : t -> attribute list
+  val layouts : t -> layout list
+end
+
 module Render_pipeline : sig
   type t
 
@@ -1208,6 +1309,7 @@ module Render_pipeline : sig
   val raster_sample_count : t -> int
   val color_formats : t -> Texture.format list
   val color_attachments : t -> color_attachment list
+  val vertex_descriptor : t -> Vertex_descriptor.t option
   val reflection : t -> reflection option
   val label : t -> (string option, error) result
   val destroy : t -> (unit, error) result
@@ -1407,11 +1509,13 @@ module Compiler : sig
       Rasterized pipelines require a fragment function and one to eight color
       formats or typed color attachments, but not both. Vertex-only pipelines
       use a void-returning vertex function, disable rasterization, and use no
-      color attachments. *)
+      color attachments. An optional immutable vertex descriptor enables
+      Metal stage-in attribute fetch. *)
   val create_render_pipeline :
     ?label:string -> ?fragment:string -> ?reflection:bool ->
     ?raster_sample_count:int -> ?color_formats:Texture.format list ->
     ?color_attachments:Render_pipeline.color_attachment list ->
+    ?vertex_descriptor:Vertex_descriptor.t ->
     ?rasterization_enabled:bool ->
     ?primitive_topology:Render_pipeline.primitive_topology ->
     ?support_indirect_command_buffers:bool ->
@@ -1425,6 +1529,7 @@ module Compiler : sig
     ?label:string -> ?fragment:string -> ?reflection:bool ->
     ?raster_sample_count:int -> ?color_formats:Texture.format list ->
     ?color_attachments:Render_pipeline.color_attachment list ->
+    ?vertex_descriptor:Vertex_descriptor.t ->
     ?rasterization_enabled:bool ->
     ?primitive_topology:Render_pipeline.primitive_topology ->
     ?support_indirect_command_buffers:bool ->
