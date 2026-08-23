@@ -1673,3 +1673,18 @@ external resource_view_pool_descriptor_count : handle -> (int64,string) result =
 external resource_view_pool_descriptor_set_count : handle -> int64 -> (unit,string) result = "caml_prismel_metal_resource_view_pool_descriptor_set_count"
 external resource_view_pool_descriptor_label : handle -> (string option,string) result = "caml_prismel_metal_resource_view_pool_descriptor_label"
 external resource_view_pool_descriptor_set_label : handle -> string option -> (unit,string) result = "caml_prismel_metal_resource_view_pool_descriptor_set_label"
+
+(** Pipeline113 safe state-query subset. *)
+external pipeline_compute_resource_id : handle -> (int64,string) result = "caml_prismel_metal_pipeline_compute_resource_id"
+external pipeline_compute_required_threads : handle -> ((int64*int64*int64),string) result = "caml_prismel_metal_pipeline_compute_required_threads"
+external pipeline_compute_shader_validation : handle -> (int64,string) result = "caml_prismel_metal_pipeline_compute_shader_validation"
+external pipeline_compute_indirect : handle -> (bool,string) result = "caml_prismel_metal_pipeline_compute_indirect"
+external pipeline_compute_imageblock_length : handle -> (int64*int64*int64) -> (int64,string) result = "caml_prismel_metal_pipeline_compute_imageblock_length"
+external pipeline_render_resource_id : handle -> (int64,string) result = "caml_prismel_metal_pipeline_render_resource_id"
+external pipeline_render_imageblock_sample_length : handle -> (int64,string) result = "caml_prismel_metal_pipeline_render_imageblock_sample_length"
+external pipeline_render_mesh_threads : handle -> ((int64*int64*int64),string) result = "caml_prismel_metal_pipeline_render_mesh_threads"
+external pipeline_render_object_threads : handle -> ((int64*int64*int64),string) result = "caml_prismel_metal_pipeline_render_object_threads"
+external pipeline_render_tile_threads : handle -> ((int64*int64*int64),string) result = "caml_prismel_metal_pipeline_render_tile_threads"
+external pipeline_render_shader_validation : handle -> (int64,string) result = "caml_prismel_metal_pipeline_render_shader_validation"
+external pipeline_render_indirect : handle -> (bool,string) result = "caml_prismel_metal_pipeline_render_indirect"
+external pipeline_render_imageblock_length : handle -> (int64*int64*int64) -> (int64,string) result = "caml_prismel_metal_pipeline_render_imageblock_length"
