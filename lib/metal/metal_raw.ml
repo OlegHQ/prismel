@@ -1715,3 +1715,10 @@ external mesh_pipeline_descriptor_owned :
 external tile_pipeline_descriptor_owned :
   tile_pipeline_descriptor_inputs -> (handle,string) result =
   "caml_prismel_tile_pipeline_descriptor"
+
+(** IO/counter111 callable ownership ABI. The six-argument IO load native
+    entry has no bytecode companion in the prepared shard and is deliberately
+    not exposed until that companion exists. *)
+external io_counter_descriptor_create :
+  handle -> int -> string option -> (handle,string) result =
+  "caml_prismel_counter_descriptor"

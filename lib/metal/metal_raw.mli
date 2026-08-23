@@ -1694,3 +1694,9 @@ external mesh_pipeline_descriptor_owned :
 external tile_pipeline_descriptor_owned :
   tile_pipeline_descriptor_inputs -> (handle,string) result =
   "caml_prismel_tile_pipeline_descriptor"
+
+(** The prepared six-argument IO load primitive lacks the required bytecode
+    companion, so it is not part of the raw OCaml ABI yet. *)
+external io_counter_descriptor_create :
+  handle -> int -> string option -> (handle,string) result =
+  "caml_prismel_counter_descriptor"
