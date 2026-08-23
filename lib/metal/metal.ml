@@ -834,6 +834,7 @@ and acceleration_structure =
   ; lifetime : lifetime
   ; device : device
   ; size : int64
+  ; heap : heap option
   }
 
 and texture =
@@ -3262,7 +3263,7 @@ module Acceleration_structure = struct
           match Metal_raw.acceleration_structure_create device.raw size with
           | Error message -> native_error operation message
           | Ok raw ->
-              let value = { raw; lifetime = lifetime (); device; size } in
+              let value = { raw; lifetime = lifetime (); device; size; heap = None } in
               attach device.lifetime;
               attach_finalizer value value.lifetime device.lifetime;
               Ok value)
@@ -3273,7 +3274,9 @@ module Acceleration_structure = struct
   let destroyed (value : t) = is_destroyed value.lifetime
   let destroy (value : t) =
     destroy_parent "Metal.Acceleration_structure.destroy" value.lifetime value.raw
-      (fun () -> detach value.device.lifetime)
+      (fun () -> match value.heap with
+        | None -> detach value.device.lifetime
+        | Some heap -> detach heap.lifetime)
 end
 
 module Texture = struct
@@ -6656,6 +6659,29 @@ module Heap = struct
                               ~heap_offset:offset ~allocation ~label raw
                       in
                       register_allocation value allocation result)
+
+  let create_acceleration_structure (value : t) ~size =
+    let operation = "Metal.Resource100.Heap.create_acceleration_structure" in
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when Atomic.get value.purgeable <> Nonvolatile ->
+          error operation Invalid_state "heap must be nonvolatile before allocation"
+      | Ok () when value.descriptor.kind <> Automatic ->
+          error operation Invalid_argument
+            "the size-only constructor requires an automatic heap"
+      | Ok () when size <= 0L ->
+          error operation Invalid_argument "acceleration-structure size must be positive"
+      | Ok () -> match Metal_raw.resource_heap_acceleration_size value.raw size with
+        | Error message -> native_error operation message
+        | Ok raw ->
+            let result : acceleration_structure =
+              { raw; lifetime = lifetime (); device = value.device; size
+              ; heap = Some value }
+            in
+            attach value.lifetime;
+            attach_finalizer result result.lifetime value.lifetime;
+            Ok result)
 
   let create_texture (value : t) ?offset (descriptor : Texture.descriptor) =
     on_main "Metal.Heap.create_texture" (fun () ->
@@ -17293,6 +17319,10 @@ module Blit_encoder = struct
 end
 
 module Resource100 = struct
+  module Heap_ops = struct
+    let create_acceleration_structure = Heap.create_acceleration_structure
+  end
+
   module Resource_ops = struct
     type t = Buffer of buffer | Texture of texture
 

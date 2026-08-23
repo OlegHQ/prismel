@@ -2986,6 +2986,10 @@ module Blit_encoder : sig
 end
 
 module Resource100 : sig
+  module Heap_ops : sig
+    val create_acceleration_structure :
+      Heap.t -> size:int64 -> (Acceleration_structure.t,error) result
+  end
   module Resource_ops : sig
     type t = Buffer of Buffer.t | Texture of Texture.t
     val device : t -> (Device.t,error) result
