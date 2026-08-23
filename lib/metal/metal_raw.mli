@@ -268,6 +268,33 @@ external texture_shared_import :
   handle -> handle -> (handle, string) result
   = "caml_prismel_metal_texture_shared_import"
 
+external shared_texture_xpc_connect :
+  string -> int -> (handle, string) result
+  = "caml_prismel_metal_shared_texture_xpc_connect"
+
+external shared_texture_xpc_call :
+  handle -> string -> handle -> bytes -> bytes -> int ->
+  (handle * bytes * bytes, string) result
+  = "caml_prismel_metal_shared_texture_xpc_call_bytecode"
+    "caml_prismel_metal_shared_texture_xpc_call"
+
+external shared_texture_xpc_service_create :
+  int -> int -> (handle, string) result
+  = "caml_prismel_metal_shared_texture_xpc_service_create"
+
+external shared_texture_xpc_service_serve :
+  handle -> (handle -> string -> handle -> bytes -> bytes -> unit) ->
+  (unit, string) result
+  = "caml_prismel_metal_shared_texture_xpc_service_serve"
+
+external shared_texture_xpc_request_reply :
+  handle -> handle -> bytes -> bytes -> (unit, string) result
+  = "caml_prismel_metal_shared_texture_xpc_request_reply"
+
+external shared_texture_xpc_request_reject :
+  handle -> string -> (unit, string) result
+  = "caml_prismel_metal_shared_texture_xpc_request_reject"
+
 external io_surface_create :
   bool -> int array -> string option -> (handle, string) result
   = "caml_prismel_metal_io_surface_create"

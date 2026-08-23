@@ -457,6 +457,42 @@ module Texture : sig
     val destroyed : t -> bool
     val label : t -> (string option, error) result
     val destroy : t -> (unit, error) result
+
+    module Xpc : sig
+      (** Bounded transport of shared texture handles through an embedded macOS
+          XPC service. Connections and requests retain their device. *)
+
+      type connection
+      type request
+
+      val connect :
+        ?max_payload_bytes:int -> device:Device.t -> service_name:string ->
+        unit -> (connection, error) result
+      val service_name : connection -> string
+      val connection_destroyed : connection -> bool
+      val destroy_connection : connection -> (unit, error) result
+      val call :
+        ?timeout_ms:int -> connection -> operation:string -> handle:t -> bytes ->
+        (t * bytes, error) result
+
+      val request_operation : request -> (string, error) result
+      val request_handle : request -> (t, error) result
+      val request_data : request -> (bytes, error) result
+      val request_completed : request -> bool
+
+      (** Completing a request is one-shot and destroys its incoming handle.
+          The handle supplied to [reply] remains owned by the caller. *)
+      val reply : request -> handle:t -> bytes -> (unit, error) result
+      val reject : request -> string -> (unit, error) result
+
+      (** [serve ~device handler] installs the process's embedded XPC service
+          listener and does not normally return. [handler] runs synchronously
+          on OCaml domain zero's XPC main executor and must reply or reject
+          before returning; abandonment and exceptions are rejected. *)
+      val serve :
+        ?capacity:int -> ?max_payload_bytes:int -> device:Device.t ->
+        (request -> unit) -> (unit, error) result
+    end
   end
 
   val format_layout : format -> format_layout

@@ -13,6 +13,11 @@
  (modules build_bridge)
  (libraries metal_build_config unix))
 
+(executable
+ (name build_xpc_bundle)
+ (modules build_xpc_bundle)
+ (libraries unix))
+
 (rule
  (targets c_library_flags.sexp)
  (action
@@ -37,6 +42,7 @@
  (public_name prismel.metal)
  (modules Metal Metal_format Metal_raw Generated_provenance)
  (private_modules Metal_format Metal_raw Generated_provenance)
+ (libraries threads)
  (foreign_archives metal_bridge_stubs)
  (c_library_flags (:include c_library_flags.sexp)))
 
@@ -54,6 +60,38 @@
  (name test_metal_stress)
  (modules test_metal_stress)
  (libraries metal unix))
+
+(library
+ (name metal_xpc_test_support)
+ (wrapped false)
+ (modules Metal_xpc_test_support)
+ (libraries metal))
+
+(executable
+ (name test_metal_xpc_service)
+ (modules test_metal_xpc_service)
+ (libraries metal metal_xpc_test_support unix))
+
+(executable
+ (name test_metal_xpc_client)
+ (modules test_metal_xpc_client)
+ (libraries metal metal_xpc_test_support unix))
+
+(rule
+ (targets (dir metal_xpc_conformance.app))
+ (deps test_metal_xpc_client.exe test_metal_xpc_service.exe)
+ (action
+  (run ./build_xpc_bundle.exe
+   --client test_metal_xpc_client.exe
+   --service test_metal_xpc_service.exe
+   --output metal_xpc_conformance.app
+   --service-name org.prismel.metal.xpc-conformance)))
+
+(rule
+ (alias runtest)
+ (deps metal_xpc_conformance.app)
+ (action
+  (run ./metal_xpc_conformance.app/Contents/MacOS/test_metal_xpc_client)))
 
 (rule
  (alias runtest)

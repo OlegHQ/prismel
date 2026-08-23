@@ -1,5 +1,7 @@
 (lang dune 3.17)
 
+(using directory-targets 0.1)
+
 (name prismel)
 
 (generate_opam_files true)

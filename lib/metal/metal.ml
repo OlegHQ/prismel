@@ -1886,6 +1886,445 @@ module Texture = struct
     let destroy (value : t) =
       destroy_leaf "Metal.Texture.Shared_handle.destroy" value.lifetime
         value.raw (fun () -> detach value.device.lifetime)
+
+    module Xpc = struct
+      type connection =
+        { raw : Metal_raw.handle
+        ; lifetime : lifetime
+        ; device : device
+        ; service_name : string
+        ; max_payload_bytes : int
+        }
+
+      type service =
+        { raw : Metal_raw.handle
+        ; lifetime : lifetime
+        ; device : device
+        ; max_payload_bytes : int
+        }
+
+      type request =
+        { raw : Metal_raw.handle
+        ; lifetime : lifetime
+        ; service : service
+        ; operation : string
+        ; handle : t
+        ; data : bytes
+        }
+
+      let metadata_magic = "PMTLXPC1"
+      let metadata_field_count = 13
+      let metadata_size = String.length metadata_magic + (metadata_field_count * 8)
+
+      let kind_code = function
+        | Texture_1d -> 0
+        | Texture_1d_array -> 1
+        | Texture_2d -> 2
+        | Texture_2d_array -> 3
+        | Texture_2d_multisample -> 4
+        | Texture_cube -> 5
+        | Texture_cube_array -> 6
+        | Texture_3d -> 7
+        | Texture_2d_multisample_array -> 8
+        | Texture_buffer -> 9
+
+      let kind_of_code = function
+        | 0 -> Some Texture_1d
+        | 1 -> Some Texture_1d_array
+        | 2 -> Some Texture_2d
+        | 3 -> Some Texture_2d_array
+        | 4 -> Some Texture_2d_multisample
+        | 5 -> Some Texture_cube
+        | 6 -> Some Texture_cube_array
+        | 7 -> Some Texture_3d
+        | 8 -> Some Texture_2d_multisample_array
+        | 9 -> Some Texture_buffer
+        | _ -> None
+
+      let usage_bits usages =
+        List.fold_left
+          (fun bits -> function
+            | Shader_read -> bits lor 0x1
+            | Shader_write -> bits lor 0x2
+            | Render_target -> bits lor 0x4
+            | Pixel_format_view -> bits lor 0x10
+            | Shader_atomic -> bits lor 0x20)
+          0 usages
+
+      let usages_of_bits bits =
+        if bits land lnot 0x37 <> 0 then None
+        else
+          Some
+            (List.filter_map
+               (fun (bit, usage) -> if bits land bit = 0 then None else Some usage)
+               [ 0x1, Shader_read; 0x2, Shader_write; 0x4, Render_target
+               ; 0x10, Pixel_format_view; 0x20, Shader_atomic
+               ])
+
+      let encode_descriptor (descriptor : texture_descriptor) =
+        let fields =
+          [| kind_code descriptor.kind; Metal_format.code descriptor.format
+           ; descriptor.width; descriptor.height; descriptor.depth
+           ; descriptor.mip_levels; descriptor.sample_count
+           ; descriptor.array_length; storage_code descriptor.storage
+           ; cache_code descriptor.cpu_cache
+           ; hazard_code descriptor.hazard_tracking
+           ; usage_bits descriptor.usage
+           ; if descriptor.allow_gpu_optimized_contents then 1 else 0
+          |]
+        in
+        let metadata = Bytes.create metadata_size in
+        Bytes.blit_string metadata_magic 0 metadata 0
+          (String.length metadata_magic);
+        Array.iteri
+          (fun index field ->
+            Bytes.set_int64_le metadata
+              (String.length metadata_magic + (index * 8))
+              (Int64.of_int field))
+          fields;
+        metadata
+
+      let decode_descriptor operation metadata label =
+        let malformed detail =
+          native_error operation ("malformed shared-texture XPC metadata: " ^ detail)
+        in
+        if Bytes.length metadata <> metadata_size then
+          malformed "wrong byte length"
+        else if
+          Bytes.sub_string metadata 0 (String.length metadata_magic)
+          <> metadata_magic
+        then malformed "wrong protocol/version marker"
+        else
+          let field index =
+            Bytes.get_int64_le metadata
+              (String.length metadata_magic + (index * 8))
+          in
+          let int_field index =
+            let value = field index in
+            if value < 0L || value > Int64.of_int max_int then None
+            else Some (Int64.to_int value)
+          in
+          match
+            int_field 0, int_field 1, int_field 2, int_field 3,
+            int_field 4, int_field 5, int_field 6, int_field 7,
+            int_field 8, int_field 9, int_field 10, int_field 11,
+            int_field 12
+          with
+          | ( Some kind_code_value, Some format_code, Some width, Some height
+            , Some depth, Some mip_levels, Some sample_count
+            , Some array_length, Some storage_value, Some cache_value
+            , Some hazard_value, Some usage_value, Some optimized_value ) ->
+              let cpu_cache =
+                match cache_value with
+                | 0 -> Some Default_cache
+                | 1 -> Some Write_combined
+                | _ -> None
+              in
+              let hazard_tracking =
+                match hazard_value with
+                | 0 -> Some Default_hazard_tracking
+                | 1 -> Some Untracked
+                | 2 -> Some Tracked
+                | _ -> None
+              in
+              (match
+                 kind_of_code kind_code_value,
+                 Metal_format.of_code format_code,
+                 storage_value,
+                 cpu_cache,
+                 hazard_tracking,
+                 usages_of_bits usage_value,
+                 optimized_value
+               with
+               | ( Some kind, Some format, 2, Some cpu_cache
+                 , Some hazard_tracking, Some usage, (0 | 1) )
+                 when kind <> Texture_buffer && width > 0 && height > 0
+                      && depth > 0 && mip_levels > 0 && sample_count > 0
+                      && array_length > 0 ->
+                   Ok
+                     { kind
+                     ; format
+                     ; width
+                     ; height
+                     ; depth
+                     ; mip_levels
+                     ; sample_count
+                     ; array_length
+                     ; storage = Private
+                     ; cpu_cache
+                     ; hazard_tracking
+                     ; usage
+                     ; allow_gpu_optimized_contents = optimized_value = 1
+                     ; label
+                     }
+               | _ -> malformed "invalid descriptor field")
+          | _ -> malformed "integer field overflow"
+
+      let wrap_received operation (device : device) raw metadata =
+        let fail_with error_value =
+          ignore (Metal_raw.destroy raw);
+          error_value
+        in
+        let registry_id, label = Metal_raw.shared_texture_handle_info raw in
+        if registry_id <> device.registry_id then
+          fail_with
+            (error operation Device_mismatch
+               "received shared texture belongs to a different Metal device")
+        else
+          match decode_descriptor operation metadata label with
+          | Error _ as failure -> fail_with failure
+          | Ok descriptor ->
+              let handle =
+                { raw; lifetime = lifetime (); device; descriptor; label }
+              in
+              attach device.lifetime;
+              attach_finalizer handle handle.lifetime device.lifetime;
+              Ok handle
+
+      let valid_name value =
+        value <> "" && String.length value <= 255 && not (contains_nul value)
+
+      let valid_operation value =
+        value <> "" && String.length value <= 256 && not (contains_nul value)
+
+      let connect ?(max_payload_bytes = 1_048_576) ~(device : Device.t)
+          ~service_name () =
+        let operation = "Metal.Texture.Shared_handle.Xpc.connect" in
+        on_main operation (fun () ->
+          match ensure_live operation device.lifetime with
+          | Error _ as failure -> failure
+          | Ok () when not (valid_name service_name) ->
+              error operation Invalid_argument
+                "XPC service name must contain 1-255 bytes and no NUL"
+          | Ok ()
+            when max_payload_bytes <= 0 || max_payload_bytes > 67_108_864 ->
+              error operation Invalid_argument
+                "XPC maximum payload must be between one byte and 64 MiB"
+          | Ok () ->
+              (match
+                 Metal_raw.shared_texture_xpc_connect service_name
+                   max_payload_bytes
+               with
+               | Error message -> native_error operation message
+               | Ok raw ->
+                   let connection =
+                     { raw
+                     ; lifetime = lifetime ()
+                     ; device
+                     ; service_name
+                     ; max_payload_bytes
+                     }
+                   in
+                   attach device.lifetime;
+                   attach_finalizer connection connection.lifetime
+                     device.lifetime;
+                   Ok connection))
+
+      let service_name (value : connection) = value.service_name
+      let connection_destroyed (value : connection) =
+        is_destroyed value.lifetime
+
+      let destroy_connection (value : connection) =
+        destroy_leaf "Metal.Texture.Shared_handle.Xpc.destroy_connection"
+          value.lifetime value.raw (fun () -> detach value.device.lifetime)
+
+      let call ?(timeout_ms = 10_000) (connection : connection) ~operation
+          ~(handle : t) data =
+        let call_name = "Metal.Texture.Shared_handle.Xpc.call" in
+        on_main call_name (fun () ->
+          match ensure_live call_name connection.lifetime with
+          | Error _ as failure -> failure
+          | Ok () ->
+              (match ensure_live call_name handle.lifetime with
+               | Error _ as failure -> failure
+               | Ok () ->
+                   (match
+                      ensure_same_device call_name connection.device
+                        handle.device
+                    with
+                    | Error _ as failure -> failure
+                    | Ok () when not (valid_operation operation) ->
+                        error call_name Invalid_argument
+                          "XPC operation must contain 1-256 bytes and no NUL"
+                    | Ok () when Bytes.length data > connection.max_payload_bytes ->
+                        error call_name Invalid_argument
+                          "XPC payload exceeds the connection bound"
+                    | Ok () when timeout_ms <= 0 || timeout_ms > 300_000 ->
+                        error call_name Invalid_argument
+                          "XPC timeout must be between 1 and 300000 milliseconds"
+                    | Ok () ->
+                        let metadata = encode_descriptor handle.descriptor in
+                        (match
+                           Metal_raw.shared_texture_xpc_call connection.raw
+                             operation handle.raw metadata data timeout_ms
+                         with
+                         | Error message -> native_error call_name message
+                         | Ok (raw, reply_metadata, reply_data) ->
+                             (match
+                                wrap_received call_name connection.device raw
+                                  reply_metadata
+                              with
+                              | Error _ as failure -> failure
+                              | Ok reply_handle ->
+                                  Ok (reply_handle, reply_data))))))
+
+      let request_operation (value : request) =
+        let operation = "Metal.Texture.Shared_handle.Xpc.request_operation" in
+        on_main operation (fun () ->
+          match ensure_live operation value.lifetime with
+          | Error _ as failure -> failure
+          | Ok () -> Ok value.operation)
+
+      let request_handle (value : request) =
+        let operation = "Metal.Texture.Shared_handle.Xpc.request_handle" in
+        on_main operation (fun () ->
+          match ensure_live operation value.lifetime with
+          | Error _ as failure -> failure
+          | Ok () -> Ok value.handle)
+
+      let request_data (value : request) =
+        let operation = "Metal.Texture.Shared_handle.Xpc.request_data" in
+        on_main operation (fun () ->
+          match ensure_live operation value.lifetime with
+          | Error _ as failure -> failure
+          | Ok () -> Ok (Bytes.copy value.data))
+
+      let request_completed (value : request) = is_destroyed value.lifetime
+
+      let complete_request operation (value : request) native_call =
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () ->
+            (match native_call () with
+             | Error message -> native_error operation message
+             | Ok () ->
+                 Atomic.set value.lifetime.destroyed true;
+                 ignore (Metal_raw.destroy value.raw);
+                 detach value.service.lifetime;
+                 ignore (destroy value.handle);
+                 Ok ())
+
+      let reply (value : request) ~(handle : t) data =
+        let operation = "Metal.Texture.Shared_handle.Xpc.reply" in
+        on_main operation (fun () ->
+          match ensure_live operation handle.lifetime with
+          | Error _ as failure -> failure
+          | Ok () ->
+              (match ensure_same_device operation value.service.device handle.device with
+               | Error _ as failure -> failure
+               | Ok () when Bytes.length data > value.service.max_payload_bytes ->
+                   error operation Invalid_argument
+                     "XPC reply payload exceeds the service bound"
+               | Ok () ->
+                   let metadata = encode_descriptor handle.descriptor in
+                   complete_request operation value (fun () ->
+                     Metal_raw.shared_texture_xpc_request_reply value.raw
+                       handle.raw metadata data)))
+
+      let reject (value : request) message =
+        let operation = "Metal.Texture.Shared_handle.Xpc.reject" in
+        on_main operation (fun () ->
+          if message = "" || String.length message > 4096 || contains_nul message
+          then
+            error operation Invalid_argument
+              "XPC rejection must contain 1-4096 bytes and no NUL"
+          else
+            complete_request operation value (fun () ->
+              Metal_raw.shared_texture_xpc_request_reject value.raw message))
+
+      let serve ?(capacity = 16) ?(max_payload_bytes = 1_048_576)
+          ~(device : Device.t) handler =
+        let operation = "Metal.Texture.Shared_handle.Xpc.serve" in
+        on_main operation (fun () ->
+          match ensure_live operation device.lifetime with
+          | Error _ as failure -> failure
+          | Ok () when capacity <= 0 || capacity > 1024 ->
+              error operation Invalid_argument
+                "XPC request capacity must be between 1 and 1024"
+          | Ok ()
+            when max_payload_bytes <= 0 || max_payload_bytes > 67_108_864 ->
+              error operation Invalid_argument
+                "XPC maximum payload must be between one byte and 64 MiB"
+          | Ok () ->
+              (match
+                 Metal_raw.shared_texture_xpc_service_create capacity
+                   max_payload_bytes
+               with
+               | Error message -> native_error operation message
+               | Ok raw ->
+                   let service =
+                     { raw
+                     ; lifetime = lifetime ()
+                     ; device
+                     ; max_payload_bytes
+                     }
+                   in
+                   attach device.lifetime;
+                   attach_finalizer service service.lifetime device.lifetime;
+                   let reject_raw raw_request raw_handle message =
+                     ignore
+                       (Metal_raw.shared_texture_xpc_request_reject raw_request
+                          message);
+                     ignore (Metal_raw.destroy raw_request);
+                     Option.iter
+                       (fun handle -> ignore (Metal_raw.destroy handle))
+                       raw_handle
+                   in
+                   let receive raw_request request_operation raw_handle metadata
+                       data =
+                     if not (valid_operation request_operation) then
+                       reject_raw raw_request (Some raw_handle)
+                         "shared-texture XPC operation is malformed"
+                     else if Bytes.length data > service.max_payload_bytes then
+                       reject_raw raw_request (Some raw_handle)
+                         "shared-texture XPC payload exceeds the service bound"
+                     else
+                       match
+                         wrap_received operation service.device raw_handle
+                           metadata
+                       with
+                       | Error error_value ->
+                           reject_raw raw_request None error_value.message
+                       | Ok handle ->
+                           let request =
+                             { raw = raw_request
+                             ; lifetime = lifetime ()
+                             ; service
+                             ; operation = request_operation
+                             ; handle
+                             ; data
+                             }
+                           in
+                           attach service.lifetime;
+                           attach_finalizer request request.lifetime
+                             service.lifetime;
+                           let reject_pending message =
+                             if not (request_completed request) then
+                               ignore
+                                 (complete_request operation request (fun () ->
+                                    Metal_raw.shared_texture_xpc_request_reject
+                                      request.raw message))
+                           in
+                           (try handler request with _ ->
+                              reject_pending
+                                "shared-texture XPC handler raised an exception");
+                           reject_pending
+                             "shared-texture XPC handler returned without a reply"
+                   in
+                   let result =
+                     Metal_raw.shared_texture_xpc_service_serve raw receive
+                   in
+                   if
+                     Atomic.compare_and_set service.lifetime.destroyed false
+                       true
+                   then begin
+                     ignore (Metal_raw.destroy service.raw);
+                     detach service.device.lifetime
+                   end;
+                   match result with
+                   | Ok () -> Ok ()
+                   | Error message -> native_error operation message))
+    end
   end
 
   let descriptor_2d ?(mipmapped = false) ?(storage = Private)

@@ -30,12 +30,19 @@ contains no unreviewed in-scope declaration.
 
 ## Thread and ownership model
 
-Every public native operation requires both the initial OCaml domain and the
-platform main thread. A wrong-domain call returns `Wrong_domain` before entering
-Metal. The only any-domain native activity is a custom-block finalizer placing
-an opaque retained Objective-C pointer into a fixed 65,536-entry queue; it does
-not release Objective-C objects or call back into OCaml. An initial-domain safe
-entry point drains that queue inside a coarse autorelease pool.
+Every public native operation requires both OCaml domain zero and the platform
+main executor. In an ordinary executable those are the initial OCaml domain and
+physical main thread. An embedded XPC service is the narrow exception to the
+physical-thread test: `NSXPCListener.serviceListener` hands its main dispatch
+executor to `xpc_main`, so the bridge registers only that serialized executor
+with OCaml domain zero for the dynamic extent of a request callback. No OCaml
+code runs on an NSXPCConnection private queue, and the temporary registration is
+removed before returning to XPC. Any other wrong-domain call returns
+`Wrong_domain` before entering Metal. The only remaining any-domain native
+activity is a custom-block finalizer placing an opaque retained Objective-C
+pointer into a fixed 65,536-entry queue; it does not release Objective-C objects
+or call back into OCaml. A domain-zero safe entry point drains that queue inside
+a coarse autorelease pool.
 
 Objective-C++ stubs compile with ARC. Safe handles are opaque and carry a unique
 generation, an atomic destroyed flag, device identity, and parent-dependent
@@ -154,8 +161,31 @@ texture is destroyed. `Texture.import_shared` accepts only a live handle on the
 same device and re-verifies the imported descriptor and sharing state. Source,
 handle, and every import have independent explicit/finalizer lifetimes: handle
 destruction prevents later imports but does not invalidate imports that already
-succeeded. The handle is deliberately opaque; NSSecureCoding/XPC transport is
-not yet exposed, so this slice does not claim cross-process sharing.
+succeeded. The handle is deliberately opaque; NSSecureCoding is not exposed as
+an untyped byte archive.
+
+`Texture.Shared_handle.Xpc` instead provides a typed, bounded cross-process
+transport for embedded application XPC services. A connection names the
+service and caps request/reply payload bytes; each synchronous call supplies a
+bounded operation name, one live shared handle, versioned descriptor metadata,
+opaque application bytes, and an explicit bounded timeout. A timeout
+invalidates the underlying connection. The service accepts only connections
+with the same effective user ID, caps concurrent active requests, validates the
+operation, payload, metadata version, format, dimensions, resource modes,
+usage, and device registry identity, and exposes a one-shot request. A handler
+must call `reply` or `reject` before returning; a return without either, or an
+exception, is rejected automatically. Completion releases the incoming safe
+handle and a second completion deterministically returns `Destroyed`.
+
+`Xpc.serve` is intended as the terminal entry point of the separately launched
+service executable and does not normally return. The Dune conformance target
+constructs a real `.app/Contents/XPCServices/*.xpc` bundle using the OCaml
+`build_xpc_bundle` executable. Its OCaml client writes `37` into a private
+shareable texture, the separately launched OCaml service imports it and writes
+`91`, and the client imports the returned handle and observes `91`; the reply
+also carries a service PID distinct from the client. Missing-service,
+configuration, payload, timeout, rejection, ownership, and stale-handle paths
+are exercised without a Python orchestration layer.
 
 `Texture.Io_surface` is a narrow ownership helper rather than a second general
 IOSurface binding. The existing OCaml build helper links IOSurface.framework
@@ -275,9 +305,10 @@ address modes and border colors, normalized coordinates, finite float32 LOD
 clamps, comparison, LOD averaging, and argument-buffer support. Invalid
 anisotropy, non-finite or inverted clamps, illegal unnormalized-coordinate
 combinations, and malformed labels fail before sampler creation. Sparse
-depth/stencil and placement resources plus cross-process
-IOSurface/shared-handle transport are still pending; this resource slice is
-therefore progress toward M3, not an M3 completion claim.
+depth/stencil and placement resources plus a public cross-process IOSurface
+transport are still pending; shared-handle XPC transport is covered, but this
+resource slice is therefore progress toward M3 rather than an M3 completion
+claim.
 
 `test_metal.exe` runs a real M1 compute kernel, wrong-domain and invalid-state
 cases, shader diagnostics, copied/no-copy external buffer ownership,
@@ -295,7 +326,8 @@ linear/sRGB views, compressed private blits and volume creation, Depth24 and BC
 capability gating, sparse page and tile capability queries, compressed sparse-tile
 alignment, map/blit/read/unmap behavior, command-resource retention, parent
 ownership, idempotent destruction, stale access, and GC-finalizer release. The
-separate ownership stress performs
+separate XPC conformance app exercises a real cross-process shared-texture
+mutation and typed transport failures. The separate ownership stress performs
 warm-up followed
 by 100,000 measured buffer create/destroy cycles, 100,000 measured
 texture/sampler create/destroy cycles, 10,000 heap/purge/alias/replacement
@@ -331,6 +363,9 @@ Metal-driver metadata high-water marks; they are not the production memory
 budget. The ordinary unsanitized workers keep the default 8 MiB limit. Every
 mode retains exact handle balance, zero pending or dropped releases, zero
 deallocator-layout mismatches, and sanitizer diagnostics.
+The separately launched XPC conformance bundle is also built and run under
+combined AddressSanitizer/UndefinedBehaviorSanitizer and under ThreadSanitizer;
+its 64-call reuse loop requires an exact client live-handle balance.
 
 `tools/bench_metal_ffi.exe` is the release-profile M9 baseline. It measures one
 Objective-C property query per OCaml call, one batched call containing the same
@@ -364,6 +399,17 @@ PRISMEL_METAL_SANITIZERS=address opam exec -- dune build \
   lib/metal/test_metal.exe lib/metal/test_metal_stress.exe
 opam exec -- dune exec tools/metal/check_memory.exe -- \
   --mode address --artifacts /tmp/prismel-metal-asan/default
+PRISMEL_METAL_SANITIZERS=address,undefined opam exec -- dune build \
+  --build-dir /tmp/prismel-metal-xpc-asan \
+  lib/metal/metal_xpc_conformance.app
+ASAN_OPTIONS=abort_on_error=1:halt_on_error=1 \
+UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
+  /tmp/prismel-metal-xpc-asan/default/lib/metal/metal_xpc_conformance.app/Contents/MacOS/test_metal_xpc_client
+PRISMEL_METAL_SANITIZERS=thread opam exec -- dune build \
+  --build-dir /tmp/prismel-metal-xpc-tsan \
+  lib/metal/metal_xpc_conformance.app
+TSAN_OPTIONS=abort_on_error=1:halt_on_error=1 \
+  /tmp/prismel-metal-xpc-tsan/default/lib/metal/metal_xpc_conformance.app/Contents/MacOS/test_metal_xpc_client
 opam exec -- dune exec --profile release tools/bench_metal_ffi.exe -- \
   --iterations 1000000 --samples 7 --profile release
 ```

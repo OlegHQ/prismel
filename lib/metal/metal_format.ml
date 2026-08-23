@@ -434,3 +434,6 @@ let all =
   ; Depth24_unorm_stencil8; Depth32_float_stencil8; X32_stencil8
   ; X24_stencil8
   ]
+
+let of_code requested =
+  List.find_opt (fun format -> code format = requested) all
