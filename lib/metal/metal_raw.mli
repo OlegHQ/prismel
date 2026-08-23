@@ -1389,6 +1389,9 @@ external command_buffer_add_handler : handle -> (unit -> unit) -> bool -> (nativ
 external command_buffer_cancel_handler : nativeint -> unit = "caml_prismel_metal_command_buffer_cancel_handler"
 external render_pass_descriptor_create : unit -> (handle,string) result = "caml_prismel_metal_render_pass_descriptor_create"
 external render_pass_descriptor_set_sizes : handle -> int -> int -> int -> int -> (unit,string) result = "caml_prismel_metal_render_pass_descriptor_set_sizes"
+type presentation_render_pass_advanced = int64 * int64 * int64 * int64 * int64 * bool * (float * float) array
+external render_pass_advanced_set : handle -> presentation_render_pass_advanced -> (unit,string) result = "caml_prismel_metal_render_pass_advanced_set"
+external render_pass_advanced_get : handle -> (presentation_render_pass_advanced,string) result = "caml_prismel_metal_render_pass_advanced_get"
 external render_pass_descriptor_set_attachments :
   handle -> handle -> handle option -> handle option -> handle option ->
   float * float * float * float -> (unit,string) result =

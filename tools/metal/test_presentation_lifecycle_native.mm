@@ -41,12 +41,23 @@ int main(void) { @autoreleasepool {
   pass.renderTargetWidth=4; pass.renderTargetHeight=4; pass.renderTargetArrayLength=1;
   pass.defaultRasterSampleCount=1; pass.tileWidth=0; pass.tileHeight=0;
   pass.threadgroupMemoryLength=0;
+  pass.imageblockSampleLength=32; pass.threadgroupMemoryLength=64;
+  pass.tileWidth=8; pass.tileHeight=8;
+  pass.rasterizationRateMap=nil;
+  MTLSamplePosition positions[2]={MTLSamplePositionMake(.25,.25),MTLSamplePositionMake(.75,.75)};
+  [pass setSamplePositions:positions count:2];
   pass.colorAttachments[0].texture=texture;
   pass.colorAttachments[0].loadAction=MTLLoadActionClear;
   pass.colorAttachments[0].storeAction=MTLStoreActionStore;
   pass.colorAttachments[0].clearColor=MTLClearColorMake(0.25,0.5,0.75,1);
-  require(pass.colorAttachments[0].texture == texture && pass.renderTargetWidth == 4,
+  require(pass.colorAttachments[0].texture == texture && pass.renderTargetWidth == 4 &&
+          pass.imageblockSampleLength==32 && pass.threadgroupMemoryLength==64 &&
+          pass.tileWidth==8 && pass.tileHeight==8 &&
+          pass.rasterizationRateMap==nil && [pass getSamplePositions:nullptr count:0]==2,
           @"render-pass ownership and exact fields");
+  pass.imageblockSampleLength=0; pass.threadgroupMemoryLength=0;
+  pass.tileWidth=0; pass.tileHeight=0;
+  [pass setSamplePositions:nullptr count:0];
 
   id<MTLCommandQueue> queue = [device newCommandQueue];
   id<MTLCommandBuffer> presentation = [queue commandBuffer];
