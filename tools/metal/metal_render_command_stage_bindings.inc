@@ -1,5 +1,5 @@
 enum class PrismelRenderStage:intnat{Vertex=0,Fragment=1,Tile=2,Object=3,Mesh=4};
-static PrismelRenderStage prismel_render_stage(value v){intnat n=Long_val(v);if(n<0||n>4)caml_invalid_argument("invalid render stage");return(PrismelRenderStage)n;}
+static PrismelRenderStage prismel_render_stage(value v){intnat n=Long_val(v);if(n<0||n>4)@throw[NSException exceptionWithName:NSInvalidArgumentException reason:@"invalid render stage" userInfo:nil];return(PrismelRenderStage)n;}
 template<class T>static std::vector<T> prismel_render_handles(value a,Handle_kind kind){mlsize_t n=Wosize_val(a);std::vector<T>v;v.reserve(n);for(mlsize_t i=0;i<n;i++)v.push_back(Is_none(Field(a,i))?nil:object_of_handle(Field(Field(a,i),0),kind));return v;}
 static std::vector<NSUInteger> prismel_render_uints(value a){mlsize_t n=Wosize_val(a);std::vector<NSUInteger>v(n);for(mlsize_t i=0;i<n;i++)v[i]=Int64_val(Field(a,i));return v;}
 static std::vector<float> prismel_render_floats(value a){mlsize_t n=Wosize_val(a);std::vector<float>v(n);for(mlsize_t i=0;i<n;i++)v[i]=Double_val(Field(a,i));return v;}
