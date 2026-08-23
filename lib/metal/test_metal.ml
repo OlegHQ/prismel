@@ -4960,6 +4960,201 @@ let test_metal4_depth_commands device =
     true
   end
 
+let test_metal4_stencil_commands device =
+  if not (get (Device.supports_family device Device.Metal4)) then false
+  else begin
+    let replace_face =
+      Depth_stencil.face ~compare:Depth_stencil.Always
+        ~pass:Depth_stencil.Replace ~read_mask:0xffl ~write_mask:0xffl ()
+    in
+    let reject_face =
+      Depth_stencil.face ~compare:Depth_stencil.Equal
+        ~stencil_fail:Depth_stencil.Keep ~depth_fail:Depth_stencil.Keep
+        ~pass:Depth_stencil.Keep ~read_mask:0xffl ~write_mask:0l ()
+    in
+    List.iter
+      (fun operation ->
+        let face =
+          Depth_stencil.face ~stencil_fail:operation ~depth_fail:operation
+            ~pass:operation ~read_mask:0xa5a5a5a5l
+            ~write_mask:0x5a5a5a5al ()
+        in
+        let state =
+          get (Depth_stencil.create ~front_face:face ~back_face:face device ())
+        in
+        get (Depth_stencil.destroy state))
+      [ Depth_stencil.Keep; Depth_stencil.Zero; Depth_stencil.Replace
+      ; Depth_stencil.Increment_clamp; Depth_stencil.Decrement_clamp
+      ; Depth_stencil.Invert; Depth_stencil.Increment_wrap
+      ; Depth_stencil.Decrement_wrap
+      ];
+    let write_state =
+      get
+        (Depth_stencil.create ~label:"Metal 4 stencil replace"
+           ~front_face:replace_face ~back_face:replace_face device ())
+    in
+    let reject_state =
+      get
+        (Depth_stencil.create ~label:"Metal 4 stencil reject"
+           ~front_face:reject_face ~back_face:reject_face device ())
+    in
+    if
+      Depth_stencil.front_face write_state <> Some replace_face
+      || Depth_stencil.back_face write_state <> Some replace_face
+      || Depth_stencil.front_face reject_state <> Some reject_face
+      || Depth_stencil.back_face reject_state <> Some reject_face
+    then fail "Metal 4 stencil-face metadata is wrong";
+    let compiler = get (Compiler.create device) in
+    let library =
+      get
+        (Compiler.compile_source ~name:"metal4-command-stencil-library"
+           compiler depth_render_shader_source)
+    in
+    let red_pipeline =
+      get
+        (Compiler.create_render_pipeline ~label:"Metal 4 stencil red pipeline"
+           ~fragment:"prismel_depth_red_fragment" compiler ~library
+           ~vertex:"prismel_depth_near_vertex")
+    in
+    let green_pipeline =
+      get
+        (Compiler.create_render_pipeline
+           ~label:"Metal 4 stencil green pipeline"
+           ~fragment:"prismel_depth_green_fragment" compiler ~library
+           ~vertex:"prismel_depth_near_vertex")
+    in
+    let color_target =
+      get
+        (Texture.create ~device
+           (Texture.descriptor_2d ~storage:Buffer.Shared
+              ~usage:[ Texture.Render_target ] ~format:Texture.Bgra8_unorm
+              ~width:8 ~height:8 ~label:"Metal 4 stencil color target" ()))
+    in
+    let stencil_target =
+      get
+        (Texture.create ~device
+           (Texture.descriptor_2d ~storage:Buffer.Private
+              ~usage:[ Texture.Render_target ] ~format:Texture.Stencil8
+              ~width:8 ~height:8 ~label:"Metal 4 stencil target" ()))
+    in
+    let allocator =
+      get (Command4.Allocator.create ~label:"Metal 4 stencil allocator" device)
+    in
+    let queue =
+      get (Command4.Queue.create ~label:"Metal 4 stencil queue" device)
+    in
+    let commands =
+      get
+        (Command4.Command_buffer.create allocator
+           ~label:"Metal 4 stencil commands" ())
+    in
+    let color_attachment =
+      Command4.Render_encoder.color_attachment color_target
+    in
+    let no_stencil_encoder =
+      get
+        (Command4.Render_encoder.create ~label:"Metal 4 no-stencil encoder"
+           commands ~color_attachments:[ color_attachment ])
+    in
+    ignore
+      (expect_error Invalid_state
+         (Command4.Render_encoder.set_depth_stencil_state no_stencil_encoder
+            (Some write_state)));
+    ignore
+      (expect_error Invalid_state
+         (Command4.Render_encoder.set_stencil_reference no_stencil_encoder 1l));
+    get (Command4.Render_encoder.end_encoding no_stencil_encoder);
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.create commands
+            ~stencil_attachment:
+              (Command4.Render_encoder.stencil_attachment color_target)
+            ~color_attachments:[ color_attachment ]));
+    let packed_stencil =
+      get
+        (Texture.create ~device
+           (Texture.descriptor_2d ~storage:Buffer.Private
+              ~usage:[ Texture.Render_target; Texture.Pixel_format_view ]
+              ~format:Texture.Depth32_float_stencil8 ~width:8 ~height:8
+              ~label:"Metal 4 packed stencil target" ()))
+    in
+    let stencil_plane =
+      get
+        (Texture.create_view packed_stencil ~format:Texture.X32_stencil8
+           ~base_mip:0 ~mip_count:1 ~base_slice:0 ~slice_count:1
+           ~label:"Metal 4 stencil-plane target" ())
+    in
+    let plane_encoder =
+      get
+        (Command4.Render_encoder.create ~label:"Metal 4 stencil-plane encoder"
+           ~stencil_attachment:
+             (Command4.Render_encoder.stencil_attachment stencil_plane)
+           commands ~color_attachments:[ color_attachment ])
+    in
+    get (Command4.Render_encoder.end_encoding plane_encoder);
+    let encoder =
+      get
+        (Command4.Render_encoder.create ~label:"Metal 4 stencil encoder"
+           ~stencil_attachment:
+             (Command4.Render_encoder.stencil_attachment ~clear_stencil:0l
+                stencil_target)
+           commands ~color_attachments:[ color_attachment ])
+    in
+    get
+      (Command4.Render_encoder.set_depth_stencil_state encoder
+         (Some write_state));
+    get (Command4.Render_encoder.set_stencil_reference encoder 1l);
+    ignore
+      (expect_error Parent_has_dependents
+         (Depth_stencil.destroy write_state));
+    ignore
+      (expect_error Parent_has_dependents (Texture.destroy stencil_target));
+    get (Command4.Render_encoder.set_pipeline encoder red_pipeline);
+    get
+      (Command4.Render_encoder.draw_primitives encoder
+         Command4.Render_encoder.Triangle ~vertex_start:0 ~vertex_count:3);
+    get
+      (Command4.Render_encoder.set_depth_stencil_state encoder
+         (Some reject_state));
+    get
+      (Command4.Render_encoder.set_stencil_references encoder ~front:2l
+         ~back:2l);
+    get (Command4.Render_encoder.set_pipeline encoder green_pipeline);
+    get
+      (Command4.Render_encoder.draw_primitives encoder
+         Command4.Render_encoder.Triangle ~vertex_start:0 ~vertex_count:3);
+    get (Command4.Render_encoder.end_encoding encoder);
+    get (Command4.Command_buffer.end_recording commands);
+    let submission = get (Command4.Queue.commit queue [ commands ]) in
+    get (Command4.Submission.wait submission);
+    let pixels =
+      get
+        (Texture.read_bytes color_target
+           ~region:
+             { Texture.x = 0; y = 0; z = 0; width = 8; height = 8; depth = 1 }
+           ~mip_level:0 ~slice:0 ~bytes_per_row:32 ~bytes_per_image:256)
+    in
+    check_solid_bgra ~label:"Metal 4 stencil-tested draw" ~blue:0 ~green:0
+      ~red:255 ~alpha:255 pixels;
+    get (Render_pipeline.destroy red_pipeline);
+    get (Render_pipeline.destroy green_pipeline);
+    get (Depth_stencil.destroy write_state);
+    get (Depth_stencil.destroy reject_state);
+    get (Texture.destroy color_target);
+    get (Texture.destroy stencil_target);
+    get (Texture.destroy stencil_plane);
+    get (Texture.destroy packed_stencil);
+    get (Command4.Submission.destroy submission);
+    get (Command4.Command_buffer.destroy commands);
+    get (Command4.Allocator.reset allocator);
+    get (Command4.Queue.destroy queue);
+    get (Command4.Allocator.destroy allocator);
+    get (Library.destroy library);
+    get (Compiler.destroy compiler);
+    Printf.printf "Metal 4 stencil attachment/state conformance passed\n%!";
+    true
+  end
+
 let test_metal4_mesh_commands device =
   if
     not (get (Device.supports_family device Device.Metal4))
@@ -5414,6 +5609,7 @@ let () =
     ignore (test_metal4_instanced_commands device);
     ignore (test_metal4_indirect_commands device);
     ignore (test_metal4_depth_commands device);
+    ignore (test_metal4_stencil_commands device);
     ignore (test_metal4_mesh_commands device);
     ignore (test_metal4_tile_commands device);
     ignore (test_metal4_compute_commands device);
@@ -7223,6 +7419,6 @@ let () =
         stats.external_deallocations
         stats.external_deallocation_mismatches;
     Printf.printf
-      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/compiler-task/pipeline-dataset/binary-function/static-link/reflection/compute/render/mesh/object/tile/command4-argument-table/compute/render/indexed/instanced/indirect/depth/mesh/tile conformance passed on %s\n%!"
+      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/compiler-task/pipeline-dataset/binary-function/static-link/reflection/compute/render/mesh/object/tile/command4-argument-table/compute/render/indexed/instanced/indirect/depth/stencil/mesh/tile conformance passed on %s\n%!"
       info.name
   end

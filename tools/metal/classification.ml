@@ -60,8 +60,10 @@ let bound_identifiers =
   ; "class:MTLRenderPassColorAttachmentDescriptor"
   ; "class:MTLRenderPassColorAttachmentDescriptorArray"
   ; "class:MTLRenderPassDepthAttachmentDescriptor"
+  ; "class:MTLRenderPassStencilAttachmentDescriptor"
   ; "class:MTLSamplerDescriptor"
   ; "class:MTLSharedTextureHandle"
+  ; "class:MTLStencilDescriptor"
   ; "class:MTLTextureDescriptor"
   ; "class:MTLTextureViewDescriptor"
   ; "class:MTLTileRenderPipelineColorAttachmentDescriptor"
@@ -103,6 +105,7 @@ let bound_identifiers =
   ; "enum:MTLSparseTextureMappingMode"
   ; "enum:MTLStorageMode"
   ; "enum:MTLStages"
+  ; "enum:MTLStencilOperation"
   ; "enum:MTLTextureType"
   ; "enum:MTLTextureCompressionType"
   ; "enum:MTLTextureSparseTier"
@@ -258,6 +261,7 @@ let bound_identifiers =
   ; "typedef:MTLSizeAndAlign"
   ; "typedef:MTLStorageMode"
   ; "typedef:MTLStages"
+  ; "typedef:MTLStencilOperation"
   ; "typedef:MTLTextureType"
   ; "typedef:MTLTextureCompressionType"
   ; "typedef:MTLTextureSparseTier"
@@ -330,6 +334,8 @@ let bound_identifiers =
           ; "drawPrimitives:vertexStart:vertexCount:instanceCount:baseInstance:"
           ; "setArgumentTable:atStages:"; "setDepthStencilState:"
           ; "setRenderPipelineState:"
+          ; "setStencilFrontReferenceValue:backReferenceValue:"
+          ; "setStencilReferenceValue:"
           ; "setViewport:"; "tileHeight"; "tileWidth"
           ] )
       ; ( "MTL4RenderPassDescriptor"
@@ -337,6 +343,7 @@ let bound_identifiers =
           ; "renderTargetHeight"; "renderTargetWidth"
           ; "setDefaultRasterSampleCount:"; "setRenderTargetHeight:"
           ; "setRenderTargetWidth:"
+          ; "stencilAttachment"
           ] )
       ; ( "MTL4Compiler"
         , [ "device"; "label"
@@ -518,12 +525,22 @@ let bound_identifiers =
         , [ "objectAtIndexedSubscript:" ] )
       ; ( "MTLRenderPassDepthAttachmentDescriptor"
         , [ "clearDepth"; "setClearDepth:" ] )
+      ; ( "MTLRenderPassStencilAttachmentDescriptor"
+        , [ "clearStencil"; "setClearStencil:" ] )
       ; ( "MTLDepthStencilDescriptor"
-        , [ "depthCompareFunction"; "isDepthWriteEnabled"; "label"
+        , [ "backFaceStencil"; "depthCompareFunction"; "frontFaceStencil"
+          ; "isDepthWriteEnabled"; "label"; "setBackFaceStencil:"
           ; "setDepthCompareFunction:"; "setDepthWriteEnabled:"
-          ; "setLabel:"
+          ; "setFrontFaceStencil:"; "setLabel:"
           ] )
       ; "MTLDepthStencilState", [ "device"; "label" ]
+      ; ( "MTLStencilDescriptor"
+        , [ "depthFailureOperation"; "depthStencilPassOperation"; "readMask"
+          ; "setDepthFailureOperation:"; "setDepthStencilPassOperation:"
+          ; "setReadMask:"; "setStencilCompareFunction:"
+          ; "setStencilFailureOperation:"; "setWriteMask:"
+          ; "stencilCompareFunction"; "stencilFailureOperation"; "writeMask"
+          ] )
       ; ( "MTLDevice"
         , [ "currentAllocatedSize"; "hasUnifiedMemory"; "isHeadless"
           ; "heapBufferSizeAndAlignWithLength:options:"
@@ -770,7 +787,7 @@ let bound_identifiers =
       ; "MTL4RenderCommandEncoder", [ "tileHeight"; "tileWidth" ]
       ; ( "MTL4RenderPassDescriptor"
         , [ "colorAttachments"; "defaultRasterSampleCount"; "depthAttachment"
-          ; "renderTargetHeight"; "renderTargetWidth"
+          ; "renderTargetHeight"; "renderTargetWidth"; "stencilAttachment"
           ] )
       ; "MTLAllocation", [ "allocatedSize" ]
       ; "MTLBinaryArchive", [ "device"; "label" ]
@@ -803,9 +820,16 @@ let bound_identifiers =
         , [ "loadAction"; "storeAction"; "texture" ] )
       ; "MTLRenderPassColorAttachmentDescriptor", [ "clearColor" ]
       ; "MTLRenderPassDepthAttachmentDescriptor", [ "clearDepth" ]
+      ; "MTLRenderPassStencilAttachmentDescriptor", [ "clearStencil" ]
       ; ( "MTLDepthStencilDescriptor"
-        , [ "depthCompareFunction"; "depthWriteEnabled"; "label" ] )
+        , [ "backFaceStencil"; "depthCompareFunction"; "depthWriteEnabled"
+          ; "frontFaceStencil"; "label"
+          ] )
       ; "MTLDepthStencilState", [ "device"; "label" ]
+      ; ( "MTLStencilDescriptor"
+        , [ "depthFailureOperation"; "depthStencilPassOperation"; "readMask"
+          ; "stencilCompareFunction"; "stencilFailureOperation"; "writeMask"
+          ] )
       ; ( "MTLDevice"
         , [ "currentAllocatedSize"; "depth24Stencil8PixelFormatSupported"
           ; "hasUnifiedMemory"; "headless"; "lowPower"; "maxBufferLength"
@@ -1012,6 +1036,13 @@ let bound_identifiers =
       ; "MTLCompareFunctionEqual"; "MTLCompareFunctionLessEqual"
       ; "MTLCompareFunctionGreater"; "MTLCompareFunctionNotEqual"
       ; "MTLCompareFunctionGreaterEqual"; "MTLCompareFunctionAlways"
+      ]
+  @ enum_cases "MTLStencilOperation"
+      [ "MTLStencilOperationKeep"; "MTLStencilOperationZero"
+      ; "MTLStencilOperationReplace"; "MTLStencilOperationIncrementClamp"
+      ; "MTLStencilOperationDecrementClamp"; "MTLStencilOperationInvert"
+      ; "MTLStencilOperationIncrementWrap"
+      ; "MTLStencilOperationDecrementWrap"
       ]
   @ enum_cases "MTLCPUCacheMode"
       [ "MTLCPUCacheModeDefaultCache"; "MTLCPUCacheModeWriteCombined" ]

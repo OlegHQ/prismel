@@ -5143,16 +5143,88 @@ extern "C" CAMLprim value caml_prismel_metal_sampler_label(value raw) {
 }
 
 extern "C" CAMLprim value caml_prismel_metal_depth_stencil_create(
-    value raw_device, value raw_compare, value raw_write, value raw_label) {
-  CAMLparam4(raw_device, raw_compare, raw_write, raw_label);
+    value raw_device, value raw_descriptor) {
+  CAMLparam2(raw_device, raw_descriptor);
   CAMLlocal1(raw);
   @autoreleasepool {
     @try {
       id<MTLDevice> device = object_of_handle(raw_device, Handle_kind::Device);
+      value raw_compare = Field(raw_descriptor, 0);
+      value raw_write = Field(raw_descriptor, 1);
+      value raw_front = Field(raw_descriptor, 2);
+      value raw_back = Field(raw_descriptor, 3);
+      value raw_label = Field(raw_descriptor, 4);
       const intnat compare = Long_val(raw_compare);
       if (compare < 0 || compare > 7) {
         CAMLreturn(result_error_text(
             "depth/stencil compare function is invalid"));
+      }
+      auto stencil_matches = [](value raw_face,
+                                MTLStencilDescriptor *face) -> bool {
+        if (face == nil) {
+          return false;
+        }
+        const intnat face_compare = Long_val(Field(raw_face, 0));
+        const intnat stencil_fail = Long_val(Field(raw_face, 1));
+        const intnat depth_fail = Long_val(Field(raw_face, 2));
+        const intnat pass = Long_val(Field(raw_face, 3));
+        const std::uint32_t read_mask =
+            static_cast<std::uint32_t>(Int32_val(Field(raw_face, 4)));
+        const std::uint32_t write_mask =
+            static_cast<std::uint32_t>(Int32_val(Field(raw_face, 5)));
+        return face_compare >= 0 && face_compare <= 7 &&
+               stencil_fail >= 0 && stencil_fail <= 7 && depth_fail >= 0 &&
+               depth_fail <= 7 && pass >= 0 && pass <= 7 &&
+               face.stencilCompareFunction ==
+                   static_cast<MTLCompareFunction>(face_compare) &&
+               face.stencilFailureOperation ==
+                   static_cast<MTLStencilOperation>(stencil_fail) &&
+               face.depthFailureOperation ==
+                   static_cast<MTLStencilOperation>(depth_fail) &&
+               face.depthStencilPassOperation ==
+                   static_cast<MTLStencilOperation>(pass) &&
+               face.readMask == read_mask && face.writeMask == write_mask;
+      };
+      auto make_stencil = [&](value raw_face) -> MTLStencilDescriptor * {
+        const intnat face_compare = Long_val(Field(raw_face, 0));
+        const intnat stencil_fail = Long_val(Field(raw_face, 1));
+        const intnat depth_fail = Long_val(Field(raw_face, 2));
+        const intnat pass = Long_val(Field(raw_face, 3));
+        if (face_compare < 0 || face_compare > 7 || stencil_fail < 0 ||
+            stencil_fail > 7 || depth_fail < 0 || depth_fail > 7 || pass < 0 ||
+            pass > 7) {
+          return nil;
+        }
+        MTLStencilDescriptor *face = [[MTLStencilDescriptor alloc] init];
+        face.stencilCompareFunction =
+            static_cast<MTLCompareFunction>(face_compare);
+        face.stencilFailureOperation =
+            static_cast<MTLStencilOperation>(stencil_fail);
+        face.depthFailureOperation =
+            static_cast<MTLStencilOperation>(depth_fail);
+        face.depthStencilPassOperation =
+            static_cast<MTLStencilOperation>(pass);
+        face.readMask =
+            static_cast<std::uint32_t>(Int32_val(Field(raw_face, 4)));
+        face.writeMask =
+            static_cast<std::uint32_t>(Int32_val(Field(raw_face, 5)));
+        return stencil_matches(raw_face, face) ? face : nil;
+      };
+      MTLStencilDescriptor *front = nil;
+      if (Is_block(raw_front)) {
+        front = make_stencil(Field(raw_front, 0));
+        if (front == nil) {
+          CAMLreturn(result_error_text(
+              "front-face stencil descriptor is invalid"));
+        }
+      }
+      MTLStencilDescriptor *back = nil;
+      if (Is_block(raw_back)) {
+        back = make_stencil(Field(raw_back, 0));
+        if (back == nil) {
+          CAMLreturn(result_error_text(
+              "back-face stencil descriptor is invalid"));
+        }
       }
       NSString *expected_label = nil;
       if (Is_block(raw_label)) {
@@ -5167,10 +5239,23 @@ extern "C" CAMLprim value caml_prismel_metal_depth_stencil_create(
       descriptor.depthCompareFunction =
           static_cast<MTLCompareFunction>(compare);
       descriptor.depthWriteEnabled = Bool_val(raw_write);
-      descriptor.label = expected_label;
+      if (front != nil) {
+        descriptor.frontFaceStencil = front;
+      }
+      if (back != nil) {
+        descriptor.backFaceStencil = back;
+      }
+      if (expected_label != nil) {
+        descriptor.label = expected_label;
+      }
       if (descriptor.depthCompareFunction !=
               static_cast<MTLCompareFunction>(compare) ||
           descriptor.isDepthWriteEnabled != Bool_val(raw_write) ||
+          (front != nil &&
+           !stencil_matches(Field(raw_front, 0),
+                            descriptor.frontFaceStencil)) ||
+          (back != nil &&
+           !stencil_matches(Field(raw_back, 0), descriptor.backFaceStencil)) ||
           ((expected_label == nil) != (descriptor.label == nil)) ||
           (expected_label != nil &&
            ![descriptor.label isEqualToString:expected_label])) {
@@ -9308,19 +9393,23 @@ extern "C" CAMLprim value caml_prismel_metal_command4_compute_encoder_end(
 }
 
 extern "C" CAMLprim value caml_prismel_metal_command4_render_encoder_create(
-    value raw_buffer, value raw_attachments, value raw_depth_attachment,
-    value raw_size, value raw_label) {
-  CAMLparam5(raw_buffer, raw_attachments, raw_depth_attachment, raw_size,
-             raw_label);
+    value raw_buffer, value raw_descriptor) {
+  CAMLparam2(raw_buffer, raw_descriptor);
   CAMLlocal2(raw, created);
   @autoreleasepool {
     if (@available(macOS 26.0, *)) {
       @try {
         PrismelMetal4CommandBufferState *state =
             command_buffer4_state_of_handle(raw_buffer);
+        value raw_attachments = Field(raw_descriptor, 0);
+        value raw_depth_attachment = Field(raw_descriptor, 1);
+        value raw_stencil_attachment = Field(raw_descriptor, 2);
+        value raw_width = Field(raw_descriptor, 3);
+        value raw_height = Field(raw_descriptor, 4);
+        value raw_label = Field(raw_descriptor, 5);
         const mlsize_t count = Wosize_val(raw_attachments);
-        const intnat width = Long_val(Field(raw_size, 0));
-        const intnat height = Long_val(Field(raw_size, 1));
+        const intnat width = Long_val(raw_width);
+        const intnat height = Long_val(raw_height);
         NSString *expected_label = nil;
         if (Is_block(raw_label)) {
           expected_label = string_from_ocaml(Field(raw_label, 0));
@@ -9413,6 +9502,52 @@ extern "C" CAMLprim value caml_prismel_metal_command4_render_encoder_create(
               attachment.clearDepth != clear_depth) {
             CAMLreturn(result_error_text(
                 "Metal changed checked Metal 4 depth attachment properties"));
+          }
+          [textures addObject:texture];
+        }
+        if (Is_block(raw_stencil_attachment)) {
+          value attachment_value = Field(raw_stencil_attachment, 0);
+          id<MTLTexture> texture = object_of_handle(
+              Field(attachment_value, 0), Handle_kind::Texture);
+          const intnat load_action = Long_val(Field(attachment_value, 1));
+          const intnat store_action = Long_val(Field(attachment_value, 2));
+          const std::uint32_t clear_stencil =
+              static_cast<std::uint32_t>(
+                  Int32_val(Field(attachment_value, 3)));
+          const bool stencil_format =
+              texture.pixelFormat == MTLPixelFormatStencil8 ||
+              texture.pixelFormat == MTLPixelFormatDepth24Unorm_Stencil8 ||
+              texture.pixelFormat == MTLPixelFormatDepth32Float_Stencil8 ||
+              texture.pixelFormat == MTLPixelFormatX32_Stencil8 ||
+              texture.pixelFormat == MTLPixelFormatX24_Stencil8;
+          if (texture.device.registryID != state.commandBuffer.device.registryID ||
+              texture.textureType != MTLTextureType2D ||
+              texture.sampleCount != 1 ||
+              texture.width != static_cast<NSUInteger>(width) ||
+              texture.height != static_cast<NSUInteger>(height) ||
+              (texture.usage & MTLTextureUsageRenderTarget) == 0 ||
+              !stencil_format ||
+              (load_action != MTLLoadActionDontCare &&
+               load_action != MTLLoadActionLoad &&
+               load_action != MTLLoadActionClear) ||
+              (store_action != MTLStoreActionDontCare &&
+               store_action != MTLStoreActionStore)) {
+            CAMLreturn(result_error_text(
+                "Metal 4 stencil attachment failed native validation"));
+          }
+          MTLRenderPassStencilAttachmentDescriptor *attachment =
+              descriptor.stencilAttachment;
+          attachment.texture = texture;
+          attachment.loadAction = static_cast<MTLLoadAction>(load_action);
+          attachment.storeAction = static_cast<MTLStoreAction>(store_action);
+          attachment.clearStencil = clear_stencil;
+          if (attachment.texture != texture ||
+              attachment.loadAction != static_cast<MTLLoadAction>(load_action) ||
+              attachment.storeAction !=
+                  static_cast<MTLStoreAction>(store_action) ||
+              attachment.clearStencil != clear_stencil) {
+            CAMLreturn(result_error_text(
+                "Metal changed checked Metal 4 stencil attachment properties"));
           }
           [textures addObject:texture];
         }
@@ -9516,6 +9651,61 @@ caml_prismel_metal_command4_render_encoder_set_depth_stencil(
         if (state != nil) {
           [command_buffer retainEncodedObject:state];
         }
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("Metal 4 commands require macOS 26"));
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_command4_render_encoder_set_stencil_reference(
+    value raw_encoder, value raw_buffer, value raw_reference) {
+  CAMLparam3(raw_encoder, raw_buffer, raw_reference);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4RenderCommandEncoder> encoder =
+            object_of_handle(raw_encoder, Handle_kind::Render_encoder4);
+        PrismelMetal4CommandBufferState *command_buffer =
+            command_buffer4_state_of_handle(raw_buffer);
+        if (encoder.commandBuffer != command_buffer.commandBuffer) {
+          CAMLreturn(result_error_text(
+              "Metal 4 stencil-reference encoder belongs to another buffer"));
+        }
+        [encoder setStencilReferenceValue:static_cast<std::uint32_t>(
+                                              Int32_val(raw_reference))];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("Metal 4 commands require macOS 26"));
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_command4_render_encoder_set_stencil_references(
+    value raw_encoder, value raw_buffer, value raw_front, value raw_back) {
+  CAMLparam4(raw_encoder, raw_buffer, raw_front, raw_back);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4RenderCommandEncoder> encoder =
+            object_of_handle(raw_encoder, Handle_kind::Render_encoder4);
+        PrismelMetal4CommandBufferState *command_buffer =
+            command_buffer4_state_of_handle(raw_buffer);
+        if (encoder.commandBuffer != command_buffer.commandBuffer) {
+          CAMLreturn(result_error_text(
+              "Metal 4 stencil-reference encoder belongs to another buffer"));
+        }
+        [encoder
+            setStencilFrontReferenceValue:static_cast<std::uint32_t>(
+                                               Int32_val(raw_front))
+                       backReferenceValue:static_cast<std::uint32_t>(
+                                              Int32_val(raw_back))];
         CAMLreturn(result_unit());
       } @catch (NSException *exception) {
         CAMLreturn(result_error(exception.reason));

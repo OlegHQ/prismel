@@ -827,15 +827,44 @@ module Depth_stencil : sig
     | Greater_equal
     | Always
 
+  type operation =
+    | Keep
+    | Zero
+    | Replace
+    | Increment_clamp
+    | Decrement_clamp
+    | Invert
+    | Increment_wrap
+    | Decrement_wrap
+
+  type face = private
+    { compare : compare_function
+    ; stencil_fail : operation
+    ; depth_fail : operation
+    ; pass : operation
+    ; read_mask : int32
+    ; write_mask : int32
+    }
+
+  (** Builds one immutable stencil-face policy. Masks are unsigned 32-bit bit
+      patterns; defaults are always/keep with all mask bits set. *)
+  val face :
+    ?compare:compare_function -> ?stencil_fail:operation ->
+    ?depth_fail:operation -> ?pass:operation -> ?read_mask:int32 ->
+    ?write_mask:int32 -> unit -> face
+
   (** Creates immutable depth-test state. The default is always-pass with depth
-      writes disabled. *)
+      writes disabled and with stencil testing disabled for both faces. *)
   val create :
     ?label:string -> ?depth_compare:compare_function -> ?depth_write:bool ->
-    Device.t -> unit -> (t, error) result
+    ?front_face:face -> ?back_face:face -> Device.t -> unit ->
+    (t, error) result
 
   val device : t -> Device.t
   val depth_compare : t -> compare_function
   val depth_write : t -> bool
+  val front_face : t -> face option
+  val back_face : t -> face option
   val generation : t -> int64
   val destroyed : t -> bool
   val label : t -> (string option, error) result
@@ -1540,8 +1569,14 @@ module Command4 : sig
       | Depth_load
       | Depth_clear
 
+    type stencil_load_action =
+      | Stencil_load_dont_care
+      | Stencil_load
+      | Stencil_clear
+
     type color_attachment
     type depth_attachment
+    type stencil_attachment
     type viewport
 
     type primitive =
@@ -1575,19 +1610,33 @@ module Command4 : sig
       ?load_action:depth_load_action -> ?store_action:store_action ->
       ?clear_depth:float -> Texture.t -> depth_attachment
 
+    (** Creates a base-level, single-sample 2D stencil attachment. The clear
+        value is interpreted as an unsigned 32-bit bit pattern. *)
+    val stencil_attachment :
+      ?load_action:stencil_load_action -> ?store_action:store_action ->
+      ?clear_stencil:int32 -> Texture.t -> stencil_attachment
+
     val create :
-      ?label:string -> ?depth_attachment:depth_attachment -> Command_buffer.t ->
+      ?label:string -> ?depth_attachment:depth_attachment ->
+      ?stencil_attachment:stencil_attachment -> Command_buffer.t ->
       color_attachments:color_attachment list -> (t, error) result
 
     (** Binds a conventional, mesh, or tile render pipeline whose sample count
         and ordered color formats match the render pass. *)
     val set_pipeline : t -> Render_pipeline.t -> (unit, error) result
 
-    (** Binds immutable depth-test state. Active testing or writes require a
-        depth attachment in this render pass. [None] restores Metal's default
-        always-pass, no-write state. *)
+    (** Binds immutable depth/stencil state. Active depth testing or writes
+        require a depth attachment, and an explicit stencil face requires a
+        stencil attachment. [None] restores Metal's default state. *)
     val set_depth_stencil_state :
       t -> Depth_stencil.t option -> (unit, error) result
+
+    (** Sets the unsigned 32-bit stencil reference for both primitive faces. *)
+    val set_stencil_reference : t -> int32 -> (unit, error) result
+
+    (** Sets independent unsigned 32-bit front/back stencil references. *)
+    val set_stencil_references :
+      t -> front:int32 -> back:int32 -> (unit, error) result
 
     (** Associates [table] with the selected render stages. Metal snapshots
         the table's current resources at each subsequent draw. [None] clears

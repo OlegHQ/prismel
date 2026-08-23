@@ -184,6 +184,44 @@ type metal4_render_depth_attachment =
   ; clear_depth : float
   }
 
+(** Positional native ABI record for one base-level, single-sample Metal 4
+    render-pass stencil attachment. *)
+type metal4_render_stencil_attachment =
+  { texture : handle
+  ; load_action : int
+  ; store_action : int
+  ; clear_stencil : int32
+  }
+
+(** Positional native ABI record for a Metal 4 render pass. *)
+type metal4_render_pass_descriptor =
+  { color_attachments : metal4_render_attachment array
+  ; depth_attachment : metal4_render_depth_attachment option
+  ; stencil_attachment : metal4_render_stencil_attachment option
+  ; width : int
+  ; height : int
+  ; label : string option
+  }
+
+(** Positional native ABI record for one immutable stencil face. *)
+type depth_stencil_face_descriptor =
+  { compare_function : int
+  ; stencil_failure_operation : int
+  ; depth_failure_operation : int
+  ; pass_operation : int
+  ; read_mask : int32
+  ; write_mask : int32
+  }
+
+(** Positional native ABI record for immutable depth/stencil state. *)
+type depth_stencil_descriptor =
+  { depth_compare_function : int
+  ; depth_write_enabled : bool
+  ; front_face_stencil : depth_stencil_face_descriptor option
+  ; back_face_stencil : depth_stencil_face_descriptor option
+  ; label : string option
+  }
+
 (** Positional native ABI record for a Metal 4 argument-table descriptor. *)
 type metal4_argument_table_descriptor =
   { max_buffers : int
@@ -577,7 +615,7 @@ external sampler_label : handle -> string option =
   "caml_prismel_metal_sampler_label"
 
 external depth_stencil_create :
-  handle -> int -> bool -> string option -> (handle, string) result =
+  handle -> depth_stencil_descriptor -> (handle, string) result =
   "caml_prismel_metal_depth_stencil_create"
 
 external depth_stencil_label : handle -> string option =
@@ -882,8 +920,7 @@ external command4_compute_encoder_end : handle -> (unit, string) result =
   "caml_prismel_metal_command4_compute_encoder_end"
 
 external command4_render_encoder_create :
-  handle -> metal4_render_attachment array ->
-  metal4_render_depth_attachment option -> (int * int) -> string option ->
+  handle -> metal4_render_pass_descriptor ->
   ((handle * int * int), string) result =
   "caml_prismel_metal_command4_render_encoder_create"
 
@@ -894,6 +931,14 @@ external command4_render_encoder_set_pipeline :
 external command4_render_encoder_set_depth_stencil :
   handle -> handle -> handle option -> (unit, string) result =
   "caml_prismel_metal_command4_render_encoder_set_depth_stencil"
+
+external command4_render_encoder_set_stencil_reference :
+  handle -> handle -> int32 -> (unit, string) result =
+  "caml_prismel_metal_command4_render_encoder_set_stencil_reference"
+
+external command4_render_encoder_set_stencil_references :
+  handle -> handle -> int32 -> int32 -> (unit, string) result =
+  "caml_prismel_metal_command4_render_encoder_set_stencil_references"
 
 external command4_render_encoder_set_argument_table :
   handle -> handle -> handle option -> int -> (unit, string) result =
