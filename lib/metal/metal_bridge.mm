@@ -943,6 +943,18 @@ enum class Handle_kind : std::uint32_t {
   Render_sample_attachment_descriptor,
   Render_sample_attachment_array,
   Logical_to_physical_color_attachment_map,
+  Shader_attribute,
+  Shader_vertex_attribute,
+  Shader_attribute_descriptor,
+  Shader_attribute_descriptor_array,
+  Shader_stage_descriptor,
+  Shader_argument_encoder,
+  Shader_stitching_input_node,
+  Mesh_pipeline_descriptor,
+  Tile_pipeline_descriptor,
+  Linked_functions,
+  Counter_set,
+  Counter_descriptor,
 };
 
 struct Handle {
@@ -14322,3 +14334,15 @@ extern "C" CAMLprim value caml_prismel_metal_pipeline_render_imageblock_length(v
 #undef PRISMEL_PIPELINE_STATE_INT
 #undef PRISMEL_PIPELINE_STATE_BOOL
 #undef PRISMEL_PIPELINE_STATE_SIZE
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunguarded-availability-new"
+#include "../../tools/metal/metal_shader_callable_bridge.inc"
+#pragma clang diagnostic pop
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunguarded-availability-new"
+#include "../../tools/metal/metal_mesh_tile_ownership_materializers.inc"
+#include "../../tools/metal/metal_io_counter_ownership_materializers.inc"
+#include "../../tools/metal/metal_mesh_tile_counter_callable_bridge.inc"
+#pragma clang diagnostic pop
