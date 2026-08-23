@@ -1,6 +1,7 @@
 type output =
   { ocaml_ml : string
   ; ocaml_mli : string
+  ; test_ml : string
   ; native_checks : string
   }
 

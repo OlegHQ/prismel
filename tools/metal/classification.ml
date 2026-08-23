@@ -1490,4 +1490,6 @@ let classify ~unavailable ~identifier =
     Bound, "Implemented by the ownership-aware prismel.metal safe layer."
   else if generated_public_enum_identifier identifier then
     Bound, "Implemented by the generated, typed prismel.metal pure-value enum surface."
+  else if Binding_value_record_evidence.is_bound_identifier identifier then
+    Bound, "Implemented by the generated, typed prismel.metal fixed-layout value-record surface."
   else Unreviewed, "Binding classification pending during Phase 2."

@@ -1,4 +1,5 @@
 val expected_layout_digest : string
+val is_bound_identifier : string -> bool
 
 val public_marker : Binding_value_record_plan.record -> string
 val test_marker : Binding_value_record_plan.record -> string

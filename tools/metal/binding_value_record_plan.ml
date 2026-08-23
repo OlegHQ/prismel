@@ -22,6 +22,27 @@ let expected_record_count = 27
 let expected_field_count = 108
 let expected_id_count = 135
 
+let record_names =
+  [ "MTL4BufferRange"; "MTL4CopySparseBufferMappingOperation"
+  ; "MTL4CopySparseTextureMappingOperation"; "MTL4TimestampHeapEntry"
+  ; "MTLAccelerationStructureInstanceDescriptor"
+  ; "MTLAccelerationStructureMotionInstanceDescriptor"
+  ; "MTLAccelerationStructureSizes"
+  ; "MTLAccelerationStructureUserIDInstanceDescriptor"
+  ; "MTLComponentTransform"; "MTLCounterResultStageUtilization"
+  ; "MTLCounterResultStatistic"; "MTLCounterResultTimestamp"
+  ; "MTLDispatchThreadgroupsIndirectArguments"
+  ; "MTLDispatchThreadsIndirectArguments"; "MTLDrawPatchIndirectArguments"
+  ; "MTLIndirectAccelerationStructureInstanceDescriptor"
+  ; "MTLIndirectAccelerationStructureMotionInstanceDescriptor"
+  ; "MTLIndirectCommandBufferExecutionRange"
+  ; "MTLIntersectionFunctionBufferArguments"; "MTLMapIndirectArguments"
+  ; "MTLPackedFloatQuaternion"; "MTLQuadTessellationFactorsHalf"
+  ; "MTLSamplePosition"; "MTLStageInRegionIndirectArguments"
+  ; "MTLTriangleTessellationFactorsHalf"; "_MTLAxisAlignedBoundingBox"
+  ; "_MTLPackedFloat4x3"
+  ]
+
 let fail format = Printf.ksprintf (fun message -> invalid_arg ("Metal value-record plan: " ^ message)) format
 
 let member name = function
@@ -39,14 +60,7 @@ let optional_string_member name value =
   | Some `Null | None -> None
   | _ -> fail "invalid optional string member %s" name
 
-let public_record name =
-  not
-    (List.mem name
-       [ "MTLSharedEventHandlePrivate"
-       ; "MTLSharedTextureHandlePrivate"
-       ; "_CAMetalLayerPrivate"
-       ; "_MTLPackedFloat3" (* anonymous union exposes elements and x/y/z aliases *)
-       ])
+let public_record name = List.mem name record_names
 
 let fixed_field_type = function
   | "MTLGPUAddress" | "NSUInteger" | "uint64_t" | "uint32_t" | "uint16_t" | "float"
@@ -63,11 +77,15 @@ let select json =
     | Some (`List symbols) -> symbols
     | _ -> fail "inventory has no symbols array"
   in
-  let unreviewed symbol = String.equal (string_member "classification" symbol) "unreviewed" in
+  let selected_classification symbol =
+    match string_member "classification" symbol with
+    | "unreviewed" | "bound" -> true
+    | _ -> false
+  in
   let fields = Hashtbl.create expected_record_count in
   List.iter
     (fun symbol ->
-      if String.equal (string_member "kind" symbol) "field" && unreviewed symbol then
+      if String.equal (string_member "kind" symbol) "field" && selected_classification symbol then
         let owner = string_member "owner" symbol in
         let objc_type = string_member "signature" symbol in
         if public_record owner then begin
@@ -86,7 +104,7 @@ let select json =
   let records =
     List.filter_map
       (fun symbol ->
-        if String.equal (string_member "kind" symbol) "record" && unreviewed symbol then
+        if String.equal (string_member "kind" symbol) "record" && selected_classification symbol then
           let name = string_member "name" symbol in
           if public_record name then
             match Hashtbl.find_opt fields name with

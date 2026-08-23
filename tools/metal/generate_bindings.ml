@@ -1713,7 +1713,7 @@ let add_native_binding output entry =
       fail "internal error: non-generated Metal binding %s" entry.sdk_id
 
 let native_include ~header ~implicit_enum_selection ~struct_output
-    ~string_entries ~direct_methods entries =
+    ~value_record_checks ~string_entries ~direct_methods entries =
   let output = Buffer.create 8192 in
   Printf.bprintf output "/* %s */\n\n" header;
   Buffer.add_string output
@@ -1721,6 +1721,8 @@ let native_include ~header ~implicit_enum_selection ~struct_output
        implicit_enum_selection);
   Buffer.add_char output '\n';
   Buffer.add_string output struct_output.Binding_struct_native_codegen.native;
+  Buffer.add_char output '\n';
+  Buffer.add_string output value_record_checks;
   Buffer.add_char output '\n';
   Buffer.add_string output (Binding_string_codegen.render_native string_entries);
   Buffer.add_char output '\n';
@@ -1956,7 +1958,7 @@ let direct_batch_json methods properties =
 let manifest ~sdk_version ~plan_sha256 ~generator_sha256 ~inventory_sha256
     ~raw_ml_contents ~raw_mli_contents ~native_contents ~enum_selection
     ~implicit_enum_selection ~struct_output ~string_entries ~direct_methods
-    ~direct_properties entries =
+    ~direct_properties ~value_record_ids entries =
   pretty_json
     (`Assoc
        [ "schema", `Int 2
@@ -1984,6 +1986,15 @@ let manifest ~sdk_version ~plan_sha256 ~generator_sha256 ~inventory_sha256
              ; "safe_bound_count", `Int 0
              ; "method_ids", `List (List.map (fun id -> `String id) struct_output.method_ids)
              ; "property_ids", `List (List.map (fun id -> `String id) struct_output.property_ids)
+             ] )
+       ; ( "generated_value_record_batch"
+         , `Assoc
+             [ "record_count", `Int Binding_value_record_plan.expected_record_count
+             ; "field_count", `Int Binding_value_record_plan.expected_field_count
+             ; "declaration_count", `Int (List.length value_record_ids)
+             ; "safe_bound_count", `Int (List.length value_record_ids)
+             ; "layout_digest", `String Binding_value_record_evidence.expected_layout_digest
+             ; "identifiers", `List (List.map (fun id -> `String id) value_record_ids)
              ] )
        ; ( "mechanical_string_batch"
          , let identifiers =
@@ -2013,6 +2024,12 @@ let generator_source_paths =
   ; "tools/metal/binding_enum_bound_evidence.mli"
   ; "tools/metal/binding_enum_public_codegen.ml"
   ; "tools/metal/binding_enum_public_codegen.mli"
+  ; "tools/metal/binding_value_record_plan.ml"
+  ; "tools/metal/binding_value_record_plan.mli"
+  ; "tools/metal/binding_value_record_codegen.ml"
+  ; "tools/metal/binding_value_record_codegen.mli"
+  ; "tools/metal/binding_value_record_evidence.ml"
+  ; "tools/metal/binding_value_record_evidence.mli"
   ; "tools/metal/binding_struct_spec.ml"
   ; "tools/metal/binding_struct_spec.mli"
   ; "tools/metal/binding_struct_plan.ml"
@@ -2068,6 +2085,9 @@ type options =
   ; output_public_enum_ml : string
   ; output_public_enum_mli : string
   ; output_public_enum_test : string
+  ; output_public_value_ml : string
+  ; output_public_value_mli : string
+  ; output_public_value_test : string
   }
 
 let options () =
@@ -2087,6 +2107,9 @@ let options () =
   let output_public_enum_ml = ref "" in
   let output_public_enum_mli = ref "" in
   let output_public_enum_test = ref "" in
+  let output_public_value_ml = ref "" in
+  let output_public_value_mli = ref "" in
+  let output_public_value_test = ref "" in
   let set target value = target := value in
   let arguments =
     [ "--inventory", Arg.String (set inventory), "Pinned inventory JSON"
@@ -2113,6 +2136,9 @@ let options () =
     ; "--output-public-enum-ml", Arg.String (set output_public_enum_ml), "Generated public enum ML"
     ; "--output-public-enum-mli", Arg.String (set output_public_enum_mli), "Generated public enum MLI"
     ; "--output-public-enum-test", Arg.String (set output_public_enum_test), "Generated public enum test"
+    ; "--output-public-value-ml", Arg.String (set output_public_value_ml), "Generated public value-record ML"
+    ; "--output-public-value-mli", Arg.String (set output_public_value_mli), "Generated public value-record MLI"
+    ; "--output-public-value-test", Arg.String (set output_public_value_test), "Generated public value-record test"
     ]
   in
   Arg.parse arguments
@@ -2157,11 +2183,15 @@ let options () =
   ; output_public_enum_ml = require "--output-public-enum-ml" output_public_enum_ml
   ; output_public_enum_mli = require "--output-public-enum-mli" output_public_enum_mli
   ; output_public_enum_test = require "--output-public-enum-test" output_public_enum_test
+  ; output_public_value_ml = require "--output-public-value-ml" output_public_value_ml
+  ; output_public_value_mli = require "--output-public-value-mli" output_public_value_mli
+  ; output_public_value_test = require "--output-public-value-test" output_public_value_test
   }
 
 let main () =
   let options = options () in
   let inventory_contents = read_file options.inventory in
+  let inventory_json = Yojson.Safe.from_string inventory_contents in
   let plan_sha256 = Binding_plan.source_sha256 ~root:options.plan_root in
   let sdk_version, inventory_plan_sha256, inventory =
     load_inventory options.inventory
@@ -2190,6 +2220,18 @@ let main () =
       (List.length public_enums.identifiers);
   let struct_output = Binding_struct_native_codegen.generate () in
   validate_struct_native_output inventory struct_output;
+  let value_record_selection = Binding_value_record_plan.select inventory_json in
+  let value_records = Binding_value_record_codegen.generate value_record_selection in
+  let value_record_ids =
+    Binding_value_record_evidence.bound_ids ~inventory:inventory_json
+      ~public_interface:value_records.ocaml_mli ~test_source:value_records.test_ml
+  in
+  List.iter
+    (fun identifier ->
+      let declaration = require_declaration inventory identifier in
+      if declaration.classification <> "bound" then
+        fail "generated Metal value record must be bound: %s" identifier)
+    value_record_ids;
   let string_entries = Binding_string_codegen.qualified_entries () in
   validate_string_entries inventory string_entries;
   let manual_native = read_file options.manual_native in
@@ -2214,13 +2256,14 @@ let main () =
   in
   let native_contents =
     native_include ~header ~implicit_enum_selection ~struct_output
+      ~value_record_checks:value_records.native_checks
       ~string_entries ~direct_methods entries
   in
   let manifest_contents =
     manifest ~sdk_version ~plan_sha256 ~generator_sha256 ~inventory_sha256
       ~raw_ml_contents ~raw_mli_contents ~native_contents ~enum_selection
       ~implicit_enum_selection ~struct_output ~string_entries ~direct_methods
-      ~direct_properties entries
+      ~direct_properties ~value_record_ids entries
   in
   write_file options.output_raw_ml raw_ml_contents;
   write_file options.output_raw_mli raw_mli_contents;
@@ -2232,6 +2275,12 @@ let main () =
     (Printf.sprintf "(* %s *)\n\n%s" header public_enums.mli);
   write_file options.output_public_enum_test
     (Printf.sprintf "(* %s *)\n\n%s" header public_enums.test_ml);
+  write_file options.output_public_value_ml
+    (Printf.sprintf "(* %s *)\n\n%s" header value_records.ocaml_ml);
+  write_file options.output_public_value_mli
+    (Printf.sprintf "(* %s *)\n\n%s" header value_records.ocaml_mli);
+  write_file options.output_public_value_test
+    (Printf.sprintf "(* %s *)\n\n%s" header value_records.test_ml);
   Printf.printf
     "generated %d checked-plan calls, %d direct calls (%d safe Device IDs), %d direct properties, %d explicit-value enum declarations, and %d implicit-value enum declarations\n%!"
     (List.length entries) (List.length direct_methods)

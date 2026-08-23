@@ -1,5 +1,12 @@
 let expected_layout_digest = "06b744b336313eaab9e3e47d2a407ab3"
 
+let is_bound_identifier identifier =
+  List.exists
+    (fun name ->
+      String.equal identifier ("record:" ^ name)
+      || String.starts_with ~prefix:("field:" ^ name ^ ":") identifier)
+    Binding_value_record_plan.record_names
+
 let fail format =
   Printf.ksprintf
     (fun message -> invalid_arg ("Metal value-record evidence: " ^ message))
@@ -67,3 +74,7 @@ let bound_ids ~inventory ~public_interface ~test_source =
     public_interface;
   require_markers ~kind:"test" (List.map test_marker selection.records) test_source;
   selection.ids
+
+let () =
+  if List.length Binding_value_record_plan.record_names <> Binding_value_record_plan.expected_record_count then
+    invalid_arg "Metal value-record evidence family cardinality drift"

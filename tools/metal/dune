@@ -11,6 +11,9 @@
   binding_enum_implicit_codegen
   binding_enum_bound_evidence
   binding_enum_public_codegen
+  binding_value_record_plan
+  binding_value_record_codegen
+  binding_value_record_evidence
   binding_availability
   binding_availability_ast
   binding_receiver_catalog
@@ -69,6 +72,12 @@
   binding_enum_implicit_codegen.mli
   binding_enum_public_codegen.ml
   binding_enum_public_codegen.mli
+  binding_value_record_plan.ml
+  binding_value_record_plan.mli
+  binding_value_record_codegen.ml
+  binding_value_record_codegen.mli
+  binding_value_record_evidence.ml
+  binding_value_record_evidence.mli
   binding_struct_native_codegen.ml
   binding_struct_native_codegen.mli
   binding_struct_spec.ml
@@ -158,6 +167,20 @@
  (name test_binding_struct_native_codegen)
  (modules test_binding_struct_native_codegen)
  (libraries metal_inventory_classification))
+
+(test
+ (name test_binding_value_records)
+ (modules test_binding_value_records)
+ (libraries metal_inventory_classification yojson)
+ (deps ../../lib/metal/generated_api_inventory.json)
+ (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
+
+(test
+ (name test_binding_value_record_evidence)
+ (modules test_binding_value_record_evidence)
+ (libraries metal_inventory_classification yojson)
+ (deps ../../lib/metal/generated_api_inventory.json)
+ (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
  (name test_binding_string_codegen)

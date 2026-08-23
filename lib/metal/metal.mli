@@ -5,6 +5,9 @@
     availability metadata. *)
 module Enum : module type of Metal_enum_generated
 
+(** Generated, handle-free, fixed-layout SDK value records. *)
+module Value : module type of Metal_value_record_generated
+
 type error_kind =
   | Native_error
   | Wrong_domain

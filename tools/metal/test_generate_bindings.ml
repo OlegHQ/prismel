@@ -20,6 +20,9 @@ type outputs =
   ; public_enum_ml : string
   ; public_enum_mli : string
   ; public_enum_test : string
+  ; public_value_ml : string
+  ; public_value_mli : string
+  ; public_value_test : string
   }
 
 let parse_options () =
@@ -77,6 +80,9 @@ let outputs directory prefix =
   ; public_enum_ml = path "_enum.ml"
   ; public_enum_mli = path "_enum.mli"
   ; public_enum_test = path "_enum_test.ml"
+  ; public_value_ml = path "_value.ml"
+  ; public_value_mli = path "_value.mli"
+  ; public_value_test = path "_value_test.ml"
   }
 
 let run inputs ?(plan_root = inputs.plan_root)
@@ -100,6 +106,9 @@ let run inputs ?(plan_root = inputs.plan_root)
     ; "--output-public-enum-ml"; outputs.public_enum_ml
     ; "--output-public-enum-mli"; outputs.public_enum_mli
     ; "--output-public-enum-test"; outputs.public_enum_test
+    ; "--output-public-value-ml"; outputs.public_value_ml
+    ; "--output-public-value-mli"; outputs.public_value_mli
+    ; "--output-public-value-test"; outputs.public_value_test
     ]
 
 let require_success description result =
@@ -901,6 +910,12 @@ let generator_source_sha256 entry_source =
   ; "tools/metal/binding_enum_bound_evidence.mli"
   ; "tools/metal/binding_enum_public_codegen.ml"
   ; "tools/metal/binding_enum_public_codegen.mli"
+  ; "tools/metal/binding_value_record_plan.ml"
+  ; "tools/metal/binding_value_record_plan.mli"
+  ; "tools/metal/binding_value_record_codegen.ml"
+  ; "tools/metal/binding_value_record_codegen.mli"
+  ; "tools/metal/binding_value_record_evidence.ml"
+  ; "tools/metal/binding_value_record_evidence.mli"
   ; "tools/metal/binding_struct_spec.ml"
   ; "tools/metal/binding_struct_spec.mli"
   ; "tools/metal/binding_struct_plan.ml"
@@ -1564,6 +1579,9 @@ let check_manifest inputs outputs =
   ; "public enum ML", "(* " ^ header ^ " *)\n\n", outputs.public_enum_ml
   ; "public enum MLI", "(* " ^ header ^ " *)\n\n", outputs.public_enum_mli
   ; "public enum test", "(* " ^ header ^ " *)\n\n", outputs.public_enum_test
+  ; "public value ML", "(* " ^ header ^ " *)\n\n", outputs.public_value_ml
+  ; "public value MLI", "(* " ^ header ^ " *)\n\n", outputs.public_value_mli
+  ; "public value test", "(* " ^ header ^ " *)\n\n", outputs.public_value_test
   ]
   |> List.iter (fun (description, prefix, path) ->
     if not (String.starts_with ~prefix (read_file path)) then
@@ -1667,6 +1685,9 @@ let main () =
     ; first.public_enum_ml, second.public_enum_ml
     ; first.public_enum_mli, second.public_enum_mli
     ; first.public_enum_test, second.public_enum_test
+    ; first.public_value_ml, second.public_value_ml
+    ; first.public_value_mli, second.public_value_mli
+    ; first.public_value_test, second.public_value_test
     ]
     |> List.iter (fun (left, right) ->
       if read_file left <> read_file right then

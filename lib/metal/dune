@@ -32,7 +32,10 @@
   generated_binding_manifest.json
   metal_enum_generated.ml
   metal_enum_generated.mli
-  test_metal_enum_generated.ml)
+  test_metal_enum_generated.ml
+  metal_value_record_generated.ml
+  metal_value_record_generated.mli
+  test_metal_value_record_generated.ml)
  (deps
   generated_api_inventory.json
   metal_bridge.mm
@@ -60,6 +63,12 @@
   ../../tools/metal/binding_enum_bound_evidence.mli
   ../../tools/metal/binding_enum_public_codegen.ml
   ../../tools/metal/binding_enum_public_codegen.mli
+  ../../tools/metal/binding_value_record_plan.ml
+  ../../tools/metal/binding_value_record_plan.mli
+  ../../tools/metal/binding_value_record_codegen.ml
+  ../../tools/metal/binding_value_record_codegen.mli
+  ../../tools/metal/binding_value_record_evidence.ml
+  ../../tools/metal/binding_value_record_evidence.mli
   ../../tools/metal/binding_struct_native_codegen.ml
   ../../tools/metal/binding_struct_native_codegen.mli
   ../../tools/metal/binding_struct_spec.ml
@@ -106,7 +115,10 @@
    --output-manifest generated_binding_manifest.json
    --output-public-enum-ml metal_enum_generated.ml
    --output-public-enum-mli metal_enum_generated.mli
-   --output-public-enum-test test_metal_enum_generated.ml)))
+   --output-public-enum-test test_metal_enum_generated.ml
+   --output-public-value-ml metal_value_record_generated.ml
+   --output-public-value-mli metal_value_record_generated.mli
+   --output-public-value-test test_metal_value_record_generated.ml)))
 
 (rule
  (targets metal_bridge.o libmetal_bridge_stubs.a dllmetal_bridge_stubs.so)
@@ -124,12 +136,13 @@
 (library
  (name metal)
  (public_name prismel.metal)
- (modules Metal Metal_format Metal_raw Metal_raw_generated Metal_enum_generated Generated_provenance)
+ (modules Metal Metal_format Metal_raw Metal_raw_generated Metal_enum_generated Metal_value_record_generated Generated_provenance)
  (private_modules
   Metal_format
   Metal_raw
   Metal_raw_generated
   Metal_enum_generated
+  Metal_value_record_generated
   Generated_provenance)
  (libraries threads)
  (foreign_archives metal_bridge_stubs)
@@ -148,6 +161,11 @@
 (test
  (name test_metal_enum_generated)
  (modules test_metal_enum_generated)
+ (libraries metal))
+
+(test
+ (name test_metal_value_record_generated)
+ (modules test_metal_value_record_generated)
  (libraries metal))
 
 (test

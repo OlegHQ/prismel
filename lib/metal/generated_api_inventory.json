@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 2359,
+    "bound": 2494,
     "scope-excluded": 27,
-    "unreviewed": 2899
+    "unreviewed": 2764
   },
-  "classification_source_sha256": "fe7975761eb3b08b9a11ba29cf0d4e336ae02da1514080b6cd2d2f8a845b4c52",
+  "classification_source_sha256": "25c9929b8f36746927be4d6a85a2549933057facf0e1d464e519b6032b8f05ad",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "271bd5614a6f2ca840ce89a551c7fe0eff087fb6bd30e651d7acd230226f04a1",
@@ -26361,7 +26361,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4BufferRange.h",
       "id": "field:MTL4BufferRange:bufferAddress",
       "kind": "field",
@@ -26369,13 +26369,13 @@
       "macos_introduced": null,
       "name": "bufferAddress",
       "owner": "MTL4BufferRange",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "MTLGPUAddress"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4BufferRange.h",
       "id": "field:MTL4BufferRange:length",
       "kind": "field",
@@ -26383,7 +26383,7 @@
       "macos_introduced": null,
       "name": "length",
       "owner": "MTL4BufferRange",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint64_t"
     },
     {
@@ -26394,7 +26394,7 @@
           "line": 207
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "field:MTL4CopySparseBufferMappingOperation:destinationOffset",
       "kind": "field",
@@ -26402,7 +26402,7 @@
       "macos_introduced": "26.0",
       "name": "destinationOffset",
       "owner": "MTL4CopySparseBufferMappingOperation",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "NSUInteger"
     },
     {
@@ -26413,7 +26413,7 @@
           "line": 207
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "field:MTL4CopySparseBufferMappingOperation:sourceRange",
       "kind": "field",
@@ -26421,7 +26421,7 @@
       "macos_introduced": "26.0",
       "name": "sourceRange",
       "owner": "MTL4CopySparseBufferMappingOperation",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "NSRange"
     },
     {
@@ -26432,7 +26432,7 @@
           "line": 174
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "field:MTL4CopySparseTextureMappingOperation:destinationLevel",
       "kind": "field",
@@ -26440,7 +26440,7 @@
       "macos_introduced": "26.0",
       "name": "destinationLevel",
       "owner": "MTL4CopySparseTextureMappingOperation",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "NSUInteger"
     },
     {
@@ -26451,7 +26451,7 @@
           "line": 174
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "field:MTL4CopySparseTextureMappingOperation:destinationOrigin",
       "kind": "field",
@@ -26459,7 +26459,7 @@
       "macos_introduced": "26.0",
       "name": "destinationOrigin",
       "owner": "MTL4CopySparseTextureMappingOperation",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "MTLOrigin"
     },
     {
@@ -26470,7 +26470,7 @@
           "line": 174
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "field:MTL4CopySparseTextureMappingOperation:destinationSlice",
       "kind": "field",
@@ -26478,7 +26478,7 @@
       "macos_introduced": "26.0",
       "name": "destinationSlice",
       "owner": "MTL4CopySparseTextureMappingOperation",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "NSUInteger"
     },
     {
@@ -26489,7 +26489,7 @@
           "line": 174
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "field:MTL4CopySparseTextureMappingOperation:sourceLevel",
       "kind": "field",
@@ -26497,7 +26497,7 @@
       "macos_introduced": "26.0",
       "name": "sourceLevel",
       "owner": "MTL4CopySparseTextureMappingOperation",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "NSUInteger"
     },
     {
@@ -26508,7 +26508,7 @@
           "line": 174
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "field:MTL4CopySparseTextureMappingOperation:sourceRegion",
       "kind": "field",
@@ -26516,7 +26516,7 @@
       "macos_introduced": "26.0",
       "name": "sourceRegion",
       "owner": "MTL4CopySparseTextureMappingOperation",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "MTLRegion"
     },
     {
@@ -26527,7 +26527,7 @@
           "line": 174
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "field:MTL4CopySparseTextureMappingOperation:sourceSlice",
       "kind": "field",
@@ -26535,7 +26535,7 @@
       "macos_introduced": "26.0",
       "name": "sourceSlice",
       "owner": "MTL4CopySparseTextureMappingOperation",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "NSUInteger"
     },
     {
@@ -26546,7 +26546,7 @@
           "line": 21
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4Counters.h",
       "id": "field:MTL4TimestampHeapEntry:timestamp",
       "kind": "field",
@@ -26554,7 +26554,7 @@
       "macos_introduced": "26.0",
       "name": "timestamp",
       "owner": "MTL4TimestampHeapEntry",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint64_t"
     },
     {
@@ -26717,7 +26717,7 @@
           "line": 787
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "field:MTLAccelerationStructureInstanceDescriptor:accelerationStructureIndex",
       "kind": "field",
@@ -26725,7 +26725,7 @@
       "macos_introduced": "11.0",
       "name": "accelerationStructureIndex",
       "owner": "MTLAccelerationStructureInstanceDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint32_t"
     },
     {
@@ -26736,7 +26736,7 @@
           "line": 787
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "field:MTLAccelerationStructureInstanceDescriptor:intersectionFunctionTableOffset",
       "kind": "field",
@@ -26744,7 +26744,7 @@
       "macos_introduced": "11.0",
       "name": "intersectionFunctionTableOffset",
       "owner": "MTLAccelerationStructureInstanceDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint32_t"
     },
     {
@@ -26755,7 +26755,7 @@
           "line": 787
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "field:MTLAccelerationStructureInstanceDescriptor:mask",
       "kind": "field",
@@ -26763,7 +26763,7 @@
       "macos_introduced": "11.0",
       "name": "mask",
       "owner": "MTLAccelerationStructureInstanceDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint32_t"
     },
     {
@@ -26774,7 +26774,7 @@
           "line": 787
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "field:MTLAccelerationStructureInstanceDescriptor:options",
       "kind": "field",
@@ -26782,7 +26782,7 @@
       "macos_introduced": "11.0",
       "name": "options",
       "owner": "MTLAccelerationStructureInstanceDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "MTLAccelerationStructureInstanceOptions"
     },
     {
@@ -26793,7 +26793,7 @@
           "line": 787
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "field:MTLAccelerationStructureInstanceDescriptor:transformationMatrix",
       "kind": "field",
@@ -26801,7 +26801,7 @@
       "macos_introduced": "11.0",
       "name": "transformationMatrix",
       "owner": "MTLAccelerationStructureInstanceDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "MTLPackedFloat4x3"
     },
     {
@@ -26812,7 +26812,7 @@
           "line": 909
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "field:MTLAccelerationStructureMotionInstanceDescriptor:accelerationStructureIndex",
       "kind": "field",
@@ -26820,7 +26820,7 @@
       "macos_introduced": "12.0",
       "name": "accelerationStructureIndex",
       "owner": "MTLAccelerationStructureMotionInstanceDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint32_t"
     },
     {
@@ -26831,7 +26831,7 @@
           "line": 909
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "field:MTLAccelerationStructureMotionInstanceDescriptor:intersectionFunctionTableOffset",
       "kind": "field",
@@ -26839,7 +26839,7 @@
       "macos_introduced": "12.0",
       "name": "intersectionFunctionTableOffset",
       "owner": "MTLAccelerationStructureMotionInstanceDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint32_t"
     },
     {
@@ -26850,7 +26850,7 @@
           "line": 909
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "field:MTLAccelerationStructureMotionInstanceDescriptor:mask",
       "kind": "field",
@@ -26858,7 +26858,7 @@
       "macos_introduced": "12.0",
       "name": "mask",
       "owner": "MTLAccelerationStructureMotionInstanceDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint32_t"
     },
     {
@@ -26869,7 +26869,7 @@
           "line": 909
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "field:MTLAccelerationStructureMotionInstanceDescriptor:motionEndBorderMode",
       "kind": "field",
@@ -26877,7 +26877,7 @@
       "macos_introduced": "12.0",
       "name": "motionEndBorderMode",
       "owner": "MTLAccelerationStructureMotionInstanceDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "MTLMotionBorderMode"
     },
     {
@@ -26888,7 +26888,7 @@
           "line": 909
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "field:MTLAccelerationStructureMotionInstanceDescriptor:motionEndTime",
       "kind": "field",
@@ -26896,7 +26896,7 @@
       "macos_introduced": "12.0",
       "name": "motionEndTime",
       "owner": "MTLAccelerationStructureMotionInstanceDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "float"
     },
     {
@@ -26907,7 +26907,7 @@
           "line": 909
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "field:MTLAccelerationStructureMotionInstanceDescriptor:motionStartBorderMode",
       "kind": "field",
@@ -26915,7 +26915,7 @@
       "macos_introduced": "12.0",
       "name": "motionStartBorderMode",
       "owner": "MTLAccelerationStructureMotionInstanceDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "MTLMotionBorderMode"
     },
     {
@@ -26926,7 +26926,7 @@
           "line": 909
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "field:MTLAccelerationStructureMotionInstanceDescriptor:motionStartTime",
       "kind": "field",
@@ -26934,7 +26934,7 @@
       "macos_introduced": "12.0",
       "name": "motionStartTime",
       "owner": "MTLAccelerationStructureMotionInstanceDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "float"
     },
     {
@@ -26945,7 +26945,7 @@
           "line": 909
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "field:MTLAccelerationStructureMotionInstanceDescriptor:motionTransformsCount",
       "kind": "field",
@@ -26953,7 +26953,7 @@
       "macos_introduced": "12.0",
       "name": "motionTransformsCount",
       "owner": "MTLAccelerationStructureMotionInstanceDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint32_t"
     },
     {
@@ -26964,7 +26964,7 @@
           "line": 909
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "field:MTLAccelerationStructureMotionInstanceDescriptor:motionTransformsStartIndex",
       "kind": "field",
@@ -26972,7 +26972,7 @@
       "macos_introduced": "12.0",
       "name": "motionTransformsStartIndex",
       "owner": "MTLAccelerationStructureMotionInstanceDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint32_t"
     },
     {
@@ -26983,7 +26983,7 @@
           "line": 909
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "field:MTLAccelerationStructureMotionInstanceDescriptor:options",
       "kind": "field",
@@ -26991,7 +26991,7 @@
       "macos_introduced": "12.0",
       "name": "options",
       "owner": "MTLAccelerationStructureMotionInstanceDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "MTLAccelerationStructureInstanceOptions"
     },
     {
@@ -27002,7 +27002,7 @@
           "line": 909
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "field:MTLAccelerationStructureMotionInstanceDescriptor:userID",
       "kind": "field",
@@ -27010,13 +27010,13 @@
       "macos_introduced": "12.0",
       "name": "userID",
       "owner": "MTLAccelerationStructureMotionInstanceDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint32_t"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "field:MTLAccelerationStructureSizes:accelerationStructureSize",
       "kind": "field",
@@ -27024,13 +27024,13 @@
       "macos_introduced": null,
       "name": "accelerationStructureSize",
       "owner": "MTLAccelerationStructureSizes",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "NSUInteger"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "field:MTLAccelerationStructureSizes:buildScratchBufferSize",
       "kind": "field",
@@ -27038,13 +27038,13 @@
       "macos_introduced": null,
       "name": "buildScratchBufferSize",
       "owner": "MTLAccelerationStructureSizes",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "NSUInteger"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "field:MTLAccelerationStructureSizes:refitScratchBufferSize",
       "kind": "field",
@@ -27052,7 +27052,7 @@
       "macos_introduced": null,
       "name": "refitScratchBufferSize",
       "owner": "MTLAccelerationStructureSizes",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "NSUInteger"
     },
     {
@@ -27063,7 +27063,7 @@
           "line": 820
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "field:MTLAccelerationStructureUserIDInstanceDescriptor:accelerationStructureIndex",
       "kind": "field",
@@ -27071,7 +27071,7 @@
       "macos_introduced": "12.0",
       "name": "accelerationStructureIndex",
       "owner": "MTLAccelerationStructureUserIDInstanceDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint32_t"
     },
     {
@@ -27082,7 +27082,7 @@
           "line": 820
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "field:MTLAccelerationStructureUserIDInstanceDescriptor:intersectionFunctionTableOffset",
       "kind": "field",
@@ -27090,7 +27090,7 @@
       "macos_introduced": "12.0",
       "name": "intersectionFunctionTableOffset",
       "owner": "MTLAccelerationStructureUserIDInstanceDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint32_t"
     },
     {
@@ -27101,7 +27101,7 @@
           "line": 820
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "field:MTLAccelerationStructureUserIDInstanceDescriptor:mask",
       "kind": "field",
@@ -27109,7 +27109,7 @@
       "macos_introduced": "12.0",
       "name": "mask",
       "owner": "MTLAccelerationStructureUserIDInstanceDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint32_t"
     },
     {
@@ -27120,7 +27120,7 @@
           "line": 820
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "field:MTLAccelerationStructureUserIDInstanceDescriptor:options",
       "kind": "field",
@@ -27128,7 +27128,7 @@
       "macos_introduced": "12.0",
       "name": "options",
       "owner": "MTLAccelerationStructureUserIDInstanceDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "MTLAccelerationStructureInstanceOptions"
     },
     {
@@ -27139,7 +27139,7 @@
           "line": 820
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "field:MTLAccelerationStructureUserIDInstanceDescriptor:transformationMatrix",
       "kind": "field",
@@ -27147,7 +27147,7 @@
       "macos_introduced": "12.0",
       "name": "transformationMatrix",
       "owner": "MTLAccelerationStructureUserIDInstanceDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "MTLPackedFloat4x3"
     },
     {
@@ -27158,7 +27158,7 @@
           "line": 820
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "field:MTLAccelerationStructureUserIDInstanceDescriptor:userID",
       "kind": "field",
@@ -27166,7 +27166,7 @@
       "macos_introduced": "12.0",
       "name": "userID",
       "owner": "MTLAccelerationStructureUserIDInstanceDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint32_t"
     },
     {
@@ -27228,7 +27228,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureTypes.h",
       "id": "field:MTLComponentTransform:pivot",
       "kind": "field",
@@ -27236,13 +27236,13 @@
       "macos_introduced": null,
       "name": "pivot",
       "owner": "MTLComponentTransform",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "MTLPackedFloat3"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureTypes.h",
       "id": "field:MTLComponentTransform:rotation",
       "kind": "field",
@@ -27250,13 +27250,13 @@
       "macos_introduced": null,
       "name": "rotation",
       "owner": "MTLComponentTransform",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "MTLPackedFloatQuaternion"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureTypes.h",
       "id": "field:MTLComponentTransform:scale",
       "kind": "field",
@@ -27264,13 +27264,13 @@
       "macos_introduced": null,
       "name": "scale",
       "owner": "MTLComponentTransform",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "MTLPackedFloat3"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureTypes.h",
       "id": "field:MTLComponentTransform:shear",
       "kind": "field",
@@ -27278,13 +27278,13 @@
       "macos_introduced": null,
       "name": "shear",
       "owner": "MTLComponentTransform",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "MTLPackedFloat3"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureTypes.h",
       "id": "field:MTLComponentTransform:translation",
       "kind": "field",
@@ -27292,7 +27292,7 @@
       "macos_introduced": null,
       "name": "translation",
       "owner": "MTLComponentTransform",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "MTLPackedFloat3"
     },
     {
@@ -27303,7 +27303,7 @@
           "line": 86
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "field:MTLCounterResultStageUtilization:fragmentCycles",
       "kind": "field",
@@ -27311,7 +27311,7 @@
       "macos_introduced": "10.15",
       "name": "fragmentCycles",
       "owner": "MTLCounterResultStageUtilization",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint64_t"
     },
     {
@@ -27322,7 +27322,7 @@
           "line": 86
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "field:MTLCounterResultStageUtilization:postTessellationVertexCycles",
       "kind": "field",
@@ -27330,7 +27330,7 @@
       "macos_introduced": "10.15",
       "name": "postTessellationVertexCycles",
       "owner": "MTLCounterResultStageUtilization",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint64_t"
     },
     {
@@ -27341,7 +27341,7 @@
           "line": 86
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "field:MTLCounterResultStageUtilization:renderTargetCycles",
       "kind": "field",
@@ -27349,7 +27349,7 @@
       "macos_introduced": "10.15",
       "name": "renderTargetCycles",
       "owner": "MTLCounterResultStageUtilization",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint64_t"
     },
     {
@@ -27360,7 +27360,7 @@
           "line": 86
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "field:MTLCounterResultStageUtilization:tessellationCycles",
       "kind": "field",
@@ -27368,7 +27368,7 @@
       "macos_introduced": "10.15",
       "name": "tessellationCycles",
       "owner": "MTLCounterResultStageUtilization",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint64_t"
     },
     {
@@ -27379,7 +27379,7 @@
           "line": 86
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "field:MTLCounterResultStageUtilization:totalCycles",
       "kind": "field",
@@ -27387,7 +27387,7 @@
       "macos_introduced": "10.15",
       "name": "totalCycles",
       "owner": "MTLCounterResultStageUtilization",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint64_t"
     },
     {
@@ -27398,7 +27398,7 @@
           "line": 86
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "field:MTLCounterResultStageUtilization:vertexCycles",
       "kind": "field",
@@ -27406,7 +27406,7 @@
       "macos_introduced": "10.15",
       "name": "vertexCycles",
       "owner": "MTLCounterResultStageUtilization",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint64_t"
     },
     {
@@ -27417,7 +27417,7 @@
           "line": 98
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "field:MTLCounterResultStatistic:clipperInvocations",
       "kind": "field",
@@ -27425,7 +27425,7 @@
       "macos_introduced": "10.15",
       "name": "clipperInvocations",
       "owner": "MTLCounterResultStatistic",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint64_t"
     },
     {
@@ -27436,7 +27436,7 @@
           "line": 98
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "field:MTLCounterResultStatistic:clipperPrimitivesOut",
       "kind": "field",
@@ -27444,7 +27444,7 @@
       "macos_introduced": "10.15",
       "name": "clipperPrimitivesOut",
       "owner": "MTLCounterResultStatistic",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint64_t"
     },
     {
@@ -27455,7 +27455,7 @@
           "line": 98
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "field:MTLCounterResultStatistic:computeKernelInvocations",
       "kind": "field",
@@ -27463,7 +27463,7 @@
       "macos_introduced": "10.15",
       "name": "computeKernelInvocations",
       "owner": "MTLCounterResultStatistic",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint64_t"
     },
     {
@@ -27474,7 +27474,7 @@
           "line": 98
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "field:MTLCounterResultStatistic:fragmentInvocations",
       "kind": "field",
@@ -27482,7 +27482,7 @@
       "macos_introduced": "10.15",
       "name": "fragmentInvocations",
       "owner": "MTLCounterResultStatistic",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint64_t"
     },
     {
@@ -27493,7 +27493,7 @@
           "line": 98
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "field:MTLCounterResultStatistic:fragmentsPassed",
       "kind": "field",
@@ -27501,7 +27501,7 @@
       "macos_introduced": "10.15",
       "name": "fragmentsPassed",
       "owner": "MTLCounterResultStatistic",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint64_t"
     },
     {
@@ -27512,7 +27512,7 @@
           "line": 98
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "field:MTLCounterResultStatistic:postTessellationVertexInvocations",
       "kind": "field",
@@ -27520,7 +27520,7 @@
       "macos_introduced": "10.15",
       "name": "postTessellationVertexInvocations",
       "owner": "MTLCounterResultStatistic",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint64_t"
     },
     {
@@ -27531,7 +27531,7 @@
           "line": 98
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "field:MTLCounterResultStatistic:tessellationInputPatches",
       "kind": "field",
@@ -27539,7 +27539,7 @@
       "macos_introduced": "10.15",
       "name": "tessellationInputPatches",
       "owner": "MTLCounterResultStatistic",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint64_t"
     },
     {
@@ -27550,7 +27550,7 @@
           "line": 98
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "field:MTLCounterResultStatistic:vertexInvocations",
       "kind": "field",
@@ -27558,7 +27558,7 @@
       "macos_introduced": "10.15",
       "name": "vertexInvocations",
       "owner": "MTLCounterResultStatistic",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint64_t"
     },
     {
@@ -27569,7 +27569,7 @@
           "line": 76
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "field:MTLCounterResultTimestamp:timestamp",
       "kind": "field",
@@ -27577,13 +27577,13 @@
       "macos_introduced": "10.15",
       "name": "timestamp",
       "owner": "MTLCounterResultTimestamp",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint64_t"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputeCommandEncoder.h",
       "id": "field:MTLDispatchThreadgroupsIndirectArguments:threadgroupsPerGrid",
       "kind": "field",
@@ -27591,13 +27591,13 @@
       "macos_introduced": null,
       "name": "threadgroupsPerGrid",
       "owner": "MTLDispatchThreadgroupsIndirectArguments",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint32_t[3]"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputeCommandEncoder.h",
       "id": "field:MTLDispatchThreadsIndirectArguments:threadsPerGrid",
       "kind": "field",
@@ -27605,13 +27605,13 @@
       "macos_introduced": null,
       "name": "threadsPerGrid",
       "owner": "MTLDispatchThreadsIndirectArguments",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint32_t[3]"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputeCommandEncoder.h",
       "id": "field:MTLDispatchThreadsIndirectArguments:threadsPerThreadgroup",
       "kind": "field",
@@ -27619,7 +27619,7 @@
       "macos_introduced": null,
       "name": "threadsPerThreadgroup",
       "owner": "MTLDispatchThreadsIndirectArguments",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint32_t[3]"
     },
     {
@@ -27695,7 +27695,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "field:MTLDrawPatchIndirectArguments:baseInstance",
       "kind": "field",
@@ -27703,13 +27703,13 @@
       "macos_introduced": null,
       "name": "baseInstance",
       "owner": "MTLDrawPatchIndirectArguments",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint32_t"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "field:MTLDrawPatchIndirectArguments:instanceCount",
       "kind": "field",
@@ -27717,13 +27717,13 @@
       "macos_introduced": null,
       "name": "instanceCount",
       "owner": "MTLDrawPatchIndirectArguments",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint32_t"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "field:MTLDrawPatchIndirectArguments:patchCount",
       "kind": "field",
@@ -27731,13 +27731,13 @@
       "macos_introduced": null,
       "name": "patchCount",
       "owner": "MTLDrawPatchIndirectArguments",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint32_t"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "field:MTLDrawPatchIndirectArguments:patchStart",
       "kind": "field",
@@ -27745,7 +27745,7 @@
       "macos_introduced": null,
       "name": "patchStart",
       "owner": "MTLDrawPatchIndirectArguments",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint32_t"
     },
     {
@@ -27812,7 +27812,7 @@
           "line": 943
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "field:MTLIndirectAccelerationStructureInstanceDescriptor:accelerationStructureID",
       "kind": "field",
@@ -27820,7 +27820,7 @@
       "macos_introduced": "14.0",
       "name": "accelerationStructureID",
       "owner": "MTLIndirectAccelerationStructureInstanceDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "MTLResourceID"
     },
     {
@@ -27831,7 +27831,7 @@
           "line": 943
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "field:MTLIndirectAccelerationStructureInstanceDescriptor:intersectionFunctionTableOffset",
       "kind": "field",
@@ -27839,7 +27839,7 @@
       "macos_introduced": "14.0",
       "name": "intersectionFunctionTableOffset",
       "owner": "MTLIndirectAccelerationStructureInstanceDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint32_t"
     },
     {
@@ -27850,7 +27850,7 @@
           "line": 943
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "field:MTLIndirectAccelerationStructureInstanceDescriptor:mask",
       "kind": "field",
@@ -27858,7 +27858,7 @@
       "macos_introduced": "14.0",
       "name": "mask",
       "owner": "MTLIndirectAccelerationStructureInstanceDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint32_t"
     },
     {
@@ -27869,7 +27869,7 @@
           "line": 943
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "field:MTLIndirectAccelerationStructureInstanceDescriptor:options",
       "kind": "field",
@@ -27877,7 +27877,7 @@
       "macos_introduced": "14.0",
       "name": "options",
       "owner": "MTLIndirectAccelerationStructureInstanceDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "MTLAccelerationStructureInstanceOptions"
     },
     {
@@ -27888,7 +27888,7 @@
           "line": 943
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "field:MTLIndirectAccelerationStructureInstanceDescriptor:transformationMatrix",
       "kind": "field",
@@ -27896,7 +27896,7 @@
       "macos_introduced": "14.0",
       "name": "transformationMatrix",
       "owner": "MTLIndirectAccelerationStructureInstanceDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "MTLPackedFloat4x3"
     },
     {
@@ -27907,7 +27907,7 @@
           "line": 943
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "field:MTLIndirectAccelerationStructureInstanceDescriptor:userID",
       "kind": "field",
@@ -27915,7 +27915,7 @@
       "macos_introduced": "14.0",
       "name": "userID",
       "owner": "MTLIndirectAccelerationStructureInstanceDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint32_t"
     },
     {
@@ -27926,7 +27926,7 @@
           "line": 1005
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "field:MTLIndirectAccelerationStructureMotionInstanceDescriptor:accelerationStructureID",
       "kind": "field",
@@ -27934,7 +27934,7 @@
       "macos_introduced": "14.0",
       "name": "accelerationStructureID",
       "owner": "MTLIndirectAccelerationStructureMotionInstanceDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "MTLResourceID"
     },
     {
@@ -27945,7 +27945,7 @@
           "line": 1005
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "field:MTLIndirectAccelerationStructureMotionInstanceDescriptor:intersectionFunctionTableOffset",
       "kind": "field",
@@ -27953,7 +27953,7 @@
       "macos_introduced": "14.0",
       "name": "intersectionFunctionTableOffset",
       "owner": "MTLIndirectAccelerationStructureMotionInstanceDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint32_t"
     },
     {
@@ -27964,7 +27964,7 @@
           "line": 1005
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "field:MTLIndirectAccelerationStructureMotionInstanceDescriptor:mask",
       "kind": "field",
@@ -27972,7 +27972,7 @@
       "macos_introduced": "14.0",
       "name": "mask",
       "owner": "MTLIndirectAccelerationStructureMotionInstanceDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint32_t"
     },
     {
@@ -27983,7 +27983,7 @@
           "line": 1005
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "field:MTLIndirectAccelerationStructureMotionInstanceDescriptor:motionEndBorderMode",
       "kind": "field",
@@ -27991,7 +27991,7 @@
       "macos_introduced": "14.0",
       "name": "motionEndBorderMode",
       "owner": "MTLIndirectAccelerationStructureMotionInstanceDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "MTLMotionBorderMode"
     },
     {
@@ -28002,7 +28002,7 @@
           "line": 1005
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "field:MTLIndirectAccelerationStructureMotionInstanceDescriptor:motionEndTime",
       "kind": "field",
@@ -28010,7 +28010,7 @@
       "macos_introduced": "14.0",
       "name": "motionEndTime",
       "owner": "MTLIndirectAccelerationStructureMotionInstanceDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "float"
     },
     {
@@ -28021,7 +28021,7 @@
           "line": 1005
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "field:MTLIndirectAccelerationStructureMotionInstanceDescriptor:motionStartBorderMode",
       "kind": "field",
@@ -28029,7 +28029,7 @@
       "macos_introduced": "14.0",
       "name": "motionStartBorderMode",
       "owner": "MTLIndirectAccelerationStructureMotionInstanceDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "MTLMotionBorderMode"
     },
     {
@@ -28040,7 +28040,7 @@
           "line": 1005
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "field:MTLIndirectAccelerationStructureMotionInstanceDescriptor:motionStartTime",
       "kind": "field",
@@ -28048,7 +28048,7 @@
       "macos_introduced": "14.0",
       "name": "motionStartTime",
       "owner": "MTLIndirectAccelerationStructureMotionInstanceDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "float"
     },
     {
@@ -28059,7 +28059,7 @@
           "line": 1005
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "field:MTLIndirectAccelerationStructureMotionInstanceDescriptor:motionTransformsCount",
       "kind": "field",
@@ -28067,7 +28067,7 @@
       "macos_introduced": "14.0",
       "name": "motionTransformsCount",
       "owner": "MTLIndirectAccelerationStructureMotionInstanceDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint32_t"
     },
     {
@@ -28078,7 +28078,7 @@
           "line": 1005
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "field:MTLIndirectAccelerationStructureMotionInstanceDescriptor:motionTransformsStartIndex",
       "kind": "field",
@@ -28086,7 +28086,7 @@
       "macos_introduced": "14.0",
       "name": "motionTransformsStartIndex",
       "owner": "MTLIndirectAccelerationStructureMotionInstanceDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint32_t"
     },
     {
@@ -28097,7 +28097,7 @@
           "line": 1005
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "field:MTLIndirectAccelerationStructureMotionInstanceDescriptor:options",
       "kind": "field",
@@ -28105,7 +28105,7 @@
       "macos_introduced": "14.0",
       "name": "options",
       "owner": "MTLIndirectAccelerationStructureMotionInstanceDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "MTLAccelerationStructureInstanceOptions"
     },
     {
@@ -28116,7 +28116,7 @@
           "line": 1005
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "field:MTLIndirectAccelerationStructureMotionInstanceDescriptor:userID",
       "kind": "field",
@@ -28124,7 +28124,7 @@
       "macos_introduced": "14.0",
       "name": "userID",
       "owner": "MTLIndirectAccelerationStructureMotionInstanceDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint32_t"
     },
     {
@@ -28135,7 +28135,7 @@
           "line": 40
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "field:MTLIndirectCommandBufferExecutionRange:length",
       "kind": "field",
@@ -28143,7 +28143,7 @@
       "macos_introduced": "10.14",
       "name": "length",
       "owner": "MTLIndirectCommandBufferExecutionRange",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint32_t"
     },
     {
@@ -28154,7 +28154,7 @@
           "line": 40
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "field:MTLIndirectCommandBufferExecutionRange:location",
       "kind": "field",
@@ -28162,13 +28162,13 @@
       "macos_introduced": "10.14",
       "name": "location",
       "owner": "MTLIndirectCommandBufferExecutionRange",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint32_t"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIntersectionFunctionTable.h",
       "id": "field:MTLIntersectionFunctionBufferArguments:intersectionFunctionBuffer",
       "kind": "field",
@@ -28176,13 +28176,13 @@
       "macos_introduced": null,
       "name": "intersectionFunctionBuffer",
       "owner": "MTLIntersectionFunctionBufferArguments",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint64_t"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIntersectionFunctionTable.h",
       "id": "field:MTLIntersectionFunctionBufferArguments:intersectionFunctionBufferSize",
       "kind": "field",
@@ -28190,13 +28190,13 @@
       "macos_introduced": null,
       "name": "intersectionFunctionBufferSize",
       "owner": "MTLIntersectionFunctionBufferArguments",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint64_t"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIntersectionFunctionTable.h",
       "id": "field:MTLIntersectionFunctionBufferArguments:intersectionFunctionStride",
       "kind": "field",
@@ -28204,13 +28204,13 @@
       "macos_introduced": null,
       "name": "intersectionFunctionStride",
       "owner": "MTLIntersectionFunctionBufferArguments",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint64_t"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResourceStateCommandEncoder.h",
       "id": "field:MTLMapIndirectArguments:mipMapLevel",
       "kind": "field",
@@ -28218,13 +28218,13 @@
       "macos_introduced": null,
       "name": "mipMapLevel",
       "owner": "MTLMapIndirectArguments",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint32_t"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResourceStateCommandEncoder.h",
       "id": "field:MTLMapIndirectArguments:regionOriginX",
       "kind": "field",
@@ -28232,13 +28232,13 @@
       "macos_introduced": null,
       "name": "regionOriginX",
       "owner": "MTLMapIndirectArguments",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint32_t"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResourceStateCommandEncoder.h",
       "id": "field:MTLMapIndirectArguments:regionOriginY",
       "kind": "field",
@@ -28246,13 +28246,13 @@
       "macos_introduced": null,
       "name": "regionOriginY",
       "owner": "MTLMapIndirectArguments",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint32_t"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResourceStateCommandEncoder.h",
       "id": "field:MTLMapIndirectArguments:regionOriginZ",
       "kind": "field",
@@ -28260,13 +28260,13 @@
       "macos_introduced": null,
       "name": "regionOriginZ",
       "owner": "MTLMapIndirectArguments",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint32_t"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResourceStateCommandEncoder.h",
       "id": "field:MTLMapIndirectArguments:regionSizeDepth",
       "kind": "field",
@@ -28274,13 +28274,13 @@
       "macos_introduced": null,
       "name": "regionSizeDepth",
       "owner": "MTLMapIndirectArguments",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint32_t"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResourceStateCommandEncoder.h",
       "id": "field:MTLMapIndirectArguments:regionSizeHeight",
       "kind": "field",
@@ -28288,13 +28288,13 @@
       "macos_introduced": null,
       "name": "regionSizeHeight",
       "owner": "MTLMapIndirectArguments",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint32_t"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResourceStateCommandEncoder.h",
       "id": "field:MTLMapIndirectArguments:regionSizeWidth",
       "kind": "field",
@@ -28302,13 +28302,13 @@
       "macos_introduced": null,
       "name": "regionSizeWidth",
       "owner": "MTLMapIndirectArguments",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint32_t"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResourceStateCommandEncoder.h",
       "id": "field:MTLMapIndirectArguments:sliceId",
       "kind": "field",
@@ -28316,7 +28316,7 @@
       "macos_introduced": null,
       "name": "sliceId",
       "owner": "MTLMapIndirectArguments",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint32_t"
     },
     {
@@ -28364,7 +28364,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureTypes.h",
       "id": "field:MTLPackedFloatQuaternion:w",
       "kind": "field",
@@ -28372,13 +28372,13 @@
       "macos_introduced": null,
       "name": "w",
       "owner": "MTLPackedFloatQuaternion",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "float"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureTypes.h",
       "id": "field:MTLPackedFloatQuaternion:x",
       "kind": "field",
@@ -28386,13 +28386,13 @@
       "macos_introduced": null,
       "name": "x",
       "owner": "MTLPackedFloatQuaternion",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "float"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureTypes.h",
       "id": "field:MTLPackedFloatQuaternion:y",
       "kind": "field",
@@ -28400,13 +28400,13 @@
       "macos_introduced": null,
       "name": "y",
       "owner": "MTLPackedFloatQuaternion",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "float"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureTypes.h",
       "id": "field:MTLPackedFloatQuaternion:z",
       "kind": "field",
@@ -28414,13 +28414,13 @@
       "macos_introduced": null,
       "name": "z",
       "owner": "MTLPackedFloatQuaternion",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "float"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "field:MTLQuadTessellationFactorsHalf:edgeTessellationFactor",
       "kind": "field",
@@ -28428,13 +28428,13 @@
       "macos_introduced": null,
       "name": "edgeTessellationFactor",
       "owner": "MTLQuadTessellationFactorsHalf",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint16_t[4]"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "field:MTLQuadTessellationFactorsHalf:insideTessellationFactor",
       "kind": "field",
@@ -28442,7 +28442,7 @@
       "macos_introduced": null,
       "name": "insideTessellationFactor",
       "owner": "MTLQuadTessellationFactorsHalf",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint16_t[2]"
     },
     {
@@ -28495,7 +28495,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTypes.h",
       "id": "field:MTLSamplePosition:x",
       "kind": "field",
@@ -28503,13 +28503,13 @@
       "macos_introduced": null,
       "name": "x",
       "owner": "MTLSamplePosition",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "float"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTypes.h",
       "id": "field:MTLSamplePosition:y",
       "kind": "field",
@@ -28517,7 +28517,7 @@
       "macos_introduced": null,
       "name": "y",
       "owner": "MTLSamplePosition",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "float"
     },
     {
@@ -28654,7 +28654,7 @@
           "line": 39
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputeCommandEncoder.h",
       "id": "field:MTLStageInRegionIndirectArguments:stageInOrigin",
       "kind": "field",
@@ -28662,7 +28662,7 @@
       "macos_introduced": "10.14",
       "name": "stageInOrigin",
       "owner": "MTLStageInRegionIndirectArguments",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint32_t[3]"
     },
     {
@@ -28673,7 +28673,7 @@
           "line": 39
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputeCommandEncoder.h",
       "id": "field:MTLStageInRegionIndirectArguments:stageInSize",
       "kind": "field",
@@ -28681,7 +28681,7 @@
       "macos_introduced": "10.14",
       "name": "stageInSize",
       "owner": "MTLStageInRegionIndirectArguments",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint32_t[3]"
     },
     {
@@ -28763,7 +28763,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "field:MTLTriangleTessellationFactorsHalf:edgeTessellationFactor",
       "kind": "field",
@@ -28771,13 +28771,13 @@
       "macos_introduced": null,
       "name": "edgeTessellationFactor",
       "owner": "MTLTriangleTessellationFactorsHalf",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint16_t[3]"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "field:MTLTriangleTessellationFactorsHalf:insideTessellationFactor",
       "kind": "field",
@@ -28785,7 +28785,7 @@
       "macos_introduced": null,
       "name": "insideTessellationFactor",
       "owner": "MTLTriangleTessellationFactorsHalf",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "uint16_t"
     },
     {
@@ -28913,7 +28913,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureTypes.h",
       "id": "field:_MTLAxisAlignedBoundingBox:max",
       "kind": "field",
@@ -28921,13 +28921,13 @@
       "macos_introduced": null,
       "name": "max",
       "owner": "_MTLAxisAlignedBoundingBox",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "MTLPackedFloat3"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureTypes.h",
       "id": "field:_MTLAxisAlignedBoundingBox:min",
       "kind": "field",
@@ -28935,7 +28935,7 @@
       "macos_introduced": null,
       "name": "min",
       "owner": "_MTLAxisAlignedBoundingBox",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "MTLPackedFloat3"
     },
     {
@@ -28997,7 +28997,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureTypes.h",
       "id": "field:_MTLPackedFloat4x3:columns",
       "kind": "field",
@@ -29005,7 +29005,7 @@
       "macos_introduced": null,
       "name": "columns",
       "owner": "_MTLPackedFloat4x3",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "MTLPackedFloat3[4]"
     },
     {
@@ -105910,7 +105910,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4BufferRange.h",
       "id": "record:MTL4BufferRange",
       "kind": "record",
@@ -105918,7 +105918,7 @@
       "macos_introduced": null,
       "name": "MTL4BufferRange",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "struct"
     },
     {
@@ -105929,7 +105929,7 @@
           "line": 207
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "record:MTL4CopySparseBufferMappingOperation",
       "kind": "record",
@@ -105937,7 +105937,7 @@
       "macos_introduced": "26.0",
       "name": "MTL4CopySparseBufferMappingOperation",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "struct"
     },
     {
@@ -105948,7 +105948,7 @@
           "line": 174
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "record:MTL4CopySparseTextureMappingOperation",
       "kind": "record",
@@ -105956,7 +105956,7 @@
       "macos_introduced": "26.0",
       "name": "MTL4CopySparseTextureMappingOperation",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "struct"
     },
     {
@@ -105967,7 +105967,7 @@
           "line": 21
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4Counters.h",
       "id": "record:MTL4TimestampHeapEntry",
       "kind": "record",
@@ -105975,7 +105975,7 @@
       "macos_introduced": "26.0",
       "name": "MTL4TimestampHeapEntry",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "struct"
     },
     {
@@ -106024,7 +106024,7 @@
           "line": 787
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "record:MTLAccelerationStructureInstanceDescriptor",
       "kind": "record",
@@ -106032,7 +106032,7 @@
       "macos_introduced": "11.0",
       "name": "MTLAccelerationStructureInstanceDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "struct"
     },
     {
@@ -106043,7 +106043,7 @@
           "line": 909
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "record:MTLAccelerationStructureMotionInstanceDescriptor",
       "kind": "record",
@@ -106051,13 +106051,13 @@
       "macos_introduced": "12.0",
       "name": "MTLAccelerationStructureMotionInstanceDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "struct"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "record:MTLAccelerationStructureSizes",
       "kind": "record",
@@ -106065,7 +106065,7 @@
       "macos_introduced": null,
       "name": "MTLAccelerationStructureSizes",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "struct"
     },
     {
@@ -106076,7 +106076,7 @@
           "line": 820
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "record:MTLAccelerationStructureUserIDInstanceDescriptor",
       "kind": "record",
@@ -106084,7 +106084,7 @@
       "macos_introduced": "12.0",
       "name": "MTLAccelerationStructureUserIDInstanceDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "struct"
     },
     {
@@ -106104,7 +106104,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureTypes.h",
       "id": "record:MTLComponentTransform",
       "kind": "record",
@@ -106112,7 +106112,7 @@
       "macos_introduced": null,
       "name": "MTLComponentTransform",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "struct"
     },
     {
@@ -106123,7 +106123,7 @@
           "line": 86
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "record:MTLCounterResultStageUtilization",
       "kind": "record",
@@ -106131,7 +106131,7 @@
       "macos_introduced": "10.15",
       "name": "MTLCounterResultStageUtilization",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "struct"
     },
     {
@@ -106142,7 +106142,7 @@
           "line": 98
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "record:MTLCounterResultStatistic",
       "kind": "record",
@@ -106150,7 +106150,7 @@
       "macos_introduced": "10.15",
       "name": "MTLCounterResultStatistic",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "struct"
     },
     {
@@ -106161,7 +106161,7 @@
           "line": 76
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "record:MTLCounterResultTimestamp",
       "kind": "record",
@@ -106169,13 +106169,13 @@
       "macos_introduced": "10.15",
       "name": "MTLCounterResultTimestamp",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "struct"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputeCommandEncoder.h",
       "id": "record:MTLDispatchThreadgroupsIndirectArguments",
       "kind": "record",
@@ -106183,13 +106183,13 @@
       "macos_introduced": null,
       "name": "MTLDispatchThreadgroupsIndirectArguments",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "struct"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputeCommandEncoder.h",
       "id": "record:MTLDispatchThreadsIndirectArguments",
       "kind": "record",
@@ -106197,7 +106197,7 @@
       "macos_introduced": null,
       "name": "MTLDispatchThreadsIndirectArguments",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "struct"
     },
     {
@@ -106217,7 +106217,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "record:MTLDrawPatchIndirectArguments",
       "kind": "record",
@@ -106225,7 +106225,7 @@
       "macos_introduced": null,
       "name": "MTLDrawPatchIndirectArguments",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "struct"
     },
     {
@@ -106250,7 +106250,7 @@
           "line": 943
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "record:MTLIndirectAccelerationStructureInstanceDescriptor",
       "kind": "record",
@@ -106258,7 +106258,7 @@
       "macos_introduced": "14.0",
       "name": "MTLIndirectAccelerationStructureInstanceDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "struct"
     },
     {
@@ -106269,7 +106269,7 @@
           "line": 1005
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "record:MTLIndirectAccelerationStructureMotionInstanceDescriptor",
       "kind": "record",
@@ -106277,7 +106277,7 @@
       "macos_introduced": "14.0",
       "name": "MTLIndirectAccelerationStructureMotionInstanceDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "struct"
     },
     {
@@ -106288,7 +106288,7 @@
           "line": 40
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "record:MTLIndirectCommandBufferExecutionRange",
       "kind": "record",
@@ -106296,13 +106296,13 @@
       "macos_introduced": "10.14",
       "name": "MTLIndirectCommandBufferExecutionRange",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "struct"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIntersectionFunctionTable.h",
       "id": "record:MTLIntersectionFunctionBufferArguments",
       "kind": "record",
@@ -106310,13 +106310,13 @@
       "macos_introduced": null,
       "name": "MTLIntersectionFunctionBufferArguments",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "struct"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResourceStateCommandEncoder.h",
       "id": "record:MTLMapIndirectArguments",
       "kind": "record",
@@ -106324,7 +106324,7 @@
       "macos_introduced": null,
       "name": "MTLMapIndirectArguments",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "struct"
     },
     {
@@ -106344,7 +106344,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureTypes.h",
       "id": "record:MTLPackedFloatQuaternion",
       "kind": "record",
@@ -106352,13 +106352,13 @@
       "macos_introduced": null,
       "name": "MTLPackedFloatQuaternion",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "struct"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "record:MTLQuadTessellationFactorsHalf",
       "kind": "record",
@@ -106366,7 +106366,7 @@
       "macos_introduced": null,
       "name": "MTLQuadTessellationFactorsHalf",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "struct"
     },
     {
@@ -106405,7 +106405,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTypes.h",
       "id": "record:MTLSamplePosition",
       "kind": "record",
@@ -106413,7 +106413,7 @@
       "macos_introduced": null,
       "name": "MTLSamplePosition",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "struct"
     },
     {
@@ -106504,7 +106504,7 @@
           "line": 39
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputeCommandEncoder.h",
       "id": "record:MTLStageInRegionIndirectArguments",
       "kind": "record",
@@ -106512,7 +106512,7 @@
       "macos_introduced": "10.14",
       "name": "MTLStageInRegionIndirectArguments",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "struct"
     },
     {
@@ -106537,7 +106537,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "record:MTLTriangleTessellationFactorsHalf",
       "kind": "record",
@@ -106545,7 +106545,7 @@
       "macos_introduced": null,
       "name": "MTLTriangleTessellationFactorsHalf",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "struct"
     },
     {
@@ -106603,7 +106603,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureTypes.h",
       "id": "record:_MTLAxisAlignedBoundingBox",
       "kind": "record",
@@ -106611,7 +106611,7 @@
       "macos_introduced": null,
       "name": "_MTLAxisAlignedBoundingBox",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "struct"
     },
     {
@@ -106631,7 +106631,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureTypes.h",
       "id": "record:_MTLPackedFloat4x3",
       "kind": "record",
@@ -106639,7 +106639,7 @@
       "macos_introduced": null,
       "name": "_MTLPackedFloat4x3",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "struct"
     },
     {

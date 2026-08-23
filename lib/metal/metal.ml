@@ -1,4 +1,5 @@
 module Enum = Metal_enum_generated
+module Value = Metal_value_record_generated
 
 type error_kind =
   | Native_error
