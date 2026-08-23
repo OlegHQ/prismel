@@ -15053,7 +15053,7 @@ module Render_encoder = struct
       match Metal_raw.render_draw_indirect value.raw(primitive_code primitive)buffer.raw offset with
       | Error m->native_error operation m|Ok()->retain_command_buffer_buffer value.command_buffer buffer;Ok()))
 
-  let set_tessellation_factor_buffer (value:t) ?buffer ~offset ~instance_stride =
+  let set_tessellation_factor_buffer (value:t) ?buffer ~offset ~instance_stride () =
     let operation="Metal.Render_encoder.set_tessellation_factor_buffer" in
     on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->
       if offset<0L||instance_stride<0L then error operation Invalid_argument "offset and stride must be nonnegative"
@@ -15063,6 +15063,45 @@ module Render_encoder = struct
       | Some (b:buffer)->Result.bind(validate_draw_buffer operation value b ~offset ~required:0L)(fun()->
           match Metal_raw.render_tessellation_buffer value.raw(Some b.raw)offset instance_stride with
           | Error m->native_error operation m|Ok()->retain_command_buffer_buffer value.command_buffer b;Ok()))
+
+  let draw_indexed_basic (value:t) ~primitive ~index_type ~(index_buffer:Buffer.t)
+      ~index_offset ~index_count =
+    let operation="Metal.Render_encoder.draw_indexed_basic" in
+    on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->
+      if Option.is_none value.pipeline then error operation Invalid_state "no render pipeline is bound"
+      else if index_count<=0L then error operation Invalid_argument "index count must be positive"
+      else let width=index_width index_type in
+      if index_offset<0L||Int64.rem index_offset width<>0L then error operation Invalid_argument "index offset is misaligned"
+      else Result.bind(checked_product operation index_count width)(fun required->
+      Result.bind(validate_draw_buffer operation value index_buffer ~offset:index_offset ~required)(fun()->
+      match Metal_raw.render_draw_indexed_basic value.raw(primitive_code primitive)index_count(index_type_code index_type)index_buffer.raw index_offset with
+      | Error m->native_error operation m|Ok()->retain_command_buffer_buffer value.command_buffer index_buffer;Ok())))
+
+  let draw_indexed_instances (value:t) ~primitive ~index_type ~(index_buffer:Buffer.t)
+      ~index_offset ~index_count ~instances =
+    let operation="Metal.Render_encoder.draw_indexed_instances" in
+    on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->
+      if Option.is_none value.pipeline then error operation Invalid_state "no render pipeline is bound"
+      else if index_count<=0L||instances<=0L then error operation Invalid_argument "draw counts must be positive"
+      else let width=index_width index_type in
+      if index_offset<0L||Int64.rem index_offset width<>0L then error operation Invalid_argument "index offset is misaligned"
+      else Result.bind(checked_product operation index_count width)(fun required->
+      Result.bind(validate_draw_buffer operation value index_buffer ~offset:index_offset ~required)(fun()->
+      match Metal_raw.render_draw_indexed_instances value.raw(primitive_code primitive)index_count(index_type_code index_type)index_buffer.raw index_offset instances with
+      | Error m->native_error operation m|Ok()->retain_command_buffer_buffer value.command_buffer index_buffer;Ok())))
+
+  let draw_indexed_indirect (value:t) ~primitive ~index_type
+      ~(index_buffer:Buffer.t) ~index_offset ~(indirect_buffer:Buffer.t) ~indirect_offset =
+    let operation="Metal.Render_encoder.draw_indexed_indirect" in
+    on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->
+      if Option.is_none value.pipeline then error operation Invalid_state "no render pipeline is bound"
+      else let width=index_width index_type in
+      if index_offset<0L||Int64.rem index_offset width<>0L||Int64.rem indirect_offset 4L<>0L
+      then error operation Invalid_argument "draw offsets are misaligned"
+      else Result.bind(validate_draw_buffer operation value index_buffer ~offset:index_offset ~required:0L)(fun()->
+      Result.bind(validate_draw_buffer operation value indirect_buffer ~offset:indirect_offset ~required:20L)(fun()->
+      match Metal_raw.render_draw_indexed_indirect value.raw(primitive_code primitive)(index_type_code index_type)index_buffer.raw index_offset indirect_buffer.raw indirect_offset with
+      | Error m->native_error operation m|Ok()->retain_command_buffer_buffer value.command_buffer index_buffer;retain_command_buffer_buffer value.command_buffer indirect_buffer;Ok())))
 
   let pipeline_supports_icb operation (value : t) = match value.pipeline with None->error operation Invalid_state "no render pipeline is bound"|Some p->(match Metal_raw.generated_mtl_render_pipeline_state_support_indirect_command_buffers p.raw with Error m->native_error operation m|Ok b->Ok b)
   let execute_indirect_commands (value : t) (commands : indirect_command_buffer) ~location ~length = let operation="Metal.Render_encoder.execute_indirect_commands" in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match ensure_live operation commands.lifetime with Error _ as e->e|Ok()->Result.bind(ensure_same_device operation value.command_buffer.queue.device commands.device)(fun()->Result.bind(Indirect_command_buffer.validate_range operation commands ~location ~length)(fun()->Result.bind(pipeline_supports_icb operation value)(function false->error operation Unsupported "pipeline lacks indirect-command-buffer support"|true->match Metal_raw.render_encoder_execute_icb_range value.raw commands.raw location length with Error m->native_error operation m|Ok()->retain_command_buffer_indirect value.command_buffer commands;Ok()))))
