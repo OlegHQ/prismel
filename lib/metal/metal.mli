@@ -1537,8 +1537,8 @@ module Command4 : sig
       ?label:string -> Command_buffer.t ->
       color_attachments:color_attachment list -> (t, error) result
 
-    (** Binds a conventional or mesh render pipeline whose sample count and
-        ordered color formats match the render pass. *)
+    (** Binds a conventional, mesh, or tile render pipeline whose sample count
+        and ordered color formats match the render pass. *)
     val set_pipeline : t -> Render_pipeline.t -> (unit, error) result
 
     (** Associates [table] with the selected render stages. Metal snapshots
@@ -1546,6 +1546,9 @@ module Command4 : sig
         those stage bindings. *)
     val set_argument_table :
       t -> stages:stage list -> Argument_table.t option -> (unit, error) result
+
+    (** Returns the native thread-tile dimensions captured at encoder creation. *)
+    val tile_size : t -> int * int
 
     val viewport :
       x:float -> y:float -> width:float -> height:float -> z_near:float ->
@@ -1563,6 +1566,12 @@ module Command4 : sig
       t -> threadgroups:(int * int * int) ->
       ?object_threadgroup:(int * int * int) ->
       mesh_threadgroup:(int * int * int) -> unit -> (unit, error) result
+
+    (** Dispatches a tile pipeline with positive in-tile dimensions and depth
+        one. The compiled maximum, optional required size, and exact-tile-size
+        promise are checked before encoding. *)
+    val dispatch_threads_per_tile :
+      t -> threads:(int * int * int) -> (unit, error) result
 
     val end_encoding : t -> (unit, error) result
     val destroyed : t -> bool

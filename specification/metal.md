@@ -614,7 +614,19 @@ conformance path executes a full-screen direct mesh pipeline into an 8×8 green
 target and an object-payload mesh pipeline into a separate 8×8 red target, then
 verifies every BGRA pixel after commit feedback.
 
-Tile command execution, indexed/indirect draws, blend/depth/stencil
+`Command4.Render_encoder.dispatch_threads_per_tile` executes tile pipelines and
+snapshots the tile-stage argument table through the same completion-owned
+resource graph. Encoder creation captures Metal's positive native tile width and
+height, which `tile_size` exposes without another native call. Dispatch requires
+positive width and height, depth one, dimensions inside that native tile,
+cardinality within the compiled pipeline maximum, the exact required size when
+configured, and a full-tile match when compilation promised one. Pipeline
+binding verifies Metal preserved that promise and records its observed maximum.
+The M1 conformance path compiles an exact 32×32 full-tile pipeline, clears its
+argument-table slot immediately after dispatch, and verifies the retained shared
+buffer contains the tile shader's exact value `23` after commit feedback.
+
+Indexed/indirect draws, blend/depth/stencil
 policy, vertex descriptors, dynamic render linking, and positive offline
 `.metallib` provenance remain open.
 
@@ -641,7 +653,8 @@ source-library destruction, allocator/queue/buffer/submission lifecycle,
 argument-table buffer/texture/sampler ownership and render-stage snapshots, plus
 pixel-exact conventional Metal 4 offscreen render execution and exact
 argument-table-backed Metal 4 compute execution, direct and object-stage mesh
-command execution with two pixel-exact offscreen targets,
+command execution with two pixel-exact offscreen targets, and exact full-tile
+command execution through a completion-retained output buffer,
 compiler/task/dataset parent ownership, and complete Metal 4 compile diagnostics,
 copied/no-copy external buffer ownership,
 shareable texture/handle/import lifetimes, single- and multi-plane IOSurface

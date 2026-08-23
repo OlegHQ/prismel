@@ -305,10 +305,11 @@ let bound_identifiers =
           ; "setArgumentTable:"; "setComputePipelineState:"
           ] )
       ; ( "MTL4RenderCommandEncoder"
-        , [ "drawMeshThreadgroups:threadsPerObjectThreadgroup:threadsPerMeshThreadgroup:"
+        , [ "dispatchThreadsPerTile:"
+          ; "drawMeshThreadgroups:threadsPerObjectThreadgroup:threadsPerMeshThreadgroup:"
           ; "drawPrimitives:vertexStart:vertexCount:"
           ; "setArgumentTable:atStages:"; "setRenderPipelineState:"
-          ; "setViewport:"
+          ; "setViewport:"; "tileHeight"; "tileWidth"
           ] )
       ; ( "MTL4RenderPassDescriptor"
         , [ "colorAttachments"; "defaultRasterSampleCount"
@@ -481,8 +482,10 @@ let bound_identifiers =
       ; ( "MTLRenderPipelineState"
         , [ "device"; "label"; "maxTotalThreadgroupsPerMeshGrid"
           ; "maxTotalThreadsPerMeshThreadgroup"
-          ; "maxTotalThreadsPerObjectThreadgroup"; "meshThreadExecutionWidth"
+          ; "maxTotalThreadsPerObjectThreadgroup"
+          ; "maxTotalThreadsPerThreadgroup"; "meshThreadExecutionWidth"
           ; "objectThreadExecutionWidth"; "reflection"
+          ; "threadgroupSizeMatchesTileSize"
           ] )
       ; ( "MTLRenderPassAttachmentDescriptor"
         , [ "loadAction"; "setLoadAction:"; "setStoreAction:"
@@ -734,6 +737,7 @@ let bound_identifiers =
       ; "MTL4CommandQueue", [ "device"; "label" ]
       ; "MTL4CommandQueueDescriptor", [ "label" ]
       ; "MTL4CommitFeedback", [ "error" ]
+      ; "MTL4RenderCommandEncoder", [ "tileHeight"; "tileWidth" ]
       ; ( "MTL4RenderPassDescriptor"
         , [ "colorAttachments"; "defaultRasterSampleCount"
           ; "renderTargetHeight"; "renderTargetWidth"
@@ -760,8 +764,10 @@ let bound_identifiers =
       ; ( "MTLRenderPipelineState"
         , [ "device"; "label"; "maxTotalThreadgroupsPerMeshGrid"
           ; "maxTotalThreadsPerMeshThreadgroup"
-          ; "maxTotalThreadsPerObjectThreadgroup"; "meshThreadExecutionWidth"
+          ; "maxTotalThreadsPerObjectThreadgroup"
+          ; "maxTotalThreadsPerThreadgroup"; "meshThreadExecutionWidth"
           ; "objectThreadExecutionWidth"; "reflection"
+          ; "threadgroupSizeMatchesTileSize"
           ] )
       ; ( "MTLRenderPassAttachmentDescriptor"
         , [ "loadAction"; "storeAction"; "texture" ] )

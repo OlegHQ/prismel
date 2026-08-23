@@ -701,6 +701,12 @@ type mesh_pipeline_constraints =
   ; configured_max_mesh_threadgroups : int option
   }
 
+type tile_pipeline_constraints =
+  { configured_max_tile_threads : int option
+  ; required_tile_threads : (int * int * int) option
+  ; threadgroup_size_matches_tile_size : bool
+  }
+
 type render_pipeline =
   { raw : Metal_raw.handle
   ; lifetime : lifetime
@@ -710,6 +716,7 @@ type render_pipeline =
   ; color_formats : pixel_format list
   ; reflection : render_pipeline_reflection option
   ; mesh_constraints : mesh_pipeline_constraints option
+  ; tile_constraints : tile_pipeline_constraints option
   }
 
 type mesh_pipeline_limits =
@@ -718,6 +725,11 @@ type mesh_pipeline_limits =
   ; object_execution_width : int
   ; mesh_execution_width : int
   ; max_mesh_threadgroups : int
+  }
+
+type tile_pipeline_limits =
+  { max_tile_threads : int
+  ; matches_tile_size : bool
   }
 
 type command4_allocator =
@@ -785,9 +797,12 @@ type command4_render_encoder =
   ; command_buffer : command4_buffer
   ; width : int
   ; height : int
+  ; tile_width : int
+  ; tile_height : int
   ; color_formats : pixel_format list
   ; mutable pipeline : render_pipeline option
   ; mutable mesh_limits : mesh_pipeline_limits option
+  ; mutable tile_limits : tile_pipeline_limits option
   ; argument_tables : command4_argument_table option array
   }
 
@@ -7091,8 +7106,9 @@ module Render_pipeline = struct
 
   let topology_code = function Point -> 1 | Line -> 2 | Triangle -> 3
 
-  let make ?mesh_constraints device ~kind ~raster_sample_count ~color_formats
-      ~reflection raw (raw_reflection : Metal_raw.render_pipeline_reflection) =
+  let make ?mesh_constraints ?tile_constraints device ~kind
+      ~raster_sample_count ~color_formats ~reflection raw
+      (raw_reflection : Metal_raw.render_pipeline_reflection) =
     let map values = Array.map Binding.of_raw values in
     let reflection =
       if reflection then
@@ -7114,6 +7130,7 @@ module Render_pipeline = struct
       ; color_formats
       ; reflection
       ; mesh_constraints
+      ; tile_constraints
       }
     in
     attach device.lifetime;
@@ -8564,6 +8581,13 @@ module Compiler = struct
         in
         callback reflection descriptor)
 
+  let tile_pipeline_constraints ?max_total_threads_per_threadgroup
+      ?required_threads_per_threadgroup ~threadgroup_size_matches_tile_size () =
+    { configured_max_tile_threads = max_total_threads_per_threadgroup
+    ; required_tile_threads = required_threads_per_threadgroup
+    ; threadgroup_size_matches_tile_size
+    }
+
   let create_tile_pipeline ?label ?(reflection = false)
       ?(raster_sample_count = 1)
       ?(color_formats = [ Texture.Bgra8_unorm ])
@@ -8577,10 +8601,15 @@ module Compiler = struct
         match Metal_raw.compiler_create_tile_pipeline value.raw descriptor with
         | Error message -> native_error operation message
         | Ok (raw, raw_reflection) ->
+            let tile_constraints =
+              tile_pipeline_constraints ?max_total_threads_per_threadgroup
+                ?required_threads_per_threadgroup
+                ~threadgroup_size_matches_tile_size ()
+            in
             Ok
-              (Render_pipeline.make value.device ~kind:Render_pipeline.Tile
-                 ~raster_sample_count ~color_formats ~reflection raw
-                 raw_reflection))
+              (Render_pipeline.make ~tile_constraints value.device
+                 ~kind:Render_pipeline.Tile ~raster_sample_count ~color_formats
+                 ~reflection raw raw_reflection))
       ?label ~reflection ~raster_sample_count ~color_formats
       ~threadgroup_size_matches_tile_size
       ?max_total_threads_per_threadgroup ?required_threads_per_threadgroup
@@ -8602,13 +8631,18 @@ module Compiler = struct
         with
         | Error message -> native_error operation message
         | Ok raw ->
+            let tile_constraints =
+              tile_pipeline_constraints ?max_total_threads_per_threadgroup
+                ?required_threads_per_threadgroup
+                ~threadgroup_size_matches_tile_size ()
+            in
             Ok
               (Compiler_task.make value
                  Metal_raw.compiler_task_take_render_pipeline
                  (fun (raw, raw_reflection) ->
-                   Render_pipeline.make value.device ~kind:Render_pipeline.Tile
-                     ~raster_sample_count ~color_formats ~reflection raw
-                     raw_reflection)
+                   Render_pipeline.make ~tile_constraints value.device
+                     ~kind:Render_pipeline.Tile ~raster_sample_count
+                     ~color_formats ~reflection raw raw_reflection)
                  raw))
       ?label ~reflection ~raster_sample_count ~color_formats
       ~threadgroup_size_matches_tile_size
@@ -9477,7 +9511,7 @@ module Command4 = struct
                      raw_attachments (width, height) label
                  with
                  | Error message -> native_error operation message
-                 | Ok raw ->
+                 | Ok (raw, tile_width, tile_height) ->
                      List.iter
                        (fun attachment ->
                          retain_command4_texture command_buffer
@@ -9489,9 +9523,12 @@ module Command4 = struct
                        ; command_buffer
                        ; width
                        ; height
+                       ; tile_width
+                       ; tile_height
                        ; color_formats
                        ; pipeline = None
                        ; mesh_limits = None
+                       ; tile_limits = None
                        ; argument_tables = Array.make 5 None
                        }
                      in
@@ -9554,6 +9591,43 @@ module Command4 = struct
                    ; max_mesh_threadgroups
                    })
 
+    let observed_tile_limits operation (value : t)
+        (pipeline : Render_pipeline.t) =
+      match pipeline.tile_constraints with
+      | None ->
+          error operation Native_error
+            "tile pipeline is missing its checked dispatch constraints"
+      | Some constraints ->
+          (match Metal_raw.render_pipeline_tile_limits pipeline.raw with
+           | Error message -> native_error operation message
+           | Ok (observed_maximum, matches_tile_size) ->
+               if
+                 matches_tile_size
+                 <> constraints.threadgroup_size_matches_tile_size
+               then
+                 error operation Native_error
+                   "Metal changed the tile-size matching guarantee"
+               else
+                 let configured_maximum =
+                   Option.value constraints.configured_max_tile_threads
+                     ~default:0
+                 in
+                 let tile_area =
+                   match product3 value.tile_width value.tile_height 1 with
+                   | Some area -> area
+                   | None -> 0
+                 in
+                 let max_tile_threads =
+                   if observed_maximum > 0 then observed_maximum
+                   else if configured_maximum > 0 then configured_maximum
+                   else if matches_tile_size then tile_area
+                   else 0
+                 in
+                 if max_tile_threads <= 0 then
+                   error operation Native_error
+                     "Metal returned no usable tile-threadgroup maximum"
+                 else Ok { max_tile_threads; matches_tile_size })
+
     let set_pipeline (value : t) (pipeline : Render_pipeline.t) =
       let operation = "Metal.Command4.Render_encoder.set_pipeline" in
       on_main operation (fun () ->
@@ -9568,9 +9642,6 @@ module Command4 = struct
                       value.command_buffer.allocator.device pipeline.device
                   with
                   | Error _ as failure -> failure
-                  | Ok () when pipeline.kind = Tile ->
-                      error operation Invalid_argument
-                        "tile pipelines require tile command execution"
                   | Ok () when pipeline.raster_sample_count <> 1 ->
                       error operation Invalid_argument
                         "pipeline sample count does not match the render pass"
@@ -9581,14 +9652,16 @@ module Command4 = struct
                       let limits =
                         match pipeline.kind with
                         | Mesh ->
-                            Result.map Option.some
+                            Result.map (fun limits -> Some limits, None)
                               (observed_mesh_limits operation pipeline)
-                        | Render -> Ok None
-                        | Tile -> assert false
+                        | Tile ->
+                            Result.map (fun limits -> None, Some limits)
+                              (observed_tile_limits operation value pipeline)
+                        | Render -> Ok (None, None)
                       in
                       (match limits with
                        | Error _ as failure -> failure
-                       | Ok mesh_limits ->
+                       | Ok (mesh_limits, tile_limits) ->
                            match
                              Metal_raw.command4_render_encoder_set_pipeline
                                value.raw value.command_buffer.raw pipeline.raw
@@ -9599,6 +9672,7 @@ module Command4 = struct
                                  value.command_buffer pipeline;
                                value.pipeline <- Some pipeline;
                                value.mesh_limits <- mesh_limits;
+                               value.tile_limits <- tile_limits;
                                Ok ()))))
 
     let stage_index = function
@@ -9662,6 +9736,8 @@ module Command4 = struct
                               value.argument_tables.(stage_index stage) <- table)
                             stages;
                           Ok ())))
+
+    let tile_size (value : t) = value.tile_width, value.tile_height
 
     let viewport ~x ~y ~width ~height ~z_near ~z_far =
       { x; y; width; height; z_near; z_far }
@@ -9879,6 +9955,77 @@ module Command4 = struct
           Metal_raw.command4_render_encoder_draw_mesh_threadgroups value.raw
             value.command_buffer.raw raw_tables
             (gx, gy, gz, ox, oy, oz, mx, my, mz)
+        with
+        | Ok () -> Ok ()
+        | Error message -> native_error operation message)
+
+    let dispatch_threads_per_tile (value : t) ~threads =
+      let operation =
+        "Metal.Command4.Render_encoder.dispatch_threads_per_tile"
+      in
+      on_main operation (fun () ->
+        let ( let* ) result callback = Result.bind result callback in
+        let* () = ensure_live operation value.lifetime in
+        let* pipeline =
+          match value.pipeline with
+          | None -> error operation Invalid_state "no render pipeline is bound"
+          | Some pipeline when pipeline.kind <> Tile ->
+              error operation Invalid_state
+                "tile dispatches require a tile render pipeline"
+          | Some pipeline -> Ok pipeline
+        in
+        let* constraints, limits =
+          match pipeline.tile_constraints, value.tile_limits with
+          | Some constraints, Some limits -> Ok (constraints, limits)
+          | None, _ | _, None ->
+              error operation Native_error
+                "bound tile pipeline lost its checked dispatch limits"
+        in
+        let width, height, depth = threads in
+        let* cardinality =
+          if width <= 0 || height <= 0 || depth <> 1 then
+            error operation Invalid_argument
+              "tile thread dimensions must be positive with depth one"
+          else if width > value.tile_width || height > value.tile_height then
+            error operation Invalid_argument
+              "tile thread dimensions exceed the render encoder's tile size"
+          else
+            match product3 width height depth with
+            | None ->
+                error operation Invalid_argument
+                  "tile threadgroup cardinality overflows an OCaml integer"
+            | Some cardinality -> Ok cardinality
+        in
+        let* () =
+          if cardinality > limits.max_tile_threads then
+            error operation Invalid_argument
+              "tile threadgroup exceeds the compiled pipeline maximum"
+          else if
+            (match constraints.required_tile_threads with
+             | Some required -> required <> threads
+             | None -> false)
+          then
+            error operation Invalid_argument
+              "tile threadgroup does not match the compiled required size"
+          else if
+            limits.matches_tile_size
+            && (width <> value.tile_width || height <> value.tile_height)
+          then
+            error operation Invalid_argument
+              "tile threadgroup must match the render encoder's tile size"
+          else Ok ()
+        in
+        let tables = current_argument_tables value in
+        let* () = retain_argument_tables operation value tables in
+        let raw_tables =
+          Array.of_list
+            (List.map
+               (fun (table : command4_argument_table) -> table.raw)
+               tables)
+        in
+        match
+          Metal_raw.command4_render_encoder_dispatch_threads_per_tile value.raw
+            value.command_buffer.raw raw_tables threads
         with
         | Ok () -> Ok ()
         | Error message -> native_error operation message)

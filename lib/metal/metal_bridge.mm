@@ -8381,6 +8381,35 @@ extern "C" CAMLprim value caml_prismel_metal_render_pipeline_mesh_limits(
   }
 }
 
+extern "C" CAMLprim value caml_prismel_metal_render_pipeline_tile_limits(
+    value raw) {
+  CAMLparam1(raw);
+  CAMLlocal2(limits, result);
+  @autoreleasepool {
+    if (@available(macOS 11.0, *)) {
+      @try {
+        id<MTLRenderPipelineState> pipeline =
+            object_of_handle(raw, Handle_kind::Render_pipeline);
+        const NSUInteger maximum = pipeline.maxTotalThreadsPerThreadgroup;
+        if (maximum > static_cast<NSUInteger>(Max_long)) {
+          CAMLreturn(result_error_text(
+              "Metal tile-pipeline limit exceeds the OCaml integer range"));
+        }
+        limits = caml_alloc_tuple(2);
+        Store_field(limits, 0, Val_long(static_cast<intnat>(maximum)));
+        Store_field(limits, 1,
+                    Val_bool(pipeline.threadgroupSizeMatchesTileSize));
+        result = result_ok(limits);
+        CAMLreturn(result);
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text(
+        "Metal tile-pipeline limits require macOS 11 or newer"));
+  }
+}
+
 extern "C" CAMLprim value caml_prismel_metal_compute_pipeline_create(
     value raw_device, value raw_function) {
   CAMLparam2(raw_device, raw_function);
@@ -9216,7 +9245,7 @@ extern "C" CAMLprim value caml_prismel_metal_command4_compute_encoder_end(
 extern "C" CAMLprim value caml_prismel_metal_command4_render_encoder_create(
     value raw_buffer, value raw_attachments, value raw_size, value raw_label) {
   CAMLparam4(raw_buffer, raw_attachments, raw_size, raw_label);
-  CAMLlocal1(raw);
+  CAMLlocal2(raw, created);
   @autoreleasepool {
     if (@available(macOS 26.0, *)) {
       @try {
@@ -9290,11 +9319,26 @@ extern "C" CAMLprim value caml_prismel_metal_command4_render_encoder_create(
                 "Metal changed the checked Metal 4 render-encoder label"));
           }
         }
+        const NSUInteger tile_width = encoder.tileWidth;
+        const NSUInteger tile_height = encoder.tileHeight;
+        if (tile_width == 0 || tile_height == 0 ||
+            tile_width > static_cast<NSUInteger>(Max_long) ||
+            tile_height > static_cast<NSUInteger>(Max_long)) {
+          [encoder endEncoding];
+          CAMLreturn(result_error_text(
+              "Metal returned invalid render-encoder tile dimensions"));
+        }
         for (id<MTLTexture> texture in textures) {
           [state retainEncodedObject:texture];
         }
         raw = allocate_handle(encoder, Handle_kind::Render_encoder4);
-        CAMLreturn(result_ok(raw));
+        created = caml_alloc_tuple(3);
+        Store_field(created, 0, raw);
+        Store_field(created, 1,
+                    Val_long(static_cast<intnat>(tile_width)));
+        Store_field(created, 2,
+                    Val_long(static_cast<intnat>(tile_height)));
+        CAMLreturn(result_ok(created));
       } @catch (NSException *exception) {
         CAMLreturn(result_error(exception.reason));
       }
@@ -9508,6 +9552,44 @@ caml_prismel_metal_command4_render_encoder_draw_mesh_threadgroups(
       }
     }
     CAMLreturn(result_error_text("Metal 4 mesh draws require macOS 26"));
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_command4_render_encoder_dispatch_threads_per_tile(
+    value raw_encoder, value raw_buffer, value raw_tables, value raw_threads) {
+  CAMLparam4(raw_encoder, raw_buffer, raw_tables, raw_threads);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4RenderCommandEncoder> encoder =
+            object_of_handle(raw_encoder, Handle_kind::Render_encoder4);
+        PrismelMetal4CommandBufferState *command_buffer =
+            command_buffer4_state_of_handle(raw_buffer);
+        const intnat width = Long_val(Field(raw_threads, 0));
+        const intnat height = Long_val(Field(raw_threads, 1));
+        const intnat depth = Long_val(Field(raw_threads, 2));
+        if (encoder.commandBuffer != command_buffer.commandBuffer || width <= 0 ||
+            height <= 0 || depth != 1 ||
+            static_cast<NSUInteger>(width) > encoder.tileWidth ||
+            static_cast<NSUInteger>(height) > encoder.tileHeight) {
+          CAMLreturn(result_error_text(
+              "Metal 4 tile-dispatch dimensions are invalid"));
+        }
+        NSString *validation_failure = nil;
+        if (!retain_metal4_render_argument_tables(
+                raw_tables, command_buffer, &validation_failure)) {
+          CAMLreturn(result_error(validation_failure));
+        }
+        [encoder dispatchThreadsPerTile:
+                     MTLSizeMake(static_cast<NSUInteger>(width),
+                                 static_cast<NSUInteger>(height), 1)];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("Metal 4 tile dispatch requires macOS 26"));
   }
 }
 

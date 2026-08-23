@@ -4410,6 +4410,132 @@ let test_metal4_mesh_commands device =
     true
   end
 
+let test_metal4_tile_commands device =
+  if
+    not (get (Device.supports_family device Device.Metal4))
+    || not (get (Device.supports_family device Device.Apple4))
+  then false
+  else begin
+    let compiler = get (Compiler.create device) in
+    let library =
+      get
+        (Compiler.compile_source ~name:"metal4-command-tile-library" compiler
+           tile_shader_source)
+    in
+    let output =
+      get (Buffer.create ~device ~length:4L ~storage:Buffer.Shared ())
+    in
+    get (Buffer.write_bytes output ~dst_offset:0L (Bytes.make 4 '\000'));
+    let arguments =
+      get
+        (Command4.Argument_table.create ~label:"Metal 4 tile arguments"
+           ~max_buffers:5 device ())
+    in
+    get (Command4.Argument_table.set_buffer arguments ~index:4 output);
+    let target =
+      get
+        (Texture.create ~device
+           (Texture.descriptor_2d ~storage:Buffer.Shared
+              ~usage:[ Texture.Render_target ] ~format:Texture.Bgra8_unorm
+              ~width:8 ~height:8 ~label:"Metal 4 tile target" ()))
+    in
+    let allocator =
+      get (Command4.Allocator.create ~label:"Metal 4 tile allocator" device)
+    in
+    let queue = get (Command4.Queue.create ~label:"Metal 4 tile queue" device) in
+    let commands =
+      get
+        (Command4.Command_buffer.create allocator
+           ~label:"Metal 4 tile commands" ())
+    in
+    let encoder =
+      get
+        (Command4.Render_encoder.create ~label:"Metal 4 tile encoder" commands
+           ~color_attachments:
+             [ Command4.Render_encoder.color_attachment target ])
+    in
+    let tile_width, tile_height = Command4.Render_encoder.tile_size encoder in
+    if tile_width <= 0 || tile_height <= 0
+       || tile_width > max_int / tile_height
+    then fail "Metal 4 render encoder reported an invalid tile size";
+    let tile_threads = tile_width * tile_height in
+    let pipeline =
+      get
+        (Compiler.create_tile_pipeline ~label:"Metal 4 executable tile"
+           ~threadgroup_size_matches_tile_size:true
+           ~max_total_threads_per_threadgroup:tile_threads
+           ~required_threads_per_threadgroup:(tile_width, tile_height, 1)
+           compiler ~library ~tile:"prismel_tile")
+    in
+    ignore
+      (expect_error Invalid_state
+         (Command4.Render_encoder.dispatch_threads_per_tile encoder
+            ~threads:(tile_width, tile_height, 1)));
+    get (Command4.Render_encoder.set_pipeline encoder pipeline);
+    get
+      (Command4.Render_encoder.set_argument_table encoder
+         ~stages:[ Command4.Render_encoder.Tile ] (Some arguments));
+    ignore
+      (expect_error Invalid_state
+         (Command4.Render_encoder.draw_primitives encoder
+            Command4.Render_encoder.Triangle ~vertex_start:0 ~vertex_count:3));
+    ignore
+      (expect_error Invalid_state
+         (Command4.Render_encoder.draw_mesh_threadgroups encoder
+            ~threadgroups:(1, 1, 1) ~mesh_threadgroup:(1, 1, 1) ()));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.dispatch_threads_per_tile encoder
+            ~threads:(0, tile_height, 1)));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.dispatch_threads_per_tile encoder
+            ~threads:(tile_width, tile_height, 2)));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.dispatch_threads_per_tile encoder
+            ~threads:(tile_width + 1, tile_height, 1)));
+    if tile_width > 1 then
+      ignore
+        (expect_error Invalid_argument
+           (Command4.Render_encoder.dispatch_threads_per_tile encoder
+              ~threads:(tile_width - 1, tile_height, 1)))
+    else if tile_height > 1 then
+      ignore
+        (expect_error Invalid_argument
+           (Command4.Render_encoder.dispatch_threads_per_tile encoder
+              ~threads:(tile_width, tile_height - 1, 1)));
+    get
+      (Command4.Render_encoder.dispatch_threads_per_tile encoder
+         ~threads:(tile_width, tile_height, 1));
+    get (Command4.Argument_table.clear_buffer arguments ~index:4);
+    ignore (expect_error Parent_has_dependents (Buffer.destroy output));
+    get (Command4.Render_encoder.end_encoding encoder);
+    get (Command4.Command_buffer.end_recording commands);
+    let submission = get (Command4.Queue.commit queue [ commands ]) in
+    ignore
+      (expect_error Parent_has_dependents (Render_pipeline.destroy pipeline));
+    get (Command4.Submission.wait submission);
+    let result = get (Buffer.read_bytes output ~offset:0L ~length:4) in
+    if Bytes.get_int32_le result 0 <> 23l then
+      fail "Metal 4 tile command wrote %ld instead of 23"
+        (Bytes.get_int32_le result 0);
+    get (Render_pipeline.destroy pipeline);
+    get (Command4.Argument_table.destroy arguments);
+    get (Buffer.destroy output);
+    get (Texture.destroy target);
+    get (Command4.Submission.destroy submission);
+    get (Command4.Command_buffer.destroy commands);
+    get (Command4.Allocator.reset allocator);
+    get (Command4.Queue.destroy queue);
+    get (Command4.Allocator.destroy allocator);
+    get (Library.destroy library);
+    get (Compiler.destroy compiler);
+    Printf.printf "Metal 4 tile-command conformance passed (%dx%d threads)\n%!"
+      tile_width tile_height;
+    true
+  end
+
 let test_metal4_compute_commands device =
   if not (get (Device.supports_family device Device.Metal4)) then false
   else begin
@@ -4535,6 +4661,7 @@ let () =
     ignore (test_metal4_compiler device);
     ignore (test_metal4_render_commands device);
     ignore (test_metal4_mesh_commands device);
+    ignore (test_metal4_tile_commands device);
     ignore (test_metal4_compute_commands device);
     test_format_matrix device;
     test_texture_swizzle_and_compression device;
@@ -6342,6 +6469,6 @@ let () =
         stats.external_deallocations
         stats.external_deallocation_mismatches;
     Printf.printf
-      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/compiler-task/pipeline-dataset/binary-function/static-link/reflection/compute/render/mesh/object/tile/command4-argument-table/compute/render/mesh conformance passed on %s\n%!"
+      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/compiler-task/pipeline-dataset/binary-function/static-link/reflection/compute/render/mesh/object/tile/command4-argument-table/compute/render/mesh/tile conformance passed on %s\n%!"
       info.name
   end
