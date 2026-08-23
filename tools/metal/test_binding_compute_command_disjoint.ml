@@ -5,9 +5,9 @@ let ()=
   ["resource100",Binding_resource_manifest.ids;"presentation125",Binding_presentation_manifest.ids;
    "render102",Binding_render_encoder_manifest.ids;"shader157",Binding_shader_graph_manifest.ids;
    "io111",Binding_io_counter_manifest.ids];
- let forbidden=["MTLDevice";"MTLTensor";"MTLRasterizationRate";"MTLRenderCommandEncoder";
+ let forbidden=["MTLDevice";"MTLTensor";"MTLRasterizationRate";"MTLRenderCommandEncoder";"MTLComputePipeline";
   "MTLMeshRenderPipeline";"MTLTileRenderPipeline";"MTLAccelerationStructureCommandEncoder";"CAMetalLayer"]in
  let has id fragment=let n=String.length fragment in let rec f i=i+n<=String.length id&&(String.sub id i n=fragment||f(i+1))in f 0 in
  if List.exists(fun id->List.exists(has id)forbidden)claimed then failwith"owner overlap";
- if List.length claimed<>103 then failwith"count drift";
- print_endline"compute command103 disjoint from static manifests, corrected Device94, and tensor/raster102"
+ if List.length claimed<>76 then failwith"count drift";
+ print_endline"compute command76 corrected disjoint from pipeline113 and all static manifests"
