@@ -207,6 +207,9 @@
   ../../tools/metal/metal_mesh_tile_counter_callable_bridge.inc
   ../../tools/metal/metal4_lifecycle_materializers.inc
   ../../tools/metal/metal4_lifecycle_callable_bridge.inc
+  ../../tools/metal/metal4_compute_owner_generated.inc
+  ../../tools/metal/metal4_counter_command_callable_bridge.inc
+  ../../tools/metal/metal4_compute_callable_bridge.inc
   ../../tools/metal/metal_command_support_mechanical.inc
   ../../tools/metal/metal_command_support_callable_bridge.inc
   ../../tools/metal/metal_mesh_tile_mechanical_generated.mm
@@ -563,6 +566,18 @@
  (action
   (bash
    "status=0; ./test_metal_pipeline113_descriptor_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal4_compute_counter_native.exe)
+ (deps test_metal4_compute_counter_native.mm
+  ../../tools/metal/metal4_compute_owner_generated.inc)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -framework Foundation
+   -framework Metal %{dep:test_metal4_compute_counter_native.mm} -o %{targets})))
+(rule
+ (alias runtest)
+ (deps test_metal4_compute_counter_native.exe)
+ (action (bash "status=0; ./test_metal4_compute_counter_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
 
 (rule
  (targets test_metal_shader157_callable_native.exe)

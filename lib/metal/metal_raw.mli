@@ -1725,6 +1725,66 @@ external metal4_queue_wait_event :
   handle -> handle -> int64 -> (unit,string) result =
   "caml_prismel_metal4_wait_event"
 
+external metal4_encoder_debug : handle -> handle -> string -> int -> (unit,string) result =
+  "caml_prismel_metal4_encoder_debug"
+external metal4_encoder_pop_debug : handle -> handle -> (unit,string) result =
+  "caml_prismel_metal4_encoder_pop_debug"
+external metal4_encoder_barrier :
+  handle -> handle -> int64 -> int64 -> int64 -> int -> (unit,string) result =
+  "caml_prismel_metal4_encoder_barrier_bytecode" "caml_prismel_metal4_encoder_barrier"
+external metal4_encoder_update_fence : handle -> handle -> handle -> int64 -> (unit,string) result =
+  "caml_prismel_metal4_encoder_update_fence"
+external metal4_queue_add_residencies : handle -> handle array -> (unit,string) result =
+  "caml_prismel_metal4_queue_add_residencies"
+external metal4_queue_remove_residency : handle -> handle -> (unit,string) result =
+  "caml_prismel_metal4_queue_remove_residency"
+external metal4_queue_remove_residencies : handle -> handle array -> (unit,string) result =
+  "caml_prismel_metal4_queue_remove_residencies"
+external metal4_counter_create : handle -> int -> int64 -> string option -> (handle,string) result =
+  "caml_prismel_metal4_counter_create"
+external metal4_counter_info : handle -> ((int64 * int * string option),string) result =
+  "caml_prismel_metal4_counter_info"
+external metal4_counter_set_label : handle -> string option -> (unit,string) result =
+  "caml_prismel_metal4_counter_set_label"
+external metal4_counter_invalidate : handle -> (int64 * int64) -> (unit,string) result =
+  "caml_prismel_metal4_counter_invalidate"
+external metal4_counter_resolve : handle -> (int64 * int64) -> (bytes,string) result =
+  "caml_prismel_metal4_counter_resolve"
+external metal4_counter_descriptor_roundtrip : int -> int64 -> ((int * int64),string) result =
+  "caml_prismel_metal4_counter_descriptor_roundtrip"
+
+type metal4_size = int64 * int64 * int64
+type metal4_origin = int64 * int64 * int64
+type metal4_range = int64 * int64
+external metal4_compute_dispatch_groups : handle -> handle -> (metal4_size * metal4_size) -> (unit,string) result = "caml_prismel_metal4_compute_dispatch_groups"
+external metal4_compute_dispatch_indirect_groups : handle -> handle -> (int64 * metal4_size) -> (unit,string) result = "caml_prismel_metal4_compute_dispatch_indirect_groups"
+external metal4_compute_dispatch_indirect_threads : handle -> handle -> int64 -> (unit,string) result = "caml_prismel_metal4_compute_dispatch_indirect_threads"
+external metal4_compute_set_imageblock : handle -> handle -> (int64 * int64) -> (unit,string) result = "caml_prismel_metal4_compute_set_imageblock"
+external metal4_compute_stages : handle -> handle -> (int64,string) result = "caml_prismel_metal4_compute_stages"
+external metal4_compute_fill_buffer : handle -> handle -> (handle * metal4_range * int) -> (unit,string) result = "caml_prismel_metal4_compute_fill_buffer"
+external metal4_compute_generate_mipmaps : handle -> handle -> handle -> (unit,string) result = "caml_prismel_metal4_compute_generate_mipmaps"
+external metal4_compute_optimize_cpu : handle -> handle -> handle -> (unit,string) result = "caml_prismel_metal4_compute_optimize_cpu"
+external metal4_compute_optimize_gpu : handle -> handle -> handle -> (unit,string) result = "caml_prismel_metal4_compute_optimize_gpu"
+external metal4_compute_optimize_cpu_level : handle -> handle -> (handle * int64 * int64) -> (unit,string) result = "caml_prismel_metal4_compute_optimize_cpu_level"
+external metal4_compute_optimize_gpu_level : handle -> handle -> (handle * int64 * int64) -> (unit,string) result = "caml_prismel_metal4_compute_optimize_gpu_level"
+external metal4_compute_copy_buffer : handle -> handle -> (handle * int64 * handle * int64 * int64) -> (unit,string) result = "caml_prismel_metal4_compute_copy_buffer"
+external metal4_compute_copy_texture : handle -> handle -> (handle * handle) -> (unit,string) result = "caml_prismel_metal4_compute_copy_texture"
+external metal4_compute_copy_texture_slices : handle -> handle -> (handle * int64 * int64 * handle * int64 * int64 * int64 * int64) -> (unit,string) result = "caml_prismel_metal4_compute_copy_texture_slices"
+external metal4_compute_copy_texture_region : handle -> handle -> (handle * int64 * int64 * metal4_origin * metal4_size * handle * int64 * int64 * metal4_origin) -> (unit,string) result = "caml_prismel_metal4_compute_copy_texture_region"
+type metal4_buffer_texture_copy = handle * int64 * int64 * int64 * metal4_size * handle * int64 * int64 * metal4_origin
+external metal4_compute_buffer_to_texture : handle -> handle -> metal4_buffer_texture_copy -> (unit,string) result = "caml_prismel_metal4_compute_buffer_to_texture"
+external metal4_compute_buffer_to_texture_options : handle -> handle -> (handle * int64 * int64 * int64 * metal4_size * handle * int64 * int64 * metal4_origin * int64) -> (unit,string) result = "caml_prismel_metal4_compute_buffer_to_texture_options"
+type metal4_texture_buffer_copy = handle * int64 * int64 * metal4_origin * metal4_size * handle * int64 * int64 * int64
+external metal4_compute_texture_to_buffer : handle -> handle -> metal4_texture_buffer_copy -> (unit,string) result = "caml_prismel_metal4_compute_texture_to_buffer"
+external metal4_compute_texture_to_buffer_options : handle -> handle -> (handle * int64 * int64 * metal4_origin * metal4_size * handle * int64 * int64 * int64 * int64) -> (unit,string) result = "caml_prismel_metal4_compute_texture_to_buffer_options"
+external metal4_compute_execute_icb_range : handle -> handle -> (handle * metal4_range) -> (unit,string) result = "caml_prismel_metal4_compute_execute_icb_range"
+external metal4_compute_execute_icb_indirect : handle -> handle -> (handle * int64) -> (unit,string) result = "caml_prismel_metal4_compute_execute_icb_indirect"
+external metal4_compute_optimize_icb : handle -> handle -> (handle * metal4_range) -> (unit,string) result = "caml_prismel_metal4_compute_optimize_icb"
+external metal4_compute_reset_icb : handle -> handle -> (handle * metal4_range) -> (unit,string) result = "caml_prismel_metal4_compute_reset_icb"
+external metal4_compute_copy_icb : handle -> handle -> (handle * metal4_range * handle * int64) -> (unit,string) result = "caml_prismel_metal4_compute_copy_icb"
+external metal4_compute_copy_acceleration : handle -> handle -> (handle * handle * bool) -> (unit,string) result = "caml_prismel_metal4_compute_copy_acceleration"
+external metal4_compute_timestamp : handle -> handle -> (int * handle * int64) -> (unit,string) result = "caml_prismel_metal4_compute_timestamp"
+
 (** Shader157 exact callable raw subset. Descriptor graphs, reflection,
     preprocessor dictionaries and callback compilation remain blocked. *)
 external shader_function_options :
