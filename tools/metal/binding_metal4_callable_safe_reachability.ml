@@ -1,4 +1,4 @@
-type status = Callable_pending_native | Blocked
+type status = Promotable | Blocked
 
 let compute_ids =
   Binding_metal4_manifest.ids
@@ -51,7 +51,8 @@ let callable_ids =
 let blocked_ids =
   List.filter (fun id -> not (List.mem id callable_ids)) Binding_metal4_manifest.ids
 
-let status id = if List.mem id callable_ids then Callable_pending_native else Blocked
+let promotable_ids = callable_ids
+let status id = if List.mem id promotable_ids then Promotable else Blocked
 
 let validate () =
   if List.length compute_ids <> 27 || List.length generic_ids <> 6

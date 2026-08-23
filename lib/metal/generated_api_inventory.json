@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 3902,
+    "bound": 3953,
     "scope-excluded": 37,
-    "unreviewed": 1346
+    "unreviewed": 1295
   },
-  "classification_source_sha256": "5d40a644c2bb4b78ef24760548138f8b4008ad22e2538ab4b3148efcafa0ed00",
+  "classification_source_sha256": "05c3f8a24a6be6a1e7e951ec3f2bf2912d43a84ef9868e8daf7ad9192930a4a5",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -33898,7 +33898,7 @@
           "line": 37
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandEncoder.h",
       "id": "method:-[MTL4CommandEncoder barrierAfterEncoderStages:beforeEncoderStages:visibilityOptions:]",
       "kind": "method",
@@ -33906,7 +33906,7 @@
       "macos_introduced": "26.0",
       "name": "barrierAfterEncoderStages:beforeEncoderStages:visibilityOptions:",
       "owner": "MTL4CommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance (MTLStages, MTLStages, MTL4VisibilityOptions) -> void"
     },
     {
@@ -33936,7 +33936,7 @@
           "line": 37
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandEncoder.h",
       "id": "method:-[MTL4CommandEncoder barrierAfterStages:beforeQueueStages:visibilityOptions:]",
       "kind": "method",
@@ -33944,7 +33944,7 @@
       "macos_introduced": "26.0",
       "name": "barrierAfterStages:beforeQueueStages:visibilityOptions:",
       "owner": "MTL4CommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance (MTLStages, MTLStages, MTL4VisibilityOptions) -> void"
     },
     {
@@ -33993,7 +33993,7 @@
           "line": 37
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandEncoder.h",
       "id": "method:-[MTL4CommandEncoder insertDebugSignpost:]",
       "kind": "method",
@@ -34001,7 +34001,7 @@
       "macos_introduced": "26.0",
       "name": "insertDebugSignpost:",
       "owner": "MTL4CommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance (NSString * _Nonnull __strong) -> void"
     },
     {
@@ -34031,7 +34031,7 @@
           "line": 37
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandEncoder.h",
       "id": "method:-[MTL4CommandEncoder popDebugGroup]",
       "kind": "method",
@@ -34039,7 +34039,7 @@
       "macos_introduced": "26.0",
       "name": "popDebugGroup",
       "owner": "MTL4CommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance () -> void"
     },
     {
@@ -34050,7 +34050,7 @@
           "line": 37
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandEncoder.h",
       "id": "method:-[MTL4CommandEncoder pushDebugGroup:]",
       "kind": "method",
@@ -34058,7 +34058,7 @@
       "macos_introduced": "26.0",
       "name": "pushDebugGroup:",
       "owner": "MTL4CommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance (NSString * _Nonnull __strong) -> void"
     },
     {
@@ -34088,7 +34088,7 @@
           "line": 37
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandEncoder.h",
       "id": "method:-[MTL4CommandEncoder updateFence:afterEncoderStages:]",
       "kind": "method",
@@ -34096,7 +34096,7 @@
       "macos_introduced": "26.0",
       "name": "updateFence:afterEncoderStages:",
       "owner": "MTL4CommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance (id<MTLFence>  _Nonnull __strong, MTLStages) -> void"
     },
     {
@@ -34145,7 +34145,7 @@
           "line": 211
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "method:-[MTL4CommandQueue addResidencySets:count:]",
       "kind": "method",
@@ -34153,7 +34153,7 @@
       "macos_introduced": "26.0",
       "name": "addResidencySets:count:",
       "owner": "MTL4CommandQueue",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance (id<MTLResidencySet>  _Nonnull const __unsafe_unretained * _Nonnull, NSUInteger) -> void"
     },
     {
@@ -34278,7 +34278,7 @@
           "line": 211
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "method:-[MTL4CommandQueue removeResidencySet:]",
       "kind": "method",
@@ -34286,7 +34286,7 @@
       "macos_introduced": "26.0",
       "name": "removeResidencySet:",
       "owner": "MTL4CommandQueue",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance (id<MTLResidencySet>  _Nonnull __strong) -> void"
     },
     {
@@ -34297,7 +34297,7 @@
           "line": 211
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "method:-[MTL4CommandQueue removeResidencySets:count:]",
       "kind": "method",
@@ -34305,7 +34305,7 @@
       "macos_introduced": "26.0",
       "name": "removeResidencySets:count:",
       "owner": "MTL4CommandQueue",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance (id<MTLResidencySet>  _Nonnull const __unsafe_unretained * _Nonnull, NSUInteger) -> void"
     },
     {
@@ -35271,7 +35271,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4ComputeCommandEncoder.h",
       "id": "method:-[MTL4ComputeCommandEncoder copyAccelerationStructure:toAccelerationStructure:]",
       "kind": "method",
@@ -35279,7 +35279,7 @@
       "macos_introduced": "26.0",
       "name": "copyAccelerationStructure:toAccelerationStructure:",
       "owner": "MTL4ComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance (id<MTLAccelerationStructure>  _Nonnull __strong, id<MTLAccelerationStructure>  _Nonnull __strong) -> void"
     },
     {
@@ -35290,7 +35290,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4ComputeCommandEncoder.h",
       "id": "method:-[MTL4ComputeCommandEncoder copyAndCompactAccelerationStructure:toAccelerationStructure:]",
       "kind": "method",
@@ -35298,7 +35298,7 @@
       "macos_introduced": "26.0",
       "name": "copyAndCompactAccelerationStructure:toAccelerationStructure:",
       "owner": "MTL4ComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance (id<MTLAccelerationStructure>  _Nonnull __strong, id<MTLAccelerationStructure>  _Nonnull __strong) -> void"
     },
     {
@@ -35309,7 +35309,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4ComputeCommandEncoder.h",
       "id": "method:-[MTL4ComputeCommandEncoder copyFromBuffer:sourceOffset:sourceBytesPerRow:sourceBytesPerImage:sourceSize:toTexture:destinationSlice:destinationLevel:destinationOrigin:]",
       "kind": "method",
@@ -35317,7 +35317,7 @@
       "macos_introduced": "26.0",
       "name": "copyFromBuffer:sourceOffset:sourceBytesPerRow:sourceBytesPerImage:sourceSize:toTexture:destinationSlice:destinationLevel:destinationOrigin:",
       "owner": "MTL4ComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance (id<MTLBuffer>  _Nonnull __strong, NSUInteger, NSUInteger, NSUInteger, MTLSize, id<MTLTexture>  _Nonnull __strong, NSUInteger, NSUInteger, MTLOrigin) -> void"
     },
     {
@@ -35328,7 +35328,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4ComputeCommandEncoder.h",
       "id": "method:-[MTL4ComputeCommandEncoder copyFromBuffer:sourceOffset:sourceBytesPerRow:sourceBytesPerImage:sourceSize:toTexture:destinationSlice:destinationLevel:destinationOrigin:options:]",
       "kind": "method",
@@ -35336,7 +35336,7 @@
       "macos_introduced": "26.0",
       "name": "copyFromBuffer:sourceOffset:sourceBytesPerRow:sourceBytesPerImage:sourceSize:toTexture:destinationSlice:destinationLevel:destinationOrigin:options:",
       "owner": "MTL4ComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance (id<MTLBuffer>  _Nonnull __strong, NSUInteger, NSUInteger, NSUInteger, MTLSize, id<MTLTexture>  _Nonnull __strong, NSUInteger, NSUInteger, MTLOrigin, MTLBlitOption) -> void"
     },
     {
@@ -35347,7 +35347,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4ComputeCommandEncoder.h",
       "id": "method:-[MTL4ComputeCommandEncoder copyFromBuffer:sourceOffset:toBuffer:destinationOffset:size:]",
       "kind": "method",
@@ -35355,7 +35355,7 @@
       "macos_introduced": "26.0",
       "name": "copyFromBuffer:sourceOffset:toBuffer:destinationOffset:size:",
       "owner": "MTL4ComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance (id<MTLBuffer>  _Nonnull __strong, NSUInteger, id<MTLBuffer>  _Nonnull __strong, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -35385,7 +35385,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4ComputeCommandEncoder.h",
       "id": "method:-[MTL4ComputeCommandEncoder copyFromTexture:sourceSlice:sourceLevel:sourceOrigin:sourceSize:toBuffer:destinationOffset:destinationBytesPerRow:destinationBytesPerImage:]",
       "kind": "method",
@@ -35393,7 +35393,7 @@
       "macos_introduced": "26.0",
       "name": "copyFromTexture:sourceSlice:sourceLevel:sourceOrigin:sourceSize:toBuffer:destinationOffset:destinationBytesPerRow:destinationBytesPerImage:",
       "owner": "MTL4ComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance (id<MTLTexture>  _Nonnull __strong, NSUInteger, NSUInteger, MTLOrigin, MTLSize, id<MTLBuffer>  _Nonnull __strong, NSUInteger, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -35404,7 +35404,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4ComputeCommandEncoder.h",
       "id": "method:-[MTL4ComputeCommandEncoder copyFromTexture:sourceSlice:sourceLevel:sourceOrigin:sourceSize:toBuffer:destinationOffset:destinationBytesPerRow:destinationBytesPerImage:options:]",
       "kind": "method",
@@ -35412,7 +35412,7 @@
       "macos_introduced": "26.0",
       "name": "copyFromTexture:sourceSlice:sourceLevel:sourceOrigin:sourceSize:toBuffer:destinationOffset:destinationBytesPerRow:destinationBytesPerImage:options:",
       "owner": "MTL4ComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance (id<MTLTexture>  _Nonnull __strong, NSUInteger, NSUInteger, MTLOrigin, MTLSize, id<MTLBuffer>  _Nonnull __strong, NSUInteger, NSUInteger, NSUInteger, MTLBlitOption) -> void"
     },
     {
@@ -35423,7 +35423,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4ComputeCommandEncoder.h",
       "id": "method:-[MTL4ComputeCommandEncoder copyFromTexture:sourceSlice:sourceLevel:sourceOrigin:sourceSize:toTexture:destinationSlice:destinationLevel:destinationOrigin:]",
       "kind": "method",
@@ -35431,7 +35431,7 @@
       "macos_introduced": "26.0",
       "name": "copyFromTexture:sourceSlice:sourceLevel:sourceOrigin:sourceSize:toTexture:destinationSlice:destinationLevel:destinationOrigin:",
       "owner": "MTL4ComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance (id<MTLTexture>  _Nonnull __strong, NSUInteger, NSUInteger, MTLOrigin, MTLSize, id<MTLTexture>  _Nonnull __strong, NSUInteger, NSUInteger, MTLOrigin) -> void"
     },
     {
@@ -35442,7 +35442,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4ComputeCommandEncoder.h",
       "id": "method:-[MTL4ComputeCommandEncoder copyFromTexture:sourceSlice:sourceLevel:toTexture:destinationSlice:destinationLevel:sliceCount:levelCount:]",
       "kind": "method",
@@ -35450,7 +35450,7 @@
       "macos_introduced": "26.0",
       "name": "copyFromTexture:sourceSlice:sourceLevel:toTexture:destinationSlice:destinationLevel:sliceCount:levelCount:",
       "owner": "MTL4ComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance (id<MTLTexture>  _Nonnull __strong, NSUInteger, NSUInteger, id<MTLTexture>  _Nonnull __strong, NSUInteger, NSUInteger, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -35461,7 +35461,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4ComputeCommandEncoder.h",
       "id": "method:-[MTL4ComputeCommandEncoder copyFromTexture:toTexture:]",
       "kind": "method",
@@ -35469,7 +35469,7 @@
       "macos_introduced": "26.0",
       "name": "copyFromTexture:toTexture:",
       "owner": "MTL4ComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance (id<MTLTexture>  _Nonnull __strong, id<MTLTexture>  _Nonnull __strong) -> void"
     },
     {
@@ -35480,7 +35480,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4ComputeCommandEncoder.h",
       "id": "method:-[MTL4ComputeCommandEncoder copyIndirectCommandBuffer:sourceRange:destination:destinationIndex:]",
       "kind": "method",
@@ -35488,7 +35488,7 @@
       "macos_introduced": "26.0",
       "name": "copyIndirectCommandBuffer:sourceRange:destination:destinationIndex:",
       "owner": "MTL4ComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance (id<MTLIndirectCommandBuffer>  _Nonnull __strong, NSRange, id<MTLIndirectCommandBuffer>  _Nonnull __strong, NSUInteger) -> void"
     },
     {
@@ -35499,7 +35499,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4ComputeCommandEncoder.h",
       "id": "method:-[MTL4ComputeCommandEncoder dispatchThreadgroups:threadsPerThreadgroup:]",
       "kind": "method",
@@ -35507,7 +35507,7 @@
       "macos_introduced": "26.0",
       "name": "dispatchThreadgroups:threadsPerThreadgroup:",
       "owner": "MTL4ComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance (MTLSize, MTLSize) -> void"
     },
     {
@@ -35518,7 +35518,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4ComputeCommandEncoder.h",
       "id": "method:-[MTL4ComputeCommandEncoder dispatchThreadgroupsWithIndirectBuffer:threadsPerThreadgroup:]",
       "kind": "method",
@@ -35526,7 +35526,7 @@
       "macos_introduced": "26.0",
       "name": "dispatchThreadgroupsWithIndirectBuffer:threadsPerThreadgroup:",
       "owner": "MTL4ComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance (MTLGPUAddress, MTLSize) -> void"
     },
     {
@@ -35556,7 +35556,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4ComputeCommandEncoder.h",
       "id": "method:-[MTL4ComputeCommandEncoder dispatchThreadsWithIndirectBuffer:]",
       "kind": "method",
@@ -35564,7 +35564,7 @@
       "macos_introduced": "26.0",
       "name": "dispatchThreadsWithIndirectBuffer:",
       "owner": "MTL4ComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance (MTLGPUAddress) -> void"
     },
     {
@@ -35575,7 +35575,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4ComputeCommandEncoder.h",
       "id": "method:-[MTL4ComputeCommandEncoder executeCommandsInBuffer:indirectBuffer:]",
       "kind": "method",
@@ -35583,7 +35583,7 @@
       "macos_introduced": "26.0",
       "name": "executeCommandsInBuffer:indirectBuffer:",
       "owner": "MTL4ComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance (id<MTLIndirectCommandBuffer>  _Nonnull __strong, MTLGPUAddress) -> void"
     },
     {
@@ -35594,7 +35594,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4ComputeCommandEncoder.h",
       "id": "method:-[MTL4ComputeCommandEncoder executeCommandsInBuffer:withRange:]",
       "kind": "method",
@@ -35602,7 +35602,7 @@
       "macos_introduced": "26.0",
       "name": "executeCommandsInBuffer:withRange:",
       "owner": "MTL4ComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance (id<MTLIndirectCommandBuffer>  _Nonnull __strong, NSRange) -> void"
     },
     {
@@ -35613,7 +35613,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4ComputeCommandEncoder.h",
       "id": "method:-[MTL4ComputeCommandEncoder fillBuffer:range:value:]",
       "kind": "method",
@@ -35621,7 +35621,7 @@
       "macos_introduced": "26.0",
       "name": "fillBuffer:range:value:",
       "owner": "MTL4ComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance (id<MTLBuffer>  _Nonnull __strong, NSRange, uint8_t) -> void"
     },
     {
@@ -35632,7 +35632,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4ComputeCommandEncoder.h",
       "id": "method:-[MTL4ComputeCommandEncoder generateMipmapsForTexture:]",
       "kind": "method",
@@ -35640,7 +35640,7 @@
       "macos_introduced": "26.0",
       "name": "generateMipmapsForTexture:",
       "owner": "MTL4ComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance (id<MTLTexture>  _Nonnull __strong) -> void"
     },
     {
@@ -35651,7 +35651,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4ComputeCommandEncoder.h",
       "id": "method:-[MTL4ComputeCommandEncoder optimizeContentsForCPUAccess:]",
       "kind": "method",
@@ -35659,7 +35659,7 @@
       "macos_introduced": "26.0",
       "name": "optimizeContentsForCPUAccess:",
       "owner": "MTL4ComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance (id<MTLTexture>  _Nonnull __strong) -> void"
     },
     {
@@ -35670,7 +35670,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4ComputeCommandEncoder.h",
       "id": "method:-[MTL4ComputeCommandEncoder optimizeContentsForCPUAccess:slice:level:]",
       "kind": "method",
@@ -35678,7 +35678,7 @@
       "macos_introduced": "26.0",
       "name": "optimizeContentsForCPUAccess:slice:level:",
       "owner": "MTL4ComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance (id<MTLTexture>  _Nonnull __strong, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -35689,7 +35689,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4ComputeCommandEncoder.h",
       "id": "method:-[MTL4ComputeCommandEncoder optimizeContentsForGPUAccess:]",
       "kind": "method",
@@ -35697,7 +35697,7 @@
       "macos_introduced": "26.0",
       "name": "optimizeContentsForGPUAccess:",
       "owner": "MTL4ComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance (id<MTLTexture>  _Nonnull __strong) -> void"
     },
     {
@@ -35708,7 +35708,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4ComputeCommandEncoder.h",
       "id": "method:-[MTL4ComputeCommandEncoder optimizeContentsForGPUAccess:slice:level:]",
       "kind": "method",
@@ -35716,7 +35716,7 @@
       "macos_introduced": "26.0",
       "name": "optimizeContentsForGPUAccess:slice:level:",
       "owner": "MTL4ComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance (id<MTLTexture>  _Nonnull __strong, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -35727,7 +35727,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4ComputeCommandEncoder.h",
       "id": "method:-[MTL4ComputeCommandEncoder optimizeIndirectCommandBuffer:withRange:]",
       "kind": "method",
@@ -35735,7 +35735,7 @@
       "macos_introduced": "26.0",
       "name": "optimizeIndirectCommandBuffer:withRange:",
       "owner": "MTL4ComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance (id<MTLIndirectCommandBuffer>  _Nonnull __strong, NSRange) -> void"
     },
     {
@@ -35784,7 +35784,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4ComputeCommandEncoder.h",
       "id": "method:-[MTL4ComputeCommandEncoder resetCommandsInBuffer:withRange:]",
       "kind": "method",
@@ -35792,7 +35792,7 @@
       "macos_introduced": "26.0",
       "name": "resetCommandsInBuffer:withRange:",
       "owner": "MTL4ComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance (id<MTLIndirectCommandBuffer>  _Nonnull __strong, NSRange) -> void"
     },
     {
@@ -35841,7 +35841,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4ComputeCommandEncoder.h",
       "id": "method:-[MTL4ComputeCommandEncoder setImageblockWidth:height:]",
       "kind": "method",
@@ -35849,7 +35849,7 @@
       "macos_introduced": "26.0",
       "name": "setImageblockWidth:height:",
       "owner": "MTL4ComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance (NSUInteger, NSUInteger) -> void"
     },
     {
@@ -35879,7 +35879,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4ComputeCommandEncoder.h",
       "id": "method:-[MTL4ComputeCommandEncoder stages]",
       "kind": "method",
@@ -35887,7 +35887,7 @@
       "macos_introduced": "26.0",
       "name": "stages",
       "owner": "MTL4ComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance () -> MTLStages"
     },
     {
@@ -35917,7 +35917,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4ComputeCommandEncoder.h",
       "id": "method:-[MTL4ComputeCommandEncoder writeTimestampWithGranularity:intoHeap:atIndex:]",
       "kind": "method",
@@ -35925,7 +35925,7 @@
       "macos_introduced": "26.0",
       "name": "writeTimestampWithGranularity:intoHeap:atIndex:",
       "owner": "MTL4ComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance (MTL4TimestampGranularity, id<MTL4CounterHeap>  _Nonnull __strong, NSUInteger) -> void"
     },
     {
@@ -36221,7 +36221,7 @@
           "line": 69
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4Counters.h",
       "id": "method:-[MTL4CounterHeap count]",
       "kind": "method",
@@ -36229,7 +36229,7 @@
       "macos_introduced": "26.0",
       "name": "count",
       "owner": "MTL4CounterHeap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -36240,7 +36240,7 @@
           "line": 69
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4Counters.h",
       "id": "method:-[MTL4CounterHeap invalidateCounterRange:]",
       "kind": "method",
@@ -36248,7 +36248,7 @@
       "macos_introduced": "26.0",
       "name": "invalidateCounterRange:",
       "owner": "MTL4CounterHeap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance (NSRange) -> void"
     },
     {
@@ -36259,7 +36259,7 @@
           "line": 69
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4Counters.h",
       "id": "method:-[MTL4CounterHeap label]",
       "kind": "method",
@@ -36267,7 +36267,7 @@
       "macos_introduced": "26.0",
       "name": "label",
       "owner": "MTL4CounterHeap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance () -> NSString * _Nullable"
     },
     {
@@ -36278,7 +36278,7 @@
           "line": 69
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4Counters.h",
       "id": "method:-[MTL4CounterHeap resolveCounterRange:]",
       "kind": "method",
@@ -36286,7 +36286,7 @@
       "macos_introduced": "26.0",
       "name": "resolveCounterRange:",
       "owner": "MTL4CounterHeap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance (NSRange) -> NSData * _Nullable"
     },
     {
@@ -36297,7 +36297,7 @@
           "line": 69
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4Counters.h",
       "id": "method:-[MTL4CounterHeap setLabel:]",
       "kind": "method",
@@ -36305,7 +36305,7 @@
       "macos_introduced": "26.0",
       "name": "setLabel:",
       "owner": "MTL4CounterHeap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance (NSString * _Nullable) -> void"
     },
     {
@@ -36316,7 +36316,7 @@
           "line": 69
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4Counters.h",
       "id": "method:-[MTL4CounterHeap type]",
       "kind": "method",
@@ -36324,7 +36324,7 @@
       "macos_introduced": "26.0",
       "name": "type",
       "owner": "MTL4CounterHeap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance () -> MTL4CounterHeapType"
     },
     {
@@ -36335,7 +36335,7 @@
           "line": 53
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4Counters.h",
       "id": "method:-[MTL4CounterHeapDescriptor count]",
       "kind": "method",
@@ -36343,7 +36343,7 @@
       "macos_introduced": "26.0",
       "name": "count",
       "owner": "MTL4CounterHeapDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -36354,7 +36354,7 @@
           "line": 53
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4Counters.h",
       "id": "method:-[MTL4CounterHeapDescriptor setCount:]",
       "kind": "method",
@@ -36362,7 +36362,7 @@
       "macos_introduced": "26.0",
       "name": "setCount:",
       "owner": "MTL4CounterHeapDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -36373,7 +36373,7 @@
           "line": 53
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4Counters.h",
       "id": "method:-[MTL4CounterHeapDescriptor setType:]",
       "kind": "method",
@@ -36381,7 +36381,7 @@
       "macos_introduced": "26.0",
       "name": "setType:",
       "owner": "MTL4CounterHeapDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance (MTL4CounterHeapType) -> void"
     },
     {
@@ -36392,7 +36392,7 @@
           "line": 53
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4Counters.h",
       "id": "method:-[MTL4CounterHeapDescriptor type]",
       "kind": "method",
@@ -36400,7 +36400,7 @@
       "macos_introduced": "26.0",
       "name": "type",
       "owner": "MTL4CounterHeapDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "instance () -> MTL4CounterHeapType"
     },
     {
@@ -84789,7 +84789,7 @@
           "line": 69
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4Counters.h",
       "id": "property:MTL4CounterHeap:count",
       "kind": "property",
@@ -84797,7 +84797,7 @@
       "macos_introduced": "26.0",
       "name": "count",
       "owner": "MTL4CounterHeap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -84808,7 +84808,7 @@
           "line": 69
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4Counters.h",
       "id": "property:MTL4CounterHeap:label",
       "kind": "property",
@@ -84816,7 +84816,7 @@
       "macos_introduced": "26.0",
       "name": "label",
       "owner": "MTL4CounterHeap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "NSString * _Nullable"
     },
     {
@@ -84827,7 +84827,7 @@
           "line": 69
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4Counters.h",
       "id": "property:MTL4CounterHeap:type",
       "kind": "property",
@@ -84835,7 +84835,7 @@
       "macos_introduced": "26.0",
       "name": "type",
       "owner": "MTL4CounterHeap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "MTL4CounterHeapType"
     },
     {
@@ -84846,7 +84846,7 @@
           "line": 53
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4Counters.h",
       "id": "property:MTL4CounterHeapDescriptor:count",
       "kind": "property",
@@ -84854,7 +84854,7 @@
       "macos_introduced": "26.0",
       "name": "count",
       "owner": "MTL4CounterHeapDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -84865,7 +84865,7 @@
           "line": 53
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4Counters.h",
       "id": "property:MTL4CounterHeapDescriptor:type",
       "kind": "property",
@@ -84873,7 +84873,7 @@
       "macos_introduced": "26.0",
       "name": "type",
       "owner": "MTL4CounterHeapDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance.",
       "signature": "MTL4CounterHeapType"
     },
     {

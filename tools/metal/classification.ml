@@ -1650,4 +1650,7 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier Binding_io_counter_type_reachability.promotable_ids then
     Bound,
       "Represented exactly by a public contained descriptor or retained abstract Metal IO handle with safe ownership."
+  else if List.mem identifier Binding_metal4_callable_safe_reachability.promotable_ids then
+    Bound,
+      "Implemented by the safe Metal4 compute/generic/residency/counter callable surface with checked graph identity, ranges, ownership retention, and native conformance."
   else Unreviewed, "Binding classification pending during Phase 2."

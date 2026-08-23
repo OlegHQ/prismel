@@ -979,6 +979,8 @@ let generator_source_sha256 entry_source =
   ; "tools/metal/binding_pipeline_expanded_reachability.mli"
   ; "tools/metal/binding_io_counter_type_reachability.ml"
   ; "tools/metal/binding_io_counter_type_reachability.mli"
+  ; "tools/metal/binding_metal4_callable_safe_reachability.ml"
+  ; "tools/metal/binding_metal4_callable_safe_reachability.mli"
   ; "tools/metal/binding_shader_safe_reachability.ml"
   ; "tools/metal/binding_shader_safe_reachability.mli"
   ; "tools/metal/binding_mesh_tile_safe_reachability.ml"

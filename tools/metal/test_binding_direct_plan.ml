@@ -208,6 +208,8 @@ let require_classification declaration =
        || List.mem declaration.identifier
             Binding_pipeline_expanded_reachability.promotable_ids
        || List.mem declaration.identifier
+            Binding_metal4_callable_safe_reachability.promotable_ids
+       || List.mem declaration.identifier
             Binding_shader_safe_reachability.promotable_ids
        || List.mem declaration.identifier
             Binding_mesh_tile_safe_reachability.promotable_ids
