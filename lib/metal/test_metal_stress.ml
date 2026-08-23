@@ -40,8 +40,13 @@ let run_buffer_cycles device count =
   done
 
 let run_texture_sampler_cycles device count =
+  let base_swizzle =
+    Texture.make_swizzle ~red:Texture.Red ~green:Texture.One
+      ~blue:Texture.Blue ~alpha:Texture.Alpha
+  in
   let texture_descriptor =
-    Texture.descriptor_2d ~format:Texture.Rgba8_unorm ~width:1 ~height:1 ()
+    Texture.descriptor_2d ~swizzle:base_swizzle
+      ~format:Texture.Rgba8_unorm ~width:1 ~height:1 ()
   in
   let sampler_descriptor =
     if get (Device.supports_sampler_reduction device) then
@@ -58,6 +63,31 @@ let run_texture_sampler_cycles device count =
     let texture = get (Texture.create ~device texture_descriptor) in
     let sampler = get (Sampler.create ~device sampler_descriptor) in
     get (Sampler.destroy sampler);
+    get (Texture.destroy texture)
+  done
+
+let run_texture_view_cycles device count =
+  let base_swizzle =
+    Texture.make_swizzle ~red:Texture.Red ~green:Texture.One
+      ~blue:Texture.One ~alpha:Texture.Green
+  in
+  let view_swizzle =
+    Texture.make_swizzle ~red:Texture.Red ~green:Texture.Green
+      ~blue:Texture.Alpha ~alpha:Texture.Blue
+  in
+  let descriptor =
+    Texture.descriptor_2d ~swizzle:base_swizzle
+      ~format:Texture.Rgba8_unorm ~width:1 ~height:1 ()
+  in
+  for _ = 1 to count do
+    let texture = get (Texture.create ~device descriptor) in
+    let view =
+      get
+        (Texture.create_view texture ~format:Texture.Rgba8_unorm ~base_mip:0
+           ~mip_count:1 ~base_slice:0 ~slice_count:1
+           ~swizzle:view_swizzle ())
+    in
+    get (Texture.destroy view);
     get (Texture.destroy texture)
   done
 
@@ -333,6 +363,7 @@ let check_cycles ?rss_limit ~name ~expected (baseline : Release_queue.stats)
 type lane =
   | Buffers
   | Textures_and_samplers
+  | Texture_views
   | Heaps_and_resources
   | Sparse_heaps_and_textures
   | Sparse_depth_stencil
@@ -346,6 +377,7 @@ type lane =
 let lane_name = function
   | Buffers -> "buffers"
   | Textures_and_samplers -> "textures-samplers"
+  | Texture_views -> "texture-views"
   | Heaps_and_resources -> "heaps-resources"
   | Sparse_heaps_and_textures -> "sparse-heaps-textures"
   | Sparse_depth_stencil -> "sparse-depth-stencil"
@@ -359,6 +391,7 @@ let lane_name = function
 let lane_of_name = function
   | "buffers" -> Buffers
   | "textures-samplers" -> Textures_and_samplers
+  | "texture-views" -> Texture_views
   | "heaps-resources" -> Heaps_and_resources
   | "sparse-heaps-textures" -> Sparse_heaps_and_textures
   | "sparse-depth-stencil" -> Sparse_depth_stencil
@@ -373,6 +406,7 @@ let lane_of_name = function
 let lanes =
   [ Buffers
   ; Textures_and_samplers
+  ; Texture_views
   ; Heaps_and_resources
   ; Sparse_heaps_and_textures
   ; Sparse_depth_stencil
@@ -413,6 +447,9 @@ let run_lane lane =
   | Textures_and_samplers ->
       measure device ~name:"textures/samplers" ~warmup:2_500 ~cycles:50_000
         ~expected:100_000L run_texture_sampler_cycles
+  | Texture_views ->
+      measure device ~name:"texture views" ~warmup:500 ~cycles:10_000
+        ~expected:20_000L run_texture_view_cycles
   | Heaps_and_resources ->
       measure device ~name:"heaps/resources" ~warmup:500 ~cycles:10_000
         ~expected:30_000L run_heap_cycles

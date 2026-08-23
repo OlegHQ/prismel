@@ -24,6 +24,7 @@ let () =
       ~height:1 ()
   in
   let source = get (Texture.create_shared ~device descriptor) in
+  let expected_descriptor = Texture.descriptor source in
   let kernels = create device in
   write kernels source 37l;
   let source_handle = get (Texture.shared_handle source) in
@@ -134,6 +135,8 @@ let () =
           ~handle:response_handle (uint32_bytes 37l)));
   let imported = get (Texture.import_shared ~device response_handle) in
   get (Texture.Shared_handle.destroy response_handle);
+  if Texture.descriptor imported <> expected_descriptor then
+    fail "XPC transport changed typed texture descriptor metadata";
   if read kernels imported <> 91l then
     fail "consumer did not observe the service's cross-process texture write";
   get (Texture.destroy imported);

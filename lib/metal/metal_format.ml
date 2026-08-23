@@ -354,6 +354,38 @@ let compression_family = function
 
 let is_compressed format = Option.is_some (compression_family format)
 
+let supports_lossy_compression = function
+  | B5g6r5_unorm | A1bgr5_unorm | Abgr4_unorm | Bgr5a1_unorm
+  | Rg11b10_float | Rgb9e5_float | Bc1_rgba | Bc1_rgba_srgb | Bc2_rgba
+  | Bc2_rgba_srgb | Bc3_rgba | Bc3_rgba_srgb | Bc4_r_unorm | Bc4_r_snorm
+  | Bc5_rg_unorm | Bc5_rg_snorm | Bc6h_rgb_float | Bc6h_rgb_ufloat
+  | Bc7_rgba_unorm | Bc7_rgba_unorm_srgb | Eac_r11_unorm | Eac_r11_snorm
+  | Eac_rg11_unorm | Eac_rg11_snorm | Eac_rgba8 | Eac_rgba8_srgb
+  | Etc2_rgb8 | Etc2_rgb8_srgb | Etc2_rgb8a1 | Etc2_rgb8a1_srgb
+  | Astc_4x4_srgb | Astc_5x4_srgb | Astc_5x5_srgb | Astc_6x5_srgb
+  | Astc_6x6_srgb | Astc_8x5_srgb | Astc_8x6_srgb | Astc_8x8_srgb
+  | Astc_10x5_srgb | Astc_10x6_srgb | Astc_10x8_srgb | Astc_10x10_srgb
+  | Astc_12x10_srgb | Astc_12x12_srgb | Astc_4x4_ldr | Astc_5x4_ldr
+  | Astc_5x5_ldr | Astc_6x5_ldr | Astc_6x6_ldr | Astc_8x5_ldr
+  | Astc_8x6_ldr | Astc_8x8_ldr | Astc_10x5_ldr | Astc_10x6_ldr
+  | Astc_10x8_ldr | Astc_10x10_ldr | Astc_12x10_ldr | Astc_12x12_ldr
+  | Astc_4x4_hdr | Astc_5x4_hdr | Astc_5x5_hdr | Astc_6x5_hdr
+  | Astc_6x6_hdr | Astc_8x5_hdr | Astc_8x6_hdr | Astc_8x8_hdr
+  | Astc_10x5_hdr | Astc_10x6_hdr | Astc_10x8_hdr | Astc_10x10_hdr
+  | Astc_12x10_hdr | Astc_12x12_hdr | Gbgr422 | Bgrg422 | Depth16_unorm
+  | Depth32_float | Stencil8 | Depth24_unorm_stencil8
+  | Depth32_float_stencil8 | X32_stencil8 | X24_stencil8 -> false
+  | A8_unorm | R8_unorm | R8_unorm_srgb | R8_snorm | R8_uint | R8_sint
+  | R16_unorm | R16_snorm | R16_uint | R16_sint | R16_float | Rg8_unorm
+  | Rg8_unorm_srgb | Rg8_snorm | Rg8_uint | Rg8_sint | R32_uint | R32_sint
+  | R32_float | Rg16_unorm | Rg16_snorm | Rg16_uint | Rg16_sint
+  | Rg16_float | Rgba8_unorm | Rgba8_unorm_srgb | Rgba8_snorm | Rgba8_uint
+  | Rgba8_sint | Bgra8_unorm | Bgra8_unorm_srgb | Rgb10a2_unorm
+  | Rgb10a2_uint | Bgr10a2_unorm | Bgr10_xr | Bgr10_xr_srgb | Rg32_uint
+  | Rg32_sint | Rg32_float | Rgba16_unorm | Rgba16_snorm | Rgba16_uint
+  | Rgba16_sint | Rgba16_float | Bgra10_xr | Bgra10_xr_srgb
+  | Rgba32_uint | Rgba32_sint | Rgba32_float -> true
+
 let supports_buffer_backing format =
   not
     (is_depth_or_stencil format || is_subsampled format

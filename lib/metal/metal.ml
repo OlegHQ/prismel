@@ -207,6 +207,25 @@ type texture_usage =
   | Pixel_format_view
   | Shader_atomic
 
+type texture_compression_type =
+  | Lossless
+  | Lossy
+
+type texture_swizzle_channel =
+  | Zero
+  | One
+  | Red
+  | Green
+  | Blue
+  | Alpha
+
+type texture_swizzle =
+  { red : texture_swizzle_channel
+  ; green : texture_swizzle_channel
+  ; blue : texture_swizzle_channel
+  ; alpha : texture_swizzle_channel
+  }
+
 type texture_descriptor =
   { kind : texture_kind
   ; format : pixel_format
@@ -221,6 +240,8 @@ type texture_descriptor =
   ; hazard_tracking : resource_hazard_tracking_mode
   ; usage : texture_usage list
   ; allow_gpu_optimized_contents : bool
+  ; compression : texture_compression_type
+  ; swizzle : texture_swizzle
   ; label : string option
   }
 
@@ -901,6 +922,17 @@ module Device = struct
       match ensure_live "Metal.Device.supports_sampler_reduction" value.lifetime with
       | Error _ as failure -> failure
       | Ok () -> Ok (Metal_raw.device_supports_sampler_reduction value.raw))
+
+  let supports_lossy_texture_compression (value : t) =
+    on_main "Metal.Device.supports_lossy_texture_compression" (fun () ->
+      match
+        ensure_live "Metal.Device.supports_lossy_texture_compression"
+          value.lifetime
+      with
+      | Error _ as failure -> failure
+      | Ok () ->
+          Ok
+            (Metal_raw.device_supports_lossy_texture_compression value.raw))
 
   let destroy (value : t) =
     destroy_parent "Metal.Device.destroy" value.lifetime value.raw (fun () -> ())
@@ -1697,6 +1729,25 @@ module Texture = struct
     | Pixel_format_view
     | Shader_atomic
 
+  type compression_type = texture_compression_type =
+    | Lossless
+    | Lossy
+
+  type swizzle_channel = texture_swizzle_channel =
+    | Zero
+    | One
+    | Red
+    | Green
+    | Blue
+    | Alpha
+
+  type swizzle = texture_swizzle =
+    { red : swizzle_channel
+    ; green : swizzle_channel
+    ; blue : swizzle_channel
+    ; alpha : swizzle_channel
+    }
+
   type sparse_tier =
     | Not_sparse
     | Sparse_tier_1
@@ -1716,8 +1767,52 @@ module Texture = struct
     ; hazard_tracking : hazard_tracking_mode
     ; usage : usage list
     ; allow_gpu_optimized_contents : bool
+    ; compression : compression_type
+    ; swizzle : swizzle
     ; label : string option
     }
+
+  let compression_code = function Lossless -> 0 | Lossy -> 1
+
+  let compression_of_code = function
+    | 0 -> Some Lossless
+    | 1 -> Some Lossy
+    | _ -> None
+
+  let swizzle_channel_code = function
+    | Zero -> 0
+    | One -> 1
+    | Red -> 2
+    | Green -> 3
+    | Blue -> 4
+    | Alpha -> 5
+
+  let swizzle_channel_of_code = function
+    | 0 -> Some Zero
+    | 1 -> Some One
+    | 2 -> Some Red
+    | 3 -> Some Green
+    | 4 -> Some Blue
+    | 5 -> Some Alpha
+    | _ -> None
+
+  let swizzle_codes (value : swizzle) =
+    ( swizzle_channel_code value.red
+    , swizzle_channel_code value.green
+    , swizzle_channel_code value.blue
+    , swizzle_channel_code value.alpha )
+
+  let default_swizzle = { red = Red; green = Green; blue = Blue; alpha = Alpha }
+
+  let has_writable_usage =
+    List.exists (function
+      | Shader_write | Shader_atomic -> true
+      | Shader_read | Render_target | Pixel_format_view -> false)
+
+  let has_lossy_incompatible_usage =
+    List.exists (function
+      | Pixel_format_view | Shader_write | Shader_atomic -> true
+      | Shader_read | Render_target -> false)
 
   type region =
     { x : int
@@ -2016,8 +2111,8 @@ module Texture = struct
         ; data : bytes
         }
 
-      let metadata_magic = "PMTLXPC1"
-      let metadata_field_count = 13
+      let metadata_magic = "PMTLXPC2"
+      let metadata_field_count = 18
       let metadata_size = String.length metadata_magic + (metadata_field_count * 8)
 
       let kind_code = function
@@ -2066,6 +2161,9 @@ module Texture = struct
                ])
 
       let encode_descriptor (descriptor : texture_descriptor) =
+        let swizzle_red, swizzle_green, swizzle_blue, swizzle_alpha =
+          swizzle_codes descriptor.swizzle
+        in
         let fields =
           [| kind_code descriptor.kind; Metal_format.code descriptor.format
            ; descriptor.width; descriptor.height; descriptor.depth
@@ -2075,6 +2173,8 @@ module Texture = struct
            ; hazard_code descriptor.hazard_tracking
            ; usage_bits descriptor.usage
            ; if descriptor.allow_gpu_optimized_contents then 1 else 0
+           ; compression_code descriptor.compression
+           ; swizzle_red; swizzle_green; swizzle_blue; swizzle_alpha
           |]
         in
         let metadata = Bytes.create metadata_size in
@@ -2112,12 +2212,15 @@ module Texture = struct
             int_field 0, int_field 1, int_field 2, int_field 3,
             int_field 4, int_field 5, int_field 6, int_field 7,
             int_field 8, int_field 9, int_field 10, int_field 11,
-            int_field 12
+            int_field 12, int_field 13, int_field 14, int_field 15,
+            int_field 16, int_field 17
           with
           | ( Some kind_code_value, Some format_code, Some width, Some height
             , Some depth, Some mip_levels, Some sample_count
             , Some array_length, Some storage_value, Some cache_value
-            , Some hazard_value, Some usage_value, Some optimized_value ) ->
+            , Some hazard_value, Some usage_value, Some optimized_value
+            , Some compression_value, Some swizzle_red, Some swizzle_green
+            , Some swizzle_blue, Some swizzle_alpha ) ->
               let cpu_cache =
                 match cache_value with
                 | 0 -> Some Default_cache
@@ -2131,6 +2234,17 @@ module Texture = struct
                 | 2 -> Some Tracked
                 | _ -> None
               in
+              let swizzle =
+                match
+                  swizzle_channel_of_code swizzle_red,
+                  swizzle_channel_of_code swizzle_green,
+                  swizzle_channel_of_code swizzle_blue,
+                  swizzle_channel_of_code swizzle_alpha
+                with
+                | Some red, Some green, Some blue, Some alpha ->
+                    Some { red; green; blue; alpha }
+                | _ -> None
+              in
               (match
                  kind_of_code kind_code_value,
                  Metal_format.of_code format_code,
@@ -2138,13 +2252,25 @@ module Texture = struct
                  cpu_cache,
                  hazard_tracking,
                  usages_of_bits usage_value,
-                 optimized_value
+                 optimized_value,
+                 compression_of_code compression_value,
+                 swizzle
                with
                | ( Some kind, Some format, 2, Some cpu_cache
-                 , Some hazard_tracking, Some usage, (0 | 1) )
+                 , Some hazard_tracking, Some usage, (0 | 1)
+                 , Some compression, Some swizzle )
                  when kind <> Texture_buffer && width > 0 && height > 0
                       && depth > 0 && mip_levels > 0 && sample_count > 0
-                      && array_length > 0 ->
+                      && array_length > 0
+                      && (swizzle = default_swizzle
+                          || not (has_writable_usage usage))
+                      &&
+                      (compression = Lossless
+                       || (optimized_value = 1
+                           && kind <> Texture_1d
+                           && kind <> Texture_1d_array
+                           && not (has_lossy_incompatible_usage usage)
+                           && Metal_format.supports_lossy_compression format)) ->
                    Ok
                      { kind
                      ; format
@@ -2159,6 +2285,8 @@ module Texture = struct
                      ; hazard_tracking
                      ; usage
                      ; allow_gpu_optimized_contents = optimized_value = 1
+                     ; compression
+                     ; swizzle
                      ; label
                      }
                | _ -> malformed "invalid descriptor field")
@@ -2177,6 +2305,14 @@ module Texture = struct
         else
           match decode_descriptor operation metadata label with
           | Error _ as failure -> fail_with failure
+          | Ok descriptor
+            when descriptor.compression = Lossy
+                 && not
+                      (Metal_raw.device_supports_lossy_texture_compression
+                         device.raw) ->
+              fail_with
+                (error operation Unsupported
+                   "received texture requests unsupported lossy compression")
           | Ok descriptor ->
               let handle =
                 { raw; lifetime = lifetime (); device; descriptor; label }
@@ -2431,8 +2567,11 @@ module Texture = struct
     end
   end
 
+  let make_swizzle ~red ~green ~blue ~alpha = { red; green; blue; alpha }
+
   let descriptor_2d ?(mipmapped = false) ?(storage = Private)
-      ?(usage = [ Shader_read ]) ?label ~format ~width ~height () =
+      ?(usage = [ Shader_read ]) ?(compression = Lossless)
+      ?(swizzle = default_swizzle) ?label ~format ~width ~height () =
     let max_dimension = max width height in
     let rec mip_count dimension count =
       if dimension <= 1 then count
@@ -2451,6 +2590,8 @@ module Texture = struct
     ; hazard_tracking = Default_hazard_tracking
     ; usage
     ; allow_gpu_optimized_contents = true
+    ; compression
+    ; swizzle
     ; label
     }
 
@@ -2582,6 +2723,45 @@ module Texture = struct
     else if List.length descriptor.usage <> List.length (List.sort_uniq compare descriptor.usage)
     then invalid "texture usage contains duplicates"
     else if
+      descriptor.swizzle <> default_swizzle
+      && has_writable_usage descriptor.usage
+    then
+      invalid
+        "texture swizzling is incompatible with shader-write and shader-atomic usage"
+    else if descriptor.compression = Lossy && descriptor.storage <> Private then
+      invalid "lossy texture compression requires private storage"
+    else if
+      descriptor.compression = Lossy
+      && not descriptor.allow_gpu_optimized_contents
+    then invalid "lossy texture compression requires GPU-optimized contents"
+    else if
+      descriptor.compression = Lossy
+      && has_lossy_incompatible_usage descriptor.usage
+    then
+      invalid
+        "lossy texture compression is incompatible with pixel-format views, shader writes, and shader atomics"
+    else if
+      descriptor.compression = Lossy
+      &&
+      match descriptor.kind with
+      | Texture_1d | Texture_1d_array | Texture_buffer -> true
+      | Texture_2d | Texture_2d_array | Texture_2d_multisample | Texture_cube
+      | Texture_cube_array | Texture_3d | Texture_2d_multisample_array -> false
+    then
+      invalid
+        "lossy texture compression is incompatible with 1D and buffer textures"
+    else if
+      descriptor.compression = Lossy
+      && not (Metal_format.supports_lossy_compression descriptor.format)
+    then invalid "pixel format does not support lossy texture compression"
+    else if
+      descriptor.compression = Lossy
+      && not
+           (Metal_raw.device_supports_lossy_texture_compression device.raw)
+    then
+      error operation Unsupported
+        "device does not support lossy texture compression"
+    else if
       descriptor.format = Depth24_unorm_stencil8
       && not (Metal_raw.device_supports_depth24_stencil8 device.raw)
     then
@@ -2675,29 +2855,41 @@ module Texture = struct
                  | Ok true -> Ok ()
                  | Ok false -> invalid "device does not support the texture sample count")
 
-  let descriptor_tuple (descriptor : descriptor) =
-    ( kind_code descriptor.kind
-    , format_code descriptor.format
-    , descriptor.width
-    , descriptor.height
-    , descriptor.depth
-    , descriptor.mip_levels
-    , descriptor.sample_count
-    , descriptor.array_length
-    , storage_code descriptor.storage
-    , cache_code descriptor.cpu_cache
-    , hazard_code descriptor.hazard_tracking
-    , usage_bits descriptor.usage
-    , descriptor.allow_gpu_optimized_contents )
+  let raw_descriptor (descriptor : descriptor) =
+    let swizzle_red, swizzle_green, swizzle_blue, swizzle_alpha =
+      swizzle_codes descriptor.swizzle
+    in
+    { Metal_raw.texture_type = kind_code descriptor.kind
+    ; pixel_format = format_code descriptor.format
+    ; width = descriptor.width
+    ; height = descriptor.height
+    ; depth = descriptor.depth
+    ; mip_levels = descriptor.mip_levels
+    ; sample_count = descriptor.sample_count
+    ; array_length = descriptor.array_length
+    ; storage_mode = storage_code descriptor.storage
+    ; cpu_cache_mode = cache_code descriptor.cpu_cache
+    ; hazard_tracking_mode = hazard_code descriptor.hazard_tracking
+    ; usage = usage_bits descriptor.usage
+    ; allow_gpu_optimized_contents = descriptor.allow_gpu_optimized_contents
+    ; compression_type = compression_code descriptor.compression
+    ; swizzle_red
+    ; swizzle_green
+    ; swizzle_blue
+    ; swizzle_alpha
+    }
 
   let verify_info operation raw descriptor ~heap =
     let info = Metal_raw.texture_info raw in
     let actual_hazard =
       concrete_hazard_tracking ~heap descriptor.hazard_tracking
     in
-    if Array.length info <> 12 then
+    if Array.length info <> 18 then
       native_error operation "Metal returned malformed texture properties"
     else
+      let swizzle_red, swizzle_green, swizzle_blue, swizzle_alpha =
+        swizzle_codes descriptor.swizzle
+      in
       let expected =
         [| kind_code descriptor.kind; format_code descriptor.format
          ; descriptor.width; descriptor.height; descriptor.depth
@@ -2705,13 +2897,36 @@ module Texture = struct
          ; descriptor.array_length; usage_bits descriptor.usage
          ; storage_code descriptor.storage
          ; cache_code descriptor.cpu_cache; hazard_code actual_hazard
+         ; if descriptor.allow_gpu_optimized_contents then 1 else 0
+         ; compression_code descriptor.compression
+         ; swizzle_red; swizzle_green; swizzle_blue; swizzle_alpha
         |]
       in
       if info = expected then
         Ok { descriptor with hazard_tracking = actual_hazard }
-      else
-        native_error operation
-          "Metal changed a checked texture descriptor during creation"
+      else begin
+        let fields =
+          [| "texture type"; "pixel format"; "width"; "height"; "depth"
+           ; "mip levels"; "sample count"; "array length"; "usage"
+           ; "storage mode"; "CPU cache mode"; "hazard tracking mode"
+           ; "GPU-optimized contents"; "compression type"; "red swizzle"
+           ; "green swizzle"; "blue swizzle"; "alpha swizzle"
+          |]
+        in
+        let rec mismatch index =
+          if index = Array.length expected then None
+          else if info.(index) <> expected.(index) then Some index
+          else mismatch (index + 1)
+        in
+        match mismatch 0 with
+        | None ->
+            native_error operation
+              "Metal changed a checked texture descriptor during creation"
+        | Some index ->
+            native_error operation
+              (Printf.sprintf "Metal changed texture %s from %d to %d"
+                 fields.(index) expected.(index) info.(index))
+      end
 
   let finish_create ?expected_shareable ?placement_sparse_page_size operation
       ~device ~descriptor ~parent ~heap_offset ~allocation raw =
@@ -2787,7 +3002,7 @@ module Texture = struct
                  "texture-buffer resources must be created from a buffer"
            | Ok () ->
                match
-                 Metal_raw.texture_create device.raw (descriptor_tuple descriptor)
+                 Metal_raw.texture_create device.raw (raw_descriptor descriptor)
                    descriptor.label
                with
                | Error message -> native_error "Metal.Texture.create" message
@@ -2825,7 +3040,7 @@ module Texture = struct
                 | Ok _ ->
                     (match
                        Metal_raw.texture_placement_sparse_create device.raw
-                         (descriptor_tuple descriptor)
+                         (raw_descriptor descriptor)
                          (sparse_page_size_code page_size)
                      with
                      | Error message -> native_error operation message
@@ -2864,7 +3079,7 @@ module Texture = struct
            | Ok () ->
                match
                  Metal_raw.texture_shared_create device.raw
-                   (descriptor_tuple descriptor) descriptor.label
+                   (raw_descriptor descriptor) descriptor.label
                with
                | Error message -> native_error operation message
                | Ok raw ->
@@ -3134,7 +3349,7 @@ module Texture = struct
                      | Ok () ->
                          match
                            Metal_raw.texture_io_surface_create device.raw
-                             surface.raw plane (descriptor_tuple descriptor)
+                             surface.raw plane (raw_descriptor descriptor)
                              descriptor.label
                          with
                          | Error message -> native_error operation message
@@ -3153,6 +3368,8 @@ module Texture = struct
     if Option.is_some buffer.placement_sparse_page_size then
       error operation Invalid_state
         "placement sparse buffers cannot back linear textures before mapping"
+    else if descriptor.compression = Lossy then
+      invalid "buffer-backed textures cannot use lossy compression"
     else match
       validate_buffer_kind_format operation ~kind:descriptor.kind
         ~format:descriptor.format
@@ -3245,7 +3462,7 @@ module Texture = struct
                 | Ok () ->
                     match
                       Metal_raw.buffer_texture_create buffer.raw
-                        (descriptor_tuple descriptor) offset bytes_per_row
+                        (raw_descriptor descriptor) offset bytes_per_row
                         descriptor.label
                     with
                     | Error message -> native_error operation message
@@ -3380,14 +3597,37 @@ module Texture = struct
 
   let compatible_view_format = Metal_format.compatible_view
 
+  let compose_swizzle_channel (parent : swizzle) = function
+    | Zero -> Zero
+    | One -> One
+    | Red -> parent.red
+    | Green -> parent.green
+    | Blue -> parent.blue
+    | Alpha -> parent.alpha
+
+  let compose_swizzle (parent : swizzle) (view : swizzle) =
+    { red = compose_swizzle_channel parent view.red
+    ; green = compose_swizzle_channel parent view.green
+    ; blue = compose_swizzle_channel parent view.blue
+    ; alpha = compose_swizzle_channel parent view.alpha
+    }
+
   let create_view (parent : t) ~format ~base_mip ~mip_count ~base_slice
-      ~slice_count ?label () =
+      ~slice_count ?(swizzle = default_swizzle) ?label () =
     on_main "Metal.Texture.create_view" (fun () ->
       match ensure_texture_usable "Metal.Texture.create_view" parent with
       | Error _ as failure -> failure
-      | Ok () when not (List.mem Pixel_format_view parent.descriptor.usage) ->
+      | Ok ()
+        when swizzle <> default_swizzle
+             && has_writable_usage parent.descriptor.usage ->
           error "Metal.Texture.create_view" Invalid_argument
-            "parent texture usage does not permit pixel-format views"
+            "texture-view swizzling is incompatible with writable texture usage"
+      | Ok ()
+        when not (List.mem Pixel_format_view parent.descriptor.usage)
+             && (format <> parent.descriptor.format
+                 || swizzle = default_swizzle) ->
+          error "Metal.Texture.create_view" Invalid_argument
+            "parent texture usage does not permit this texture view"
       | Ok () when not (compatible_view_format parent.descriptor.format format) ->
           error "Metal.Texture.create_view" Invalid_argument
             "requested texture-view format is not in a compatible format class"
@@ -3429,6 +3669,9 @@ module Texture = struct
             error "Metal.Texture.create_view" Invalid_argument
               "texture-view slices do not preserve the texture kind"
           else
+            let effective_swizzle =
+              compose_swizzle parent.descriptor.swizzle swizzle
+            in
             let descriptor : descriptor =
               { parent.descriptor with
                 format
@@ -3437,17 +3680,35 @@ module Texture = struct
               ; depth = mip_dimension parent.descriptor.depth base_mip
               ; mip_levels = mip_count
               ; array_length
+              ; swizzle = effective_swizzle
               ; label
               }
             in
+            let ( requested_swizzle_red, requested_swizzle_green
+                , requested_swizzle_blue, requested_swizzle_alpha ) =
+              swizzle_codes swizzle
+            in
+            let ( effective_swizzle_red, effective_swizzle_green
+                , effective_swizzle_blue, effective_swizzle_alpha ) =
+              swizzle_codes effective_swizzle
+            in
             match
               Metal_raw.texture_create_view parent.raw
-                ( format_code format
-                , kind_code descriptor.kind
-                , base_mip
-                , mip_count
-                , base_slice
-                , slice_count )
+                { Metal_raw.pixel_format = format_code format
+                ; texture_type = kind_code descriptor.kind
+                ; base_mip
+                ; mip_count
+                ; base_slice
+                ; slice_count
+                ; requested_swizzle_red
+                ; requested_swizzle_green
+                ; requested_swizzle_blue
+                ; requested_swizzle_alpha
+                ; effective_swizzle_red
+                ; effective_swizzle_green
+                ; effective_swizzle_blue
+                ; effective_swizzle_alpha
+                }
                 label
             with
             | Error message -> native_error "Metal.Texture.create_view" message
@@ -3801,7 +4062,7 @@ module Heap = struct
                  "texture-buffer resources must be created from a buffer"
            | Ok () ->
                Metal_raw.heap_texture_size_and_align device.raw
-                 (Texture.descriptor_tuple descriptor)
+                 (Texture.raw_descriptor descriptor)
                |> validate_size_and_align "Metal.Heap.texture_size_and_align"
                     ~minimum:1L))
 
@@ -4117,7 +4378,7 @@ module Heap = struct
                           | Ok _ ->
                               (match
                                  Metal_raw.heap_texture_create value.raw
-                                   (Texture.descriptor_tuple descriptor) None
+                                   (Texture.raw_descriptor descriptor) None
                                    descriptor.label
                                with
                                | Error message ->
@@ -4133,7 +4394,7 @@ module Heap = struct
                | Automatic | Placement ->
                    (match
                       Metal_raw.heap_texture_size_and_align value.device.raw
-                        (Texture.descriptor_tuple descriptor)
+                        (Texture.raw_descriptor descriptor)
                       |> validate_size_and_align "Metal.Heap.create_texture"
                            ~minimum:1L
                     with
@@ -4149,7 +4410,7 @@ module Heap = struct
                              let result =
                                match
                                  Metal_raw.heap_texture_create value.raw
-                                   (Texture.descriptor_tuple descriptor) offset
+                                   (Texture.raw_descriptor descriptor) offset
                                    descriptor.label
                                with
                                | Error message ->

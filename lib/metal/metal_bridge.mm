@@ -778,6 +778,17 @@ bool device_supports_sampler_reduction(id<MTLDevice> device) {
   return false;
 }
 
+bool device_supports_lossy_texture_compression(id<MTLDevice> device) {
+  if (@available(macOS 12.5, *)) {
+    return [device supportsFamily:MTLGPUFamilyApple8] &&
+           [MTLTextureDescriptor instancesRespondToSelector:
+               @selector(compressionType)] &&
+           [MTLTextureDescriptor instancesRespondToSelector:
+               @selector(setCompressionType:)];
+  }
+  return false;
+}
+
 int buffer_sparse_tier_or_unavailable(id<MTLBuffer> buffer) {
   if (@available(macOS 26.0, *)) {
     @try {
@@ -820,35 +831,98 @@ MTLPurgeableState purgeable_state(int state) {
   }
 }
 
-std::size_t tuple_dimension(value tuple, mlsize_t index) {
-  const intnat dimension = Long_val(Field(tuple, index));
+std::size_t positive_dimension(value fields, mlsize_t index) {
+  const intnat dimension = Long_val(Field(fields, index));
   if (dimension <= 0) {
     caml_invalid_argument("Metal dimensions must be positive");
   }
   return static_cast<std::size_t>(dimension);
 }
 
+MTLTextureSwizzle texture_swizzle(value raw_descriptor, mlsize_t index) {
+  const intnat raw = Long_val(Field(raw_descriptor, index));
+  if (raw < MTLTextureSwizzleZero || raw > MTLTextureSwizzleAlpha) {
+    caml_invalid_argument("invalid Metal texture swizzle");
+  }
+  return static_cast<MTLTextureSwizzle>(raw);
+}
+
+MTLTextureSwizzleChannels texture_swizzle_channels(value raw_descriptor,
+                                                    mlsize_t offset) {
+  return MTLTextureSwizzleChannelsMake(
+      texture_swizzle(raw_descriptor, offset),
+      texture_swizzle(raw_descriptor, offset + 1),
+      texture_swizzle(raw_descriptor, offset + 2),
+      texture_swizzle(raw_descriptor, offset + 3));
+}
+
+bool texture_swizzles_equal(MTLTextureSwizzleChannels left,
+                            MTLTextureSwizzleChannels right) {
+  return left.red == right.red && left.green == right.green &&
+         left.blue == right.blue && left.alpha == right.alpha;
+}
+
 MTLTextureDescriptor *texture_descriptor(value raw_descriptor) {
-  MTLTextureDescriptor *descriptor = [[MTLTextureDescriptor alloc] init];
-  descriptor.textureType =
+  const MTLTextureType texture_type =
       static_cast<MTLTextureType>(Long_val(Field(raw_descriptor, 0)));
-  descriptor.pixelFormat =
+  const MTLPixelFormat pixel_format =
       static_cast<MTLPixelFormat>(Long_val(Field(raw_descriptor, 1)));
-  descriptor.width = tuple_dimension(raw_descriptor, 2);
-  descriptor.height = tuple_dimension(raw_descriptor, 3);
-  descriptor.depth = tuple_dimension(raw_descriptor, 4);
-  descriptor.mipmapLevelCount = tuple_dimension(raw_descriptor, 5);
-  descriptor.sampleCount = tuple_dimension(raw_descriptor, 6);
-  descriptor.arrayLength = tuple_dimension(raw_descriptor, 7);
-  descriptor.storageMode =
+  const std::size_t width = positive_dimension(raw_descriptor, 2);
+  const std::size_t height = positive_dimension(raw_descriptor, 3);
+  const std::size_t depth = positive_dimension(raw_descriptor, 4);
+  const std::size_t mip_levels = positive_dimension(raw_descriptor, 5);
+  const std::size_t sample_count = positive_dimension(raw_descriptor, 6);
+  const std::size_t array_length = positive_dimension(raw_descriptor, 7);
+  const MTLStorageMode storage_mode =
       static_cast<MTLStorageMode>(Long_val(Field(raw_descriptor, 8)));
-  descriptor.cpuCacheMode =
+  const MTLCPUCacheMode cpu_cache_mode =
       static_cast<MTLCPUCacheMode>(Long_val(Field(raw_descriptor, 9)));
-  descriptor.hazardTrackingMode =
+  const MTLHazardTrackingMode hazard_tracking_mode =
       static_cast<MTLHazardTrackingMode>(Long_val(Field(raw_descriptor, 10)));
-  descriptor.usage =
+  const MTLTextureUsage usage =
       static_cast<MTLTextureUsage>(Long_val(Field(raw_descriptor, 11)));
-  descriptor.allowGPUOptimizedContents = Bool_val(Field(raw_descriptor, 12));
+  const bool allow_gpu_optimized_contents =
+      Bool_val(Field(raw_descriptor, 12));
+  const intnat compression_type = Long_val(Field(raw_descriptor, 13));
+  if (compression_type < MTLTextureCompressionTypeLossless ||
+      compression_type > MTLTextureCompressionTypeLossy) {
+    caml_invalid_argument("invalid Metal texture compression type");
+  }
+  const MTLTextureSwizzleChannels swizzle =
+      texture_swizzle_channels(raw_descriptor, 14);
+  const bool writable =
+      (usage & (MTLTextureUsageShaderWrite | MTLTextureUsageShaderAtomic)) != 0;
+  if (writable &&
+      !texture_swizzles_equal(swizzle, MTLTextureSwizzleChannelsDefault)) {
+    caml_invalid_argument(
+        "Metal writable textures cannot use a non-default swizzle");
+  }
+  if (compression_type == MTLTextureCompressionTypeLossy &&
+      (storage_mode != MTLStorageModePrivate ||
+       !allow_gpu_optimized_contents || writable ||
+       (usage & MTLTextureUsagePixelFormatView) != 0 ||
+       texture_type == MTLTextureType1D ||
+       texture_type == MTLTextureType1DArray ||
+       texture_type == MTLTextureTypeTextureBuffer)) {
+    caml_invalid_argument("invalid Metal lossy texture descriptor");
+  }
+  MTLTextureDescriptor *descriptor = [[MTLTextureDescriptor alloc] init];
+  descriptor.textureType = texture_type;
+  descriptor.pixelFormat = pixel_format;
+  descriptor.width = width;
+  descriptor.height = height;
+  descriptor.depth = depth;
+  descriptor.mipmapLevelCount = mip_levels;
+  descriptor.sampleCount = sample_count;
+  descriptor.arrayLength = array_length;
+  descriptor.storageMode = storage_mode;
+  descriptor.cpuCacheMode = cpu_cache_mode;
+  descriptor.hazardTrackingMode = hazard_tracking_mode;
+  descriptor.usage = usage;
+  descriptor.allowGPUOptimizedContents = allow_gpu_optimized_contents;
+  descriptor.compressionType =
+      static_cast<MTLTextureCompressionType>(compression_type);
+  descriptor.swizzle = swizzle;
   return descriptor;
 }
 
@@ -1537,6 +1611,13 @@ caml_prismel_metal_device_supports_sampler_reduction(value raw) {
   CAMLparam1(raw);
   id<MTLDevice> device = object_of_handle(raw, Handle_kind::Device);
   CAMLreturn(Val_bool(device_supports_sampler_reduction(device)));
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_device_supports_lossy_texture_compression(value raw) {
+  CAMLparam1(raw);
+  id<MTLDevice> device = object_of_handle(raw, Handle_kind::Device);
+  CAMLreturn(Val_bool(device_supports_lossy_texture_compression(device)));
 }
 
 extern "C" CAMLprim value
@@ -3078,7 +3159,8 @@ extern "C" CAMLprim value caml_prismel_metal_texture_info(value raw) {
   CAMLparam1(raw);
   CAMLlocal1(result);
   id<MTLTexture> texture = object_of_handle(raw, Handle_kind::Texture);
-  result = caml_alloc(12, 0);
+  const MTLTextureSwizzleChannels swizzle = texture.swizzle;
+  result = caml_alloc(18, 0);
   Store_field(result, 0, Val_long(texture.textureType));
   Store_field(result, 1, Val_long(texture.pixelFormat));
   Store_field(result, 2, Val_long(texture.width));
@@ -3091,6 +3173,12 @@ extern "C" CAMLprim value caml_prismel_metal_texture_info(value raw) {
   Store_field(result, 9, Val_long(texture.storageMode));
   Store_field(result, 10, Val_long(texture.cpuCacheMode));
   Store_field(result, 11, Val_long(texture.hazardTrackingMode));
+  Store_field(result, 12, Val_bool(texture.allowGPUOptimizedContents));
+  Store_field(result, 13, Val_long(texture.compressionType));
+  Store_field(result, 14, Val_long(swizzle.red));
+  Store_field(result, 15, Val_long(swizzle.green));
+  Store_field(result, 16, Val_long(swizzle.blue));
+  Store_field(result, 17, Val_long(swizzle.alpha));
   CAMLreturn(result);
 }
 
@@ -3595,44 +3683,100 @@ extern "C" CAMLprim value caml_prismel_metal_texture_create_view(
   CAMLparam3(raw_parent, raw_descriptor, raw_label);
   CAMLlocal1(raw);
   @autoreleasepool {
-    id<MTLTexture> parent = object_of_handle(raw_parent, Handle_kind::Texture);
-    const intnat format = Long_val(Field(raw_descriptor, 0));
-    const intnat kind = Long_val(Field(raw_descriptor, 1));
-    const intnat base_level = Long_val(Field(raw_descriptor, 2));
-    const intnat level_count = Long_val(Field(raw_descriptor, 3));
-    const intnat base_slice = Long_val(Field(raw_descriptor, 4));
-    const intnat slice_count = Long_val(Field(raw_descriptor, 5));
-    const NSUInteger parent_slices = texture_slice_count(parent);
-    if (base_level < 0 || level_count <= 0 || base_slice < 0 ||
-        slice_count <= 0 ||
-        static_cast<NSUInteger>(base_level) > parent.mipmapLevelCount ||
-        static_cast<NSUInteger>(level_count) >
-            parent.mipmapLevelCount - static_cast<NSUInteger>(base_level) ||
-        static_cast<NSUInteger>(base_slice) > parent_slices ||
-        static_cast<NSUInteger>(slice_count) >
-            parent_slices - static_cast<NSUInteger>(base_slice)) {
-      CAMLreturn(result_error_text("texture view range is invalid"));
-    }
-    id<MTLTexture> view = [parent
-        newTextureViewWithPixelFormat:static_cast<MTLPixelFormat>(format)
-                         textureType:static_cast<MTLTextureType>(kind)
-                              levels:NSMakeRange(
-                                         static_cast<NSUInteger>(base_level),
-                                         static_cast<NSUInteger>(level_count))
-                              slices:NSMakeRange(
-                                         static_cast<NSUInteger>(base_slice),
-                                         static_cast<NSUInteger>(slice_count))];
-    if (view == nil) {
-      CAMLreturn(result_error_text("Metal rejected the texture view"));
-    }
-    if (Is_block(raw_label)) {
-      NSString *label = string_from_ocaml(Field(raw_label, 0));
-      if (label == nil) {
-        CAMLreturn(result_error_text("texture-view label is not valid UTF-8"));
+    @try {
+      id<MTLTexture> parent =
+          object_of_handle(raw_parent, Handle_kind::Texture);
+      const intnat format = Long_val(Field(raw_descriptor, 0));
+      const intnat kind = Long_val(Field(raw_descriptor, 1));
+      const intnat base_level = Long_val(Field(raw_descriptor, 2));
+      const intnat level_count = Long_val(Field(raw_descriptor, 3));
+      const intnat base_slice = Long_val(Field(raw_descriptor, 4));
+      const intnat slice_count = Long_val(Field(raw_descriptor, 5));
+      const MTLTextureSwizzleChannels requested_swizzle =
+          texture_swizzle_channels(raw_descriptor, 6);
+      const MTLTextureSwizzleChannels effective_swizzle =
+          texture_swizzle_channels(raw_descriptor, 10);
+      const bool parent_writable =
+          (parent.usage &
+           (MTLTextureUsageShaderWrite | MTLTextureUsageShaderAtomic)) != 0;
+      if (parent_writable &&
+          (!texture_swizzles_equal(requested_swizzle,
+                                   MTLTextureSwizzleChannelsDefault) ||
+           !texture_swizzles_equal(effective_swizzle,
+                                   MTLTextureSwizzleChannelsDefault))) {
+        CAMLreturn(result_error_text(
+            "writable textures cannot create swizzled views"));
       }
-      view.label = label;
+      const NSUInteger parent_slices = texture_slice_count(parent);
+      if (base_level < 0 || level_count <= 0 || base_slice < 0 ||
+          slice_count <= 0 ||
+          static_cast<NSUInteger>(base_level) > parent.mipmapLevelCount ||
+          static_cast<NSUInteger>(level_count) >
+              parent.mipmapLevelCount - static_cast<NSUInteger>(base_level) ||
+          static_cast<NSUInteger>(base_slice) > parent_slices ||
+          static_cast<NSUInteger>(slice_count) >
+              parent_slices - static_cast<NSUInteger>(base_slice)) {
+        CAMLreturn(result_error_text("texture view range is invalid"));
+      }
+      NSString *label = nil;
+      if (Is_block(raw_label)) {
+        label = string_from_ocaml(Field(raw_label, 0));
+        if (label == nil) {
+          CAMLreturn(
+              result_error_text("texture-view label is not valid UTF-8"));
+        }
+      }
+      id<MTLTexture> view = nil;
+      const NSRange levels =
+          NSMakeRange(static_cast<NSUInteger>(base_level),
+                      static_cast<NSUInteger>(level_count));
+      const NSRange slices =
+          NSMakeRange(static_cast<NSUInteger>(base_slice),
+                      static_cast<NSUInteger>(slice_count));
+      if (@available(macOS 26.0, *)) {
+        // The descriptor path takes Prismel's already-composed effective
+        // swizzle. The deployment-floor constructor receives the requested
+        // view-local swizzle and performs its documented parent composition.
+        MTLTextureViewDescriptor *descriptor =
+            [[MTLTextureViewDescriptor alloc] init];
+        descriptor.pixelFormat = static_cast<MTLPixelFormat>(format);
+        descriptor.textureType = static_cast<MTLTextureType>(kind);
+        descriptor.levelRange = levels;
+        descriptor.sliceRange = slices;
+        descriptor.swizzle = effective_swizzle;
+        if (descriptor.pixelFormat != static_cast<MTLPixelFormat>(format) ||
+            descriptor.textureType != static_cast<MTLTextureType>(kind) ||
+            !NSEqualRanges(descriptor.levelRange, levels) ||
+            !NSEqualRanges(descriptor.sliceRange, slices) ||
+            !texture_swizzles_equal(descriptor.swizzle, effective_swizzle)) {
+          CAMLreturn(result_error_text(
+              "Metal changed the checked texture-view descriptor"));
+        }
+        view = [parent newTextureViewWithDescriptor:descriptor];
+      } else {
+        view = [parent
+            newTextureViewWithPixelFormat:static_cast<MTLPixelFormat>(format)
+                             textureType:static_cast<MTLTextureType>(kind)
+                                  levels:levels
+                                  slices:slices
+                                 swizzle:requested_swizzle];
+      }
+      if (view == nil) {
+        CAMLreturn(result_error_text("Metal rejected the texture view"));
+      }
+      if (view.parentTexture != parent ||
+          view.parentRelativeLevel != static_cast<NSUInteger>(base_level) ||
+          view.parentRelativeSlice != static_cast<NSUInteger>(base_slice)) {
+        CAMLreturn(result_error_text(
+            "Metal changed the checked texture-view parent metadata"));
+      }
+      if (label != nil) {
+        view.label = label;
+      }
+      raw = allocate_handle(view, Handle_kind::Texture);
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
     }
-    raw = allocate_handle(view, Handle_kind::Texture);
   }
   CAMLreturn(result_ok(raw));
 }
@@ -4142,13 +4286,13 @@ extern "C" CAMLprim value caml_prismel_metal_compute_encoder_dispatch(
   id<MTLComputeCommandEncoder> encoder =
       object_of_handle(raw_encoder, Handle_kind::Compute_encoder);
   const MTLSize threads =
-      MTLSizeMake(tuple_dimension(raw_threads, 0),
-                  tuple_dimension(raw_threads, 1),
-                  tuple_dimension(raw_threads, 2));
+      MTLSizeMake(positive_dimension(raw_threads, 0),
+                  positive_dimension(raw_threads, 1),
+                  positive_dimension(raw_threads, 2));
   const MTLSize threadgroup =
-      MTLSizeMake(tuple_dimension(raw_threadgroup, 0),
-                  tuple_dimension(raw_threadgroup, 1),
-                  tuple_dimension(raw_threadgroup, 2));
+      MTLSizeMake(positive_dimension(raw_threadgroup, 0),
+                  positive_dimension(raw_threadgroup, 1),
+                  positive_dimension(raw_threadgroup, 2));
   [encoder dispatchThreads:threads threadsPerThreadgroup:threadgroup];
   CAMLreturn(result_unit());
 }

@@ -2,11 +2,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 0,
-    "bound": 636,
+    "bound": 693,
     "scope-excluded": 7,
-    "unreviewed": 4643
+    "unreviewed": 4586
   },
-  "classification_source_sha256": "d7edc8dd02da528f8baa5cdd98b28d6c578e15a38dd4ce6979b70d92d4431cfb",
+  "classification_source_sha256": "9b0fd3ebf9d0787c2217e7f1ba710b09cbc4504bbd579615fe15d5bd69058cf2",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "header_aggregate_sha256": "c2ee1e44c76606cf05fa81d1a8314dadfa49efe900342e8bcb3670363c16f0d1",
@@ -2600,14 +2600,14 @@
         "AvailabilityAttr",
         "VisibilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "class:MTLTextureViewDescriptor",
       "kind": "class",
       "line": 269,
       "name": "MTLTextureViewDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -13021,26 +13021,26 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "enum-case:MTLTextureCompressionType:MTLTextureCompressionTypeLossless",
       "kind": "enum-case",
       "line": 109,
       "name": "MTLTextureCompressionTypeLossless",
       "owner": "MTLTextureCompressionType",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLTextureCompressionType"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "enum-case:MTLTextureCompressionType:MTLTextureCompressionTypeLossy",
       "kind": "enum-case",
       "line": 110,
       "name": "MTLTextureCompressionTypeLossy",
       "owner": "MTLTextureCompressionType",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLTextureCompressionType"
     },
     {
@@ -13081,74 +13081,74 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "enum-case:MTLTextureSwizzle:MTLTextureSwizzleAlpha",
       "kind": "enum-case",
       "line": 44,
       "name": "MTLTextureSwizzleAlpha",
       "owner": "MTLTextureSwizzle",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLTextureSwizzle"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "enum-case:MTLTextureSwizzle:MTLTextureSwizzleBlue",
       "kind": "enum-case",
       "line": 43,
       "name": "MTLTextureSwizzleBlue",
       "owner": "MTLTextureSwizzle",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLTextureSwizzle"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "enum-case:MTLTextureSwizzle:MTLTextureSwizzleGreen",
       "kind": "enum-case",
       "line": 42,
       "name": "MTLTextureSwizzleGreen",
       "owner": "MTLTextureSwizzle",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLTextureSwizzle"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "enum-case:MTLTextureSwizzle:MTLTextureSwizzleOne",
       "kind": "enum-case",
       "line": 40,
       "name": "MTLTextureSwizzleOne",
       "owner": "MTLTextureSwizzle",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLTextureSwizzle"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "enum-case:MTLTextureSwizzle:MTLTextureSwizzleRed",
       "kind": "enum-case",
       "line": 41,
       "name": "MTLTextureSwizzleRed",
       "owner": "MTLTextureSwizzle",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLTextureSwizzle"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "enum-case:MTLTextureSwizzle:MTLTextureSwizzleZero",
       "kind": "enum-case",
       "line": 39,
       "name": "MTLTextureSwizzleZero",
       "owner": "MTLTextureSwizzle",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLTextureSwizzle"
     },
     {
@@ -15953,14 +15953,14 @@
         "AvailabilityAttr",
         "EnumExtensibilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "enum:MTLTextureCompressionType",
       "kind": "enum",
       "line": 107,
       "name": "MTLTextureCompressionType",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -15983,14 +15983,14 @@
         "AvailabilityAttr",
         "EnumExtensibilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "enum:MTLTextureSwizzle",
       "kind": "enum",
       "line": 38,
       "name": "MTLTextureSwizzle",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -17799,50 +17799,50 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "field:MTLTextureSwizzleChannels:alpha",
       "kind": "field",
       "line": 52,
       "name": "alpha",
       "owner": "MTLTextureSwizzleChannels",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLTextureSwizzle"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "field:MTLTextureSwizzleChannels:blue",
       "kind": "field",
       "line": 51,
       "name": "blue",
       "owner": "MTLTextureSwizzleChannels",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLTextureSwizzle"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "field:MTLTextureSwizzleChannels:green",
       "kind": "field",
       "line": 50,
       "name": "green",
       "owner": "MTLTextureSwizzleChannels",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLTextureSwizzle"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "field:MTLTextureSwizzleChannels:red",
       "kind": "field",
       "line": 49,
       "name": "red",
       "owner": "MTLTextureSwizzleChannels",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLTextureSwizzle"
     },
     {
@@ -18320,14 +18320,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "function:MTLTextureSwizzleChannelsMake",
       "kind": "function",
       "line": 56,
       "name": "MTLTextureSwizzleChannelsMake",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLTextureSwizzleChannels (MTLTextureSwizzle, MTLTextureSwizzle, MTLTextureSwizzle, MTLTextureSwizzle)"
     },
     {
@@ -48410,14 +48410,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTexture allowGPUOptimizedContents]",
       "kind": "method",
       "line": 464,
       "name": "allowGPUOptimizedContents",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -48478,14 +48478,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTexture compressionType]",
       "kind": "method",
       "line": 471,
       "name": "compressionType",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLTextureCompressionType"
     },
     {
@@ -48679,14 +48679,14 @@
         "AvailabilityAttr",
         "NSReturnsRetainedAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTexture newTextureViewWithDescriptor:]",
       "kind": "method",
       "line": 526,
       "name": "newTextureViewWithDescriptor:",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLTextureViewDescriptor * _Nonnull __strong) -> id<MTLTexture> _Nullable"
     },
     {
@@ -48723,56 +48723,56 @@
         "AvailabilityAttr",
         "NSReturnsRetainedAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTexture newTextureViewWithPixelFormat:textureType:levels:slices:swizzle:]",
       "kind": "method",
       "line": 552,
       "name": "newTextureViewWithPixelFormat:textureType:levels:slices:swizzle:",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLPixelFormat, MTLTextureType, NSRange, NSRange, MTLTextureSwizzleChannels) -> id<MTLTexture> _Nullable"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTexture parentRelativeLevel]",
       "kind": "method",
       "line": 331,
       "name": "parentRelativeLevel",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSUInteger"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTexture parentRelativeSlice]",
       "kind": "method",
       "line": 337,
       "name": "parentRelativeSlice",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSUInteger"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTexture parentTexture]",
       "kind": "method",
       "line": 325,
       "name": "parentTexture",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> id<MTLTexture> _Nullable"
     },
     {
@@ -48869,14 +48869,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTexture swizzle]",
       "kind": "method",
       "line": 546,
       "name": "swizzle",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLTextureSwizzleChannels"
     },
     {
@@ -49007,14 +49007,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTextureDescriptor compressionType]",
       "kind": "method",
       "line": 246,
       "name": "compressionType",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLTextureCompressionType"
     },
     {
@@ -49161,14 +49161,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTextureDescriptor setCompressionType:]",
       "kind": "method",
       "line": null,
       "name": "setCompressionType:",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLTextureCompressionType) -> void"
     },
     {
@@ -49303,14 +49303,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTextureDescriptor setSwizzle:]",
       "kind": "method",
       "line": null,
       "name": "setSwizzle:",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLTextureSwizzleChannels) -> void"
     },
     {
@@ -49369,14 +49369,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTextureDescriptor swizzle]",
       "kind": "method",
       "line": 252,
       "name": "swizzle",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLTextureSwizzleChannels"
     },
     {
@@ -49467,122 +49467,122 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTextureViewDescriptor levelRange]",
       "kind": "method",
       "line": 287,
       "name": "levelRange",
       "owner": "MTLTextureViewDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSRange"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTextureViewDescriptor pixelFormat]",
       "kind": "method",
       "line": 275,
       "name": "pixelFormat",
       "owner": "MTLTextureViewDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLPixelFormat"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTextureViewDescriptor setLevelRange:]",
       "kind": "method",
       "line": null,
       "name": "setLevelRange:",
       "owner": "MTLTextureViewDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (NSRange) -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTextureViewDescriptor setPixelFormat:]",
       "kind": "method",
       "line": null,
       "name": "setPixelFormat:",
       "owner": "MTLTextureViewDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLPixelFormat) -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTextureViewDescriptor setSliceRange:]",
       "kind": "method",
       "line": null,
       "name": "setSliceRange:",
       "owner": "MTLTextureViewDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (NSRange) -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTextureViewDescriptor setSwizzle:]",
       "kind": "method",
       "line": null,
       "name": "setSwizzle:",
       "owner": "MTLTextureViewDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLTextureSwizzleChannels) -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTextureViewDescriptor setTextureType:]",
       "kind": "method",
       "line": null,
       "name": "setTextureType:",
       "owner": "MTLTextureViewDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLTextureType) -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTextureViewDescriptor sliceRange]",
       "kind": "method",
       "line": 293,
       "name": "sliceRange",
       "owner": "MTLTextureViewDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSRange"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTextureViewDescriptor swizzle]",
       "kind": "method",
       "line": 299,
       "name": "swizzle",
       "owner": "MTLTextureViewDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLTextureSwizzleChannels"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTextureViewDescriptor textureType]",
       "kind": "method",
       "line": 281,
       "name": "textureType",
       "owner": "MTLTextureViewDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLTextureType"
     },
     {
@@ -62371,14 +62371,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLTexture:allowGPUOptimizedContents",
       "kind": "property",
       "line": 464,
       "name": "allowGPUOptimizedContents",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "BOOL"
     },
     {
@@ -62439,14 +62439,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLTexture:compressionType",
       "kind": "property",
       "line": 471,
       "name": "compressionType",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLTextureCompressionType"
     },
     {
@@ -62571,42 +62571,42 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLTexture:parentRelativeLevel",
       "kind": "property",
       "line": 331,
       "name": "parentRelativeLevel",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLTexture:parentRelativeSlice",
       "kind": "property",
       "line": 337,
       "name": "parentRelativeSlice",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLTexture:parentTexture",
       "kind": "property",
       "line": 325,
       "name": "parentTexture",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "id<MTLTexture> _Nullable"
     },
     {
@@ -62665,14 +62665,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLTexture:shareable",
       "kind": "property",
       "line": 433,
       "name": "shareable",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "BOOL"
     },
     {
@@ -62693,14 +62693,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLTexture:swizzle",
       "kind": "property",
       "line": 546,
       "name": "swizzle",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLTextureSwizzleChannels"
     },
     {
@@ -62831,14 +62831,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLTextureDescriptor:compressionType",
       "kind": "property",
       "line": 246,
       "name": "compressionType",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLTextureCompressionType"
     },
     {
@@ -62973,14 +62973,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLTextureDescriptor:swizzle",
       "kind": "property",
       "line": 252,
       "name": "swizzle",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLTextureSwizzleChannels"
     },
     {
@@ -63071,62 +63071,62 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLTextureViewDescriptor:levelRange",
       "kind": "property",
       "line": 287,
       "name": "levelRange",
       "owner": "MTLTextureViewDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSRange"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLTextureViewDescriptor:pixelFormat",
       "kind": "property",
       "line": 275,
       "name": "pixelFormat",
       "owner": "MTLTextureViewDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLTextureViewDescriptor:sliceRange",
       "kind": "property",
       "line": 293,
       "name": "sliceRange",
       "owner": "MTLTextureViewDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSRange"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLTextureViewDescriptor:swizzle",
       "kind": "property",
       "line": 299,
       "name": "swizzle",
       "owner": "MTLTextureViewDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLTextureSwizzleChannels"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLTextureViewDescriptor:textureType",
       "kind": "property",
       "line": 281,
       "name": "textureType",
       "owner": "MTLTextureViewDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLTextureType"
     },
     {
@@ -65145,14 +65145,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "record:MTLTextureSwizzleChannels",
       "kind": "record",
       "line": 47,
       "name": "MTLTextureSwizzleChannels",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "struct"
     },
     {
@@ -67458,14 +67458,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "typedef:MTLTextureCompressionType",
       "kind": "typedef",
       "line": 107,
       "name": "MTLTextureCompressionType",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "enum MTLTextureCompressionType"
     },
     {
@@ -67482,28 +67482,28 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "typedef:MTLTextureSwizzle",
       "kind": "typedef",
       "line": 38,
       "name": "MTLTextureSwizzle",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "enum MTLTextureSwizzle"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "typedef:MTLTextureSwizzleChannels",
       "kind": "typedef",
       "line": 53,
       "name": "MTLTextureSwizzleChannels",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "struct MTLTextureSwizzleChannels"
     },
     {
@@ -68311,14 +68311,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "variable:swizzle",
       "kind": "variable",
       "line": null,
       "name": "swizzle",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLTextureSwizzleChannels"
     }
   ],

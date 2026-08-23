@@ -98,9 +98,10 @@ as a hard ownership failure.
 
 `Texture.descriptor` models all current Metal texture kinds, explicit
 dimensions, mip/sample/array counts, storage/cache/hazard modes, usage, GPU
-optimization intent, and all 130 concrete, non-deprecated pixel formats in the
-pinned SDK: 64 numeric, packed, subsampled, extended-range, depth, stencil, and
-stencil-plane formats plus 66 BC, EAC/ETC2, and ASTC block-compressed formats.
+optimization intent, lossless/lossy compression intent, typed RGBA channel
+swizzles, and all 130 concrete, non-deprecated pixel formats in the pinned SDK:
+64 numeric, packed, subsampled, extended-range, depth, stencil, and stencil-plane
+formats plus 66 BC, EAC/ETC2, and ASTC block-compressed formats.
 The deprecated PVRTC family, `Invalid`, and the Metal 4 unspecialized sentinel
 are not presented as concrete resource formats. `Texture.format_layout`
 exposes each reviewed format's checked block dimensions and byte size.
@@ -113,9 +114,15 @@ or Metal 4, HDR ASTC requires Apple family 6 or Metal 4, and compressed volume
 textures require the reviewed Apple 3, Mac 2, Metal 3, or Metal 4 feature.
 Compressed descriptors reject 1D, multisample, texture-buffer, writable,
 atomic, and render-target shapes before native allocation. The bridge then
-checks that Metal preserved every observable descriptor property. A native
-rejection remains a labeled `Native_error`; it never leaves a partially owned
-safe handle.
+checks that Metal preserved every observable descriptor property, including
+GPU-optimization, compression, and all four swizzle channels. Lossy compression
+is Apple-family-8 gated and requires private GPU-optimized storage, a compatible
+ordinary/extended-range pixel format, a non-1D/non-buffer kind, and no
+pixel-format-view, shader-write, or shader-atomic usage. Structural failures and
+unsupported devices allocate no native handle. A native rejection remains a
+labeled `Native_error`; it never leaves a partially owned safe handle.
+Non-default base swizzles also reject shader-write and shader-atomic usage
+before native descriptor validation.
 
 Shared and managed texture transfers accept explicit regions, mip levels,
 slices, source offsets, row pitches, and image pitches. Region bounds, format
@@ -125,17 +132,25 @@ block-layout path, including partial final blocks at mip edges, exact two-pixel
 blocks for packed 4:2:2 formats, and every BC/EAC/ETC2/ASTC block size. Private
 and multisample textures reject CPU transfer. Reads initialize the entire
 result so Metal's untouched pitch padding cannot expose native memory. Texture
-views require
-`Pixel_format_view` usage, preserve kind/slice shape, permit the reviewed equal,
-linear/sRGB, extended-range/sRGB, compressed linear/sRGB, and
-depth-stencil/stencil-plane pairs, and hold their parent alive until explicit
-destruction or finalization.
+views preserve kind/slice shape, permit the reviewed equal, linear/sRGB,
+extended-range/sRGB, compressed linear/sRGB, and depth-stencil/stencil-plane
+pairs, and hold their parent alive until explicit destruction or finalization.
+Format reinterpretation requires `Pixel_format_view`; a same-format view whose
+only change is channel swizzling does not. Prismel composes a requested view
+swizzle with the parent's effective swizzle once, records that effective value
+in the returned descriptor, and passes it explicitly to Metal. macOS 26 uses
+the checked `MTLTextureViewDescriptor` constructor; the macOS 14 deployment
+floor uses the swizzled range constructor. Both paths verify native parent,
+relative mip, relative slice, and descriptor metadata.
+Swizzled views of shader-write or shader-atomic textures are rejected before
+the native constructor.
 
 `Texture.minimum_buffer_alignment` distinguishes ordinary 2D linear textures
 from the `Texture_buffer` kind and exposes Metal's per-device, per-format
 alignment as a checked positive power of two. `Texture.create_from_buffer`
 accepts only those two kinds and ordinary numeric or packed color formats;
-subsampled and block-compressed formats remain non-linear resources. It requires
+subsampled, block-compressed, and lossy-compressed formats remain non-linear
+resources. It requires
 depth, array length, mip count, and sample count of one; normalizes and matches
 the buffer's storage/cache/hazard modes; gates render-target usage on Apple GPU
 family 1; and checks offset, aligned row pitch, pixel-row cardinality, 64-bit
@@ -172,7 +187,8 @@ opaque application bytes, and an explicit bounded timeout. A timeout
 invalidates the underlying connection. The service accepts only connections
 with the same effective user ID, caps concurrent active requests, validates the
 operation, payload, metadata version, format, dimensions, resource modes,
-usage, and device registry identity, and exposes a one-shot request. A handler
+usage, compression, channel swizzle, and device registry identity, and exposes
+a one-shot request. A handler
 must call `reply` or `reject` before returning; a return without either, or an
 exception, is rejected automatically. Completion releases the incoming safe
 handle and a second completion deterministically returns `Destroyed`.
@@ -350,8 +366,9 @@ shareable texture/handle/import lifetimes, single- and multi-plane IOSurface
 ownership and byte visibility, buffer-backed 2D/texture-buffer creation across
 shared/managed/private storage,
 configured cache/hazard modes, and shared transfer, buffer and texture bounds,
-stride, and cardinality checks, texture mip transfer and views, sampler
-validation, multisample capability gating, heap alignment and placement,
+stride, and cardinality checks, texture mip transfer, effective channel-swizzle
+composition with GPU sampling, lossy-compression policy/capability gating,
+views, sampler validation, multisample capability gating, heap alignment and placement,
 aliasing, purgeability, residency
 membership/commit/queue/command retention, the complete 130-format matrix,
 generic format-block transfers, encoded-block CPU round trips for all 66
@@ -375,6 +392,7 @@ set/resource handles. Ten thousand sparse heap/color-texture cycles and a
 separate 10,000 sparse heap/depth-texture cycles each cover 20,000 measured
 handles on the qualified M1. Ten thousand placement-sparse
 heap/buffer/texture cycles cover another 30,000 measured handles. Another
+10,000 base/swizzled-view cycles cover 20,000 handles. Another
 10,000 buffer/linear-texture ownership cycles cover 20,000 handles; 10,000
 shareable-source/handle/import cycles cover 30,000 handles; 10,000
 IOSurface/texture cycles cover 20,000 handles; and 10,000 external-memory/no-copy

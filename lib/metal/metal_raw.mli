@@ -1,7 +1,45 @@
 type handle
 
+(** Positional native ABI record. Keep field order synchronized with
+    [texture_descriptor] in [metal_bridge.mm]. *)
 type texture_descriptor =
-  int * int * int * int * int * int * int * int * int * int * int * int * bool
+  { texture_type : int
+  ; pixel_format : int
+  ; width : int
+  ; height : int
+  ; depth : int
+  ; mip_levels : int
+  ; sample_count : int
+  ; array_length : int
+  ; storage_mode : int
+  ; cpu_cache_mode : int
+  ; hazard_tracking_mode : int
+  ; usage : int
+  ; allow_gpu_optimized_contents : bool
+  ; compression_type : int
+  ; swizzle_red : int
+  ; swizzle_green : int
+  ; swizzle_blue : int
+  ; swizzle_alpha : int
+  }
+
+(** Positional native ABI record for texture-view construction. *)
+type texture_view_descriptor =
+  { pixel_format : int
+  ; texture_type : int
+  ; base_mip : int
+  ; mip_count : int
+  ; base_slice : int
+  ; slice_count : int
+  ; requested_swizzle_red : int
+  ; requested_swizzle_green : int
+  ; requested_swizzle_blue : int
+  ; requested_swizzle_alpha : int
+  ; effective_swizzle_red : int
+  ; effective_swizzle_green : int
+  ; effective_swizzle_blue : int
+  ; effective_swizzle_alpha : int
+  }
 
 external is_main_thread : unit -> bool = "caml_prismel_metal_is_main_thread"
 external generation : handle -> int64 = "caml_prismel_metal_generation"
@@ -77,6 +115,9 @@ external device_supports_placement_sparse : handle -> bool =
 
 external device_supports_sampler_reduction : handle -> bool =
   "caml_prismel_metal_device_supports_sampler_reduction"
+
+external device_supports_lossy_texture_compression : handle -> bool =
+  "caml_prismel_metal_device_supports_lossy_texture_compression"
 
 external device_sparse_tile_size_in_bytes :
   handle -> int -> (int64, string) result
@@ -360,7 +401,7 @@ external texture_read :
   = "caml_prismel_metal_texture_read"
 
 external texture_create_view :
-  handle -> (int * int * int * int * int * int) -> string option ->
+  handle -> texture_view_descriptor -> string option ->
   (handle, string) result
   = "caml_prismel_metal_texture_create_view"
 

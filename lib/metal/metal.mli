@@ -119,6 +119,9 @@ module Device : sig
   (** Runtime- and Apple-GPU-family-10-gated sampler reduction modes and LOD
       bias. *)
   val supports_sampler_reduction : t -> (bool, error) result
+
+  (** Runtime- and Apple-GPU-family-8-gated lossy texture compression. *)
+  val supports_lossy_texture_compression : t -> (bool, error) result
   val destroy : t -> (unit, error) result
 end
 
@@ -386,6 +389,25 @@ module Texture : sig
     | Pixel_format_view
     | Shader_atomic
 
+  type compression_type =
+    | Lossless
+    | Lossy
+
+  type swizzle_channel =
+    | Zero
+    | One
+    | Red
+    | Green
+    | Blue
+    | Alpha
+
+  type swizzle =
+    { red : swizzle_channel
+    ; green : swizzle_channel
+    ; blue : swizzle_channel
+    ; alpha : swizzle_channel
+    }
+
   type sparse_tier =
     | Not_sparse
     | Sparse_tier_1
@@ -405,6 +427,8 @@ module Texture : sig
     ; hazard_tracking : hazard_tracking_mode
     ; usage : usage list
     ; allow_gpu_optimized_contents : bool
+    ; compression : compression_type
+    ; swizzle : swizzle
     ; label : string option
     }
 
@@ -526,10 +550,14 @@ module Texture : sig
 
   val format_layout : format -> format_layout
   val all_formats : format list
+  val default_swizzle : swizzle
+  val make_swizzle :
+    red:swizzle_channel -> green:swizzle_channel -> blue:swizzle_channel ->
+    alpha:swizzle_channel -> swizzle
   val descriptor_2d :
     ?mipmapped:bool -> ?storage:Buffer.storage_mode -> ?usage:usage list ->
-    ?label:string -> format:format -> width:int -> height:int -> unit ->
-    descriptor
+    ?compression:compression_type -> ?swizzle:swizzle -> ?label:string ->
+    format:format -> width:int -> height:int -> unit -> descriptor
   val minimum_buffer_alignment :
     device:Device.t -> kind:kind -> format:format -> (int64, error) result
   val create : device:Device.t -> descriptor -> (t, error) result
@@ -546,9 +574,15 @@ module Texture : sig
   val create_from_io_surface :
     device:Device.t -> surface:Io_surface.t -> plane:int -> descriptor ->
     (t, error) result
+
+  (** The optional swizzle is composed with the parent's effective swizzle.
+      A same-format swizzled view does not require [Pixel_format_view]; format
+      reinterpretation still does. The returned descriptor records the
+      effective composed swizzle. *)
   val create_view :
     t -> format:format -> base_mip:int -> mip_count:int -> base_slice:int ->
-    slice_count:int -> ?label:string -> unit -> (t, error) result
+    slice_count:int -> ?swizzle:swizzle -> ?label:string -> unit ->
+    (t, error) result
   val device : t -> Device.t
   val descriptor : t -> descriptor
   val heap_offset : t -> int64 option

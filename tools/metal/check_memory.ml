@@ -129,7 +129,7 @@ let tests mode artifacts =
   | Guard_malloc -> [ conformance ]
   | Leaks ->
       let lanes =
-        [ "buffers"; "textures-samplers"; "heaps-resources"
+        [ "buffers"; "textures-samplers"; "texture-views"; "heaps-resources"
         ; "sparse-heaps-textures"; "sparse-depth-stencil"
         ; "placement-sparse-resources"
         ; "residency-sets-resources"

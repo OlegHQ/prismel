@@ -35,6 +35,18 @@ kernel void sparse_read(texture2d<uint, access::read> source [[texture(0)]],
 }
 |}
 
+let texture_swizzle_shader_source =
+  {|
+#include <metal_stdlib>
+using namespace metal;
+
+kernel void read_swizzle(texture2d<float, access::sample> source [[texture(0)]],
+                         device uint4 *result [[buffer(0)]]) {
+  constexpr sampler nearest_sampler(coord::pixel, filter::nearest);
+  result[0] = uint4(round(source.sample(nearest_sampler, float2(0.5f)) * 255.0f));
+}
+|}
+
 let input_values () =
   let bytes = Bytes.create 16 in
   [| 1l; 41l; 99l; -2l |]
@@ -507,6 +519,154 @@ let test_format_matrix device =
        in
        get (Texture.destroy stencil);
        get (Texture.destroy depth_stencil))
+
+let test_texture_swizzle_and_compression device =
+  let base_swizzle =
+    Texture.make_swizzle ~red:Texture.Red ~green:Texture.One
+      ~blue:Texture.One ~alpha:Texture.Green
+  in
+  let descriptor =
+    Texture.descriptor_2d ~storage:Buffer.Shared ~swizzle:base_swizzle
+      ~format:Texture.Rgba8_unorm ~width:1 ~height:1 ()
+  in
+  let texture = get (Texture.create ~device descriptor) in
+  if (Texture.descriptor texture).swizzle <> base_swizzle then
+    fail "base texture swizzle did not round-trip";
+  let pixel = Bytes.of_string "\010\020\030\040" in
+  let region : Texture.region =
+    { x = 0; y = 0; z = 0; width = 1; height = 1; depth = 1 }
+  in
+  get
+    (Texture.write_bytes texture ~region ~mip_level:0 ~slice:0
+       ~bytes_per_row:4 ~bytes_per_image:4 pixel);
+  let view_swizzle =
+    Texture.make_swizzle ~red:Texture.Red ~green:Texture.Green
+      ~blue:Texture.Alpha ~alpha:Texture.Blue
+  in
+  let expected_view_swizzle =
+    Texture.make_swizzle ~red:Texture.Red ~green:Texture.One
+      ~blue:Texture.Green ~alpha:Texture.One
+  in
+  let view =
+    get
+      (Texture.create_view texture ~format:Texture.Rgba8_unorm ~base_mip:0
+         ~mip_count:1 ~base_slice:0 ~slice_count:1 ~swizzle:view_swizzle ())
+  in
+  if (Texture.descriptor view).swizzle <> expected_view_swizzle then
+    fail "texture-view swizzle composition is wrong";
+  let output =
+    get (Buffer.create ~device ~length:16L ~storage:Buffer.Shared ())
+  in
+  let library =
+    get (Library.compile_source ~device texture_swizzle_shader_source)
+  in
+  let function_ = get (Function.find ~library "read_swizzle") in
+  let pipeline = get (Compute_pipeline.create function_) in
+  let queue = get (Command_queue.create device) in
+  let read name source expected =
+    let commands = get (Command_buffer.create queue ()) in
+    let encoder = get (Compute_encoder.create commands) in
+    get (Compute_encoder.set_pipeline encoder pipeline);
+    get (Compute_encoder.set_texture encoder ~index:0 source);
+    get (Compute_encoder.set_buffer encoder ~index:0 ~offset:0L output);
+    get
+      (Compute_encoder.dispatch_threads encoder ~threads:(1, 1, 1)
+         ~threadgroup:(1, 1, 1));
+    get (Compute_encoder.end_encoding encoder);
+    complete_commands commands;
+    let bytes = get (Buffer.read_bytes output ~offset:0L ~length:16) in
+    let actual =
+      Array.init 4 (fun index ->
+        Bytes.get_int32_le bytes (index * 4) |> Int32.to_int)
+    in
+    if actual <> expected then
+      fail "%s texture swizzle: expected [%s], got [%s]" name
+        (expected |> Array.to_list |> List.map string_of_int
+         |> String.concat "; ")
+        (actual |> Array.to_list |> List.map string_of_int |> String.concat "; ")
+  in
+  read "base" texture [| 10; 255; 255; 20 |];
+  read "view" view [| 10; 255; 20; 255 |];
+  get (Command_queue.destroy queue);
+  get (Compute_pipeline.destroy pipeline);
+  get (Function.destroy function_);
+  get (Library.destroy library);
+  get (Buffer.destroy output);
+  get (Texture.destroy view);
+  get (Texture.destroy texture);
+  let before_invalid_swizzle = get (Release_queue.stats ()) in
+  List.iter
+    (fun usage ->
+      ignore
+        (expect_error Invalid_argument
+           (Texture.create ~device
+              (Texture.descriptor_2d ~storage:Buffer.Private ~usage
+                 ~swizzle:base_swizzle ~format:Texture.Rgba8_unorm ~width:4
+                 ~height:4 ()))))
+    [ [ Texture.Shader_write ]; [ Texture.Shader_atomic ] ];
+  let after_invalid_swizzle = get (Release_queue.stats ()) in
+  if
+    after_invalid_swizzle.total_created
+    <> before_invalid_swizzle.total_created
+  then fail "invalid writable swizzles allocated native handles";
+  let writable =
+    get
+      (Texture.create ~device
+         (Texture.descriptor_2d ~storage:Buffer.Private
+            ~usage:[ Texture.Shader_write ] ~format:Texture.Rgba8_unorm
+            ~width:4 ~height:4 ()))
+  in
+  let before_invalid_view = get (Release_queue.stats ()) in
+  ignore
+    (expect_error Invalid_argument
+       (Texture.create_view writable ~format:Texture.Rgba8_unorm ~base_mip:0
+          ~mip_count:1 ~base_slice:0 ~slice_count:1 ~swizzle:base_swizzle ()));
+  let after_invalid_view = get (Release_queue.stats ()) in
+  if after_invalid_view.total_created <> before_invalid_view.total_created then
+    fail "invalid writable swizzled view allocated a native handle";
+  get (Texture.destroy writable);
+  let lossy_supported =
+    get (Device.supports_lossy_texture_compression device)
+  in
+  if lossy_supported && not (get (Device.supports_family device Device.Apple8))
+  then fail "lossy texture compression escaped its Apple8 hardware gate";
+  let lossy_descriptor =
+    Texture.descriptor_2d ~storage:Buffer.Private
+      ~usage:[ Texture.Render_target ] ~compression:Texture.Lossy
+      ~format:Texture.Rgba8_unorm ~width:64 ~height:64 ()
+  in
+  let before_invalid = get (Release_queue.stats ()) in
+  [ { lossy_descriptor with storage = Buffer.Shared }
+  ; { lossy_descriptor with allow_gpu_optimized_contents = false }
+  ; { lossy_descriptor with usage = [ Texture.Pixel_format_view ] }
+  ; { lossy_descriptor with usage = [ Texture.Shader_write ] }
+  ; { lossy_descriptor with usage = [ Texture.Shader_atomic ] }
+  ; { lossy_descriptor with
+      kind = Texture.Texture_1d
+    ; height = 1
+    }
+  ; { lossy_descriptor with format = Texture.Rg11b10_float }
+  ; { lossy_descriptor with format = Texture.Astc_4x4_ldr }
+  ]
+  |> List.iter (fun invalid ->
+    ignore (expect_error Invalid_argument (Texture.create ~device invalid)));
+  let after_invalid = get (Release_queue.stats ()) in
+  if after_invalid.total_created <> before_invalid.total_created then
+    fail "invalid lossy texture descriptors allocated native handles";
+  if lossy_supported then begin
+    let lossy = get (Texture.create ~device lossy_descriptor) in
+    if (Texture.descriptor lossy).compression <> Texture.Lossy then
+      fail "lossy texture compression did not round-trip";
+    get (Texture.destroy lossy)
+  end
+  else begin
+    let before_unsupported = get (Release_queue.stats ()) in
+    ignore
+      (expect_error Unsupported (Texture.create ~device lossy_descriptor));
+    let after_unsupported = get (Release_queue.stats ()) in
+    if after_unsupported.total_created <> before_unsupported.total_created then
+      fail "unsupported lossy texture allocated a native handle"
+  end
 
 let test_placement_sparse_resources device =
   let supported = get (Device.supports_placement_sparse device) in
@@ -1253,6 +1413,7 @@ let () =
       fail "default device identity is incomplete";
     if info.max_buffer_length < 16L then fail "device buffer limit is invalid";
     test_format_matrix device;
+    test_texture_swizzle_and_compression device;
     let residency_sets_supported = test_residency_set device in
     ignore (test_placement_sparse_resources device);
     ignore (test_sparse_textures device);
