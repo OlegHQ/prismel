@@ -33,8 +33,54 @@ let () =
     fail "drawable texture metadata did not reflect the acquired texture";
   expect Parent_has_dependents (Drawable.destroy drawable);
   let commands = get (Command_buffer.create queue ()) in
-  let encoder = get (Render_encoder.create commands ~target:texture ()) in
+  let encoded_pass =
+    get (Render_pass_descriptor.create ~width:16 ~height:8 ())
+  in
+  let depth_stencil =
+    get
+      (Texture.create ~device
+         (Texture.descriptor_2d ~storage:Buffer.Private
+            ~usage:[ Texture.Render_target ]
+            ~format:Texture.Depth32_float_stencil8 ~width:16 ~height:8 ()))
+  in
+  let visibility =
+    get (Buffer.create ~device ~length:8L ~storage:Buffer.Shared ())
+  in
+  let short_visibility =
+    get (Buffer.create ~device ~length:4L ~storage:Buffer.Shared ())
+  in
+  expect Invalid_argument
+    (Render_pass_descriptor.set_attachments encoded_pass ~color:depth_stencil ());
+  expect Invalid_argument
+    (Render_pass_descriptor.set_attachments encoded_pass ~color:texture
+       ~visibility_result:short_visibility ());
+  get
+    (Render_pass_descriptor.set_attachments encoded_pass ~color:texture
+       ~depth:depth_stencil ~stencil:depth_stencil
+       ~visibility_result:visibility ~clear:(0., 0., 0., 1.) ());
+  (* Replacing an attachment retains the new graph before releasing the old
+     graph, including when both identities are the same. *)
+  get
+    (Render_pass_descriptor.set_attachments encoded_pass ~color:texture
+       ~depth:depth_stencil ~stencil:depth_stencil
+       ~visibility_result:visibility ~clear:(0.1, 0.2, 0.3, 1.) ());
+  (match Render_pass_descriptor.color_attachment encoded_pass with
+   | Some retained when retained == texture -> ()
+   | _ -> fail "render-pass color attachment snapshot drift");
+  expect Parent_has_dependents (Texture.destroy texture);
+  expect Parent_has_dependents (Texture.destroy depth_stencil);
+  expect Parent_has_dependents (Buffer.destroy visibility);
+  let before_rejection = get (Release_queue.stats ()) in
+  expect Invalid_argument
+    (Render_pass_descriptor.set_attachments encoded_pass ~color:texture
+       ~clear:(nan, 0., 0., 1.) ());
+  let after_rejection = get (Release_queue.stats ()) in
+  if before_rejection.live_handles <> after_rejection.live_handles
+     || before_rejection.total_created <> after_rejection.total_created then
+    fail "rejected render-pass mutation changed native handle counts";
+  let encoder = get (Render_encoder.create_from_pass commands encoded_pass) in
   get (Render_encoder.end_encoding encoder);
+  get (Render_pass_descriptor.destroy encoded_pass);
   expect Invalid_argument
     (Command_buffer.present commands drawable ~at:(Command_buffer.At_time nan) ());
   expect Invalid_argument
@@ -57,6 +103,9 @@ let () =
   if Atomic.get scheduled <> 1 || Atomic.get completed <> 1 then
     fail "command callback cardinality drift";
   get (Texture.destroy texture);
+  get (Texture.destroy depth_stencil);
+  get (Buffer.destroy visibility);
+  get (Buffer.destroy short_visibility);
   get (Drawable.destroy drawable);
   get (Command_buffer.destroy commands);
   (* Abandoning many uncommitted Metal command buffers makes AGX report context

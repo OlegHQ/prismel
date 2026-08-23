@@ -13556,6 +13556,85 @@ extern "C" CAMLprim value caml_prismel_metal_command_buffer_cancel_handler(value
 extern "C" CAMLprim value caml_prismel_metal_render_pass_descriptor_create(value unit){CAMLparam1(unit);CAMLlocal1(raw);@autoreleasepool{raw=allocate_handle([MTLRenderPassDescriptor renderPassDescriptor],Handle_kind::Render_pass_descriptor);}CAMLreturn(result_ok(raw));}
 extern "C" CAMLprim value caml_prismel_metal_render_pass_descriptor_set_sizes(value rp,value rw,value rh,value ra,value rs){CAMLparam5(rp,rw,rh,ra,rs);MTLRenderPassDescriptor*p=object_of_handle(rp,Handle_kind::Render_pass_descriptor);intnat w=Long_val(rw),h=Long_val(rh),a=Long_val(ra),s=Long_val(rs);if(w<=0||h<=0||a<=0||s<=0)CAMLreturn(result_error_text("invalid render pass sizes"));p.renderTargetWidth=w;p.renderTargetHeight=h;p.renderTargetArrayLength=a;p.defaultRasterSampleCount=s;CAMLreturn(result_unit());}
 
+extern "C" CAMLprim value caml_prismel_metal_render_pass_descriptor_set_attachments(
+    value rp,value rc,value rd,value rs,value rv,value rclear) {
+  CAMLparam5(rp,rc,rd,rs,rv); CAMLxparam1(rclear);
+  MTLRenderPassDescriptor *p=nil;
+  id<MTLTexture> old_color=nil,old_depth=nil,old_stencil=nil;
+  id<MTLBuffer> old_visibility=nil;
+  MTLLoadAction old_color_load=MTLLoadActionDontCare;
+  MTLStoreAction old_color_store=MTLStoreActionDontCare;
+  MTLClearColor old_clear=MTLClearColorMake(0,0,0,0);
+  MTLLoadAction old_depth_load=MTLLoadActionDontCare;
+  MTLStoreAction old_depth_store=MTLStoreActionDontCare;
+  double old_clear_depth=1.0;
+  MTLLoadAction old_stencil_load=MTLLoadActionDontCare;
+  MTLStoreAction old_stencil_store=MTLStoreActionDontCare;
+  uint32_t old_clear_stencil=0;
+  auto restore = [&]() {
+    if(!p)return;
+    p.colorAttachments[0].texture=old_color;
+    p.colorAttachments[0].loadAction=old_color_load;
+    p.colorAttachments[0].storeAction=old_color_store;
+    p.colorAttachments[0].clearColor=old_clear;
+    p.depthAttachment.texture=old_depth;
+    p.depthAttachment.loadAction=old_depth_load;
+    p.depthAttachment.storeAction=old_depth_store;
+    p.depthAttachment.clearDepth=old_clear_depth;
+    p.stencilAttachment.texture=old_stencil;
+    p.stencilAttachment.loadAction=old_stencil_load;
+    p.stencilAttachment.storeAction=old_stencil_store;
+    p.stencilAttachment.clearStencil=old_clear_stencil;
+    p.visibilityResultBuffer=old_visibility;
+  };
+  @try {
+    p=object_of_handle(rp,Handle_kind::Render_pass_descriptor);
+    old_color=p.colorAttachments[0].texture;
+    old_color_load=p.colorAttachments[0].loadAction;
+    old_color_store=p.colorAttachments[0].storeAction;
+    old_clear=p.colorAttachments[0].clearColor;
+    old_depth=p.depthAttachment.texture;
+    old_depth_load=p.depthAttachment.loadAction;
+    old_depth_store=p.depthAttachment.storeAction;
+    old_clear_depth=p.depthAttachment.clearDepth;
+    old_stencil=p.stencilAttachment.texture;
+    old_stencil_load=p.stencilAttachment.loadAction;
+    old_stencil_store=p.stencilAttachment.storeAction;
+    old_clear_stencil=p.stencilAttachment.clearStencil;
+    old_visibility=p.visibilityResultBuffer;
+    id<MTLTexture> color=object_of_handle(rc,Handle_kind::Texture);
+    id<MTLTexture> depth=optional_object(rd,Handle_kind::Texture);
+    id<MTLTexture> stencil=optional_object(rs,Handle_kind::Texture);
+    id<MTLBuffer> visibility=optional_object(rv,Handle_kind::Buffer);
+    p.colorAttachments[0].texture=color;
+    p.colorAttachments[0].loadAction=MTLLoadActionClear;
+    p.colorAttachments[0].storeAction=MTLStoreActionStore;
+    p.colorAttachments[0].clearColor=MTLClearColorMake(Double_val(Field(rclear,0)),Double_val(Field(rclear,1)),Double_val(Field(rclear,2)),Double_val(Field(rclear,3)));
+    p.depthAttachment.texture=depth;
+    if(depth){p.depthAttachment.loadAction=MTLLoadActionClear;p.depthAttachment.storeAction=MTLStoreActionStore;p.depthAttachment.clearDepth=1.0;}
+    p.stencilAttachment.texture=stencil;
+    if(stencil){p.stencilAttachment.loadAction=MTLLoadActionClear;p.stencilAttachment.storeAction=MTLStoreActionStore;p.stencilAttachment.clearStencil=0;}
+    p.visibilityResultBuffer=visibility;
+    if(p.colorAttachments[0].texture!=color || p.depthAttachment.texture!=depth ||
+       p.stencilAttachment.texture!=stencil || p.visibilityResultBuffer!=visibility){
+      restore();
+      CAMLreturn(result_error_text("render pass attachment round-trip mismatch"));
+    }
+    CAMLreturn(result_unit());
+  } @catch(NSException*x){restore();CAMLreturn(result_error(x.reason));}
+}
+extern "C" CAMLprim value caml_prismel_metal_render_pass_descriptor_set_attachments_bytecode(value *argv,int argc){(void)argc;return caml_prismel_metal_render_pass_descriptor_set_attachments(argv[0],argv[1],argv[2],argv[3],argv[4],argv[5]);}
+
+extern "C" CAMLprim value caml_prismel_metal_command_buffer_render_encoder_from_pass(value rb,value rp){
+  CAMLparam2(rb,rp); CAMLlocal1(raw); @try {
+    id<MTLCommandBuffer>b=object_of_handle(rb,Handle_kind::Command_buffer);
+    MTLRenderPassDescriptor*p=object_of_handle(rp,Handle_kind::Render_pass_descriptor);
+    id<MTLRenderCommandEncoder>e=[b renderCommandEncoderWithDescriptor:p];
+    if(!e)CAMLreturn(result_error_text("Metal failed to create render encoder from descriptor"));
+    raw=allocate_handle(e,Handle_kind::Render_encoder); CAMLreturn(result_ok(raw));
+  } @catch(NSException*x){CAMLreturn(result_error(x.reason));}
+}
+
 extern "C" CAMLprim value caml_prismel_metal_command_buffer_render_encoder_attachments(
     value raw_buffer,value raw_color,value raw_depth,value raw_stencil,value raw_clear) {
   CAMLparam5(raw_buffer,raw_color,raw_depth,raw_stencil,raw_clear); CAMLlocal1(raw);

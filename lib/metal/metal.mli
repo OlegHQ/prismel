@@ -771,6 +771,14 @@ module Render_pass_descriptor : sig
   val size : t -> int * int
   val array_length : t -> int
   val sample_count : t -> int
+  val set_attachments :
+    t -> color:Texture.t -> ?clear:float * float * float * float ->
+    ?depth:Texture.t -> ?stencil:Texture.t -> ?visibility_result:Buffer.t ->
+    unit -> (unit,error) result
+  val color_attachment : t -> Texture.t option
+  val depth_attachment : t -> Texture.t option
+  val stencil_attachment : t -> Texture.t option
+  val visibility_result_buffer : t -> Buffer.t option
   val destroyed : t -> bool
   val destroy : t -> (unit,error) result
 end
@@ -2467,6 +2475,8 @@ module Render_encoder : sig
     Command_buffer.t -> target:Texture.t ->
     ?clear:float * float * float * float -> ?depth:Texture.t ->
     ?stencil:Texture.t -> unit -> (t, error) result
+  val create_from_pass :
+    Command_buffer.t -> Render_pass_descriptor.t -> (t, error) result
   val set_pipeline : t -> Render_pipeline.t -> (unit, error) result
   val set_vertex_buffer :
     t -> index:int -> offset:int64 -> Buffer.t -> (unit, error) result

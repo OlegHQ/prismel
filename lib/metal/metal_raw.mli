@@ -1371,6 +1371,14 @@ external command_buffer_add_handler : handle -> (unit -> unit) -> bool -> (nativ
 external command_buffer_cancel_handler : nativeint -> unit = "caml_prismel_metal_command_buffer_cancel_handler"
 external render_pass_descriptor_create : unit -> (handle,string) result = "caml_prismel_metal_render_pass_descriptor_create"
 external render_pass_descriptor_set_sizes : handle -> int -> int -> int -> int -> (unit,string) result = "caml_prismel_metal_render_pass_descriptor_set_sizes"
+external render_pass_descriptor_set_attachments :
+  handle -> handle -> handle option -> handle option -> handle option ->
+  float * float * float * float -> (unit,string) result =
+  "caml_prismel_metal_render_pass_descriptor_set_attachments_bytecode"
+  "caml_prismel_metal_render_pass_descriptor_set_attachments"
+external command_buffer_render_encoder_from_pass :
+  handle -> handle -> (handle,string) result =
+  "caml_prismel_metal_command_buffer_render_encoder_from_pass"
 external render_encoder_memory_barrier_scope : handle -> int -> int -> int -> (unit,string) result = "caml_prismel_metal_render_encoder_memory_barrier_scope"
 external render_encoder_memory_barrier_resources : handle -> handle array -> int -> int -> (unit,string) result = "caml_prismel_metal_render_encoder_memory_barrier_resources"
 external render_encoder_update_fence : handle -> handle -> int -> (unit,string) result = "caml_prismel_metal_render_encoder_update_fence"

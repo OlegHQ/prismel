@@ -781,7 +781,11 @@ and metal_drawable =
 and render_pass_descriptor =
   { raw : Metal_raw.handle; lifetime : lifetime
   ; pass_width : int; pass_height : int
-  ; pass_array_length : int; pass_sample_count : int }
+  ; pass_array_length : int; pass_sample_count : int
+  ; mutable pass_color : texture option
+  ; mutable pass_depth : texture option
+  ; mutable pass_stencil : texture option
+  ; mutable pass_visibility : buffer option }
 
 and external_memory =
   { raw : Metal_raw.handle
@@ -5787,13 +5791,146 @@ module Drawable = struct
 end
 
 module Render_pass_descriptor = struct
-  type t=render_pass_descriptor
-  let create ~width ~height ?(array_length=1) ?(sample_count=1) ()=let operation="Metal.Render_pass_descriptor.create" in on_main operation(fun()->if width<=0||height<=0||array_length<=0||sample_count<=0 then error operation Invalid_argument "render pass sizes must be positive" else match Metal_raw.render_pass_descriptor_create()with Error m->native_error operation m|Ok raw->match Metal_raw.render_pass_descriptor_set_sizes raw width height array_length sample_count with Error m->ignore(Metal_raw.destroy raw);native_error operation m|Ok()->Ok({raw;lifetime=lifetime();pass_width=width;pass_height=height;pass_array_length=array_length;pass_sample_count=sample_count}:t))
-  let size (value:t)=value.pass_width,value.pass_height
-  let array_length (value:t)=value.pass_array_length
-  let sample_count (value:t)=value.pass_sample_count
-  let destroyed (value:t)=is_destroyed value.lifetime
-  let destroy (value:t)=destroy_parent "Metal.Render_pass_descriptor.destroy" value.lifetime value.raw(fun()->())
+  type t = render_pass_descriptor
+
+  let create ~width ~height ?(array_length = 1) ?(sample_count = 1) () =
+    let operation = "Metal.Render_pass_descriptor.create" in
+    on_main operation (fun () ->
+      if width <= 0 || height <= 0 || array_length <= 0 || sample_count <= 0
+      then error operation Invalid_argument "render pass sizes must be positive"
+      else
+        match Metal_raw.render_pass_descriptor_create () with
+        | Error message -> native_error operation message
+        | Ok raw ->
+            (match Metal_raw.render_pass_descriptor_set_sizes raw width height
+                     array_length sample_count with
+             | Error message ->
+                 ignore (Metal_raw.destroy raw);
+                 native_error operation message
+             | Ok () ->
+                 Ok
+                   { raw; lifetime = lifetime (); pass_width = width
+                   ; pass_height = height; pass_array_length = array_length
+                   ; pass_sample_count = sample_count; pass_color = None
+                   ; pass_depth = None; pass_stencil = None
+                   ; pass_visibility = None }))
+
+  let size (value : t) = value.pass_width, value.pass_height
+  let array_length (value : t) = value.pass_array_length
+  let sample_count (value : t) = value.pass_sample_count
+  let destroyed (value : t) = is_destroyed value.lifetime
+  let detach_option get = Option.iter (fun value -> detach (get value))
+
+  let depth_capable = function
+    | Texture.Depth16_unorm | Texture.Depth32_float
+    | Texture.Depth24_unorm_stencil8 | Texture.Depth32_float_stencil8 -> true
+    | _ -> false
+
+  let stencil_capable = function
+    | Texture.Stencil8 | Texture.Depth24_unorm_stencil8
+    | Texture.Depth32_float_stencil8 | Texture.X32_stencil8
+    | Texture.X24_stencil8 -> true
+    | _ -> false
+
+  let set_attachments (value : t) ~(color : texture)
+      ?(clear = (0., 0., 0., 1.)) ?(depth : texture option)
+      ?(stencil : texture option) ?(visibility_result : buffer option) () =
+    let operation = "Metal.Render_pass_descriptor.set_attachments" in
+    on_main operation (fun () ->
+      let textures = color :: List.filter_map Fun.id [ depth; stencil ] in
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when value.pass_array_length <> 1 ->
+          error operation Unsupported
+            "classic attachment configuration supports one render-target slice"
+      | Ok () ->
+          (match List.find_opt (fun (texture : texture) ->
+                     is_destroyed texture.lifetime) textures with
+           | Some _ -> error operation Destroyed "render pass attachment is destroyed"
+           | None ->
+               let device = color.device in
+               if List.exists (fun (texture : texture) ->
+                    not (same_device device texture.device)) textures then
+                 error operation Device_mismatch
+                   "render pass attachments belong to different devices"
+               else
+                 (match visibility_result with
+                  | Some buffer when is_destroyed buffer.lifetime ->
+                      error operation Destroyed "visibility buffer is destroyed"
+                  | Some buffer when not (same_device device buffer.device) ->
+                      error operation Device_mismatch
+                        "visibility buffer belongs to another device"
+                  | Some buffer when buffer.length < 8L ->
+                      error operation Invalid_argument
+                        "visibility buffer must contain at least eight bytes"
+                  | _ ->
+                      let compatible (texture : texture) =
+                        texture.descriptor.width = value.pass_width
+                        && texture.descriptor.height = value.pass_height
+                        && texture.descriptor.sample_count = value.pass_sample_count
+                        && List.mem Render_target texture.descriptor.usage
+                      in
+                      let r, g, b, a = clear in
+                      if not (compatible color) then
+                        error operation Invalid_argument
+                          "color attachment dimensions, samples, or usage are incompatible"
+                      else if depth_capable color.descriptor.format
+                              || stencil_capable color.descriptor.format then
+                        error operation Invalid_argument
+                          "color attachment uses a depth/stencil pixel format"
+                      else if option_exists (fun texture ->
+                                not (compatible texture)
+                                || not (depth_capable texture.descriptor.format)) depth
+                      then error operation Invalid_argument
+                          "depth attachment format or geometry is incompatible"
+                      else if option_exists (fun texture ->
+                                not (compatible texture)
+                                || not (stencil_capable texture.descriptor.format)) stencil
+                      then error operation Invalid_argument
+                          "stencil attachment format or geometry is incompatible"
+                      else if not (List.for_all Float.is_finite [ r; g; b; a ]) then
+                        error operation Invalid_argument "clear color must be finite"
+                      else
+                        match Metal_raw.render_pass_descriptor_set_attachments
+                                value.raw color.raw
+                                (Option.map (fun (texture : texture) -> texture.raw) depth)
+                                (Option.map (fun (texture : texture) -> texture.raw) stencil)
+                                (Option.map (fun (buffer : buffer) -> buffer.raw) visibility_result)
+                                clear with
+                        | Error message -> native_error operation message
+                        | Ok () ->
+                            Option.iter (fun (texture : texture) -> attach texture.lifetime)
+                              (Some color);
+                            Option.iter (fun (texture : texture) -> attach texture.lifetime) depth;
+                            Option.iter (fun (texture : texture) -> attach texture.lifetime) stencil;
+                            Option.iter (fun (buffer : buffer) -> attach buffer.lifetime)
+                              visibility_result;
+                            detach_option (fun (texture : texture) -> texture.lifetime)
+                              value.pass_color;
+                            detach_option (fun (texture : texture) -> texture.lifetime)
+                              value.pass_depth;
+                            detach_option (fun (texture : texture) -> texture.lifetime)
+                              value.pass_stencil;
+                            detach_option (fun (buffer : buffer) -> buffer.lifetime)
+                              value.pass_visibility;
+                            value.pass_color <- Some color;
+                            value.pass_depth <- depth;
+                            value.pass_stencil <- stencil;
+                            value.pass_visibility <- visibility_result;
+                            Ok ())))
+
+  let color_attachment (value : t) = value.pass_color
+  let depth_attachment (value : t) = value.pass_depth
+  let stencil_attachment (value : t) = value.pass_stencil
+  let visibility_result_buffer (value : t) = value.pass_visibility
+
+  let destroy (value : t) =
+    destroy_parent "Metal.Render_pass_descriptor.destroy" value.lifetime value.raw
+      (fun () ->
+        detach_option (fun (texture : texture) -> texture.lifetime) value.pass_color;
+        detach_option (fun (texture : texture) -> texture.lifetime) value.pass_depth;
+        detach_option (fun (texture : texture) -> texture.lifetime) value.pass_stencil;
+        detach_option (fun (buffer : buffer) -> buffer.lifetime) value.pass_visibility)
 end
 
 module Fence = struct
@@ -14282,6 +14419,50 @@ module Render_encoder = struct
                      Option.iter (retain_command_buffer_texture command_buffer) stencil;
                      attach_finalizer value value.lifetime command_buffer.lifetime;
                      Ok value)))
+
+  let create_from_pass (command_buffer : Command_buffer.t)
+      (pass : render_pass_descriptor) =
+    let operation = "Metal.Render_encoder.create_from_pass" in
+    on_main operation (fun () ->
+      match ensure_live operation command_buffer.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when command_buffer.phase <> Recording ->
+          error operation Invalid_state "command buffer is no longer recording"
+      | Ok () when dependent_count command_buffer.lifetime <> 0 ->
+          error operation Invalid_state "command buffer already has an open encoder"
+      | Ok () ->
+          (match ensure_live operation pass.lifetime with
+           | Error _ as failure -> failure
+           | Ok () ->
+               (match pass.pass_color with
+                | None ->
+                    error operation Invalid_state
+                      "render pass has no color attachment"
+                | Some target ->
+                    (match ensure_same_device operation
+                             command_buffer.queue.device target.device with
+                     | Error _ as failure -> failure
+                     | Ok () ->
+                         match Metal_raw.command_buffer_render_encoder_from_pass
+                                 command_buffer.raw pass.raw with
+                         | Error message -> native_error operation message
+                         | Ok raw ->
+                             let value : t =
+                               { raw; lifetime=lifetime (); command_buffer; target
+                               ; depth=pass.pass_depth; stencil=pass.pass_stencil
+                               ; pipeline=None }
+                             in
+                             attach command_buffer.lifetime;
+                             retain_command_buffer_texture command_buffer target;
+                             Option.iter (retain_command_buffer_texture command_buffer)
+                               pass.pass_depth;
+                             Option.iter (retain_command_buffer_texture command_buffer)
+                               pass.pass_stencil;
+                             Option.iter (retain_command_buffer_buffer command_buffer)
+                               pass.pass_visibility;
+                             attach_finalizer value value.lifetime
+                               command_buffer.lifetime;
+                             Ok value))))
 
   let destroyed (value : t) = is_destroyed value.lifetime
 
