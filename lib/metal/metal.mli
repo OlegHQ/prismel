@@ -2546,6 +2546,8 @@ module Render_encoder : sig
   val draw_indexed_basic : t -> primitive:primitive -> index_type:index_type -> index_buffer:Buffer.t -> index_offset:int64 -> index_count:int64 -> (unit,error) result
   val draw_indexed_instances : t -> primitive:primitive -> index_type:index_type -> index_buffer:Buffer.t -> index_offset:int64 -> index_count:int64 -> instances:int64 -> (unit,error) result
   val draw_indexed_indirect : t -> primitive:primitive -> index_type:index_type -> index_buffer:Buffer.t -> index_offset:int64 -> indirect_buffer:Buffer.t -> indirect_offset:int64 -> (unit,error) result
+  val draw_patches : t -> control_points:int64 -> patch_start:int64 -> patch_count:int64 -> patch_index_buffer:Buffer.t -> patch_index_offset:int64 -> ?instances:int64 -> ?base_instance:int64 -> unit -> (unit,error) result
+  val draw_patches_indirect : t -> control_points:int64 -> patch_index_buffer:Buffer.t -> patch_index_offset:int64 -> indirect_buffer:Buffer.t -> indirect_offset:int64 -> (unit,error) result
   val execute_indirect_commands : t -> Indirect_command_buffer.t -> location:int -> length:int -> (unit,error) result
   val execute_indirect_commands_indirect_range : t -> Indirect_command_buffer.t -> range_buffer:Buffer.t -> offset:int64 -> (unit,error) result
   val draw_triangles :

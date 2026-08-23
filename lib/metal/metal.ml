@@ -15103,6 +15103,35 @@ module Render_encoder = struct
       match Metal_raw.render_draw_indexed_indirect value.raw(primitive_code primitive)(index_type_code index_type)index_buffer.raw index_offset indirect_buffer.raw indirect_offset with
       | Error m->native_error operation m|Ok()->retain_command_buffer_buffer value.command_buffer index_buffer;retain_command_buffer_buffer value.command_buffer indirect_buffer;Ok())))
 
+  let draw_patches (value:t) ~control_points ~patch_start ~patch_count
+      ~(patch_index_buffer:Buffer.t) ~patch_index_offset ?(instances=1L)
+      ?(base_instance=0L) () =
+    let operation="Metal.Render_encoder.draw_patches" in
+    on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->
+      if Option.is_none value.pipeline then error operation Invalid_state "no render pipeline is bound"
+      else if control_points<=0L||patch_start<0L||patch_count<=0L||instances<=0L||base_instance<0L
+      then error operation Invalid_argument "patch counts and starts are invalid"
+      else if patch_index_offset<0L||Int64.rem patch_index_offset 4L<>0L
+      then error operation Invalid_argument "patch index offset must be 4-byte aligned"
+      else Result.bind(checked_product operation patch_count 4L)(fun required->
+      Result.bind(validate_draw_buffer operation value patch_index_buffer ~offset:patch_index_offset ~required)(fun()->
+      match Metal_raw.render_draw_patches value.raw control_points patch_start patch_count patch_index_buffer.raw patch_index_offset instances base_instance with
+      | Error m->native_error operation m|Ok()->retain_command_buffer_buffer value.command_buffer patch_index_buffer;Ok())))
+
+  let draw_patches_indirect (value:t) ~control_points
+      ~(patch_index_buffer:Buffer.t) ~patch_index_offset
+      ~(indirect_buffer:Buffer.t) ~indirect_offset =
+    let operation="Metal.Render_encoder.draw_patches_indirect" in
+    on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->
+      if Option.is_none value.pipeline then error operation Invalid_state "no render pipeline is bound"
+      else if control_points<=0L||patch_index_offset<0L||Int64.rem patch_index_offset 4L<>0L
+              ||indirect_offset<0L||Int64.rem indirect_offset 4L<>0L
+      then error operation Invalid_argument "patch arguments or offsets are invalid"
+      else Result.bind(validate_draw_buffer operation value patch_index_buffer ~offset:patch_index_offset ~required:0L)(fun()->
+      Result.bind(validate_draw_buffer operation value indirect_buffer ~offset:indirect_offset ~required:16L)(fun()->
+      match Metal_raw.render_draw_patches_indirect value.raw control_points patch_index_buffer.raw patch_index_offset indirect_buffer.raw indirect_offset with
+      | Error m->native_error operation m|Ok()->retain_command_buffer_buffer value.command_buffer patch_index_buffer;retain_command_buffer_buffer value.command_buffer indirect_buffer;Ok())))
+
   let pipeline_supports_icb operation (value : t) = match value.pipeline with None->error operation Invalid_state "no render pipeline is bound"|Some p->(match Metal_raw.generated_mtl_render_pipeline_state_support_indirect_command_buffers p.raw with Error m->native_error operation m|Ok b->Ok b)
   let execute_indirect_commands (value : t) (commands : indirect_command_buffer) ~location ~length = let operation="Metal.Render_encoder.execute_indirect_commands" in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match ensure_live operation commands.lifetime with Error _ as e->e|Ok()->Result.bind(ensure_same_device operation value.command_buffer.queue.device commands.device)(fun()->Result.bind(Indirect_command_buffer.validate_range operation commands ~location ~length)(fun()->Result.bind(pipeline_supports_icb operation value)(function false->error operation Unsupported "pipeline lacks indirect-command-buffer support"|true->match Metal_raw.render_encoder_execute_icb_range value.raw commands.raw location length with Error m->native_error operation m|Ok()->retain_command_buffer_indirect value.command_buffer commands;Ok()))))
   let execute_indirect_commands_indirect_range (value : t) (commands : indirect_command_buffer) ~(range_buffer : buffer) ~offset = let operation="Metal.Render_encoder.execute_indirect_commands_indirect_range" in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match ensure_live operation commands.lifetime with Error _ as e->e|Ok()->match ensure_buffer_usable operation range_buffer with Error _ as e->e|Ok() when offset<0L||Int64.rem offset 8L<>0L||offset>Int64.sub range_buffer.length 8L->error operation Invalid_argument "indirect range offset is invalid"|Ok()->Result.bind(ensure_same_device operation value.command_buffer.queue.device commands.device)(fun()->Result.bind(ensure_same_device operation value.command_buffer.queue.device range_buffer.device)(fun()->Result.bind(pipeline_supports_icb operation value)(function false->error operation Unsupported "pipeline lacks indirect-command-buffer support"|true->match Metal_raw.render_encoder_execute_icb_indirect_range value.raw commands.raw range_buffer.raw offset with Error m->native_error operation m|Ok()->retain_command_buffer_indirect value.command_buffer commands;retain_command_buffer_buffer value.command_buffer range_buffer;Ok()))))
