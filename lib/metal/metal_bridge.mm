@@ -9506,6 +9506,69 @@ caml_prismel_metal_command4_render_encoder_draw_primitives(
 }
 
 extern "C" CAMLprim value
+caml_prismel_metal_command4_render_encoder_draw_indexed_primitives(
+    value raw_encoder, value raw_buffer, value raw_tables,
+    value raw_index_buffer, value raw_draw) {
+  CAMLparam5(raw_encoder, raw_buffer, raw_tables, raw_index_buffer, raw_draw);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4RenderCommandEncoder> encoder =
+            object_of_handle(raw_encoder, Handle_kind::Render_encoder4);
+        PrismelMetal4CommandBufferState *command_buffer =
+            command_buffer4_state_of_handle(raw_buffer);
+        id<MTLBuffer> index_buffer =
+            object_of_handle(raw_index_buffer, Handle_kind::Buffer);
+        const intnat primitive = Long_val(Field(raw_draw, 0));
+        const intnat index_count = Long_val(Field(raw_draw, 1));
+        const intnat index_type = Long_val(Field(raw_draw, 2));
+        const std::int64_t signed_offset = Int64_val(Field(raw_draw, 3));
+        const NSUInteger stride = index_type == 0 ? 2 : 4;
+        if (encoder.commandBuffer != command_buffer.commandBuffer ||
+            index_buffer.device.registryID !=
+                command_buffer.commandBuffer.device.registryID ||
+            primitive < 0 || primitive > 4 || index_count <= 0 ||
+            index_type < 0 || index_type > 1 || signed_offset < 0 ||
+            static_cast<std::uint64_t>(signed_offset) > index_buffer.length ||
+            static_cast<std::uint64_t>(signed_offset) % stride != 0 ||
+            static_cast<NSUInteger>(index_count) >
+                std::numeric_limits<NSUInteger>::max() / stride) {
+          CAMLreturn(result_error_text(
+              "Metal 4 indexed-draw arguments are invalid"));
+        }
+        const NSUInteger offset = static_cast<NSUInteger>(signed_offset);
+        const NSUInteger index_length =
+            static_cast<NSUInteger>(index_count) * stride;
+        const MTLGPUAddress base_address = index_buffer.gpuAddress;
+        if (index_length > index_buffer.length - offset || base_address == 0 ||
+            static_cast<MTLGPUAddress>(offset) >
+                std::numeric_limits<MTLGPUAddress>::max() - base_address) {
+          CAMLreturn(result_error_text(
+              "Metal 4 indexed draw exceeds its checked buffer range"));
+        }
+        NSString *validation_failure = nil;
+        if (!retain_metal4_render_argument_tables(
+                raw_tables, command_buffer, &validation_failure)) {
+          CAMLreturn(result_error(validation_failure));
+        }
+        [command_buffer retainEncodedObject:index_buffer];
+        [encoder
+            drawIndexedPrimitives:static_cast<MTLPrimitiveType>(primitive)
+                       indexCount:static_cast<NSUInteger>(index_count)
+                        indexType:static_cast<MTLIndexType>(index_type)
+                      indexBuffer:base_address +
+                                  static_cast<MTLGPUAddress>(offset)
+                indexBufferLength:index_length];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("Metal 4 indexed draws require macOS 26"));
+  }
+}
+
+extern "C" CAMLprim value
 caml_prismel_metal_command4_render_encoder_draw_mesh_threadgroups(
     value raw_encoder, value raw_buffer, value raw_tables, value raw_draw) {
   CAMLparam4(raw_encoder, raw_buffer, raw_tables, raw_draw);

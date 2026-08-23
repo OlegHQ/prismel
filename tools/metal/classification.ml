@@ -67,6 +67,7 @@ let bound_identifiers =
   ; "enum:MTL4BinaryFunctionOptions"
   ; "enum:MTL4CompilerTaskStatus"
   ; "enum:MTLCommandBufferStatus"
+  ; "enum:MTLIndexType"
   ; "enum:MTLLoadAction"
   ; "enum:MTLPrimitiveType"
   ; "enum:MTLRenderStages"
@@ -306,6 +307,7 @@ let bound_identifiers =
           ] )
       ; ( "MTL4RenderCommandEncoder"
         , [ "dispatchThreadsPerTile:"
+          ; "drawIndexedPrimitives:indexCount:indexType:indexBuffer:indexBufferLength:"
           ; "drawMeshThreadgroups:threadsPerObjectThreadgroup:threadsPerMeshThreadgroup:"
           ; "drawPrimitives:vertexStart:vertexCount:"
           ; "setArgumentTable:atStages:"; "setRenderPipelineState:"
@@ -877,6 +879,8 @@ let bound_identifiers =
       ]
   @ enum_cases "MTLLoadAction"
       [ "MTLLoadActionClear"; "MTLLoadActionDontCare"; "MTLLoadActionLoad" ]
+  @ enum_cases "MTLIndexType"
+      [ "MTLIndexTypeUInt16"; "MTLIndexTypeUInt32" ]
   @ enum_cases "MTLPrimitiveType"
       [ "MTLPrimitiveTypeLine"; "MTLPrimitiveTypeLineStrip"
       ; "MTLPrimitiveTypePoint"; "MTLPrimitiveTypeTriangle"

@@ -589,6 +589,16 @@ its fragment tint from an ordinary OCaml-created shared buffer at argument-table
 slot 1; the pixel-exact green result therefore exercises the binding rather
 than a constant-color shader.
 
+`Command4.Render_encoder.draw_indexed_primitives` records direct 16- or 32-bit
+indexed draws for a bound conventional render pipeline. The OCaml boundary
+requires a positive index count, a nonnegative naturally aligned byte offset,
+an exact in-buffer byte span, and a live same-device index buffer; the native
+boundary repeats the range and GPU-address overflow checks before encoding.
+Each draw retains both its index buffer and the argument-table resource snapshot
+through commit feedback. The M1 conformance path executes both formats with
+nonzero aligned offsets into separate 8×8 targets and verifies exact blue and
+red BGRA pixels after completion.
+
 `Command4.Compute_encoder` binds a checked compute pipeline and an optional
 argument table, then dispatches positive direct grid/threadgroup dimensions
 whose threadgroup cardinality fits the compiled pipeline limit. Each dispatch
@@ -626,7 +636,7 @@ The M1 conformance path compiles an exact 32×32 full-tile pipeline, clears its
 argument-table slot immediately after dispatch, and verifies the retained shared
 buffer contains the tile shader's exact value `23` after commit feedback.
 
-Indexed/indirect draws, blend/depth/stencil
+Instanced and indirect draws, blend/depth/stencil
 policy, vertex descriptors, dynamic render linking, and positive offline
 `.metallib` provenance remain open.
 
@@ -652,6 +662,7 @@ tile stage/threadgroup rejection, asynchronous tile completion after
 source-library destruction, allocator/queue/buffer/submission lifecycle,
 argument-table buffer/texture/sampler ownership and render-stage snapshots, plus
 pixel-exact conventional Metal 4 offscreen render execution and exact
+16-/32-bit indexed execution with two nonzero-offset pixel-exact targets,
 argument-table-backed Metal 4 compute execution, direct and object-stage mesh
 command execution with two pixel-exact offscreen targets, and exact full-tile
 command execution through a completion-retained output buffer,

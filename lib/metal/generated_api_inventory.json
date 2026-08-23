@@ -2,11 +2,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 1443,
+    "bound": 1447,
     "scope-excluded": 7,
-    "unreviewed": 3835
+    "unreviewed": 3831
   },
-  "classification_source_sha256": "51812b5dcee91a96b89b8ba402796830385486418cea42f9c7a3a836f5507b1d",
+  "classification_source_sha256": "7746a4e834dd2046c6ebb58df5e278ac3e3ba8bdca42412e86309794b0c233d7",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "header_aggregate_sha256": "c2ee1e44c76606cf05fa81d1a8314dadfa49efe900342e8bcb3670363c16f0d1",
@@ -8485,26 +8485,26 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgument.h",
       "id": "enum-case:MTLIndexType:MTLIndexTypeUInt16",
       "kind": "enum-case",
       "line": 19,
       "name": "MTLIndexTypeUInt16",
       "owner": "MTLIndexType",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLIndexType"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgument.h",
       "id": "enum-case:MTLIndexType:MTLIndexTypeUInt32",
       "kind": "enum-case",
       "line": 20,
       "name": "MTLIndexTypeUInt32",
       "owner": "MTLIndexType",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLIndexType"
     },
     {
@@ -15194,14 +15194,14 @@
         "AvailabilityAttr",
         "EnumExtensibilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgument.h",
       "id": "enum:MTLIndexType",
       "kind": "enum",
       "line": 18,
       "name": "MTLIndexType",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -24504,14 +24504,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderCommandEncoder.h",
       "id": "method:-[MTL4RenderCommandEncoder drawIndexedPrimitives:indexCount:indexType:indexBuffer:indexBufferLength:]",
       "kind": "method",
       "line": 341,
       "name": "drawIndexedPrimitives:indexCount:indexType:indexBuffer:indexBufferLength:",
       "owner": "MTL4RenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLPrimitiveType, NSUInteger, MTLIndexType, MTLGPUAddress, NSUInteger) -> void"
     },
     {

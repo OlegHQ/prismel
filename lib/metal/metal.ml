@@ -9392,6 +9392,10 @@ module Command4 = struct
       | Triangle
       | Triangle_strip
 
+    type index_type =
+      | Uint16
+      | Uint32
+
     type stage =
       | Vertex
       | Fragment
@@ -9782,6 +9786,9 @@ module Command4 = struct
       | Triangle -> 3
       | Triangle_strip -> 4
 
+    let index_type_code = function Uint16 -> 0 | Uint32 -> 1
+    let index_stride = function Uint16 -> 2L | Uint32 -> 4L
+
     let current_argument_tables (value : t) =
       Array.fold_left
         (fun (tables : command4_argument_table list) -> function
@@ -9843,6 +9850,65 @@ module Command4 = struct
                  with
                  | Ok () -> Ok ()
                  | Error message -> native_error operation message))
+
+    let draw_indexed_primitives (value : t) primitive index_type
+        ~(index_buffer : Buffer.t) ~index_offset ~index_count =
+      let operation =
+        "Metal.Command4.Render_encoder.draw_indexed_primitives"
+      in
+      on_main operation (fun () ->
+        let ( let* ) result callback = Result.bind result callback in
+        let* () = ensure_live operation value.lifetime in
+        let* () =
+          match value.pipeline with
+          | None -> error operation Invalid_state "no render pipeline is bound"
+          | Some pipeline when pipeline.kind <> Render ->
+              error operation Invalid_state
+                "indexed draws require a conventional render pipeline"
+          | Some _ -> Ok ()
+        in
+        let* () = ensure_buffer_usable operation index_buffer in
+        let* () =
+          ensure_same_device operation value.command_buffer.allocator.device
+            index_buffer.device
+        in
+        let stride = index_stride index_type in
+        let count = Int64.of_int index_count in
+        let* index_length =
+          if index_count <= 0 then
+            error operation Invalid_argument "index count must be positive"
+          else if index_offset < 0L || Int64.rem index_offset stride <> 0L then
+            error operation Invalid_argument
+              "index-buffer offset is negative or misaligned"
+          else if count > Int64.div Int64.max_int stride then
+            error operation Invalid_argument "index-buffer byte span overflows"
+          else Ok (Int64.mul count stride)
+        in
+        let* () =
+          if index_offset > index_buffer.length
+             || index_length > Int64.sub index_buffer.length index_offset
+          then
+            error operation Invalid_argument
+              "indexed draw exceeds the index-buffer bounds"
+          else Ok ()
+        in
+        let tables = current_argument_tables value in
+        let* () = retain_argument_tables operation value tables in
+        retain_command4_buffer value.command_buffer index_buffer;
+        let raw_tables =
+          Array.of_list
+            (List.map
+               (fun (table : command4_argument_table) -> table.raw)
+               tables)
+        in
+        match
+          Metal_raw.command4_render_encoder_draw_indexed_primitives value.raw
+            value.command_buffer.raw raw_tables index_buffer.raw
+            ( primitive_code primitive, index_count
+            , index_type_code index_type, index_offset )
+        with
+        | Ok () -> Ok ()
+        | Error message -> native_error operation message)
 
     let validate_mesh_threadgroup operation ~stage ~size ~maximum ~required
         ~size_multiple ~execution_width =

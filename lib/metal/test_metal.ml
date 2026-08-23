@@ -4210,6 +4210,174 @@ let test_metal4_render_commands device =
     true
   end
 
+let test_metal4_indexed_commands device =
+  if not (get (Device.supports_family device Device.Metal4)) then false
+  else begin
+    let compiler = get (Compiler.create device) in
+    let library =
+      get
+        (Compiler.compile_source ~name:"metal4-command-indexed-library"
+           compiler render_shader_source)
+    in
+    let pipeline =
+      get
+        (Compiler.create_render_pipeline ~label:"Metal 4 executable indexed"
+           ~fragment:"prismel_fragment" compiler ~library
+           ~vertex:"prismel_fullscreen_vertex")
+    in
+    let make_target label =
+      get
+        (Texture.create ~device
+           (Texture.descriptor_2d ~storage:Buffer.Shared
+              ~usage:[ Texture.Render_target ] ~format:Texture.Bgra8_unorm
+              ~width:8 ~height:8 ~label ()))
+    in
+    let target16 = make_target "Metal 4 uint16 indexed target" in
+    let target32 = make_target "Metal 4 uint32 indexed target" in
+    let indices16_bytes = Bytes.make 8 '\000' in
+    Array.iteri
+      (fun index value ->
+        Bytes.set_uint16_le indices16_bytes (2 + (index * 2)) value)
+      [| 0; 1; 2 |];
+    let indices16 =
+      get (Buffer.create ~device ~length:8L ~storage:Buffer.Shared ())
+    in
+    get (Buffer.write_bytes indices16 ~dst_offset:0L indices16_bytes);
+    let indices32_bytes = Bytes.make 16 '\000' in
+    Array.iteri
+      (fun index value ->
+        Bytes.set_int32_le indices32_bytes (4 + (index * 4)) value)
+      [| 0l; 1l; 2l |];
+    let indices32 =
+      get (Buffer.create ~device ~length:16L ~storage:Buffer.Shared ())
+    in
+    get (Buffer.write_bytes indices32 ~dst_offset:0L indices32_bytes);
+    let blue_tint = shared_float_buffer device [| 0.; 0.; 1.; 1. |] in
+    let red_tint = shared_float_buffer device [| 1.; 0.; 0.; 1. |] in
+    let arguments =
+      get
+        (Command4.Argument_table.create ~label:"Metal 4 indexed arguments"
+           ~max_buffers:2 device ())
+    in
+    let allocator =
+      get (Command4.Allocator.create ~label:"Metal 4 indexed allocator" device)
+    in
+    let queue =
+      get (Command4.Queue.create ~label:"Metal 4 indexed queue" device)
+    in
+    let commands =
+      get
+        (Command4.Command_buffer.create allocator
+           ~label:"Metal 4 indexed commands" ())
+    in
+    let attachment texture =
+      Command4.Render_encoder.color_attachment texture
+    in
+    get (Command4.Argument_table.set_buffer arguments ~index:1 blue_tint);
+    let encoder16 =
+      get
+        (Command4.Render_encoder.create ~label:"Metal 4 uint16 encoder" commands
+           ~color_attachments:[ attachment target16 ])
+    in
+    ignore
+      (expect_error Invalid_state
+         (Command4.Render_encoder.draw_indexed_primitives encoder16
+            Command4.Render_encoder.Triangle Command4.Render_encoder.Uint16
+            ~index_buffer:indices16 ~index_offset:2L ~index_count:3));
+    get (Command4.Render_encoder.set_pipeline encoder16 pipeline);
+    get
+      (Command4.Render_encoder.set_argument_table encoder16
+         ~stages:[ Command4.Render_encoder.Fragment ] (Some arguments));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.draw_indexed_primitives encoder16
+            Command4.Render_encoder.Triangle Command4.Render_encoder.Uint16
+            ~index_buffer:indices16 ~index_offset:(-2L) ~index_count:3));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.draw_indexed_primitives encoder16
+            Command4.Render_encoder.Triangle Command4.Render_encoder.Uint16
+            ~index_buffer:indices16 ~index_offset:1L ~index_count:3));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.draw_indexed_primitives encoder16
+            Command4.Render_encoder.Triangle Command4.Render_encoder.Uint16
+            ~index_buffer:indices16 ~index_offset:2L ~index_count:0));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.draw_indexed_primitives encoder16
+            Command4.Render_encoder.Triangle Command4.Render_encoder.Uint16
+            ~index_buffer:indices16 ~index_offset:2L ~index_count:4));
+    get
+      (Command4.Render_encoder.draw_indexed_primitives encoder16
+         Command4.Render_encoder.Triangle Command4.Render_encoder.Uint16
+         ~index_buffer:indices16 ~index_offset:2L ~index_count:3);
+    get (Command4.Argument_table.clear_buffer arguments ~index:1);
+    get (Command4.Render_encoder.end_encoding encoder16);
+    get (Command4.Argument_table.set_buffer arguments ~index:1 red_tint);
+    let encoder32 =
+      get
+        (Command4.Render_encoder.create ~label:"Metal 4 uint32 encoder" commands
+           ~color_attachments:[ attachment target32 ])
+    in
+    get (Command4.Render_encoder.set_pipeline encoder32 pipeline);
+    get
+      (Command4.Render_encoder.set_argument_table encoder32
+         ~stages:[ Command4.Render_encoder.Fragment ] (Some arguments));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.draw_indexed_primitives encoder32
+            Command4.Render_encoder.Triangle Command4.Render_encoder.Uint32
+            ~index_buffer:indices32 ~index_offset:2L ~index_count:3));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.draw_indexed_primitives encoder32
+            Command4.Render_encoder.Triangle Command4.Render_encoder.Uint32
+            ~index_buffer:indices32 ~index_offset:4L ~index_count:4));
+    get
+      (Command4.Render_encoder.draw_indexed_primitives encoder32
+         Command4.Render_encoder.Triangle Command4.Render_encoder.Uint32
+         ~index_buffer:indices32 ~index_offset:4L ~index_count:3);
+    get (Command4.Argument_table.clear_buffer arguments ~index:1);
+    ignore (expect_error Parent_has_dependents (Buffer.destroy indices16));
+    ignore (expect_error Parent_has_dependents (Buffer.destroy indices32));
+    ignore (expect_error Parent_has_dependents (Buffer.destroy blue_tint));
+    ignore (expect_error Parent_has_dependents (Buffer.destroy red_tint));
+    get (Command4.Render_encoder.end_encoding encoder32);
+    get (Command4.Command_buffer.end_recording commands);
+    let submission = get (Command4.Queue.commit queue [ commands ]) in
+    ignore
+      (expect_error Parent_has_dependents (Render_pipeline.destroy pipeline));
+    get (Command4.Submission.wait submission);
+    let read_target texture =
+      get
+        (Texture.read_bytes texture
+           ~region:
+             { Texture.x = 0; y = 0; z = 0; width = 8; height = 8; depth = 1 }
+           ~mip_level:0 ~slice:0 ~bytes_per_row:32 ~bytes_per_image:256)
+    in
+    check_solid_bgra ~label:"Metal 4 uint16 indexed draw" ~blue:255 ~green:0
+      ~red:0 ~alpha:255 (read_target target16);
+    check_solid_bgra ~label:"Metal 4 uint32 indexed draw" ~blue:0 ~green:0
+      ~red:255 ~alpha:255 (read_target target32);
+    get (Render_pipeline.destroy pipeline);
+    get (Command4.Argument_table.destroy arguments);
+    List.iter
+      (fun buffer -> get (Buffer.destroy buffer))
+      [ indices16; indices32; blue_tint; red_tint ];
+    get (Texture.destroy target16);
+    get (Texture.destroy target32);
+    get (Command4.Submission.destroy submission);
+    get (Command4.Command_buffer.destroy commands);
+    get (Command4.Allocator.reset allocator);
+    get (Command4.Queue.destroy queue);
+    get (Command4.Allocator.destroy allocator);
+    get (Library.destroy library);
+    get (Compiler.destroy compiler);
+    Printf.printf "Metal 4 uint16/uint32 indexed-command conformance passed\n%!";
+    true
+  end
+
 let test_metal4_mesh_commands device =
   if
     not (get (Device.supports_family device Device.Metal4))
@@ -4660,6 +4828,7 @@ let () =
     test_pipeline_assets device;
     ignore (test_metal4_compiler device);
     ignore (test_metal4_render_commands device);
+    ignore (test_metal4_indexed_commands device);
     ignore (test_metal4_mesh_commands device);
     ignore (test_metal4_tile_commands device);
     ignore (test_metal4_compute_commands device);
@@ -6469,6 +6638,6 @@ let () =
         stats.external_deallocations
         stats.external_deallocation_mismatches;
     Printf.printf
-      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/compiler-task/pipeline-dataset/binary-function/static-link/reflection/compute/render/mesh/object/tile/command4-argument-table/compute/render/mesh/tile conformance passed on %s\n%!"
+      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/compiler-task/pipeline-dataset/binary-function/static-link/reflection/compute/render/mesh/object/tile/command4-argument-table/compute/render/indexed/mesh/tile conformance passed on %s\n%!"
       info.name
   end

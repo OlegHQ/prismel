@@ -1518,6 +1518,10 @@ module Command4 : sig
       | Triangle
       | Triangle_strip
 
+    type index_type =
+      | Uint16
+      | Uint32
+
     type stage =
       | Vertex
       | Fragment
@@ -1557,6 +1561,12 @@ module Command4 : sig
     val draw_primitives :
       t -> primitive -> vertex_start:int -> vertex_count:int ->
       (unit, error) result
+
+    (** Draws from a checked aligned byte range of [index_buffer]. The buffer
+        and current argument-table resources remain owned through completion. *)
+    val draw_indexed_primitives :
+      t -> primitive -> index_type -> index_buffer:Buffer.t ->
+      index_offset:int64 -> index_count:int -> (unit, error) result
 
     (** Dispatches a positive grid of mesh threadgroups. [object_threadgroup]
         is required exactly when the compiled pipeline has an object stage.
