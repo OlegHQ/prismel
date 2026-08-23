@@ -163,6 +163,93 @@ fragment float4 prismel_fragment(constant float4 &tint [[buffer(1)]]) {
 }
 |}
 
+let mesh_shader_source =
+  {|
+#include <metal_stdlib>
+using namespace metal;
+
+struct PrismelMeshVertex {
+  float4 position [[position]];
+  float4 color;
+};
+
+using PrismelTriangleMesh = metal::mesh<
+    PrismelMeshVertex,
+    void,
+    3,
+    1,
+    metal::topology::triangle>;
+
+struct PrismelMeshPayload {
+  float2 offset;
+};
+
+[[object]]
+void prismel_object(
+    object_data PrismelMeshPayload *payload [[payload]],
+    constant float2 &source_offset [[buffer(0)]],
+    uint thread_index [[thread_index_in_threadgroup]],
+    mesh_grid_properties grid) {
+  if (thread_index == 0) {
+    payload->offset = source_offset;
+    grid.set_threadgroups_per_grid(uint3(1, 1, 1));
+  }
+}
+
+[[mesh]]
+void prismel_mesh(
+    PrismelTriangleMesh output_mesh,
+    constant float2 &offset [[buffer(2)]],
+    uint thread_index [[thread_index_in_threadgroup]]) {
+  constexpr float2 positions[3] = {
+    float2(-1.0f, -1.0f),
+    float2(3.0f, -1.0f),
+    float2(-1.0f, 3.0f)
+  };
+  if (thread_index < 3) {
+    PrismelMeshVertex output_vertex;
+    output_vertex.position =
+        float4(positions[thread_index] + offset, 0.0f, 1.0f);
+    output_vertex.color = float4(0.2f, 0.4f, 0.8f, 1.0f);
+    output_mesh.set_vertex(thread_index, output_vertex);
+    output_mesh.set_index(thread_index, thread_index);
+  }
+  if (thread_index == 0) {
+    output_mesh.set_primitive_count(1);
+  }
+}
+
+[[mesh]]
+void prismel_object_mesh(
+    PrismelTriangleMesh output_mesh,
+    const object_data PrismelMeshPayload *payload [[payload]],
+    constant float4 &mesh_color [[buffer(1)]],
+    uint thread_index [[thread_index_in_threadgroup]]) {
+  constexpr float2 positions[3] = {
+    float2(-1.0f, -1.0f),
+    float2(3.0f, -1.0f),
+    float2(-1.0f, 3.0f)
+  };
+  if (thread_index < 3) {
+    PrismelMeshVertex output_vertex;
+    output_vertex.position =
+        float4(positions[thread_index] + payload->offset, 0.0f, 1.0f);
+    output_vertex.color = mesh_color;
+    output_mesh.set_vertex(thread_index, output_vertex);
+    output_mesh.set_index(thread_index, thread_index);
+  }
+  if (thread_index == 0) {
+    output_mesh.set_primitive_count(1);
+  }
+}
+
+fragment float4 prismel_mesh_fragment(
+    PrismelMeshVertex input [[stage_in]],
+    constant float4 &tint [[buffer(3)]]) {
+  return input.color * tint;
+}
+|}
+
 let uncaptured_visible_source =
   {|
 #include <metal_stdlib>
@@ -2647,6 +2734,247 @@ let test_metal4_compiler device =
           (expect_error Destroyed (Render_pipeline.label render_pipeline));
         get (Render_pipeline.destroy render_pipeline);
         get (Library.destroy render_library);
+        let mesh_library =
+          get
+            (Compiler.compile_source ~name:"metal4-mesh-library" compiler
+               mesh_shader_source)
+        in
+        let before_invalid_mesh = get (Release_queue.stats ()) in
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.create_mesh_pipeline ~fragment:"prismel_mesh_fragment"
+                compiler ~library:mesh_library ~mesh:"missing_mesh"));
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.create_mesh_pipeline
+                ~max_total_threads_per_object_threadgroup:1
+                ~fragment:"prismel_mesh_fragment" compiler
+                ~library:mesh_library ~mesh:"prismel_mesh"));
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.create_mesh_pipeline ~object_function:"prismel_object"
+                ~payload_memory_length:0 ~fragment:"prismel_mesh_fragment"
+                compiler ~library:mesh_library ~mesh:"prismel_object_mesh"));
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.create_mesh_pipeline ~object_function:"prismel_object"
+                ~payload_memory_length:16_385
+                ~fragment:"prismel_mesh_fragment" compiler
+                ~library:mesh_library ~mesh:"prismel_object_mesh"));
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.create_mesh_pipeline ~object_function:"prismel_object"
+                ~max_total_threadgroups_per_mesh_grid:0
+                ~fragment:"prismel_mesh_fragment" compiler
+                ~library:mesh_library ~mesh:"prismel_object_mesh"));
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.create_mesh_pipeline
+                ~max_total_threads_per_mesh_threadgroup:0
+                ~fragment:"prismel_mesh_fragment" compiler
+                ~library:mesh_library ~mesh:"prismel_mesh"));
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.create_mesh_pipeline
+                ~required_threads_per_mesh_threadgroup:(3, 0, 1)
+                ~fragment:"prismel_mesh_fragment" compiler
+                ~library:mesh_library ~mesh:"prismel_mesh"));
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.create_mesh_pipeline
+                ~max_total_threads_per_mesh_threadgroup:4
+                ~required_threads_per_mesh_threadgroup:(3, 1, 1)
+                ~fragment:"prismel_mesh_fragment" compiler
+                ~library:mesh_library ~mesh:"prismel_mesh"));
+        ignore
+          (expect_error Native_error
+             (Compiler.create_mesh_pipeline ~fragment:"prismel_mesh_fragment"
+                compiler ~library:mesh_library
+                ~mesh:"prismel_mesh_fragment"));
+        ignore
+          (expect_error Native_error
+             (Compiler.create_mesh_pipeline ~fragment:"prismel_mesh" compiler
+                ~library:mesh_library ~mesh:"prismel_mesh"));
+        ignore
+          (expect_error Native_error
+             (Compiler.create_mesh_pipeline ~object_function:"prismel_mesh"
+                ~fragment:"prismel_mesh_fragment" compiler
+                ~library:mesh_library ~mesh:"prismel_object_mesh"));
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.create_mesh_pipeline_async
+                ~fragment:"prismel_mesh_fragment" compiler
+                ~library:mesh_library ~mesh:"missing_mesh"));
+        if not (get (Device.supports_family device Device.Apple9)) then
+          ignore
+            (expect_error Unsupported
+               (Compiler.create_mesh_pipeline
+                  ~support_indirect_command_buffers:true
+                  ~fragment:"prismel_mesh_fragment" compiler
+                  ~library:mesh_library ~mesh:"prismel_mesh"));
+        let after_invalid_mesh = get (Release_queue.stats ()) in
+        if after_invalid_mesh.total_created
+           <> before_invalid_mesh.total_created
+        then fail "invalid Metal 4 mesh inputs allocated native handles";
+        let mesh_pipeline =
+          get
+            (Compiler.create_mesh_pipeline ~label:"metal4 reflected mesh"
+               ~fragment:"prismel_mesh_fragment" ~reflection:true
+               ~max_total_threads_per_mesh_threadgroup:3
+               ~required_threads_per_mesh_threadgroup:(3, 1, 1) compiler
+               ~library:mesh_library ~mesh:"prismel_mesh")
+        in
+        if get (Render_pipeline.label mesh_pipeline)
+           <> Some "metal4 reflected mesh"
+           || Render_pipeline.kind mesh_pipeline <> Render_pipeline.Mesh
+        then fail "Metal 4 mesh-pipeline metadata is wrong";
+        (match Render_pipeline.reflection mesh_pipeline with
+         | Some reflection ->
+             get
+               (Binding.validate_layout reflection.mesh
+                  ~expected:
+                    [ { name = "offset"
+                      ; index = 2L
+                      ; access = Binding.Read_only
+                      ; kind = Binding.Buffer_layout
+                      ; data_type =
+                          Some (Shader_type.Vector (Shader_type.Float, 2))
+                      }
+                    ]);
+             get
+               (Binding.validate_layout reflection.fragment
+                  ~expected:
+                    [ { name = "tint"
+                      ; index = 3L
+                      ; access = Binding.Read_only
+                      ; kind = Binding.Buffer_layout
+                      ; data_type =
+                          Some (Shader_type.Vector (Shader_type.Float, 4))
+                      }
+                    ]);
+             if reflection.vertex <> [] || reflection.tile <> []
+                || reflection.object_ <> []
+             then
+               fail
+                 "Metal 4 mesh reflection populated an unrelated stage"
+         | None -> fail "Metal 4 mesh reflection is missing");
+        let object_mesh_pipeline =
+          get
+            (Compiler.create_mesh_pipeline
+               ~label:"metal4 reflected object mesh"
+               ~object_function:"prismel_object"
+               ~fragment:"prismel_mesh_fragment" ~reflection:true
+               ~max_total_threads_per_object_threadgroup:1
+               ~max_total_threads_per_mesh_threadgroup:3
+               ~required_threads_per_object_threadgroup:(1, 1, 1)
+               ~required_threads_per_mesh_threadgroup:(3, 1, 1)
+               ~payload_memory_length:8
+               ~max_total_threadgroups_per_mesh_grid:1 compiler
+               ~library:mesh_library ~mesh:"prismel_object_mesh")
+        in
+        (match Render_pipeline.reflection object_mesh_pipeline with
+         | Some reflection ->
+             get
+               (Binding.validate_layout reflection.object_
+                  ~expected:
+                    [ { name = "payload"
+                      ; index = 4_294_967_295L
+                      ; access = Binding.Read_write
+                      ; kind = Binding.Object_payload_layout
+                      ; data_type = None
+                      }
+                    ; { name = "source_offset"
+                      ; index = 0L
+                      ; access = Binding.Read_only
+                      ; kind = Binding.Buffer_layout
+                      ; data_type =
+                          Some (Shader_type.Vector (Shader_type.Float, 2))
+                      }
+                    ]);
+             get
+               (Binding.validate_layout reflection.mesh
+                  ~expected:
+                    [ { name = "payload"
+                      ; index = 4_294_967_295L
+                      ; access = Binding.Read_only
+                      ; kind = Binding.Object_payload_layout
+                      ; data_type = None
+                      }
+                    ; { name = "mesh_color"
+                      ; index = 1L
+                      ; access = Binding.Read_only
+                      ; kind = Binding.Buffer_layout
+                      ; data_type =
+                          Some (Shader_type.Vector (Shader_type.Float, 4))
+                      }
+                    ]);
+             let payload_size_is_exact bindings =
+               List.exists
+                 (fun (binding : Binding.t) ->
+                   binding.name = "payload"
+                   &&
+                   match binding.kind with
+                   | Binding.Object_payload_binding payload ->
+                       payload.alignment = 8L && payload.data_size = 8L
+                   | _ -> false)
+                 bindings
+             in
+             if not (payload_size_is_exact reflection.object_)
+                || not (payload_size_is_exact reflection.mesh)
+             then fail "Metal 4 object payload reflection size is wrong";
+             if reflection.vertex <> [] || reflection.tile <> [] then
+               fail
+                 "Metal 4 object-mesh reflection populated an unrelated stage"
+         | None -> fail "Metal 4 object-mesh reflection is missing");
+        get (Render_pipeline.destroy object_mesh_pipeline);
+        let nonraster_mesh =
+          get
+            (Compiler.create_mesh_pipeline ~rasterization_enabled:false
+               ~color_formats:[] compiler ~library:mesh_library
+               ~mesh:"prismel_mesh")
+        in
+        get (Render_pipeline.destroy nonraster_mesh);
+        let async_mesh_library =
+          get
+            (Compiler.compile_source ~name:"async-mesh-source" compiler
+               mesh_shader_source)
+        in
+        let async_mesh_task =
+          get
+            (Compiler.create_mesh_pipeline_async
+               ~label:"async reflected mesh"
+               ~fragment:"prismel_mesh_fragment" ~reflection:true
+               ~max_total_threads_per_mesh_threadgroup:3
+               ~required_threads_per_mesh_threadgroup:(3, 1, 1) compiler
+               ~library:async_mesh_library ~mesh:"prismel_mesh")
+        in
+        let async_mesh_id = Compiler_task.id async_mesh_task in
+        get (Library.destroy async_mesh_library);
+        get (Compiler_task.wait async_mesh_task);
+        if
+          not
+            (List.mem async_mesh_id
+               (get (Compiler_task.drain_completions ())))
+        then fail "async mesh-pipeline completion ID was not drained";
+        let async_mesh_pipeline =
+          match get (Compiler_task.poll async_mesh_task) with
+          | Compiler_task.Complete (Ok pipeline) -> pipeline
+          | Compiler_task.Complete (Error error) ->
+              fail "async mesh-pipeline compilation failed: %s"
+                (Format.asprintf "%a" pp_error error)
+          | Compiler_task.Pending ->
+              fail "waited async mesh-pipeline compilation remained pending"
+        in
+        if get (Render_pipeline.label async_mesh_pipeline)
+           <> Some "async reflected mesh"
+           || Render_pipeline.kind async_mesh_pipeline
+              <> Render_pipeline.Mesh
+           || Option.is_none (Render_pipeline.reflection async_mesh_pipeline)
+        then fail "async Metal 4 mesh-pipeline metadata is wrong";
+        get (Render_pipeline.destroy async_mesh_pipeline);
+        get (Compiler_task.destroy async_mesh_task);
+        get (Render_pipeline.destroy mesh_pipeline);
+        get (Library.destroy mesh_library);
         let before_invalid_dynamic = get (Release_queue.stats ()) in
         ignore
           (expect_error Invalid_argument
@@ -5109,6 +5437,6 @@ let () =
         stats.external_deallocations
         stats.external_deallocation_mismatches;
     Printf.printf
-      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/compiler-task/pipeline-dataset/binary-function/static-link/reflection/compute/render conformance passed on %s\n%!"
+      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/compiler-task/pipeline-dataset/binary-function/static-link/reflection/compute/render/mesh/object conformance passed on %s\n%!"
       info.name
   end

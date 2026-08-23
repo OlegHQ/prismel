@@ -120,6 +120,32 @@ type metal4_render_descriptor =
   ; lookup_archives : handle array
   }
 
+type metal4_mesh_descriptor =
+  { label : string option
+  ; library : handle
+  ; object_function : string option
+  ; mesh_function : string
+  ; fragment_function : string option
+  ; reflection : bool
+  ; max_total_object_threads : int64
+  ; max_total_mesh_threads : int64
+  ; required_object_width : int64
+  ; required_object_height : int64
+  ; required_object_depth : int64
+  ; required_mesh_width : int64
+  ; required_mesh_height : int64
+  ; required_mesh_depth : int64
+  ; object_threadgroup_size_multiple : bool
+  ; mesh_threadgroup_size_multiple : bool
+  ; payload_memory_length : int64
+  ; max_total_threadgroups_per_mesh_grid : int64
+  ; raster_sample_count : int64
+  ; color_formats : int array
+  ; rasterization_enabled : bool
+  ; support_indirect_commands : bool
+  ; lookup_archives : handle array
+  }
+
 (** Positional native ABI record for a Metal 4 binary-function lookup or
     compilation. *)
 type metal4_binary_function_descriptor =
@@ -694,6 +720,15 @@ external compiler_create_render_pipeline :
 external compiler_create_render_pipeline_async :
   handle -> metal4_render_descriptor -> (handle, string) result =
   "caml_prismel_metal_compiler_create_render_pipeline_async"
+
+external compiler_create_mesh_pipeline :
+  handle -> metal4_mesh_descriptor ->
+  ((handle * render_pipeline_reflection), string) result =
+  "caml_prismel_metal_compiler_create_mesh_pipeline"
+
+external compiler_create_mesh_pipeline_async :
+  handle -> metal4_mesh_descriptor -> (handle, string) result =
+  "caml_prismel_metal_compiler_create_mesh_pipeline_async"
 
 external compiler_task_take_render_pipeline :
   handle ->

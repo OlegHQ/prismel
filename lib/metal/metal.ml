@@ -7799,6 +7799,50 @@ module Compiler = struct
       ?static_linking ~binary_linked_functions ~preloaded_libraries
       ?max_call_stack_depth ~lookup_archives value ~library function_name
 
+  let validate_pipeline_entry operation (library : Library.t) ~stage name =
+    if name = "" || contains_nul name then
+      error operation Invalid_argument
+        (stage ^ " function name must be nonempty and contain no NUL byte")
+    else if
+      not
+        (Array.exists (String.equal name)
+           (Metal_raw.library_function_names library.raw))
+    then
+      error operation Invalid_argument
+        (stage ^ " function is absent from the source library")
+    else Ok ()
+
+  let validate_optional_pipeline_entry operation library ~stage = function
+    | None -> Ok ()
+    | Some name -> validate_pipeline_entry operation library ~stage name
+
+  let validate_render_target operation (device : Device.t) ~has_fragment
+      ~raster_sample_count ~color_formats ~rasterization_enabled =
+    if rasterization_enabled <> has_fragment then
+      error operation Invalid_argument
+        "rasterization requires exactly one fragment function"
+    else if
+      (rasterization_enabled && color_formats = [])
+      || ((not rasterization_enabled) && color_formats <> [])
+      || List.length color_formats > 8
+    then
+      error operation Invalid_argument
+        "render color attachments must match rasterization and not exceed eight"
+    else if raster_sample_count <= 0 then
+      error operation Invalid_argument
+        "render raster sample count must be positive"
+    else if
+      not
+        (Metal_raw.device_supports_texture_sample_count device.raw
+           raster_sample_count)
+    then
+      error operation Unsupported
+        "the Metal device does not support the render sample count"
+    else
+      Ok
+        ( Int64.of_int raster_sample_count
+        , Array.of_list (List.map Metal_format.code color_formats) )
+
   let with_render_descriptor operation callback ?label ?fragment
       ?(reflection = false) ?(raster_sample_count = 1)
       ?(color_formats = [ Texture.Bgra8_unorm ])
@@ -7811,77 +7855,43 @@ module Compiler = struct
       let* () = ensure_live operation value.lifetime in
       let* () = ensure_live operation library.lifetime in
       let* () = ensure_same_device operation value.device library.device in
-      if vertex = "" || contains_nul vertex then
-        error operation Invalid_argument
-          "vertex function name must be nonempty and contain no NUL byte"
-      else if
-        option_exists
-          (fun name -> name = "" || contains_nul name)
+      let* () = validate_pipeline_entry operation library ~stage:"vertex" vertex in
+      let* () =
+        validate_optional_pipeline_entry operation library ~stage:"fragment"
           fragment
-      then
-        error operation Invalid_argument
-          "fragment function name must be nonempty and contain no NUL byte"
-      else if option_exists contains_nul label then
+      in
+      if option_exists contains_nul label then
         error operation Invalid_argument
           "render-pipeline label contains a NUL byte"
       else
-        let function_names = Metal_raw.library_function_names library.raw in
-        if not (Array.exists (String.equal vertex) function_names) then
-          error operation Invalid_argument
-            "vertex function is absent from the source library"
-        else if
-          option_exists
-            (fun name ->
-              not (Array.exists (String.equal name) function_names))
-            fragment
-        then
-          error operation Invalid_argument
-            "fragment function is absent from the source library"
-        else if rasterization_enabled <> Option.is_some fragment then
-          error operation Invalid_argument
-            "rasterization requires exactly one fragment function"
-        else if
-          (rasterization_enabled && color_formats = [])
-          || ((not rasterization_enabled) && color_formats <> [])
-          || List.length color_formats > 8
-        then
-          error operation Invalid_argument
-            "render color attachments must match rasterization and not exceed eight"
-        else if raster_sample_count <= 0 then
-          error operation Invalid_argument
-            "render raster sample count must be positive"
-        else if
-          not
-            (Metal_raw.device_supports_texture_sample_count value.device.raw
-               raster_sample_count)
-        then
-          error operation Unsupported
-            "the Metal device does not support the render sample count"
-        else
-          let* () =
-            validate_pipeline_archives operation value.device lookup_archives
-          in
-          let descriptor : Metal_raw.metal4_render_descriptor =
-            { label
-            ; library = library.raw
-            ; vertex_function = vertex
-            ; fragment_function = fragment
-            ; reflection
-            ; raster_sample_count = Int64.of_int raster_sample_count
-            ; color_formats =
-                Array.of_list (List.map Metal_format.code color_formats)
-            ; rasterization_enabled
-            ; primitive_topology =
-                Render_pipeline.topology_code primitive_topology
-            ; support_indirect_commands = support_indirect_command_buffers
-            ; lookup_archives =
-                Array.of_list
-                  (List.map
-                     (fun (archive : Pipeline_archive.t) -> archive.raw)
-                     lookup_archives)
-            }
-          in
-          callback reflection descriptor)
+        let* raster_sample_count, color_formats =
+          validate_render_target operation value.device
+            ~has_fragment:(Option.is_some fragment) ~raster_sample_count
+            ~color_formats ~rasterization_enabled
+        in
+        let* () =
+          validate_pipeline_archives operation value.device lookup_archives
+        in
+        let descriptor : Metal_raw.metal4_render_descriptor =
+          { label
+          ; library = library.raw
+          ; vertex_function = vertex
+          ; fragment_function = fragment
+          ; reflection
+          ; raster_sample_count
+          ; color_formats
+          ; rasterization_enabled
+          ; primitive_topology =
+              Render_pipeline.topology_code primitive_topology
+          ; support_indirect_commands = support_indirect_command_buffers
+          ; lookup_archives =
+              Array.of_list
+                (List.map
+                   (fun (archive : Pipeline_archive.t) -> archive.raw)
+                   lookup_archives)
+          }
+        in
+        callback reflection descriptor)
 
   let create_render_pipeline ?label ?fragment ?(reflection = false)
       ?(raster_sample_count = 1)
@@ -7931,6 +7941,231 @@ module Compiler = struct
       ~rasterization_enabled ~primitive_topology
       ~support_indirect_command_buffers ~lookup_archives value ~library
       ~vertex
+
+  let validate_threadgroup_constraint operation ~stage ~maximum ~required =
+    let maximum =
+      match maximum with
+      | None -> Ok 0L
+      | Some count when count <= 0 ->
+          error operation Invalid_argument
+            (stage ^ " maximum total threads must be positive")
+      | Some count -> Ok (Int64.of_int count)
+    in
+    let ( let* ) result callback = Result.bind result callback in
+    let* maximum = maximum in
+    match required with
+    | None -> Ok (maximum, 0L, 0L, 0L)
+    | Some (width, height, depth)
+      when width <= 0 || height <= 0 || depth <= 0 ->
+        error operation Invalid_argument
+          (stage ^ " required threadgroup dimensions must be positive")
+    | Some (width, height, depth) ->
+        (match product3 width height depth with
+         | None ->
+             error operation Invalid_argument
+               (stage ^ " required threadgroup cardinality overflows an OCaml integer")
+         | Some product
+           when maximum <> 0L && Int64.of_int product <> maximum ->
+             error operation Invalid_argument
+               (stage ^ " maximum threads must equal required threadgroup cardinality")
+         | Some _ ->
+             Ok
+               ( maximum
+               , Int64.of_int width
+               , Int64.of_int height
+               , Int64.of_int depth ))
+
+  let with_mesh_descriptor operation callback ?label ?object_function
+      ?fragment ?(reflection = false)
+      ?max_total_threads_per_object_threadgroup
+      ?max_total_threads_per_mesh_threadgroup
+      ?required_threads_per_object_threadgroup
+      ?required_threads_per_mesh_threadgroup
+      ?(object_threadgroup_size_multiple = false)
+      ?(mesh_threadgroup_size_multiple = false) ?payload_memory_length
+      ?max_total_threadgroups_per_mesh_grid ?(raster_sample_count = 1)
+      ?(color_formats = [ Texture.Bgra8_unorm ])
+      ?(rasterization_enabled = true)
+      ?(support_indirect_command_buffers = false) ?(lookup_archives = [])
+      (value : t) ~(library : Library.t) ~mesh =
+    on_main operation (fun () ->
+      let ( let* ) result callback = Result.bind result callback in
+      let* () = ensure_live operation value.lifetime in
+      let* () = ensure_live operation library.lifetime in
+      let* () = ensure_same_device operation value.device library.device in
+      let* () = validate_pipeline_entry operation library ~stage:"mesh" mesh in
+      let* () =
+        validate_optional_pipeline_entry operation library ~stage:"object"
+          object_function
+      in
+      let* () =
+        validate_optional_pipeline_entry operation library ~stage:"fragment"
+          fragment
+      in
+      if option_exists contains_nul label then
+        error operation Invalid_argument
+          "mesh-pipeline label contains a NUL byte"
+      else if
+        not
+          (Metal_raw.device_supports_family value.device.raw
+             (Device.family_code Device.Apple7)
+           || Metal_raw.device_supports_family value.device.raw
+                (Device.family_code Device.Mac2))
+      then
+        error operation Unsupported
+          "mesh shading requires an Apple7-or-newer or Mac2 GPU"
+      else if
+        Option.is_none object_function
+        && (Option.is_some max_total_threads_per_object_threadgroup
+            || Option.is_some required_threads_per_object_threadgroup
+            || object_threadgroup_size_multiple
+            || Option.is_some payload_memory_length
+            || Option.is_some max_total_threadgroups_per_mesh_grid)
+      then
+        error operation Invalid_argument
+          "object-stage configuration requires an object function"
+      else if
+        support_indirect_command_buffers
+        && not
+             (Metal_raw.device_supports_family value.device.raw
+                (Device.family_code Device.Apple9))
+      then
+        error operation Unsupported
+          "indirect mesh draws require an Apple9/M3-or-newer GPU"
+      else
+        let* max_object, object_width, object_height, object_depth =
+          validate_threadgroup_constraint operation ~stage:"object"
+            ~maximum:max_total_threads_per_object_threadgroup
+            ~required:required_threads_per_object_threadgroup
+        in
+        let* max_mesh, mesh_width, mesh_height, mesh_depth =
+          validate_threadgroup_constraint operation ~stage:"mesh"
+            ~maximum:max_total_threads_per_mesh_threadgroup
+            ~required:required_threads_per_mesh_threadgroup
+        in
+        let* payload_memory_length =
+          match payload_memory_length with
+          | None -> Ok 0L
+          | Some length when length <= 0 || length > 16_384 ->
+              error operation Invalid_argument
+                "mesh payload length must be between 1 and 16384 bytes"
+          | Some length -> Ok (Int64.of_int length)
+        in
+        let* max_total_threadgroups_per_mesh_grid =
+          match max_total_threadgroups_per_mesh_grid with
+          | None -> Ok 0L
+          | Some count when count <= 0 ->
+              error operation Invalid_argument
+                "maximum mesh-grid threadgroups must be positive"
+          | Some count -> Ok (Int64.of_int count)
+        in
+        let* raster_sample_count, color_formats =
+          validate_render_target operation value.device
+            ~has_fragment:(Option.is_some fragment) ~raster_sample_count
+            ~color_formats ~rasterization_enabled
+        in
+        let* () =
+          validate_pipeline_archives operation value.device lookup_archives
+        in
+        let descriptor : Metal_raw.metal4_mesh_descriptor =
+          { label
+          ; library = library.raw
+          ; object_function
+          ; mesh_function = mesh
+          ; fragment_function = fragment
+          ; reflection
+          ; max_total_object_threads = max_object
+          ; max_total_mesh_threads = max_mesh
+          ; required_object_width = object_width
+          ; required_object_height = object_height
+          ; required_object_depth = object_depth
+          ; required_mesh_width = mesh_width
+          ; required_mesh_height = mesh_height
+          ; required_mesh_depth = mesh_depth
+          ; object_threadgroup_size_multiple
+          ; mesh_threadgroup_size_multiple
+          ; payload_memory_length
+          ; max_total_threadgroups_per_mesh_grid
+          ; raster_sample_count
+          ; color_formats
+          ; rasterization_enabled
+          ; support_indirect_commands = support_indirect_command_buffers
+          ; lookup_archives =
+              Array.of_list
+                (List.map
+                   (fun (archive : Pipeline_archive.t) -> archive.raw)
+                   lookup_archives)
+          }
+        in
+        callback reflection descriptor)
+
+  let create_mesh_pipeline ?label ?object_function ?fragment
+      ?(reflection = false) ?max_total_threads_per_object_threadgroup
+      ?max_total_threads_per_mesh_threadgroup
+      ?required_threads_per_object_threadgroup
+      ?required_threads_per_mesh_threadgroup
+      ?(object_threadgroup_size_multiple = false)
+      ?(mesh_threadgroup_size_multiple = false) ?payload_memory_length
+      ?max_total_threadgroups_per_mesh_grid ?(raster_sample_count = 1)
+      ?(color_formats = [ Texture.Bgra8_unorm ])
+      ?(rasterization_enabled = true)
+      ?(support_indirect_command_buffers = false) ?(lookup_archives = [])
+      (value : t) ~(library : Library.t) ~mesh =
+    let operation = "Metal.Compiler.create_mesh_pipeline" in
+    with_mesh_descriptor operation
+      (fun reflection descriptor ->
+        match Metal_raw.compiler_create_mesh_pipeline value.raw descriptor with
+        | Error message -> native_error operation message
+        | Ok (raw, raw_reflection) ->
+            Ok
+              (Render_pipeline.make value.device ~kind:Render_pipeline.Mesh
+                 ~reflection raw raw_reflection))
+      ?label ?object_function ?fragment ~reflection
+      ?max_total_threads_per_object_threadgroup
+      ?max_total_threads_per_mesh_threadgroup
+      ?required_threads_per_object_threadgroup
+      ?required_threads_per_mesh_threadgroup
+      ~object_threadgroup_size_multiple ~mesh_threadgroup_size_multiple
+      ?payload_memory_length ?max_total_threadgroups_per_mesh_grid
+      ~raster_sample_count ~color_formats ~rasterization_enabled
+      ~support_indirect_command_buffers ~lookup_archives value ~library ~mesh
+
+  let create_mesh_pipeline_async ?label ?object_function ?fragment
+      ?(reflection = false) ?max_total_threads_per_object_threadgroup
+      ?max_total_threads_per_mesh_threadgroup
+      ?required_threads_per_object_threadgroup
+      ?required_threads_per_mesh_threadgroup
+      ?(object_threadgroup_size_multiple = false)
+      ?(mesh_threadgroup_size_multiple = false) ?payload_memory_length
+      ?max_total_threadgroups_per_mesh_grid ?(raster_sample_count = 1)
+      ?(color_formats = [ Texture.Bgra8_unorm ])
+      ?(rasterization_enabled = true)
+      ?(support_indirect_command_buffers = false) ?(lookup_archives = [])
+      (value : t) ~(library : Library.t) ~mesh =
+    let operation = "Metal.Compiler.create_mesh_pipeline_async" in
+    with_mesh_descriptor operation
+      (fun reflection descriptor ->
+        match
+          Metal_raw.compiler_create_mesh_pipeline_async value.raw descriptor
+        with
+        | Error message -> native_error operation message
+        | Ok raw ->
+            Ok
+              (Compiler_task.make value
+                 Metal_raw.compiler_task_take_render_pipeline
+                 (fun (raw, raw_reflection) ->
+                   Render_pipeline.make value.device
+                     ~kind:Render_pipeline.Mesh ~reflection raw raw_reflection)
+                 raw))
+      ?label ?object_function ?fragment ~reflection
+      ?max_total_threads_per_object_threadgroup
+      ?max_total_threads_per_mesh_threadgroup
+      ?required_threads_per_object_threadgroup
+      ?required_threads_per_mesh_threadgroup
+      ~object_threadgroup_size_multiple ~mesh_threadgroup_size_multiple
+      ?payload_memory_length ?max_total_threadgroups_per_mesh_grid
+      ~raster_sample_count ~color_formats ~rasterization_enabled
+      ~support_indirect_command_buffers ~lookup_archives value ~library ~mesh
 
   let device (value : t) = value.device
   let generation (value : t) = Metal_raw.generation value.raw

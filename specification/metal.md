@@ -486,16 +486,16 @@ pipeline executes.
 
 `Compiler.compile_source_async`, compiler dynamic-library create/load,
 `create_binary_function_async`, `create_compute_pipeline_async`, and
-`create_render_pipeline_async` return typed `Compiler_task.t` values where
-applicable.
+`create_render_pipeline_async`/`create_mesh_pipeline_async` return typed
+`Compiler_task.t` values where applicable.
 Metal worker completion blocks never enter the OCaml runtime or retain OCaml
 roots: they store the native result in task-local completion state and enqueue
 only a monotonically increasing ID into a process-wide 1,024-entry ring.
 `Compiler_task.drain_completions` and `poll` run on the initial domain, and only
 `poll` materializes the resulting owned library, dynamic library, binary
-function, reflected compute pipeline, or reflected render pipeline. Results
-are one-shot; duplicate consumption is `Invalid_state`, task/compiler parent
-ownership is explicit,
+function, reflected compute pipeline, conventional render pipeline, or
+mesh/object render pipeline. Results are one-shot; duplicate consumption is
+`Invalid_state`, task/compiler parent ownership is explicit,
 queue overflow is reported, and blocking `wait` releases the OCaml
 runtime lock. Async binary-function task creation uses the same descriptor and
 archive validation as its synchronous peer, and the task natively retains its
@@ -526,9 +526,25 @@ void-returning vertex function and no color attachments. Optional reflection
 materializes independently owned vertex, fragment, tile, object, and mesh
 binding lists from the returned pipeline state. The async task retains its
 library and descriptor inputs after the OCaml library handle is destroyed.
-This slice compiles and inspects conventional pipelines only: render command
-encoding and draw execution, blend/depth/stencil policy, vertex descriptors,
-dynamic render linking, and tile/mesh/object descriptors remain open. Positive
+
+Metal 4 mesh compilation uses that same synchronous/asynchronous result and
+task machinery with a checked `MTL4MeshRenderPipelineDescriptor`. The safe API
+requires an exact mesh entry point and accepts optional object and fragment
+stages. Object-only threadgroup, payload, and mesh-grid controls require an
+object function; explicit threadgroup dimensions are positive and their
+cardinality must match an explicit maximum. Payload memory is capped at Metal's
+16-KiB object-to-mesh limit. Rasterization, sample-count, color-format, lookup-
+archive, label, same-device, and source-retention rules are shared with
+conventional render compilation. Indirect mesh command-buffer support is
+rejected below Apple9/M3, while direct mesh pipeline compilation and reflection
+require Apple7-or-newer or Mac2 and run on the Apple7/M1 qualification lane.
+Reflection preserves distinct object, mesh, and fragment binding lists,
+including exact read/write object-payload alignment and size metadata. The
+async task remains valid after destruction of its source library.
+
+This slice compiles and inspects conventional and mesh/object pipelines only:
+render command encoding and draw execution, blend/depth/stencil policy, vertex
+descriptors, dynamic render linking, and tile descriptors remain open. Positive
 offline `.metallib` provenance is also still open.
 
 `test_metal.exe` runs a real M1 compute kernel, wrong-domain and invalid-state
@@ -544,7 +560,10 @@ asynchronous library success/error, dynamic-library source/file success/error,
 binary-function, and reflected compute completion with bounded ID draining and
 M1 dynamic-link rejection, synchronous reflected and non-rasterizing Metal 4
 render compilation, asynchronous reflected render completion after source
-library destruction,
+library destruction, synchronous reflected mesh and object/mesh compilation,
+exact object-payload reflection, non-rasterizing mesh compilation, invalid
+stage/threadgroup/payload rejection without handle allocation, and asynchronous
+reflected mesh completion after source-library destruction,
 compiler/task/dataset parent ownership, and complete Metal 4 compile diagnostics,
 copied/no-copy external buffer ownership,
 shareable texture/handle/import lifetimes, single- and multi-plane IOSurface

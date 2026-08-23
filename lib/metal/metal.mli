@@ -1312,6 +1312,42 @@ module Compiler : sig
     vertex:string ->
     (Render_pipeline.t Compiler_task.t, error) result
 
+  (** Compiles a Metal 4 mesh pipeline, optionally with an object stage.
+      Object-stage limits and payload configuration require [object_function].
+      Rasterization and color-format rules match [create_render_pipeline].
+      Mesh shading requires an Apple7-or-newer or Mac2 GPU. *)
+  val create_mesh_pipeline :
+    ?label:string -> ?object_function:string -> ?fragment:string ->
+    ?reflection:bool ->
+    ?max_total_threads_per_object_threadgroup:int ->
+    ?max_total_threads_per_mesh_threadgroup:int ->
+    ?required_threads_per_object_threadgroup:(int * int * int) ->
+    ?required_threads_per_mesh_threadgroup:(int * int * int) ->
+    ?object_threadgroup_size_multiple:bool ->
+    ?mesh_threadgroup_size_multiple:bool -> ?payload_memory_length:int ->
+    ?max_total_threadgroups_per_mesh_grid:int -> ?raster_sample_count:int ->
+    ?color_formats:Texture.format list -> ?rasterization_enabled:bool ->
+    ?support_indirect_command_buffers:bool ->
+    ?lookup_archives:Pipeline_archive.t list -> t -> library:Library.t ->
+    mesh:string -> (Render_pipeline.t, error) result
+
+  (** The native task retains the mesh descriptor and every function library
+      through completion. Indirect mesh draws are rejected below Apple9/M3. *)
+  val create_mesh_pipeline_async :
+    ?label:string -> ?object_function:string -> ?fragment:string ->
+    ?reflection:bool ->
+    ?max_total_threads_per_object_threadgroup:int ->
+    ?max_total_threads_per_mesh_threadgroup:int ->
+    ?required_threads_per_object_threadgroup:(int * int * int) ->
+    ?required_threads_per_mesh_threadgroup:(int * int * int) ->
+    ?object_threadgroup_size_multiple:bool ->
+    ?mesh_threadgroup_size_multiple:bool -> ?payload_memory_length:int ->
+    ?max_total_threadgroups_per_mesh_grid:int -> ?raster_sample_count:int ->
+    ?color_formats:Texture.format list -> ?rasterization_enabled:bool ->
+    ?support_indirect_command_buffers:bool ->
+    ?lookup_archives:Pipeline_archive.t list -> t -> library:Library.t ->
+    mesh:string -> (Render_pipeline.t Compiler_task.t, error) result
+
   val device : t -> Device.t
   val generation : t -> int64
   val dataset : t -> Pipeline_dataset.t option
