@@ -14,5 +14,10 @@ let ()=
  get(Resource100.Sample_attachment.destroy a);
  for i=1 to 10000 do let x=get(Resource100.View_pool_descriptor.create~label:(string_of_int i)~count:4L())in if Resource100.View_pool_descriptor.count x<>4L then failwith"descriptor count";get(Resource100.View_pool_descriptor.destroy x)done;
  let device=get(Device.system_default())in let desc=get(Resource100.View_pool_descriptor.create~count:4L())in
+ let texture=get(Texture.create~device(Texture.descriptor_2d~storage:Buffer.Shared~usage:[Texture.Shader_read;Texture.Shader_write]~format:Texture.Rgba8_unorm~width:4~height:4()))in
+ let bytes=Bytes.make 64 '\000'in
+ reject(Resource100.Texture_ops.get_bytes texture~bytes~bytes_per_row:16~mip_level:0~region:{x=0;y=0;z=0;width=4;height=4;depth=2});
+ reject(Resource100.Texture_ops.get_bytes texture~bytes~bytes_per_row:max_int~mip_level:0~region:{x=0;y=0;z=0;width=4;height=4;depth=1});
+ reject(Resource100.Texture_ops.get_bytes texture~bytes:(Bytes.create 8)~bytes_per_row:16~mip_level:0~region:{x=0;y=0;z=0;width=4;height=1;depth=1});
  (match Resource100.Texture_view_pool.create device desc with Ok pool->if Resource100.Texture_view_pool.count pool<>4L then failwith"pool count";get(Resource100.Texture_view_pool.destroy pool)|Error _->());
- get(Resource100.View_pool_descriptor.destroy desc);get(Device.destroy device)
+ get(Texture.destroy texture);get(Resource100.View_pool_descriptor.destroy desc);get(Device.destroy device)
