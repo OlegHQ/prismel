@@ -1256,7 +1256,24 @@ module rec Shader_stage_descriptor : sig
   val destroyed:t->bool
   val destroy:t->(unit,error)result
 end
-and Shader_attribute_descriptors : sig type t val destroyed:t->bool val destroy:t->(unit,error)result end
+and Shader_attribute_descriptors : sig
+  type t
+  val capacity:int
+  val at:t->index:int->(Shader_attribute_descriptor.t,error)result
+  val set:t->index:int->Shader_attribute_descriptor.t->(unit,error)result
+  val destroyed:t->bool val destroy:t->(unit,error)result
+end
+and Shader_attribute_descriptor : sig
+  type t
+  val buffer_index:t->(int64,error)result
+  val offset:t->(int64,error)result
+  val format:t->(Enum.Mtl_attribute_format.t,error)result
+  val set_buffer_index:t->int64->(unit,error)result
+  val set_offset:t->int64->(unit,error)result
+  val set_format:t->Enum.Mtl_attribute_format.t->(unit,error)result
+  val destroyed:t->bool
+  val destroy:t->(unit,error)result
+end
 and Shader_buffer_layout_descriptors : sig type t val destroyed:t->bool val destroy:t->(unit,error)result end
 
 module Shader_stitching_input : sig

@@ -28,7 +28,17 @@ let () =
   if get(Shader_stage_descriptor.index_buffer_index stage)<>3L then fail "stage index drift";
   let attributes=get(Shader_stage_descriptor.attributes stage)in
   let layouts=get(Shader_stage_descriptor.layouts stage)in
+  expect Invalid_argument(Shader_attribute_descriptors.at attributes ~index:31);
+  let descriptor=get(Shader_attribute_descriptors.at attributes ~index:0)in
+  get(Shader_attribute_descriptor.set_buffer_index descriptor 2L);
+  get(Shader_attribute_descriptor.set_offset descriptor 16L);
+  get(Shader_attribute_descriptor.set_format descriptor Enum.Mtl_attribute_format.mtl_attribute_format_float3);
+  get(Shader_attribute_descriptors.set attributes ~index:0 descriptor);
+  if get(Shader_attribute_descriptor.buffer_index descriptor)<>2L then fail "attribute buffer index drift";
+  if get(Shader_attribute_descriptor.offset descriptor)<>16L then fail "attribute offset drift";
+  if get(Shader_attribute_descriptor.format descriptor)<>Enum.Mtl_attribute_format.mtl_attribute_format_float3 then fail "attribute format drift";
   expect Parent_has_dependents(Shader_stage_descriptor.destroy stage);
+  get(Shader_attribute_descriptor.destroy descriptor);
   get(Shader_attribute_descriptors.destroy attributes);
   get(Shader_buffer_layout_descriptors.destroy layouts);
   get(Shader_stage_descriptor.reset stage);

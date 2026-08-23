@@ -190,6 +190,7 @@ module Vertex_descriptor = struct
     | Float_rg11b10 -> 54
     | Float_rgb9e5 -> 55
 
+
   let format_size = function
     | Uchar | Char | Uchar_normalized | Char_normalized -> 1
     | Uchar2 | Char2 | Uchar2_normalized | Char2_normalized | Ushort | Short
@@ -1013,8 +1014,9 @@ type shader_argument_encoder =
   ; buffer_index : int64 }
 type shader_stage_descriptor = { raw:Metal_raw.handle; lifetime:lifetime }
 type shader_attribute_descriptor_array = { raw:Metal_raw.handle; lifetime:lifetime; parent:shader_stage_descriptor }
+type shader_attribute_descriptor = { raw:Metal_raw.handle; lifetime:lifetime; parent:shader_attribute_descriptor_array }
 type shader_buffer_layout_descriptor_array = { raw:Metal_raw.handle; lifetime:lifetime; parent:shader_stage_descriptor }
-type shader_stitching_input = { raw:Metal_raw.handle; lifetime:lifetime; mutable argument_index:int64 }
+type shader_stitching_input = { raw:Metal_raw.handle; lifetime:lifetime }
 
 type dynamic_library =
   { raw : Metal_raw.handle
@@ -8042,7 +8044,7 @@ module Function = struct
       let x:shader_argument_encoder={raw;lifetime=lifetime();function_=value;buffer_index}in attach value.lifetime;attach_finalizer x x.lifetime value.lifetime;Ok x)
 
   let destroy (value : t) =
-    destroy_leaf "Metal.Function.destroy" value.lifetime value.raw
+    destroy_parent "Metal.Function.destroy" value.lifetime value.raw
       (fun () -> detach value.library.lifetime)
 end
 
@@ -8083,8 +8085,25 @@ module Shader_stage_descriptor = struct
 end
 module Shader_attribute_descriptors = struct
   type t=shader_attribute_descriptor_array
+  type descriptor=shader_attribute_descriptor
+  let capacity=31
+  let validate operation(value:t)index=match ensure_live operation value.lifetime with Error _ as e->e|Ok() when index<0||index>=capacity->error operation Invalid_argument "attribute index must be in [0,31)"|Ok()->Ok()
+  let at (value:t) ~index=let operation="Metal.Shader_attribute_descriptors.at" in on_main operation(fun()->Result.bind(validate operation value index)(fun()->match Metal_raw.shader_attribute_descriptor_at value.raw(Int64.of_int index)with Error m->native_error operation m|Ok raw->let x:descriptor={raw;lifetime=lifetime();parent=value}in attach value.lifetime;attach_finalizer x x.lifetime value.lifetime;Ok x))
+  let set (value:t) ~index (descriptor:descriptor)=let operation="Metal.Shader_attribute_descriptors.set" in on_main operation(fun()->Result.bind(validate operation value index)(fun()->match ensure_live operation descriptor.lifetime with Error _ as e->e|Ok() when descriptor.parent.lifetime!=value.lifetime->error operation Invalid_argument "descriptor belongs to another attribute array"|Ok()->match Metal_raw.shader_attribute_descriptor_set_at value.raw(Int64.of_int index)descriptor.raw with Error m->native_error operation m|Ok()->Ok()))
   let destroyed(value:t)=is_destroyed value.lifetime
   let destroy(value:t)=destroy_leaf "Metal.Shader_attribute_descriptors.destroy" value.lifetime value.raw(fun()->detach value.parent.lifetime)
+end
+module Shader_attribute_descriptor = struct
+  type t=shader_attribute_descriptor
+  let query operation raw(value:t)=on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match raw value.raw with Error m->native_error operation m|Ok x->Ok x)
+  let buffer_index value=query "Metal.Shader_attribute_descriptor.buffer_index" Metal_raw.shader_attribute_descriptor_buffer_index value
+  let offset value=query "Metal.Shader_attribute_descriptor.offset" Metal_raw.shader_attribute_descriptor_offset value
+  let format value=Result.bind(query "Metal.Shader_attribute_descriptor.format" Metal_raw.shader_attribute_descriptor_format value)(fun code->match Enum.Mtl_attribute_format.of_int64 code with Some x->Ok x|None->error "Metal.Shader_attribute_descriptor.format" Unsupported "unknown attribute format")
+  let set_buffer_index value index=let operation="Metal.Shader_attribute_descriptor.set_buffer_index" in if index<0L||index>=31L then error operation Invalid_argument "buffer index must be in [0,31)"else query operation(fun raw->Metal_raw.shader_attribute_descriptor_set_buffer_index raw index)value
+  let set_offset value offset=let operation="Metal.Shader_attribute_descriptor.set_offset" in if offset<0L then error operation Invalid_argument "offset must be nonnegative"else query operation(fun raw->Metal_raw.shader_attribute_descriptor_set_offset raw offset)value
+  let set_format value format=query "Metal.Shader_attribute_descriptor.set_format"(fun raw->Metal_raw.shader_attribute_descriptor_set_format raw(Enum.Mtl_attribute_format.to_int64 format))value
+  let destroyed(value:t)=is_destroyed value.lifetime
+  let destroy(value:t)=destroy_leaf "Metal.Shader_attribute_descriptor.destroy" value.lifetime value.raw(fun()->detach value.parent.lifetime)
 end
 module Shader_buffer_layout_descriptors = struct
   type t=shader_buffer_layout_descriptor_array
@@ -8093,9 +8112,9 @@ module Shader_buffer_layout_descriptors = struct
 end
 module Shader_stitching_input = struct
   type t=shader_stitching_input
-  let create ~argument_index=let operation="Metal.Shader_stitching_input.create" in if argument_index<0L then error operation Invalid_argument "argument index must be nonnegative"else on_main operation(fun()->match Metal_raw.shader_stitching_input_create argument_index with Error m->native_error operation m|Ok raw->let x:t={raw;lifetime=lifetime();argument_index}in Gc.finalise(fun _->if Atomic.compare_and_set x.lifetime.destroyed false true then ignore(Metal_raw.destroy x.raw))x;Ok x)
-  let argument_index(value:t)=let operation="Metal.Shader_stitching_input.argument_index" in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.shader_stitching_input_index value.raw with Error m->native_error operation m|Ok x->value.argument_index<-x;Ok x)
-  let set_argument_index(value:t) index=let operation="Metal.Shader_stitching_input.set_argument_index" in if index<0L then error operation Invalid_argument "argument index must be nonnegative"else on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.shader_stitching_input_set_index value.raw index with Error m->native_error operation m|Ok()->value.argument_index<-index;Ok())
+  let create ~argument_index=let operation="Metal.Shader_stitching_input.create" in if argument_index<0L then error operation Invalid_argument "argument index must be nonnegative"else on_main operation(fun()->match Metal_raw.shader_stitching_input_create argument_index with Error m->native_error operation m|Ok raw->let x:t={raw;lifetime=lifetime()}in Gc.finalise(fun _->if Atomic.compare_and_set x.lifetime.destroyed false true then ignore(Metal_raw.destroy x.raw))x;Ok x)
+  let argument_index(value:t)=let operation="Metal.Shader_stitching_input.argument_index" in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.shader_stitching_input_index value.raw with Error m->native_error operation m|Ok x->Ok x)
+  let set_argument_index(value:t) index=let operation="Metal.Shader_stitching_input.set_argument_index" in if index<0L then error operation Invalid_argument "argument index must be nonnegative"else on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.shader_stitching_input_set_index value.raw index with Error m->native_error operation m|Ok()->Ok())
   let destroyed(value:t)=is_destroyed value.lifetime
   let destroy(value:t)=destroy_leaf "Metal.Shader_stitching_input.destroy" value.lifetime value.raw ignore
 end
