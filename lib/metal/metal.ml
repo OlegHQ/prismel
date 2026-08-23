@@ -1277,38 +1277,6 @@ type command_phase =
   | Recording
   | Submitted
 
-type command_resource =
-  | Command_buffer_buffer of buffer
-  | Command_buffer_texture of texture
-  | Command_residency_set of residency_set
-
-type command_buffer =
-  { raw : Metal_raw.handle
-  ; lifetime : lifetime
-  ; queue : command_queue
-  ; mutable phase : command_phase
-  ; resources : command_resource list ref
-  }
-
-type compute_encoder =
-  { raw : Metal_raw.handle
-  ; lifetime : lifetime
-  ; command_buffer : command_buffer
-  ; mutable pipeline : compute_pipeline option
-  }
-
-type resource_state_encoder =
-  { raw : Metal_raw.handle
-  ; lifetime : lifetime
-  ; command_buffer : command_buffer
-  }
-
-type blit_encoder =
-  { raw : Metal_raw.handle
-  ; lifetime : lifetime
-  ; command_buffer : command_buffer
-  }
-
 type indirect_command_kind =
   | Indirect_draw
   | Indirect_draw_indexed
@@ -1363,6 +1331,39 @@ type indirect_compute_command =
   ; parent : indirect_command_buffer
   }
 
+type command_resource =
+  | Command_buffer_buffer of buffer
+  | Command_buffer_texture of texture
+  | Command_residency_set of residency_set
+  | Command_buffer_indirect of indirect_command_buffer
+
+type command_buffer =
+  { raw : Metal_raw.handle
+  ; lifetime : lifetime
+  ; queue : command_queue
+  ; mutable phase : command_phase
+  ; resources : command_resource list ref
+  }
+
+type compute_encoder =
+  { raw : Metal_raw.handle
+  ; lifetime : lifetime
+  ; command_buffer : command_buffer
+  ; mutable pipeline : compute_pipeline option
+  }
+
+type resource_state_encoder =
+  { raw : Metal_raw.handle
+  ; lifetime : lifetime
+  ; command_buffer : command_buffer
+  }
+
+type blit_encoder =
+  { raw : Metal_raw.handle
+  ; lifetime : lifetime
+  ; command_buffer : command_buffer
+  }
+
 let make_device raw =
   ({ raw; lifetime = lifetime (); registry_id = Metal_raw.device_registry_id raw }
     : device)
@@ -1374,6 +1375,7 @@ let command_resource_lifetime = function
   | Command_buffer_buffer buffer -> buffer.lifetime
   | Command_buffer_texture texture -> texture.lifetime
   | Command_residency_set residency_set -> residency_set.lifetime
+  | Command_buffer_indirect value -> value.lifetime
 
 let rec command_texture_heap (value : texture) =
   match value.parent with
@@ -1391,7 +1393,7 @@ let command_resource_heap = function
   | Command_buffer_buffer
       { parent = (Device_resource _ | External_resource _); _ } -> None
   | Command_buffer_texture texture -> command_texture_heap texture
-  | Command_residency_set _ -> None
+  | Command_residency_set _ | Command_buffer_indirect _ -> None
 
 let release_command_resources resources =
   let retained = !resources in
@@ -1588,7 +1590,7 @@ let retain_command_buffer_buffer (command_buffer : command_buffer) (buffer : buf
     List.exists
       (function
         | Command_buffer_buffer retained -> retained.lifetime == buffer.lifetime
-        | Command_buffer_texture _ -> false
+        | Command_buffer_texture _ | Command_buffer_indirect _ -> false
         | Command_residency_set _ -> false)
       !(command_buffer.resources)
   in
@@ -1609,7 +1611,8 @@ let retain_command_buffer_texture (command_buffer : command_buffer)
       (function
         | Command_buffer_texture retained ->
             retained.lifetime == texture.lifetime
-        | Command_buffer_buffer _ | Command_residency_set _ -> false)
+        | Command_buffer_buffer _ | Command_residency_set _
+        | Command_buffer_indirect _ -> false)
       !(command_buffer.resources)
   in
   if not already_retained then begin
@@ -1627,13 +1630,30 @@ let retain_command_buffer_residency_set (command_buffer : command_buffer)
       (function
         | Command_residency_set retained ->
             retained.lifetime == residency_set.lifetime
-        | Command_buffer_buffer _ | Command_buffer_texture _ -> false)
+        | Command_buffer_buffer _ | Command_buffer_texture _
+        | Command_buffer_indirect _ -> false)
       !(command_buffer.resources)
   in
   if not already_retained then begin
     attach residency_set.lifetime;
     command_buffer.resources :=
       Command_residency_set residency_set :: !(command_buffer.resources)
+  end
+
+let retain_command_buffer_indirect (command_buffer : command_buffer)
+    (value : indirect_command_buffer) =
+  let already_retained =
+    List.exists
+      (function
+        | Command_buffer_indirect retained -> retained.lifetime == value.lifetime
+        | Command_buffer_buffer _ | Command_buffer_texture _
+        | Command_residency_set _ -> false)
+      !(command_buffer.resources)
+  in
+  if not already_retained then begin
+    attach value.lifetime;
+    command_buffer.resources :=
+      Command_buffer_indirect value :: !(command_buffer.resources)
   end
 
 let release_queue_residency_sets residency_sets =
@@ -7772,7 +7792,8 @@ module Compute_pipeline = struct
 
   let create ?label ?(linked_functions = []) ?(preloaded_libraries = [])
       ?(binary_archives = []) ?(fail_on_binary_archive_miss = false)
-      ?(reflection = false) (function_value : Function.t) =
+      ?(support_indirect_command_buffers = false) ?(reflection = false)
+      (function_value : Function.t) =
     let operation = "Metal.Compute_pipeline.create" in
     on_main operation (fun () ->
       let ( let* ) value callback = Result.bind value callback in
@@ -7818,7 +7839,8 @@ module Compute_pipeline = struct
                 let descriptor_required =
                   label <> None || linked_functions <> []
                   || preloaded_libraries <> [] || binary_archives <> []
-                  || fail_on_binary_archive_miss || reflection
+                  || fail_on_binary_archive_miss || support_indirect_command_buffers
+                  || reflection
                 in
                 let creation =
                   if not descriptor_required then
@@ -7846,6 +7868,7 @@ module Compute_pipeline = struct
                                (fun (value : Binary_archive.t) -> value.raw)
                                binary_archives)
                       ; fail_on_binary_archive_miss
+                      ; support_indirect_command_buffers
                       }
                     in
                     Metal_raw.compute_pipeline_create_descriptor device.raw
@@ -13240,7 +13263,8 @@ module Command_buffer = struct
       (function
         | Command_residency_set retained ->
             retained.lifetime == residency_set.lifetime
-        | Command_buffer_buffer _ | Command_buffer_texture _ -> false)
+        | Command_buffer_buffer _ | Command_buffer_texture _
+        | Command_buffer_indirect _ -> false)
       !(value.resources)
 
   let use operation ~bulk (value : t) residency_sets =
@@ -13495,6 +13519,37 @@ module Compute_encoder = struct
                | Ok () -> Ok ()
                | Error message ->
                    native_error "Metal.Compute_encoder.dispatch_threads" message))
+
+  let execute_indirect_commands (value : t)
+      (commands : Indirect_command_buffer.t) ~location ~length =
+    let operation = "Metal.Compute_encoder.execute_indirect_commands" in
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match ensure_live operation commands.lifetime with
+           | Error _ as failure -> failure
+           | Ok () ->
+               (match
+                  ensure_same_device operation value.command_buffer.queue.device
+                    commands.device
+                with
+                | Error _ as failure -> failure
+                | Ok () ->
+                    Result.bind
+                      (Indirect_command_buffer.validate_range operation commands
+                         ~location ~length)
+                      (fun () ->
+                        match
+                          Metal_raw.compute_encoder_execute_indirect_commands
+                            value.raw commands.raw (Int64.of_int location)
+                            (Int64.of_int length)
+                        with
+                        | Error message -> native_error operation message
+                        | Ok () ->
+                            retain_command_buffer_indirect value.command_buffer
+                              commands;
+                            Ok ()))))
 
   let end_encoding (value : t) =
     on_main "Metal.Compute_encoder.end_encoding" (fun () ->

@@ -234,6 +234,11 @@
  (modules test_metal_stress)
  (libraries metal unix))
 
+(test
+ (name test_metal_icb)
+ (modules test_metal_icb)
+ (libraries metal))
+
 (library
  (name metal_xpc_test_support)
  (wrapped false)

@@ -5671,6 +5671,21 @@ extern "C" CAMLprim value caml_prismel_metal_indirect_compute_command_dispatch_t
   CAMLreturn(result_unit());
 }
 
+extern "C" CAMLprim value caml_prismel_metal_compute_encoder_execute_indirect_commands(
+    value raw_encoder, value raw_icb, value raw_location, value raw_length) {
+  CAMLparam4(raw_encoder, raw_icb, raw_location, raw_length);
+  @try {
+    NSUInteger location=0,length=0;
+    if (!nsuinteger_from_ocaml_int64(raw_location,&location) ||
+        !nsuinteger_from_ocaml_int64(raw_length,&length))
+      CAMLreturn(result_error_text("invalid indirect command execution range"));
+    id<MTLComputeCommandEncoder> encoder=object_of_handle(raw_encoder,Handle_kind::Compute_encoder);
+    id<MTLIndirectCommandBuffer> buffer=object_of_handle(raw_icb,Handle_kind::Indirect_command_buffer);
+    [encoder executeCommandsInBuffer:buffer withRange:NSMakeRange(location,length)];
+  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
+  CAMLreturn(result_unit());
+}
+
 extern "C" CAMLprim value caml_prismel_metal_library_compile(
     value raw_device, value raw_source, value raw_label) {
   CAMLparam3(raw_device, raw_source, raw_label);
@@ -10095,12 +10110,14 @@ caml_prismel_metal_compute_pipeline_create_descriptor(
       }
       descriptor.preloadedLibraries = preloaded_array;
       descriptor.binaryArchives = archive_array;
+      descriptor.supportIndirectCommandBuffers = Bool_val(Field(raw_descriptor, 6));
       if (descriptor.computeFunction != function ||
           ((expected_label == nil) != (descriptor.label == nil)) ||
           (expected_label != nil &&
            ![descriptor.label isEqualToString:expected_label]) ||
           descriptor.preloadedLibraries.count != preloaded_array.count ||
-          descriptor.binaryArchives.count != archive_array.count) {
+          descriptor.binaryArchives.count != archive_array.count ||
+          descriptor.supportIndirectCommandBuffers != Bool_val(Field(raw_descriptor, 6))) {
         CAMLreturn(result_error_text(
             "Metal changed checked compute-pipeline descriptor properties"));
       }

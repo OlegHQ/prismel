@@ -1185,7 +1185,8 @@ module Compute_pipeline : sig
     ?label:string -> ?linked_functions:Function.t list ->
     ?preloaded_libraries:Dynamic_library.t list ->
     ?binary_archives:Binary_archive.t list ->
-    ?fail_on_binary_archive_miss:bool -> ?reflection:bool -> Function.t ->
+    ?fail_on_binary_archive_miss:bool -> ?support_indirect_command_buffers:bool ->
+    ?reflection:bool -> Function.t ->
     (t, error) result
   val device : t -> Device.t
   val generation : t -> int64
@@ -2296,6 +2297,9 @@ module Compute_encoder : sig
   val set_texture : t -> index:int -> Texture.t -> (unit, error) result
   val dispatch_threads :
     t -> threads:int * int * int -> threadgroup:int * int * int ->
+    (unit, error) result
+  val execute_indirect_commands :
+    t -> Indirect_command_buffer.t -> location:int -> length:int ->
     (unit, error) result
   val end_encoding : t -> (unit, error) result
   val destroyed : t -> bool

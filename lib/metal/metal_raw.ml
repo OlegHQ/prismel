@@ -71,6 +71,7 @@ type compute_pipeline_descriptor =
   ; preloaded_libraries : handle array
   ; binary_archives : handle array
   ; fail_on_binary_archive_miss : bool
+  ; support_indirect_command_buffers : bool
   }
 
 (** Library handle and function name used by Metal 4 static linking. *)
@@ -780,6 +781,10 @@ external indirect_compute_command_set_kernel_buffer :
 external indirect_compute_command_dispatch_threads :
   handle -> (int * int * int) -> (int * int * int) -> (unit, string) result =
   "caml_prismel_metal_indirect_compute_command_dispatch_threads"
+
+external compute_encoder_execute_indirect_commands :
+  handle -> handle -> int64 -> int64 -> (unit, string) result =
+  "caml_prismel_metal_compute_encoder_execute_indirect_commands"
 
 external library_compile :
   handle -> string -> string option -> (handle, string) result =
