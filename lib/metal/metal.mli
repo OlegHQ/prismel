@@ -2921,6 +2921,12 @@ module Resource_state_encoder : sig
     region:tile_region -> (unit, error) result
   val update_fence : t -> Fence.t -> (unit,error) result
   val wait_for_fence : t -> Fence.t -> (unit,error) result
+  val update_texture_mapping_indirect :
+    t -> mode:mapping_mode -> Texture.t -> indirect_buffer:Buffer.t ->
+    offset:int64 -> (unit,error) result
+  val update_texture_mappings :
+    t -> mode:mapping_mode -> Texture.t -> regions:tile_region array ->
+    mip_levels:int array -> slices:int array -> (unit,error) result
   val end_encoding : t -> (unit, error) result
   val destroyed : t -> bool
 end
