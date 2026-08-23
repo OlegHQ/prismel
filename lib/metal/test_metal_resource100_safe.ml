@@ -18,6 +18,9 @@ let ()=
  if get(Resource100.Resource_ops.device(Resource100.Resource_ops.Texture texture))!=device then failwith"resource device";
  (match get(Resource100.Resource_ops.heap(Resource100.Resource_ops.Texture texture))with None->()|Some _->failwith"device texture heap");
  (match get(Resource100.Texture_ops.buffer_backing texture)with None->()|Some _->failwith"standalone texture has a buffer parent");
+ (match get(Resource100.Texture_ops.root_resource texture)with Resource100.Resource_ops.Texture root when root==texture->()|_->failwith"texture root");
+ (match get(Resource100.Texture_ops.remote_view texture~device)with None->()|Some remote->get(Texture.destroy remote));
+ (match get(Resource100.Texture_ops.remote_storage texture)with None->()|Some remote->get(Texture.destroy remote));
  let backing_buffer=get(Buffer.create~device~length:4096L~storage:Buffer.Shared())in
  if get(Resource100.Resource_ops.device(Resource100.Resource_ops.Buffer backing_buffer))!=device then failwith"buffer device";
  (match get(Resource100.Buffer_ops.remote_view backing_buffer~device)with
@@ -27,6 +30,7 @@ let ()=
  let backed=get(Texture.create_from_buffer~buffer:backing_buffer~offset:0L~bytes_per_row:256
    (Texture.descriptor_2d~storage:Buffer.Shared~usage:[Texture.Shader_read]
       ~format:Texture.Rgba8_unorm~width:4~height:4()))in
+ (match get(Resource100.Texture_ops.root_resource backed)with Resource100.Resource_ops.Buffer root when root==backing_buffer->()|_->failwith"buffer texture root");
  for _=1 to 10000 do
    match get(Resource100.Texture_ops.buffer_backing backed)with
    |Some b when b.buffer==backing_buffer&&b.offset=0L&&b.bytes_per_row=256->()

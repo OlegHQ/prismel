@@ -17379,6 +17379,93 @@ module Resource100 = struct
   end
 
   module Texture_ops = struct
+    let snapshot_matches (value : texture)
+        (_raw, width, height, depth, mip_levels, samples, array_length,
+         format, kind, storage, cache, hazard, usage) =
+      let descriptor = value.descriptor in
+      width = Int64.of_int descriptor.width
+      && height = Int64.of_int descriptor.height
+      && depth = Int64.of_int descriptor.depth
+      && mip_levels = Int64.of_int descriptor.mip_levels
+      && samples = Int64.of_int descriptor.sample_count
+      && array_length = Int64.of_int descriptor.array_length
+      && format = Metal_format.code descriptor.format
+      && kind = Texture.kind_code descriptor.kind
+      && storage = storage_code descriptor.storage
+      && cache = cache_code descriptor.cpu_cache
+      && hazard = hazard_code descriptor.hazard_tracking
+      && usage = Int64.of_int (Texture.usage_bits descriptor.usage)
+
+    let wrap_remote operation (source : texture) (device : device) snapshot =
+      let raw, _, _, _, _, _, _, _, _, _, _, _, _ = snapshot in
+      if not (snapshot_matches source snapshot) then begin
+        ignore (Metal_raw.destroy raw);
+        native_error operation
+          "remote texture metadata disagrees with its safe source"
+      end else
+        Texture.finish_create operation ~device ~descriptor:source.descriptor
+          ~parent:(Texture_resource (Device_resource device)) ~heap_offset:None
+          ~allocation:None raw
+
+    let remote_view (source : texture) ~(device : device) =
+      let operation = "Metal.Resource100.Texture.remote_view" in
+      on_main operation (fun () ->
+        match ensure_texture_usable operation source with
+        | Error _ as failure -> failure
+        | Ok () -> match ensure_live operation device.lifetime with
+          | Error _ as failure -> failure
+          | Ok () -> match Metal_raw.resource_texture_remote_view source.raw device.raw with
+            | Error message -> native_error operation message
+            | Ok None -> Ok None
+            | Ok (Some snapshot) -> Result.map Option.some
+                (wrap_remote operation source device snapshot))
+
+    let remote_storage (source : texture) =
+      let operation = "Metal.Resource100.Texture.remote_storage" in
+      on_main operation (fun () ->
+        match ensure_texture_usable operation source with
+        | Error _ as failure -> failure
+        | Ok () -> match Metal_raw.resource_texture_remote_storage source.raw with
+          | Error message -> native_error operation message
+          | Ok None -> Ok None
+          | Ok (Some snapshot) -> Result.map Option.some
+              (wrap_remote operation source source.device snapshot))
+
+    let rec safe_root (value : texture) =
+      match value.parent with
+      | Texture_view parent -> safe_root parent
+      | Texture_buffer_resource backing -> Resource_ops.Buffer backing.buffer
+      | Texture_resource _ | Texture_io_surface_resource _
+      | Texture_drawable_resource _ -> Resource_ops.Texture value
+
+    let root_resource (source : texture) =
+      let operation = "Metal.Resource100.Texture.root_resource" in
+      on_main operation (fun () ->
+        match ensure_texture_usable operation source with
+        | Error _ as failure -> failure
+        | Ok () -> match Metal_raw.resource_texture_root source.raw with
+          | Error message -> native_error operation message
+          | Ok None -> native_error operation "texture returned no root resource"
+          | Ok (Some native) ->
+              let safe = safe_root source in
+              let valid, raw = match native, safe with
+                | Metal_raw.Resource_buffer_root
+                    (raw, length, storage, cache, hazard), Resource_ops.Buffer buffer ->
+                    (length = buffer.length
+                     && storage = storage_code buffer.storage
+                     && cache = cache_code buffer.cpu_cache
+                     && hazard = hazard_code buffer.hazard_tracking), raw
+                | Metal_raw.Resource_texture_root snapshot, Resource_ops.Texture texture ->
+                    snapshot_matches texture snapshot,
+                    (let raw, _, _, _, _, _, _, _, _, _, _, _, _ = snapshot in raw)
+                | Metal_raw.Resource_buffer_root (raw, _, _, _, _), _ -> false, raw
+                | Metal_raw.Resource_texture_root snapshot, _ ->
+                    false, (let raw, _, _, _, _, _, _, _, _, _, _, _, _ = snapshot in raw)
+              in
+              ignore (Metal_raw.destroy raw);
+              if valid then Ok safe else native_error operation
+                "native root resource disagrees with the safe parent graph")
+
     let view (source:texture) ~format =
       let op="Metal.Resource100.Texture.view"in on_main op(fun()->match ensure_texture_usable op source with Error _ as e->e|Ok()->match Metal_raw.resource_texture_view source.raw(Int64.of_int(Metal_format.code format))with Error m->native_error op m|Ok None->error op Unsupported "Metal rejected the texture view format"|Ok(Some(raw,w,h,d,mips,samples,array_length,format_code,_kind,storage,cache,hazard,_usage))->
       if w<>Int64.of_int source.descriptor.width||h<>Int64.of_int source.descriptor.height||d<>Int64.of_int source.descriptor.depth||mips<>Int64.of_int source.descriptor.mip_levels||samples<>Int64.of_int source.descriptor.sample_count||array_length<>Int64.of_int source.descriptor.array_length||format_code<>Metal_format.code format||storage<>storage_code source.descriptor.storage||cache<>cache_code source.descriptor.cpu_cache||hazard<>hazard_code source.descriptor.hazard_tracking then(ignore(Metal_raw.destroy raw);error op Native_error "texture view metadata disagrees with its safe parent")else let value:texture={raw;lifetime=lifetime();device=source.device;descriptor={source.descriptor with format};parent=Texture_view source;heap_offset=None;placement_sparse_page_size=None;allocation=None;state=source.state;placement_mappings=source.placement_mappings}in attach source.lifetime;attach_finalizer value value.lifetime source.lifetime;Ok value)
