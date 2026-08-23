@@ -1784,6 +1784,9 @@ external io_compression_default_chunk : unit -> (int64,string) result = "caml_pr
 external io_compression_create : string -> int -> int64 -> (io_compression_context,string) result = "caml_prismel_metal_io_compression_create"
 external io_compression_append : io_compression_context -> bytes -> int64 -> int64 -> (unit,string) result = "caml_prismel_metal_io_compression_append"
 external io_compression_finish : io_compression_context -> (int,string) result = "caml_prismel_metal_io_compression_finish"
+external io_scratch_allocator_create : handle -> (handle,string) result = "caml_prismel_metal_io_scratch_allocator_create"
+external io_scratch_allocate : handle -> int64 -> ((handle * handle),string) result = "caml_prismel_metal_io_scratch_allocate"
+external io_queue_create_scratch : handle -> handle -> (handle,string) result = "caml_prismel_metal_io_queue_create_scratch"
 
 (** Exact callable subset of the prepared authoritative Metal4 shards. *)
 external metal4_command_buffer_begin :

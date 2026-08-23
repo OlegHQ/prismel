@@ -1011,6 +1011,8 @@ enum class Handle_kind : std::uint32_t {
   Io_command_buffer,
   Io_file_handle,
   Io_command_queue,
+  Io_scratch_buffer,
+  Io_scratch_allocator,
   Render_pipeline_descriptor,
   Compute_pipeline_descriptor,
 };
