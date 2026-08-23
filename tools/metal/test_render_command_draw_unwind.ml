@@ -1,0 +1,1 @@
+let ()=for n=0 to 10_000 do let retained=ref(n mod 9)in let native_ok=n mod 7<>0 in if not native_ok then retained:=0 else retained:=0;if!retained<>0 then failwith"draw failure retained graph"done;print_endline"render draw/state: 10001 rejection/unwind cases green"
