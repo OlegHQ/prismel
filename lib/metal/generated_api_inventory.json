@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 3814,
+    "bound": 3831,
     "scope-excluded": 37,
-    "unreviewed": 1434
+    "unreviewed": 1417
   },
-  "classification_source_sha256": "8e1d128e9f1a074e50089678c1c4b429e2279a94299425f03c46b705b3f02141",
+  "classification_source_sha256": "0e94f030cd745fea4db4a2da326090154a67d4a8494598a6c50aeb8b3ad94c78",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -2460,7 +2460,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandQueue.h",
       "id": "class:MTLIOCommandQueueDescriptor",
       "kind": "class",
@@ -2468,7 +2468,7 @@
       "macos_introduced": "13.0",
       "name": "MTLIOCommandQueueDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the retained safe Metal IO queue/file/command chain and contained queue descriptor materialization with native byte-exact conformance.",
       "signature": ""
     },
     {
@@ -56511,7 +56511,7 @@
           "line": 1057
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newIOCommandQueueWithDescriptor:error:]",
       "kind": "method",
@@ -56519,7 +56519,7 @@
       "macos_introduced": "13.0",
       "name": "newIOCommandQueueWithDescriptor:error:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the retained safe Metal IO queue/file/command chain and contained queue descriptor materialization with native byte-exact conformance.",
       "signature": "instance (MTLIOCommandQueueDescriptor * _Nonnull __strong, NSError *__autoreleasing  _Nullable * _Nullable) -> id<MTLIOCommandQueue> _Nullable"
     },
     {
@@ -56563,7 +56563,7 @@
           "line": 1080
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newIOFileHandleWithURL:error:]",
       "kind": "method",
@@ -56571,7 +56571,7 @@
       "macos_introduced": "14.0",
       "name": "newIOFileHandleWithURL:error:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the retained safe Metal IO queue/file/command chain and contained queue descriptor materialization with native byte-exact conformance.",
       "signature": "instance (NSURL * _Nonnull __strong, NSError *__autoreleasing  _Nullable * _Nullable) -> id<MTLIOFileHandle> _Nullable"
     },
     {
@@ -60809,7 +60809,7 @@
           "line": 32
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandBuffer.h",
       "id": "method:-[MTLIOCommandBuffer commit]",
       "kind": "method",
@@ -60817,7 +60817,7 @@
       "macos_introduced": "13.0",
       "name": "commit",
       "owner": "MTLIOCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the retained safe Metal IO queue/file/command chain and contained queue descriptor materialization with native byte-exact conformance.",
       "signature": "instance () -> void"
     },
     {
@@ -60904,7 +60904,7 @@
           "line": 32
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandBuffer.h",
       "id": "method:-[MTLIOCommandBuffer loadBuffer:offset:size:sourceHandle:sourceHandleOffset:]",
       "kind": "method",
@@ -60912,7 +60912,7 @@
       "macos_introduced": "13.0",
       "name": "loadBuffer:offset:size:sourceHandle:sourceHandleOffset:",
       "owner": "MTLIOCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the retained safe Metal IO queue/file/command chain and contained queue descriptor materialization with native byte-exact conformance.",
       "signature": "instance (id<MTLBuffer>  _Nonnull __strong, NSUInteger, NSUInteger, id<MTLIOFileHandle>  _Nonnull __strong, NSUInteger) -> void"
     },
     {
@@ -61037,7 +61037,7 @@
           "line": 32
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandBuffer.h",
       "id": "method:-[MTLIOCommandBuffer status]",
       "kind": "method",
@@ -61045,7 +61045,7 @@
       "macos_introduced": "13.0",
       "name": "status",
       "owner": "MTLIOCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the retained safe Metal IO queue/file/command chain and contained queue descriptor materialization with native byte-exact conformance.",
       "signature": "instance () -> MTLIOStatus"
     },
     {
@@ -61094,7 +61094,7 @@
           "line": 32
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandBuffer.h",
       "id": "method:-[MTLIOCommandBuffer waitUntilCompleted]",
       "kind": "method",
@@ -61102,7 +61102,7 @@
       "macos_introduced": "13.0",
       "name": "waitUntilCompleted",
       "owner": "MTLIOCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the retained safe Metal IO queue/file/command chain and contained queue descriptor materialization with native byte-exact conformance.",
       "signature": "instance () -> void"
     },
     {
@@ -61132,7 +61132,7 @@
           "line": 46
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandQueue.h",
       "id": "method:-[MTLIOCommandQueue commandBuffer]",
       "kind": "method",
@@ -61140,7 +61140,7 @@
       "macos_introduced": "13.0",
       "name": "commandBuffer",
       "owner": "MTLIOCommandQueue",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the retained safe Metal IO queue/file/command chain and contained queue descriptor materialization with native byte-exact conformance.",
       "signature": "instance () -> id<MTLIOCommandBuffer> _Nonnull"
     },
     {
@@ -61208,7 +61208,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandQueue.h",
       "id": "method:-[MTLIOCommandQueueDescriptor maxCommandBufferCount]",
       "kind": "method",
@@ -61216,7 +61216,7 @@
       "macos_introduced": "13.0",
       "name": "maxCommandBufferCount",
       "owner": "MTLIOCommandQueueDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the retained safe Metal IO queue/file/command chain and contained queue descriptor materialization with native byte-exact conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -61227,7 +61227,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandQueue.h",
       "id": "method:-[MTLIOCommandQueueDescriptor maxCommandsInFlight]",
       "kind": "method",
@@ -61235,7 +61235,7 @@
       "macos_introduced": "13.0",
       "name": "maxCommandsInFlight",
       "owner": "MTLIOCommandQueueDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the retained safe Metal IO queue/file/command chain and contained queue descriptor materialization with native byte-exact conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -61284,7 +61284,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandQueue.h",
       "id": "method:-[MTLIOCommandQueueDescriptor setMaxCommandBufferCount:]",
       "kind": "method",
@@ -61292,7 +61292,7 @@
       "macos_introduced": "13.0",
       "name": "setMaxCommandBufferCount:",
       "owner": "MTLIOCommandQueueDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the retained safe Metal IO queue/file/command chain and contained queue descriptor materialization with native byte-exact conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -61303,7 +61303,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandQueue.h",
       "id": "method:-[MTLIOCommandQueueDescriptor setMaxCommandsInFlight:]",
       "kind": "method",
@@ -61311,7 +61311,7 @@
       "macos_introduced": "13.0",
       "name": "setMaxCommandsInFlight:",
       "owner": "MTLIOCommandQueueDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the retained safe Metal IO queue/file/command chain and contained queue descriptor materialization with native byte-exact conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -61360,7 +61360,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandQueue.h",
       "id": "method:-[MTLIOCommandQueueDescriptor setType:]",
       "kind": "method",
@@ -61368,7 +61368,7 @@
       "macos_introduced": "13.0",
       "name": "setType:",
       "owner": "MTLIOCommandQueueDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the retained safe Metal IO queue/file/command chain and contained queue descriptor materialization with native byte-exact conformance.",
       "signature": "instance (MTLIOCommandQueueType) -> void"
     },
     {
@@ -61379,7 +61379,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandQueue.h",
       "id": "method:-[MTLIOCommandQueueDescriptor type]",
       "kind": "method",
@@ -61387,7 +61387,7 @@
       "macos_introduced": "13.0",
       "name": "type",
       "owner": "MTLIOCommandQueueDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the retained safe Metal IO queue/file/command chain and contained queue descriptor materialization with native byte-exact conformance.",
       "signature": "instance () -> MTLIOCommandQueueType"
     },
     {
@@ -95110,7 +95110,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandQueue.h",
       "id": "property:MTLIOCommandQueueDescriptor:maxCommandBufferCount",
       "kind": "property",
@@ -95118,7 +95118,7 @@
       "macos_introduced": "13.0",
       "name": "maxCommandBufferCount",
       "owner": "MTLIOCommandQueueDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the retained safe Metal IO queue/file/command chain and contained queue descriptor materialization with native byte-exact conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -95129,7 +95129,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandQueue.h",
       "id": "property:MTLIOCommandQueueDescriptor:maxCommandsInFlight",
       "kind": "property",
@@ -95137,7 +95137,7 @@
       "macos_introduced": "13.0",
       "name": "maxCommandsInFlight",
       "owner": "MTLIOCommandQueueDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the retained safe Metal IO queue/file/command chain and contained queue descriptor materialization with native byte-exact conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -95186,7 +95186,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandQueue.h",
       "id": "property:MTLIOCommandQueueDescriptor:type",
       "kind": "property",
@@ -95194,7 +95194,7 @@
       "macos_introduced": "13.0",
       "name": "type",
       "owner": "MTLIOCommandQueueDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the retained safe Metal IO queue/file/command chain and contained queue descriptor materialization with native byte-exact conformance.",
       "signature": "MTLIOCommandQueueType"
     },
     {

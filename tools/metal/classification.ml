@@ -1641,4 +1641,7 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier Binding_command_support_safe_reachability.promotable_ids then
     Bound,
       "Implemented by safe indirect-command, capture-state, and event operations with validation, ownership, and native conformance."
+  else if List.mem identifier Binding_io_safe_reachability.promotable_ids then
+    Bound,
+      "Implemented by the retained safe Metal IO queue/file/command chain and contained queue descriptor materialization with native byte-exact conformance."
   else Unreviewed, "Binding classification pending during Phase 2."

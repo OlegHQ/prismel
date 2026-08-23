@@ -198,6 +198,7 @@ let handwritten_only_handle_kinds =
   ; "Pipeline_buffer_descriptor"; "Color_attachment_descriptor"
   ; "Io_command_buffer"; "Io_command_queue"; "Io_file_handle" ]
   @ [ "Compute_pipeline_descriptor"; "Render_pipeline_descriptor" ]
+  @ [ "Counter_heap4" ]
 
 let exclusions =
   [ { handle_kind = "External_memory"
@@ -229,8 +230,8 @@ let exclusions =
 let expected_receiver_count = 44
 let expected_polymorphic_receiver_count = 3
 let expected_catalog_count = 47
-let expected_handle_kind_count = 91
-let expected_exclusion_count = 47
+let expected_handle_kind_count = 92
+let expected_exclusion_count = 48
 
 let source_paths =
   [ "tools/metal/binding_receiver_catalog.ml"

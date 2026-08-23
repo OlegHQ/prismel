@@ -35,7 +35,9 @@ let relevant declaration =
           || String.equal declaration.classification "bound"
              && List.mem declaration.id Binding_mesh_tile_safe_reachability.promotable_ids
           || String.equal declaration.classification "bound"
-             && List.mem declaration.id Binding_command_support_safe_reachability.promotable_ids))
+             && List.mem declaration.id Binding_command_support_safe_reachability.promotable_ids
+          || String.equal declaration.classification "bound"
+             && List.mem declaration.id Binding_io_safe_reachability.promotable_ids))
   && (String.equal declaration.kind "method"
       || String.equal declaration.kind "property")
   && Binding_struct_spec.mechanically_safe_signature declaration.signature

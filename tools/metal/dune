@@ -38,6 +38,8 @@
   binding_mesh_tile_safe_reachability
   binding_command_support_manifest
   binding_command_support_safe_reachability
+  binding_io_counter_manifest
+  binding_io_safe_reachability
   binding_presentation_spec
   binding_presentation_plan
   binding_presentation_codegen
@@ -464,6 +466,11 @@
 (test
  (name test_binding_command_support_safe_reachability)
  (modules test_binding_command_support_safe_reachability)
+ (libraries metal_inventory_classification))
+
+(test
+ (name test_binding_io_safe_reachability)
+ (modules test_binding_io_safe_reachability)
  (libraries metal_inventory_classification))
 
 (test
