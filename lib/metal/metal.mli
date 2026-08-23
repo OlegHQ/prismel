@@ -1264,6 +1264,8 @@ end
 
 module Compute_pipeline : sig
   type t
+  type size3 = { width:int64; height:int64; depth:int64 }
+  type shader_validation = Default | Enabled | Disabled
 
   val create :
     ?label:string -> ?linked_functions:Function.t list ->
@@ -1280,6 +1282,11 @@ module Compute_pipeline : sig
   val max_total_threads_per_threadgroup : t -> int
   val static_threadgroup_memory_length : t -> (int64, error) result
   val destroyed : t -> bool
+  val resource_id : t -> (int64,error) result
+  val required_threads_per_threadgroup : t -> (size3,error) result
+  val shader_validation : t -> (shader_validation,error) result
+  val supports_indirect_command_buffers : t -> (bool,error) result
+  val imageblock_memory_length : t -> size3 -> (int64,error) result
   val destroy : t -> (unit, error) result
 end
 
@@ -1419,6 +1426,8 @@ end
 
 module Render_pipeline : sig
   type t
+  type size3 = { width:int64; height:int64; depth:int64 }
+  type shader_validation = Default | Enabled | Disabled
 
   type kind =
     | Render
@@ -1505,6 +1514,14 @@ module Render_pipeline : sig
   val device : t -> Device.t
   val generation : t -> int64
   val destroyed : t -> bool
+  val resource_id : t -> (int64,error) result
+  val imageblock_sample_length : t -> (int64,error) result
+  val mesh_threads_per_threadgroup : t -> (size3,error) result
+  val object_threads_per_threadgroup : t -> (size3,error) result
+  val tile_threads_per_threadgroup : t -> (size3,error) result
+  val shader_validation : t -> (shader_validation,error) result
+  val supports_indirect_command_buffers : t -> (bool,error) result
+  val imageblock_memory_length : t -> size3 -> (int64,error) result
   val kind : t -> kind
   val raster_sample_count : t -> int
   val alpha_to_coverage : t -> bool

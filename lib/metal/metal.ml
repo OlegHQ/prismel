@@ -8318,6 +8318,8 @@ end
 
 module Compute_pipeline = struct
   type t = compute_pipeline
+  type size3 = { width:int64; height:int64; depth:int64 }
+  type shader_validation = Default | Enabled | Disabled
 
   let make device ~reflection raw raw_bindings =
     let bindings =
@@ -8432,6 +8434,15 @@ module Compute_pipeline = struct
   let thread_execution_width (value : t) = value.thread_execution_width
   let max_total_threads_per_threadgroup (value : t) = value.max_total_threads
   let destroyed (value : t) = is_destroyed value.lifetime
+  let state_query operation raw (value:t) = on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match raw value.raw with Error m->native_error operation m|Ok x->Ok x)
+  let resource_id value = state_query "Metal.Compute_pipeline.resource_id" Metal_raw.pipeline_compute_resource_id value
+  let required_threads_per_threadgroup value = Result.map(fun(w,h,d)->{width=w;height=h;depth=d})(state_query "Metal.Compute_pipeline.required_threads_per_threadgroup" Metal_raw.pipeline_compute_required_threads value)
+  let shader_validation value = Result.bind(state_query "Metal.Compute_pipeline.shader_validation" Metal_raw.pipeline_compute_shader_validation value)(function 0L->Ok Default|1L->Ok Enabled|2L->Ok Disabled|_->error "Metal.Compute_pipeline.shader_validation" Unsupported "unknown SDK shader-validation value")
+  let supports_indirect_command_buffers value = state_query "Metal.Compute_pipeline.supports_indirect_command_buffers" Metal_raw.pipeline_compute_indirect value
+  let imageblock_memory_length value (size:size3) =
+    let operation="Metal.Compute_pipeline.imageblock_memory_length" in
+    if size.width<=0L||size.height<=0L||size.depth<=0L then error operation Invalid_argument "imageblock dimensions must be positive"
+    else state_query operation(fun raw->Metal_raw.pipeline_compute_imageblock_length raw(size.width,size.height,size.depth))value
 
   let static_threadgroup_memory_length (value : t) =
     let operation = "Metal.Compute_pipeline.static_threadgroup_memory_length" in
@@ -8656,6 +8667,8 @@ end
 
 module Render_pipeline = struct
   type t = render_pipeline
+  type size3 = { width:int64; height:int64; depth:int64 }
+  type shader_validation = Default | Enabled | Disabled
 
   type kind = render_pipeline_kind =
     | Render
@@ -8851,6 +8864,17 @@ module Render_pipeline = struct
   let device (value : t) = value.device
   let generation (value : t) = Metal_raw.generation value.raw
   let destroyed (value : t) = is_destroyed value.lifetime
+  let state_query operation raw (value:t) = on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match raw value.raw with Error m->native_error operation m|Ok x->Ok x)
+  let resource_id value = state_query "Metal.Render_pipeline.resource_id" Metal_raw.pipeline_render_resource_id value
+  let imageblock_sample_length value = state_query "Metal.Render_pipeline.imageblock_sample_length" Metal_raw.pipeline_render_imageblock_sample_length value
+  let mesh_threads_per_threadgroup value = Result.map(fun(w,h,d)->{width=w;height=h;depth=d})(state_query "Metal.Render_pipeline.mesh_threads_per_threadgroup" Metal_raw.pipeline_render_mesh_threads value)
+  let object_threads_per_threadgroup value = Result.map(fun(w,h,d)->{width=w;height=h;depth=d})(state_query "Metal.Render_pipeline.object_threads_per_threadgroup" Metal_raw.pipeline_render_object_threads value)
+  let tile_threads_per_threadgroup value = Result.map(fun(w,h,d)->{width=w;height=h;depth=d})(state_query "Metal.Render_pipeline.tile_threads_per_threadgroup" Metal_raw.pipeline_render_tile_threads value)
+  let shader_validation value = Result.bind(state_query "Metal.Render_pipeline.shader_validation" Metal_raw.pipeline_render_shader_validation value)(function 0L->Ok Default|1L->Ok Enabled|2L->Ok Disabled|_->error "Metal.Render_pipeline.shader_validation" Unsupported "unknown SDK shader-validation value")
+  let supports_indirect_command_buffers value = state_query "Metal.Render_pipeline.supports_indirect_command_buffers" Metal_raw.pipeline_render_indirect value
+  let imageblock_memory_length value (size:size3) = let operation="Metal.Render_pipeline.imageblock_memory_length" in
+    if size.width<=0L||size.height<=0L||size.depth<=0L then error operation Invalid_argument "imageblock dimensions must be positive"
+    else state_query operation(fun raw->Metal_raw.pipeline_render_imageblock_length raw(size.width,size.height,size.depth))value
   let kind (value : t) = value.kind
   let raster_sample_count (value : t) = value.raster_sample_count
   let alpha_to_coverage (value : t) = value.alpha_to_coverage
