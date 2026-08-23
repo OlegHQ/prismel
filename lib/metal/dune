@@ -271,6 +271,20 @@
  (action (run ./test_presentation_lifecycle_native.exe)))
 
 (rule
+ (targets test_presentation_callback_token_prototype.exe)
+ (deps ../../tools/metal/test_presentation_callback_token_prototype.mm
+       ../../tools/metal/presentation_callback_token_prototype.mm)
+ (action
+  (run clang++ -std=c++17 -pthread
+   %{dep:../../tools/metal/test_presentation_callback_token_prototype.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_presentation_callback_token_prototype.exe)
+ (action (run ./test_presentation_callback_token_prototype.exe)))
+
+(rule
  (targets test_metal_render_encoder_sync_native.exe test_metal_render_encoder_store_native.exe test_metal_render_encoder_residency_native.exe test_metal_render_encoder_icb_native.exe)
  (deps test_metal_render_encoder_sync_native.mm test_metal_render_encoder_store_native.mm test_metal_render_encoder_residency_native.mm test_metal_render_encoder_icb_native.mm)
  (action

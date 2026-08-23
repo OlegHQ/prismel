@@ -1394,7 +1394,7 @@ type command_buffer =
   ; queue : command_queue
   ; mutable phase : command_phase
   ; resources : command_resource list ref
-  ; mutable callback_handlers : int
+  ; callback_tokens : nativeint list ref
   }
 
 type compute_encoder =
@@ -13776,6 +13776,11 @@ module Command_buffer = struct
     | Error of string
     | Unknown of int
 
+  let release_callback_tokens tokens =
+    let retained = !tokens in
+    tokens := [];
+    List.iter Metal_raw.command_buffer_cancel_handler retained
+
   let create (queue : Command_queue.t) ?label () =
     on_main "Metal.Command_buffer.create" (fun () ->
       match ensure_live "Metal.Command_buffer.create" queue.lifetime with
@@ -13796,13 +13801,16 @@ module Command_buffer = struct
                      ; queue
                      ; phase = Recording
                      ; resources = ref []
-                     ; callback_handlers = 0
+                     ; callback_tokens = ref []
                      }
                    in
                    attach queue.lifetime;
-                   let resources = value.resources in
+                   let resources = value.resources
+                   and callback_tokens = value.callback_tokens in
                    attach_finalizer
-                     ~on_finalize:(fun () -> release_command_resources resources)
+                     ~on_finalize:(fun () ->
+                       release_command_resources resources;
+                       release_callback_tokens callback_tokens)
                      value value.lifetime queue.lifetime;
                    (match label with
                     | None -> Ok value
@@ -13888,7 +13896,7 @@ module Command_buffer = struct
           let status = Metal_raw.command_buffer_status value.raw in
           if status = 4 || status = 5 then begin
             release_command_resources value.resources;
-            value.callback_handlers <- 0
+            release_callback_tokens value.callback_tokens
           end;
           Ok
             (match status with
@@ -13925,7 +13933,9 @@ module Command_buffer = struct
           let guarded () = try callback () with _ -> () in
           match Metal_raw.command_buffer_add_handler value.raw guarded scheduled with
           | Error message -> native_error operation message
-          | Ok () -> value.callback_handlers <- value.callback_handlers + 1; Ok ())
+          | Ok token ->
+              value.callback_tokens := token :: !(value.callback_tokens);
+              Ok ())
 
   let add_scheduled_handler value callback =
     add_handler "Metal.Command_buffer.add_scheduled_handler" true value callback
@@ -13960,7 +13970,7 @@ module Command_buffer = struct
           let status = Metal_raw.command_buffer_status value.raw in
           if status = 4 || status = 5 then begin
             release_command_resources value.resources;
-            value.callback_handlers <- 0
+            release_callback_tokens value.callback_tokens
           end;
           if status = 4 then Ok () else
             native_error "Metal.Command_buffer.wait_until_completed"
@@ -13969,13 +13979,17 @@ module Command_buffer = struct
                    (Printf.sprintf "command buffer ended with status %d" status)))
 
   let destroy (value : t) =
-    if value.callback_handlers <> 0 then
+    if value.phase = Submitted
+       && let status = Metal_raw.command_buffer_status value.raw in
+          status <> 4 && status <> 5
+    then
       error "Metal.Command_buffer.destroy" Parent_has_dependents
-        "command buffer has registered native callbacks; commit and wait first"
+        "submitted command buffer has not reached a terminal state"
     else
       destroy_parent "Metal.Command_buffer.destroy" value.lifetime value.raw
         (fun () ->
           release_command_resources value.resources;
+          release_callback_tokens value.callback_tokens;
           detach value.queue.lifetime)
 end
 
