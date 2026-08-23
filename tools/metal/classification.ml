@@ -49,6 +49,7 @@ let bound_identifiers =
   ; "class:MTLCompileOptions"
   ; "class:MTLComputePipelineDescriptor"
   ; "class:MTLComputePipelineReflection"
+  ; "class:MTLDepthStencilDescriptor"
   ; "class:MTLFunctionConstant"
   ; "class:MTLFunctionConstantValues"
   ; "class:MTLHeapDescriptor"
@@ -58,6 +59,7 @@ let bound_identifiers =
   ; "class:MTLRenderPassAttachmentDescriptor"
   ; "class:MTLRenderPassColorAttachmentDescriptor"
   ; "class:MTLRenderPassColorAttachmentDescriptorArray"
+  ; "class:MTLRenderPassDepthAttachmentDescriptor"
   ; "class:MTLSamplerDescriptor"
   ; "class:MTLSharedTextureHandle"
   ; "class:MTLTextureDescriptor"
@@ -192,6 +194,7 @@ let bound_identifiers =
   ; "protocol:MTLCommandQueue"
   ; "protocol:MTLComputeCommandEncoder"
   ; "protocol:MTLComputePipelineState"
+  ; "protocol:MTLDepthStencilState"
   ; "protocol:MTLDevice"
   ; "protocol:MTLDynamicLibrary"
   ; "protocol:MTLEvent"
@@ -325,11 +328,12 @@ let bound_identifiers =
           ; "drawPrimitives:indirectBuffer:"
           ; "drawPrimitives:vertexStart:vertexCount:"
           ; "drawPrimitives:vertexStart:vertexCount:instanceCount:baseInstance:"
-          ; "setArgumentTable:atStages:"; "setRenderPipelineState:"
+          ; "setArgumentTable:atStages:"; "setDepthStencilState:"
+          ; "setRenderPipelineState:"
           ; "setViewport:"; "tileHeight"; "tileWidth"
           ] )
       ; ( "MTL4RenderPassDescriptor"
-        , [ "colorAttachments"; "defaultRasterSampleCount"
+        , [ "colorAttachments"; "defaultRasterSampleCount"; "depthAttachment"
           ; "renderTargetHeight"; "renderTargetWidth"
           ; "setDefaultRasterSampleCount:"; "setRenderTargetHeight:"
           ; "setRenderTargetWidth:"
@@ -512,6 +516,14 @@ let bound_identifiers =
         , [ "clearColor"; "setClearColor:" ] )
       ; ( "MTLRenderPassColorAttachmentDescriptorArray"
         , [ "objectAtIndexedSubscript:" ] )
+      ; ( "MTLRenderPassDepthAttachmentDescriptor"
+        , [ "clearDepth"; "setClearDepth:" ] )
+      ; ( "MTLDepthStencilDescriptor"
+        , [ "depthCompareFunction"; "isDepthWriteEnabled"; "label"
+          ; "setDepthCompareFunction:"; "setDepthWriteEnabled:"
+          ; "setLabel:"
+          ] )
+      ; "MTLDepthStencilState", [ "device"; "label" ]
       ; ( "MTLDevice"
         , [ "currentAllocatedSize"; "hasUnifiedMemory"; "isHeadless"
           ; "heapBufferSizeAndAlignWithLength:options:"
@@ -532,6 +544,7 @@ let bound_identifiers =
           ; "newCompilerWithDescriptor:error:"
           ; "newComputePipelineStateWithDescriptor:options:reflection:error:"
           ; "newComputePipelineStateWithFunction:error:"
+          ; "newDepthStencilStateWithDescriptor:"
           ; "newDynamicLibrary:error:"; "newDynamicLibraryWithURL:error:"
           ; "newLibraryWithURL:error:"
           ; "newLibraryWithSource:options:error:"
@@ -756,7 +769,7 @@ let bound_identifiers =
       ; "MTL4CommitFeedback", [ "error" ]
       ; "MTL4RenderCommandEncoder", [ "tileHeight"; "tileWidth" ]
       ; ( "MTL4RenderPassDescriptor"
-        , [ "colorAttachments"; "defaultRasterSampleCount"
+        , [ "colorAttachments"; "defaultRasterSampleCount"; "depthAttachment"
           ; "renderTargetHeight"; "renderTargetWidth"
           ] )
       ; "MTLAllocation", [ "allocatedSize" ]
@@ -789,6 +802,10 @@ let bound_identifiers =
       ; ( "MTLRenderPassAttachmentDescriptor"
         , [ "loadAction"; "storeAction"; "texture" ] )
       ; "MTLRenderPassColorAttachmentDescriptor", [ "clearColor" ]
+      ; "MTLRenderPassDepthAttachmentDescriptor", [ "clearDepth" ]
+      ; ( "MTLDepthStencilDescriptor"
+        , [ "depthCompareFunction"; "depthWriteEnabled"; "label" ] )
+      ; "MTLDepthStencilState", [ "device"; "label" ]
       ; ( "MTLDevice"
         , [ "currentAllocatedSize"; "depth24Stencil8PixelFormatSupported"
           ; "hasUnifiedMemory"; "headless"; "lowPower"; "maxBufferLength"

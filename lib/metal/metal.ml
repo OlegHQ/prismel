@@ -605,6 +605,14 @@ type sampler =
   ; descriptor : sampler_descriptor
   }
 
+type depth_stencil =
+  { raw : Metal_raw.handle
+  ; lifetime : lifetime
+  ; device : device
+  ; depth_compare : sampler_compare_function
+  ; depth_write : bool
+  }
+
 type library =
   { raw : Metal_raw.handle
   ; lifetime : lifetime
@@ -771,6 +779,7 @@ type command4_resource =
   | Command4_buffer of buffer
   | Command4_texture of texture
   | Command4_sampler of sampler
+  | Command4_depth_stencil of depth_stencil
   | Command4_compute_pipeline of compute_pipeline
   | Command4_render_pipeline of render_pipeline
 
@@ -800,6 +809,7 @@ type command4_render_encoder =
   ; tile_width : int
   ; tile_height : int
   ; color_formats : pixel_format list
+  ; depth_format : pixel_format option
   ; mutable pipeline : render_pipeline option
   ; mutable mesh_limits : mesh_pipeline_limits option
   ; mutable tile_limits : tile_pipeline_limits option
@@ -924,6 +934,7 @@ let command4_resource_lifetime = function
   | Command4_buffer buffer -> buffer.lifetime
   | Command4_texture texture -> texture.lifetime
   | Command4_sampler sampler -> sampler.lifetime
+  | Command4_depth_stencil state -> state.lifetime
   | Command4_compute_pipeline pipeline -> pipeline.lifetime
   | Command4_render_pipeline pipeline -> pipeline.lifetime
 
@@ -932,7 +943,7 @@ let command4_resource_heap = function
   | Command4_buffer
       { parent = (Device_resource _ | External_resource _); _ } -> None
   | Command4_texture texture -> command_texture_heap texture
-  | Command4_argument_table _ | Command4_sampler _
+  | Command4_argument_table _ | Command4_sampler _ | Command4_depth_stencil _
   | Command4_compute_pipeline _ | Command4_render_pipeline _ -> None
 
 let release_command4_resources resources =
@@ -953,6 +964,7 @@ let retain_command4_argument_table (command_buffer : command4_buffer)
         | Command4_argument_table candidate ->
             candidate.lifetime == table.lifetime
         | Command4_buffer _ | Command4_texture _ | Command4_sampler _
+        | Command4_depth_stencil _
         | Command4_compute_pipeline _ | Command4_render_pipeline _ -> false)
       !(command_buffer.resources)
   in
@@ -968,6 +980,7 @@ let retain_command4_buffer (command_buffer : command4_buffer) (buffer : buffer) 
       (function
         | Command4_buffer candidate -> candidate.lifetime == buffer.lifetime
         | Command4_argument_table _ | Command4_texture _ | Command4_sampler _
+        | Command4_depth_stencil _
         | Command4_compute_pipeline _ | Command4_render_pipeline _ -> false)
       !(command_buffer.resources)
   in
@@ -988,6 +1001,7 @@ let retain_command4_texture (command_buffer : command4_buffer)
       (function
         | Command4_texture candidate -> candidate.lifetime == texture.lifetime
         | Command4_argument_table _ | Command4_buffer _ | Command4_sampler _
+        | Command4_depth_stencil _
         | Command4_compute_pipeline _ | Command4_render_pipeline _ -> false)
       !(command_buffer.resources)
   in
@@ -1006,6 +1020,7 @@ let retain_command4_sampler (command_buffer : command4_buffer)
       (function
         | Command4_sampler candidate -> candidate.lifetime == sampler.lifetime
         | Command4_argument_table _ | Command4_buffer _ | Command4_texture _
+        | Command4_depth_stencil _
         | Command4_compute_pipeline _ | Command4_render_pipeline _ -> false)
       !(command_buffer.resources)
   in
@@ -1013,6 +1028,24 @@ let retain_command4_sampler (command_buffer : command4_buffer)
     attach sampler.lifetime;
     command_buffer.resources :=
       Command4_sampler sampler :: !(command_buffer.resources)
+  end
+
+let retain_command4_depth_stencil (command_buffer : command4_buffer)
+    (state : depth_stencil) =
+  let retained =
+    List.exists
+      (function
+        | Command4_depth_stencil candidate ->
+            candidate.lifetime == state.lifetime
+        | Command4_argument_table _ | Command4_buffer _ | Command4_texture _
+        | Command4_sampler _ | Command4_compute_pipeline _
+        | Command4_render_pipeline _ -> false)
+      !(command_buffer.resources)
+  in
+  if not retained then begin
+    attach state.lifetime;
+    command_buffer.resources :=
+      Command4_depth_stencil state :: !(command_buffer.resources)
   end
 
 let retain_command4_compute_pipeline (command_buffer : command4_buffer)
@@ -1023,7 +1056,7 @@ let retain_command4_compute_pipeline (command_buffer : command4_buffer)
         | Command4_compute_pipeline candidate ->
             candidate.lifetime == pipeline.lifetime
         | Command4_argument_table _ | Command4_buffer _
-        | Command4_texture _ | Command4_sampler _
+        | Command4_texture _ | Command4_sampler _ | Command4_depth_stencil _
         | Command4_render_pipeline _ -> false)
       !(command_buffer.resources)
   in
@@ -1042,7 +1075,7 @@ let retain_command4_render_pipeline (command_buffer : command4_buffer)
            | Command4_render_pipeline retained ->
                retained.lifetime == pipeline.lifetime
            | Command4_argument_table _ | Command4_buffer _
-           | Command4_texture _ | Command4_sampler _
+           | Command4_texture _ | Command4_sampler _ | Command4_depth_stencil _
            | Command4_compute_pipeline _ -> false)
          !(command_buffer.resources))
   then begin
@@ -6037,6 +6070,63 @@ module Sampler = struct
       (fun () -> detach value.device.lifetime)
 end
 
+module Depth_stencil = struct
+  type t = depth_stencil
+  type compare_function = sampler_compare_function =
+    | Never
+    | Less
+    | Equal
+    | Less_equal
+    | Greater
+    | Not_equal
+    | Greater_equal
+    | Always
+
+  let create ?label ?(depth_compare = Always) ?(depth_write = false)
+      (device : Device.t) () =
+    let operation = "Metal.Depth_stencil.create" in
+    on_main operation (fun () ->
+      match ensure_live operation device.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when option_exists contains_nul label ->
+          error operation Invalid_argument "depth/stencil label contains a NUL byte"
+      | Ok () ->
+          (match
+             Metal_raw.depth_stencil_create device.raw
+               (Sampler.compare_code depth_compare) depth_write label
+           with
+           | Error message -> native_error operation message
+           | Ok raw ->
+               let value : t =
+                 { raw
+                 ; lifetime = lifetime ()
+                 ; device
+                 ; depth_compare
+                 ; depth_write
+                 }
+               in
+               attach device.lifetime;
+               attach_finalizer value value.lifetime device.lifetime;
+               Ok value))
+
+  let device (value : t) = value.device
+  let depth_compare (value : t) = value.depth_compare
+  let depth_write (value : t) = value.depth_write
+  let generation (value : t) = Metal_raw.generation value.raw
+  let destroyed (value : t) = is_destroyed value.lifetime
+
+  let label (value : t) =
+    let operation = "Metal.Depth_stencil.label" in
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () -> Ok (Metal_raw.depth_stencil_label value.raw))
+
+  let destroy (value : t) =
+    destroy_parent "Metal.Depth_stencil.destroy" value.lifetime value.raw
+      (fun () -> detach value.device.lifetime)
+end
+
 module Shader_type = struct
   type scalar = shader_scalar_type =
     | Float
@@ -9370,10 +9460,22 @@ module Command4 = struct
       | Store_dont_care
       | Store
 
+    type depth_load_action =
+      | Depth_load_dont_care
+      | Depth_load
+      | Depth_clear
+
     type color_attachment =
       { texture : Texture.t
       ; load_action : load_action
       ; store_action : store_action
+      }
+
+    type depth_attachment =
+      { texture : Texture.t
+      ; load_action : depth_load_action
+      ; store_action : store_action
+      ; clear_depth : float
       }
 
     type viewport =
@@ -9410,6 +9512,10 @@ module Command4 = struct
         ?(store_action = Store) texture =
       { texture; load_action; store_action }
 
+    let depth_attachment ?(load_action = Depth_clear)
+        ?(store_action = Store) ?(clear_depth = 1.) texture =
+      { texture; load_action; store_action; clear_depth }
+
     let finite_color color =
       Float.is_finite color.red && Float.is_finite color.green
       && Float.is_finite color.blue && Float.is_finite color.alpha
@@ -9421,17 +9527,22 @@ module Command4 = struct
 
     let store_code = function Store_dont_care -> 0 | Store -> 1
 
+    let depth_load_code = function
+      | Depth_load_dont_care -> 0
+      | Depth_load -> 1
+      | Depth_clear -> 2
+
     let clear_color = function
       | Clear color -> color
       | Load_dont_care | Load -> transparent_black
 
-    let same_attachment left right =
+    let same_attachment (left : color_attachment) (right : color_attachment) =
       left.texture.lifetime == right.texture.lifetime
 
     let validate_attachments operation device attachments =
       let rec loop seen dimensions formats = function
         | [] -> Ok (Option.get dimensions, List.rev formats)
-        | attachment :: rest ->
+        | (attachment : color_attachment) :: rest ->
             if List.exists (same_attachment attachment) seen then
               error operation Invalid_argument
                 "color-attachment list contains a duplicate texture"
@@ -9482,7 +9593,53 @@ module Command4 = struct
        }
         : Metal_raw.metal4_render_attachment)
 
-    let create ?label (command_buffer : Command_buffer.t) ~color_attachments =
+    let depth_capable_format = function
+      | Texture.Depth16_unorm | Texture.Depth32_float
+      | Texture.Depth24_unorm_stencil8 | Texture.Depth32_float_stencil8 -> true
+      | _ -> false
+
+    let validate_depth_attachment operation device ~width ~height = function
+      | None -> Ok ()
+      | Some (attachment : depth_attachment) ->
+          let ( let* ) result callback = Result.bind result callback in
+          let* () = ensure_texture_usable operation attachment.texture in
+          let* () =
+            ensure_same_device operation device attachment.texture.device
+          in
+          let descriptor = attachment.texture.descriptor in
+          if descriptor.kind <> Texture_2d then
+            error operation Invalid_argument
+              "Metal 4 depth attachments must be 2D textures"
+          else if descriptor.sample_count <> 1 then
+            error operation Invalid_argument
+              "Metal 4 depth attachments must be single-sample"
+          else if descriptor.width <> width || descriptor.height <> height then
+            error operation Invalid_argument
+              "depth and color attachments have different dimensions"
+          else if not (List.mem Render_target descriptor.usage) then
+            error operation Invalid_argument
+              "depth attachment lacks render-target usage"
+          else if not (depth_capable_format descriptor.format) then
+            error operation Invalid_argument
+              "depth attachment does not use a depth-capable format"
+          else if
+            not (Float.is_finite attachment.clear_depth)
+            || attachment.clear_depth < 0. || attachment.clear_depth > 1.
+          then
+            error operation Invalid_argument
+              "clear depth must be finite and in [0, 1]"
+          else Ok ()
+
+    let raw_depth_attachment (attachment : depth_attachment) =
+      ({ Metal_raw.texture = attachment.texture.raw
+       ; load_action = depth_load_code attachment.load_action
+       ; store_action = store_code attachment.store_action
+       ; clear_depth = attachment.clear_depth
+       }
+        : Metal_raw.metal4_render_depth_attachment)
+
+    let create ?label ?depth_attachment (command_buffer : Command_buffer.t)
+        ~color_attachments =
       let operation = "Metal.Command4.Render_encoder.create" in
       on_main operation (fun () ->
         match ensure_live operation command_buffer.lifetime with
@@ -9507,44 +9664,65 @@ module Command4 = struct
              with
              | Error _ as failure -> failure
              | Ok ((width, height), color_formats) ->
-                 let raw_attachments =
-                   Array.of_list (List.map raw_attachment color_attachments)
-                 in
-                 match
-                   Metal_raw.command4_render_encoder_create command_buffer.raw
-                     raw_attachments (width, height) label
-                 with
-                 | Error message -> native_error operation message
-                 | Ok (raw, tile_width, tile_height) ->
-                     List.iter
-                       (fun attachment ->
-                         retain_command4_texture command_buffer
-                           attachment.texture)
-                       color_attachments;
-                     let value : t =
-                       { raw
-                       ; lifetime = lifetime ()
-                       ; command_buffer
-                       ; width
-                       ; height
-                       ; tile_width
-                       ; tile_height
-                       ; color_formats
-                       ; pipeline = None
-                       ; mesh_limits = None
-                       ; tile_limits = None
-                       ; argument_tables = Array.make 5 None
-                       }
-                     in
-                     attach command_buffer.lifetime;
-                     attach_finalizer
-                       ~on_finalize:(fun () ->
-                         if command_buffer.phase = Command4_recording then
-                           command_buffer.phase <-
-                             Command4_failed
-                               "render encoder was abandoned before end_encoding")
-                       value value.lifetime command_buffer.lifetime;
-                     Ok value))
+                 (match
+                    validate_depth_attachment operation
+                      command_buffer.allocator.device ~width ~height
+                      depth_attachment
+                  with
+                  | Error _ as failure -> failure
+                  | Ok () ->
+                      let raw_attachments =
+                        Array.of_list (List.map raw_attachment color_attachments)
+                      in
+                      let raw_depth =
+                        Option.map raw_depth_attachment depth_attachment
+                      in
+                      match
+                        Metal_raw.command4_render_encoder_create
+                          command_buffer.raw raw_attachments raw_depth
+                          (width, height) label
+                      with
+                      | Error message -> native_error operation message
+                      | Ok (raw, tile_width, tile_height) ->
+                          List.iter
+                            (fun (attachment : color_attachment) ->
+                              retain_command4_texture command_buffer
+                                attachment.texture)
+                            color_attachments;
+                          Option.iter
+                            (fun (attachment : depth_attachment) ->
+                              retain_command4_texture command_buffer
+                                attachment.texture)
+                            depth_attachment;
+                          let value : t =
+                            { raw
+                            ; lifetime = lifetime ()
+                            ; command_buffer
+                            ; width
+                            ; height
+                            ; tile_width
+                            ; tile_height
+                            ; color_formats
+                            ; depth_format =
+                                Option.map
+                                  (fun (attachment : depth_attachment) ->
+                                    attachment.texture.descriptor.format)
+                                  depth_attachment
+                            ; pipeline = None
+                            ; mesh_limits = None
+                            ; tile_limits = None
+                            ; argument_tables = Array.make 5 None
+                            }
+                          in
+                          attach command_buffer.lifetime;
+                          attach_finalizer
+                            ~on_finalize:(fun () ->
+                              if command_buffer.phase = Command4_recording then
+                                command_buffer.phase <-
+                                  Command4_failed
+                                    "render encoder was abandoned before end_encoding")
+                            value value.lifetime command_buffer.lifetime;
+                          Ok value)))
 
     let destroyed (value : t) = is_destroyed value.lifetime
 
@@ -9678,6 +9856,44 @@ module Command4 = struct
                                value.mesh_limits <- mesh_limits;
                                value.tile_limits <- tile_limits;
                                Ok ()))))
+
+    let set_depth_stencil_state (value : t) state =
+      let operation =
+        "Metal.Command4.Render_encoder.set_depth_stencil_state"
+      in
+      on_main operation (fun () ->
+        let ( let* ) result callback = Result.bind result callback in
+        let* () = ensure_live operation value.lifetime in
+        let* () =
+          match state with
+          | None -> Ok ()
+          | Some (state : Depth_stencil.t) ->
+              let* () = ensure_live operation state.lifetime in
+              let* () =
+                ensure_same_device operation
+                  value.command_buffer.allocator.device state.device
+              in
+              if
+                Option.is_none value.depth_format
+                && (state.depth_write || state.depth_compare <> Always)
+              then
+                error operation Invalid_state
+                  "active depth testing requires a depth attachment"
+              else Ok ()
+        in
+        let raw_state =
+          Option.map (fun (state : depth_stencil) -> state.raw) state
+        in
+        match
+          Metal_raw.command4_render_encoder_set_depth_stencil value.raw
+            value.command_buffer.raw raw_state
+        with
+        | Error message -> native_error operation message
+        | Ok () ->
+            Option.iter
+              (retain_command4_depth_stencil value.command_buffer)
+              state;
+            Ok ())
 
     let stage_index = function
       | Vertex -> 0

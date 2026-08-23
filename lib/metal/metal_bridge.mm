@@ -910,6 +910,7 @@ enum class Handle_kind : std::uint32_t {
   Submission4,
   Argument_table4,
   Compute_encoder4,
+  Depth_stencil,
 };
 
 struct Handle {
@@ -5141,6 +5142,69 @@ extern "C" CAMLprim value caml_prismel_metal_sampler_label(value raw) {
   CAMLreturn(result);
 }
 
+extern "C" CAMLprim value caml_prismel_metal_depth_stencil_create(
+    value raw_device, value raw_compare, value raw_write, value raw_label) {
+  CAMLparam4(raw_device, raw_compare, raw_write, raw_label);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    @try {
+      id<MTLDevice> device = object_of_handle(raw_device, Handle_kind::Device);
+      const intnat compare = Long_val(raw_compare);
+      if (compare < 0 || compare > 7) {
+        CAMLreturn(result_error_text(
+            "depth/stencil compare function is invalid"));
+      }
+      NSString *expected_label = nil;
+      if (Is_block(raw_label)) {
+        expected_label = string_from_ocaml(Field(raw_label, 0));
+        if (expected_label == nil) {
+          CAMLreturn(result_error_text(
+              "depth/stencil label is not valid UTF-8"));
+        }
+      }
+      MTLDepthStencilDescriptor *descriptor =
+          [[MTLDepthStencilDescriptor alloc] init];
+      descriptor.depthCompareFunction =
+          static_cast<MTLCompareFunction>(compare);
+      descriptor.depthWriteEnabled = Bool_val(raw_write);
+      descriptor.label = expected_label;
+      if (descriptor.depthCompareFunction !=
+              static_cast<MTLCompareFunction>(compare) ||
+          descriptor.isDepthWriteEnabled != Bool_val(raw_write) ||
+          ((expected_label == nil) != (descriptor.label == nil)) ||
+          (expected_label != nil &&
+           ![descriptor.label isEqualToString:expected_label])) {
+        CAMLreturn(result_error_text(
+            "Metal changed checked depth/stencil descriptor properties"));
+      }
+      id<MTLDepthStencilState> state =
+          [device newDepthStencilStateWithDescriptor:descriptor];
+      if (state == nil || state.device.registryID != device.registryID ||
+          ((expected_label == nil) != (state.label == nil)) ||
+          (expected_label != nil &&
+           ![state.label isEqualToString:expected_label])) {
+        CAMLreturn(result_error_text(
+            "Metal rejected or changed checked depth/stencil state"));
+      }
+      raw = allocate_handle(state, Handle_kind::Depth_stencil);
+      CAMLreturn(result_ok(raw));
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+}
+
+extern "C" CAMLprim value caml_prismel_metal_depth_stencil_label(value raw) {
+  CAMLparam1(raw);
+  CAMLlocal1(result);
+  @autoreleasepool {
+    id<MTLDepthStencilState> state =
+        object_of_handle(raw, Handle_kind::Depth_stencil);
+    result = copy_optional_string(state.label);
+  }
+  CAMLreturn(result);
+}
+
 extern "C" CAMLprim value caml_prismel_metal_library_compile(
     value raw_device, value raw_source, value raw_label) {
   CAMLparam3(raw_device, raw_source, raw_label);
@@ -9244,8 +9308,10 @@ extern "C" CAMLprim value caml_prismel_metal_command4_compute_encoder_end(
 }
 
 extern "C" CAMLprim value caml_prismel_metal_command4_render_encoder_create(
-    value raw_buffer, value raw_attachments, value raw_size, value raw_label) {
-  CAMLparam4(raw_buffer, raw_attachments, raw_size, raw_label);
+    value raw_buffer, value raw_attachments, value raw_depth_attachment,
+    value raw_size, value raw_label) {
+  CAMLparam5(raw_buffer, raw_attachments, raw_depth_attachment, raw_size,
+             raw_label);
   CAMLlocal2(raw, created);
   @autoreleasepool {
     if (@available(macOS 26.0, *)) {
@@ -9304,6 +9370,50 @@ extern "C" CAMLprim value caml_prismel_metal_command4_render_encoder_create(
               Double_val(Field(attachment_value, 4)),
               Double_val(Field(attachment_value, 5)),
               Double_val(Field(attachment_value, 6)));
+          [textures addObject:texture];
+        }
+        if (Is_block(raw_depth_attachment)) {
+          value attachment_value = Field(raw_depth_attachment, 0);
+          id<MTLTexture> texture = object_of_handle(
+              Field(attachment_value, 0), Handle_kind::Texture);
+          const intnat load_action = Long_val(Field(attachment_value, 1));
+          const intnat store_action = Long_val(Field(attachment_value, 2));
+          const double clear_depth = Double_val(Field(attachment_value, 3));
+          const bool depth_format =
+              texture.pixelFormat == MTLPixelFormatDepth16Unorm ||
+              texture.pixelFormat == MTLPixelFormatDepth32Float ||
+              texture.pixelFormat == MTLPixelFormatDepth24Unorm_Stencil8 ||
+              texture.pixelFormat == MTLPixelFormatDepth32Float_Stencil8;
+          if (texture.device.registryID != state.commandBuffer.device.registryID ||
+              texture.textureType != MTLTextureType2D ||
+              texture.sampleCount != 1 ||
+              texture.width != static_cast<NSUInteger>(width) ||
+              texture.height != static_cast<NSUInteger>(height) ||
+              (texture.usage & MTLTextureUsageRenderTarget) == 0 ||
+              !depth_format || !std::isfinite(clear_depth) ||
+              clear_depth < 0.0 || clear_depth > 1.0 ||
+              (load_action != MTLLoadActionDontCare &&
+               load_action != MTLLoadActionLoad &&
+               load_action != MTLLoadActionClear) ||
+              (store_action != MTLStoreActionDontCare &&
+               store_action != MTLStoreActionStore)) {
+            CAMLreturn(result_error_text(
+                "Metal 4 depth attachment failed native validation"));
+          }
+          MTLRenderPassDepthAttachmentDescriptor *attachment =
+              descriptor.depthAttachment;
+          attachment.texture = texture;
+          attachment.loadAction = static_cast<MTLLoadAction>(load_action);
+          attachment.storeAction = static_cast<MTLStoreAction>(store_action);
+          attachment.clearDepth = clear_depth;
+          if (attachment.texture != texture ||
+              attachment.loadAction != static_cast<MTLLoadAction>(load_action) ||
+              attachment.storeAction !=
+                  static_cast<MTLStoreAction>(store_action) ||
+              attachment.clearDepth != clear_depth) {
+            CAMLreturn(result_error_text(
+                "Metal changed checked Metal 4 depth attachment properties"));
+          }
           [textures addObject:texture];
         }
         id<MTL4RenderCommandEncoder> encoder =
@@ -9368,6 +9478,44 @@ caml_prismel_metal_command4_render_encoder_set_pipeline(
         }
         [encoder setRenderPipelineState:pipeline];
         [state retainEncodedObject:pipeline];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("Metal 4 commands require macOS 26"));
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_command4_render_encoder_set_depth_stencil(
+    value raw_encoder, value raw_buffer, value raw_state) {
+  CAMLparam3(raw_encoder, raw_buffer, raw_state);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4RenderCommandEncoder> encoder =
+            object_of_handle(raw_encoder, Handle_kind::Render_encoder4);
+        PrismelMetal4CommandBufferState *command_buffer =
+            command_buffer4_state_of_handle(raw_buffer);
+        id<MTLDepthStencilState> state = nil;
+        if (Is_block(raw_state)) {
+          state = object_of_handle(Field(raw_state, 0),
+                                   Handle_kind::Depth_stencil);
+          if (state.device.registryID !=
+              command_buffer.commandBuffer.device.registryID) {
+            CAMLreturn(result_error_text(
+                "Metal 4 depth/stencil state belongs to another device"));
+          }
+        }
+        if (encoder.commandBuffer != command_buffer.commandBuffer) {
+          CAMLreturn(result_error_text(
+              "Metal 4 depth/stencil encoder belongs to another buffer"));
+        }
+        [encoder setDepthStencilState:state];
+        if (state != nil) {
+          [command_buffer retainEncodedObject:state];
+        }
         CAMLreturn(result_unit());
       } @catch (NSException *exception) {
         CAMLreturn(result_error(exception.reason));

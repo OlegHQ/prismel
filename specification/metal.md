@@ -619,6 +619,17 @@ uses nonzero indirect offsets and an indexed record with `indexStart = 1`, base
 vertex `-2`, and base instance `8`, then verifies two exact split-color 8×8
 targets.
 
+Metal 4 render passes may additionally carry one checked, base-level,
+single-sample 2D depth attachment whose dimensions match the color targets.
+Depth clears must be finite and inside `[0, 1]`; load/store policy, render-target
+usage, depth-capable format, device ownership, and lifetime are checked at both
+the OCaml and native boundaries. `Depth_stencil` owns immutable compare/write
+state, and an active comparison or write requires a depth attachment. Binding
+snapshots that state through command completion. The M1 conformance path clears
+an 8×8 `Depth32_float` target to one, draws a near red triangle before a far
+green triangle with `Less` and writes enabled, and verifies that every final
+pixel remains exactly red.
+
 `Command4.Compute_encoder` binds a checked compute pipeline and an optional
 argument table, then dispatches positive direct grid/threadgroup dimensions
 whose threadgroup cardinality fits the compiled pipeline limit. Each dispatch
@@ -656,8 +667,8 @@ The M1 conformance path compiles an exact 32×32 full-tile pipeline, clears its
 argument-table slot immediately after dispatch, and verifies the retained shared
 buffer contains the tile shader's exact value `23` after commit feedback.
 
-Blend/depth/stencil policy, vertex descriptors, dynamic render linking, and
-positive offline `.metallib` provenance remain open.
+Stencil-face and programmable blend policy, vertex descriptors, dynamic render
+linking, and positive offline `.metallib` provenance remain open.
 
 `test_metal.exe` runs a real M1 compute kernel, wrong-domain and invalid-state
 cases, full labeled shader diagnostics, function-constant introspection and
@@ -684,6 +695,7 @@ pixel-exact conventional Metal 4 offscreen render execution and exact
 16-/32-bit indexed execution with two nonzero-offset pixel-exact targets,
 base-aware direct/indexed instancing with two exact split-color targets,
 direct/indexed indirect execution from checked packed OCaml buffers,
+immutable depth compare/write state and a pixel-exact depth-ordered target,
 argument-table-backed Metal 4 compute execution, direct and object-stage mesh
 command execution with two pixel-exact offscreen targets, and exact full-tile
 command execution through a completion-retained output buffer,

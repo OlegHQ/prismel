@@ -815,6 +815,33 @@ module Sampler : sig
   val destroy : t -> (unit, error) result
 end
 
+module Depth_stencil : sig
+  type t
+  type compare_function =
+    | Never
+    | Less
+    | Equal
+    | Less_equal
+    | Greater
+    | Not_equal
+    | Greater_equal
+    | Always
+
+  (** Creates immutable depth-test state. The default is always-pass with depth
+      writes disabled. *)
+  val create :
+    ?label:string -> ?depth_compare:compare_function -> ?depth_write:bool ->
+    Device.t -> unit -> (t, error) result
+
+  val device : t -> Device.t
+  val depth_compare : t -> compare_function
+  val depth_write : t -> bool
+  val generation : t -> int64
+  val destroyed : t -> bool
+  val label : t -> (string option, error) result
+  val destroy : t -> (unit, error) result
+end
+
 module Shader_type : sig
   type scalar =
     | Float
@@ -1508,7 +1535,13 @@ module Command4 : sig
       | Store_dont_care
       | Store
 
+    type depth_load_action =
+      | Depth_load_dont_care
+      | Depth_load
+      | Depth_clear
+
     type color_attachment
+    type depth_attachment
     type viewport
 
     type primitive =
@@ -1537,13 +1570,24 @@ module Command4 : sig
       ?load_action:load_action -> ?store_action:store_action -> Texture.t ->
       color_attachment
 
+    (** Creates a base-level, single-sample 2D depth attachment. *)
+    val depth_attachment :
+      ?load_action:depth_load_action -> ?store_action:store_action ->
+      ?clear_depth:float -> Texture.t -> depth_attachment
+
     val create :
-      ?label:string -> Command_buffer.t ->
+      ?label:string -> ?depth_attachment:depth_attachment -> Command_buffer.t ->
       color_attachments:color_attachment list -> (t, error) result
 
     (** Binds a conventional, mesh, or tile render pipeline whose sample count
         and ordered color formats match the render pass. *)
     val set_pipeline : t -> Render_pipeline.t -> (unit, error) result
+
+    (** Binds immutable depth-test state. Active testing or writes require a
+        depth attachment in this render pass. [None] restores Metal's default
+        always-pass, no-write state. *)
+    val set_depth_stencil_state :
+      t -> Depth_stencil.t option -> (unit, error) result
 
     (** Associates [table] with the selected render stages. Metal snapshots
         the table's current resources at each subsequent draw. [None] clears

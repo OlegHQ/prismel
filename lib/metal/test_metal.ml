@@ -233,6 +233,45 @@ fragment float4 prismel_instanced_fragment(
 }
 |}
 
+let depth_render_shader_source =
+  {|
+#include <metal_stdlib>
+using namespace metal;
+
+struct PrismelDepthVertexOut {
+  float4 position [[position]];
+};
+
+PrismelDepthVertexOut prismel_depth_vertex(uint vertex_id, float depth) {
+  constexpr float2 positions[3] = {
+    float2(-1.0f, -1.0f),
+    float2(3.0f, -1.0f),
+    float2(-1.0f, 3.0f)
+  };
+  PrismelDepthVertexOut result;
+  result.position = float4(positions[vertex_id], depth, 1.0f);
+  return result;
+}
+
+vertex PrismelDepthVertexOut prismel_depth_near_vertex(
+    uint vertex_id [[vertex_id]]) {
+  return prismel_depth_vertex(vertex_id, 0.2f);
+}
+
+vertex PrismelDepthVertexOut prismel_depth_far_vertex(
+    uint vertex_id [[vertex_id]]) {
+  return prismel_depth_vertex(vertex_id, 0.8f);
+}
+
+fragment float4 prismel_depth_red_fragment() {
+  return float4(1.0f, 0.0f, 0.0f, 1.0f);
+}
+
+fragment float4 prismel_depth_green_fragment() {
+  return float4(0.0f, 1.0f, 0.0f, 1.0f);
+}
+|}
+
 let mesh_shader_source =
   {|
 #include <metal_stdlib>
@@ -4775,6 +4814,152 @@ let test_metal4_indirect_commands device =
     true
   end
 
+let test_metal4_depth_commands device =
+  if not (get (Device.supports_family device Device.Metal4)) then false
+  else begin
+    ignore
+      (expect_error Invalid_argument
+         (Depth_stencil.create ~label:"bad\000depth" device ()));
+    ignore
+      (expect_error Wrong_domain
+         (Domain.spawn (fun () -> Depth_stencil.create device ())
+          |> Domain.join));
+    let depth_state =
+      get
+        (Depth_stencil.create ~label:"Metal 4 less/write depth"
+           ~depth_compare:Depth_stencil.Less ~depth_write:true device ())
+    in
+    if
+      get (Depth_stencil.label depth_state)
+      <> Some "Metal 4 less/write depth"
+      || Depth_stencil.depth_compare depth_state <> Depth_stencil.Less
+      || not (Depth_stencil.depth_write depth_state)
+      || not (Device.same device (Depth_stencil.device depth_state))
+      || Depth_stencil.generation depth_state <= 0L
+    then fail "Metal 4 depth/stencil state metadata is wrong";
+    let compiler = get (Compiler.create device) in
+    let library =
+      get
+        (Compiler.compile_source ~name:"metal4-command-depth-library" compiler
+           depth_render_shader_source)
+    in
+    let near_pipeline =
+      get
+        (Compiler.create_render_pipeline ~label:"Metal 4 near depth pipeline"
+           ~fragment:"prismel_depth_red_fragment" compiler ~library
+           ~vertex:"prismel_depth_near_vertex")
+    in
+    let far_pipeline =
+      get
+        (Compiler.create_render_pipeline ~label:"Metal 4 far depth pipeline"
+           ~fragment:"prismel_depth_green_fragment" compiler ~library
+           ~vertex:"prismel_depth_far_vertex")
+    in
+    let color_target =
+      get
+        (Texture.create ~device
+           (Texture.descriptor_2d ~storage:Buffer.Shared
+              ~usage:[ Texture.Render_target ] ~format:Texture.Bgra8_unorm
+              ~width:8 ~height:8 ~label:"Metal 4 depth color target" ()))
+    in
+    let depth_target =
+      get
+        (Texture.create ~device
+           (Texture.descriptor_2d ~storage:Buffer.Private
+              ~usage:[ Texture.Render_target ] ~format:Texture.Depth32_float
+              ~width:8 ~height:8 ~label:"Metal 4 depth target" ()))
+    in
+    let allocator =
+      get (Command4.Allocator.create ~label:"Metal 4 depth allocator" device)
+    in
+    let queue = get (Command4.Queue.create ~label:"Metal 4 depth queue" device) in
+    let commands =
+      get
+        (Command4.Command_buffer.create allocator
+           ~label:"Metal 4 depth commands" ())
+    in
+    let color_attachment =
+      Command4.Render_encoder.color_attachment color_target
+    in
+    let no_depth_encoder =
+      get
+        (Command4.Render_encoder.create ~label:"Metal 4 no-depth encoder"
+           commands ~color_attachments:[ color_attachment ])
+    in
+    ignore
+      (expect_error Invalid_state
+         (Command4.Render_encoder.set_depth_stencil_state no_depth_encoder
+            (Some depth_state)));
+    get (Command4.Render_encoder.end_encoding no_depth_encoder);
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.create commands
+            ~depth_attachment:
+              (Command4.Render_encoder.depth_attachment color_target)
+            ~color_attachments:[ color_attachment ]));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.create commands
+            ~depth_attachment:
+              (Command4.Render_encoder.depth_attachment ~clear_depth:nan
+                 depth_target)
+            ~color_attachments:[ color_attachment ]));
+    let encoder =
+      get
+        (Command4.Render_encoder.create ~label:"Metal 4 depth encoder"
+           ~depth_attachment:
+             (Command4.Render_encoder.depth_attachment ~clear_depth:1.
+                depth_target)
+           commands ~color_attachments:[ color_attachment ])
+    in
+    get
+      (Command4.Render_encoder.set_depth_stencil_state encoder
+         (Some depth_state));
+    ignore
+      (expect_error Parent_has_dependents
+         (Depth_stencil.destroy depth_state));
+    ignore (expect_error Parent_has_dependents (Texture.destroy depth_target));
+    get (Command4.Render_encoder.set_pipeline encoder near_pipeline);
+    get
+      (Command4.Render_encoder.draw_primitives encoder
+         Command4.Render_encoder.Triangle ~vertex_start:0 ~vertex_count:3);
+    get (Command4.Render_encoder.set_pipeline encoder far_pipeline);
+    get
+      (Command4.Render_encoder.draw_primitives encoder
+         Command4.Render_encoder.Triangle ~vertex_start:0 ~vertex_count:3);
+    get (Command4.Render_encoder.end_encoding encoder);
+    get (Command4.Command_buffer.end_recording commands);
+    let submission = get (Command4.Queue.commit queue [ commands ]) in
+    get (Command4.Submission.wait submission);
+    let pixels =
+      get
+        (Texture.read_bytes color_target
+           ~region:
+             { Texture.x = 0; y = 0; z = 0; width = 8; height = 8; depth = 1 }
+           ~mip_level:0 ~slice:0 ~bytes_per_row:32 ~bytes_per_image:256)
+    in
+    check_solid_bgra ~label:"Metal 4 depth-tested draw" ~blue:0 ~green:0
+      ~red:255 ~alpha:255 pixels;
+    get (Render_pipeline.destroy near_pipeline);
+    get (Render_pipeline.destroy far_pipeline);
+    get (Depth_stencil.destroy depth_state);
+    get (Depth_stencil.destroy depth_state);
+    if not (Depth_stencil.destroyed depth_state) then
+      fail "destroyed Metal 4 depth/stencil state remained live";
+    ignore (expect_error Destroyed (Depth_stencil.label depth_state));
+    get (Texture.destroy color_target);
+    get (Texture.destroy depth_target);
+    get (Command4.Submission.destroy submission);
+    get (Command4.Command_buffer.destroy commands);
+    get (Command4.Allocator.reset allocator);
+    get (Command4.Queue.destroy queue);
+    get (Command4.Allocator.destroy allocator);
+    get (Library.destroy library);
+    get (Compiler.destroy compiler);
+    Printf.printf "Metal 4 depth attachment/state conformance passed\n%!";
+    true
+  end
+
 let test_metal4_mesh_commands device =
   if
     not (get (Device.supports_family device Device.Metal4))
@@ -5228,6 +5413,7 @@ let () =
     ignore (test_metal4_indexed_commands device);
     ignore (test_metal4_instanced_commands device);
     ignore (test_metal4_indirect_commands device);
+    ignore (test_metal4_depth_commands device);
     ignore (test_metal4_mesh_commands device);
     ignore (test_metal4_tile_commands device);
     ignore (test_metal4_compute_commands device);
@@ -7037,6 +7223,6 @@ let () =
         stats.external_deallocations
         stats.external_deallocation_mismatches;
     Printf.printf
-      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/compiler-task/pipeline-dataset/binary-function/static-link/reflection/compute/render/mesh/object/tile/command4-argument-table/compute/render/indexed/instanced/indirect/mesh/tile conformance passed on %s\n%!"
+      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/compiler-task/pipeline-dataset/binary-function/static-link/reflection/compute/render/mesh/object/tile/command4-argument-table/compute/render/indexed/instanced/indirect/depth/mesh/tile conformance passed on %s\n%!"
       info.name
   end

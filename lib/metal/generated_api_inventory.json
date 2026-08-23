@@ -2,11 +2,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 1462,
+    "bound": 1485,
     "scope-excluded": 7,
-    "unreviewed": 3816
+    "unreviewed": 3793
   },
-  "classification_source_sha256": "3961415542fff50581f844d0af52f84572ae0dde54066324d027699dc2aadf52",
+  "classification_source_sha256": "8e6992fcf9863824ed84caf416d29c46c4340adf037075eac717ab240247e370",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "header_aggregate_sha256": "c2ee1e44c76606cf05fa81d1a8314dadfa49efe900342e8bcb3670363c16f0d1",
@@ -1674,14 +1674,14 @@
         "AvailabilityAttr",
         "VisibilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDepthStencil.h",
       "id": "class:MTLDepthStencilDescriptor",
       "kind": "class",
       "line": 55,
       "name": "MTLDepthStencilDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -2166,14 +2166,14 @@
         "AvailabilityAttr",
         "VisibilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "class:MTLRenderPassDepthAttachmentDescriptor",
       "kind": "class",
       "line": 167,
       "name": "MTLRenderPassDepthAttachmentDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -24744,14 +24744,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderCommandEncoder.h",
       "id": "method:-[MTL4RenderCommandEncoder setDepthStencilState:]",
       "kind": "method",
       "line": 195,
       "name": "setDepthStencilState:",
       "owner": "MTL4RenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (id<MTLDepthStencilState>  _Nullable __strong) -> void"
     },
     {
@@ -25008,14 +25008,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPass.h",
       "id": "method:-[MTL4RenderPassDescriptor depthAttachment]",
       "kind": "method",
       "line": 36,
       "name": "depthAttachment",
       "owner": "MTL4RenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLRenderPassDepthAttachmentDescriptor * _Nonnull"
     },
     {
@@ -33836,14 +33836,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDepthStencil.h",
       "id": "method:-[MTLDepthStencilDescriptor depthCompareFunction]",
       "kind": "method",
       "line": 58,
       "name": "depthCompareFunction",
       "owner": "MTLDepthStencilDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLCompareFunction"
     },
     {
@@ -33860,26 +33860,26 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDepthStencil.h",
       "id": "method:-[MTLDepthStencilDescriptor isDepthWriteEnabled]",
       "kind": "method",
       "line": 61,
       "name": "isDepthWriteEnabled",
       "owner": "MTLDepthStencilDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> BOOL"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDepthStencil.h",
       "id": "method:-[MTLDepthStencilDescriptor label]",
       "kind": "method",
       "line": 71,
       "name": "label",
       "owner": "MTLDepthStencilDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSString * _Nullable"
     },
     {
@@ -33896,26 +33896,26 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDepthStencil.h",
       "id": "method:-[MTLDepthStencilDescriptor setDepthCompareFunction:]",
       "kind": "method",
       "line": null,
       "name": "setDepthCompareFunction:",
       "owner": "MTLDepthStencilDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLCompareFunction) -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDepthStencil.h",
       "id": "method:-[MTLDepthStencilDescriptor setDepthWriteEnabled:]",
       "kind": "method",
       "line": null,
       "name": "setDepthWriteEnabled:",
       "owner": "MTLDepthStencilDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -33932,26 +33932,26 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDepthStencil.h",
       "id": "method:-[MTLDepthStencilDescriptor setLabel:]",
       "kind": "method",
       "line": null,
       "name": "setLabel:",
       "owner": "MTLDepthStencilDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (NSString * _Nullable) -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDepthStencil.h",
       "id": "method:-[MTLDepthStencilState device]",
       "kind": "method",
       "line": 90,
       "name": "device",
       "owner": "MTLDepthStencilState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> id<MTLDevice> _Nonnull"
     },
     {
@@ -33970,14 +33970,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDepthStencil.h",
       "id": "method:-[MTLDepthStencilState label]",
       "kind": "method",
       "line": 84,
       "name": "label",
       "owner": "MTLDepthStencilState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSString * _Nullable"
     },
     {
@@ -34849,14 +34849,14 @@
       "attributes": [
         "NSReturnsRetainedAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newDepthStencilStateWithDescriptor:]",
       "kind": "method",
       "line": 700,
       "name": "newDepthStencilStateWithDescriptor:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLDepthStencilDescriptor * _Nonnull __strong) -> id<MTLDepthStencilState> _Nullable"
     },
     {
@@ -43823,14 +43823,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassDepthAttachmentDescriptor clearDepth]",
       "kind": "method",
       "line": 173,
       "name": "clearDepth",
       "owner": "MTLRenderPassDepthAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> double"
     },
     {
@@ -43849,14 +43849,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassDepthAttachmentDescriptor setClearDepth:]",
       "kind": "method",
       "line": null,
       "name": "setClearDepth:",
       "owner": "MTLRenderPassDepthAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (double) -> void"
     },
     {
@@ -52813,14 +52813,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPass.h",
       "id": "property:MTL4RenderPassDescriptor:depthAttachment",
       "kind": "property",
       "line": 36,
       "name": "depthAttachment",
       "owner": "MTL4RenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLRenderPassDepthAttachmentDescriptor * _Null_unspecified"
     },
     {
@@ -56531,26 +56531,26 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDepthStencil.h",
       "id": "property:MTLDepthStencilDescriptor:depthCompareFunction",
       "kind": "property",
       "line": 58,
       "name": "depthCompareFunction",
       "owner": "MTLDepthStencilDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLCompareFunction"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDepthStencil.h",
       "id": "property:MTLDepthStencilDescriptor:depthWriteEnabled",
       "kind": "property",
       "line": 61,
       "name": "depthWriteEnabled",
       "owner": "MTLDepthStencilDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "BOOL"
     },
     {
@@ -56567,26 +56567,26 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDepthStencil.h",
       "id": "property:MTLDepthStencilDescriptor:label",
       "kind": "property",
       "line": 71,
       "name": "label",
       "owner": "MTLDepthStencilDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSString * _Nullable"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDepthStencil.h",
       "id": "property:MTLDepthStencilState:device",
       "kind": "property",
       "line": 90,
       "name": "device",
       "owner": "MTLDepthStencilState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "id<MTLDevice> _Nonnull"
     },
     {
@@ -56605,14 +56605,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDepthStencil.h",
       "id": "property:MTLDepthStencilState:label",
       "kind": "property",
       "line": 84,
       "name": "label",
       "owner": "MTLDepthStencilState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSString * _Nullable"
     },
     {
@@ -59937,14 +59937,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "property:MTLRenderPassDepthAttachmentDescriptor:clearDepth",
       "kind": "property",
       "line": 173,
       "name": "clearDepth",
       "owner": "MTLRenderPassDepthAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "double"
     },
     {
@@ -64073,14 +64073,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDepthStencil.h",
       "id": "protocol:MTLDepthStencilState",
       "kind": "protocol",
       "line": 78,
       "name": "MTLDepthStencilState",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
