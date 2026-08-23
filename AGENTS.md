@@ -146,6 +146,11 @@ conformance fixtures, or committed inventory work.
   coverage. Raw-only generated declarations count as generator throughput but
   remain `unreviewed`; only handwritten safe integration and the required
   conformance evidence may move them to `bound`.
+- Record every Metal inventory-changing commit in
+  `specification/evidence/gpu_migration/metal_progress_rate.md` using the Git
+  commit timestamp, exact bound/in-scope counts, elapsed hours since the prior
+  inventory commit, declarations/hour, and percentage-points/hour. Never quote
+  a completion rate in chat without updating that ledger from committed data.
 - A generated low-level declaration is not sufficient to call an SDK feature
   complete or mark it bound. Expose it only through the safe layer and add
   capability, rejection, exact-behavior, no-handle-delta, and completion-owned
