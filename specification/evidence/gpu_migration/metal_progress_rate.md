@@ -31,14 +31,15 @@ can change the denominator explicitly rather than being hidden.
 | `dd9db52` | 2026-08-23 23:56:46 +02:00 | 3,679 | 5,249 | 70.0895% | 57 | 0.196 | 290.2 | 5.53 |
 | `4b63fd8` | 2026-08-24 00:01:32 +02:00 | 3,699 | 5,249 | 70.4706% | 20 | 0.079 | 251.7 | 4.80 |
 | `829cd82` | 2026-08-24 00:09:54 +02:00 | 3,736 | 5,249 | 71.1755% | 37 | 0.139 | 265.3 | 5.06 |
+| `7f5325b` | 2026-08-24 00:17:12 +02:00 | 3,784 | 5,249 | 72.0899% | 48 | 0.122 | 394.5 | 7.52 |
 
 ## Current measured rate
 
-- Since the bulk-value pivot at `6ec742f`: 1,837 additional bound declarations
-  in 3.895 hours, or **471.6 declarations/hour** and **8.98 percentage
+- Since the bulk-value pivot at `6ec742f`: 1,885 additional bound declarations
+  in 4.017 hours, or **469.3 declarations/hour** and **8.94 percentage
   points/hour**.
-- Latest completed interval (`4b63fd8` through `829cd82`): 37 declarations in
-  0.139 hours, or **265.3 declarations/hour** and **5.06 percentage
+- Latest completed interval (`829cd82` through `7f5325b`): 48 declarations in
+  0.122 hours, or **394.5 declarations/hour** and **7.52 percentage
   points/hour**.
 
 Rates describe completed commits, not forecasts. Hardware-only gates and
