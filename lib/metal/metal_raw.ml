@@ -1722,3 +1722,14 @@ external tile_pipeline_descriptor_owned :
 external io_counter_descriptor_create :
   handle -> int -> string option -> (handle,string) result =
   "caml_prismel_counter_descriptor"
+
+(** Authoritative Metal4 lifecycle190 prepared CAML subset. The resource and
+    compute-owner shards currently contain typed native helpers only, not OCaml
+    primitives, so they are intentionally absent here. *)
+external metal4_command_buffer_begin :
+  handle -> handle -> string option -> (unit,string) result =
+  "caml_prismel_metal4_begin"
+
+external metal4_queue_wait_event :
+  handle -> handle -> int64 -> (unit,string) result =
+  "caml_prismel_metal4_wait_event"

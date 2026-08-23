@@ -1700,3 +1700,12 @@ external tile_pipeline_descriptor_owned :
 external io_counter_descriptor_create :
   handle -> int -> string option -> (handle,string) result =
   "caml_prismel_counter_descriptor"
+
+(** Exact callable subset of the prepared authoritative Metal4 shards. *)
+external metal4_command_buffer_begin :
+  handle -> handle -> string option -> (unit,string) result =
+  "caml_prismel_metal4_begin"
+
+external metal4_queue_wait_event :
+  handle -> handle -> int64 -> (unit,string) result =
+  "caml_prismel_metal4_wait_event"
