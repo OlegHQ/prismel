@@ -1091,6 +1091,19 @@ type binary_functions_descriptor =
   ; descriptor_stages : binary_function list array
   }
 
+type metal4_function_descriptor =
+  { raw : Metal_raw.handle; lifetime : lifetime; function_ : function_handle
+  ; descriptor_name : string }
+type metal4_function_constants = { raw : Metal_raw.handle; lifetime : lifetime }
+type metal4_specialized_descriptor =
+  { raw : Metal_raw.handle; lifetime : lifetime
+  ; mutable specialized_function : metal4_function_descriptor option
+  ; mutable specialized_name : string option
+  ; mutable specialized_constants : metal4_function_constants option }
+type metal4_stitched_descriptor =
+  { raw : Metal_raw.handle; lifetime : lifetime
+  ; mutable stitched_functions : metal4_function_descriptor list }
+
 type compiler =
   { raw : Metal_raw.handle
   ; lifetime : lifetime
@@ -2099,6 +2112,43 @@ module Sparse_page_size = struct
     | Page_16_kib -> 16_384L
     | Page_64_kib -> 65_536L
     | Page_256_kib -> 262_144L
+end
+
+module Function_specialization = struct
+  module Function_descriptor = struct
+    type t=metal4_function_descriptor
+    let create (function_:function_handle) ~name =
+      let operation="Metal.Function_specialization.Function_descriptor.create"in
+      if name=""||contains_nul name then error operation Invalid_argument "function name is empty or contains NUL"else on_main operation(fun()->Result.bind(ensure_live operation function_.lifetime)(fun()->match Metal_raw.metal4_function_descriptor function_.raw name with Error m->native_error operation m|Ok raw->let value={raw;lifetime=lifetime();function_;descriptor_name=name}in attach function_.lifetime;attach_finalizer value value.lifetime function_.lifetime;Ok value))
+    let name (value:t)=value.descriptor_name
+    let destroyed (value:t)=is_destroyed value.lifetime
+    let destroy (value:t)=destroy_leaf "Metal.Function_specialization.Function_descriptor.destroy" value.lifetime value.raw(fun()->detach value.function_.lifetime)
+  end
+  module Constants = struct
+    type t=metal4_function_constants
+    let create_empty()=let operation="Metal.Function_specialization.Constants.create_empty"in on_main operation(fun()->match Metal_raw.metal4_function_constants()with Error m->native_error operation m|Ok raw->let value:t={raw;lifetime=lifetime()}in Gc.finalise(fun(value:t)->if Atomic.compare_and_set value.lifetime.destroyed false true then ignore(Metal_raw.destroy value.raw))value;Ok value)
+    let destroyed (value:t)=is_destroyed value.lifetime
+    let destroy (value:t)=destroy_leaf "Metal.Function_specialization.Constants.destroy" value.lifetime value.raw ignore
+  end
+  let detach_specialized value=Option.iter(fun(x:metal4_function_descriptor)->detach x.lifetime)value.specialized_function;Option.iter(fun(x:metal4_function_constants)->detach x.lifetime)value.specialized_constants
+  module Specialized = struct
+    type t=metal4_specialized_descriptor
+    let validate operation function_ name constants=
+      if option_exists(fun x->x=""||contains_nul x)name then error operation Invalid_argument "specialized name is empty or contains NUL"else
+      Result.bind(match function_ with None->Ok()|Some(x:metal4_function_descriptor)->ensure_live operation x.lifetime)(fun()->match constants with None->Ok()|Some(x:metal4_function_constants)->ensure_live operation x.lifetime)
+    let create ?function_descriptor ?name ?constants ()=let operation="Metal.Function_specialization.Specialized.create"in on_main operation(fun()->Result.bind(validate operation function_descriptor name constants)(fun()->match Metal_raw.metal4_specialized_create(Option.map(fun(x:metal4_function_descriptor)->x.raw)function_descriptor)name(Option.map(fun(x:metal4_function_constants)->x.raw)constants)with Error m->native_error operation m|Ok raw->let value:t={raw;lifetime=lifetime();specialized_function=function_descriptor;specialized_name=name;specialized_constants=constants}in Option.iter(fun(x:metal4_function_descriptor)->attach x.lifetime)function_descriptor;Option.iter(fun(x:metal4_function_constants)->attach x.lifetime)constants;Gc.finalise(fun(value:t)->if Atomic.compare_and_set value.lifetime.destroyed false true then(detach_specialized value;ignore(Metal_raw.destroy value.raw)))value;Ok value))
+    let set (value:t) ?function_descriptor ?name ?constants ()=let operation="Metal.Function_specialization.Specialized.set"in on_main operation(fun()->Result.bind(ensure_live operation value.lifetime)(fun()->Result.bind(validate operation function_descriptor name constants)(fun()->match Metal_raw.metal4_specialized_set value.raw(Option.map(fun(x:metal4_function_descriptor)->x.raw)function_descriptor)name(Option.map(fun(x:metal4_function_constants)->x.raw)constants)with Error m->native_error operation m|Ok()->detach_specialized value;Option.iter(fun(x:metal4_function_descriptor)->attach x.lifetime)function_descriptor;Option.iter(fun(x:metal4_function_constants)->attach x.lifetime)constants;value.specialized_function<-function_descriptor;value.specialized_name<-name;value.specialized_constants<-constants;Ok())))
+    let get (value:t)=let operation="Metal.Function_specialization.Specialized.get"in on_main operation(fun()->Result.bind(ensure_live operation value.lifetime)(fun()->match Metal_raw.metal4_specialized_get value.raw with Error m->native_error operation m|Ok(rf,name,rc)->Option.iter(fun raw->ignore(Metal_raw.destroy raw))rf;Option.iter(fun raw->ignore(Metal_raw.destroy raw))rc;if name<>value.specialized_name||Option.is_some rf<>Option.is_some value.specialized_function||Option.is_some rc<>Option.is_some value.specialized_constants then native_error operation "specialized descriptor identity changed"else Ok(value.specialized_function,value.specialized_name,value.specialized_constants)))
+    let destroy (value:t)=destroy_leaf "Metal.Function_specialization.Specialized.destroy" value.lifetime value.raw(fun()->detach_specialized value)
+  end
+  module Stitched = struct
+    type t=metal4_stitched_descriptor
+    let validate operation functions=let rec loop seen=function []->Ok()|(x:metal4_function_descriptor)::xs->if List.exists(fun(y:metal4_function_descriptor)->y.lifetime==x.lifetime)seen then error operation Invalid_argument "duplicate function descriptor"else Result.bind(ensure_live operation x.lifetime)(fun()->loop(x::seen)xs)in loop[]functions
+    let create functions=let operation="Metal.Function_specialization.Stitched.create"in on_main operation(fun()->Result.bind(validate operation functions)(fun()->match Metal_raw.metal4_stitched_descriptor(Array.of_list(List.map(fun(x:metal4_function_descriptor)->x.raw)functions))with Error m->native_error operation m|Ok raw->List.iter(fun(x:metal4_function_descriptor)->attach x.lifetime)functions;let value:t={raw;lifetime=lifetime();stitched_functions=functions}in Gc.finalise(fun(value:t)->if Atomic.compare_and_set value.lifetime.destroyed false true then(List.iter(fun(x:metal4_function_descriptor)->detach x.lifetime)value.stitched_functions;ignore(Metal_raw.destroy value.raw)))value;Ok value))
+    let set (value:t) functions=let operation="Metal.Function_specialization.Stitched.set"in on_main operation(fun()->Result.bind(ensure_live operation value.lifetime)(fun()->Result.bind(validate operation functions)(fun()->match Metal_raw.metal4_stitched_set value.raw(Array.of_list(List.map(fun(x:metal4_function_descriptor)->x.raw)functions))with Error m->native_error operation m|Ok()->List.iter(fun(x:metal4_function_descriptor)->detach x.lifetime)value.stitched_functions;List.iter(fun(x:metal4_function_descriptor)->attach x.lifetime)functions;value.stitched_functions<-functions;Ok())))
+    let get (value:t)=let operation="Metal.Function_specialization.Stitched.get"in on_main operation(fun()->Result.bind(ensure_live operation value.lifetime)(fun()->match Metal_raw.metal4_stitched_get value.raw with Error m->native_error operation m|Ok handles->let count=Array.length handles in Array.iter(fun raw->ignore(Metal_raw.destroy raw))handles;if count<>List.length value.stitched_functions then native_error operation "stitched descriptor length changed"else Ok value.stitched_functions))
+    let destroy (value:t)=destroy_leaf "Metal.Function_specialization.Stitched.destroy" value.lifetime value.raw(fun()->List.iter(fun(x:metal4_function_descriptor)->detach x.lifetime)value.stitched_functions)
+  end
 end
 
 let sparse_page_size_code = function

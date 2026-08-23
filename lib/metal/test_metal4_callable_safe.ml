@@ -8,6 +8,14 @@ let ()=match Device.system_default()with
  |Error e when e.kind=Unsupported||e.kind=Native_error->ignore(Device.destroy device);print_endline"metal4 callable safe: skipped (Metal4 unavailable)"
  |Error e->failwith(Format.asprintf "%a"pp_error e)
  |Ok allocator->
+  let constants=get(Function_specialization.Constants.create_empty())in
+  let specialized=get(Function_specialization.Specialized.create~name:"specialized"~constants())in
+  let _,name,returned_constants=get(Function_specialization.Specialized.get specialized)in
+  if name<>Some"specialized"||Option.is_none returned_constants then failwith"specialized descriptor drift";
+  get(Function_specialization.Specialized.set specialized());
+  let stitched=get(Function_specialization.Stitched.create[])in
+  if get(Function_specialization.Stitched.get stitched)<>[]then failwith"stitched descriptor drift";
+  get(Function_specialization.Stitched.set stitched[]);
   let binary_descriptor=get(Binary_function.Descriptor.create())in
   get(Binary_function.Descriptor.set binary_descriptor Binary_function.Descriptor.Vertex []);
   if get(Binary_function.Descriptor.get binary_descriptor Binary_function.Descriptor.Vertex)<>[]then failwith"binary descriptor reset drift";
@@ -61,5 +69,8 @@ let ()=match Device.system_default()with
   get(Command4.Submission.destroy submission);get(Command4.Command_buffer.destroy commands);
   get(Buffer.destroy source);get(Buffer.destroy destination);get(Texture.destroy render_target);get(Command4.Counter_heap.destroy counter);
   get(Residency_set.destroy residency);get(Command4.Queue.destroy queue);get(Command4.Allocator.destroy allocator);
+  get(Function_specialization.Stitched.destroy stitched);
+  get(Function_specialization.Specialized.destroy specialized);
+  get(Function_specialization.Constants.destroy constants);
   get(Binary_function.Descriptor.destroy binary_descriptor);get(Device.destroy device);
   print_endline"metal4 callable safe: ok"

@@ -1728,6 +1728,36 @@ module Binary_function : sig
   end
 end
 
+module Function_specialization : sig
+  module Function_descriptor : sig
+    type t
+    val create : Function.t -> name:string -> (t,error) result
+    val name : t -> string
+    val destroyed : t -> bool
+    val destroy : t -> (unit,error) result
+  end
+  module Constants : sig
+    type t
+    val create_empty : unit -> (t,error) result
+    val destroyed : t -> bool
+    val destroy : t -> (unit,error) result
+  end
+  module Specialized : sig
+    type t
+    val create : ?function_descriptor:Function_descriptor.t -> ?name:string -> ?constants:Constants.t -> unit -> (t,error) result
+    val set : t -> ?function_descriptor:Function_descriptor.t -> ?name:string -> ?constants:Constants.t -> unit -> (unit,error) result
+    val get : t -> ((Function_descriptor.t option * string option * Constants.t option),error) result
+    val destroy : t -> (unit,error) result
+  end
+  module Stitched : sig
+    type t
+    val create : Function_descriptor.t list -> (t,error) result
+    val set : t -> Function_descriptor.t list -> (unit,error) result
+    val get : t -> (Function_descriptor.t list,error) result
+    val destroy : t -> (unit,error) result
+  end
+end
+
 module Pipeline_archive : sig
   type t
 
