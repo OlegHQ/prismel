@@ -1978,6 +1978,15 @@ module Compiler : sig
     vertex:string ->
     (Render_pipeline.t Compiler_task.t, error) result
 
+  val specialize_render_pipeline :
+    t -> source:Render_pipeline.t -> library:Library.t -> vertex:string ->
+    ?fragment:string -> color_format:Texture.format -> unit ->
+    (Render_pipeline.t,error) result
+  val specialize_render_pipeline_async :
+    t -> source:Render_pipeline.t -> library:Library.t -> vertex:string ->
+    ?fragment:string -> color_format:Texture.format -> unit ->
+    (Render_pipeline.t Compiler_task.t,error) result
+
   (** Compiles a Metal 4 mesh pipeline, optionally with an object stage.
       Object-stage limits and payload configuration require [object_function].
       Rasterization and color-format rules match [create_render_pipeline].

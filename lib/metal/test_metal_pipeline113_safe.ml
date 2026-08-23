@@ -76,6 +76,20 @@ let () =
       let render_pipeline =
         get (Pipeline_descriptor.Render.compile ~reflection:true render)
       in
+      let compiler=get(Compiler.create device)in
+      let specialization_source=get(Compiler.create_render_pipeline compiler
+        ~library~vertex:"pipeline113_vertex"~color_formats:[Texture.Bgra8_unorm])in
+      let specialized=get(Compiler.specialize_render_pipeline compiler
+        ~source:specialization_source~library~vertex:"pipeline113_vertex"
+        ~color_format:Texture.Bgra8_unorm())in
+      let specialized_task=get(Compiler.specialize_render_pipeline_async compiler
+        ~source:specialization_source~library~vertex:"pipeline113_vertex"
+        ~color_format:Texture.Bgra8_unorm())in
+      get(Compiler_task.wait specialized_task);
+      let specialized_async=match get(Compiler_task.poll specialized_task)with
+        |Compiler_task.Complete(Ok pipeline)->pipeline
+        |Compiler_task.Complete(Error error)->fail_error error
+        |Compiler_task.Pending->failwith"specialization task remained pending"in
       if Render_pipeline.kind render_pipeline <> Render_pipeline.Render then
         failwith "render pipeline kind changed";
       get (Pipeline_descriptor.Render.reset render);
@@ -83,6 +97,9 @@ let () =
       get (Function.destroy vertex);
       get (Pipeline_descriptor.Render.destroy render);
       get (Compute_pipeline.destroy compute_pipeline);
+      get(Render_pipeline.destroy specialized);get(Render_pipeline.destroy specialized_async);
+      get(Render_pipeline.destroy specialization_source);
+      get(Compiler_task.destroy specialized_task);get(Compiler.destroy compiler);
       get (Render_pipeline.destroy render_pipeline);
       get (Library.destroy library);
       get (Device.destroy device);

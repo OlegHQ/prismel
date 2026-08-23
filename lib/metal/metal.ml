@@ -10905,6 +10905,20 @@ module Compiler = struct
     ; configured_max_mesh_threadgroups = max_total_threadgroups_per_mesh_grid
     }
 
+  let specialization_descriptor operation (value:t) ~(source:Render_pipeline.t)
+      ~(library:Library.t) ~vertex ?fragment ~color_format () =
+    let invalid_fragment=match fragment with Some name->name=""||contains_nul name|None->false in
+    Result.bind(ensure_live operation value.lifetime)(fun()->Result.bind(ensure_live operation source.lifetime)(fun()->Result.bind(ensure_live operation library.lifetime)(fun()->Result.bind(ensure_same_device operation value.device source.device)(fun()->Result.bind(ensure_same_device operation value.device library.device)(fun()->
+      if source.kind<>Render_pipeline.Render||source.color_formats<>[color_format] then error operation Invalid_argument "specialization source metadata does not match descriptor"else if vertex=""||contains_nul vertex||invalid_fragment then error operation Invalid_argument "specialization function name is invalid"else
+      let attachment=Render_pipeline.color_attachment color_format in let raw_attachment=Render_pipeline.raw_color_attachment attachment in
+      let descriptor:Metal_raw.metal4_render_descriptor={label=None;library=library.raw;vertex_function=vertex;fragment_function=fragment;reflection=false;raster_sample_count=1L;color_attachments=[|raw_attachment|];rasterization_enabled=true;primitive_topology=3;support_indirect_commands=false;lookup_archives=[||];vertex_descriptor=None;support_vertex_binary_linking=false;support_fragment_binary_linking=false;vertex_dynamic_linking=None;fragment_dynamic_linking=None;vertex_static_linking=None;fragment_static_linking=None;alpha_to_coverage=false;alpha_to_one=false;max_vertex_amplification_count=1L;color_attachment_mapping=0}in Ok(attachment,descriptor))))))
+
+  let specialize_render_pipeline value ~(source:Render_pipeline.t) ~library ~vertex ?fragment ~color_format ()=
+    let operation="Metal.Compiler.specialize_render_pipeline"in on_main operation(fun()->Result.bind(specialization_descriptor operation value~source~library~vertex ?fragment~color_format())(fun(attachment,descriptor)->match Metal_raw.compiler_specialize_render_pipeline value.raw descriptor source.raw with Error m->native_error operation m|Ok(raw,reflected)->Ok(Render_pipeline.make value.device~kind:Render_pipeline.Render~raster_sample_count:1~alpha_to_coverage:false~alpha_to_one:false~max_vertex_amplification_count:1~color_attachment_mapping:Render_pipeline.Identity~color_formats:[color_format]~color_attachments:[attachment]~reflection:false raw reflected)))
+
+  let specialize_render_pipeline_async value ~(source:Render_pipeline.t) ~library ~vertex ?fragment ~color_format ()=
+    let operation="Metal.Compiler.specialize_render_pipeline_async"in on_main operation(fun()->Result.bind(specialization_descriptor operation value~source~library~vertex ?fragment~color_format())(fun(attachment,descriptor)->match Metal_raw.compiler_specialize_render_pipeline_async value.raw descriptor source.raw with Error m->native_error operation m|Ok raw->Ok(Compiler_task.make value Metal_raw.compiler_task_take_render_pipeline(fun(raw,reflected)->Render_pipeline.make value.device~kind:Render_pipeline.Render~raster_sample_count:1~alpha_to_coverage:false~alpha_to_one:false~max_vertex_amplification_count:1~color_attachment_mapping:Render_pipeline.Identity~color_formats:[color_format]~color_attachments:[attachment]~reflection:false raw reflected)raw)))
+
   let create_mesh_pipeline ?label ?object_function ?fragment
       ?(reflection = false) ?max_total_threads_per_object_threadgroup
       ?max_total_threads_per_mesh_threadgroup
