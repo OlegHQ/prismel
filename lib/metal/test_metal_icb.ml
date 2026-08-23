@@ -73,6 +73,23 @@ let () =
   get (Indirect_command_buffer.reset icb ~location:0 ~length:1);
   get (Indirect_command_buffer.destroy icb);
   get (Buffer.destroy data);
+  let before_stress = get (Release_queue.stats ()) in
+  for _ = 1 to 1_000 do
+    let value =
+      get
+        (Indirect_command_buffer.create ~device ~max_command_count:1
+           descriptor)
+    in
+    let command = get (Indirect_command_buffer.Compute_command.at value 0) in
+    get (Indirect_command_buffer.Compute_command.reset command);
+    get (Indirect_command_buffer.Compute_command.destroy command);
+    get (Indirect_command_buffer.reset value ~location:0 ~length:1);
+    get (Indirect_command_buffer.destroy value)
+  done;
+  let after_stress = get (Release_queue.stats ()) in
+  if after_stress.live_handles <> before_stress.live_handles then
+    fail "ICB ownership stress changed the live-handle count by %d"
+      (after_stress.live_handles - before_stress.live_handles);
   get (Compute_pipeline.destroy pipeline);
   get (Function.destroy function_);
   get (Library.destroy library);
