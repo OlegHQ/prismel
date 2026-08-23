@@ -3,9 +3,9 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 3897,
+    "bound": 3902,
     "scope-excluded": 37,
-    "unreviewed": 1351
+    "unreviewed": 1346
   },
   "classification_source_sha256": "5d40a644c2bb4b78ef24760548138f8b4008ad22e2538ab4b3148efcafa0ed00",
   "deployment_target": "14.0",
@@ -107750,7 +107750,7 @@
           "line": 42
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "typedef:MTLCommonCounter",
       "kind": "typedef",
@@ -107758,7 +107758,7 @@
       "macos_introduced": "10.15",
       "name": "MTLCommonCounter",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented exactly by a public contained descriptor or retained abstract Metal IO handle with safe ownership.",
       "signature": "NSString *const"
     },
     {
@@ -107772,7 +107772,7 @@
           "line": 68
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "typedef:MTLCommonCounterSet",
       "kind": "typedef",
@@ -107780,7 +107780,7 @@
       "macos_introduced": "10.15",
       "name": "MTLCommonCounterSet",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented exactly by a public contained descriptor or retained abstract Metal IO handle with safe ownership.",
       "signature": "NSString *const"
     },
     {
@@ -107859,7 +107859,7 @@
           "line": 86
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "typedef:MTLCounterResultStageUtilization",
       "kind": "typedef",
@@ -107867,7 +107867,7 @@
       "macos_introduced": "10.15",
       "name": "MTLCounterResultStageUtilization",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented exactly by a public contained descriptor or retained abstract Metal IO handle with safe ownership.",
       "signature": "struct MTLCounterResultStageUtilization"
     },
     {
@@ -107880,7 +107880,7 @@
           "line": 98
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "typedef:MTLCounterResultStatistic",
       "kind": "typedef",
@@ -107888,7 +107888,7 @@
       "macos_introduced": "10.15",
       "name": "MTLCounterResultStatistic",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented exactly by a public contained descriptor or retained abstract Metal IO handle with safe ownership.",
       "signature": "struct MTLCounterResultStatistic"
     },
     {
@@ -107901,7 +107901,7 @@
           "line": 76
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "typedef:MTLCounterResultTimestamp",
       "kind": "typedef",
@@ -107909,7 +107909,7 @@
       "macos_introduced": "10.15",
       "name": "MTLCounterResultTimestamp",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented exactly by a public contained descriptor or retained abstract Metal IO handle with safe ownership.",
       "signature": "struct MTLCounterResultTimestamp"
     },
     {

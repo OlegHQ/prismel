@@ -52,12 +52,13 @@ let safe_name entry =
 let render_safe_ml entries =
   let output = Buffer.create 4096 in
   Buffer.add_string output
-    "module Make (Error : sig\n  type t\n  val of_native : operation:string -> string -> t\nend) = struct\n";
+    "module Common_counter = struct type t = string let of_string value = value let to_string value = value end\nmodule Common_counter_set = struct type t = string let of_string value = value let to_string value = value end\n\nmodule Make (Error : sig\n  type t\n  val of_native : operation:string -> string -> t\nend) = struct\n";
   List.iter
     (fun entry ->
+      let wrap = if String.equal entry.objc_typedef "MTLCommonCounter" then "Common_counter.of_string" else if String.equal entry.objc_typedef "MTLCommonCounterSet" then "Common_counter_set.of_string" else "Fun.id" in
       Printf.bprintf output
-        "  let %s () =\n    match Metal_raw.Generated_globals.%s () with\n    | Ok value -> Ok value\n    | Error message -> Error (Error.of_native ~operation:%S message)\n"
-        (safe_name entry) (ocaml_name entry) ("Metal.Global." ^ safe_name entry))
+        "  let %s () =\n    match Metal_raw.Generated_globals.%s () with\n    | Ok value -> Ok (%s value)\n    | Error message -> Error (Error.of_native ~operation:%S message)\n"
+        (safe_name entry) (ocaml_name entry) wrap ("Metal.Global." ^ safe_name entry))
     entries;
   Buffer.add_string output "end\n";
   Buffer.contents output
@@ -65,11 +66,12 @@ let render_safe_ml entries =
 let render_safe_mli entries =
   let output = Buffer.create 4096 in
   Buffer.add_string output
-    "module Make (Error : sig\n  type t\n  val of_native : operation:string -> string -> t\nend) : sig\n";
+    "module Common_counter : sig type t = private string val to_string : t -> string end\nmodule Common_counter_set : sig type t = private string val to_string : t -> string end\n\nmodule Make (Error : sig\n  type t\n  val of_native : operation:string -> string -> t\nend) : sig\n";
   List.iter
     (fun entry ->
-      Printf.bprintf output "  val %s : unit -> (string, Error.t) result\n"
-        (safe_name entry))
+      let result_type = if String.equal entry.objc_typedef "MTLCommonCounter" then "Common_counter.t" else if String.equal entry.objc_typedef "MTLCommonCounterSet" then "Common_counter_set.t" else "string" in
+      Printf.bprintf output "  val %s : unit -> (%s, Error.t) result\n"
+        (safe_name entry) result_type)
     entries;
   Buffer.add_string output "end\n";
   Buffer.contents output

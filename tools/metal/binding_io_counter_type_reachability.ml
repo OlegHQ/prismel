@@ -13,11 +13,11 @@ let items =
   ; { id = "protocol:MTLIOFileHandle"; public_representation = Some "Metal.IO.File.t" }
   ; { id = "protocol:MTLIOScratchBuffer"; public_representation = None }
   ; { id = "protocol:MTLIOScratchBufferAllocator"; public_representation = None }
-  ; { id = "typedef:MTLCommonCounter"; public_representation = None }
-  ; { id = "typedef:MTLCommonCounterSet"; public_representation = None }
-  ; { id = "typedef:MTLCounterResultStageUtilization"; public_representation = None }
-  ; { id = "typedef:MTLCounterResultStatistic"; public_representation = None }
-  ; { id = "typedef:MTLCounterResultTimestamp"; public_representation = None }
+  ; { id = "typedef:MTLCommonCounter"; public_representation = Some "Metal.Global.Common_counter.t" }
+  ; { id = "typedef:MTLCommonCounterSet"; public_representation = Some "Metal.Global.Common_counter_set.t" }
+  ; { id = "typedef:MTLCounterResultStageUtilization"; public_representation = Some "Metal.Value.MTLCounterResultStageUtilization.t" }
+  ; { id = "typedef:MTLCounterResultStatistic"; public_representation = Some "Metal.Value.MTLCounterResultStatistic.t" }
+  ; { id = "typedef:MTLCounterResultTimestamp"; public_representation = Some "Metal.Value.MTLCounterResultTimestamp.t" }
   ; { id = "typedef:MTLIOCommandBufferHandler"; public_representation = None }
   ; { id = "typedef:MTLIOCompressionContext"; public_representation = None } ]
 
@@ -28,7 +28,7 @@ let runtime_property_handoff =
   ; "property:MTLIOCommandBuffer:status", "instance () -> MTLIOStatus", "Metal.IO.Command_buffer.status" ]
 
 let validate () =
-  if List.length items <> 19 || List.length promotable_ids <> 5 || List.length blocked_ids <> 14
+  if List.length items <> 19 || List.length promotable_ids <> 10 || List.length blocked_ids <> 9
      || List.length runtime_property_handoff <> 2
      || List.exists (fun item -> not (List.mem item.id Binding_io_counter_manifest.ids)) items
   then failwith "IO/counter type reachability drift"
