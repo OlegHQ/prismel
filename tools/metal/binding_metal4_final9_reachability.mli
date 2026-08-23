@@ -1,5 +1,5 @@
-type status = Native_pending_safe | Awaiting_callback_bridge
+type status = Native_pending_safe
 val queue_feedback_ids : string list
-val callback_ids : string list
+val specialization_ids : string list
 val items : (string * status) list
 val validate : unit -> unit
