@@ -979,6 +979,8 @@ let generator_source_sha256 entry_source =
   ; "tools/metal/binding_shader_safe_reachability.mli"
   ; "tools/metal/binding_mesh_tile_safe_reachability.ml"
   ; "tools/metal/binding_mesh_tile_safe_reachability.mli"
+  ; "tools/metal/binding_command_support_safe_reachability.ml"
+  ; "tools/metal/binding_command_support_safe_reachability.mli"
   ; "tools/metal/render_encoder_resource_adapter.ml"
   ; "tools/metal/render_encoder_resource_adapter.mli"
   ; "tools/metal/binding_presentation_public_audit.ml"

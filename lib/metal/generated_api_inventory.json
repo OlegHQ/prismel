@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 3784,
+    "bound": 3814,
     "scope-excluded": 37,
-    "unreviewed": 1464
+    "unreviewed": 1434
   },
-  "classification_source_sha256": "d545e4135e36ff4ce4709a45e0e0cc82b8a2c1e5285da961647230430843470d",
+  "classification_source_sha256": "8e1d128e9f1a074e50089678c1c4b429e2279a94299425f03c46b705b3f02141",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -29560,7 +29560,7 @@
           "line": 67
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCaptureManager.h",
       "id": "method:+[MTLCaptureManager sharedCaptureManager]",
       "kind": "method",
@@ -29568,7 +29568,7 @@
       "macos_introduced": "10.13",
       "name": "sharedCaptureManager",
       "owner": "MTLCaptureManager",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe indirect-command, capture-state, and event operations with validation, ownership, and native conformance.",
       "signature": "class () -> MTLCaptureManager * _Nonnull"
     },
     {
@@ -49194,7 +49194,7 @@
           "line": 41
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCaptureManager.h",
       "id": "method:-[MTLCaptureDescriptor setDestination:]",
       "kind": "method",
@@ -49202,7 +49202,7 @@
       "macos_introduced": "10.15",
       "name": "setDestination:",
       "owner": "MTLCaptureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe indirect-command, capture-state, and event operations with validation, ownership, and native conformance.",
       "signature": "instance (MTLCaptureDestination) -> void"
     },
     {
@@ -49278,7 +49278,7 @@
           "line": 67
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCaptureManager.h",
       "id": "method:-[MTLCaptureManager isCapturing]",
       "kind": "method",
@@ -49286,7 +49286,7 @@
       "macos_introduced": "10.13",
       "name": "isCapturing",
       "owner": "MTLCaptureManager",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe indirect-command, capture-state, and event operations with validation, ownership, and native conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -49504,7 +49504,7 @@
           "line": 88
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCaptureManager.h",
       "id": "method:-[MTLCaptureManager supportsDestination:]",
       "kind": "method",
@@ -49512,7 +49512,7 @@
       "macos_introduced": "10.15",
       "name": "supportsDestination:",
       "owner": "MTLCaptureManager",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe indirect-command, capture-state, and event operations with validation, ownership, and native conformance.",
       "signature": "instance (MTLCaptureDestination) -> BOOL"
     },
     {
@@ -56433,7 +56433,7 @@
           "line": 1001
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newEvent]",
       "kind": "method",
@@ -56441,7 +56441,7 @@
       "macos_introduced": "10.14",
       "name": "newEvent",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe indirect-command, capture-state, and event operations with validation, ownership, and native conformance.",
       "signature": "instance () -> id<MTLEvent> _Nullable"
     },
     {
@@ -58519,7 +58519,7 @@
           "line": 14
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLEvent.h",
       "id": "method:-[MTLEvent device]",
       "kind": "method",
@@ -58527,7 +58527,7 @@
       "macos_introduced": "10.14",
       "name": "device",
       "owner": "MTLEvent",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe indirect-command, capture-state, and event operations with validation, ownership, and native conformance.",
       "signature": "instance () -> id<MTLDevice> _Nullable"
     },
     {
@@ -58538,7 +58538,7 @@
           "line": 14
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLEvent.h",
       "id": "method:-[MTLEvent label]",
       "kind": "method",
@@ -58546,7 +58546,7 @@
       "macos_introduced": "10.14",
       "name": "label",
       "owner": "MTLEvent",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe indirect-command, capture-state, and event operations with validation, ownership, and native conformance.",
       "signature": "instance () -> NSString * _Nullable"
     },
     {
@@ -58557,7 +58557,7 @@
           "line": 14
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLEvent.h",
       "id": "method:-[MTLEvent setLabel:]",
       "kind": "method",
@@ -58565,7 +58565,7 @@
       "macos_introduced": "10.14",
       "name": "setLabel:",
       "owner": "MTLEvent",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe indirect-command, capture-state, and event operations with validation, ownership, and native conformance.",
       "signature": "instance (NSString * _Nullable) -> void"
     },
     {
@@ -62485,7 +62485,7 @@
           "line": 78
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandEncoder.h",
       "id": "method:-[MTLIndirectComputeCommand clearBarrier]",
       "kind": "method",
@@ -62493,7 +62493,7 @@
       "macos_introduced": "11.0",
       "name": "clearBarrier",
       "owner": "MTLIndirectComputeCommand",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe indirect-command, capture-state, and event operations with validation, ownership, and native conformance.",
       "signature": "instance () -> void"
     },
     {
@@ -62504,7 +62504,7 @@
           "line": 78
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandEncoder.h",
       "id": "method:-[MTLIndirectComputeCommand concurrentDispatchThreadgroups:threadsPerThreadgroup:]",
       "kind": "method",
@@ -62512,7 +62512,7 @@
       "macos_introduced": "11.0",
       "name": "concurrentDispatchThreadgroups:threadsPerThreadgroup:",
       "owner": "MTLIndirectComputeCommand",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe indirect-command, capture-state, and event operations with validation, ownership, and native conformance.",
       "signature": "instance (MTLSize, MTLSize) -> void"
     },
     {
@@ -62561,7 +62561,7 @@
           "line": 78
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandEncoder.h",
       "id": "method:-[MTLIndirectComputeCommand setBarrier]",
       "kind": "method",
@@ -62569,7 +62569,7 @@
       "macos_introduced": "11.0",
       "name": "setBarrier",
       "owner": "MTLIndirectComputeCommand",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe indirect-command, capture-state, and event operations with validation, ownership, and native conformance.",
       "signature": "instance () -> void"
     },
     {
@@ -62611,7 +62611,7 @@
           "line": 106
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandEncoder.h",
       "id": "method:-[MTLIndirectComputeCommand setImageblockWidth:height:]",
       "kind": "method",
@@ -62619,7 +62619,7 @@
       "macos_introduced": "11.0",
       "name": "setImageblockWidth:height:",
       "owner": "MTLIndirectComputeCommand",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe indirect-command, capture-state, and event operations with validation, ownership, and native conformance.",
       "signature": "instance (NSUInteger, NSUInteger) -> void"
     },
     {
@@ -62674,7 +62674,7 @@
           "line": 78
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandEncoder.h",
       "id": "method:-[MTLIndirectComputeCommand setStageInRegion:]",
       "kind": "method",
@@ -62682,7 +62682,7 @@
       "macos_introduced": "11.0",
       "name": "setStageInRegion:",
       "owner": "MTLIndirectComputeCommand",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe indirect-command, capture-state, and event operations with validation, ownership, and native conformance.",
       "signature": "instance (MTLRegion) -> void"
     },
     {
@@ -62693,7 +62693,7 @@
           "line": 78
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandEncoder.h",
       "id": "method:-[MTLIndirectComputeCommand setThreadgroupMemoryLength:atIndex:]",
       "kind": "method",
@@ -62701,7 +62701,7 @@
       "macos_introduced": "11.0",
       "name": "setThreadgroupMemoryLength:atIndex:",
       "owner": "MTLIndirectComputeCommand",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe indirect-command, capture-state, and event operations with validation, ownership, and native conformance.",
       "signature": "instance (NSUInteger, NSUInteger) -> void"
     },
     {
@@ -63324,7 +63324,7 @@
           "line": 63
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandEncoder.h",
       "id": "method:-[MTLIndirectRenderCommand clearBarrier]",
       "kind": "method",
@@ -63332,7 +63332,7 @@
       "macos_introduced": "14.0",
       "name": "clearBarrier",
       "owner": "MTLIndirectRenderCommand",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe indirect-command, capture-state, and event operations with validation, ownership, and native conformance.",
       "signature": "instance () -> void"
     },
     {
@@ -63393,7 +63393,7 @@
           "line": 58
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandEncoder.h",
       "id": "method:-[MTLIndirectRenderCommand drawMeshThreadgroups:threadsPerObjectThreadgroup:threadsPerMeshThreadgroup:]",
       "kind": "method",
@@ -63401,7 +63401,7 @@
       "macos_introduced": "14.0",
       "name": "drawMeshThreadgroups:threadsPerObjectThreadgroup:threadsPerMeshThreadgroup:",
       "owner": "MTLIndirectRenderCommand",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe indirect-command, capture-state, and event operations with validation, ownership, and native conformance.",
       "signature": "instance (MTLSize, MTLSize, MTLSize) -> void"
     },
     {
@@ -63418,7 +63418,7 @@
           "line": 61
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandEncoder.h",
       "id": "method:-[MTLIndirectRenderCommand drawMeshThreads:threadsPerObjectThreadgroup:threadsPerMeshThreadgroup:]",
       "kind": "method",
@@ -63426,7 +63426,7 @@
       "macos_introduced": "14.0",
       "name": "drawMeshThreads:threadsPerObjectThreadgroup:threadsPerMeshThreadgroup:",
       "owner": "MTLIndirectRenderCommand",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe indirect-command, capture-state, and event operations with validation, ownership, and native conformance.",
       "signature": "instance (MTLSize, MTLSize, MTLSize) -> void"
     },
     {
@@ -63506,7 +63506,7 @@
           "line": 62
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandEncoder.h",
       "id": "method:-[MTLIndirectRenderCommand setBarrier]",
       "kind": "method",
@@ -63514,7 +63514,7 @@
       "macos_introduced": "14.0",
       "name": "setBarrier",
       "owner": "MTLIndirectRenderCommand",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe indirect-command, capture-state, and event operations with validation, ownership, and native conformance.",
       "signature": "instance () -> void"
     },
     {
@@ -63531,7 +63531,7 @@
           "line": 69
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandEncoder.h",
       "id": "method:-[MTLIndirectRenderCommand setCullMode:]",
       "kind": "method",
@@ -63539,7 +63539,7 @@
       "macos_introduced": "26.0",
       "name": "setCullMode:",
       "owner": "MTLIndirectRenderCommand",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe indirect-command, capture-state, and event operations with validation, ownership, and native conformance.",
       "signature": "instance (MTLCullMode) -> void"
     },
     {
@@ -63556,7 +63556,7 @@
           "line": 67
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandEncoder.h",
       "id": "method:-[MTLIndirectRenderCommand setDepthBias:slopeScale:clamp:]",
       "kind": "method",
@@ -63564,7 +63564,7 @@
       "macos_introduced": "26.0",
       "name": "setDepthBias:slopeScale:clamp:",
       "owner": "MTLIndirectRenderCommand",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe indirect-command, capture-state, and event operations with validation, ownership, and native conformance.",
       "signature": "instance (float, float, float) -> void"
     },
     {
@@ -63581,7 +63581,7 @@
           "line": 68
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandEncoder.h",
       "id": "method:-[MTLIndirectRenderCommand setDepthClipMode:]",
       "kind": "method",
@@ -63589,7 +63589,7 @@
       "macos_introduced": "26.0",
       "name": "setDepthClipMode:",
       "owner": "MTLIndirectRenderCommand",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe indirect-command, capture-state, and event operations with validation, ownership, and native conformance.",
       "signature": "instance (MTLDepthClipMode) -> void"
     },
     {
@@ -63606,7 +63606,7 @@
           "line": 66
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandEncoder.h",
       "id": "method:-[MTLIndirectRenderCommand setDepthStencilState:]",
       "kind": "method",
@@ -63614,7 +63614,7 @@
       "macos_introduced": "26.0",
       "name": "setDepthStencilState:",
       "owner": "MTLIndirectRenderCommand",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe indirect-command, capture-state, and event operations with validation, ownership, and native conformance.",
       "signature": "instance (id<MTLDepthStencilState>  _Nullable __strong) -> void"
     },
     {
@@ -63650,7 +63650,7 @@
           "line": 70
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandEncoder.h",
       "id": "method:-[MTLIndirectRenderCommand setFrontFacingWinding:]",
       "kind": "method",
@@ -63658,7 +63658,7 @@
       "macos_introduced": "26.0",
       "name": "setFrontFacingWinding:",
       "owner": "MTLIndirectRenderCommand",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe indirect-command, capture-state, and event operations with validation, ownership, and native conformance.",
       "signature": "instance (MTLWinding) -> void"
     },
     {
@@ -63725,7 +63725,7 @@
           "line": 53
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandEncoder.h",
       "id": "method:-[MTLIndirectRenderCommand setObjectThreadgroupMemoryLength:atIndex:]",
       "kind": "method",
@@ -63733,7 +63733,7 @@
       "macos_introduced": "14.0",
       "name": "setObjectThreadgroupMemoryLength:atIndex:",
       "owner": "MTLIndirectRenderCommand",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe indirect-command, capture-state, and event operations with validation, ownership, and native conformance.",
       "signature": "instance (NSUInteger, NSUInteger) -> void"
     },
     {
@@ -63775,7 +63775,7 @@
           "line": 71
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandEncoder.h",
       "id": "method:-[MTLIndirectRenderCommand setTriangleFillMode:]",
       "kind": "method",
@@ -63783,7 +63783,7 @@
       "macos_introduced": "26.0",
       "name": "setTriangleFillMode:",
       "owner": "MTLIndirectRenderCommand",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe indirect-command, capture-state, and event operations with validation, ownership, and native conformance.",
       "signature": "instance (MTLTriangleFillMode) -> void"
     },
     {
@@ -77513,7 +77513,7 @@
           "line": 51
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLEvent.h",
       "id": "method:-[MTLSharedEvent setSignaledValue:]",
       "kind": "method",
@@ -77521,7 +77521,7 @@
       "macos_introduced": "10.14",
       "name": "setSignaledValue:",
       "owner": "MTLSharedEvent",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe indirect-command, capture-state, and event operations with validation, ownership, and native conformance.",
       "signature": "instance (uint64_t) -> void"
     },
     {
@@ -77532,7 +77532,7 @@
           "line": 51
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLEvent.h",
       "id": "method:-[MTLSharedEvent signaledValue]",
       "kind": "method",
@@ -77540,7 +77540,7 @@
       "macos_introduced": "10.14",
       "name": "signaledValue",
       "owner": "MTLSharedEvent",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe indirect-command, capture-state, and event operations with validation, ownership, and native conformance.",
       "signature": "instance () -> uint64_t"
     },
     {
@@ -90424,7 +90424,7 @@
           "line": 67
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCaptureManager.h",
       "id": "property:MTLCaptureManager:isCapturing",
       "kind": "property",
@@ -90432,7 +90432,7 @@
       "macos_introduced": "10.13",
       "name": "isCapturing",
       "owner": "MTLCaptureManager",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe indirect-command, capture-state, and event operations with validation, ownership, and native conformance.",
       "signature": "BOOL"
     },
     {
@@ -93748,7 +93748,7 @@
           "line": 14
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLEvent.h",
       "id": "property:MTLEvent:label",
       "kind": "property",
@@ -93756,7 +93756,7 @@
       "macos_introduced": "10.14",
       "name": "label",
       "owner": "MTLEvent",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe indirect-command, capture-state, and event operations with validation, ownership, and native conformance.",
       "signature": "NSString * _Nullable"
     },
     {
@@ -101303,7 +101303,7 @@
           "line": 51
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLEvent.h",
       "id": "property:MTLSharedEvent:signaledValue",
       "kind": "property",
@@ -101311,7 +101311,7 @@
       "macos_introduced": "10.14",
       "name": "signaledValue",
       "owner": "MTLSharedEvent",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe indirect-command, capture-state, and event operations with validation, ownership, and native conformance.",
       "signature": "uint64_t"
     },
     {
