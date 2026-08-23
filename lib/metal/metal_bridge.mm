@@ -977,6 +977,7 @@ enum class Handle_kind : std::uint32_t {
   Texture_view_pool,
   Tensor_descriptor,
   Tensor,
+  Tensor_extents,
   Acceleration_descriptor,
   Counter_sample_buffer,
   Texture_view_descriptor,
@@ -14682,4 +14683,9 @@ extern "C" CAMLprim value caml_prismel_metal_pipeline_render_imageblock_length(v
 #include "../../tools/metal/metal4_specialized_callable_bridge.inc"
 #include "../../tools/metal/metal4_render_pass_callable_bridge.inc"
 #include "../../tools/metal/metal4_stitched_callable_bridge.inc"
+#pragma clang diagnostic pop
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunguarded-availability-new"
+#include "../../tools/metal/metal_tensor_mechanical_callable_bridge.inc"
 #pragma clang diagnostic pop

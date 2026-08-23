@@ -2210,3 +2210,40 @@ external metal4_stitched_get : handle -> (handle array,string) result =
   "caml_prismel_metal4_stitched_get"
 external metal4_stitched_set : handle -> handle array -> (unit,string) result =
   "caml_prismel_metal4_stitched_set"
+(* Exact MTLTensor.h mechanical18 raw closure. *)
+external tensor_buffer_offset : handle -> (int64,string) result =
+  "caml_prismel_metal_tensor_buffer_offset"
+external tensor_data_type : handle -> (int64,string) result =
+  "caml_prismel_metal_tensor_data_type"
+external tensor_gpu_resource_id : handle -> (int64,string) result =
+  "caml_prismel_metal_tensor_gpu_resource_id"
+external tensor_usage : handle -> (int64,string) result =
+  "caml_prismel_metal_tensor_usage"
+external tensor_descriptor_cpu_cache_mode : handle -> (int64,string) result =
+  "caml_prismel_metal_tensor_descriptor_cpu_cache_mode"
+external tensor_descriptor_data_type : handle -> (int64,string) result =
+  "caml_prismel_metal_tensor_descriptor_data_type"
+external tensor_descriptor_hazard_tracking_mode : handle -> (int64,string) result =
+  "caml_prismel_metal_tensor_descriptor_hazard_tracking_mode"
+external tensor_descriptor_resource_options : handle -> (int64,string) result =
+  "caml_prismel_metal_tensor_descriptor_resource_options"
+external tensor_descriptor_storage_mode : handle -> (int64,string) result =
+  "caml_prismel_metal_tensor_descriptor_storage_mode"
+external tensor_descriptor_usage : handle -> (int64,string) result =
+  "caml_prismel_metal_tensor_descriptor_usage"
+external tensor_descriptor_set_cpu_cache_mode : handle -> int64 -> (unit,string) result =
+  "caml_prismel_metal_tensor_descriptor_set_cpu_cache_mode"
+external tensor_descriptor_set_data_type : handle -> int64 -> (unit,string) result =
+  "caml_prismel_metal_tensor_descriptor_set_data_type"
+external tensor_descriptor_set_hazard_tracking_mode : handle -> int64 -> (unit,string) result =
+  "caml_prismel_metal_tensor_descriptor_set_hazard_tracking_mode"
+external tensor_descriptor_set_resource_options : handle -> int64 -> (unit,string) result =
+  "caml_prismel_metal_tensor_descriptor_set_resource_options"
+external tensor_descriptor_set_storage_mode : handle -> int64 -> (unit,string) result =
+  "caml_prismel_metal_tensor_descriptor_set_storage_mode"
+external tensor_descriptor_set_usage : handle -> int64 -> (unit,string) result =
+  "caml_prismel_metal_tensor_descriptor_set_usage"
+external tensor_extents_extent : handle -> int64 -> (int64,string) result =
+  "caml_prismel_metal_tensor_extents_extent"
+external tensor_extents_rank : handle -> (int64,string) result =
+  "caml_prismel_metal_tensor_extents_rank"

@@ -461,6 +461,17 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (name test_tensor_mechanical_native)
+ (modules test_tensor_mechanical_native)
+ (deps metal_layout_header_mechanical_generated.mm
+       metal_tensor_mechanical_callable_bridge.inc
+       ../../lib/metal/metal_raw.ml ../../lib/metal/metal_raw.mli)
+ (action
+  (run %{test} %{dep:metal_layout_header_mechanical_generated.mm}
+       %{dep:metal_tensor_mechanical_callable_bridge.inc}
+       %{dep:../../lib/metal/metal_raw.ml} %{dep:../../lib/metal/metal_raw.mli})))
+
+(test
  (name test_binding_render_command_safe_reachability)
  (modules test_binding_render_command_safe_reachability)
  (libraries metal_inventory_classification))
