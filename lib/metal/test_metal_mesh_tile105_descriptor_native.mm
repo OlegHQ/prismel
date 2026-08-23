@@ -45,6 +45,13 @@ int main() {
             meshDescriptor.fragmentFunction == fragment &&
             meshDescriptor.binaryArchives.count == 0,
             @"mesh descriptor ownership/schema");
+    meshDescriptor.objectFunction = nil;
+    meshDescriptor.requiredThreadsPerObjectThreadgroup = MTLSizeMake(0, 0, 0);
+    require(meshDescriptor.objectFunction == nil &&
+            meshDescriptor.requiredThreadsPerObjectThreadgroup.width == 0 &&
+            meshDescriptor.requiredThreadsPerObjectThreadgroup.height == 0 &&
+            meshDescriptor.requiredThreadsPerObjectThreadgroup.depth == 0,
+            @"nil object function accepts the exact zero threadgroup triple");
 
     failure = nil;
     PrismelMeshTileObjects tile = {};

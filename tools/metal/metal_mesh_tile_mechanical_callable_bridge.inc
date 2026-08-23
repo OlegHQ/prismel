@@ -68,6 +68,19 @@ static bool prismel_mesh_size(value raw, MTLSize *size) {
   return true;
 }
 
+static bool prismel_mesh_object_size(value raw, MTLSize *size) {
+  int64_t width = Int64_val(Field(raw, 0));
+  int64_t height = Int64_val(Field(raw, 1));
+  int64_t depth = Int64_val(Field(raw, 2));
+  const bool all_zero = width == 0 && height == 0 && depth == 0;
+  const bool all_positive = width > 0 && height > 0 && depth > 0;
+  if (!all_zero && !all_positive) return false;
+  *size = MTLSizeMake(static_cast<NSUInteger>(width),
+                      static_cast<NSUInteger>(height),
+                      static_cast<NSUInteger>(depth));
+  return true;
+}
+
 extern "C" CAMLprim value caml_prismel_metal_mesh_descriptor_set_mechanical(
     value raw, value raw_label, value raw_depth, value raw_stencil,
     value raw_mesh_threads, value raw_object_threads) {
@@ -82,8 +95,9 @@ extern "C" CAMLprim value caml_prismel_metal_mesh_descriptor_set_mechanical(
       CAMLreturn(result_error_text("mesh descriptor label is not valid UTF-8"));
     MTLSize mesh_threads, object_threads;
     if (!prismel_mesh_size(raw_mesh_threads, &mesh_threads) ||
-        !prismel_mesh_size(raw_object_threads, &object_threads))
-      CAMLreturn(result_error_text("mesh threadgroup sizes must be positive"));
+        !prismel_mesh_object_size(raw_object_threads, &object_threads))
+      CAMLreturn(result_error_text(
+          "mesh threads must be positive; object threads must be positive or all zero"));
     prismel_mtl_mesh_descriptor_set_mechanical(
         descriptor, label, static_cast<MTLPixelFormat>(Int64_val(raw_depth)),
         static_cast<MTLPixelFormat>(Int64_val(raw_stencil)), mesh_threads,
