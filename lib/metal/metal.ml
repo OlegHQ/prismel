@@ -13790,6 +13790,8 @@ module Render_encoder = struct
   type winding = Clockwise | Counter_clockwise
   type fill_mode = Fill | Lines
   type visibility = Visibility_disabled | Visibility_boolean | Visibility_counting
+  type store_action = Store_dont_care | Store | Multisample_resolve
+                    | Store_and_multisample_resolve
 
   type viewport =
     { x : float; y : float; width : float; height : float
@@ -14123,6 +14125,31 @@ module Render_encoder = struct
       match ensure_live "Metal.Render_encoder.tile_height" value.lifetime with
       | Error _ as failure -> failure
       | Ok () -> Ok (Metal_raw.render_encoder_tile_height value.raw))
+
+  let set_color_store_action (value : t) ?(attachment = 0) action =
+    let operation = "Metal.Render_encoder.set_color_store_action" in
+    on_main operation (fun () -> match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when attachment <> 0 ->
+          error operation Invalid_argument "classic render pass has only color attachment zero"
+      | Ok () ->
+          let code = match action with Store_dont_care->0 | Store->1
+            | Multisample_resolve->2 | Store_and_multisample_resolve->3 in
+          if code >= 2 && value.target.descriptor.sample_count = 1 then
+            error operation Invalid_argument "resolve store actions require multisampling"
+          else match Metal_raw.render_encoder_set_color_store_action value.raw code attachment with
+            | Ok () -> Ok () | Error message -> native_error operation message)
+
+  let set_color_store_options (value : t) ?(attachment = 0) ~custom_sample_positions () =
+    let operation = "Metal.Render_encoder.set_color_store_options" in
+    on_main operation (fun () -> match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when attachment <> 0 ->
+          error operation Invalid_argument "classic render pass has only color attachment zero"
+      | Ok () ->
+          match Metal_raw.render_encoder_set_color_store_options value.raw
+                  (if custom_sample_positions then 1 else 0) attachment with
+          | Ok () -> Ok () | Error message -> native_error operation message)
 
   let draw_triangles (value : t) ~first ~count ?(instances = 1) () =
     let operation = "Metal.Render_encoder.draw_triangles" in

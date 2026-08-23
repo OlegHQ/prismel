@@ -13607,6 +13607,16 @@ extern "C" CAMLprim value caml_prismel_metal_render_encoder_tile_height(value ra
   CAMLreturn(Val_long((intnat)encoder.tileHeight));
 }
 
+extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_color_store_action(value raw,value action,value index){
+  CAMLparam3(raw,action,index); id<MTLRenderCommandEncoder> e=object_of_handle(raw,Handle_kind::Render_encoder);
+  static const MTLStoreAction actions[]={MTLStoreActionDontCare,MTLStoreActionStore,MTLStoreActionMultisampleResolve,MTLStoreActionStoreAndMultisampleResolve,MTLStoreActionUnknown,MTLStoreActionCustomSampleDepthStore};
+  [e setColorStoreAction:actions[Long_val(action)] atIndex:(NSUInteger)Long_val(index)]; CAMLreturn(result_unit());
+}
+extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_color_store_options(value raw,value options,value index){
+  CAMLparam3(raw,options,index); id<MTLRenderCommandEncoder> e=object_of_handle(raw,Handle_kind::Render_encoder);
+  [e setColorStoreActionOptions:(MTLStoreActionOptions)Long_val(options) atIndex:(NSUInteger)Long_val(index)]; CAMLreturn(result_unit());
+}
+
 extern "C" CAMLprim value caml_prismel_metal_render_encoder_end(value raw) {
   CAMLparam1(raw);
   id<MTLRenderCommandEncoder> encoder =

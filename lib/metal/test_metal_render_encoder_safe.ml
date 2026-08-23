@@ -50,6 +50,8 @@ let () =
   expect Invalid_argument (Render_encoder.set_vertex_bytes encoder ~index:0 Bytes.empty);
   expect Invalid_argument
     (Render_encoder.set_fragment_sampler encoder ~index:0 ~lod_min:2. ~lod_max:1. sampler);
+  expect Invalid_argument
+    (Render_encoder.set_color_store_action encoder Render_encoder.Multisample_resolve);
   let after = get (Release_queue.stats ()) in
   if after.total_created <> before.total_created
      || after.live_handles <> before.live_handles then
@@ -63,6 +65,8 @@ let () =
     (Render_encoder.set_front_facing_winding encoder
        Render_encoder.Counter_clockwise);
   get (Render_encoder.set_triangle_fill_mode encoder Render_encoder.Fill);
+  get (Render_encoder.set_color_store_action encoder Render_encoder.Store);
+  get (Render_encoder.set_color_store_options encoder ~custom_sample_positions:false ());
   get
     (Render_encoder.set_blend_color encoder ~red:0. ~green:0. ~blue:0. ~alpha:1.);
   get (Render_encoder.set_depth_bias encoder ~bias:0. ~slope_scale:0. ~clamp:0.);

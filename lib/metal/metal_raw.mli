@@ -1397,6 +1397,12 @@ external render_encoder_tile_width : handle -> int =
   "caml_prismel_metal_render_encoder_tile_width"
 external render_encoder_tile_height : handle -> int =
   "caml_prismel_metal_render_encoder_tile_height"
+external render_encoder_set_color_store_action :
+  handle -> int -> int -> (unit, string) result =
+  "caml_prismel_metal_render_encoder_set_color_store_action"
+external render_encoder_set_color_store_options :
+  handle -> int -> int -> (unit, string) result =
+  "caml_prismel_metal_render_encoder_set_color_store_options"
 
 external command_buffer_resource_state_encoder :
   handle -> (handle, string) result

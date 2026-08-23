@@ -2370,6 +2370,8 @@ module Render_encoder : sig
   type winding = Clockwise | Counter_clockwise
   type fill_mode = Fill | Lines
   type visibility = Visibility_disabled | Visibility_boolean | Visibility_counting
+  type store_action = Store_dont_care | Store | Multisample_resolve
+                    | Store_and_multisample_resolve
   type viewport =
     { x : float; y : float; width : float; height : float
     ; znear : float; zfar : float }
@@ -2411,6 +2413,11 @@ module Render_encoder : sig
     t -> mode:visibility -> offset:int64 -> (unit, error) result
   val tile_width : t -> (int, error) result
   val tile_height : t -> (int, error) result
+  val set_color_store_action :
+    t -> ?attachment:int -> store_action -> (unit, error) result
+  val set_color_store_options :
+    t -> ?attachment:int -> custom_sample_positions:bool -> unit ->
+    (unit, error) result
   val draw_triangles :
     t -> first:int -> count:int -> ?instances:int -> unit ->
     (unit, error) result
