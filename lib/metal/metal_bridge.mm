@@ -924,6 +924,7 @@ enum class Handle_kind : std::uint32_t {
   Function_constants4,
   Specialized_function_descriptor4,
   Render_pass_descriptor4,
+  Stitched_function_descriptor4,
   Depth_stencil,
   Indirect_command_buffer,
   Indirect_render_command,
@@ -14421,4 +14422,5 @@ extern "C" CAMLprim value caml_prismel_metal_pipeline_render_imageblock_length(v
 #include "../../tools/metal/metal4_ml_callable_bridge.inc"
 #include "../../tools/metal/metal4_specialized_callable_bridge.inc"
 #include "../../tools/metal/metal4_render_pass_callable_bridge.inc"
+#include "../../tools/metal/metal4_stitched_callable_bridge.inc"
 #pragma clang diagnostic pop

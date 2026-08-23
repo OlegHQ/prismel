@@ -2131,3 +2131,10 @@ external metal4_render_pass_descriptor : unit -> (handle,string) result =
 external metal4_render_pass_sample_positions :
   handle -> (float * float) array -> ((float * float) array,string) result =
   "caml_prismel_metal4_render_pass_sample_positions"
+
+external metal4_stitched_descriptor : handle array -> (handle,string) result =
+  "caml_prismel_metal4_stitched_descriptor"
+external metal4_stitched_get : handle -> (handle array,string) result =
+  "caml_prismel_metal4_stitched_get"
+external metal4_stitched_set : handle -> handle array -> (unit,string) result =
+  "caml_prismel_metal4_stitched_set"
