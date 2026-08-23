@@ -207,6 +207,8 @@ let require_classification declaration =
             Binding_pipeline_state_safe_reachability.promotable_ids
        || List.mem declaration.identifier
             Binding_shader_safe_reachability.promotable_ids
+       || List.mem declaration.identifier
+            Binding_mesh_tile_safe_reachability.promotable_ids
     then "bound"
     else "unreviewed"
   in

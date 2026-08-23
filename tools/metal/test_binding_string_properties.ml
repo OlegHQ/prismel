@@ -74,6 +74,7 @@ let () =
             then "bound"
             else if List.mem id Binding_resource_safe_reachability.promotable_ids
                     || List.mem id Binding_shader_safe_reachability.promotable_ids
+                    || List.mem id Binding_mesh_tile_safe_reachability.promotable_ids
             then "bound"
             else "unreviewed"
           in

@@ -31,7 +31,9 @@ let relevant declaration =
                   Binding_pipeline_state_safe_reachability.promotable_ids
           || String.equal declaration.classification "bound"
              && List.mem declaration.id
-                  Binding_shader_safe_reachability.promotable_ids))
+                  Binding_shader_safe_reachability.promotable_ids
+          || String.equal declaration.classification "bound"
+             && List.mem declaration.id Binding_mesh_tile_safe_reachability.promotable_ids))
   && (String.equal declaration.kind "method"
       || String.equal declaration.kind "property")
   && Binding_struct_spec.mechanically_safe_signature declaration.signature

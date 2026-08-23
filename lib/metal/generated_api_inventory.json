@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 3736,
+    "bound": 3784,
     "scope-excluded": 37,
-    "unreviewed": 1512
+    "unreviewed": 1464
   },
-  "classification_source_sha256": "fc5ba0ce3225805c921ec6b1e5e203c99d8b6203cf395920223ba7b8c646bf91",
+  "classification_source_sha256": "d545e4135e36ff4ce4709a45e0e0cc82b8a2c1e5285da961647230430843470d",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -65328,7 +65328,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLMeshRenderPipelineDescriptor depthAttachmentPixelFormat]",
       "kind": "method",
@@ -65336,7 +65336,7 @@
       "macos_introduced": "13.0",
       "name": "depthAttachmentPixelFormat",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "instance () -> MTLPixelFormat"
     },
     {
@@ -65467,7 +65467,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLMeshRenderPipelineDescriptor label]",
       "kind": "method",
@@ -65475,7 +65475,7 @@
       "macos_introduced": "13.0",
       "name": "label",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "instance () -> NSString * _Nullable"
     },
     {
@@ -65770,7 +65770,7 @@
           "line": 906
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLMeshRenderPipelineDescriptor requiredThreadsPerMeshThreadgroup]",
       "kind": "method",
@@ -65778,7 +65778,7 @@
       "macos_introduced": "26.0",
       "name": "requiredThreadsPerMeshThreadgroup",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "instance () -> MTLSize"
     },
     {
@@ -65795,7 +65795,7 @@
           "line": 899
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLMeshRenderPipelineDescriptor requiredThreadsPerObjectThreadgroup]",
       "kind": "method",
@@ -65803,7 +65803,7 @@
       "macos_introduced": "26.0",
       "name": "requiredThreadsPerObjectThreadgroup",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "instance () -> MTLSize"
     },
     {
@@ -65896,7 +65896,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLMeshRenderPipelineDescriptor setDepthAttachmentPixelFormat:]",
       "kind": "method",
@@ -65904,7 +65904,7 @@
       "macos_introduced": "13.0",
       "name": "setDepthAttachmentPixelFormat:",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "instance (MTLPixelFormat) -> void"
     },
     {
@@ -65959,7 +65959,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLMeshRenderPipelineDescriptor setLabel:]",
       "kind": "method",
@@ -65967,7 +65967,7 @@
       "macos_introduced": "13.0",
       "name": "setLabel:",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "instance (NSString * _Nullable) -> void"
     },
     {
@@ -66243,7 +66243,7 @@
           "line": 906
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLMeshRenderPipelineDescriptor setRequiredThreadsPerMeshThreadgroup:]",
       "kind": "method",
@@ -66251,7 +66251,7 @@
       "macos_introduced": "26.0",
       "name": "setRequiredThreadsPerMeshThreadgroup:",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "instance (MTLSize) -> void"
     },
     {
@@ -66268,7 +66268,7 @@
           "line": 899
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLMeshRenderPipelineDescriptor setRequiredThreadsPerObjectThreadgroup:]",
       "kind": "method",
@@ -66276,7 +66276,7 @@
       "macos_introduced": "26.0",
       "name": "setRequiredThreadsPerObjectThreadgroup:",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "instance (MTLSize) -> void"
     },
     {
@@ -66312,7 +66312,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLMeshRenderPipelineDescriptor setStencilAttachmentPixelFormat:]",
       "kind": "method",
@@ -66320,7 +66320,7 @@
       "macos_introduced": "13.0",
       "name": "setStencilAttachmentPixelFormat:",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "instance (MTLPixelFormat) -> void"
     },
     {
@@ -66381,7 +66381,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLMeshRenderPipelineDescriptor stencilAttachmentPixelFormat]",
       "kind": "method",
@@ -66389,7 +66389,7 @@
       "macos_introduced": "13.0",
       "name": "stencilAttachmentPixelFormat",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "instance () -> MTLPixelFormat"
     },
     {
@@ -66708,7 +66708,7 @@
           "line": 33
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPipeline.h",
       "id": "method:-[MTLPipelineBufferDescriptor mutability]",
       "kind": "method",
@@ -66716,7 +66716,7 @@
       "macos_introduced": "10.13",
       "name": "mutability",
       "owner": "MTLPipelineBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "instance () -> MTLMutability"
     },
     {
@@ -66727,7 +66727,7 @@
           "line": 33
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPipeline.h",
       "id": "method:-[MTLPipelineBufferDescriptor setMutability:]",
       "kind": "method",
@@ -66735,7 +66735,7 @@
       "macos_introduced": "10.13",
       "name": "setMutability:",
       "owner": "MTLPipelineBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "instance (MTLMutability) -> void"
     },
     {
@@ -72677,7 +72677,7 @@
           "line": 112
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineColorAttachmentDescriptor alphaBlendOperation]",
       "kind": "method",
@@ -72685,7 +72685,7 @@
       "macos_introduced": "10.11",
       "name": "alphaBlendOperation",
       "owner": "MTLRenderPipelineColorAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "instance () -> MTLBlendOperation"
     },
     {
@@ -72696,7 +72696,7 @@
           "line": 112
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineColorAttachmentDescriptor destinationAlphaBlendFactor]",
       "kind": "method",
@@ -72704,7 +72704,7 @@
       "macos_introduced": "10.11",
       "name": "destinationAlphaBlendFactor",
       "owner": "MTLRenderPipelineColorAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "instance () -> MTLBlendFactor"
     },
     {
@@ -72715,7 +72715,7 @@
           "line": 112
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineColorAttachmentDescriptor destinationRGBBlendFactor]",
       "kind": "method",
@@ -72723,7 +72723,7 @@
       "macos_introduced": "10.11",
       "name": "destinationRGBBlendFactor",
       "owner": "MTLRenderPipelineColorAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "instance () -> MTLBlendFactor"
     },
     {
@@ -72753,7 +72753,7 @@
           "line": 112
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineColorAttachmentDescriptor pixelFormat]",
       "kind": "method",
@@ -72761,7 +72761,7 @@
       "macos_introduced": "10.11",
       "name": "pixelFormat",
       "owner": "MTLRenderPipelineColorAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "instance () -> MTLPixelFormat"
     },
     {
@@ -72772,7 +72772,7 @@
           "line": 112
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineColorAttachmentDescriptor rgbBlendOperation]",
       "kind": "method",
@@ -72780,7 +72780,7 @@
       "macos_introduced": "10.11",
       "name": "rgbBlendOperation",
       "owner": "MTLRenderPipelineColorAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "instance () -> MTLBlendOperation"
     },
     {
@@ -72791,7 +72791,7 @@
           "line": 112
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineColorAttachmentDescriptor setAlphaBlendOperation:]",
       "kind": "method",
@@ -72799,7 +72799,7 @@
       "macos_introduced": "10.11",
       "name": "setAlphaBlendOperation:",
       "owner": "MTLRenderPipelineColorAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "instance (MTLBlendOperation) -> void"
     },
     {
@@ -72829,7 +72829,7 @@
           "line": 112
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineColorAttachmentDescriptor setDestinationAlphaBlendFactor:]",
       "kind": "method",
@@ -72837,7 +72837,7 @@
       "macos_introduced": "10.11",
       "name": "setDestinationAlphaBlendFactor:",
       "owner": "MTLRenderPipelineColorAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "instance (MTLBlendFactor) -> void"
     },
     {
@@ -72848,7 +72848,7 @@
           "line": 112
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineColorAttachmentDescriptor setDestinationRGBBlendFactor:]",
       "kind": "method",
@@ -72856,7 +72856,7 @@
       "macos_introduced": "10.11",
       "name": "setDestinationRGBBlendFactor:",
       "owner": "MTLRenderPipelineColorAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "instance (MTLBlendFactor) -> void"
     },
     {
@@ -72867,7 +72867,7 @@
           "line": 112
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineColorAttachmentDescriptor setPixelFormat:]",
       "kind": "method",
@@ -72875,7 +72875,7 @@
       "macos_introduced": "10.11",
       "name": "setPixelFormat:",
       "owner": "MTLRenderPipelineColorAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "instance (MTLPixelFormat) -> void"
     },
     {
@@ -72886,7 +72886,7 @@
           "line": 112
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineColorAttachmentDescriptor setRgbBlendOperation:]",
       "kind": "method",
@@ -72894,7 +72894,7 @@
       "macos_introduced": "10.11",
       "name": "setRgbBlendOperation:",
       "owner": "MTLRenderPipelineColorAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "instance (MTLBlendOperation) -> void"
     },
     {
@@ -72905,7 +72905,7 @@
           "line": 112
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineColorAttachmentDescriptor setSourceAlphaBlendFactor:]",
       "kind": "method",
@@ -72913,7 +72913,7 @@
       "macos_introduced": "10.11",
       "name": "setSourceAlphaBlendFactor:",
       "owner": "MTLRenderPipelineColorAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "instance (MTLBlendFactor) -> void"
     },
     {
@@ -72924,7 +72924,7 @@
           "line": 112
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineColorAttachmentDescriptor setSourceRGBBlendFactor:]",
       "kind": "method",
@@ -72932,7 +72932,7 @@
       "macos_introduced": "10.11",
       "name": "setSourceRGBBlendFactor:",
       "owner": "MTLRenderPipelineColorAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "instance (MTLBlendFactor) -> void"
     },
     {
@@ -72943,7 +72943,7 @@
           "line": 112
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineColorAttachmentDescriptor setWriteMask:]",
       "kind": "method",
@@ -72951,7 +72951,7 @@
       "macos_introduced": "10.11",
       "name": "setWriteMask:",
       "owner": "MTLRenderPipelineColorAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "instance (MTLColorWriteMask) -> void"
     },
     {
@@ -72962,7 +72962,7 @@
           "line": 112
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineColorAttachmentDescriptor sourceAlphaBlendFactor]",
       "kind": "method",
@@ -72970,7 +72970,7 @@
       "macos_introduced": "10.11",
       "name": "sourceAlphaBlendFactor",
       "owner": "MTLRenderPipelineColorAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "instance () -> MTLBlendFactor"
     },
     {
@@ -72981,7 +72981,7 @@
           "line": 112
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineColorAttachmentDescriptor sourceRGBBlendFactor]",
       "kind": "method",
@@ -72989,7 +72989,7 @@
       "macos_introduced": "10.11",
       "name": "sourceRGBBlendFactor",
       "owner": "MTLRenderPipelineColorAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "instance () -> MTLBlendFactor"
     },
     {
@@ -73000,7 +73000,7 @@
           "line": 112
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineColorAttachmentDescriptor writeMask]",
       "kind": "method",
@@ -73008,7 +73008,7 @@
       "macos_introduced": "10.11",
       "name": "writeMask",
       "owner": "MTLRenderPipelineColorAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "instance () -> MTLColorWriteMask"
     },
     {
@@ -81328,7 +81328,7 @@
           "line": 581
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLTileRenderPipelineDescriptor label]",
       "kind": "method",
@@ -81336,7 +81336,7 @@
       "macos_introduced": "11.0",
       "name": "label",
       "owner": "MTLTileRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "instance () -> NSString * _Nullable"
     },
     {
@@ -81472,7 +81472,7 @@
           "line": 674
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLTileRenderPipelineDescriptor requiredThreadsPerThreadgroup]",
       "kind": "method",
@@ -81480,7 +81480,7 @@
       "macos_introduced": "26.0",
       "name": "requiredThreadsPerThreadgroup",
       "owner": "MTLTileRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "instance () -> MTLSize"
     },
     {
@@ -81535,7 +81535,7 @@
           "line": 581
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLTileRenderPipelineDescriptor setLabel:]",
       "kind": "method",
@@ -81543,7 +81543,7 @@
       "macos_introduced": "11.0",
       "name": "setLabel:",
       "owner": "MTLTileRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "instance (NSString * _Nullable) -> void"
     },
     {
@@ -81679,7 +81679,7 @@
           "line": 674
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLTileRenderPipelineDescriptor setRequiredThreadsPerThreadgroup:]",
       "kind": "method",
@@ -81687,7 +81687,7 @@
       "macos_introduced": "26.0",
       "name": "setRequiredThreadsPerThreadgroup:",
       "owner": "MTLTileRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "instance (MTLSize) -> void"
     },
     {
@@ -96670,7 +96670,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLMeshRenderPipelineDescriptor:depthAttachmentPixelFormat",
       "kind": "property",
@@ -96678,7 +96678,7 @@
       "macos_introduced": "13.0",
       "name": "depthAttachmentPixelFormat",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "MTLPixelFormat"
     },
     {
@@ -96752,7 +96752,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLMeshRenderPipelineDescriptor:label",
       "kind": "property",
@@ -96760,7 +96760,7 @@
       "macos_introduced": "13.0",
       "name": "label",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "NSString * _Nullable"
     },
     {
@@ -97074,7 +97074,7 @@
           "line": 906
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLMeshRenderPipelineDescriptor:requiredThreadsPerMeshThreadgroup",
       "kind": "property",
@@ -97082,7 +97082,7 @@
       "macos_introduced": "26.0",
       "name": "requiredThreadsPerMeshThreadgroup",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "MTLSize"
     },
     {
@@ -97099,7 +97099,7 @@
           "line": 899
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLMeshRenderPipelineDescriptor:requiredThreadsPerObjectThreadgroup",
       "kind": "property",
@@ -97107,7 +97107,7 @@
       "macos_introduced": "26.0",
       "name": "requiredThreadsPerObjectThreadgroup",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "MTLSize"
     },
     {
@@ -97143,7 +97143,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLMeshRenderPipelineDescriptor:stencilAttachmentPixelFormat",
       "kind": "property",
@@ -97151,7 +97151,7 @@
       "macos_introduced": "13.0",
       "name": "stencilAttachmentPixelFormat",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "MTLPixelFormat"
     },
     {
@@ -97263,7 +97263,7 @@
           "line": 33
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPipeline.h",
       "id": "property:MTLPipelineBufferDescriptor:mutability",
       "kind": "property",
@@ -97271,7 +97271,7 @@
       "macos_introduced": "10.13",
       "name": "mutability",
       "owner": "MTLPipelineBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "MTLMutability"
     },
     {
@@ -98720,7 +98720,7 @@
           "line": 112
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineColorAttachmentDescriptor:alphaBlendOperation",
       "kind": "property",
@@ -98728,7 +98728,7 @@
       "macos_introduced": "10.11",
       "name": "alphaBlendOperation",
       "owner": "MTLRenderPipelineColorAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "MTLBlendOperation"
     },
     {
@@ -98758,7 +98758,7 @@
           "line": 112
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineColorAttachmentDescriptor:destinationAlphaBlendFactor",
       "kind": "property",
@@ -98766,7 +98766,7 @@
       "macos_introduced": "10.11",
       "name": "destinationAlphaBlendFactor",
       "owner": "MTLRenderPipelineColorAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "MTLBlendFactor"
     },
     {
@@ -98777,7 +98777,7 @@
           "line": 112
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineColorAttachmentDescriptor:destinationRGBBlendFactor",
       "kind": "property",
@@ -98785,7 +98785,7 @@
       "macos_introduced": "10.11",
       "name": "destinationRGBBlendFactor",
       "owner": "MTLRenderPipelineColorAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "MTLBlendFactor"
     },
     {
@@ -98796,7 +98796,7 @@
           "line": 112
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineColorAttachmentDescriptor:pixelFormat",
       "kind": "property",
@@ -98804,7 +98804,7 @@
       "macos_introduced": "10.11",
       "name": "pixelFormat",
       "owner": "MTLRenderPipelineColorAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "MTLPixelFormat"
     },
     {
@@ -98815,7 +98815,7 @@
           "line": 112
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineColorAttachmentDescriptor:rgbBlendOperation",
       "kind": "property",
@@ -98823,7 +98823,7 @@
       "macos_introduced": "10.11",
       "name": "rgbBlendOperation",
       "owner": "MTLRenderPipelineColorAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "MTLBlendOperation"
     },
     {
@@ -98834,7 +98834,7 @@
           "line": 112
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineColorAttachmentDescriptor:sourceAlphaBlendFactor",
       "kind": "property",
@@ -98842,7 +98842,7 @@
       "macos_introduced": "10.11",
       "name": "sourceAlphaBlendFactor",
       "owner": "MTLRenderPipelineColorAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "MTLBlendFactor"
     },
     {
@@ -98853,7 +98853,7 @@
           "line": 112
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineColorAttachmentDescriptor:sourceRGBBlendFactor",
       "kind": "property",
@@ -98861,7 +98861,7 @@
       "macos_introduced": "10.11",
       "name": "sourceRGBBlendFactor",
       "owner": "MTLRenderPipelineColorAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "MTLBlendFactor"
     },
     {
@@ -98872,7 +98872,7 @@
           "line": 112
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineColorAttachmentDescriptor:writeMask",
       "kind": "property",
@@ -98880,7 +98880,7 @@
       "macos_introduced": "10.11",
       "name": "writeMask",
       "owner": "MTLRenderPipelineColorAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "MTLColorWriteMask"
     },
     {
@@ -103598,7 +103598,7 @@
           "line": 581
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLTileRenderPipelineDescriptor:label",
       "kind": "property",
@@ -103606,7 +103606,7 @@
       "macos_introduced": "11.0",
       "name": "label",
       "owner": "MTLTileRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "NSString * _Nullable"
     },
     {
@@ -103742,7 +103742,7 @@
           "line": 674
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLTileRenderPipelineDescriptor:requiredThreadsPerThreadgroup",
       "kind": "property",
@@ -103750,7 +103750,7 @@
       "macos_introduced": "26.0",
       "name": "requiredThreadsPerThreadgroup",
       "owner": "MTLTileRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance.",
       "signature": "MTLSize"
     },
     {
