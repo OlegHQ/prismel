@@ -1988,3 +1988,34 @@ external tile_pipeline_compile :
   handle -> handle -> int64 ->
   ((handle * render_pipeline_reflection),string) result =
   "caml_prismel_metal_tile_pipeline_compile"
+
+type pipeline_render_ownership =
+  { vertex_function : handle
+  ; fragment_function : handle option
+  ; binary_archives : handle array
+  ; vertex_preloaded_libraries : handle array
+  ; fragment_preloaded_libraries : handle array
+  ; vertex_linked_functions : handle option
+  ; fragment_linked_functions : handle option
+  }
+
+type pipeline_compute_ownership =
+  { compute_function : handle
+  ; preloaded_libraries : handle array
+  ; stage_input_descriptor : handle option
+  }
+
+external pipeline_render_descriptor :
+  handle -> pipeline_render_ownership -> (handle,string) result =
+  "caml_prismel_metal_pipeline_render_descriptor"
+external pipeline_compute_descriptor :
+  handle -> pipeline_compute_ownership -> (handle,string) result =
+  "caml_prismel_metal_pipeline_compute_descriptor"
+external pipeline_render_compile :
+  handle -> handle -> int64 ->
+  ((handle * render_pipeline_reflection),string) result =
+  "caml_prismel_metal_pipeline_render_compile"
+external pipeline_compute_compile :
+  handle -> handle -> int64 ->
+  ((handle * pipeline_binding_info array),string) result =
+  "caml_prismel_metal_pipeline_compute_compile"
