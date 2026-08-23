@@ -1249,6 +1249,7 @@ type command4_queue =
   { raw : Metal_raw.handle
   ; lifetime : lifetime
   ; device : device
+  ; residency_lifetimes : lifetime list ref
   }
 
 type command4_phase =
@@ -1281,6 +1282,11 @@ type command4_resource =
   | Command4_depth_stencil of depth_stencil
   | Command4_compute_pipeline of compute_pipeline
   | Command4_render_pipeline of render_pipeline
+  | Command4_other of lifetime
+
+type command4_counter_heap =
+  { raw : Metal_raw.handle; lifetime : lifetime; device : device
+  ; count : int64; counter_type : int; mutable counter_label : string option }
 
 type command4_buffer =
   { raw : Metal_raw.handle
@@ -1337,6 +1343,7 @@ type command4_compute_encoder =
   ; threadgroup_memory_lengths : int64 array
   ; mutable threadgroup_memory_total : int64
   ; mutable argument_table : command4_argument_table option
+  ; mutable debug_group_depth : int
   }
 
 type residency_allocation =
@@ -1415,6 +1422,8 @@ type indirect_command_buffer =
   ; descriptor : indirect_command_buffer_descriptor
   ; retained : indirect_retained list ref
   }
+
+type indirect_command_buffer_handle = indirect_command_buffer
 
 type indirect_render_command =
   { raw : Metal_raw.handle
@@ -1573,6 +1582,7 @@ let command4_resource_lifetime = function
   | Command4_depth_stencil state -> state.lifetime
   | Command4_compute_pipeline pipeline -> pipeline.lifetime
   | Command4_render_pipeline pipeline -> pipeline.lifetime
+  | Command4_other lifetime -> lifetime
 
 let command4_resource_heap = function
   | Command4_buffer { parent = Heap_resource heap; _ } -> Some heap
@@ -1581,6 +1591,7 @@ let command4_resource_heap = function
   | Command4_texture texture -> command_texture_heap texture
   | Command4_argument_table _ | Command4_sampler _ | Command4_depth_stencil _
   | Command4_compute_pipeline _ | Command4_render_pipeline _ -> None
+  | Command4_other _ -> None
 
 let release_command4_resources resources =
   let retained = !resources in
@@ -1601,7 +1612,8 @@ let retain_command4_argument_table (command_buffer : command4_buffer)
             candidate.lifetime == table.lifetime
         | Command4_buffer _ | Command4_texture _ | Command4_sampler _
         | Command4_depth_stencil _
-        | Command4_compute_pipeline _ | Command4_render_pipeline _ -> false)
+        | Command4_compute_pipeline _ | Command4_render_pipeline _
+        | Command4_other _ -> false)
       !(command_buffer.resources)
   in
   if not retained then begin
@@ -1617,7 +1629,8 @@ let retain_command4_buffer (command_buffer : command4_buffer) (buffer : buffer) 
         | Command4_buffer candidate -> candidate.lifetime == buffer.lifetime
         | Command4_argument_table _ | Command4_texture _ | Command4_sampler _
         | Command4_depth_stencil _
-        | Command4_compute_pipeline _ | Command4_render_pipeline _ -> false)
+        | Command4_compute_pipeline _ | Command4_render_pipeline _
+        | Command4_other _ -> false)
       !(command_buffer.resources)
   in
   if not retained then begin
@@ -1638,7 +1651,8 @@ let retain_command4_texture (command_buffer : command4_buffer)
         | Command4_texture candidate -> candidate.lifetime == texture.lifetime
         | Command4_argument_table _ | Command4_buffer _ | Command4_sampler _
         | Command4_depth_stencil _
-        | Command4_compute_pipeline _ | Command4_render_pipeline _ -> false)
+        | Command4_compute_pipeline _ | Command4_render_pipeline _
+        | Command4_other _ -> false)
       !(command_buffer.resources)
   in
   if not retained then begin
@@ -1657,7 +1671,8 @@ let retain_command4_sampler (command_buffer : command4_buffer)
         | Command4_sampler candidate -> candidate.lifetime == sampler.lifetime
         | Command4_argument_table _ | Command4_buffer _ | Command4_texture _
         | Command4_depth_stencil _
-        | Command4_compute_pipeline _ | Command4_render_pipeline _ -> false)
+        | Command4_compute_pipeline _ | Command4_render_pipeline _
+        | Command4_other _ -> false)
       !(command_buffer.resources)
   in
   if not retained then begin
@@ -1675,7 +1690,7 @@ let retain_command4_depth_stencil (command_buffer : command4_buffer)
             candidate.lifetime == state.lifetime
         | Command4_argument_table _ | Command4_buffer _ | Command4_texture _
         | Command4_sampler _ | Command4_compute_pipeline _
-        | Command4_render_pipeline _ -> false)
+        | Command4_render_pipeline _ | Command4_other _ -> false)
       !(command_buffer.resources)
   in
   if not retained then begin
@@ -1693,7 +1708,7 @@ let retain_command4_compute_pipeline (command_buffer : command4_buffer)
             candidate.lifetime == pipeline.lifetime
         | Command4_argument_table _ | Command4_buffer _
         | Command4_texture _ | Command4_sampler _ | Command4_depth_stencil _
-        | Command4_render_pipeline _ -> false)
+        | Command4_render_pipeline _ | Command4_other _ -> false)
       !(command_buffer.resources)
   in
   if not retained then begin
@@ -1712,12 +1727,19 @@ let retain_command4_render_pipeline (command_buffer : command4_buffer)
                retained.lifetime == pipeline.lifetime
            | Command4_argument_table _ | Command4_buffer _
            | Command4_texture _ | Command4_sampler _ | Command4_depth_stencil _
-           | Command4_compute_pipeline _ -> false)
+           | Command4_compute_pipeline _ | Command4_other _ -> false)
          !(command_buffer.resources))
   then begin
     attach pipeline.lifetime;
     command_buffer.resources :=
       Command4_render_pipeline pipeline :: !(command_buffer.resources)
+  end
+
+let retain_command4_other (command_buffer : command4_buffer) retained =
+  if not (List.exists (function Command4_other candidate -> candidate == retained
+    | _ -> false) !(command_buffer.resources)) then begin
+    attach retained;
+    command_buffer.resources := Command4_other retained :: !(command_buffer.resources)
   end
 
 let replace_argument_binding lifetime bindings index replacement =
@@ -11128,6 +11150,87 @@ module Command4 = struct
       let xy = x * y in
       if xy > max_int / z then None else Some (xy * z)
 
+  module Counter_heap = struct
+    type t = command4_counter_heap
+    type kind = Timestamp | Stage_statistics
+    let kind_code = function Timestamp -> 0 | Stage_statistics -> 1
+    let kind_of_code = function 0 -> Some Timestamp | 1 -> Some Stage_statistics
+      | _ -> None
+    let create ?label (device : Device.t) ~kind ~count =
+      let operation = "Metal.Command4.Counter_heap.create" in
+      on_main operation (fun () ->
+        match ensure_metal4 operation device with
+        | Error _ as failure -> failure
+        | Ok () when count <= 0L ->
+            error operation Invalid_argument "counter count must be positive"
+        | Ok () when option_exists contains_nul label ->
+            error operation Invalid_argument "counter label contains a NUL byte"
+        | Ok () ->
+            let code = kind_code kind in
+            match Metal_raw.metal4_counter_descriptor_roundtrip code count with
+            | Error message -> native_error operation message
+            | Ok (roundtrip_kind, roundtrip_count)
+              when roundtrip_kind <> code || roundtrip_count <> count ->
+                native_error operation "Metal changed the counter descriptor"
+            | Ok _ ->
+                match Metal_raw.metal4_counter_create device.raw code count label with
+                | Error message -> native_error operation message
+                | Ok raw ->
+                    let value : t =
+                      { raw; lifetime = lifetime (); device; count
+                      ; counter_type = code; counter_label = label }
+                    in
+                    attach device.lifetime;
+                    attach_finalizer value value.lifetime device.lifetime;
+                    Ok value)
+    let info (value : t) =
+      let operation = "Metal.Command4.Counter_heap.info" in
+      on_main operation (fun () -> match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () -> match Metal_raw.metal4_counter_info value.raw with
+          | Error message -> native_error operation message
+          | Ok (count, kind, _label)
+            when count <> value.count || kind <> value.counter_type ->
+              native_error operation "counter metadata changed"
+          | Ok (_, kind, label) -> match kind_of_code kind with
+            | None -> error operation Unsupported "unknown counter kind"
+            | Some kind ->
+                value.counter_label <- _label;
+                Ok (kind, value.count, value.counter_label))
+    let set_label (value : t) label =
+      let operation = "Metal.Command4.Counter_heap.set_label" in
+      if option_exists contains_nul label then
+        error operation Invalid_argument "counter label contains a NUL byte"
+      else on_main operation (fun () -> match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () -> match Metal_raw.metal4_counter_set_label value.raw label with
+          | Error message -> native_error operation message
+          | Ok () -> value.counter_label <- label; Ok ())
+    let validate_range operation value ~location ~length =
+      if location < 0L || length < 0L || location > value.count
+         || length > Int64.sub value.count location then
+        error operation Invalid_argument "counter range is out of bounds"
+      else Ok ()
+    let invalidate (value : t) ~location ~length =
+      let operation = "Metal.Command4.Counter_heap.invalidate" in
+      on_main operation (fun () -> match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () -> Result.bind (validate_range operation value ~location ~length)
+          (fun () -> match Metal_raw.metal4_counter_invalidate value.raw (location,length) with
+           | Error message -> native_error operation message | Ok () -> Ok ()))
+    let resolve (value : t) ~location ~length =
+      let operation = "Metal.Command4.Counter_heap.resolve" in
+      on_main operation (fun () -> match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () -> Result.bind (validate_range operation value ~location ~length)
+          (fun () -> match Metal_raw.metal4_counter_resolve value.raw (location,length) with
+           | Error message -> native_error operation message | Ok bytes -> Ok bytes))
+    let device (value : t) = value.device
+    let destroyed (value : t) = is_destroyed value.lifetime
+    let destroy (value : t) = destroy_parent "Metal.Command4.Counter_heap.destroy"
+      value.lifetime value.raw (fun () -> detach value.device.lifetime)
+  end
+
   module Argument_table = struct
     type t = command4_argument_table
 
@@ -11668,7 +11771,10 @@ module Command4 = struct
             (match Metal_raw.command4_queue_create device.raw label with
              | Error message -> native_error operation message
              | Ok raw ->
-                 let value : t = { raw; lifetime = lifetime (); device } in
+                 let value : t =
+                   { raw; lifetime = lifetime (); device
+                   ; residency_lifetimes = ref [] }
+                 in
                  attach device.lifetime;
                  attach_finalizer value value.lifetime device.lifetime;
                  Ok value))
@@ -11740,9 +11846,72 @@ module Command4 = struct
                        buffers;
                      Ok (Submission.make value buffers raw)))
 
+    let validate_residencies operation (value : t) sets =
+      let rec loop seen = function
+        | [] -> Ok ()
+        | (set : Residency_set.t) :: rest ->
+            if List.exists (fun (item : residency_set) ->
+                 item.lifetime == set.lifetime) seen then
+              error operation Invalid_argument "duplicate residency set"
+            else Result.bind (ensure_live operation set.lifetime) (fun () ->
+              Result.bind (ensure_same_device operation value.device set.device)
+                (fun () -> loop (set :: seen) rest))
+      in loop [] sets
+
+    let add_residency_sets (value : t) sets =
+      let operation = "Metal.Command4.Queue.add_residency_sets" in
+      on_main operation (fun () -> match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () when sets = [] ->
+            error operation Invalid_argument "residency-set list is empty"
+        | Ok () -> Result.bind (validate_residencies operation value sets) (fun () ->
+            let fresh = List.filter (fun (set : residency_set) ->
+              not (List.exists ((==) set.lifetime) !(value.residency_lifetimes))) sets in
+            if fresh = [] then Ok () else
+            match Metal_raw.metal4_queue_add_residencies value.raw
+                    (Array.of_list (List.map (fun (set : residency_set) -> set.raw) fresh)) with
+            | Error message -> native_error operation message
+            | Ok () -> List.iter (fun (set : residency_set) ->
+                attach set.lifetime;
+                value.residency_lifetimes := set.lifetime :: !(value.residency_lifetimes)) fresh;
+                Ok ()))
+
+    let remove_residency_set (value : t) (set : Residency_set.t) =
+      let operation = "Metal.Command4.Queue.remove_residency_set" in
+      on_main operation (fun () -> match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () -> Result.bind (validate_residencies operation value [set]) (fun () ->
+            if not (List.exists ((==) set.lifetime) !(value.residency_lifetimes)) then
+              error operation Invalid_state "residency set is not on this queue"
+            else match Metal_raw.metal4_queue_remove_residency value.raw set.raw with
+              | Error message -> native_error operation message
+              | Ok () ->
+                  value.residency_lifetimes := List.filter
+                    (fun lifetime -> lifetime != set.lifetime) !(value.residency_lifetimes);
+                  detach set.lifetime; Ok ()))
+
+    let remove_residency_sets (value : t) sets =
+      let operation = "Metal.Command4.Queue.remove_residency_sets" in
+      on_main operation (fun () -> match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () when sets = [] ->
+            error operation Invalid_argument "residency-set list is empty"
+        | Ok () -> Result.bind (validate_residencies operation value sets) (fun () ->
+            if List.exists (fun (set : residency_set) ->
+                 not (List.exists ((==) set.lifetime) !(value.residency_lifetimes))) sets then
+              error operation Invalid_state "a residency set is not on this queue"
+            else match Metal_raw.metal4_queue_remove_residencies value.raw
+                    (Array.of_list (List.map (fun (set : residency_set) -> set.raw) sets)) with
+              | Error message -> native_error operation message
+              | Ok () -> List.iter (fun (set : residency_set) ->
+                    value.residency_lifetimes := List.filter
+                      (fun lifetime -> lifetime != set.lifetime) !(value.residency_lifetimes);
+                    detach set.lifetime) sets; Ok ()))
+
     let destroy (value : t) =
       destroy_parent "Metal.Command4.Queue.destroy" value.lifetime value.raw
-        (fun () -> detach value.device.lifetime)
+        (fun () -> List.iter detach !(value.residency_lifetimes);
+          value.residency_lifetimes := []; detach value.device.lifetime)
   end
 
   module Render_encoder = struct
@@ -13552,6 +13721,14 @@ module Command4 = struct
 
   module Compute_encoder = struct
     type t = command4_compute_encoder
+    type stage = Vertex | Fragment | Tile | Object | Mesh | Compute | Blit
+    type timestamp_granularity = Relaxed | Precise
+    type copy_options = No_options | Row_linear_pvrtc
+    let stage_bit = function Vertex->1L|Fragment->2L|Tile->4L|Object->8L
+      |Mesh->16L|Compute->32L|Blit->64L
+    let stage_bits values = List.fold_left (fun bits stage -> Int64.logor bits (stage_bit stage)) 0L values
+    let timestamp_code = function Relaxed -> 0 | Precise -> 1
+    let options_code = function No_options -> 0L | Row_linear_pvrtc -> 1L
 
     let max_threadgroup_memory_bindings = 31
 
@@ -13662,6 +13839,7 @@ module Command4 = struct
                        Array.make max_threadgroup_memory_bindings 0L
                    ; threadgroup_memory_total = 0L
                    ; argument_table = None
+                   ; debug_group_depth = 0
                    }
                  in
                  attach command_buffer.lifetime;
@@ -13675,6 +13853,75 @@ module Command4 = struct
                  Ok value))
 
     let destroyed (value : t) = is_destroyed value.lifetime
+
+    let callable operation (value : t) callback =
+      on_main operation (fun () -> match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () when value.command_buffer.phase <> Command4_recording ->
+            error operation Invalid_state "command buffer is not recording"
+        | Ok () -> callback ())
+
+    let native_unit operation result = match result with
+      | Error message -> native_error operation message | Ok () -> Ok ()
+
+    let debug value operation_code label =
+      let operation = if operation_code=0 then "Metal.Command4.Compute_encoder.insert_debug_signpost" else "Metal.Command4.Compute_encoder.push_debug_group" in
+      if label="" || contains_nul label then error operation Invalid_argument "debug label is empty or contains NUL" else
+      callable operation value (fun () ->
+        Result.bind (native_unit operation (Metal_raw.metal4_encoder_debug value.raw value.command_buffer.raw label operation_code))
+          (fun () -> if operation_code=1 then value.debug_group_depth<-value.debug_group_depth+1; Ok ()))
+    let insert_debug_signpost value label=debug value 0 label
+    let push_debug_group value label=debug value 1 label
+    let pop_debug_group value = let operation="Metal.Command4.Compute_encoder.pop_debug_group" in
+      callable operation value(fun()->if value.debug_group_depth=0 then error operation Invalid_state "debug-group stack is empty" else
+        Result.bind(native_unit operation(Metal_raw.metal4_encoder_pop_debug value.raw value.command_buffer.raw))(fun()->value.debug_group_depth<-value.debug_group_depth-1;Ok()))
+    let barrier value ~after ~before ?(before_queue=false) () =
+      let operation="Metal.Command4.Compute_encoder.barrier" in
+      if after=[]||before=[] then error operation Invalid_argument "barrier stage sets must be nonempty" else
+      callable operation value(fun()->native_unit operation(Metal_raw.metal4_encoder_barrier value.raw value.command_buffer.raw(stage_bits after)(stage_bits before)0L(if before_queue then 1 else 0)))
+    let update_fence value (fence:Fence.t) ~after =
+      let operation="Metal.Command4.Compute_encoder.update_fence" in
+      callable operation value(fun()->Result.bind(ensure_live operation fence.lifetime)(fun()->Result.bind(ensure_same_device operation value.command_buffer.allocator.device fence.device)(fun()->if after=[]then error operation Invalid_argument "fence stages are empty"else Result.bind(native_unit operation(Metal_raw.metal4_encoder_update_fence value.raw value.command_buffer.raw fence.raw(stage_bits after)))(fun()->retain_command4_other value.command_buffer fence.lifetime;Ok()))))
+
+    let positive64 (x,y,z)=x>0L&&y>0L&&z>0L
+    let require_pipeline operation (value : t) = match value.pipeline with
+      | None -> error operation Invalid_state "no compute pipeline is bound"
+      | Some pipeline -> ensure_live operation pipeline.lifetime
+    let dispatch_threadgroups value ~threadgroups ~threads_per_threadgroup =
+      let operation="Metal.Command4.Compute_encoder.dispatch_threadgroups"in
+      if not(positive64 threadgroups&&positive64 threads_per_threadgroup)then error operation Invalid_argument "dispatch dimensions must be positive"else callable operation value(fun()->Result.bind(require_pipeline operation value)(fun()->native_unit operation(Metal_raw.metal4_compute_dispatch_groups value.raw value.command_buffer.raw(threadgroups,threads_per_threadgroup))))
+    let dispatch_indirect_threadgroups value ~address ~threads_per_threadgroup =
+      let operation="Metal.Command4.Compute_encoder.dispatch_indirect_threadgroups"in
+      if address<0L||not(positive64 threads_per_threadgroup)then error operation Invalid_argument "indirect dispatch is invalid"else callable operation value(fun()->Result.bind(require_pipeline operation value)(fun()->native_unit operation(Metal_raw.metal4_compute_dispatch_indirect_groups value.raw value.command_buffer.raw(address,threads_per_threadgroup))))
+    let dispatch_indirect_threads value ~address =let operation="Metal.Command4.Compute_encoder.dispatch_indirect_threads"in if address<0L then error operation Invalid_argument "indirect address is negative"else callable operation value(fun()->Result.bind(require_pipeline operation value)(fun()->native_unit operation(Metal_raw.metal4_compute_dispatch_indirect_threads value.raw value.command_buffer.raw address)))
+    let set_imageblock_size value ~width ~height=let operation="Metal.Command4.Compute_encoder.set_imageblock_size"in if width<=0L||height<=0L then error operation Invalid_argument "imageblock dimensions must be positive"else callable operation value(fun()->native_unit operation(Metal_raw.metal4_compute_set_imageblock value.raw value.command_buffer.raw(width,height)))
+    let stages value=let operation="Metal.Command4.Compute_encoder.stages"in callable operation value(fun()->match Metal_raw.metal4_compute_stages value.raw value.command_buffer.raw with Error m->native_error operation m|Ok bits->Ok bits)
+    let check_buffer operation device (buffer:Buffer.t)=Result.bind(ensure_buffer_usable operation buffer)(fun()->ensure_same_device operation device buffer.device)
+    let check_texture operation device (texture:Texture.t)=Result.bind(ensure_texture_usable operation texture)(fun()->ensure_same_device operation device texture.device)
+    let range_ok total offset length=offset>=0L&&length>=0L&&offset<=total&&length<=Int64.sub total offset
+    let fill_buffer value (buffer:Buffer.t) ~offset ~length ~byte =let operation="Metal.Command4.Compute_encoder.fill_buffer"in callable operation value(fun()->Result.bind(check_buffer operation value.command_buffer.allocator.device buffer)(fun()->if not(range_ok buffer.length offset length)||byte<0||byte>255 then error operation Invalid_argument "fill range or byte is invalid"else Result.bind(native_unit operation(Metal_raw.metal4_compute_fill_buffer value.raw value.command_buffer.raw(buffer.raw,(offset,length),byte)))(fun()->retain_command4_buffer value.command_buffer buffer;Ok())))
+    let texture_one operation native value (texture:Texture.t)=callable operation value(fun()->Result.bind(check_texture operation value.command_buffer.allocator.device texture)(fun()->Result.bind(native_unit operation(native value.raw value.command_buffer.raw texture.raw))(fun()->retain_command4_texture value.command_buffer texture;Ok())))
+    let generate_mipmaps value texture=texture_one "Metal.Command4.Compute_encoder.generate_mipmaps" Metal_raw.metal4_compute_generate_mipmaps value texture
+    let optimize_for_cpu value texture=texture_one "Metal.Command4.Compute_encoder.optimize_for_cpu" Metal_raw.metal4_compute_optimize_cpu value texture
+    let optimize_for_gpu value texture=texture_one "Metal.Command4.Compute_encoder.optimize_for_gpu" Metal_raw.metal4_compute_optimize_gpu value texture
+    let texture_level operation native value (texture:Texture.t) ~slice ~level=callable operation value(fun()->Result.bind(check_texture operation value.command_buffer.allocator.device texture)(fun()->if slice<0L||level<0L||slice>=Int64.of_int texture.descriptor.array_length||level>=Int64.of_int texture.descriptor.mip_levels then error operation Invalid_argument "texture slice or level is out of range"else Result.bind(native_unit operation(native value.raw value.command_buffer.raw(texture.raw,slice,level)))(fun()->retain_command4_texture value.command_buffer texture;Ok())))
+    let optimize_level_for_cpu value texture ~slice ~level=texture_level "Metal.Command4.Compute_encoder.optimize_level_for_cpu" Metal_raw.metal4_compute_optimize_cpu_level value texture~slice~level
+    let optimize_level_for_gpu value texture ~slice ~level=texture_level "Metal.Command4.Compute_encoder.optimize_level_for_gpu" Metal_raw.metal4_compute_optimize_gpu_level value texture~slice~level
+    let copy_buffer value ~(source:Buffer.t) ~source_offset ~(destination:Buffer.t) ~destination_offset ~size=let operation="Metal.Command4.Compute_encoder.copy_buffer"in callable operation value(fun()->Result.bind(check_buffer operation value.command_buffer.allocator.device source)(fun()->Result.bind(check_buffer operation value.command_buffer.allocator.device destination)(fun()->if not(range_ok source.length source_offset size&&range_ok destination.length destination_offset size)then error operation Invalid_argument "buffer copy is out of range"else Result.bind(native_unit operation(Metal_raw.metal4_compute_copy_buffer value.raw value.command_buffer.raw(source.raw,source_offset,destination.raw,destination_offset,size)))(fun()->retain_command4_buffer value.command_buffer source;retain_command4_buffer value.command_buffer destination;Ok()))))
+    let copy_texture value ~(source:Texture.t) ~(destination:Texture.t)=let operation="Metal.Command4.Compute_encoder.copy_texture"in callable operation value(fun()->Result.bind(check_texture operation value.command_buffer.allocator.device source)(fun()->Result.bind(check_texture operation value.command_buffer.allocator.device destination)(fun()->Result.bind(native_unit operation(Metal_raw.metal4_compute_copy_texture value.raw value.command_buffer.raw(source.raw,destination.raw)))(fun()->retain_command4_texture value.command_buffer source;retain_command4_texture value.command_buffer destination;Ok()))))
+    let copy_texture_slices value ~(source:Texture.t) ~source_slice ~source_level ~(destination:Texture.t) ~destination_slice ~destination_level ~slice_count ~level_count=let operation="Metal.Command4.Compute_encoder.copy_texture_slices"in callable operation value(fun()->Result.bind(check_texture operation value.command_buffer.allocator.device source)(fun()->Result.bind(check_texture operation value.command_buffer.allocator.device destination)(fun()->if List.exists((>)0L)[source_slice;source_level;destination_slice;destination_level;slice_count;level_count]then error operation Invalid_argument "texture copy range is negative"else Result.bind(native_unit operation(Metal_raw.metal4_compute_copy_texture_slices value.raw value.command_buffer.raw(source.raw,source_slice,source_level,destination.raw,destination_slice,destination_level,slice_count,level_count)))(fun()->retain_command4_texture value.command_buffer source;retain_command4_texture value.command_buffer destination;Ok()))))
+    let copy_texture_region value ~(source:Texture.t) ~source_slice ~source_level ~source_origin ~size ~(destination:Texture.t) ~destination_slice ~destination_level ~destination_origin=let operation="Metal.Command4.Compute_encoder.copy_texture_region"in if not(positive64 size)then error operation Invalid_argument "texture copy size must be positive"else callable operation value(fun()->Result.bind(check_texture operation value.command_buffer.allocator.device source)(fun()->Result.bind(check_texture operation value.command_buffer.allocator.device destination)(fun()->Result.bind(native_unit operation(Metal_raw.metal4_compute_copy_texture_region value.raw value.command_buffer.raw(source.raw,source_slice,source_level,source_origin,size,destination.raw,destination_slice,destination_level,destination_origin)))(fun()->retain_command4_texture value.command_buffer source;retain_command4_texture value.command_buffer destination;Ok()))))
+    let buffer_to_texture ?options value ~(source:Buffer.t) ~source_offset ~bytes_per_row ~bytes_per_image ~size ~(destination:Texture.t) ~destination_slice ~destination_level ~destination_origin=let operation="Metal.Command4.Compute_encoder.buffer_to_texture"in if not(positive64 size)||bytes_per_row<=0L||bytes_per_image<=0L then error operation Invalid_argument "buffer-texture layout is invalid"else callable operation value(fun()->Result.bind(check_buffer operation value.command_buffer.allocator.device source)(fun()->Result.bind(check_texture operation value.command_buffer.allocator.device destination)(fun()->let base=(source.raw,source_offset,bytes_per_row,bytes_per_image,size,destination.raw,destination_slice,destination_level,destination_origin)in let encoded=match options with None->Metal_raw.metal4_compute_buffer_to_texture value.raw value.command_buffer.raw base|Some option->Metal_raw.metal4_compute_buffer_to_texture_options value.raw value.command_buffer.raw(source.raw,source_offset,bytes_per_row,bytes_per_image,size,destination.raw,destination_slice,destination_level,destination_origin,options_code option)in Result.bind(native_unit operation encoded)(fun()->retain_command4_buffer value.command_buffer source;retain_command4_texture value.command_buffer destination;Ok()))))
+    let texture_to_buffer ?options value ~(source:Texture.t) ~source_slice ~source_level ~source_origin ~size ~(destination:Buffer.t) ~destination_offset ~bytes_per_row ~bytes_per_image=let operation="Metal.Command4.Compute_encoder.texture_to_buffer"in if not(positive64 size)||bytes_per_row<=0L||bytes_per_image<=0L then error operation Invalid_argument "texture-buffer layout is invalid"else callable operation value(fun()->Result.bind(check_texture operation value.command_buffer.allocator.device source)(fun()->Result.bind(check_buffer operation value.command_buffer.allocator.device destination)(fun()->let base=(source.raw,source_slice,source_level,source_origin,size,destination.raw,destination_offset,bytes_per_row,bytes_per_image)in let encoded=match options with None->Metal_raw.metal4_compute_texture_to_buffer value.raw value.command_buffer.raw base|Some option->Metal_raw.metal4_compute_texture_to_buffer_options value.raw value.command_buffer.raw(source.raw,source_slice,source_level,source_origin,size,destination.raw,destination_offset,bytes_per_row,bytes_per_image,options_code option)in Result.bind(native_unit operation encoded)(fun()->retain_command4_texture value.command_buffer source;retain_command4_buffer value.command_buffer destination;Ok()))))
+    let check_icb operation device (icb:indirect_command_buffer)=Result.bind(ensure_live operation icb.lifetime)(fun()->ensure_same_device operation device icb.device)
+    let icb_range operation native value (icb:indirect_command_buffer) ~location ~length=callable operation value(fun()->Result.bind(check_icb operation value.command_buffer.allocator.device icb)(fun()->if location<0L||length<0L||location>Int64.of_int icb.max_command_count||length>Int64.sub(Int64.of_int icb.max_command_count)location then error operation Invalid_argument "indirect-command range is invalid"else Result.bind(native_unit operation(native value.raw value.command_buffer.raw(icb.raw,(location,length))))(fun()->retain_command4_other value.command_buffer icb.lifetime;Ok())))
+    let execute_icb value icb ~location ~length=icb_range "Metal.Command4.Compute_encoder.execute_icb" Metal_raw.metal4_compute_execute_icb_range value icb~location~length
+    let optimize_icb value icb ~location ~length=icb_range "Metal.Command4.Compute_encoder.optimize_icb" Metal_raw.metal4_compute_optimize_icb value icb~location~length
+    let reset_icb value icb ~location ~length=icb_range "Metal.Command4.Compute_encoder.reset_icb" Metal_raw.metal4_compute_reset_icb value icb~location~length
+    let execute_icb_indirect value (icb:indirect_command_buffer) ~address=let operation="Metal.Command4.Compute_encoder.execute_icb_indirect"in if address<0L then error operation Invalid_argument "indirect address is negative"else callable operation value(fun()->Result.bind(check_icb operation value.command_buffer.allocator.device icb)(fun()->Result.bind(native_unit operation(Metal_raw.metal4_compute_execute_icb_indirect value.raw value.command_buffer.raw(icb.raw,address)))(fun()->retain_command4_other value.command_buffer icb.lifetime;Ok())))
+    let copy_icb value ~(source:indirect_command_buffer) ~source_location ~length ~(destination:indirect_command_buffer) ~destination_index=let operation="Metal.Command4.Compute_encoder.copy_icb"in callable operation value(fun()->Result.bind(check_icb operation value.command_buffer.allocator.device source)(fun()->Result.bind(check_icb operation value.command_buffer.allocator.device destination)(fun()->if source_location<0L||length<0L||destination_index<0L then error operation Invalid_argument "indirect copy range is invalid"else Result.bind(native_unit operation(Metal_raw.metal4_compute_copy_icb value.raw value.command_buffer.raw(source.raw,(source_location,length),destination.raw,destination_index)))(fun()->retain_command4_other value.command_buffer source.lifetime;retain_command4_other value.command_buffer destination.lifetime;Ok()))))
+    let copy_acceleration_structure value ~(source:Acceleration_structure.t) ~(destination:Acceleration_structure.t) ~compact=let operation="Metal.Command4.Compute_encoder.copy_acceleration_structure"in callable operation value(fun()->Result.bind(ensure_live operation source.lifetime)(fun()->Result.bind(ensure_live operation destination.lifetime)(fun()->Result.bind(ensure_same_device operation value.command_buffer.allocator.device source.device)(fun()->Result.bind(ensure_same_device operation value.command_buffer.allocator.device destination.device)(fun()->Result.bind(native_unit operation(Metal_raw.metal4_compute_copy_acceleration value.raw value.command_buffer.raw(source.raw,destination.raw,compact)))(fun()->retain_command4_other value.command_buffer source.lifetime;retain_command4_other value.command_buffer destination.lifetime;Ok()))))))
+    let write_timestamp value ~granularity (heap:Counter_heap.t) ~index=let operation="Metal.Command4.Compute_encoder.write_timestamp"in callable operation value(fun()->Result.bind(ensure_live operation heap.lifetime)(fun()->Result.bind(ensure_same_device operation value.command_buffer.allocator.device heap.device)(fun()->if index<0L||index>=heap.count then error operation Invalid_argument "counter index is out of range"else Result.bind(native_unit operation(Metal_raw.metal4_compute_timestamp value.raw value.command_buffer.raw(timestamp_code granularity,heap.raw,index)))(fun()->retain_command4_other value.command_buffer heap.lifetime;Ok()))))
 
     let set_pipeline (value : t) (pipeline : Compute_pipeline.t) =
       let operation = "Metal.Command4.Compute_encoder.set_pipeline" in
@@ -13848,6 +14095,8 @@ module Command4 = struct
       on_main operation (fun () ->
         match ensure_live operation value.lifetime with
         | Error _ as failure -> failure
+        | Ok () when value.debug_group_depth <> 0 ->
+            error operation Invalid_state "debug groups remain open"
         | Ok () ->
             (match Metal_raw.command4_compute_encoder_end value.raw with
              | Error message -> native_error operation message

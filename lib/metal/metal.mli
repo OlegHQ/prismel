@@ -2042,7 +2042,21 @@ end
     legacy Metal command modules below: an allocator records one buffer at a
     time, queues return explicit submissions, and a submission must complete
     before its command resources are released. *)
+type indirect_command_buffer_handle
+
 module Command4 : sig
+  module Counter_heap : sig
+    type t
+    type kind = Timestamp | Stage_statistics
+    val create : ?label:string -> Device.t -> kind:kind -> count:int64 -> (t,error) result
+    val info : t -> (kind * int64 * string option,error) result
+    val set_label : t -> string option -> (unit,error) result
+    val invalidate : t -> location:int64 -> length:int64 -> (unit,error) result
+    val resolve : t -> location:int64 -> length:int64 -> (bytes,error) result
+    val device : t -> Device.t
+    val destroyed : t -> bool
+    val destroy : t -> (unit,error) result
+  end
   module Argument_table : sig
     type t
 
@@ -2146,6 +2160,9 @@ module Command4 : sig
 
     (** Commits one to 64 unique, ended command buffers in list order. *)
     val commit : t -> Command_buffer.t list -> (Submission.t, error) result
+    val add_residency_sets : t -> Residency_set.t list -> (unit,error) result
+    val remove_residency_set : t -> Residency_set.t -> (unit,error) result
+    val remove_residency_sets : t -> Residency_set.t list -> (unit,error) result
 
     val destroy : t -> (unit, error) result
   end
@@ -2427,6 +2444,9 @@ module Command4 : sig
 
   module Compute_encoder : sig
     type t
+    type stage = Vertex | Fragment | Tile | Object | Mesh | Compute | Blit
+    type timestamp_granularity = Relaxed | Precise
+    type copy_options = No_options | Row_linear_pvrtc
 
     val create :
       ?label:string -> Command_buffer.t -> (t, error) result
@@ -2446,6 +2466,36 @@ module Command4 : sig
     val set_argument_table :
       t -> Argument_table.t option -> (unit, error) result
 
+    val insert_debug_signpost : t -> string -> (unit,error) result
+    val push_debug_group : t -> string -> (unit,error) result
+    val pop_debug_group : t -> (unit,error) result
+    val barrier : t -> after:stage list -> before:stage list -> ?before_queue:bool -> unit -> (unit,error) result
+    val update_fence : t -> Fence.t -> after:stage list -> (unit,error) result
+    val dispatch_threadgroups : t -> threadgroups:(int64*int64*int64) -> threads_per_threadgroup:(int64*int64*int64) -> (unit,error) result
+    val dispatch_indirect_threadgroups : t -> address:int64 -> threads_per_threadgroup:(int64*int64*int64) -> (unit,error) result
+    val dispatch_indirect_threads : t -> address:int64 -> (unit,error) result
+    val set_imageblock_size : t -> width:int64 -> height:int64 -> (unit,error) result
+    val stages : t -> (int64,error) result
+    val fill_buffer : t -> Buffer.t -> offset:int64 -> length:int64 -> byte:int -> (unit,error) result
+    val generate_mipmaps : t -> Texture.t -> (unit,error) result
+    val optimize_for_cpu : t -> Texture.t -> (unit,error) result
+    val optimize_for_gpu : t -> Texture.t -> (unit,error) result
+    val optimize_level_for_cpu : t -> Texture.t -> slice:int64 -> level:int64 -> (unit,error) result
+    val optimize_level_for_gpu : t -> Texture.t -> slice:int64 -> level:int64 -> (unit,error) result
+    val copy_buffer : t -> source:Buffer.t -> source_offset:int64 -> destination:Buffer.t -> destination_offset:int64 -> size:int64 -> (unit,error) result
+    val copy_texture : t -> source:Texture.t -> destination:Texture.t -> (unit,error) result
+    val copy_texture_slices : t -> source:Texture.t -> source_slice:int64 -> source_level:int64 -> destination:Texture.t -> destination_slice:int64 -> destination_level:int64 -> slice_count:int64 -> level_count:int64 -> (unit,error) result
+    val copy_texture_region : t -> source:Texture.t -> source_slice:int64 -> source_level:int64 -> source_origin:(int64*int64*int64) -> size:(int64*int64*int64) -> destination:Texture.t -> destination_slice:int64 -> destination_level:int64 -> destination_origin:(int64*int64*int64) -> (unit,error) result
+    val buffer_to_texture : ?options:copy_options -> t -> source:Buffer.t -> source_offset:int64 -> bytes_per_row:int64 -> bytes_per_image:int64 -> size:(int64*int64*int64) -> destination:Texture.t -> destination_slice:int64 -> destination_level:int64 -> destination_origin:(int64*int64*int64) -> (unit,error) result
+    val texture_to_buffer : ?options:copy_options -> t -> source:Texture.t -> source_slice:int64 -> source_level:int64 -> source_origin:(int64*int64*int64) -> size:(int64*int64*int64) -> destination:Buffer.t -> destination_offset:int64 -> bytes_per_row:int64 -> bytes_per_image:int64 -> (unit,error) result
+    val execute_icb : t -> indirect_command_buffer_handle -> location:int64 -> length:int64 -> (unit,error) result
+    val execute_icb_indirect : t -> indirect_command_buffer_handle -> address:int64 -> (unit,error) result
+    val optimize_icb : t -> indirect_command_buffer_handle -> location:int64 -> length:int64 -> (unit,error) result
+    val reset_icb : t -> indirect_command_buffer_handle -> location:int64 -> length:int64 -> (unit,error) result
+    val copy_icb : t -> source:indirect_command_buffer_handle -> source_location:int64 -> length:int64 -> destination:indirect_command_buffer_handle -> destination_index:int64 -> (unit,error) result
+    val copy_acceleration_structure : t -> source:Acceleration_structure.t -> destination:Acceleration_structure.t -> compact:bool -> (unit,error) result
+    val write_timestamp : t -> granularity:timestamp_granularity -> Counter_heap.t -> index:int64 -> (unit,error) result
+
     val dispatch_threads :
       t -> threads:(int * int * int) -> threadgroup:(int * int * int) ->
       (unit, error) result
@@ -2463,7 +2513,7 @@ module Indirect_command_buffer : sig
     | Indirect_concurrent_dispatch_threads
 
   type descriptor
-  type t
+  type t = indirect_command_buffer_handle
   type buffer = t
 
   val descriptor :
