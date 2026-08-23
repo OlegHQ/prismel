@@ -710,6 +710,13 @@ module Texture : sig
     ?mipmapped:bool -> ?storage:Buffer.storage_mode -> ?usage:usage list ->
     ?compression:compression_type -> ?swizzle:swizzle -> ?label:string ->
     format:format -> width:int -> height:int -> unit -> descriptor
+  val descriptor_buffer :
+    ?storage:Buffer.storage_mode -> ?cpu_cache:cpu_cache_mode ->
+    ?hazard_tracking:hazard_tracking_mode -> ?usage:usage list ->
+    ?label:string -> format:format -> width:int -> unit -> descriptor
+  val descriptor_cube :
+    ?mipmapped:bool -> ?storage:Buffer.storage_mode -> ?usage:usage list ->
+    ?label:string -> format:format -> size:int -> unit -> descriptor
   val minimum_buffer_alignment :
     device:Device.t -> kind:kind -> format:format -> (int64, error) result
   val create : device:Device.t -> descriptor -> (t, error) result

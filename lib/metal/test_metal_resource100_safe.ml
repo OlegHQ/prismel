@@ -14,6 +14,9 @@ let ()=
  get(Resource100.Sample_attachment.destroy a);
  for i=1 to 10000 do let x=get(Resource100.View_pool_descriptor.create~label:(string_of_int i)~count:4L())in if Resource100.View_pool_descriptor.count x<>4L then failwith"descriptor count";get(Resource100.View_pool_descriptor.destroy x)done;
  let device=get(Device.system_default())in let desc=get(Resource100.View_pool_descriptor.create~count:4L())in
+ let buffer_descriptor=Texture.descriptor_buffer~format:Texture.Rgba8_unorm~width:4()in
+ let cube_descriptor=Texture.descriptor_cube~format:Texture.Rgba8_unorm~size:4()in
+ let cube=get(Texture.create~device cube_descriptor)in get(Texture.destroy cube);
  let heap=get(Heap.create~device(Heap.make_descriptor~size:1048576L()))in
  if get(Resource100.Heap_ops.checked_device heap)!=device then failwith"heap device";
  reject(Resource100.Heap_ops.create_acceleration_structure heap~size:0L);
@@ -34,8 +37,7 @@ let ()=
  (match get(Resource100.Buffer_ops.remote_storage backing_buffer)with
   |None->()|Some remote->if Buffer.length remote<>4096L then failwith"remote storage length"else get(Buffer.destroy remote));
  let backed=get(Texture.create_from_buffer~buffer:backing_buffer~offset:0L~bytes_per_row:256
-   (Texture.descriptor_2d~storage:Buffer.Shared~usage:[Texture.Shader_read]
-      ~format:Texture.Rgba8_unorm~width:4~height:4()))in
+   buffer_descriptor)in
  (match get(Resource100.Texture_ops.root_resource backed)with Some(Resource100.Resource_ops.Buffer root)when root==backing_buffer->()|_->failwith"buffer texture root");
  for _=1 to 10000 do
    match get(Resource100.Texture_ops.buffer_backing backed)with

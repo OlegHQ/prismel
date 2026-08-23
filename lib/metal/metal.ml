@@ -4728,6 +4728,25 @@ module Texture = struct
     ; label
     }
 
+  let descriptor_buffer ?(storage=Shared) ?(cpu_cache=Default_cache)
+      ?(hazard_tracking=Default_hazard_tracking) ?(usage=[Shader_read])
+      ?label ~format ~width () =
+    { kind=Texture_buffer;format;width;height=1;depth=1;mip_levels=1
+    ; sample_count=1;array_length=1;storage;cpu_cache;hazard_tracking;usage
+    ; allow_gpu_optimized_contents=true;compression=Lossless
+    ; swizzle=default_swizzle;label }
+
+  let descriptor_cube ?(mipmapped=false) ?(storage=Private)
+      ?(usage=[Shader_read]) ?label ~format ~size () =
+    let rec mip_count dimension count =
+      if dimension<=1 then count else mip_count(dimension/2)(count+1) in
+    { kind=Texture_cube;format;width=size;height=size;depth=1
+    ; mip_levels=(if mipmapped then mip_count size 1 else 1);sample_count=1
+    ; array_length=1;storage;cpu_cache=Default_cache
+    ; hazard_tracking=Default_hazard_tracking;usage
+    ; allow_gpu_optimized_contents=true;compression=Lossless
+    ; swizzle=default_swizzle;label }
+
   let kind_code = function
     | Texture_1d -> 0
     | Texture_1d_array -> 1
