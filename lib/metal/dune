@@ -303,6 +303,11 @@
  (modules test_metal_mesh_tile105_safe)
  (libraries metal))
 
+(test
+ (name test_metal_command_events_safe)
+ (modules test_metal_command_events_safe)
+ (libraries metal))
+
 (rule
  (targets test_presentation_lifecycle_native.exe)
  (deps ../../tools/metal/test_presentation_lifecycle_native.mm)
