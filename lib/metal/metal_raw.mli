@@ -982,6 +982,15 @@ external compiler_create_render_pipeline_async :
   handle -> metal4_render_descriptor -> (handle, string) result =
   "caml_prismel_metal_compiler_create_render_pipeline_async"
 
+external compiler_specialize_render_pipeline :
+  handle -> metal4_render_descriptor -> handle ->
+  ((handle * render_pipeline_reflection), string) result =
+  "caml_prismel_metal_compiler_specialize_render_pipeline"
+
+external compiler_specialize_render_pipeline_async :
+  handle -> metal4_render_descriptor -> handle -> (handle, string) result =
+  "caml_prismel_metal_compiler_specialize_render_pipeline_async"
+
 external compiler_create_mesh_pipeline :
   handle -> metal4_mesh_descriptor ->
   ((handle * render_pipeline_reflection), string) result =

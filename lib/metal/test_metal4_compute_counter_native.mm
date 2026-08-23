@@ -9,6 +9,7 @@ int main(){@autoreleasepool{
  id<MTLDevice>d=MTLCreateSystemDefaultDevice();if(!d)return 77;
  if(@available(macOS 26.0,*)){
   if(![d supportsFamily:MTLGPUFamilyMetal4])return 77;
+  NSError*compilerError=nil;MTL4CompilerDescriptor*compilerDescriptor=[MTL4CompilerDescriptor new];id<MTL4Compiler>compiler=[d newCompilerWithDescriptor:compilerDescriptor error:&compilerError];need(compiler!=nil,compilerError.localizedDescription?:@"compiler");need([compiler respondsToSelector:@selector(newRenderPipelineStateBySpecializationWithDescriptor:pipeline:error:)]&&[compiler respondsToSelector:@selector(newRenderPipelineStateBySpecializationWithDescriptor:pipeline:completionHandler:)],@"specialization sync/async capability");
   MTL4RenderPipelineBinaryFunctionsDescriptor*binary=[MTL4RenderPipelineBinaryFunctionsDescriptor new];
   binary.vertexAdditionalBinaryFunctions=@[];binary.fragmentAdditionalBinaryFunctions=@[];
   binary.tileAdditionalBinaryFunctions=@[];binary.objectAdditionalBinaryFunctions=@[];

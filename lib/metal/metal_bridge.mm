@@ -9959,6 +9959,100 @@ caml_prismel_metal_compiler_create_render_pipeline_async(
   CAMLreturn(result_ok(raw));
 }
 
+extern "C" CAMLprim value
+caml_prismel_metal_compiler_specialize_render_pipeline(
+    value raw_compiler, value raw_descriptor, value raw_pipeline) {
+  CAMLparam3(raw_compiler, raw_descriptor, raw_pipeline);
+  CAMLlocal3(raw, reflection, pair);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4Compiler> compiler =
+            object_of_handle(raw_compiler, Handle_kind::Compiler);
+        id<MTLRenderPipelineState> source =
+            object_of_handle(raw_pipeline, Handle_kind::Render_pipeline);
+        if (source.device.registryID != compiler.device.registryID) {
+          CAMLreturn(result_error_text("specialization pipeline belongs to another device"));
+        }
+        NSString *failure = nil;
+        PrismelMetalCheckedRenderRequest *request =
+            checked_render_request(raw_descriptor, compiler, &failure);
+        if (request == nil) CAMLreturn(result_error(failure));
+        NSError *error = nil;
+        id<MTLRenderPipelineState> pipeline =
+            [compiler newRenderPipelineStateBySpecializationWithDescriptor:request.descriptor
+                                                                   pipeline:source
+                                                                      error:&error];
+        if (pipeline == nil) {
+          CAMLreturn(result_error(labeled_error_description(
+              request.label, error, @"Metal 4 render specialization failed")));
+        }
+        raw = allocate_handle(pipeline, Handle_kind::Render_pipeline);
+        reflection = copy_render_reflection(pipeline.reflection);
+        pair = caml_alloc_tuple(2);
+        Store_field(pair, 0, raw);
+        Store_field(pair, 1, reflection);
+        CAMLreturn(result_ok(pair));
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+  }
+  CAMLreturn(result_error_text("Metal 4 requires macOS 26"));
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_compiler_specialize_render_pipeline_async(
+    value raw_compiler, value raw_descriptor, value raw_pipeline) {
+  CAMLparam3(raw_compiler, raw_descriptor, raw_pipeline);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4Compiler> compiler =
+            object_of_handle(raw_compiler, Handle_kind::Compiler);
+        id<MTLRenderPipelineState> source =
+            object_of_handle(raw_pipeline, Handle_kind::Render_pipeline);
+        if (source.device.registryID != compiler.device.registryID) {
+          CAMLreturn(result_error_text("specialization pipeline belongs to another device"));
+        }
+        NSString *failure = nil;
+        PrismelMetalCheckedRenderRequest *request =
+            checked_render_request(raw_descriptor, compiler, &failure);
+        if (request == nil) CAMLreturn(result_error(failure));
+        PrismelMetalCompilerTaskState *state =
+            [[PrismelMetalCompilerTaskState alloc]
+                initWithKind:PrismelMetalCompilerResultRenderPipeline
+                         label:request.label
+           reflectionRequested:request.reflectionRequested];
+        state.retainedInputs = @[request, source];
+        __weak PrismelMetalCompilerTaskState *weak_state = state;
+        PrismelMetalCheckedRenderRequest *retained_request = request;
+        id<MTLRenderPipelineState> retained_source = source;
+        id<MTL4CompilerTask> task =
+            [compiler newRenderPipelineStateBySpecializationWithDescriptor:request.descriptor
+                                                                   pipeline:source
+                                                         completionHandler:^(id<MTLRenderPipelineState> pipeline,
+                                                                             NSError *error) {
+              (void)retained_request;
+              (void)retained_source;
+              PrismelMetalCompilerTaskState *strong_state = weak_state;
+              [strong_state finishWithObject:pipeline error:error];
+            }];
+        if (task == nil) {
+          CAMLreturn(result_error_text("Metal failed to create specialization task"));
+        }
+        state.task = task;
+        raw = allocate_handle(state, Handle_kind::Compiler_task);
+        CAMLreturn(result_ok(raw));
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+  }
+  CAMLreturn(result_error_text("Metal 4 requires macOS 26"));
+}
+
 extern "C" CAMLprim value caml_prismel_metal_compiler_create_mesh_pipeline(
     value raw_compiler, value raw_descriptor) {
   CAMLparam2(raw_compiler, raw_descriptor);
