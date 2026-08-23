@@ -8,15 +8,17 @@ let safe_name entry =
 let render entries =
   let output = Buffer.create 16384 in
   Buffer.add_string output
-    "module Make\n  (Api : sig\n";
+    "module Make\n  (Api : sig\n    type error\n    val pp_error : Format.formatter -> error -> unit\n";
   List.iter
     (fun entry ->
-      Printf.bprintf output "    val %s : unit -> (string, string) result\n"
+      Printf.bprintf output "    val %s : unit -> (string, error) result\n"
         (safe_name entry))
     entries;
   Buffer.add_string output
     "  end)\n  (Accounting : sig\n    type snapshot\n    val snapshot : unit -> snapshot\n    val equal : snapshot -> snapshot -> bool\n  end) = struct\n\
-     let get = function Ok value -> value | Error message -> failwith message\n\
+     let get = function\n\
+       | Ok value -> value\n\
+       | Error error -> failwith (Format.asprintf \"%a\" Api.pp_error error)\n\
      let require condition message = if not condition then failwith message\n\n\
      let run () =\n\
        let before = Accounting.snapshot () in\n";
@@ -44,3 +46,28 @@ let render entries =
      end\n";
   Buffer.contents output
 
+let render_executable entries =
+  render entries
+  ^ {|
+
+module Api = struct
+  type error = Metal.error
+  let pp_error = Metal.pp_error
+  include Metal.Global
+end
+
+module Accounting = struct
+  type snapshot = int * int64 * int64
+
+  let snapshot () =
+    match Metal.Release_queue.stats () with
+    | Error error -> failwith (Format.asprintf "%a" Metal.pp_error error)
+    | Ok stats ->
+        stats.live_handles, stats.total_created, stats.total_released
+
+  let equal = ( = )
+end
+
+module Test = Make (Api) (Accounting)
+let () = Test.run ()
+|}

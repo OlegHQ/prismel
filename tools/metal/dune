@@ -14,6 +14,10 @@
   binding_value_record_plan
   binding_value_record_codegen
   binding_value_record_evidence
+  binding_global_string_spec
+  binding_global_string_codegen
+  binding_global_string_evidence
+  binding_global_string_conformance_codegen
   binding_availability
   binding_availability_ast
   binding_receiver_catalog
@@ -78,6 +82,14 @@
   binding_value_record_codegen.mli
   binding_value_record_evidence.ml
   binding_value_record_evidence.mli
+  binding_global_string_spec.ml
+  binding_global_string_spec.mli
+  binding_global_string_codegen.ml
+  binding_global_string_codegen.mli
+  binding_global_string_evidence.ml
+  binding_global_string_evidence.mli
+  binding_global_string_conformance_codegen.ml
+  binding_global_string_conformance_codegen.mli
   binding_struct_native_codegen.ml
   binding_struct_native_codegen.mli
   binding_struct_spec.ml
@@ -181,6 +193,20 @@
  (libraries metal_inventory_classification yojson)
  (deps ../../lib/metal/generated_api_inventory.json)
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
+
+(test
+ (name test_binding_global_strings)
+ (modules test_binding_global_strings)
+ (libraries metal_inventory_classification))
+
+(test
+ (name test_binding_global_string_evidence)
+ (modules test_binding_global_string_evidence)
+ (libraries gpu_migration_support metal_inventory_classification yojson)
+ (deps ../../lib/metal/generated_api_inventory.json)
+ (action
+  (run %{test}
+   --inventory %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
  (name test_binding_string_codegen)

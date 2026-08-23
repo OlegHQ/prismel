@@ -25,6 +25,13 @@ type error = private
   ; message : string
   }
 
+(** Copied values of immutable, typed NSString globals exported by the Metal
+    SDK. Each call returns an independently owned OCaml string. *)
+module Global : module type of Metal_global_generated.Make (struct
+    type t = error
+    let of_native ~operation:_ _ = assert false
+  end)
+
 type purgeable_state =
   | Nonvolatile
   | Volatile

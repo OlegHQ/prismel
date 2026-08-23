@@ -23,6 +23,9 @@ type outputs =
   ; public_value_ml : string
   ; public_value_mli : string
   ; public_value_test : string
+  ; public_global_ml : string
+  ; public_global_mli : string
+  ; public_global_test : string
   }
 
 let parse_options () =
@@ -83,6 +86,9 @@ let outputs directory prefix =
   ; public_value_ml = path "_value.ml"
   ; public_value_mli = path "_value.mli"
   ; public_value_test = path "_value_test.ml"
+  ; public_global_ml = path "_global.ml"
+  ; public_global_mli = path "_global.mli"
+  ; public_global_test = path "_global_test.ml"
   }
 
 let run inputs ?(plan_root = inputs.plan_root)
@@ -109,6 +115,9 @@ let run inputs ?(plan_root = inputs.plan_root)
     ; "--output-public-value-ml"; outputs.public_value_ml
     ; "--output-public-value-mli"; outputs.public_value_mli
     ; "--output-public-value-test"; outputs.public_value_test
+    ; "--output-public-global-ml"; outputs.public_global_ml
+    ; "--output-public-global-mli"; outputs.public_global_mli
+    ; "--output-public-global-test"; outputs.public_global_test
     ]
 
 let require_success description result =
@@ -916,6 +925,14 @@ let generator_source_sha256 entry_source =
   ; "tools/metal/binding_value_record_codegen.mli"
   ; "tools/metal/binding_value_record_evidence.ml"
   ; "tools/metal/binding_value_record_evidence.mli"
+  ; "tools/metal/binding_global_string_spec.ml"
+  ; "tools/metal/binding_global_string_spec.mli"
+  ; "tools/metal/binding_global_string_codegen.ml"
+  ; "tools/metal/binding_global_string_codegen.mli"
+  ; "tools/metal/binding_global_string_evidence.ml"
+  ; "tools/metal/binding_global_string_evidence.mli"
+  ; "tools/metal/binding_global_string_conformance_codegen.ml"
+  ; "tools/metal/binding_global_string_conformance_codegen.mli"
   ; "tools/metal/binding_struct_spec.ml"
   ; "tools/metal/binding_struct_spec.mli"
   ; "tools/metal/binding_struct_plan.ml"

@@ -1474,6 +1474,13 @@ let availability_gated_identifier_set =
     [ "method:-[MTL4Compiler newComputePipelineStateWithDescriptor:dynamicLinkingDescriptor:compilerTaskOptions:completionHandler:]"
     ]
 
+let scope_excluded_identifier_set =
+  String_set.of_list
+    [ "variable:elements"; "variable:icbRange"; "variable:origin"
+    ; "variable:packedFloat3"; "variable:packedQuaternion"; "variable:position"
+    ; "variable:range"; "variable:region"; "variable:result"; "variable:size"
+    ]
+
 let name = function
   | Bound -> "bound"
   | Availability_gated -> "availability-gated"
@@ -1483,6 +1490,8 @@ let name = function
 let classify ~unavailable ~identifier =
   if unavailable then
     Scope_excluded, "Clang marks this declaration unavailable for macOS."
+  else if String_set.mem identifier scope_excluded_identifier_set then
+    Scope_excluded, "Header-local inline constructor variable; not an exported Metal SDK declaration."
   else if String_set.mem identifier availability_gated_identifier_set then
     ( Availability_gated
     , "Implemented with an Apple9/M3+ capability gate; the Apple7/M1 Metal 4 driver crashes while serializing this asynchronous dynamic-link request." )
@@ -1492,4 +1501,6 @@ let classify ~unavailable ~identifier =
     Bound, "Implemented by the generated, typed prismel.metal pure-value enum surface."
   else if Binding_value_record_evidence.is_bound_identifier identifier then
     Bound, "Implemented by the generated, typed prismel.metal fixed-layout value-record surface."
+  else if Binding_global_string_evidence.is_bound_identifier identifier then
+    Bound, "Implemented by the generated prismel.metal copied global-string surface."
   else Unreviewed, "Binding classification pending during Phase 2."

@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 2494,
-    "scope-excluded": 27,
-    "unreviewed": 2764
+    "bound": 2527,
+    "scope-excluded": 37,
+    "unreviewed": 2721
   },
-  "classification_source_sha256": "25c9929b8f36746927be4d6a85a2549933057facf0e1d464e519b6032b8f05ad",
+  "classification_source_sha256": "1f14995fb5951e7ac250fd992ba895b402b90c71d4f258fd3ce8bd669de20587",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "271bd5614a6f2ca840ce89a551c7fe0eff087fb6bd30e651d7acd230226f04a1",
@@ -110211,7 +110211,7 @@
           "line": 52
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "variable:MTL4CommandQueueErrorDomain",
       "kind": "variable",
@@ -110219,7 +110219,7 @@
       "macos_introduced": "26.0",
       "name": "MTL4CommandQueueErrorDomain",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated prismel.metal copied global-string surface.",
       "signature": "const NSErrorDomain  _Nonnull __strong"
     },
     {
@@ -110254,7 +110254,7 @@
           "line": 17
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBinaryArchive.h",
       "id": "variable:MTLBinaryArchiveDomain",
       "kind": "variable",
@@ -110262,7 +110262,7 @@
       "macos_introduced": "11.0",
       "name": "MTLBinaryArchiveDomain",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated prismel.metal copied global-string surface.",
       "signature": "const NSErrorDomain  _Nonnull __strong"
     },
     {
@@ -110297,7 +110297,7 @@
           "line": 19
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCaptureManager.h",
       "id": "variable:MTLCaptureErrorDomain",
       "kind": "variable",
@@ -110305,7 +110305,7 @@
       "macos_introduced": "10.15",
       "name": "MTLCaptureErrorDomain",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated prismel.metal copied global-string surface.",
       "signature": "const NSErrorDomain  _Nonnull __strong"
     },
     {
@@ -110319,7 +110319,7 @@
           "line": 126
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "variable:MTLCommandBufferEncoderInfoErrorKey",
       "kind": "variable",
@@ -110327,7 +110327,7 @@
       "macos_introduced": "11.0",
       "name": "MTLCommandBufferEncoderInfoErrorKey",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated prismel.metal copied global-string surface.",
       "signature": "const NSErrorUserInfoKey  _Nonnull __strong"
     },
     {
@@ -110341,7 +110341,7 @@
           "line": 69
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "variable:MTLCommandBufferErrorDomain",
       "kind": "variable",
@@ -110349,7 +110349,7 @@
       "macos_introduced": "10.11",
       "name": "MTLCommandBufferErrorDomain",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated prismel.metal copied global-string surface.",
       "signature": "const NSErrorDomain  _Nonnull __strong"
     },
     {
@@ -110363,7 +110363,7 @@
           "line": 47
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "variable:MTLCommonCounterClipperInvocations",
       "kind": "variable",
@@ -110371,7 +110371,7 @@
       "macos_introduced": "10.15",
       "name": "MTLCommonCounterClipperInvocations",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated prismel.metal copied global-string surface.",
       "signature": "MTLCommonCounter  _Nonnull __strong"
     },
     {
@@ -110385,7 +110385,7 @@
           "line": 48
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "variable:MTLCommonCounterClipperPrimitivesOut",
       "kind": "variable",
@@ -110393,7 +110393,7 @@
       "macos_introduced": "10.15",
       "name": "MTLCommonCounterClipperPrimitivesOut",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated prismel.metal copied global-string surface.",
       "signature": "MTLCommonCounter  _Nonnull __strong"
     },
     {
@@ -110407,7 +110407,7 @@
           "line": 51
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "variable:MTLCommonCounterComputeKernelInvocations",
       "kind": "variable",
@@ -110415,7 +110415,7 @@
       "macos_introduced": "10.15",
       "name": "MTLCommonCounterComputeKernelInvocations",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated prismel.metal copied global-string surface.",
       "signature": "MTLCommonCounter  _Nonnull __strong"
     },
     {
@@ -110429,7 +110429,7 @@
           "line": 56
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "variable:MTLCommonCounterFragmentCycles",
       "kind": "variable",
@@ -110437,7 +110437,7 @@
       "macos_introduced": "10.15",
       "name": "MTLCommonCounterFragmentCycles",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated prismel.metal copied global-string surface.",
       "signature": "MTLCommonCounter  _Nonnull __strong"
     },
     {
@@ -110451,7 +110451,7 @@
           "line": 49
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "variable:MTLCommonCounterFragmentInvocations",
       "kind": "variable",
@@ -110459,7 +110459,7 @@
       "macos_introduced": "10.15",
       "name": "MTLCommonCounterFragmentInvocations",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated prismel.metal copied global-string surface.",
       "signature": "MTLCommonCounter  _Nonnull __strong"
     },
     {
@@ -110473,7 +110473,7 @@
           "line": 50
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "variable:MTLCommonCounterFragmentsPassed",
       "kind": "variable",
@@ -110481,7 +110481,7 @@
       "macos_introduced": "10.15",
       "name": "MTLCommonCounterFragmentsPassed",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated prismel.metal copied global-string surface.",
       "signature": "MTLCommonCounter  _Nonnull __strong"
     },
     {
@@ -110495,7 +110495,7 @@
           "line": 55
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "variable:MTLCommonCounterPostTessellationVertexCycles",
       "kind": "variable",
@@ -110503,7 +110503,7 @@
       "macos_introduced": "10.15",
       "name": "MTLCommonCounterPostTessellationVertexCycles",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated prismel.metal copied global-string surface.",
       "signature": "MTLCommonCounter  _Nonnull __strong"
     },
     {
@@ -110517,7 +110517,7 @@
           "line": 46
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "variable:MTLCommonCounterPostTessellationVertexInvocations",
       "kind": "variable",
@@ -110525,7 +110525,7 @@
       "macos_introduced": "10.15",
       "name": "MTLCommonCounterPostTessellationVertexInvocations",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated prismel.metal copied global-string surface.",
       "signature": "MTLCommonCounter  _Nonnull __strong"
     },
     {
@@ -110539,7 +110539,7 @@
           "line": 57
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "variable:MTLCommonCounterRenderTargetWriteCycles",
       "kind": "variable",
@@ -110547,7 +110547,7 @@
       "macos_introduced": "10.15",
       "name": "MTLCommonCounterRenderTargetWriteCycles",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated prismel.metal copied global-string surface.",
       "signature": "MTLCommonCounter  _Nonnull __strong"
     },
     {
@@ -110561,7 +110561,7 @@
           "line": 70
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "variable:MTLCommonCounterSetStageUtilization",
       "kind": "variable",
@@ -110569,7 +110569,7 @@
       "macos_introduced": "10.15",
       "name": "MTLCommonCounterSetStageUtilization",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated prismel.metal copied global-string surface.",
       "signature": "MTLCommonCounterSet  _Nonnull __strong"
     },
     {
@@ -110583,7 +110583,7 @@
           "line": 71
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "variable:MTLCommonCounterSetStatistic",
       "kind": "variable",
@@ -110591,7 +110591,7 @@
       "macos_introduced": "10.15",
       "name": "MTLCommonCounterSetStatistic",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated prismel.metal copied global-string surface.",
       "signature": "MTLCommonCounterSet  _Nonnull __strong"
     },
     {
@@ -110605,7 +110605,7 @@
           "line": 69
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "variable:MTLCommonCounterSetTimestamp",
       "kind": "variable",
@@ -110613,7 +110613,7 @@
       "macos_introduced": "10.15",
       "name": "MTLCommonCounterSetTimestamp",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated prismel.metal copied global-string surface.",
       "signature": "MTLCommonCounterSet  _Nonnull __strong"
     },
     {
@@ -110627,7 +110627,7 @@
           "line": 54
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "variable:MTLCommonCounterTessellationCycles",
       "kind": "variable",
@@ -110635,7 +110635,7 @@
       "macos_introduced": "10.15",
       "name": "MTLCommonCounterTessellationCycles",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated prismel.metal copied global-string surface.",
       "signature": "MTLCommonCounter  _Nonnull __strong"
     },
     {
@@ -110649,7 +110649,7 @@
           "line": 44
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "variable:MTLCommonCounterTessellationInputPatches",
       "kind": "variable",
@@ -110657,7 +110657,7 @@
       "macos_introduced": "10.15",
       "name": "MTLCommonCounterTessellationInputPatches",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated prismel.metal copied global-string surface.",
       "signature": "MTLCommonCounter  _Nonnull __strong"
     },
     {
@@ -110671,7 +110671,7 @@
           "line": 43
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "variable:MTLCommonCounterTimestamp",
       "kind": "variable",
@@ -110679,7 +110679,7 @@
       "macos_introduced": "10.15",
       "name": "MTLCommonCounterTimestamp",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated prismel.metal copied global-string surface.",
       "signature": "MTLCommonCounter  _Nonnull __strong"
     },
     {
@@ -110693,7 +110693,7 @@
           "line": 52
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "variable:MTLCommonCounterTotalCycles",
       "kind": "variable",
@@ -110701,7 +110701,7 @@
       "macos_introduced": "10.15",
       "name": "MTLCommonCounterTotalCycles",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated prismel.metal copied global-string surface.",
       "signature": "MTLCommonCounter  _Nonnull __strong"
     },
     {
@@ -110715,7 +110715,7 @@
           "line": 53
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "variable:MTLCommonCounterVertexCycles",
       "kind": "variable",
@@ -110723,7 +110723,7 @@
       "macos_introduced": "10.15",
       "name": "MTLCommonCounterVertexCycles",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated prismel.metal copied global-string surface.",
       "signature": "MTLCommonCounter  _Nonnull __strong"
     },
     {
@@ -110737,7 +110737,7 @@
           "line": 45
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "variable:MTLCommonCounterVertexInvocations",
       "kind": "variable",
@@ -110745,7 +110745,7 @@
       "macos_introduced": "10.15",
       "name": "MTLCommonCounterVertexInvocations",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated prismel.metal copied global-string surface.",
       "signature": "MTLCommonCounter  _Nonnull __strong"
     },
     {
@@ -110759,7 +110759,7 @@
           "line": 201
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "variable:MTLCounterErrorDomain",
       "kind": "variable",
@@ -110767,7 +110767,7 @@
       "macos_introduced": "10.15",
       "name": "MTLCounterErrorDomain",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated prismel.metal copied global-string surface.",
       "signature": "const NSErrorDomain  _Nonnull __strong"
     },
     {
@@ -110781,7 +110781,7 @@
           "line": 373
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "variable:MTLDeviceErrorDomain",
       "kind": "variable",
@@ -110789,7 +110789,7 @@
       "macos_introduced": "26.4",
       "name": "MTLDeviceErrorDomain",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated prismel.metal copied global-string surface.",
       "signature": "const NSErrorDomain  _Nonnull __strong"
     },
     {
@@ -110803,7 +110803,7 @@
           "line": 155
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "variable:MTLDeviceRemovalRequestedNotification",
       "kind": "variable",
@@ -110811,7 +110811,7 @@
       "macos_introduced": "10.13",
       "name": "MTLDeviceRemovalRequestedNotification",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated prismel.metal copied global-string surface.",
       "signature": "API_AVAILABLE const MTLDeviceNotificationName __strong"
     },
     {
@@ -110825,7 +110825,7 @@
           "line": 147
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "variable:MTLDeviceWasAddedNotification",
       "kind": "variable",
@@ -110833,7 +110833,7 @@
       "macos_introduced": "10.13",
       "name": "MTLDeviceWasAddedNotification",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated prismel.metal copied global-string surface.",
       "signature": "API_AVAILABLE const MTLDeviceNotificationName __strong"
     },
     {
@@ -110847,7 +110847,7 @@
           "line": 161
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "variable:MTLDeviceWasRemovedNotification",
       "kind": "variable",
@@ -110855,7 +110855,7 @@
       "macos_introduced": "10.13",
       "name": "MTLDeviceWasRemovedNotification",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated prismel.metal copied global-string surface.",
       "signature": "API_AVAILABLE const MTLDeviceNotificationName __strong"
     },
     {
@@ -110869,7 +110869,7 @@
           "line": 14
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDynamicLibrary.h",
       "id": "variable:MTLDynamicLibraryDomain",
       "kind": "variable",
@@ -110877,7 +110877,7 @@
       "macos_introduced": "11.0",
       "name": "MTLDynamicLibraryDomain",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated prismel.metal copied global-string surface.",
       "signature": "const NSErrorDomain  _Nonnull __strong"
     },
     {
@@ -110891,7 +110891,7 @@
           "line": 32
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandQueue.h",
       "id": "variable:MTLIOErrorDomain",
       "kind": "variable",
@@ -110899,7 +110899,7 @@
       "macos_introduced": "13.0",
       "name": "MTLIOErrorDomain",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated prismel.metal copied global-string surface.",
       "signature": "const NSErrorDomain  _Nonnull __strong"
     },
     {
@@ -110913,7 +110913,7 @@
           "line": 425
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "variable:MTLLibraryErrorDomain",
       "kind": "variable",
@@ -110921,7 +110921,7 @@
       "macos_introduced": "10.11",
       "name": "MTLLibraryErrorDomain",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated prismel.metal copied global-string surface.",
       "signature": "const NSErrorDomain  _Nonnull __strong"
     },
     {
@@ -110935,7 +110935,7 @@
           "line": 55
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLogState.h",
       "id": "variable:MTLLogStateErrorDomain",
       "kind": "variable",
@@ -110943,7 +110943,7 @@
       "macos_introduced": "15.0",
       "name": "MTLLogStateErrorDomain",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated prismel.metal copied global-string surface.",
       "signature": "const NSErrorDomain  _Nonnull __strong"
     },
     {
@@ -110957,7 +110957,7 @@
           "line": 74
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTensor.h",
       "id": "variable:MTLTensorDomain",
       "kind": "variable",
@@ -110965,13 +110965,13 @@
       "macos_introduced": "26.0",
       "name": "MTLTensorDomain",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated prismel.metal copied global-string surface.",
       "signature": "const NSErrorDomain  _Nonnull __strong"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "scope-excluded",
       "header": "Metal/MTLAccelerationStructureTypes.h",
       "id": "variable:elements",
       "kind": "variable",
@@ -110979,13 +110979,13 @@
       "macos_introduced": null,
       "name": "elements",
       "owner": "MTLPackedFloatQuaternion",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Header-local inline constructor variable; not an exported Metal SDK declaration.",
       "signature": "const float *"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "scope-excluded",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "variable:icbRange",
       "kind": "variable",
@@ -110993,13 +110993,13 @@
       "macos_introduced": null,
       "name": "icbRange",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Header-local inline constructor variable; not an exported Metal SDK declaration.",
       "signature": "MTLIndirectCommandBufferExecutionRange"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "scope-excluded",
       "header": "Metal/MTLTypes.h",
       "id": "variable:origin",
       "kind": "variable",
@@ -111007,13 +111007,13 @@
       "macos_introduced": null,
       "name": "origin",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Header-local inline constructor variable; not an exported Metal SDK declaration.",
       "signature": "MTLOrigin"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "scope-excluded",
       "header": "Metal/MTLAccelerationStructureTypes.h",
       "id": "variable:packedFloat3",
       "kind": "variable",
@@ -111021,13 +111021,13 @@
       "macos_introduced": null,
       "name": "packedFloat3",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Header-local inline constructor variable; not an exported Metal SDK declaration.",
       "signature": "MTLPackedFloat3"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "scope-excluded",
       "header": "Metal/MTLAccelerationStructureTypes.h",
       "id": "variable:packedQuaternion",
       "kind": "variable",
@@ -111035,13 +111035,13 @@
       "macos_introduced": null,
       "name": "packedQuaternion",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Header-local inline constructor variable; not an exported Metal SDK declaration.",
       "signature": "MTLPackedFloatQuaternion"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "scope-excluded",
       "header": "Metal/MTLTypes.h",
       "id": "variable:position",
       "kind": "variable",
@@ -111049,13 +111049,13 @@
       "macos_introduced": null,
       "name": "position",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Header-local inline constructor variable; not an exported Metal SDK declaration.",
       "signature": "MTLSamplePosition"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "scope-excluded",
       "header": "Metal/MTL4BufferRange.h",
       "id": "variable:range",
       "kind": "variable",
@@ -111063,13 +111063,13 @@
       "macos_introduced": null,
       "name": "range",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Header-local inline constructor variable; not an exported Metal SDK declaration.",
       "signature": "MTL4BufferRange"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "scope-excluded",
       "header": "Metal/MTLTypes.h",
       "id": "variable:region",
       "kind": "variable",
@@ -111077,13 +111077,13 @@
       "macos_introduced": null,
       "name": "region",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Header-local inline constructor variable; not an exported Metal SDK declaration.",
       "signature": "MTLRegion"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "scope-excluded",
       "header": "Metal/MTLTypes.h",
       "id": "variable:result",
       "kind": "variable",
@@ -111091,13 +111091,13 @@
       "macos_introduced": null,
       "name": "result",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Header-local inline constructor variable; not an exported Metal SDK declaration.",
       "signature": "MTLCoordinate2D"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "scope-excluded",
       "header": "Metal/MTLTypes.h",
       "id": "variable:size",
       "kind": "variable",
@@ -111105,7 +111105,7 @@
       "macos_introduced": null,
       "name": "size",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Header-local inline constructor variable; not an exported Metal SDK declaration.",
       "signature": "MTLSize"
     },
     {

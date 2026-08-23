@@ -28,8 +28,8 @@ macOS are `scope-excluded`; remaining declarations stay `unreviewed` until the
 corresponding Phase 2 slice lands. M1 is not green until the generated inventory
 contains no unreviewed in-scope declaration.
 
-The schema-2 pinned inventory contains 5,286 declarations: 1,847 `bound`, one
-`availability-gated`, 27 `scope-excluded`, and 3,411 `unreviewed`.
+The schema-2 pinned inventory contains 5,286 declarations: 2,527 `bound`, one
+`availability-gated`, 37 `scope-excluded`, and 2,721 `unreviewed`.
 
 Binding generation is a hybrid OCaml/Dune architecture. The declarative binding
 plan is keyed by identifiers from that pinned inventory and repeats the expected
@@ -116,14 +116,25 @@ case classification, and the aggregate 25-case scope-excluded count. Selection
 separately validates that all 61 enum and 61 typedef companions are
 `unreviewed`.
 
-Combining the enum closure's 423 in-scope IDs with the direct batch's 99 new IDs
-gives private mechanical raw coverage of 522 of the inventory's 3,411
-`unreviewed` declarations, approximately 15.30%. This is generator throughput,
-not safe API completion: raw/private generation moves none of those declarations
-to `bound`. The safe/bound completion remains 1,847 of 5,259 in-scope
-declarations, or 35.12%, with 64.88% left. The safe percentage changes only
-when handwritten ownership, validation, lifetime, and conformance work moves an
-inventory declaration to `bound`.
+Generator throughput and safe completion remain separate. Raw/private
+generation alone moves no declaration to `bound`; generated pure enums,
+fixed-layout records, and copied immutable globals move only after their exact
+evidence and conformance gates pass. The current safe/bound completion is 2,527
+of 5,249 in-scope declarations, or 48.14%, with 51.86% not yet bound. The safe
+percentage changes only when ownership, validation, lifetime, and conformance
+evidence appropriate to a declaration moves it to `bound`.
+
+Thirty-three immutable, nonnull NSString SDK globals are generated as a closed
+safe family: error domains and user-info keys, common counter/counter-set names,
+and device notifications. Each native entry uses its exact SDK typedef in a
+guarded C++ `static_assert`, observes the pinned availability introduction,
+rejects an unexpected nil, and copies UTF-8 bytes into independently owned
+OCaml storage. The public `Metal.Global` module converts native failures to
+typed `Metal.error` values. Generated conformance reads each value repeatedly,
+checks stable nonempty independent copies, and proves no live/created/released
+handle-accounting delta. Exact identifier and signature/header/availability
+digests fail closed. Ten inventory entries originating from local variables in
+inline SDK constructors are scope-excluded rather than falsely bound.
 
 Public types, domain and lifetime checks, ownership and retention, validation,
 capability policy, asynchronous completion, complex records, and multi-object
@@ -198,7 +209,7 @@ only a successful native setter updates the ledger.
 
 The compute static getter closure and safe compute setter move exactly three
 declarations from `unreviewed` to `bound`. The current schema-2 inventory has
-1,847 `bound`, one `availability-gated`, 27 `scope-excluded`, and 3,411
+2,527 `bound`, one `availability-gated`, 37 `scope-excluded`, and 2,721
 `unreviewed`. The compute getter and setter allocate no native handles. The
 imageblock and render
 threadgroup-memory setters above remain raw-only and do not count as bound.

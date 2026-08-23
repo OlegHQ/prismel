@@ -363,6 +363,33 @@ let validate_string_entries inventory entries =
      || List.length (List.sort_uniq String.compare identifiers) <> 8
   then fail "generated Metal NSString qualified cardinality drift"
 
+let validate_global_string_entries inventory entries =
+  if List.length entries <> Binding_global_string_evidence.bound_count then
+    fail "generated Metal global-string cardinality drift";
+  let seen = Hashtbl.create (List.length entries) in
+  List.iter
+    (fun entry ->
+      let identifier = entry.Binding_global_string_spec.sdk_id in
+      if Hashtbl.mem seen identifier then
+        fail "duplicate generated Metal global-string id: %s" identifier;
+      Hashtbl.add seen identifier ();
+      let declaration =
+        match String_map.find_opt identifier inventory with
+        | Some declaration -> declaration
+        | None -> fail "generated Metal global-string id is absent: %s" identifier
+      in
+      if declaration.kind <> "variable" || declaration.name <> entry.name
+         || declaration.owner <> None || declaration.header <> entry.header
+         || declaration.signature <> entry.signature
+         || declaration.classification <> "bound"
+         ||
+         (match declaration.macos_introduced with
+          | Some version ->
+              not (Binding_availability.equal version entry.macos_introduced)
+          | None -> true)
+      then fail "generated Metal global-string inventory mismatch: %s" identifier)
+    entries
+
 let valid_identifier ~initial value =
   let valid_initial character =
     match initial with
@@ -1331,7 +1358,7 @@ let add_direct_raw_external output
   Buffer.add_string output (Printf.sprintf "%S\n\n" entry.c_symbol)
 
 let raw_ml ~header ~enum_selection ~implicit_enum_selection ~struct_output
-    ~string_entries ~direct_methods entries =
+    ~string_entries ~global_string_entries ~direct_methods entries =
   let output = Buffer.create 4096 in
   Printf.bprintf output "(* %s *)\n\n" header;
   Buffer.add_string output "module Make (Types : sig\n  type handle\nend) = struct\n";
@@ -1346,13 +1373,16 @@ let raw_ml ~header ~enum_selection ~implicit_enum_selection ~struct_output
   Buffer.add_string output
     (Binding_string_codegen.render_raw_body string_entries);
   Buffer.add_char output '\n';
+  Buffer.add_string output
+    (Binding_global_string_codegen.render_raw_ml global_string_entries);
+  Buffer.add_char output '\n';
   List.iter (add_raw_external output) entries;
   List.iter (add_direct_raw_external output) direct_methods;
   Buffer.add_string output "end\n";
   Buffer.contents output
 
 let raw_mli ~header ~enum_selection ~implicit_enum_selection ~struct_output
-    ~string_entries ~direct_methods entries =
+    ~string_entries ~global_string_entries ~direct_methods entries =
   let output = Buffer.create 4096 in
   Printf.bprintf output "(* %s *)\n\n" header;
   Buffer.add_string output
@@ -1367,6 +1397,9 @@ let raw_mli ~header ~enum_selection ~implicit_enum_selection ~struct_output
   Buffer.add_char output '\n';
   Buffer.add_string output
     (Binding_string_codegen.render_raw_body string_entries);
+  Buffer.add_char output '\n';
+  Buffer.add_string output
+    (Binding_global_string_codegen.render_raw_mli global_string_entries);
   Buffer.add_char output '\n';
   List.iter (add_raw_external output) entries;
   List.iter (add_direct_raw_external output) direct_methods;
@@ -1713,7 +1746,7 @@ let add_native_binding output entry =
       fail "internal error: non-generated Metal binding %s" entry.sdk_id
 
 let native_include ~header ~implicit_enum_selection ~struct_output
-    ~value_record_checks ~string_entries ~direct_methods entries =
+    ~value_record_checks ~string_entries ~global_string_entries ~direct_methods entries =
   let output = Buffer.create 8192 in
   Printf.bprintf output "/* %s */\n\n" header;
   Buffer.add_string output
@@ -1725,6 +1758,9 @@ let native_include ~header ~implicit_enum_selection ~struct_output
   Buffer.add_string output value_record_checks;
   Buffer.add_char output '\n';
   Buffer.add_string output (Binding_string_codegen.render_native string_entries);
+  Buffer.add_char output '\n';
+  Buffer.add_string output
+    (Binding_global_string_codegen.render_native global_string_entries);
   Buffer.add_char output '\n';
   List.iter (add_native_binding output) entries;
   List.iter (add_direct_native_binding output) direct_methods;
@@ -1958,7 +1994,7 @@ let direct_batch_json methods properties =
 let manifest ~sdk_version ~plan_sha256 ~generator_sha256 ~inventory_sha256
     ~raw_ml_contents ~raw_mli_contents ~native_contents ~enum_selection
     ~implicit_enum_selection ~struct_output ~string_entries ~direct_methods
-    ~direct_properties ~value_record_ids entries =
+    ~direct_properties ~value_record_ids ~global_string_entries entries =
   pretty_json
     (`Assoc
        [ "schema", `Int 2
@@ -2006,6 +2042,19 @@ let manifest ~sdk_version ~plan_sha256 ~generator_sha256 ~inventory_sha256
              ; "safe_bound_count", `Int 0
              ; "identifiers", `List (List.map (fun id -> `String id) identifiers)
              ] )
+       ; ( "generated_global_string_batch"
+         , `Assoc
+             [ "declaration_count", `Int (List.length global_string_entries)
+             ; "safe_bound_count", `Int (List.length global_string_entries)
+             ; "identifier_sha256", `String Binding_global_string_evidence.identifier_sha256
+             ; "availability_sha256", `String Binding_global_string_evidence.availability_sha256
+             ; "identifiers"
+             , `List
+                 (List.map
+                    (fun entry ->
+                      `String entry.Binding_global_string_spec.sdk_id)
+                    global_string_entries)
+             ] )
        ; ( "mechanical_direct_handle_batch"
          , direct_batch_json direct_methods direct_properties )
        ])
@@ -2030,6 +2079,14 @@ let generator_source_paths =
   ; "tools/metal/binding_value_record_codegen.mli"
   ; "tools/metal/binding_value_record_evidence.ml"
   ; "tools/metal/binding_value_record_evidence.mli"
+  ; "tools/metal/binding_global_string_spec.ml"
+  ; "tools/metal/binding_global_string_spec.mli"
+  ; "tools/metal/binding_global_string_codegen.ml"
+  ; "tools/metal/binding_global_string_codegen.mli"
+  ; "tools/metal/binding_global_string_evidence.ml"
+  ; "tools/metal/binding_global_string_evidence.mli"
+  ; "tools/metal/binding_global_string_conformance_codegen.ml"
+  ; "tools/metal/binding_global_string_conformance_codegen.mli"
   ; "tools/metal/binding_struct_spec.ml"
   ; "tools/metal/binding_struct_spec.mli"
   ; "tools/metal/binding_struct_plan.ml"
@@ -2088,6 +2145,9 @@ type options =
   ; output_public_value_ml : string
   ; output_public_value_mli : string
   ; output_public_value_test : string
+  ; output_public_global_ml : string
+  ; output_public_global_mli : string
+  ; output_public_global_test : string
   }
 
 let options () =
@@ -2110,6 +2170,9 @@ let options () =
   let output_public_value_ml = ref "" in
   let output_public_value_mli = ref "" in
   let output_public_value_test = ref "" in
+  let output_public_global_ml = ref "" in
+  let output_public_global_mli = ref "" in
+  let output_public_global_test = ref "" in
   let set target value = target := value in
   let arguments =
     [ "--inventory", Arg.String (set inventory), "Pinned inventory JSON"
@@ -2139,6 +2202,9 @@ let options () =
     ; "--output-public-value-ml", Arg.String (set output_public_value_ml), "Generated public value-record ML"
     ; "--output-public-value-mli", Arg.String (set output_public_value_mli), "Generated public value-record MLI"
     ; "--output-public-value-test", Arg.String (set output_public_value_test), "Generated public value-record test"
+    ; "--output-public-global-ml", Arg.String (set output_public_global_ml), "Generated public global-string ML"
+    ; "--output-public-global-mli", Arg.String (set output_public_global_mli), "Generated public global-string MLI"
+    ; "--output-public-global-test", Arg.String (set output_public_global_test), "Generated public global-string test"
     ]
   in
   Arg.parse arguments
@@ -2186,6 +2252,9 @@ let options () =
   ; output_public_value_ml = require "--output-public-value-ml" output_public_value_ml
   ; output_public_value_mli = require "--output-public-value-mli" output_public_value_mli
   ; output_public_value_test = require "--output-public-value-test" output_public_value_test
+  ; output_public_global_ml = require "--output-public-global-ml" output_public_global_ml
+  ; output_public_global_mli = require "--output-public-global-mli" output_public_global_mli
+  ; output_public_global_test = require "--output-public-global-test" output_public_global_test
   }
 
 let main () =
@@ -2234,6 +2303,8 @@ let main () =
     value_record_ids;
   let string_entries = Binding_string_codegen.qualified_entries () in
   validate_string_entries inventory string_entries;
+  let global_string_entries = Binding_global_string_spec.entries in
+  validate_global_string_entries inventory global_string_entries;
   let manual_native = read_file options.manual_native in
   let manual_raw_ml = read_file options.manual_raw_ml in
   let manual_raw_mli = read_file options.manual_raw_mli in
@@ -2248,22 +2319,22 @@ let main () =
   let header = generated_header ~plan_sha256 ~inventory_sha256 in
   let raw_ml_contents =
     raw_ml ~header ~enum_selection ~implicit_enum_selection ~struct_output
-      ~string_entries ~direct_methods entries
+      ~string_entries ~global_string_entries ~direct_methods entries
   in
   let raw_mli_contents =
     raw_mli ~header ~enum_selection ~implicit_enum_selection ~struct_output
-      ~string_entries ~direct_methods entries
+      ~string_entries ~global_string_entries ~direct_methods entries
   in
   let native_contents =
     native_include ~header ~implicit_enum_selection ~struct_output
       ~value_record_checks:value_records.native_checks
-      ~string_entries ~direct_methods entries
+      ~string_entries ~global_string_entries ~direct_methods entries
   in
   let manifest_contents =
     manifest ~sdk_version ~plan_sha256 ~generator_sha256 ~inventory_sha256
       ~raw_ml_contents ~raw_mli_contents ~native_contents ~enum_selection
       ~implicit_enum_selection ~struct_output ~string_entries ~direct_methods
-      ~direct_properties ~value_record_ids entries
+      ~direct_properties ~value_record_ids ~global_string_entries entries
   in
   write_file options.output_raw_ml raw_ml_contents;
   write_file options.output_raw_mli raw_mli_contents;
@@ -2281,6 +2352,16 @@ let main () =
     (Printf.sprintf "(* %s *)\n\n%s" header value_records.ocaml_mli);
   write_file options.output_public_value_test
     (Printf.sprintf "(* %s *)\n\n%s" header value_records.test_ml);
+  write_file options.output_public_global_ml
+    (Printf.sprintf "(* %s *)\n\n%s" header
+       (Binding_global_string_codegen.render_safe_ml global_string_entries));
+  write_file options.output_public_global_mli
+    (Printf.sprintf "(* %s *)\n\n%s" header
+       (Binding_global_string_codegen.render_safe_mli global_string_entries));
+  write_file options.output_public_global_test
+    (Printf.sprintf "(* %s *)\n\n%s" header
+       (Binding_global_string_conformance_codegen.render_executable
+          global_string_entries));
   Printf.printf
     "generated %d checked-plan calls, %d direct calls (%d safe Device IDs), %d direct properties, %d explicit-value enum declarations, and %d implicit-value enum declarations\n%!"
     (List.length entries) (List.length direct_methods)

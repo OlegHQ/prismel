@@ -24,6 +24,12 @@ let pp_error formatter error =
 let error operation kind message = Error { operation; kind; message }
 let native_error operation message = error operation Native_error message
 
+module Global = Metal_global_generated.Make (struct
+    type t = error
+    let of_native ~operation message =
+      { operation; kind = Native_error; message }
+  end)
+
 let contains_nul value = String.contains value '\000'
 let option_exists predicate = function Some value -> predicate value | None -> false
 
