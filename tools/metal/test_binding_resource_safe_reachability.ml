@@ -5,11 +5,12 @@ let () =
     List.sort_uniq String.compare
       (Binding_resource_integration_partition.descriptor_owned
        @ Binding_resource_integration_partition.already_callable
+       @ Binding_resource_integration_partition.graph_gated_scalars
        @ Audit.pool_core)
   in
   if Audit.promotable_ids <> expected then
     failwith "Resource100 exact promotable closure drift";
-  if List.length Audit.promotable_ids <> 41 || List.length Audit.blocked <> 59 then
+  if List.length Audit.promotable_ids <> 44 || List.length Audit.blocked <> 56 then
     failwith "Resource100 safe/gap partition drift";
   Printf.printf
     "Resource100 public audit: %d promotable, %d blocked; exact100 closed\n"

@@ -41,6 +41,7 @@ let pool_core =
 let has_public_operation id =
   mem id Binding_resource_integration_partition.descriptor_owned
   || mem id Binding_resource_integration_partition.already_callable
+  || mem id Binding_resource_integration_partition.graph_gated_scalars
   || mem id pool_core
 
 let public_operation id =
@@ -77,6 +78,8 @@ let public_operation id =
     "Metal.Resource100.Texture_view_pool.device"
   else if contains id "resourceViewCount" then
     "Metal.Resource100.Texture_view_pool.count"
+  else if mem id Binding_resource_integration_partition.graph_gated_scalars then
+    "Metal.Resource100.Texture_ops.buffer_backing"
   else if mem id Binding_resource_integration_partition.already_callable then
     "existing Metal Device/Buffer/Texture/Heap/Resource safe operation"
   else "missing public Resource100 operation"

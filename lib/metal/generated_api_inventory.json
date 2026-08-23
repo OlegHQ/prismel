@@ -3,9 +3,9 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4035,
+    "bound": 4038,
     "scope-excluded": 37,
-    "unreviewed": 1213
+    "unreviewed": 1210
   },
   "classification_source_sha256": "7ff476e493a9cf58288fd9b8dc6f1030a7f8e92df2f93ece481d6e8dc6d4ddc0",
   "deployment_target": "14.0",
@@ -102264,7 +102264,7 @@
           "line": 343
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLTexture:buffer",
       "kind": "property",
@@ -102272,7 +102272,7 @@
       "macos_introduced": "10.12",
       "name": "buffer",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "id<MTLBuffer> _Nullable"
     },
     {
@@ -102289,7 +102289,7 @@
           "line": 355
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLTexture:bufferBytesPerRow",
       "kind": "property",
@@ -102297,7 +102297,7 @@
       "macos_introduced": "10.12",
       "name": "bufferBytesPerRow",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -102314,7 +102314,7 @@
           "line": 349
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLTexture:bufferOffset",
       "kind": "property",
@@ -102322,7 +102322,7 @@
       "macos_introduced": "10.12",
       "name": "bufferOffset",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "NSUInteger"
     },
     {
