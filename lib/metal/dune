@@ -209,6 +209,8 @@
   ../../tools/metal/metal4_lifecycle_callable_bridge.inc
   ../../tools/metal/metal_command_support_mechanical.inc
   ../../tools/metal/metal_command_support_callable_bridge.inc
+  ../../tools/metal/metal_mesh_tile_mechanical_generated.mm
+  ../../tools/metal/metal_mesh_tile_mechanical_callable_bridge.inc
   c_library_flags.sexp)
  (action
   (run ./build_bridge.exe

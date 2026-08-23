@@ -961,6 +961,8 @@ enum class Handle_kind : std::uint32_t {
   Function_log,
   Function_log_location,
   Shared_event,
+  Pipeline_buffer_descriptor,
+  Color_attachment_descriptor,
 };
 
 struct Handle {
@@ -14365,4 +14367,10 @@ extern "C" CAMLprim value caml_prismel_metal_pipeline_render_imageblock_length(v
 #pragma clang diagnostic ignored "-Wunguarded-availability-new"
 #include "../../tools/metal/metal_command_support_mechanical.inc"
 #include "../../tools/metal/metal_command_support_callable_bridge.inc"
+#pragma clang diagnostic pop
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunguarded-availability-new"
+#include "../../tools/metal/metal_mesh_tile_mechanical_generated.mm"
+#include "../../tools/metal/metal_mesh_tile_mechanical_callable_bridge.inc"
 #pragma clang diagnostic pop
