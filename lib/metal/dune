@@ -289,6 +289,11 @@
  (modules test_metal_icb)
  (libraries metal))
 
+(test
+ (name test_metal_render_encoder_safe)
+ (modules test_metal_render_encoder_safe)
+ (libraries metal))
+
 (library
  (name metal_xpc_test_support)
  (wrapped false)

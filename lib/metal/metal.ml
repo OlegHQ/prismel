@@ -13420,6 +13420,17 @@ end
 module Render_encoder = struct
   type t = render_encoder
 
+  type cull_mode = No_cull | Cull_front | Cull_back
+  type winding = Clockwise | Counter_clockwise
+  type fill_mode = Fill | Lines
+  type visibility = Visibility_disabled | Visibility_boolean | Visibility_counting
+
+  type viewport =
+    { x : float; y : float; width : float; height : float
+    ; znear : float; zfar : float }
+
+  type scissor = { x : int; y : int; width : int; height : int }
+
   let create (command_buffer : Command_buffer.t) ~(target : Texture.t)
       ?(clear = (0., 0., 0., 1.)) () =
     let operation = "Metal.Render_encoder.create" in
@@ -13530,6 +13541,118 @@ module Render_encoder = struct
   let set_fragment_buffer =
     set_buffer "Metal.Render_encoder.set_fragment_buffer"
       Metal_raw.render_encoder_set_fragment_buffer
+
+  let set_validated operation validate raw_call (value : t) argument =
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match validate value argument with
+           | Error _ as failure -> failure
+           | Ok raw_argument ->
+               (match raw_call value.raw raw_argument with
+                | Ok () -> Ok ()
+                | Error message -> native_error operation message)))
+
+  let set_viewport =
+    set_validated "Metal.Render_encoder.set_viewport"
+      (fun value (viewport : viewport) ->
+        let values =
+          [ viewport.x; viewport.y; viewport.width; viewport.height
+          ; viewport.znear; viewport.zfar ]
+        in
+        if not (List.for_all Float.is_finite values) then
+          error "Metal.Render_encoder.set_viewport" Invalid_argument
+            "viewport values must be finite"
+        else if viewport.x < 0. || viewport.y < 0. || viewport.width <= 0.
+             || viewport.height <= 0.
+             || viewport.x +. viewport.width > float value.target.descriptor.width
+             || viewport.y +. viewport.height > float value.target.descriptor.height
+             || viewport.znear < 0. || viewport.znear > 1.
+             || viewport.zfar < 0. || viewport.zfar > 1.
+             || viewport.znear > viewport.zfar then
+          error "Metal.Render_encoder.set_viewport" Invalid_argument
+            "viewport is outside the render target or depth range"
+        else Ok (viewport.x, viewport.y, viewport.width, viewport.height,
+                 viewport.znear, viewport.zfar))
+      Metal_raw.render_encoder_set_viewport
+
+  let set_scissor =
+    set_validated "Metal.Render_encoder.set_scissor"
+      (fun value (scissor : scissor) ->
+        if scissor.x < 0 || scissor.y < 0 || scissor.width <= 0
+           || scissor.height <= 0
+           || scissor.x > value.target.descriptor.width - scissor.width
+           || scissor.y > value.target.descriptor.height - scissor.height then
+          error "Metal.Render_encoder.set_scissor" Invalid_argument
+            "scissor rectangle is outside the render target"
+        else Ok (scissor.x, scissor.y, scissor.width, scissor.height))
+      Metal_raw.render_encoder_set_scissor
+
+  let set_cull_mode =
+    set_validated "Metal.Render_encoder.set_cull_mode"
+      (fun _ mode -> Ok (match mode with No_cull -> 0 | Cull_front -> 1 | Cull_back -> 2))
+      Metal_raw.render_encoder_set_cull_mode
+
+  let set_front_facing_winding =
+    set_validated "Metal.Render_encoder.set_front_facing_winding"
+      (fun _ winding -> Ok (match winding with Clockwise -> 0 | Counter_clockwise -> 1))
+      Metal_raw.render_encoder_set_winding
+
+  let set_triangle_fill_mode =
+    set_validated "Metal.Render_encoder.set_triangle_fill_mode"
+      (fun _ mode -> Ok (match mode with Fill -> 0 | Lines -> 1))
+      Metal_raw.render_encoder_set_fill_mode
+
+  let finite_floats operation values =
+    if List.for_all Float.is_finite values then Ok values
+    else error operation Invalid_argument "values must be finite"
+
+  let set_blend_color value ~red ~green ~blue ~alpha =
+    set_validated "Metal.Render_encoder.set_blend_color"
+      (fun _ _ ->
+        match finite_floats "Metal.Render_encoder.set_blend_color"
+                [ red; green; blue; alpha ] with
+        | Error _ as failure -> failure
+        | Ok _ -> Ok (red, green, blue, alpha))
+      Metal_raw.render_encoder_set_blend_color value ()
+
+  let set_depth_bias value ~bias ~slope_scale ~clamp =
+    set_validated "Metal.Render_encoder.set_depth_bias"
+      (fun _ _ ->
+        match finite_floats "Metal.Render_encoder.set_depth_bias"
+                [ bias; slope_scale; clamp ] with
+        | Error _ as failure -> failure
+        | Ok _ -> Ok (bias, slope_scale, clamp))
+      Metal_raw.render_encoder_set_depth_bias value ()
+
+  let set_stencil_reference_values (value : t) ~front ~back =
+    on_main "Metal.Render_encoder.set_stencil_reference_values" (fun () ->
+      match ensure_live "Metal.Render_encoder.set_stencil_reference_values" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match Metal_raw.render_encoder_set_stencil_reference value.raw front back with
+           | Ok () -> Ok ()
+           | Error message -> native_error "Metal.Render_encoder.set_stencil_reference_values" message))
+
+  let set_stencil_reference_value (value : t) reference =
+    set_stencil_reference_values value ~front:reference ~back:reference
+
+  let set_visibility_result (value : t) ~mode ~offset =
+    on_main "Metal.Render_encoder.set_visibility_result" (fun () ->
+      match ensure_live "Metal.Render_encoder.set_visibility_result" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when offset < 0L || Int64.rem offset 8L <> 0L ->
+          error "Metal.Render_encoder.set_visibility_result" Invalid_argument
+            "visibility offset must be nonnegative and 8-byte aligned"
+      | Ok () ->
+          let raw_mode = match mode with
+            | Visibility_disabled -> 0 | Visibility_boolean -> 1
+            | Visibility_counting -> 2
+          in
+          (match Metal_raw.render_encoder_set_visibility value.raw raw_mode offset with
+           | Ok () -> Ok ()
+           | Error message -> native_error "Metal.Render_encoder.set_visibility_result" message))
 
   let draw_triangles (value : t) ~first ~count ?(instances = 1) () =
     let operation = "Metal.Render_encoder.draw_triangles" in

@@ -2313,6 +2313,15 @@ end
 module Render_encoder : sig
   type t
 
+  type cull_mode = No_cull | Cull_front | Cull_back
+  type winding = Clockwise | Counter_clockwise
+  type fill_mode = Fill | Lines
+  type visibility = Visibility_disabled | Visibility_boolean | Visibility_counting
+  type viewport =
+    { x : float; y : float; width : float; height : float
+    ; znear : float; zfar : float }
+  type scissor = { x : int; y : int; width : int; height : int }
+
   val create :
     Command_buffer.t -> target:Texture.t ->
     ?clear:float * float * float * float -> unit -> (t, error) result
@@ -2321,6 +2330,22 @@ module Render_encoder : sig
     t -> index:int -> offset:int64 -> Buffer.t -> (unit, error) result
   val set_fragment_buffer :
     t -> index:int -> offset:int64 -> Buffer.t -> (unit, error) result
+  val set_viewport : t -> viewport -> (unit, error) result
+  val set_scissor : t -> scissor -> (unit, error) result
+  val set_cull_mode : t -> cull_mode -> (unit, error) result
+  val set_front_facing_winding : t -> winding -> (unit, error) result
+  val set_triangle_fill_mode : t -> fill_mode -> (unit, error) result
+  val set_blend_color :
+    t -> red:float -> green:float -> blue:float -> alpha:float ->
+    (unit, error) result
+  val set_depth_bias :
+    t -> bias:float -> slope_scale:float -> clamp:float ->
+    (unit, error) result
+  val set_stencil_reference_values :
+    t -> front:int32 -> back:int32 -> (unit, error) result
+  val set_stencil_reference_value : t -> int32 -> (unit, error) result
+  val set_visibility_result :
+    t -> mode:visibility -> offset:int64 -> (unit, error) result
   val draw_triangles :
     t -> first:int -> count:int -> ?instances:int -> unit ->
     (unit, error) result

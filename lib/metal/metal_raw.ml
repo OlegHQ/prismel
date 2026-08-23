@@ -1309,6 +1309,30 @@ external render_encoder_draw :
   "caml_prismel_metal_render_encoder_draw"
 external render_encoder_end : handle -> (unit, string) result =
   "caml_prismel_metal_render_encoder_end"
+external render_encoder_set_viewport :
+  handle -> float * float * float * float * float * float -> (unit, string) result =
+  "caml_prismel_metal_render_encoder_set_viewport"
+external render_encoder_set_scissor :
+  handle -> int * int * int * int -> (unit, string) result =
+  "caml_prismel_metal_render_encoder_set_scissor"
+external render_encoder_set_cull_mode : handle -> int -> (unit, string) result =
+  "caml_prismel_metal_render_encoder_set_cull_mode"
+external render_encoder_set_winding : handle -> int -> (unit, string) result =
+  "caml_prismel_metal_render_encoder_set_winding"
+external render_encoder_set_fill_mode : handle -> int -> (unit, string) result =
+  "caml_prismel_metal_render_encoder_set_fill_mode"
+external render_encoder_set_blend_color :
+  handle -> float * float * float * float -> (unit, string) result =
+  "caml_prismel_metal_render_encoder_set_blend_color"
+external render_encoder_set_depth_bias :
+  handle -> float * float * float -> (unit, string) result =
+  "caml_prismel_metal_render_encoder_set_depth_bias"
+external render_encoder_set_stencil_reference :
+  handle -> int32 -> int32 -> (unit, string) result =
+  "caml_prismel_metal_render_encoder_set_stencil_reference"
+external render_encoder_set_visibility :
+  handle -> int -> int64 -> (unit, string) result =
+  "caml_prismel_metal_render_encoder_set_visibility"
 
 external command_buffer_resource_state_encoder :
   handle -> (handle, string) result

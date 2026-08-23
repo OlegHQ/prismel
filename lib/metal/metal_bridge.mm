@@ -13225,6 +13225,101 @@ extern "C" CAMLprim value caml_prismel_metal_render_encoder_draw(
   CAMLreturn(result_unit());
 }
 
+extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_viewport(
+    value raw_encoder, value raw_viewport) {
+  CAMLparam2(raw_encoder, raw_viewport);
+  id<MTLRenderCommandEncoder> encoder =
+      object_of_handle(raw_encoder, Handle_kind::Render_encoder);
+  MTLViewport viewport = {
+      Double_val(Field(raw_viewport, 0)), Double_val(Field(raw_viewport, 1)),
+      Double_val(Field(raw_viewport, 2)), Double_val(Field(raw_viewport, 3)),
+      Double_val(Field(raw_viewport, 4)), Double_val(Field(raw_viewport, 5))};
+  [encoder setViewport:viewport];
+  CAMLreturn(result_unit());
+}
+
+extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_scissor(
+    value raw_encoder, value raw_scissor) {
+  CAMLparam2(raw_encoder, raw_scissor);
+  id<MTLRenderCommandEncoder> encoder =
+      object_of_handle(raw_encoder, Handle_kind::Render_encoder);
+  MTLScissorRect scissor = {(NSUInteger)Long_val(Field(raw_scissor, 0)),
+                            (NSUInteger)Long_val(Field(raw_scissor, 1)),
+                            (NSUInteger)Long_val(Field(raw_scissor, 2)),
+                            (NSUInteger)Long_val(Field(raw_scissor, 3))};
+  [encoder setScissorRect:scissor];
+  CAMLreturn(result_unit());
+}
+
+extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_cull_mode(
+    value raw_encoder, value raw_mode) {
+  CAMLparam2(raw_encoder, raw_mode);
+  id<MTLRenderCommandEncoder> encoder = object_of_handle(raw_encoder, Handle_kind::Render_encoder);
+  static const MTLCullMode modes[] = {MTLCullModeNone, MTLCullModeFront, MTLCullModeBack};
+  [encoder setCullMode:modes[Long_val(raw_mode)]];
+  CAMLreturn(result_unit());
+}
+
+extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_winding(
+    value raw_encoder, value raw_winding) {
+  CAMLparam2(raw_encoder, raw_winding);
+  id<MTLRenderCommandEncoder> encoder = object_of_handle(raw_encoder, Handle_kind::Render_encoder);
+  static const MTLWinding values[] = {MTLWindingClockwise, MTLWindingCounterClockwise};
+  [encoder setFrontFacingWinding:values[Long_val(raw_winding)]];
+  CAMLreturn(result_unit());
+}
+
+extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_fill_mode(
+    value raw_encoder, value raw_mode) {
+  CAMLparam2(raw_encoder, raw_mode);
+  id<MTLRenderCommandEncoder> encoder = object_of_handle(raw_encoder, Handle_kind::Render_encoder);
+  static const MTLTriangleFillMode values[] = {MTLTriangleFillModeFill, MTLTriangleFillModeLines};
+  [encoder setTriangleFillMode:values[Long_val(raw_mode)]];
+  CAMLreturn(result_unit());
+}
+
+extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_blend_color(
+    value raw_encoder, value raw_color) {
+  CAMLparam2(raw_encoder, raw_color);
+  id<MTLRenderCommandEncoder> encoder = object_of_handle(raw_encoder, Handle_kind::Render_encoder);
+  [encoder setBlendColorRed:(float)Double_val(Field(raw_color, 0))
+                      green:(float)Double_val(Field(raw_color, 1))
+                       blue:(float)Double_val(Field(raw_color, 2))
+                      alpha:(float)Double_val(Field(raw_color, 3))];
+  CAMLreturn(result_unit());
+}
+
+extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_depth_bias(
+    value raw_encoder, value raw_bias) {
+  CAMLparam2(raw_encoder, raw_bias);
+  id<MTLRenderCommandEncoder> encoder = object_of_handle(raw_encoder, Handle_kind::Render_encoder);
+  [encoder setDepthBias:(float)Double_val(Field(raw_bias, 0))
+             slopeScale:(float)Double_val(Field(raw_bias, 1))
+                  clamp:(float)Double_val(Field(raw_bias, 2))];
+  CAMLreturn(result_unit());
+}
+
+extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_stencil_reference(
+    value raw_encoder, value raw_front, value raw_back) {
+  CAMLparam3(raw_encoder, raw_front, raw_back);
+  id<MTLRenderCommandEncoder> encoder = object_of_handle(raw_encoder, Handle_kind::Render_encoder);
+  [encoder setStencilFrontReferenceValue:(uint32_t)Int32_val(raw_front)
+                      backReferenceValue:(uint32_t)Int32_val(raw_back)];
+  CAMLreturn(result_unit());
+}
+
+extern "C" CAMLprim value caml_prismel_metal_render_encoder_set_visibility(
+    value raw_encoder, value raw_mode, value raw_offset) {
+  CAMLparam3(raw_encoder, raw_mode, raw_offset);
+  id<MTLRenderCommandEncoder> encoder = object_of_handle(raw_encoder, Handle_kind::Render_encoder);
+  static const MTLVisibilityResultMode modes[] = {
+      MTLVisibilityResultModeDisabled, MTLVisibilityResultModeBoolean,
+      MTLVisibilityResultModeCounting};
+  [encoder setVisibilityResultMode:modes[Long_val(raw_mode)]
+                            offset:(NSUInteger)Int64_val(raw_offset)];
+  CAMLreturn(result_unit());
+}
+
 extern "C" CAMLprim value caml_prismel_metal_render_encoder_end(value raw) {
   CAMLparam1(raw);
   id<MTLRenderCommandEncoder> encoder =
