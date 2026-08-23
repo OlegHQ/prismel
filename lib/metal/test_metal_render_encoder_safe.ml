@@ -57,6 +57,7 @@ let () =
   expect Invalid_argument (Render_encoder.set_tessellation_factor_buffer encoder ~offset:1L ~instance_stride:0L ());
   expect Invalid_argument (Render_encoder.set_stage_buffer encoder ~stage:Render_encoder.Mesh ~index:0 ~offset:1L None);
   expect Unsupported (Render_encoder.set_stage_acceleration_structure encoder ~stage:Render_encoder.Mesh ~index:0 None);
+  expect Invalid_argument (Render_encoder.set_stage_visible_function_tables encoder ~stage:Render_encoder.Vertex ~start:0 []);
   expect Invalid_argument
     (Render_encoder.set_fragment_sampler encoder ~index:0 ~lod_min:2. ~lod_max:1. sampler);
   expect Invalid_argument

@@ -2536,6 +2536,8 @@ module Render_encoder : sig
   val set_stage_acceleration_structure : t -> stage:stage -> index:int -> Acceleration_structure.t option -> (unit,error) result
   val set_stage_visible_function_table : t -> stage:stage -> index:int -> Visible_function_table.t option -> (unit,error) result
   val set_stage_intersection_function_table : t -> stage:stage -> index:int -> Intersection_function_table.t option -> (unit,error) result
+  val set_stage_visible_function_tables : t -> stage:stage -> start:int -> Visible_function_table.t option list -> (unit,error) result
+  val set_stage_intersection_function_tables : t -> stage:stage -> start:int -> Intersection_function_table.t option list -> (unit,error) result
   val set_depth_stencil_state : t -> Depth_stencil.t option -> (unit,error) result
   val set_stage_bytes : t -> stage:stage -> index:int -> bytes -> (unit,error) result
   val set_depth_clip_mode : t -> clamp:bool -> (unit,error) result

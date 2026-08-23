@@ -15004,6 +15004,22 @@ module Render_encoder = struct
     | Some x->Result.bind(ensure_live operation x.lifetime)(fun()->Result.bind(ensure_same_device operation value.command_buffer.queue.device x.pipeline.device)(fun()->
         match Metal_raw.render_stage_intersection value.raw(binding_stage_code stage)(Some x.raw)(Int64.of_int index)with Error m->native_error operation m|Ok()->retain_command_buffer_intersection_table value.command_buffer x;Ok()))
     | None->match Metal_raw.render_stage_intersection value.raw(binding_stage_code stage)None(Int64.of_int index)with Error m->native_error operation m|Ok()->Ok()))
+  let set_stage_visible_function_tables (value:t) ~stage ~start items =
+    let operation="Metal.Render_encoder.set_stage_visible_function_tables" in on_main operation(fun()->
+    match ensure_live operation value.lifetime with Error _ as e->e|Ok()->
+    if items=[]||start<0||start>31-List.length items then error operation Invalid_argument "table range must be nonempty and within [0,31)" else
+    Result.bind(validate_table_stage operation stage start)(fun()->
+    let rec valid=function []->Ok()|None::xs->valid xs|Some(x:visible_function_table)::xs->Result.bind(ensure_live operation x.lifetime)(fun()->Result.bind(ensure_same_device operation value.command_buffer.queue.device x.pipeline.device)(fun()->valid xs))in
+    Result.bind(valid items)(fun()->match Metal_raw.render_stage_visibles value.raw(binding_stage_code stage)(Array.of_list(List.map(Option.map(fun(x:visible_function_table)->x.raw))items))(Int64.of_int start)with
+    | Error m->native_error operation m|Ok()->List.iter(Option.iter(retain_command_buffer_visible_table value.command_buffer))items;Ok())))
+  let set_stage_intersection_function_tables (value:t) ~stage ~start items =
+    let operation="Metal.Render_encoder.set_stage_intersection_function_tables" in on_main operation(fun()->
+    match ensure_live operation value.lifetime with Error _ as e->e|Ok()->
+    if items=[]||start<0||start>31-List.length items then error operation Invalid_argument "table range must be nonempty and within [0,31)" else
+    Result.bind(validate_table_stage operation stage start)(fun()->
+    let rec valid=function []->Ok()|None::xs->valid xs|Some(x:intersection_function_table)::xs->Result.bind(ensure_live operation x.lifetime)(fun()->Result.bind(ensure_same_device operation value.command_buffer.queue.device x.pipeline.device)(fun()->valid xs))in
+    Result.bind(valid items)(fun()->match Metal_raw.render_stage_intersections value.raw(binding_stage_code stage)(Array.of_list(List.map(Option.map(fun(x:intersection_function_table)->x.raw))items))(Int64.of_int start)with
+    | Error m->native_error operation m|Ok()->List.iter(Option.iter(retain_command_buffer_intersection_table value.command_buffer))items;Ok())))
 
   let set_depth_stencil_state (value:t) (state:Depth_stencil.t option) =
     let operation="Metal.Render_encoder.set_depth_stencil_state" in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->
