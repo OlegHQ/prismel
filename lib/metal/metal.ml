@@ -17476,7 +17476,7 @@ module Resource100 = struct
         | Error _ as failure -> failure
         | Ok () -> match Metal_raw.resource_texture_root source.raw with
           | Error message -> native_error operation message
-          | Ok None -> native_error operation "texture returned no root resource"
+          | Ok None -> Ok None
           | Ok (Some native) ->
               let safe = safe_root source in
               let valid, raw = match native, safe with
@@ -17494,7 +17494,7 @@ module Resource100 = struct
                     false, (let raw, _, _, _, _, _, _, _, _, _, _, _, _ = snapshot in raw)
               in
               ignore (Metal_raw.destroy raw);
-              if valid then Ok safe else native_error operation
+              if valid then Ok (Some safe) else native_error operation
                 "native root resource disagrees with the safe parent graph")
 
     let view (source:texture) ~format =

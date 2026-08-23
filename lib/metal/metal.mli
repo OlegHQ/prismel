@@ -3004,7 +3004,7 @@ module Resource100 : sig
   module Texture_ops : sig
     val remote_view : Texture.t -> device:Device.t -> (Texture.t option,error) result
     val remote_storage : Texture.t -> (Texture.t option,error) result
-    val root_resource : Texture.t -> (Resource_ops.t,error) result
+    val root_resource : Texture.t -> (Resource_ops.t option,error) result
     val view : Texture.t -> format:Texture.format -> (Texture.t,error) result
     val buffer_backing : Texture.t -> (Texture.buffer_backing option,error) result
     val get_bytes : Texture.t -> bytes:bytes -> bytes_per_row:int -> region:Texture.region -> mip_level:int -> (unit,error) result
