@@ -24,6 +24,7 @@ let enum_cases owner names =
 
 let bound_identifiers =
   [ "class:MTLFunctionDescriptor"
+  ; "class:MTLIndirectCommandBufferDescriptor"
   ; "method:+[MTLFunctionDescriptor functionDescriptor]"
   ; "method:-[MTLFunctionDescriptor constantValues]"
   ; "method:-[MTLFunctionDescriptor name]"

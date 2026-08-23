@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 2633,
+    "bound": 2691,
     "scope-excluded": 37,
-    "unreviewed": 2615
+    "unreviewed": 2557
   },
-  "classification_source_sha256": "347003eac8dd6c3341ec30872f5c5d36e0c3da5b0291fc686ffc29a6c36edba6",
+  "classification_source_sha256": "a081811c1b0d7953f815558c23a3805c001d1a618fbe387c9680b4c654c089b1",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "271bd5614a6f2ca840ce89a551c7fe0eff087fb6bd30e651d7acd230226f04a1",
@@ -2482,7 +2482,7 @@
           "line": 52
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "class:MTLIndirectCommandBufferDescriptor",
       "kind": "class",
@@ -2490,7 +2490,7 @@
       "macos_introduced": "10.14",
       "name": "MTLIndirectCommandBufferDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -61583,7 +61583,7 @@
           "line": 52
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "method:-[MTLIndirectCommandBufferDescriptor commandTypes]",
       "kind": "method",
@@ -61591,7 +61591,7 @@
       "macos_introduced": "10.14",
       "name": "commandTypes",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> MTLIndirectCommandType"
     },
     {
@@ -61602,7 +61602,7 @@
           "line": 52
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "method:-[MTLIndirectCommandBufferDescriptor inheritBuffers]",
       "kind": "method",
@@ -61610,7 +61610,7 @@
       "macos_introduced": "10.14",
       "name": "inheritBuffers",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -61627,7 +61627,7 @@
           "line": 93
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "method:-[MTLIndirectCommandBufferDescriptor inheritCullMode]",
       "kind": "method",
@@ -61635,7 +61635,7 @@
       "macos_introduced": "26.0",
       "name": "inheritCullMode",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -61652,7 +61652,7 @@
           "line": 83
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "method:-[MTLIndirectCommandBufferDescriptor inheritDepthBias]",
       "kind": "method",
@@ -61660,7 +61660,7 @@
       "macos_introduced": "26.0",
       "name": "inheritDepthBias",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -61677,7 +61677,7 @@
           "line": 88
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "method:-[MTLIndirectCommandBufferDescriptor inheritDepthClipMode]",
       "kind": "method",
@@ -61685,7 +61685,7 @@
       "macos_introduced": "26.0",
       "name": "inheritDepthClipMode",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -61702,7 +61702,7 @@
           "line": 78
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "method:-[MTLIndirectCommandBufferDescriptor inheritDepthStencilState]",
       "kind": "method",
@@ -61710,7 +61710,7 @@
       "macos_introduced": "26.0",
       "name": "inheritDepthStencilState",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -61727,7 +61727,7 @@
           "line": 98
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "method:-[MTLIndirectCommandBufferDescriptor inheritFrontFacingWinding]",
       "kind": "method",
@@ -61735,7 +61735,7 @@
       "macos_introduced": "26.0",
       "name": "inheritFrontFacingWinding",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -61752,7 +61752,7 @@
           "line": 67
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "method:-[MTLIndirectCommandBufferDescriptor inheritPipelineState]",
       "kind": "method",
@@ -61760,7 +61760,7 @@
       "macos_introduced": "10.14",
       "name": "inheritPipelineState",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -61777,7 +61777,7 @@
           "line": 103
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "method:-[MTLIndirectCommandBufferDescriptor inheritTriangleFillMode]",
       "kind": "method",
@@ -61785,7 +61785,7 @@
       "macos_introduced": "26.0",
       "name": "inheritTriangleFillMode",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -61796,7 +61796,7 @@
           "line": 52
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "method:-[MTLIndirectCommandBufferDescriptor maxFragmentBufferBindCount]",
       "kind": "method",
@@ -61804,7 +61804,7 @@
       "macos_introduced": "10.14",
       "name": "maxFragmentBufferBindCount",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -61821,7 +61821,7 @@
           "line": 122
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "method:-[MTLIndirectCommandBufferDescriptor maxKernelBufferBindCount]",
       "kind": "method",
@@ -61829,7 +61829,7 @@
       "macos_introduced": "11.0",
       "name": "maxKernelBufferBindCount",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -61846,7 +61846,7 @@
           "line": 129
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "method:-[MTLIndirectCommandBufferDescriptor maxKernelThreadgroupMemoryBindCount]",
       "kind": "method",
@@ -61854,7 +61854,7 @@
       "macos_introduced": "14.0",
       "name": "maxKernelThreadgroupMemoryBindCount",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -61871,7 +61871,7 @@
           "line": 140
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "method:-[MTLIndirectCommandBufferDescriptor maxMeshBufferBindCount]",
       "kind": "method",
@@ -61879,7 +61879,7 @@
       "macos_introduced": "14.0",
       "name": "maxMeshBufferBindCount",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -61896,7 +61896,7 @@
           "line": 135
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "method:-[MTLIndirectCommandBufferDescriptor maxObjectBufferBindCount]",
       "kind": "method",
@@ -61904,7 +61904,7 @@
       "macos_introduced": "14.0",
       "name": "maxObjectBufferBindCount",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -61921,7 +61921,7 @@
           "line": 147
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "method:-[MTLIndirectCommandBufferDescriptor maxObjectThreadgroupMemoryBindCount]",
       "kind": "method",
@@ -61929,7 +61929,7 @@
       "macos_introduced": "14.0",
       "name": "maxObjectThreadgroupMemoryBindCount",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -61940,7 +61940,7 @@
           "line": 52
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "method:-[MTLIndirectCommandBufferDescriptor maxVertexBufferBindCount]",
       "kind": "method",
@@ -61948,7 +61948,7 @@
       "macos_introduced": "10.14",
       "name": "maxVertexBufferBindCount",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -61959,7 +61959,7 @@
           "line": 52
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "method:-[MTLIndirectCommandBufferDescriptor setCommandTypes:]",
       "kind": "method",
@@ -61967,7 +61967,7 @@
       "macos_introduced": "10.14",
       "name": "setCommandTypes:",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (MTLIndirectCommandType) -> void"
     },
     {
@@ -61978,7 +61978,7 @@
           "line": 52
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "method:-[MTLIndirectCommandBufferDescriptor setInheritBuffers:]",
       "kind": "method",
@@ -61986,7 +61986,7 @@
       "macos_introduced": "10.14",
       "name": "setInheritBuffers:",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -62003,7 +62003,7 @@
           "line": 93
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "method:-[MTLIndirectCommandBufferDescriptor setInheritCullMode:]",
       "kind": "method",
@@ -62011,7 +62011,7 @@
       "macos_introduced": "26.0",
       "name": "setInheritCullMode:",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -62028,7 +62028,7 @@
           "line": 83
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "method:-[MTLIndirectCommandBufferDescriptor setInheritDepthBias:]",
       "kind": "method",
@@ -62036,7 +62036,7 @@
       "macos_introduced": "26.0",
       "name": "setInheritDepthBias:",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -62053,7 +62053,7 @@
           "line": 88
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "method:-[MTLIndirectCommandBufferDescriptor setInheritDepthClipMode:]",
       "kind": "method",
@@ -62061,7 +62061,7 @@
       "macos_introduced": "26.0",
       "name": "setInheritDepthClipMode:",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -62078,7 +62078,7 @@
           "line": 78
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "method:-[MTLIndirectCommandBufferDescriptor setInheritDepthStencilState:]",
       "kind": "method",
@@ -62086,7 +62086,7 @@
       "macos_introduced": "26.0",
       "name": "setInheritDepthStencilState:",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -62103,7 +62103,7 @@
           "line": 98
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "method:-[MTLIndirectCommandBufferDescriptor setInheritFrontFacingWinding:]",
       "kind": "method",
@@ -62111,7 +62111,7 @@
       "macos_introduced": "26.0",
       "name": "setInheritFrontFacingWinding:",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -62128,7 +62128,7 @@
           "line": 67
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "method:-[MTLIndirectCommandBufferDescriptor setInheritPipelineState:]",
       "kind": "method",
@@ -62136,7 +62136,7 @@
       "macos_introduced": "10.14",
       "name": "setInheritPipelineState:",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -62153,7 +62153,7 @@
           "line": 103
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "method:-[MTLIndirectCommandBufferDescriptor setInheritTriangleFillMode:]",
       "kind": "method",
@@ -62161,7 +62161,7 @@
       "macos_introduced": "26.0",
       "name": "setInheritTriangleFillMode:",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -62172,7 +62172,7 @@
           "line": 52
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "method:-[MTLIndirectCommandBufferDescriptor setMaxFragmentBufferBindCount:]",
       "kind": "method",
@@ -62180,7 +62180,7 @@
       "macos_introduced": "10.14",
       "name": "setMaxFragmentBufferBindCount:",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -62197,7 +62197,7 @@
           "line": 122
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "method:-[MTLIndirectCommandBufferDescriptor setMaxKernelBufferBindCount:]",
       "kind": "method",
@@ -62205,7 +62205,7 @@
       "macos_introduced": "11.0",
       "name": "setMaxKernelBufferBindCount:",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -62222,7 +62222,7 @@
           "line": 129
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "method:-[MTLIndirectCommandBufferDescriptor setMaxKernelThreadgroupMemoryBindCount:]",
       "kind": "method",
@@ -62230,7 +62230,7 @@
       "macos_introduced": "14.0",
       "name": "setMaxKernelThreadgroupMemoryBindCount:",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -62247,7 +62247,7 @@
           "line": 140
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "method:-[MTLIndirectCommandBufferDescriptor setMaxMeshBufferBindCount:]",
       "kind": "method",
@@ -62255,7 +62255,7 @@
       "macos_introduced": "14.0",
       "name": "setMaxMeshBufferBindCount:",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -62272,7 +62272,7 @@
           "line": 135
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "method:-[MTLIndirectCommandBufferDescriptor setMaxObjectBufferBindCount:]",
       "kind": "method",
@@ -62280,7 +62280,7 @@
       "macos_introduced": "14.0",
       "name": "setMaxObjectBufferBindCount:",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -62297,7 +62297,7 @@
           "line": 147
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "method:-[MTLIndirectCommandBufferDescriptor setMaxObjectThreadgroupMemoryBindCount:]",
       "kind": "method",
@@ -62305,7 +62305,7 @@
       "macos_introduced": "14.0",
       "name": "setMaxObjectThreadgroupMemoryBindCount:",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -62316,7 +62316,7 @@
           "line": 52
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "method:-[MTLIndirectCommandBufferDescriptor setMaxVertexBufferBindCount:]",
       "kind": "method",
@@ -62324,7 +62324,7 @@
       "macos_introduced": "10.14",
       "name": "setMaxVertexBufferBindCount:",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -62341,7 +62341,7 @@
           "line": 166
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "method:-[MTLIndirectCommandBufferDescriptor setSupportColorAttachmentMapping:]",
       "kind": "method",
@@ -62349,7 +62349,7 @@
       "macos_introduced": "26.0",
       "name": "setSupportColorAttachmentMapping:",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -62366,7 +62366,7 @@
           "line": 163
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "method:-[MTLIndirectCommandBufferDescriptor setSupportDynamicAttributeStride:]",
       "kind": "method",
@@ -62374,7 +62374,7 @@
       "macos_introduced": "14.0",
       "name": "setSupportDynamicAttributeStride:",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -62391,7 +62391,7 @@
           "line": 153
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "method:-[MTLIndirectCommandBufferDescriptor setSupportRayTracing:]",
       "kind": "method",
@@ -62399,7 +62399,7 @@
       "macos_introduced": "13.0",
       "name": "setSupportRayTracing:",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -62416,7 +62416,7 @@
           "line": 166
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "method:-[MTLIndirectCommandBufferDescriptor supportColorAttachmentMapping]",
       "kind": "method",
@@ -62424,7 +62424,7 @@
       "macos_introduced": "26.0",
       "name": "supportColorAttachmentMapping",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -62441,7 +62441,7 @@
           "line": 163
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "method:-[MTLIndirectCommandBufferDescriptor supportDynamicAttributeStride]",
       "kind": "method",
@@ -62449,7 +62449,7 @@
       "macos_introduced": "14.0",
       "name": "supportDynamicAttributeStride",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -62466,7 +62466,7 @@
           "line": 153
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "method:-[MTLIndirectCommandBufferDescriptor supportRayTracing]",
       "kind": "method",
@@ -62474,7 +62474,7 @@
       "macos_introduced": "13.0",
       "name": "supportRayTracing",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -95287,7 +95287,7 @@
           "line": 52
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "property:MTLIndirectCommandBufferDescriptor:commandTypes",
       "kind": "property",
@@ -95295,7 +95295,7 @@
       "macos_introduced": "10.14",
       "name": "commandTypes",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "MTLIndirectCommandType"
     },
     {
@@ -95306,7 +95306,7 @@
           "line": 52
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "property:MTLIndirectCommandBufferDescriptor:inheritBuffers",
       "kind": "property",
@@ -95314,7 +95314,7 @@
       "macos_introduced": "10.14",
       "name": "inheritBuffers",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "BOOL"
     },
     {
@@ -95331,7 +95331,7 @@
           "line": 93
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "property:MTLIndirectCommandBufferDescriptor:inheritCullMode",
       "kind": "property",
@@ -95339,7 +95339,7 @@
       "macos_introduced": "26.0",
       "name": "inheritCullMode",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "BOOL"
     },
     {
@@ -95356,7 +95356,7 @@
           "line": 83
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "property:MTLIndirectCommandBufferDescriptor:inheritDepthBias",
       "kind": "property",
@@ -95364,7 +95364,7 @@
       "macos_introduced": "26.0",
       "name": "inheritDepthBias",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "BOOL"
     },
     {
@@ -95381,7 +95381,7 @@
           "line": 88
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "property:MTLIndirectCommandBufferDescriptor:inheritDepthClipMode",
       "kind": "property",
@@ -95389,7 +95389,7 @@
       "macos_introduced": "26.0",
       "name": "inheritDepthClipMode",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "BOOL"
     },
     {
@@ -95406,7 +95406,7 @@
           "line": 78
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "property:MTLIndirectCommandBufferDescriptor:inheritDepthStencilState",
       "kind": "property",
@@ -95414,7 +95414,7 @@
       "macos_introduced": "26.0",
       "name": "inheritDepthStencilState",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "BOOL"
     },
     {
@@ -95431,7 +95431,7 @@
           "line": 98
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "property:MTLIndirectCommandBufferDescriptor:inheritFrontFacingWinding",
       "kind": "property",
@@ -95439,7 +95439,7 @@
       "macos_introduced": "26.0",
       "name": "inheritFrontFacingWinding",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "BOOL"
     },
     {
@@ -95456,7 +95456,7 @@
           "line": 67
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "property:MTLIndirectCommandBufferDescriptor:inheritPipelineState",
       "kind": "property",
@@ -95464,7 +95464,7 @@
       "macos_introduced": "10.14",
       "name": "inheritPipelineState",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "BOOL"
     },
     {
@@ -95481,7 +95481,7 @@
           "line": 103
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "property:MTLIndirectCommandBufferDescriptor:inheritTriangleFillMode",
       "kind": "property",
@@ -95489,7 +95489,7 @@
       "macos_introduced": "26.0",
       "name": "inheritTriangleFillMode",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "BOOL"
     },
     {
@@ -95500,7 +95500,7 @@
           "line": 52
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "property:MTLIndirectCommandBufferDescriptor:maxFragmentBufferBindCount",
       "kind": "property",
@@ -95508,7 +95508,7 @@
       "macos_introduced": "10.14",
       "name": "maxFragmentBufferBindCount",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -95525,7 +95525,7 @@
           "line": 122
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "property:MTLIndirectCommandBufferDescriptor:maxKernelBufferBindCount",
       "kind": "property",
@@ -95533,7 +95533,7 @@
       "macos_introduced": "11.0",
       "name": "maxKernelBufferBindCount",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -95550,7 +95550,7 @@
           "line": 129
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "property:MTLIndirectCommandBufferDescriptor:maxKernelThreadgroupMemoryBindCount",
       "kind": "property",
@@ -95558,7 +95558,7 @@
       "macos_introduced": "14.0",
       "name": "maxKernelThreadgroupMemoryBindCount",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -95575,7 +95575,7 @@
           "line": 140
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "property:MTLIndirectCommandBufferDescriptor:maxMeshBufferBindCount",
       "kind": "property",
@@ -95583,7 +95583,7 @@
       "macos_introduced": "14.0",
       "name": "maxMeshBufferBindCount",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -95600,7 +95600,7 @@
           "line": 135
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "property:MTLIndirectCommandBufferDescriptor:maxObjectBufferBindCount",
       "kind": "property",
@@ -95608,7 +95608,7 @@
       "macos_introduced": "14.0",
       "name": "maxObjectBufferBindCount",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -95625,7 +95625,7 @@
           "line": 147
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "property:MTLIndirectCommandBufferDescriptor:maxObjectThreadgroupMemoryBindCount",
       "kind": "property",
@@ -95633,7 +95633,7 @@
       "macos_introduced": "14.0",
       "name": "maxObjectThreadgroupMemoryBindCount",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -95644,7 +95644,7 @@
           "line": 52
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "property:MTLIndirectCommandBufferDescriptor:maxVertexBufferBindCount",
       "kind": "property",
@@ -95652,7 +95652,7 @@
       "macos_introduced": "10.14",
       "name": "maxVertexBufferBindCount",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -95669,7 +95669,7 @@
           "line": 166
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "property:MTLIndirectCommandBufferDescriptor:supportColorAttachmentMapping",
       "kind": "property",
@@ -95677,7 +95677,7 @@
       "macos_introduced": "26.0",
       "name": "supportColorAttachmentMapping",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "BOOL"
     },
     {
@@ -95694,7 +95694,7 @@
           "line": 163
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "property:MTLIndirectCommandBufferDescriptor:supportDynamicAttributeStride",
       "kind": "property",
@@ -95702,7 +95702,7 @@
       "macos_introduced": "14.0",
       "name": "supportDynamicAttributeStride",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "BOOL"
     },
     {
@@ -95719,7 +95719,7 @@
           "line": 153
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "property:MTLIndirectCommandBufferDescriptor:supportRayTracing",
       "kind": "property",
@@ -95727,7 +95727,7 @@
       "macos_introduced": "13.0",
       "name": "supportRayTracing",
       "owner": "MTLIndirectCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "BOOL"
     },
     {

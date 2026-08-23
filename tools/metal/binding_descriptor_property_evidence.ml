@@ -16,20 +16,12 @@ let expected_promotion_count = 153
 let promotion_ids =
   List.concat_map inventory_ids Binding_descriptor_property_plan.entries
 
-let pending_icb_ids =
-  Binding_descriptor_property_plan.entries
-  |> List.filter (fun (entry : Binding_descriptor_property_spec.entry) ->
-    entry.owner = "MTLIndirectCommandBufferDescriptor")
-  |> List.concat_map inventory_ids
-
+let pending_icb_ids = []
 let bound_ids =
-  Binding_descriptor_property_plan.entries
-  |> List.filter (fun (entry : Binding_descriptor_property_spec.entry) ->
-    entry.owner <> "MTLIndirectCommandBufferDescriptor")
-  |> List.concat_map inventory_ids
+  Binding_descriptor_property_plan.entries |> List.concat_map inventory_ids
 
-let expected_bound_count = 96
-let expected_pending_count = 57
+let expected_bound_count = 153
+let expected_pending_count = 0
 let bound_set = Hashtbl.create expected_bound_count
 let () = List.iter (fun id -> Hashtbl.replace bound_set id ()) bound_ids
 let is_bound_identifier identifier = Hashtbl.mem bound_set identifier
@@ -53,11 +45,7 @@ let validate_inventory symbols =
            || symbol.macos_introduced <> Some entry.macos_introduced
            || symbol.attributes <> entry.attributes
         then fail "inventory drift for %s" id;
-        let expected_classification =
-          if entry.owner = "MTLIndirectCommandBufferDescriptor" then
-            "unreviewed"
-          else "bound"
-        in
+        let expected_classification = "bound" in
         if symbol.classification <> expected_classification then
           fail "expected %s declaration %s, got %s" expected_classification id
             symbol.classification
