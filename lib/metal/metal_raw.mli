@@ -1695,11 +1695,14 @@ external tile_pipeline_descriptor_owned :
   tile_pipeline_descriptor_inputs -> (handle,string) result =
   "caml_prismel_tile_pipeline_descriptor"
 
-(** The prepared six-argument IO load primitive lacks the required bytecode
-    companion, so it is not part of the raw OCaml ABI yet. *)
+(** IO/counter111 callable ownership ABI. *)
 external io_counter_descriptor_create :
   handle -> int -> string option -> (handle,string) result =
   "caml_prismel_counter_descriptor"
+external io_load_buffer :
+  handle -> handle -> int64 -> int64 -> handle -> int64 ->
+  (unit,string) result =
+  "caml_prismel_io_load_buffer_bytecode" "caml_prismel_io_load_buffer"
 
 (** Exact callable subset of the prepared authoritative Metal4 shards. *)
 external metal4_command_buffer_begin :

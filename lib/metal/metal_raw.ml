@@ -1716,12 +1716,14 @@ external tile_pipeline_descriptor_owned :
   tile_pipeline_descriptor_inputs -> (handle,string) result =
   "caml_prismel_tile_pipeline_descriptor"
 
-(** IO/counter111 callable ownership ABI. The six-argument IO load native
-    entry has no bytecode companion in the prepared shard and is deliberately
-    not exposed until that companion exists. *)
+(** IO/counter111 callable ownership ABI. *)
 external io_counter_descriptor_create :
   handle -> int -> string option -> (handle,string) result =
   "caml_prismel_counter_descriptor"
+external io_load_buffer :
+  handle -> handle -> int64 -> int64 -> handle -> int64 ->
+  (unit,string) result =
+  "caml_prismel_io_load_buffer_bytecode" "caml_prismel_io_load_buffer"
 
 (** Authoritative Metal4 lifecycle190 prepared CAML subset. The resource and
     compute-owner shards currently contain typed native helpers only, not OCaml
