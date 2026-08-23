@@ -653,6 +653,39 @@ one-minus-blend-color factors, suppresses green writes, and verifies every BGRA
 pixel is exactly `(64, 255, 64, 255)`. A blend-enabled mesh pipeline separately
 executes with the default one/zero equation.
 
+Conventional and mesh pipeline compilation also accepts typed descriptor-wide
+alpha-to-coverage, alpha-to-one, maximum vertex-amplification, and logical-to-
+physical color-attachment mapping state. Safe defaults preserve Metal's ordinary
+behavior: both alpha transformations are disabled, the maximum amplification
+count is one, and color-attachment mapping is `Identity`. Amplification counts
+must be positive, and both the public device query and pipeline validation use
+`MTLDevice.supportsVertexAmplificationCount:` before accepting a requested
+count. `Inherited` is represented as an explicit typed mapping choice without
+exposing a raw enum.
+
+The native boundary poisons and resets each fresh conventional, mesh, or tile
+descriptor, then verifies the observed reset state before applying any request.
+On the M1 driver, render reset retains a non-`nil` but cleared vertex descriptor,
+and conventional and mesh indirect-command support resets to enabled; the check
+preserves those native semantics and still assigns and reads back the final
+requested indirect state. It then sets and reads back the exact alpha states,
+amplification count, and mapping state on conventional and mesh descriptors;
+the synchronous and asynchronous compiler paths share that checked
+construction. Command-time vertex amplification and logical-to-physical color-
+attachment remapping are not inferred from those compile-time promises and
+remain open until their encoder and map-object surfaces are implemented.
+
+The M1 capability scan accepts amplification counts through eight and first
+rejects nine; synchronous and asynchronous conventional and mesh compilation
+reject zero or nine before native handle allocation. Separate four-sample
+compile-only pipelines verify `alpha_to_coverage = true`,
+`alpha_to_one = false`, and `Inherited` mapping without claiming the still-open
+encoder boundary. For executed single-sample `Bgra8_unorm` pipelines, the
+conventional and mesh fragments output RGBA `(0.25, 0.5, 0.75, 0.25)` with
+blending disabled. Controls preserve exact BGRA `(191, 128, 64, 64)`, while
+asynchronously compiled alpha-to-one pipelines force exact BGRA
+`(191, 128, 64, 255)` after their source library is destroyed.
+
 `Vertex_descriptor` represents all 53 concrete macOS vertex formats, constant/
 per-vertex/per-instance/per-patch step policies, and static or command-time
 dynamic strides as canonical immutable OCaml data. Construction rejects empty,
@@ -774,6 +807,9 @@ direct/indexed indirect execution from checked packed OCaml buffers,
 immutable depth compare/write state and a pixel-exact depth-ordered target,
 front/back stencil policy and a pixel-exact reference-rejected target,
 typed render/mesh blend policy and a pixel-exact constant-blended target,
+reset-verified render/mesh/tile descriptor state, amplification capability and
+no-allocation rejection, four-sample alpha/mapping compilation, and exact
+render/mesh alpha-to-one control and enabled targets,
 typed static/dynamic vertex layouts with exact direct/indexed targets,
 typed static/dynamic vertex, fragment, object, mesh, and tile linking with
 destroyed source handles, exact green conventional/direct-mesh targets, an

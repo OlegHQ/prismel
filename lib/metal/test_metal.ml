@@ -388,6 +388,67 @@ fragment float4 prismel_mesh_fragment(
 }
 |}
 
+let render_descriptor_state_shader_source =
+  {|
+#include <metal_stdlib>
+using namespace metal;
+
+struct PrismelDescriptorStateVertex {
+  float4 position [[position]];
+  float4 color;
+};
+
+constant float4 prismel_descriptor_state_color =
+    float4(0.25f, 0.5f, 0.75f, 0.25f);
+
+vertex PrismelDescriptorStateVertex prismel_descriptor_state_vertex(
+    uint vertex_id [[vertex_id]]) {
+  constexpr float2 positions[3] = {
+    float2(-1.0f, -1.0f),
+    float2(3.0f, -1.0f),
+    float2(-1.0f, 3.0f)
+  };
+  PrismelDescriptorStateVertex result;
+  result.position = float4(positions[vertex_id], 0.0f, 1.0f);
+  result.color = prismel_descriptor_state_color;
+  return result;
+}
+
+fragment float4 prismel_descriptor_state_fragment(
+    PrismelDescriptorStateVertex input [[stage_in]]) {
+  return input.color;
+}
+
+using PrismelDescriptorStateMesh = metal::mesh<
+    PrismelDescriptorStateVertex,
+    void,
+    3,
+    1,
+    metal::topology::triangle>;
+
+[[mesh]]
+void prismel_descriptor_state_mesh(
+    PrismelDescriptorStateMesh output_mesh,
+    uint thread_index [[thread_index_in_threadgroup]]) {
+  constexpr float2 positions[3] = {
+    float2(-1.0f, -1.0f),
+    float2(3.0f, -1.0f),
+    float2(-1.0f, 3.0f)
+  };
+  if (thread_index < 3) {
+    PrismelDescriptorStateVertex output_vertex;
+    output_vertex.position =
+        float4(positions[thread_index], 0.0f, 1.0f);
+    output_vertex.color = prismel_descriptor_state_color;
+    output_mesh.set_vertex(thread_index, output_vertex);
+    output_mesh.set_index(thread_index, thread_index);
+  }
+  if (thread_index == 0) {
+    output_mesh.set_primitive_count(1);
+  }
+}
+|}
+
 let tile_shader_source =
   {|
 #include <metal_stdlib>
@@ -5706,6 +5767,333 @@ let test_metal4_vertex_descriptor_commands device =
     true
   end
 
+let test_metal4_render_descriptor_state_commands device =
+  let supports_metal4 = get (Device.supports_family device Device.Metal4) in
+  let supports_mesh =
+    get (Device.supports_family device Device.Apple7)
+    || get (Device.supports_family device Device.Mac2)
+  in
+  if not supports_metal4 || not supports_mesh then false
+  else begin
+    ignore
+      (expect_error Invalid_argument
+         (Device.supports_vertex_amplification_count device 0));
+    if not (get (Device.supports_vertex_amplification_count device 1)) then
+      fail "Metal rejected the mandatory vertex amplification count of one";
+    let rec first_unsupported_amplification count =
+      if count > 64 then
+        fail
+          "Metal reported support for every vertex amplification count through 64"
+      else if get (Device.supports_vertex_amplification_count device count) then
+        first_unsupported_amplification (count + 1)
+      else count
+    in
+    let unsupported_amplification = first_unsupported_amplification 2 in
+    let supported_amplification = unsupported_amplification - 1 in
+    if not (get (Device.supports_texture_sample_count device 4)) then
+      fail "Metal 4 descriptor-state conformance requires four-sample MSAA";
+    let compiler = get (Compiler.create device) in
+    let library =
+      get
+        (Compiler.compile_source ~name:"metal4-render-descriptor-state"
+           compiler render_descriptor_state_shader_source)
+    in
+    let render_sync ?(max_vertex_amplification_count = supported_amplification)
+        () =
+      Compiler.create_render_pipeline
+        ~fragment:"prismel_descriptor_state_fragment"
+        ~max_vertex_amplification_count compiler ~library
+        ~vertex:"prismel_descriptor_state_vertex"
+    in
+    let render_async
+        ?(max_vertex_amplification_count = supported_amplification) () =
+      Compiler.create_render_pipeline_async
+        ~fragment:"prismel_descriptor_state_fragment"
+        ~max_vertex_amplification_count compiler ~library
+        ~vertex:"prismel_descriptor_state_vertex"
+    in
+    let mesh_sync ?(max_vertex_amplification_count = supported_amplification)
+        () =
+      Compiler.create_mesh_pipeline
+        ~fragment:"prismel_descriptor_state_fragment"
+        ~max_vertex_amplification_count compiler ~library
+        ~mesh:"prismel_descriptor_state_mesh"
+    in
+    let mesh_async ?(max_vertex_amplification_count = supported_amplification)
+        () =
+      Compiler.create_mesh_pipeline_async
+        ~fragment:"prismel_descriptor_state_fragment"
+        ~max_vertex_amplification_count compiler ~library
+        ~mesh:"prismel_descriptor_state_mesh"
+    in
+    let before_invalid = get (Release_queue.stats ()) in
+    ignore
+      (expect_error Invalid_argument
+         (render_sync ~max_vertex_amplification_count:0 ()));
+    ignore
+      (expect_error Invalid_argument
+         (render_async ~max_vertex_amplification_count:0 ()));
+    ignore
+      (expect_error Unsupported
+         (render_sync
+            ~max_vertex_amplification_count:unsupported_amplification ()));
+    ignore
+      (expect_error Unsupported
+         (render_async
+            ~max_vertex_amplification_count:unsupported_amplification ()));
+    ignore
+      (expect_error Invalid_argument
+         (mesh_sync ~max_vertex_amplification_count:0 ()));
+    ignore
+      (expect_error Invalid_argument
+         (mesh_async ~max_vertex_amplification_count:0 ()));
+    ignore
+      (expect_error Unsupported
+         (mesh_sync
+            ~max_vertex_amplification_count:unsupported_amplification ()));
+    ignore
+      (expect_error Unsupported
+         (mesh_async
+            ~max_vertex_amplification_count:unsupported_amplification ()));
+    let after_invalid = get (Release_queue.stats ()) in
+    if after_invalid.total_created <> before_invalid.total_created then
+      fail "invalid render descriptor states allocated native handles";
+    let render_control =
+      get
+        (Compiler.create_render_pipeline
+           ~label:"Metal 4 alpha-to-one render control"
+           ~fragment:"prismel_descriptor_state_fragment"
+           ~alpha_to_coverage:false ~alpha_to_one:false
+           ~max_vertex_amplification_count:supported_amplification
+           ~color_attachment_mapping:Render_pipeline.Identity compiler ~library
+           ~vertex:"prismel_descriptor_state_vertex")
+    in
+    let render_alpha_to_one_task =
+      get
+        (Compiler.create_render_pipeline_async
+           ~label:"Metal 4 alpha-to-one render"
+           ~fragment:"prismel_descriptor_state_fragment"
+           ~alpha_to_coverage:false ~alpha_to_one:true
+           ~max_vertex_amplification_count:supported_amplification
+           ~color_attachment_mapping:Render_pipeline.Identity compiler ~library
+           ~vertex:"prismel_descriptor_state_vertex")
+    in
+    let render_compile_only =
+      get
+        (Compiler.create_render_pipeline
+           ~label:"Metal 4 inherited alpha-to-coverage render"
+           ~fragment:"prismel_descriptor_state_fragment"
+           ~raster_sample_count:4 ~alpha_to_coverage:true ~alpha_to_one:false
+           ~max_vertex_amplification_count:supported_amplification
+           ~color_attachment_mapping:Render_pipeline.Inherited compiler
+           ~library ~vertex:"prismel_descriptor_state_vertex")
+    in
+    let mesh_control =
+      get
+        (Compiler.create_mesh_pipeline
+           ~label:"Metal 4 alpha-to-one mesh control"
+           ~fragment:"prismel_descriptor_state_fragment"
+           ~max_total_threads_per_mesh_threadgroup:3
+           ~required_threads_per_mesh_threadgroup:(3, 1, 1)
+           ~alpha_to_coverage:false ~alpha_to_one:false
+           ~max_vertex_amplification_count:supported_amplification
+           ~color_attachment_mapping:Render_pipeline.Identity compiler ~library
+           ~mesh:"prismel_descriptor_state_mesh")
+    in
+    let mesh_alpha_to_one_task =
+      get
+        (Compiler.create_mesh_pipeline_async
+           ~label:"Metal 4 alpha-to-one mesh"
+           ~fragment:"prismel_descriptor_state_fragment"
+           ~max_total_threads_per_mesh_threadgroup:3
+           ~required_threads_per_mesh_threadgroup:(3, 1, 1)
+           ~alpha_to_coverage:false ~alpha_to_one:true
+           ~max_vertex_amplification_count:supported_amplification
+           ~color_attachment_mapping:Render_pipeline.Identity compiler ~library
+           ~mesh:"prismel_descriptor_state_mesh")
+    in
+    let mesh_compile_only =
+      get
+        (Compiler.create_mesh_pipeline
+           ~label:"Metal 4 inherited alpha-to-coverage mesh"
+           ~fragment:"prismel_descriptor_state_fragment"
+           ~max_total_threads_per_mesh_threadgroup:3
+           ~required_threads_per_mesh_threadgroup:(3, 1, 1)
+           ~raster_sample_count:4 ~alpha_to_coverage:true ~alpha_to_one:false
+           ~max_vertex_amplification_count:supported_amplification
+           ~color_attachment_mapping:Render_pipeline.Inherited compiler
+           ~library ~mesh:"prismel_descriptor_state_mesh")
+    in
+    let render_task_id = Compiler_task.id render_alpha_to_one_task in
+    let mesh_task_id = Compiler_task.id mesh_alpha_to_one_task in
+    get (Library.destroy library);
+    get (Compiler_task.wait render_alpha_to_one_task);
+    get (Compiler_task.wait mesh_alpha_to_one_task);
+    let completed = get (Compiler_task.drain_completions ()) in
+    if not (List.mem render_task_id completed)
+       || not (List.mem mesh_task_id completed)
+    then fail "descriptor-state async completion IDs were not drained";
+    let take_pipeline label task =
+      match get (Compiler_task.poll task) with
+      | Compiler_task.Complete (Ok pipeline) -> pipeline
+      | Complete (Error error) ->
+          fail "%s compilation failed: %s" label
+            (Format.asprintf "%a" pp_error error)
+      | Pending -> fail "waited %s task remained pending" label
+    in
+    let render_alpha_to_one =
+      take_pipeline "alpha-to-one render" render_alpha_to_one_task
+    in
+    let mesh_alpha_to_one =
+      take_pipeline "alpha-to-one mesh" mesh_alpha_to_one_task
+    in
+    let check_policy label pipeline ~sample_count ~alpha_to_coverage
+        ~alpha_to_one ~color_attachment_mapping =
+      if Render_pipeline.raster_sample_count pipeline <> sample_count
+         || Render_pipeline.alpha_to_coverage pipeline <> alpha_to_coverage
+         || Render_pipeline.alpha_to_one pipeline <> alpha_to_one
+         || Render_pipeline.max_vertex_amplification_count pipeline
+            <> supported_amplification
+         || Render_pipeline.color_attachment_mapping pipeline
+            <> color_attachment_mapping
+      then fail "%s lost checked descriptor-state metadata" label
+    in
+    check_policy "render control" render_control ~sample_count:1
+      ~alpha_to_coverage:false ~alpha_to_one:false
+      ~color_attachment_mapping:Render_pipeline.Identity;
+    check_policy "render alpha-to-one" render_alpha_to_one ~sample_count:1
+      ~alpha_to_coverage:false ~alpha_to_one:true
+      ~color_attachment_mapping:Render_pipeline.Identity;
+    check_policy "render alpha-to-coverage" render_compile_only ~sample_count:4
+      ~alpha_to_coverage:true ~alpha_to_one:false
+      ~color_attachment_mapping:Render_pipeline.Inherited;
+    check_policy "mesh control" mesh_control ~sample_count:1
+      ~alpha_to_coverage:false ~alpha_to_one:false
+      ~color_attachment_mapping:Render_pipeline.Identity;
+    check_policy "mesh alpha-to-one" mesh_alpha_to_one ~sample_count:1
+      ~alpha_to_coverage:false ~alpha_to_one:true
+      ~color_attachment_mapping:Render_pipeline.Identity;
+    check_policy "mesh alpha-to-coverage" mesh_compile_only ~sample_count:4
+      ~alpha_to_coverage:true ~alpha_to_one:false
+      ~color_attachment_mapping:Render_pipeline.Inherited;
+    get (Render_pipeline.destroy render_compile_only);
+    get (Render_pipeline.destroy mesh_compile_only);
+    get (Compiler_task.destroy render_alpha_to_one_task);
+    get (Compiler_task.destroy mesh_alpha_to_one_task);
+    get (Compiler.destroy compiler);
+    let make_target label =
+      get
+        (Texture.create ~device
+           (Texture.descriptor_2d ~storage:Buffer.Shared
+              ~usage:[ Texture.Render_target ] ~format:Texture.Bgra8_unorm
+              ~width:8 ~height:8 ~label ()))
+    in
+    let render_control_target =
+      make_target "Metal 4 alpha-to-one render control target"
+    in
+    let render_enabled_target =
+      make_target "Metal 4 alpha-to-one render target"
+    in
+    let mesh_control_target =
+      make_target "Metal 4 alpha-to-one mesh control target"
+    in
+    let mesh_enabled_target =
+      make_target "Metal 4 alpha-to-one mesh target"
+    in
+    let allocator =
+      get
+        (Command4.Allocator.create
+           ~label:"Metal 4 descriptor-state allocator" device)
+    in
+    let queue =
+      get (Command4.Queue.create ~label:"Metal 4 descriptor-state queue" device)
+    in
+    let commands =
+      get
+        (Command4.Command_buffer.create allocator
+           ~label:"Metal 4 descriptor-state commands" ())
+    in
+    let encode_render label pipeline target =
+      let encoder =
+        get
+          (Command4.Render_encoder.create ~label commands
+             ~color_attachments:
+               [ Command4.Render_encoder.color_attachment target ])
+      in
+      get (Command4.Render_encoder.set_pipeline encoder pipeline);
+      get
+        (Command4.Render_encoder.draw_primitives encoder
+           Command4.Render_encoder.Triangle ~vertex_start:0 ~vertex_count:3);
+      get (Command4.Render_encoder.end_encoding encoder)
+    in
+    let encode_mesh label pipeline target =
+      let encoder =
+        get
+          (Command4.Render_encoder.create ~label commands
+             ~color_attachments:
+               [ Command4.Render_encoder.color_attachment target ])
+      in
+      get (Command4.Render_encoder.set_pipeline encoder pipeline);
+      get
+        (Command4.Render_encoder.draw_mesh_threadgroups encoder
+           ~threadgroups:(1, 1, 1) ~mesh_threadgroup:(3, 1, 1) ());
+      get (Command4.Render_encoder.end_encoding encoder)
+    in
+    encode_render "Metal 4 alpha-to-one render control encoder" render_control
+      render_control_target;
+    encode_render "Metal 4 alpha-to-one render encoder" render_alpha_to_one
+      render_enabled_target;
+    encode_mesh "Metal 4 alpha-to-one mesh control encoder" mesh_control
+      mesh_control_target;
+    encode_mesh "Metal 4 alpha-to-one mesh encoder" mesh_alpha_to_one
+      mesh_enabled_target;
+    get (Command4.Command_buffer.end_recording commands);
+    let submission = get (Command4.Queue.commit queue [ commands ]) in
+    get (Command4.Submission.wait submission);
+    let read_target target =
+      get
+        (Texture.read_bytes target
+           ~region:
+             { Texture.x = 0; y = 0; z = 0; width = 8; height = 8; depth = 1 }
+           ~mip_level:0 ~slice:0 ~bytes_per_row:32 ~bytes_per_image:256)
+    in
+    let check_control label target =
+      check_solid_bgra ~label ~blue:191 ~green:128 ~red:64 ~alpha:64
+        (read_target target)
+    in
+    let check_enabled label target =
+      let pixels = read_target target in
+      if Char.code (Bytes.get pixels 3) <> 255 then
+        fail "%s expected alpha 255 but read BGRA %d/%d/%d/%d" label
+          (Char.code (Bytes.get pixels 0))
+          (Char.code (Bytes.get pixels 1))
+          (Char.code (Bytes.get pixels 2))
+          (Char.code (Bytes.get pixels 3));
+      check_solid_bgra ~label ~blue:191 ~green:128 ~red:64 ~alpha:255 pixels
+    in
+    check_control "Metal 4 alpha-to-one render control" render_control_target;
+    check_enabled "Metal 4 alpha-to-one render" render_enabled_target;
+    check_control "Metal 4 alpha-to-one mesh control" mesh_control_target;
+    check_enabled "Metal 4 alpha-to-one mesh" mesh_enabled_target;
+    List.iter
+      (fun pipeline -> get (Render_pipeline.destroy pipeline))
+      [ render_control; render_alpha_to_one; mesh_control; mesh_alpha_to_one ];
+    List.iter
+      (fun target -> get (Texture.destroy target))
+      [ render_control_target; render_enabled_target; mesh_control_target
+      ; mesh_enabled_target
+      ];
+    get (Command4.Submission.destroy submission);
+    get (Command4.Command_buffer.destroy commands);
+    get (Command4.Allocator.reset allocator);
+    get (Command4.Queue.destroy queue);
+    get (Command4.Allocator.destroy allocator);
+    Printf.printf
+      "Metal 4 descriptor-state/alpha-to-one conformance passed (amplification %d supported, %d rejected)\n%!"
+      supported_amplification unsupported_amplification;
+    true
+  end
+
 let test_metal4_render_linking_commands device =
   if not (get (Device.supports_family device Device.Metal4)) then false
   else begin
@@ -6542,6 +6930,7 @@ let () =
     ignore (test_metal4_stencil_commands device);
     ignore (test_metal4_blend_commands device);
     ignore (test_metal4_vertex_descriptor_commands device);
+    ignore (test_metal4_render_descriptor_state_commands device);
     ignore (test_metal4_render_linking_commands device);
     ignore (test_metal4_mesh_commands device);
     ignore (test_metal4_tile_commands device);
@@ -8352,6 +8741,6 @@ let () =
         stats.external_deallocations
         stats.external_deallocation_mismatches;
     Printf.printf
-      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/compiler-task/pipeline-dataset/binary-function/static-link/reflection/compute/render/mesh/object/tile/command4-argument-table/compute/render/indexed/instanced/indirect/depth/stencil/blend/vertex-layout/render-link/mesh/tile conformance passed on %s\n%!"
+      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/compiler-task/pipeline-dataset/binary-function/static-link/reflection/compute/render/mesh/object/tile/command4-argument-table/compute/render/indexed/instanced/indirect/depth/stencil/blend/vertex-layout/descriptor-state/alpha-to-one/render-link/mesh/tile conformance passed on %s\n%!"
       info.name
   end

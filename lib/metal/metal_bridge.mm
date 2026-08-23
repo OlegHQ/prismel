@@ -2912,6 +2912,19 @@ caml_prismel_metal_device_supports_function_pointers_from_render(value raw) {
 }
 
 extern "C" CAMLprim value
+caml_prismel_metal_device_supports_vertex_amplification_count(
+    value raw, value raw_count) {
+  CAMLparam2(raw, raw_count);
+  id<MTLDevice> device = object_of_handle(raw, Handle_kind::Device);
+  const intnat count = Long_val(raw_count);
+  if (count <= 0) {
+    CAMLreturn(Val_false);
+  }
+  CAMLreturn(Val_bool([device supportsVertexAmplificationCount:
+                                 static_cast<NSUInteger>(count)]));
+}
+
+extern "C" CAMLprim value
 caml_prismel_metal_device_supports_residency_sets(value raw) {
   CAMLparam1(raw);
   id<MTLDevice> device = object_of_handle(raw, Handle_kind::Device);
@@ -7957,6 +7970,262 @@ new_checked_render_dynamic_linking_descriptor(
 }
 
 API_AVAILABLE(macos(26.0))
+bool poison_checked_render_attachment_copy(
+    MTL4RenderPipelineColorAttachmentDescriptorArray *attachments,
+    NSString *__autoreleasing *failure) {
+  MTL4RenderPipelineColorAttachmentDescriptor *source =
+      [[MTL4RenderPipelineColorAttachmentDescriptor alloc] init];
+  source.pixelFormat = MTLPixelFormatRGBA8Unorm;
+  source.blendingState = MTL4BlendStateEnabled;
+  source.sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
+  source.destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+  source.rgbBlendOperation = MTLBlendOperationReverseSubtract;
+  source.sourceAlphaBlendFactor = MTLBlendFactorDestinationAlpha;
+  source.destinationAlphaBlendFactor = MTLBlendFactorOneMinusDestinationAlpha;
+  source.alphaBlendOperation = MTLBlendOperationMax;
+  source.writeMask = MTLColorWriteMaskRed | MTLColorWriteMaskAlpha;
+  [attachments setObject:source atIndexedSubscript:0];
+  source.pixelFormat = MTLPixelFormatBGRA8Unorm;
+  source.blendingState = MTL4BlendStateDisabled;
+  MTL4RenderPipelineColorAttachmentDescriptor *stored =
+      [attachments objectAtIndexedSubscript:0];
+  if (stored == nil || stored.pixelFormat != MTLPixelFormatRGBA8Unorm ||
+      stored.blendingState != MTL4BlendStateEnabled ||
+      stored.sourceRGBBlendFactor != MTLBlendFactorSourceAlpha ||
+      stored.destinationRGBBlendFactor != MTLBlendFactorOneMinusSourceAlpha ||
+      stored.rgbBlendOperation != MTLBlendOperationReverseSubtract ||
+      stored.sourceAlphaBlendFactor != MTLBlendFactorDestinationAlpha ||
+      stored.destinationAlphaBlendFactor !=
+          MTLBlendFactorOneMinusDestinationAlpha ||
+      stored.alphaBlendOperation != MTLBlendOperationMax ||
+      stored.writeMask != (MTLColorWriteMaskRed | MTLColorWriteMaskAlpha)) {
+    *failure =
+        @"Metal changed Metal 4 render color-attachment copy semantics";
+    return false;
+  }
+  return true;
+}
+
+API_AVAILABLE(macos(26.0))
+bool checked_reset_render_attachment_defaults(
+    MTL4RenderPipelineColorAttachmentDescriptorArray *attachments,
+    NSString *pipeline_kind, NSString *__autoreleasing *failure) {
+  MTL4RenderPipelineColorAttachmentDescriptor *attachment =
+      [attachments objectAtIndexedSubscript:0];
+  if (attachment == nil || attachment.pixelFormat != MTLPixelFormatInvalid ||
+      attachment.blendingState != MTL4BlendStateDisabled ||
+      attachment.sourceRGBBlendFactor != MTLBlendFactorOne ||
+      attachment.destinationRGBBlendFactor != MTLBlendFactorZero ||
+      attachment.rgbBlendOperation != MTLBlendOperationAdd ||
+      attachment.sourceAlphaBlendFactor != MTLBlendFactorOne ||
+      attachment.destinationAlphaBlendFactor != MTLBlendFactorZero ||
+      attachment.alphaBlendOperation != MTLBlendOperationAdd ||
+      attachment.writeMask != MTLColorWriteMaskAll) {
+    *failure = [NSString
+        stringWithFormat:@"Metal changed Metal 4 %@ color-attachment reset defaults",
+                         pipeline_kind];
+    return false;
+  }
+  return true;
+}
+
+API_AVAILABLE(macos(26.0))
+bool reset_checked_render_pipeline_descriptor(
+    MTL4RenderPipelineDescriptor *descriptor,
+    MTL4LibraryFunctionDescriptor *poison_function, id<MTLDevice> device,
+    NSString *__autoreleasing *failure) {
+  descriptor.label = @"prismel-render-reset-poison";
+  descriptor.options = [[MTL4PipelineOptions alloc] init];
+  descriptor.vertexFunctionDescriptor = poison_function;
+  descriptor.fragmentFunctionDescriptor = poison_function;
+  MTLVertexDescriptor *poison_vertex_descriptor =
+      [MTLVertexDescriptor vertexDescriptor];
+  poison_vertex_descriptor.attributes[0].format = MTLVertexFormatFloat;
+  poison_vertex_descriptor.attributes[0].bufferIndex = 0;
+  poison_vertex_descriptor.layouts[0].stride = sizeof(float);
+  descriptor.vertexDescriptor = poison_vertex_descriptor;
+  descriptor.rasterSampleCount =
+      [device supportsTextureSampleCount:2] ? 2 : 1;
+  descriptor.alphaToCoverageState = MTL4AlphaToCoverageStateEnabled;
+  descriptor.alphaToOneState = MTL4AlphaToOneStateEnabled;
+  descriptor.rasterizationEnabled = NO;
+  descriptor.maxVertexAmplificationCount =
+      [device supportsVertexAmplificationCount:2] ? 2 : 1;
+  descriptor.inputPrimitiveTopology = MTLPrimitiveTopologyClassTriangle;
+  descriptor.supportVertexBinaryLinking = YES;
+  descriptor.supportFragmentBinaryLinking = YES;
+  descriptor.colorAttachmentMappingState =
+      MTL4LogicalToPhysicalColorAttachmentMappingStateInherited;
+  if (!poison_checked_render_attachment_copy(descriptor.colorAttachments,
+                                             failure)) {
+    return false;
+  }
+  [descriptor reset];
+  MTLVertexDescriptor *reset_vertex_descriptor = descriptor.vertexDescriptor;
+  const bool vertex_descriptor_reset = reset_vertex_descriptor == nil ||
+      (reset_vertex_descriptor.attributes[0].format == MTLVertexFormatInvalid &&
+       reset_vertex_descriptor.layouts[0].stride == 0);
+  if (descriptor.label != nil || descriptor.options != nil ||
+      descriptor.vertexFunctionDescriptor != nil ||
+      descriptor.fragmentFunctionDescriptor != nil ||
+      !vertex_descriptor_reset || descriptor.rasterSampleCount != 1 ||
+      descriptor.alphaToCoverageState != MTL4AlphaToCoverageStateDisabled ||
+      descriptor.alphaToOneState != MTL4AlphaToOneStateDisabled ||
+      !descriptor.isRasterizationEnabled ||
+      descriptor.maxVertexAmplificationCount != 1 ||
+      descriptor.inputPrimitiveTopology !=
+          MTLPrimitiveTopologyClassUnspecified ||
+      descriptor.supportVertexBinaryLinking ||
+      descriptor.supportFragmentBinaryLinking ||
+      descriptor.colorAttachmentMappingState !=
+          MTL4LogicalToPhysicalColorAttachmentMappingStateIdentity ||
+      !checked_reset_render_attachment_defaults(
+          descriptor.colorAttachments, @"render", failure)) {
+    if (*failure == nil) {
+      *failure = [NSString
+          stringWithFormat:
+              @"Metal changed Metal 4 render-pipeline reset defaults "
+               "(label=%d options=%d vertex=%d fragment=%d layout=%d "
+               "samples=%lu coverage=%ld one=%ld raster=%d amplification=%lu "
+               "topology=%lu vertex-link=%d fragment-link=%d mapping=%ld "
+               "indirect=%ld)",
+              descriptor.label != nil, descriptor.options != nil,
+              descriptor.vertexFunctionDescriptor != nil,
+              descriptor.fragmentFunctionDescriptor != nil,
+              !vertex_descriptor_reset,
+              static_cast<unsigned long>(descriptor.rasterSampleCount),
+              static_cast<long>(descriptor.alphaToCoverageState),
+              static_cast<long>(descriptor.alphaToOneState),
+              descriptor.isRasterizationEnabled,
+              static_cast<unsigned long>(
+                  descriptor.maxVertexAmplificationCount),
+              static_cast<unsigned long>(descriptor.inputPrimitiveTopology),
+              descriptor.supportVertexBinaryLinking,
+              descriptor.supportFragmentBinaryLinking,
+              static_cast<long>(descriptor.colorAttachmentMappingState),
+              static_cast<long>(descriptor.supportIndirectCommandBuffers)];
+    }
+    return false;
+  }
+  return true;
+}
+
+API_AVAILABLE(macos(26.0))
+bool reset_checked_mesh_pipeline_descriptor(
+    MTL4MeshRenderPipelineDescriptor *descriptor,
+    MTL4LibraryFunctionDescriptor *poison_function, id<MTLDevice> device,
+    NSString *__autoreleasing *failure) {
+  descriptor.label = @"prismel-mesh-reset-poison";
+  descriptor.options = [[MTL4PipelineOptions alloc] init];
+  descriptor.objectFunctionDescriptor = poison_function;
+  descriptor.meshFunctionDescriptor = poison_function;
+  descriptor.fragmentFunctionDescriptor = poison_function;
+  descriptor.maxTotalThreadsPerObjectThreadgroup = 1;
+  descriptor.maxTotalThreadsPerMeshThreadgroup = 1;
+  descriptor.requiredThreadsPerObjectThreadgroup = MTLSizeMake(1, 1, 1);
+  descriptor.requiredThreadsPerMeshThreadgroup = MTLSizeMake(1, 1, 1);
+  descriptor.objectThreadgroupSizeIsMultipleOfThreadExecutionWidth = YES;
+  descriptor.meshThreadgroupSizeIsMultipleOfThreadExecutionWidth = YES;
+  descriptor.payloadMemoryLength = 1;
+  descriptor.maxTotalThreadgroupsPerMeshGrid = 1;
+  descriptor.rasterSampleCount =
+      [device supportsTextureSampleCount:2] ? 2 : 1;
+  descriptor.alphaToCoverageState = MTL4AlphaToCoverageStateEnabled;
+  descriptor.alphaToOneState = MTL4AlphaToOneStateEnabled;
+  descriptor.rasterizationEnabled = NO;
+  descriptor.maxVertexAmplificationCount =
+      [device supportsVertexAmplificationCount:2] ? 2 : 1;
+  descriptor.supportObjectBinaryLinking = YES;
+  descriptor.supportMeshBinaryLinking = YES;
+  descriptor.supportFragmentBinaryLinking = YES;
+  descriptor.colorAttachmentMappingState =
+      MTL4LogicalToPhysicalColorAttachmentMappingStateInherited;
+  if (!poison_checked_render_attachment_copy(descriptor.colorAttachments,
+                                             failure)) {
+    return false;
+  }
+  [descriptor reset];
+  const MTLSize reset_object_threads =
+      descriptor.requiredThreadsPerObjectThreadgroup;
+  const MTLSize reset_mesh_threads =
+      descriptor.requiredThreadsPerMeshThreadgroup;
+  if (descriptor.label != nil || descriptor.options != nil ||
+      descriptor.objectFunctionDescriptor != nil ||
+      descriptor.meshFunctionDescriptor != nil ||
+      descriptor.fragmentFunctionDescriptor != nil ||
+      descriptor.maxTotalThreadsPerObjectThreadgroup != 0 ||
+      descriptor.maxTotalThreadsPerMeshThreadgroup != 0 ||
+      reset_object_threads.width != 0 || reset_object_threads.height != 0 ||
+      reset_object_threads.depth != 0 || reset_mesh_threads.width != 0 ||
+      reset_mesh_threads.height != 0 || reset_mesh_threads.depth != 0 ||
+      descriptor.objectThreadgroupSizeIsMultipleOfThreadExecutionWidth ||
+      descriptor.meshThreadgroupSizeIsMultipleOfThreadExecutionWidth ||
+      descriptor.payloadMemoryLength != 0 ||
+      descriptor.maxTotalThreadgroupsPerMeshGrid != 0 ||
+      descriptor.rasterSampleCount != 1 ||
+      descriptor.alphaToCoverageState != MTL4AlphaToCoverageStateDisabled ||
+      descriptor.alphaToOneState != MTL4AlphaToOneStateDisabled ||
+      !descriptor.isRasterizationEnabled ||
+      descriptor.maxVertexAmplificationCount != 1 ||
+      descriptor.supportObjectBinaryLinking ||
+      descriptor.supportMeshBinaryLinking ||
+      descriptor.supportFragmentBinaryLinking ||
+      descriptor.colorAttachmentMappingState !=
+          MTL4LogicalToPhysicalColorAttachmentMappingStateIdentity ||
+      !checked_reset_render_attachment_defaults(
+          descriptor.colorAttachments, @"mesh", failure)) {
+    if (*failure == nil) {
+      *failure = @"Metal changed Metal 4 mesh-pipeline reset defaults";
+    }
+    return false;
+  }
+  return true;
+}
+
+API_AVAILABLE(macos(26.0))
+bool reset_checked_tile_pipeline_descriptor(
+    MTL4TileRenderPipelineDescriptor *descriptor,
+    MTL4LibraryFunctionDescriptor *poison_function, id<MTLDevice> device,
+    NSString *__autoreleasing *failure) {
+  descriptor.label = @"prismel-tile-reset-poison";
+  descriptor.options = [[MTL4PipelineOptions alloc] init];
+  descriptor.tileFunctionDescriptor = poison_function;
+  descriptor.rasterSampleCount =
+      [device supportsTextureSampleCount:2] ? 2 : 1;
+  MTLTileRenderPipelineColorAttachmentDescriptor *source =
+      [[MTLTileRenderPipelineColorAttachmentDescriptor alloc] init];
+  source.pixelFormat = MTLPixelFormatRGBA8Unorm;
+  [descriptor.colorAttachments setObject:source atIndexedSubscript:0];
+  source.pixelFormat = MTLPixelFormatBGRA8Unorm;
+  MTLTileRenderPipelineColorAttachmentDescriptor *stored =
+      [descriptor.colorAttachments objectAtIndexedSubscript:0];
+  if (stored == nil || stored.pixelFormat != MTLPixelFormatRGBA8Unorm) {
+    *failure = @"Metal changed Metal 4 tile color-attachment copy semantics";
+    return false;
+  }
+  descriptor.threadgroupSizeMatchesTileSize = YES;
+  descriptor.maxTotalThreadsPerThreadgroup = 1;
+  descriptor.requiredThreadsPerThreadgroup = MTLSizeMake(1, 1, 1);
+  descriptor.supportBinaryLinking = YES;
+  [descriptor reset];
+  const MTLSize reset_threads = descriptor.requiredThreadsPerThreadgroup;
+  MTLTileRenderPipelineColorAttachmentDescriptor *reset_attachment =
+      [descriptor.colorAttachments objectAtIndexedSubscript:0];
+  if (descriptor.label != nil || descriptor.options != nil ||
+      descriptor.tileFunctionDescriptor != nil ||
+      descriptor.rasterSampleCount != 1 || reset_attachment == nil ||
+      reset_attachment.pixelFormat != MTLPixelFormatInvalid ||
+      descriptor.threadgroupSizeMatchesTileSize ||
+      descriptor.maxTotalThreadsPerThreadgroup != 0 ||
+      reset_threads.width != 0 || reset_threads.height != 0 ||
+      reset_threads.depth != 0 || descriptor.supportBinaryLinking) {
+    *failure = @"Metal changed Metal 4 tile-pipeline reset defaults";
+    return false;
+  }
+  return true;
+}
+
+API_AVAILABLE(macos(26.0))
 PrismelMetalCheckedRenderRequest *checked_render_request(
     value raw_descriptor, id<MTL4Compiler> compiler,
     NSString *__autoreleasing *failure) {
@@ -8017,15 +8286,48 @@ PrismelMetalCheckedRenderRequest *checked_render_request(
     *failure = @"Metal 4 render primitive topology is invalid";
     return nil;
   }
+  const intnat alpha_to_coverage_code =
+      Long_val(Field(raw_descriptor, 18));
+  const intnat alpha_to_one_code = Long_val(Field(raw_descriptor, 19));
+  const intnat color_attachment_mapping_code =
+      Long_val(Field(raw_descriptor, 21));
+  NSUInteger max_vertex_amplification_count = 0;
+  if (alpha_to_coverage_code < 0 || alpha_to_coverage_code > 1 ||
+      alpha_to_one_code < 0 || alpha_to_one_code > 1 ||
+      color_attachment_mapping_code < 0 ||
+      color_attachment_mapping_code > 1 ||
+      !nsuinteger_from_ocaml_int64(Field(raw_descriptor, 20),
+                                   &max_vertex_amplification_count) ||
+      max_vertex_amplification_count == 0 ||
+      ![compiler.device supportsVertexAmplificationCount:
+                            max_vertex_amplification_count]) {
+    *failure = @"Metal 4 render raster state is invalid or unsupported";
+    return nil;
+  }
+  const auto alpha_to_coverage =
+      static_cast<MTL4AlphaToCoverageState>(alpha_to_coverage_code);
+  const auto alpha_to_one =
+      static_cast<MTL4AlphaToOneState>(alpha_to_one_code);
+  const auto color_attachment_mapping =
+      static_cast<MTL4LogicalToPhysicalColorAttachmentMappingState>(
+          color_attachment_mapping_code);
   MTL4RenderPipelineDescriptor *descriptor =
       [[MTL4RenderPipelineDescriptor alloc] init];
+  if (!reset_checked_render_pipeline_descriptor(
+          descriptor, vertex, compiler.device, failure)) {
+    return nil;
+  }
   descriptor.label = expected_label;
   descriptor.vertexFunctionDescriptor = vertex;
   descriptor.fragmentFunctionDescriptor = fragment;
   descriptor.rasterSampleCount = sample_count;
+  descriptor.alphaToCoverageState = alpha_to_coverage;
+  descriptor.alphaToOneState = alpha_to_one;
   descriptor.rasterizationEnabled = rasterization_enabled;
+  descriptor.maxVertexAmplificationCount = max_vertex_amplification_count;
   descriptor.inputPrimitiveTopology =
       static_cast<MTLPrimitiveTopologyClass>(topology_code);
+  descriptor.colorAttachmentMappingState = color_attachment_mapping;
   const auto indirect_support = Bool_val(Field(raw_descriptor, 9))
       ? MTL4IndirectCommandBufferSupportStateEnabled
       : MTL4IndirectCommandBufferSupportStateDisabled;
@@ -8123,9 +8425,14 @@ PrismelMetalCheckedRenderRequest *checked_render_request(
       (expected_label != nil &&
        ![descriptor.label isEqualToString:expected_label]) ||
       descriptor.rasterSampleCount != sample_count ||
+      descriptor.alphaToCoverageState != alpha_to_coverage ||
+      descriptor.alphaToOneState != alpha_to_one ||
       descriptor.isRasterizationEnabled != rasterization_enabled ||
+      descriptor.maxVertexAmplificationCount !=
+          max_vertex_amplification_count ||
       descriptor.inputPrimitiveTopology !=
           static_cast<MTLPrimitiveTopologyClass>(topology_code) ||
+      descriptor.colorAttachmentMappingState != color_attachment_mapping ||
       descriptor.supportIndirectCommandBuffers != indirect_support ||
       descriptor.supportVertexBinaryLinking !=
           support_vertex_binary_linking ||
@@ -8228,6 +8535,31 @@ PrismelMetalCheckedRenderRequest *checked_mesh_request(
     *failure = @"Metal 4 mesh numeric descriptor property is invalid";
     return nil;
   }
+  const intnat alpha_to_coverage_code =
+      Long_val(Field(raw_descriptor, 32));
+  const intnat alpha_to_one_code = Long_val(Field(raw_descriptor, 33));
+  const intnat color_attachment_mapping_code =
+      Long_val(Field(raw_descriptor, 35));
+  NSUInteger max_vertex_amplification_count = 0;
+  if (alpha_to_coverage_code < 0 || alpha_to_coverage_code > 1 ||
+      alpha_to_one_code < 0 || alpha_to_one_code > 1 ||
+      color_attachment_mapping_code < 0 ||
+      color_attachment_mapping_code > 1 ||
+      !nsuinteger_from_ocaml_int64(Field(raw_descriptor, 34),
+                                   &max_vertex_amplification_count) ||
+      max_vertex_amplification_count == 0 ||
+      ![compiler.device supportsVertexAmplificationCount:
+                            max_vertex_amplification_count]) {
+    *failure = @"Metal 4 mesh raster state is invalid or unsupported";
+    return nil;
+  }
+  const auto alpha_to_coverage =
+      static_cast<MTL4AlphaToCoverageState>(alpha_to_coverage_code);
+  const auto alpha_to_one =
+      static_cast<MTL4AlphaToOneState>(alpha_to_one_code);
+  const auto color_attachment_mapping =
+      static_cast<MTL4LogicalToPhysicalColorAttachmentMappingState>(
+          color_attachment_mapping_code);
   MTLSize required_object = {};
   MTLSize required_mesh = {};
   if (!checked_threadgroup_size(
@@ -8312,6 +8644,10 @@ PrismelMetalCheckedRenderRequest *checked_mesh_request(
   }
   MTL4MeshRenderPipelineDescriptor *descriptor =
       [[MTL4MeshRenderPipelineDescriptor alloc] init];
+  if (!reset_checked_mesh_pipeline_descriptor(
+          descriptor, mesh, compiler.device, failure)) {
+    return nil;
+  }
   descriptor.label = expected_label;
   descriptor.objectFunctionDescriptor = object;
   descriptor.meshFunctionDescriptor = mesh;
@@ -8327,7 +8663,11 @@ PrismelMetalCheckedRenderRequest *checked_mesh_request(
   descriptor.payloadMemoryLength = payload_length;
   descriptor.maxTotalThreadgroupsPerMeshGrid = max_mesh_grid;
   descriptor.rasterSampleCount = sample_count;
+  descriptor.alphaToCoverageState = alpha_to_coverage;
+  descriptor.alphaToOneState = alpha_to_one;
   descriptor.rasterizationEnabled = rasterization_enabled;
+  descriptor.maxVertexAmplificationCount = max_vertex_amplification_count;
+  descriptor.colorAttachmentMappingState = color_attachment_mapping;
   const auto indirect_support = indirect_requested
       ? MTL4IndirectCommandBufferSupportStateEnabled
       : MTL4IndirectCommandBufferSupportStateDisabled;
@@ -8416,7 +8756,12 @@ PrismelMetalCheckedRenderRequest *checked_mesh_request(
       descriptor.payloadMemoryLength != payload_length ||
       descriptor.maxTotalThreadgroupsPerMeshGrid != max_mesh_grid ||
       descriptor.rasterSampleCount != sample_count ||
+      descriptor.alphaToCoverageState != alpha_to_coverage ||
+      descriptor.alphaToOneState != alpha_to_one ||
       descriptor.isRasterizationEnabled != rasterization_enabled ||
+      descriptor.maxVertexAmplificationCount !=
+          max_vertex_amplification_count ||
+      descriptor.colorAttachmentMappingState != color_attachment_mapping ||
       descriptor.supportIndirectCommandBuffers != indirect_support ||
       descriptor.supportObjectBinaryLinking !=
           support_object_binary_linking ||
@@ -8516,6 +8861,10 @@ PrismelMetalCheckedRenderRequest *checked_tile_request(
   }
   MTL4TileRenderPipelineDescriptor *descriptor =
       [[MTL4TileRenderPipelineDescriptor alloc] init];
+  if (!reset_checked_tile_pipeline_descriptor(
+          descriptor, tile, compiler.device, failure)) {
+    return nil;
+  }
   descriptor.label = expected_label;
   descriptor.tileFunctionDescriptor = tile;
   descriptor.rasterSampleCount = sample_count;

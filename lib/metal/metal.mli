@@ -109,6 +109,10 @@ module Device : sig
   val info : t -> (info, error) result
   val supports_family : t -> family -> (bool, error) result
   val supports_texture_sample_count : t -> int -> (bool, error) result
+
+  (** Whether a positive vertex-amplification count is accepted by this
+      device. Pipeline creation performs the same check. *)
+  val supports_vertex_amplification_count : t -> int -> (bool, error) result
   val supports_depth24_stencil8 : t -> (bool, error) result
   val supports_bc_texture_compression : t -> (bool, error) result
   val supports_residency_sets : t -> (bool, error) result
@@ -1236,6 +1240,12 @@ module Render_pipeline : sig
     | Line
     | Triangle
 
+  (** [Identity] maps logical color outputs to the same physical indices.
+      [Inherited] takes the mapping from the render encoder at draw time. *)
+  type color_attachment_mapping =
+    | Identity
+    | Inherited
+
   type blend_state =
     | Blend_disabled
     | Blend_enabled
@@ -1307,6 +1317,10 @@ module Render_pipeline : sig
   val destroyed : t -> bool
   val kind : t -> kind
   val raster_sample_count : t -> int
+  val alpha_to_coverage : t -> bool
+  val alpha_to_one : t -> bool
+  val max_vertex_amplification_count : t -> int
+  val color_attachment_mapping : t -> color_attachment_mapping
   val color_formats : t -> Texture.format list
   val color_attachments : t -> color_attachment list
   val vertex_descriptor : t -> Vertex_descriptor.t option
@@ -1527,12 +1541,16 @@ module Compiler : sig
       Metal stage-in attribute fetch. Optional static descriptors and dynamic
       linking values configure the vertex and fragment stages independently;
       dynamic values carry binary functions, preloaded libraries, and maximum
-      call-stack depth. *)
+      call-stack depth. Alpha-to-coverage/one default off, vertex amplification
+      defaults to one, and color-attachment mapping defaults to identity. *)
   val create_render_pipeline :
     ?label:string -> ?fragment:string -> ?reflection:bool ->
     ?raster_sample_count:int -> ?color_formats:Texture.format list ->
     ?color_attachments:Render_pipeline.color_attachment list ->
     ?vertex_descriptor:Vertex_descriptor.t ->
+    ?alpha_to_coverage:bool -> ?alpha_to_one:bool ->
+    ?max_vertex_amplification_count:int ->
+    ?color_attachment_mapping:Render_pipeline.color_attachment_mapping ->
     ?support_vertex_binary_linking:bool ->
     ?support_fragment_binary_linking:bool ->
     ?vertex_dynamic_linking:stage_linking ->
@@ -1553,6 +1571,9 @@ module Compiler : sig
     ?raster_sample_count:int -> ?color_formats:Texture.format list ->
     ?color_attachments:Render_pipeline.color_attachment list ->
     ?vertex_descriptor:Vertex_descriptor.t ->
+    ?alpha_to_coverage:bool -> ?alpha_to_one:bool ->
+    ?max_vertex_amplification_count:int ->
+    ?color_attachment_mapping:Render_pipeline.color_attachment_mapping ->
     ?support_vertex_binary_linking:bool ->
     ?support_fragment_binary_linking:bool ->
     ?vertex_dynamic_linking:stage_linking ->
@@ -1572,7 +1593,9 @@ module Compiler : sig
       Mesh shading requires an Apple7-or-newer or Mac2 GPU. Optional stage
       linking uses the same checked [stage_linking] values as conventional
       rendering. Binary functions in object or mesh stages require Apple9/M3;
-      static linking and dynamic-library preloads remain independently gated. *)
+      static linking and dynamic-library preloads remain independently gated.
+      Alpha, amplification, and color-mapping defaults match conventional
+      render pipelines. *)
   val create_mesh_pipeline :
     ?label:string -> ?object_function:string -> ?fragment:string ->
     ?reflection:bool ->
@@ -1585,6 +1608,9 @@ module Compiler : sig
     ?max_total_threadgroups_per_mesh_grid:int -> ?raster_sample_count:int ->
     ?color_formats:Texture.format list ->
     ?color_attachments:Render_pipeline.color_attachment list ->
+    ?alpha_to_coverage:bool -> ?alpha_to_one:bool ->
+    ?max_vertex_amplification_count:int ->
+    ?color_attachment_mapping:Render_pipeline.color_attachment_mapping ->
     ?support_object_binary_linking:bool ->
     ?support_mesh_binary_linking:bool ->
     ?support_fragment_binary_linking:bool ->
@@ -1614,6 +1640,9 @@ module Compiler : sig
     ?max_total_threadgroups_per_mesh_grid:int -> ?raster_sample_count:int ->
     ?color_formats:Texture.format list ->
     ?color_attachments:Render_pipeline.color_attachment list ->
+    ?alpha_to_coverage:bool -> ?alpha_to_one:bool ->
+    ?max_vertex_amplification_count:int ->
+    ?color_attachment_mapping:Render_pipeline.color_attachment_mapping ->
     ?support_object_binary_linking:bool ->
     ?support_mesh_binary_linking:bool ->
     ?support_fragment_binary_linking:bool ->

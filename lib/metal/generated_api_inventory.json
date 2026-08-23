@@ -2,11 +2,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 1737,
+    "bound": 1777,
     "scope-excluded": 7,
-    "unreviewed": 3541
+    "unreviewed": 3501
   },
-  "classification_source_sha256": "244373e32b8283a34f34b392b6c1b52c3de611a0810afdd5c6c59db4eff936d1",
+  "classification_source_sha256": "992ea508e1c6748ca6744fe832c23b169d2ae967435cbe573f5e9d86a12cf188",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "header_aggregate_sha256": "c2ee1e44c76606cf05fa81d1a8314dadfa49efe900342e8bcb3670363c16f0d1",
@@ -2789,50 +2789,50 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4PipelineState.h",
       "id": "enum-case:MTL4AlphaToCoverageState:MTL4AlphaToCoverageStateDisabled",
       "kind": "enum-case",
       "line": 48,
       "name": "MTL4AlphaToCoverageStateDisabled",
       "owner": "MTL4AlphaToCoverageState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTL4AlphaToCoverageState"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4PipelineState.h",
       "id": "enum-case:MTL4AlphaToCoverageState:MTL4AlphaToCoverageStateEnabled",
       "kind": "enum-case",
       "line": 51,
       "name": "MTL4AlphaToCoverageStateEnabled",
       "owner": "MTL4AlphaToCoverageState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTL4AlphaToCoverageState"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4PipelineState.h",
       "id": "enum-case:MTL4AlphaToOneState:MTL4AlphaToOneStateDisabled",
       "kind": "enum-case",
       "line": 37,
       "name": "MTL4AlphaToOneStateDisabled",
       "owner": "MTL4AlphaToOneState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTL4AlphaToOneState"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4PipelineState.h",
       "id": "enum-case:MTL4AlphaToOneState:MTL4AlphaToOneStateEnabled",
       "kind": "enum-case",
       "line": 40,
       "name": "MTL4AlphaToOneStateEnabled",
       "owner": "MTL4AlphaToOneState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTL4AlphaToOneState"
     },
     {
@@ -3079,26 +3079,26 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "enum-case:MTL4LogicalToPhysicalColorAttachmentMappingState:MTL4LogicalToPhysicalColorAttachmentMappingStateIdentity",
       "kind": "enum-case",
       "line": 32,
       "name": "MTL4LogicalToPhysicalColorAttachmentMappingStateIdentity",
       "owner": "MTL4LogicalToPhysicalColorAttachmentMappingState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTL4LogicalToPhysicalColorAttachmentMappingState"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "enum-case:MTL4LogicalToPhysicalColorAttachmentMappingState:MTL4LogicalToPhysicalColorAttachmentMappingStateInherited",
       "kind": "enum-case",
       "line": 38,
       "name": "MTL4LogicalToPhysicalColorAttachmentMappingStateInherited",
       "owner": "MTL4LogicalToPhysicalColorAttachmentMappingState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTL4LogicalToPhysicalColorAttachmentMappingState"
     },
     {
@@ -14226,14 +14226,14 @@
         "AvailabilityAttr",
         "EnumExtensibilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4PipelineState.h",
       "id": "enum:MTL4AlphaToCoverageState",
       "kind": "enum",
       "line": 45,
       "name": "MTL4AlphaToCoverageState",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -14241,14 +14241,14 @@
         "AvailabilityAttr",
         "EnumExtensibilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4PipelineState.h",
       "id": "enum:MTL4AlphaToOneState",
       "kind": "enum",
       "line": 34,
       "name": "MTL4AlphaToOneState",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -14345,14 +14345,14 @@
       "attributes": [
         "EnumExtensibilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "enum:MTL4LogicalToPhysicalColorAttachmentMappingState",
       "kind": "enum",
       "line": 27,
       "name": "MTL4LogicalToPhysicalColorAttachmentMappingState",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -23532,38 +23532,38 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4MeshRenderPipeline.h",
       "id": "method:-[MTL4MeshRenderPipelineDescriptor alphaToCoverageState]",
       "kind": "method",
       "line": 170,
       "name": "alphaToCoverageState",
       "owner": "MTL4MeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTL4AlphaToCoverageState"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4MeshRenderPipeline.h",
       "id": "method:-[MTL4MeshRenderPipelineDescriptor alphaToOneState]",
       "kind": "method",
       "line": 173,
       "name": "alphaToOneState",
       "owner": "MTL4MeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTL4AlphaToOneState"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4MeshRenderPipeline.h",
       "id": "method:-[MTL4MeshRenderPipelineDescriptor colorAttachmentMappingState]",
       "kind": "method",
       "line": 222,
       "name": "colorAttachmentMappingState",
       "owner": "MTL4MeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTL4LogicalToPhysicalColorAttachmentMappingState"
     },
     {
@@ -23652,14 +23652,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4MeshRenderPipeline.h",
       "id": "method:-[MTL4MeshRenderPipelineDescriptor maxVertexAmplificationCount]",
       "kind": "method",
       "line": 186,
       "name": "maxVertexAmplificationCount",
       "owner": "MTL4MeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -23784,50 +23784,50 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4MeshRenderPipeline.h",
       "id": "method:-[MTL4MeshRenderPipelineDescriptor reset]",
       "kind": "method",
       "line": 228,
       "name": "reset",
       "owner": "MTL4MeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4MeshRenderPipeline.h",
       "id": "method:-[MTL4MeshRenderPipelineDescriptor setAlphaToCoverageState:]",
       "kind": "method",
       "line": null,
       "name": "setAlphaToCoverageState:",
       "owner": "MTL4MeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTL4AlphaToCoverageState) -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4MeshRenderPipeline.h",
       "id": "method:-[MTL4MeshRenderPipelineDescriptor setAlphaToOneState:]",
       "kind": "method",
       "line": null,
       "name": "setAlphaToOneState:",
       "owner": "MTL4MeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTL4AlphaToOneState) -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4MeshRenderPipeline.h",
       "id": "method:-[MTL4MeshRenderPipelineDescriptor setColorAttachmentMappingState:]",
       "kind": "method",
       "line": null,
       "name": "setColorAttachmentMappingState:",
       "owner": "MTL4MeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTL4LogicalToPhysicalColorAttachmentMappingState) -> void"
     },
     {
@@ -23892,14 +23892,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4MeshRenderPipeline.h",
       "id": "method:-[MTL4MeshRenderPipelineDescriptor setMaxVertexAmplificationCount:]",
       "kind": "method",
       "line": null,
       "name": "setMaxVertexAmplificationCount:",
       "owner": "MTL4MeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -25752,38 +25752,38 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "method:-[MTL4RenderPipelineDescriptor alphaToCoverageState]",
       "kind": "method",
       "line": 177,
       "name": "alphaToCoverageState",
       "owner": "MTL4RenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTL4AlphaToCoverageState"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "method:-[MTL4RenderPipelineDescriptor alphaToOneState]",
       "kind": "method",
       "line": 180,
       "name": "alphaToOneState",
       "owner": "MTL4RenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTL4AlphaToOneState"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "method:-[MTL4RenderPipelineDescriptor colorAttachmentMappingState]",
       "kind": "method",
       "line": 223,
       "name": "colorAttachmentMappingState",
       "owner": "MTL4RenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTL4LogicalToPhysicalColorAttachmentMappingState"
     },
     {
@@ -25848,14 +25848,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "method:-[MTL4RenderPipelineDescriptor maxVertexAmplificationCount]",
       "kind": "method",
       "line": 193,
       "name": "maxVertexAmplificationCount",
       "owner": "MTL4RenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -25872,50 +25872,50 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "method:-[MTL4RenderPipelineDescriptor reset]",
       "kind": "method",
       "line": 229,
       "name": "reset",
       "owner": "MTL4RenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "method:-[MTL4RenderPipelineDescriptor setAlphaToCoverageState:]",
       "kind": "method",
       "line": null,
       "name": "setAlphaToCoverageState:",
       "owner": "MTL4RenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTL4AlphaToCoverageState) -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "method:-[MTL4RenderPipelineDescriptor setAlphaToOneState:]",
       "kind": "method",
       "line": null,
       "name": "setAlphaToOneState:",
       "owner": "MTL4RenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTL4AlphaToOneState) -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "method:-[MTL4RenderPipelineDescriptor setColorAttachmentMappingState:]",
       "kind": "method",
       "line": null,
       "name": "setColorAttachmentMappingState:",
       "owner": "MTL4RenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTL4LogicalToPhysicalColorAttachmentMappingState) -> void"
     },
     {
@@ -25956,14 +25956,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "method:-[MTL4RenderPipelineDescriptor setMaxVertexAmplificationCount:]",
       "kind": "method",
       "line": null,
       "name": "setMaxVertexAmplificationCount:",
       "owner": "MTL4RenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -26436,14 +26436,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4TileRenderPipeline.h",
       "id": "method:-[MTL4TileRenderPipelineDescriptor reset]",
       "kind": "method",
       "line": 60,
       "name": "reset",
       "owner": "MTL4TileRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> void"
     },
     {
@@ -35936,14 +35936,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice supportsVertexAmplificationCount:]",
       "kind": "method",
       "line": 1204,
       "name": "supportsVertexAmplificationCount:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (NSUInteger) -> BOOL"
     },
     {
@@ -52297,38 +52297,38 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4MeshRenderPipeline.h",
       "id": "property:MTL4MeshRenderPipelineDescriptor:alphaToCoverageState",
       "kind": "property",
       "line": 170,
       "name": "alphaToCoverageState",
       "owner": "MTL4MeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTL4AlphaToCoverageState"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4MeshRenderPipeline.h",
       "id": "property:MTL4MeshRenderPipelineDescriptor:alphaToOneState",
       "kind": "property",
       "line": 173,
       "name": "alphaToOneState",
       "owner": "MTL4MeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTL4AlphaToOneState"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4MeshRenderPipeline.h",
       "id": "property:MTL4MeshRenderPipelineDescriptor:colorAttachmentMappingState",
       "kind": "property",
       "line": 222,
       "name": "colorAttachmentMappingState",
       "owner": "MTL4MeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTL4LogicalToPhysicalColorAttachmentMappingState"
     },
     {
@@ -52405,14 +52405,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4MeshRenderPipeline.h",
       "id": "property:MTL4MeshRenderPipelineDescriptor:maxVertexAmplificationCount",
       "kind": "property",
       "line": 186,
       "name": "maxVertexAmplificationCount",
       "owner": "MTL4MeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
@@ -53137,38 +53137,38 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "property:MTL4RenderPipelineDescriptor:alphaToCoverageState",
       "kind": "property",
       "line": 177,
       "name": "alphaToCoverageState",
       "owner": "MTL4RenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTL4AlphaToCoverageState"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "property:MTL4RenderPipelineDescriptor:alphaToOneState",
       "kind": "property",
       "line": 180,
       "name": "alphaToOneState",
       "owner": "MTL4RenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTL4AlphaToOneState"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "property:MTL4RenderPipelineDescriptor:colorAttachmentMappingState",
       "kind": "property",
       "line": 223,
       "name": "colorAttachmentMappingState",
       "owner": "MTL4RenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTL4LogicalToPhysicalColorAttachmentMappingState"
     },
     {
@@ -53221,14 +53221,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "property:MTL4RenderPipelineDescriptor:maxVertexAmplificationCount",
       "kind": "property",
       "line": 193,
       "name": "maxVertexAmplificationCount",
       "owner": "MTL4RenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
@@ -65241,26 +65241,26 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4PipelineState.h",
       "id": "typedef:MTL4AlphaToCoverageState",
       "kind": "typedef",
       "line": 45,
       "name": "MTL4AlphaToCoverageState",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "enum MTL4AlphaToCoverageState"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4PipelineState.h",
       "id": "typedef:MTL4AlphaToOneState",
       "kind": "typedef",
       "line": 34,
       "name": "MTL4AlphaToOneState",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "enum MTL4AlphaToOneState"
     },
     {
@@ -65397,14 +65397,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "typedef:MTL4LogicalToPhysicalColorAttachmentMappingState",
       "kind": "typedef",
       "line": 27,
       "name": "MTL4LogicalToPhysicalColorAttachmentMappingState",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "enum MTL4LogicalToPhysicalColorAttachmentMappingState"
     },
     {

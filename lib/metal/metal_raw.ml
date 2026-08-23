@@ -162,6 +162,10 @@ type metal4_render_descriptor =
   ; fragment_dynamic_linking : metal4_stage_dynamic_linking_descriptor option
   ; vertex_static_linking : metal4_static_linking_descriptor option
   ; fragment_static_linking : metal4_static_linking_descriptor option
+  ; alpha_to_coverage : bool
+  ; alpha_to_one : bool
+  ; max_vertex_amplification_count : int64
+  ; color_attachment_mapping : int
   }
 
 type metal4_mesh_descriptor =
@@ -197,6 +201,10 @@ type metal4_mesh_descriptor =
   ; object_static_linking : metal4_static_linking_descriptor option
   ; mesh_static_linking : metal4_static_linking_descriptor option
   ; fragment_static_linking : metal4_static_linking_descriptor option
+  ; alpha_to_coverage : bool
+  ; alpha_to_one : bool
+  ; max_vertex_amplification_count : int64
+  ; color_attachment_mapping : int
   }
 
 type metal4_tile_descriptor =
@@ -363,6 +371,9 @@ external device_supports_function_pointers : handle -> bool =
 
 external device_supports_function_pointers_from_render : handle -> bool =
   "caml_prismel_metal_device_supports_function_pointers_from_render"
+
+external device_supports_vertex_amplification_count : handle -> int -> bool =
+  "caml_prismel_metal_device_supports_vertex_amplification_count"
 
 external device_supports_residency_sets : handle -> bool =
   "caml_prismel_metal_device_supports_residency_sets"

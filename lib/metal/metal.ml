@@ -1023,6 +1023,10 @@ type render_pipeline_kind =
   | Tile
   | Mesh
 
+type render_color_attachment_mapping =
+  | Identity
+  | Inherited
+
 type render_blend_state =
   | Blend_disabled
   | Blend_enabled
@@ -1104,6 +1108,10 @@ type render_pipeline =
   ; device : device
   ; kind : render_pipeline_kind
   ; raster_sample_count : int
+  ; alpha_to_coverage : bool
+  ; alpha_to_one : bool
+  ; max_vertex_amplification_count : int
+  ; color_attachment_mapping : render_color_attachment_mapping
   ; color_formats : pixel_format list
   ; color_attachments : render_color_attachment list
   ; vertex_descriptor : Vertex_descriptor.t option
@@ -1823,6 +1831,21 @@ module Device = struct
       | Ok () ->
           Ok
             (Metal_raw.device_supports_texture_sample_count value.raw sample_count))
+
+  let supports_vertex_amplification_count (value : t) count =
+    on_main "Metal.Device.supports_vertex_amplification_count" (fun () ->
+      match
+        ensure_live "Metal.Device.supports_vertex_amplification_count"
+          value.lifetime
+      with
+      | Error _ as failure -> failure
+      | Ok () when count <= 0 ->
+          error "Metal.Device.supports_vertex_amplification_count"
+            Invalid_argument "vertex amplification count must be positive"
+      | Ok () ->
+          Ok
+            (Metal_raw.device_supports_vertex_amplification_count value.raw
+               count))
 
   let supports_depth24_stencil8 (value : t) =
     on_main "Metal.Device.supports_depth24_stencil8" (fun () ->
@@ -7629,6 +7652,10 @@ module Render_pipeline = struct
     | Line
     | Triangle
 
+  type color_attachment_mapping = render_color_attachment_mapping =
+    | Identity
+    | Inherited
+
   type blend_state = render_blend_state =
     | Blend_disabled
     | Blend_enabled
@@ -7706,6 +7733,10 @@ module Render_pipeline = struct
 
   let blend_state_code = function Blend_disabled -> 0 | Blend_enabled -> 1
 
+  let color_attachment_mapping_code = function
+    | Identity -> 0
+    | Inherited -> 1
+
   let blend_factor_code = function
     | Blend_zero -> 0
     | Blend_one -> 1
@@ -7761,8 +7792,10 @@ module Render_pipeline = struct
   let topology_code = function Point -> 1 | Line -> 2 | Triangle -> 3
 
   let make ?mesh_constraints ?tile_constraints ?color_attachments
-      ?vertex_descriptor device ~kind ~raster_sample_count ~color_formats
-      ~reflection raw
+      ?vertex_descriptor ?(alpha_to_coverage = false) ?(alpha_to_one = false)
+      ?(max_vertex_amplification_count = 1)
+      ?(color_attachment_mapping = Identity) device ~kind
+      ~raster_sample_count ~color_formats ~reflection raw
       (raw_reflection : Metal_raw.render_pipeline_reflection) =
     let map values = Array.map Binding.of_raw values in
     let reflection =
@@ -7782,6 +7815,10 @@ module Render_pipeline = struct
       ; device
       ; kind
       ; raster_sample_count
+      ; alpha_to_coverage
+      ; alpha_to_one
+      ; max_vertex_amplification_count
+      ; color_attachment_mapping
       ; color_formats
       ; color_attachments =
           Option.value color_attachments
@@ -7801,6 +7838,13 @@ module Render_pipeline = struct
   let destroyed (value : t) = is_destroyed value.lifetime
   let kind (value : t) = value.kind
   let raster_sample_count (value : t) = value.raster_sample_count
+  let alpha_to_coverage (value : t) = value.alpha_to_coverage
+  let alpha_to_one (value : t) = value.alpha_to_one
+
+  let max_vertex_amplification_count (value : t) =
+    value.max_vertex_amplification_count
+
+  let color_attachment_mapping (value : t) = value.color_attachment_mapping
   let color_formats (value : t) = value.color_formats
   let color_attachments (value : t) = value.color_attachments
   let vertex_descriptor (value : t) = value.vertex_descriptor
@@ -8885,6 +8929,9 @@ module Compiler = struct
   let with_render_descriptor operation callback ?label ?fragment
       ?(reflection = false) ?(raster_sample_count = 1)
       ?color_formats ?color_attachments ?vertex_descriptor
+      ?(alpha_to_coverage = false) ?(alpha_to_one = false)
+      ?(max_vertex_amplification_count = 1)
+      ?(color_attachment_mapping = Render_pipeline.Identity)
       ?(support_vertex_binary_linking = false)
       ?(support_fragment_binary_linking = false) ?vertex_dynamic_linking
       ?fragment_dynamic_linking ?vertex_static_linking
@@ -8909,6 +8956,16 @@ module Compiler = struct
       if option_exists contains_nul label then
         error operation Invalid_argument
           "render-pipeline label contains a NUL byte"
+      else if max_vertex_amplification_count <= 0 then
+        error operation Invalid_argument
+          "maximum vertex amplification count must be positive"
+      else if
+        not
+          (Metal_raw.device_supports_vertex_amplification_count
+             value.device.raw max_vertex_amplification_count)
+      then
+        error operation Unsupported
+          "the Metal device does not support the vertex amplification count"
       else if
         Option.is_none fragment
         && (support_fragment_binary_linking
@@ -8984,6 +9041,13 @@ module Compiler = struct
           ; fragment_dynamic_linking
           ; vertex_static_linking
           ; fragment_static_linking
+          ; alpha_to_coverage
+          ; alpha_to_one
+          ; max_vertex_amplification_count =
+              Int64.of_int max_vertex_amplification_count
+          ; color_attachment_mapping =
+              Render_pipeline.color_attachment_mapping_code
+                color_attachment_mapping
           }
         in
         callback reflection vertex_descriptor color_attachments color_formats
@@ -8992,6 +9056,9 @@ module Compiler = struct
   let create_render_pipeline ?label ?fragment ?(reflection = false)
       ?(raster_sample_count = 1)
       ?color_formats ?color_attachments ?vertex_descriptor
+      ?(alpha_to_coverage = false) ?(alpha_to_one = false)
+      ?(max_vertex_amplification_count = 1)
+      ?(color_attachment_mapping = Render_pipeline.Identity)
       ?(support_vertex_binary_linking = false)
       ?(support_fragment_binary_linking = false) ?vertex_dynamic_linking
       ?fragment_dynamic_linking ?vertex_static_linking
@@ -9010,10 +9077,14 @@ module Compiler = struct
             Ok
               (Render_pipeline.make value.device
                  ~kind:Render_pipeline.Render ~raster_sample_count
+                 ~alpha_to_coverage ~alpha_to_one
+                 ~max_vertex_amplification_count ~color_attachment_mapping
                  ~color_formats ~color_attachments ?vertex_descriptor
                  ~reflection raw raw_reflection))
       ?label ?fragment ~reflection ~raster_sample_count ?color_formats
       ?color_attachments ?vertex_descriptor
+      ~alpha_to_coverage ~alpha_to_one ~max_vertex_amplification_count
+      ~color_attachment_mapping
       ~support_vertex_binary_linking ~support_fragment_binary_linking
       ?vertex_dynamic_linking ?fragment_dynamic_linking
       ?vertex_static_linking ?fragment_static_linking
@@ -9024,6 +9095,9 @@ module Compiler = struct
   let create_render_pipeline_async ?label ?fragment ?(reflection = false)
       ?(raster_sample_count = 1)
       ?color_formats ?color_attachments ?vertex_descriptor
+      ?(alpha_to_coverage = false) ?(alpha_to_one = false)
+      ?(max_vertex_amplification_count = 1)
+      ?(color_attachment_mapping = Render_pipeline.Identity)
       ?(support_vertex_binary_linking = false)
       ?(support_fragment_binary_linking = false) ?vertex_dynamic_linking
       ?fragment_dynamic_linking ?vertex_static_linking
@@ -9058,11 +9132,16 @@ module Compiler = struct
                    (fun (raw, raw_reflection) ->
                      Render_pipeline.make value.device
                        ~kind:Render_pipeline.Render ~raster_sample_count
+                       ~alpha_to_coverage ~alpha_to_one
+                       ~max_vertex_amplification_count
+                       ~color_attachment_mapping
                        ~color_formats ~color_attachments ?vertex_descriptor
                        ~reflection raw raw_reflection)
                    raw))
       ?label ?fragment ~reflection ~raster_sample_count ?color_formats
       ?color_attachments ?vertex_descriptor
+      ~alpha_to_coverage ~alpha_to_one ~max_vertex_amplification_count
+      ~color_attachment_mapping
       ~support_vertex_binary_linking ~support_fragment_binary_linking
       ?vertex_dynamic_linking ?fragment_dynamic_linking
       ?vertex_static_linking ?fragment_static_linking
@@ -9113,6 +9192,9 @@ module Compiler = struct
       ?(mesh_threadgroup_size_multiple = false) ?payload_memory_length
       ?max_total_threadgroups_per_mesh_grid ?(raster_sample_count = 1)
       ?color_formats ?color_attachments
+      ?(alpha_to_coverage = false) ?(alpha_to_one = false)
+      ?(max_vertex_amplification_count = 1)
+      ?(color_attachment_mapping = Render_pipeline.Identity)
       ?(support_object_binary_linking = false)
       ?(support_mesh_binary_linking = false)
       ?(support_fragment_binary_linking = false) ?object_dynamic_linking
@@ -9141,6 +9223,16 @@ module Compiler = struct
       if option_exists contains_nul label then
         error operation Invalid_argument
           "mesh-pipeline label contains a NUL byte"
+      else if max_vertex_amplification_count <= 0 then
+        error operation Invalid_argument
+          "maximum vertex amplification count must be positive"
+      else if
+        not
+          (Metal_raw.device_supports_vertex_amplification_count
+             value.device.raw max_vertex_amplification_count)
+      then
+        error operation Unsupported
+          "the Metal device does not support the vertex amplification count"
       else if
         not
           (Metal_raw.device_supports_family value.device.raw
@@ -9300,6 +9392,13 @@ module Compiler = struct
           ; object_static_linking
           ; mesh_static_linking
           ; fragment_static_linking
+          ; alpha_to_coverage
+          ; alpha_to_one
+          ; max_vertex_amplification_count =
+              Int64.of_int max_vertex_amplification_count
+          ; color_attachment_mapping =
+              Render_pipeline.color_attachment_mapping_code
+                color_attachment_mapping
           }
         in
         callback reflection color_attachments color_formats descriptor)
@@ -9330,6 +9429,9 @@ module Compiler = struct
       ?(mesh_threadgroup_size_multiple = false) ?payload_memory_length
       ?max_total_threadgroups_per_mesh_grid ?(raster_sample_count = 1)
       ?color_formats ?color_attachments
+      ?(alpha_to_coverage = false) ?(alpha_to_one = false)
+      ?(max_vertex_amplification_count = 1)
+      ?(color_attachment_mapping = Render_pipeline.Identity)
       ?(support_object_binary_linking = false)
       ?(support_mesh_binary_linking = false)
       ?(support_fragment_binary_linking = false) ?object_dynamic_linking
@@ -9356,6 +9458,8 @@ module Compiler = struct
             Ok
               (Render_pipeline.make ~mesh_constraints value.device
                  ~kind:Render_pipeline.Mesh ~raster_sample_count ~color_formats
+                 ~alpha_to_coverage ~alpha_to_one
+                 ~max_vertex_amplification_count ~color_attachment_mapping
                  ~color_attachments ~reflection raw raw_reflection))
       ?label ?object_function ?fragment ~reflection
       ?max_total_threads_per_object_threadgroup
@@ -9365,6 +9469,8 @@ module Compiler = struct
       ~object_threadgroup_size_multiple ~mesh_threadgroup_size_multiple
       ?payload_memory_length ?max_total_threadgroups_per_mesh_grid
       ~raster_sample_count ?color_formats ?color_attachments
+      ~alpha_to_coverage ~alpha_to_one ~max_vertex_amplification_count
+      ~color_attachment_mapping
       ~support_object_binary_linking ~support_mesh_binary_linking
       ~support_fragment_binary_linking ?object_dynamic_linking
       ?mesh_dynamic_linking ?fragment_dynamic_linking
@@ -9381,6 +9487,9 @@ module Compiler = struct
       ?(mesh_threadgroup_size_multiple = false) ?payload_memory_length
       ?max_total_threadgroups_per_mesh_grid ?(raster_sample_count = 1)
       ?color_formats ?color_attachments
+      ?(alpha_to_coverage = false) ?(alpha_to_one = false)
+      ?(max_vertex_amplification_count = 1)
+      ?(color_attachment_mapping = Render_pipeline.Identity)
       ?(support_object_binary_linking = false)
       ?(support_mesh_binary_linking = false)
       ?(support_fragment_binary_linking = false) ?object_dynamic_linking
@@ -9424,6 +9533,9 @@ module Compiler = struct
                    (fun (raw, raw_reflection) ->
                      Render_pipeline.make ~mesh_constraints value.device
                        ~kind:Render_pipeline.Mesh ~raster_sample_count
+                       ~alpha_to_coverage ~alpha_to_one
+                       ~max_vertex_amplification_count
+                       ~color_attachment_mapping
                        ~color_formats ~color_attachments ~reflection raw
                        raw_reflection)
                    raw))
@@ -9435,6 +9547,8 @@ module Compiler = struct
       ~object_threadgroup_size_multiple ~mesh_threadgroup_size_multiple
       ?payload_memory_length ?max_total_threadgroups_per_mesh_grid
       ~raster_sample_count ?color_formats ?color_attachments
+      ~alpha_to_coverage ~alpha_to_one ~max_vertex_amplification_count
+      ~color_attachment_mapping
       ~support_object_binary_linking ~support_mesh_binary_linking
       ~support_fragment_binary_linking ?object_dynamic_linking
       ?mesh_dynamic_linking ?fragment_dynamic_linking
