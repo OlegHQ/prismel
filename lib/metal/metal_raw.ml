@@ -305,6 +305,28 @@ type depth_stencil_descriptor =
   ; label : string option
   }
 
+type indirect_command_buffer_descriptor =
+  { command_types : int64
+  ; inherit_buffers : bool
+  ; inherit_pipeline_state : bool
+  ; max_vertex_buffer_bind_count : int64
+  ; max_fragment_buffer_bind_count : int64
+  ; max_kernel_buffer_bind_count : int64
+  ; support_ray_tracing : bool
+  ; support_dynamic_attribute_stride : bool
+  ; max_kernel_threadgroup_memory_bind_count : int64
+  ; max_object_buffer_bind_count : int64
+  ; max_mesh_buffer_bind_count : int64
+  ; max_object_threadgroup_memory_bind_count : int64
+  ; inherit_depth_stencil_state : bool
+  ; inherit_depth_bias : bool
+  ; inherit_depth_clip_mode : bool
+  ; inherit_cull_mode : bool
+  ; inherit_front_facing_winding : bool
+  ; inherit_triangle_fill_mode : bool
+  ; support_color_attachment_mapping : bool
+  }
+
 (** Positional native ABI record for a Metal 4 argument-table descriptor. *)
 type metal4_argument_table_descriptor =
   { max_buffers : int
@@ -709,6 +731,55 @@ external depth_stencil_create :
 
 external depth_stencil_label : handle -> string option =
   "caml_prismel_metal_depth_stencil_label"
+
+external indirect_command_buffer_create :
+  handle -> indirect_command_buffer_descriptor -> int64 -> int64 ->
+  (handle, string) result = "caml_prismel_metal_indirect_command_buffer_create"
+
+external indirect_command_buffer_size : handle -> int64 =
+  "caml_prismel_metal_indirect_command_buffer_size"
+
+external indirect_command_buffer_reset : handle -> int64 -> int64 ->
+  (unit, string) result = "caml_prismel_metal_indirect_command_buffer_reset"
+
+external indirect_render_command : handle -> int64 -> (handle, string) result =
+  "caml_prismel_metal_indirect_render_command"
+
+external indirect_compute_command : handle -> int64 -> (handle, string) result =
+  "caml_prismel_metal_indirect_compute_command"
+
+external indirect_render_command_reset : handle -> (unit, string) result =
+  "caml_prismel_metal_indirect_render_command_reset"
+
+external indirect_render_command_set_pipeline : handle -> handle ->
+  (unit, string) result = "caml_prismel_metal_indirect_render_command_set_pipeline"
+
+external indirect_render_command_set_vertex_buffer :
+  handle -> handle -> int64 -> int -> (unit, string) result =
+  "caml_prismel_metal_indirect_render_command_set_vertex_buffer"
+
+external indirect_render_command_set_fragment_buffer :
+  handle -> handle -> int64 -> int -> (unit, string) result =
+  "caml_prismel_metal_indirect_render_command_set_fragment_buffer"
+
+external indirect_render_command_draw_primitives :
+  handle -> int -> int64 -> int64 -> int64 -> int64 -> (unit, string) result =
+  "caml_prismel_metal_indirect_render_command_draw_primitives_bytecode"
+  "caml_prismel_metal_indirect_render_command_draw_primitives"
+
+external indirect_compute_command_reset : handle -> (unit, string) result =
+  "caml_prismel_metal_indirect_compute_command_reset"
+
+external indirect_compute_command_set_pipeline : handle -> handle ->
+  (unit, string) result = "caml_prismel_metal_indirect_compute_command_set_pipeline"
+
+external indirect_compute_command_set_kernel_buffer :
+  handle -> handle -> int64 -> int -> (unit, string) result =
+  "caml_prismel_metal_indirect_compute_command_set_kernel_buffer"
+
+external indirect_compute_command_dispatch_threads :
+  handle -> (int * int * int) -> (int * int * int) -> (unit, string) result =
+  "caml_prismel_metal_indirect_compute_command_dispatch_threads"
 
 external library_compile :
   handle -> string -> string option -> (handle, string) result =

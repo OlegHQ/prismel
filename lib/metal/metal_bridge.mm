@@ -913,6 +913,9 @@ enum class Handle_kind : std::uint32_t {
   Argument_table4,
   Compute_encoder4,
   Depth_stencil,
+  Indirect_command_buffer,
+  Indirect_render_command,
+  Indirect_compute_command,
 };
 
 struct Handle {
@@ -5438,6 +5441,234 @@ extern "C" CAMLprim value caml_prismel_metal_depth_stencil_label(value raw) {
     result = copy_optional_string(state.label);
   }
   CAMLreturn(result);
+}
+
+extern "C" CAMLprim value caml_prismel_metal_indirect_command_buffer_create(
+    value raw_device, value raw_descriptor, value raw_count,
+    value raw_options) {
+  CAMLparam4(raw_device, raw_descriptor, raw_count, raw_options);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    @try {
+      id<MTLDevice> device = object_of_handle(raw_device, Handle_kind::Device);
+      NSUInteger count = 0;
+      NSUInteger options = 0;
+      if (!nsuinteger_from_ocaml_int64(raw_count, &count) || count == 0 ||
+          !nsuinteger_from_ocaml_int64(raw_options, &options)) {
+        CAMLreturn(result_error_text("invalid indirect command buffer size or options"));
+      }
+      MTLIndirectCommandBufferDescriptor *descriptor =
+          [[MTLIndirectCommandBufferDescriptor alloc] init];
+      descriptor.commandTypes = static_cast<MTLIndirectCommandType>(
+          Int64_val(Field(raw_descriptor, 0)));
+      descriptor.inheritBuffers = Bool_val(Field(raw_descriptor, 1));
+      descriptor.inheritPipelineState = Bool_val(Field(raw_descriptor, 2));
+      NSUInteger counts[7] = {};
+      const int count_fields[7] = {3, 4, 5, 8, 9, 10, 11};
+      for (int index = 0; index < 7; ++index) {
+        if (!nsuinteger_from_ocaml_int64(Field(raw_descriptor, count_fields[index]),
+                                         &counts[index])) {
+          CAMLreturn(result_error_text("invalid indirect descriptor binding count"));
+        }
+      }
+      descriptor.maxVertexBufferBindCount = counts[0];
+      descriptor.maxFragmentBufferBindCount = counts[1];
+      if (@available(macOS 11.0, *)) {
+        descriptor.maxKernelBufferBindCount = counts[2];
+      } else if (counts[2] != 0) {
+        CAMLreturn(result_error_text("indirect compute commands require macOS 11 or newer"));
+      }
+      if (@available(macOS 13.0, *)) {
+        descriptor.supportRayTracing = Bool_val(Field(raw_descriptor, 6));
+      } else if (Bool_val(Field(raw_descriptor, 6))) {
+        CAMLreturn(result_error_text("indirect ray tracing requires macOS 13 or newer"));
+      }
+      if (@available(macOS 14.0, *)) {
+        descriptor.supportDynamicAttributeStride = Bool_val(Field(raw_descriptor, 7));
+        descriptor.maxKernelThreadgroupMemoryBindCount = counts[3];
+        descriptor.maxObjectBufferBindCount = counts[4];
+        descriptor.maxMeshBufferBindCount = counts[5];
+        descriptor.maxObjectThreadgroupMemoryBindCount = counts[6];
+      } else if (Bool_val(Field(raw_descriptor, 7)) || counts[3] != 0 ||
+                 counts[4] != 0 || counts[5] != 0 || counts[6] != 0) {
+        CAMLreturn(result_error_text("advanced indirect commands require macOS 14 or newer"));
+      }
+      if (@available(macOS 26.0, *)) {
+        descriptor.inheritDepthStencilState = Bool_val(Field(raw_descriptor, 12));
+        descriptor.inheritDepthBias = Bool_val(Field(raw_descriptor, 13));
+        descriptor.inheritDepthClipMode = Bool_val(Field(raw_descriptor, 14));
+        descriptor.inheritCullMode = Bool_val(Field(raw_descriptor, 15));
+        descriptor.inheritFrontFacingWinding = Bool_val(Field(raw_descriptor, 16));
+        descriptor.inheritTriangleFillMode = Bool_val(Field(raw_descriptor, 17));
+        descriptor.supportColorAttachmentMapping = Bool_val(Field(raw_descriptor, 18));
+      } else if (Bool_val(Field(raw_descriptor, 12)) ||
+                 Bool_val(Field(raw_descriptor, 13)) ||
+                 Bool_val(Field(raw_descriptor, 14)) ||
+                 Bool_val(Field(raw_descriptor, 15)) ||
+                 Bool_val(Field(raw_descriptor, 16)) ||
+                 Bool_val(Field(raw_descriptor, 17)) ||
+                 Bool_val(Field(raw_descriptor, 18))) {
+        CAMLreturn(result_error_text("Metal 4 indirect inheritance requires macOS 26 or newer"));
+      }
+      id<MTLIndirectCommandBuffer> buffer =
+          [device newIndirectCommandBufferWithDescriptor:descriptor
+                                         maxCommandCount:count
+                                                  options:static_cast<MTLResourceOptions>(options)];
+      if (buffer == nil || buffer.device.registryID != device.registryID ||
+          buffer.size == 0) {
+        CAMLreturn(result_error_text("Metal rejected the indirect command buffer descriptor"));
+      }
+      raw = allocate_handle(buffer, Handle_kind::Indirect_command_buffer);
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+  CAMLreturn(result_ok(raw));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_indirect_command_buffer_size(value raw) {
+  CAMLparam1(raw);
+  id<MTLIndirectCommandBuffer> buffer =
+      object_of_handle(raw, Handle_kind::Indirect_command_buffer);
+  CAMLreturn(caml_copy_int64(static_cast<std::int64_t>(buffer.size)));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_indirect_command_buffer_reset(
+    value raw, value raw_location, value raw_length) {
+  CAMLparam3(raw, raw_location, raw_length);
+  @try {
+    id<MTLIndirectCommandBuffer> buffer =
+        object_of_handle(raw, Handle_kind::Indirect_command_buffer);
+    NSUInteger location = 0, length = 0;
+    if (!nsuinteger_from_ocaml_int64(raw_location, &location) ||
+        !nsuinteger_from_ocaml_int64(raw_length, &length)) {
+      CAMLreturn(result_error_text("invalid indirect command reset range"));
+    }
+    [buffer resetWithRange:NSMakeRange(location, length)];
+  } @catch (NSException *exception) {
+    CAMLreturn(result_error(exception.reason));
+  }
+  CAMLreturn(result_unit());
+}
+
+extern "C" CAMLprim value caml_prismel_metal_indirect_render_command(
+    value raw, value raw_index) {
+  CAMLparam2(raw, raw_index);
+  CAMLlocal1(command_raw);
+  @try {
+    NSUInteger index = 0;
+    if (!nsuinteger_from_ocaml_int64(raw_index, &index))
+      CAMLreturn(result_error_text("invalid indirect render command index"));
+    id<MTLIndirectCommandBuffer> buffer =
+        object_of_handle(raw, Handle_kind::Indirect_command_buffer);
+    id<MTLIndirectRenderCommand> command = [buffer indirectRenderCommandAtIndex:index];
+    if (command == nil) CAMLreturn(result_error_text("Metal returned no indirect render command"));
+    command_raw = allocate_handle(command, Handle_kind::Indirect_render_command);
+  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
+  CAMLreturn(result_ok(command_raw));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_indirect_compute_command(
+    value raw, value raw_index) {
+  CAMLparam2(raw, raw_index);
+  CAMLlocal1(command_raw);
+  @try {
+    if (@available(macOS 11.0, *)) {
+      NSUInteger index = 0;
+      if (!nsuinteger_from_ocaml_int64(raw_index, &index))
+        CAMLreturn(result_error_text("invalid indirect compute command index"));
+      id<MTLIndirectCommandBuffer> buffer = object_of_handle(raw, Handle_kind::Indirect_command_buffer);
+      id<MTLIndirectComputeCommand> command = [buffer indirectComputeCommandAtIndex:index];
+      if (command == nil) CAMLreturn(result_error_text("Metal returned no indirect compute command"));
+      command_raw = allocate_handle(command, Handle_kind::Indirect_compute_command);
+    } else CAMLreturn(result_error_text("indirect compute commands require macOS 11 or newer"));
+  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
+  CAMLreturn(result_ok(command_raw));
+}
+
+#define PRISMEL_ICB_COMMAND0(name, kind, selector) \
+extern "C" CAMLprim value name(value raw) { CAMLparam1(raw); @try { \
+  id command = object_of_handle(raw, kind); [command selector]; \
+} @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); } \
+CAMLreturn(result_unit()); }
+
+PRISMEL_ICB_COMMAND0(caml_prismel_metal_indirect_render_command_reset,
+                     Handle_kind::Indirect_render_command, reset)
+PRISMEL_ICB_COMMAND0(caml_prismel_metal_indirect_compute_command_reset,
+                     Handle_kind::Indirect_compute_command, reset)
+
+extern "C" CAMLprim value caml_prismel_metal_indirect_render_command_set_pipeline(value raw, value raw_pipeline) {
+  CAMLparam2(raw, raw_pipeline); @try {
+    id<MTLIndirectRenderCommand> command = object_of_handle(raw, Handle_kind::Indirect_render_command);
+    id<MTLRenderPipelineState> pipeline = object_of_handle(raw_pipeline, Handle_kind::Render_pipeline);
+    [command setRenderPipelineState:pipeline];
+  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
+  CAMLreturn(result_unit());
+}
+
+extern "C" CAMLprim value caml_prismel_metal_indirect_compute_command_set_pipeline(value raw, value raw_pipeline) {
+  CAMLparam2(raw, raw_pipeline); @try {
+    id<MTLIndirectComputeCommand> command = object_of_handle(raw, Handle_kind::Indirect_compute_command);
+    id<MTLComputePipelineState> pipeline = object_of_handle(raw_pipeline, Handle_kind::Compute_pipeline);
+    [command setComputePipelineState:pipeline];
+  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
+  CAMLreturn(result_unit());
+}
+
+static value indirect_set_buffer(value raw, value raw_buffer, value raw_offset,
+                                 value raw_index, bool fragment, bool compute) {
+  CAMLparam4(raw, raw_buffer, raw_offset, raw_index);
+  @try {
+    NSUInteger offset = 0; const intnat index = Long_val(raw_index);
+    if (!nsuinteger_from_ocaml_int64(raw_offset, &offset) || index < 0)
+      CAMLreturn(result_error_text("invalid indirect buffer binding"));
+    id<MTLBuffer> buffer = object_of_handle(raw_buffer, Handle_kind::Buffer);
+    if (compute) {
+      id<MTLIndirectComputeCommand> command = object_of_handle(raw, Handle_kind::Indirect_compute_command);
+      [command setKernelBuffer:buffer offset:offset atIndex:static_cast<NSUInteger>(index)];
+    } else {
+      id<MTLIndirectRenderCommand> command = object_of_handle(raw, Handle_kind::Indirect_render_command);
+      if (fragment) [command setFragmentBuffer:buffer offset:offset atIndex:static_cast<NSUInteger>(index)];
+      else [command setVertexBuffer:buffer offset:offset atIndex:static_cast<NSUInteger>(index)];
+    }
+  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
+  CAMLreturn(result_unit());
+}
+
+extern "C" CAMLprim value caml_prismel_metal_indirect_render_command_set_vertex_buffer(value a,value b,value c,value d) { return indirect_set_buffer(a,b,c,d,false,false); }
+extern "C" CAMLprim value caml_prismel_metal_indirect_render_command_set_fragment_buffer(value a,value b,value c,value d) { return indirect_set_buffer(a,b,c,d,true,false); }
+extern "C" CAMLprim value caml_prismel_metal_indirect_compute_command_set_kernel_buffer(value a,value b,value c,value d) { return indirect_set_buffer(a,b,c,d,false,true); }
+
+extern "C" CAMLprim value caml_prismel_metal_indirect_render_command_draw_primitives(
+    value raw, value raw_primitive, value raw_start, value raw_count,
+    value raw_instances, value raw_base_instance) {
+  CAMLparam5(raw, raw_primitive, raw_start, raw_count, raw_instances);
+  CAMLxparam1(raw_base_instance);
+  @try {
+    NSUInteger start=0,count=0,instances=0,base=0;
+    if (!nsuinteger_from_ocaml_int64(raw_start,&start) || !nsuinteger_from_ocaml_int64(raw_count,&count) ||
+        !nsuinteger_from_ocaml_int64(raw_instances,&instances) || !nsuinteger_from_ocaml_int64(raw_base_instance,&base))
+      CAMLreturn(result_error_text("invalid indirect draw range"));
+    id<MTLIndirectRenderCommand> command=object_of_handle(raw,Handle_kind::Indirect_render_command);
+    [command drawPrimitives:static_cast<MTLPrimitiveType>(Long_val(raw_primitive)) vertexStart:start vertexCount:count instanceCount:instances baseInstance:base];
+  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
+  CAMLreturn(result_unit());
+}
+extern "C" CAMLprim value caml_prismel_metal_indirect_render_command_draw_primitives_bytecode(value *argv,int argn) {
+  (void)argn; return caml_prismel_metal_indirect_render_command_draw_primitives(argv[0],argv[1],argv[2],argv[3],argv[4],argv[5]);
+}
+
+extern "C" CAMLprim value caml_prismel_metal_indirect_compute_command_dispatch_threads(value raw,value raw_threads,value raw_group) {
+  CAMLparam3(raw,raw_threads,raw_group); @try {
+    auto dimension=[](value tuple,int i)->NSUInteger { intnat v=Long_val(Field(tuple,i)); return v > 0 ? static_cast<NSUInteger>(v) : 0; };
+    MTLSize threads=MTLSizeMake(dimension(raw_threads,0),dimension(raw_threads,1),dimension(raw_threads,2));
+    MTLSize group=MTLSizeMake(dimension(raw_group,0),dimension(raw_group,1),dimension(raw_group,2));
+    if (threads.width==0||threads.height==0||threads.depth==0||group.width==0||group.height==0||group.depth==0)
+      CAMLreturn(result_error_text("indirect dispatch dimensions must be positive"));
+    id<MTLIndirectComputeCommand> command=object_of_handle(raw,Handle_kind::Indirect_compute_command);
+    [command concurrentDispatchThreads:threads threadsPerThreadgroup:group];
+  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
+  CAMLreturn(result_unit());
 }
 
 extern "C" CAMLprim value caml_prismel_metal_library_compile(

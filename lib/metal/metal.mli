@@ -8,6 +8,9 @@ module Enum : module type of Metal_enum_generated
 (** Generated, handle-free, fixed-layout SDK value records. *)
 module Value : module type of Metal_value_record_generated
 
+(** Generated immutable scalar/enum descriptor-property records. *)
+module Descriptor : module type of Metal_descriptor_generated
+
 type error_kind =
   | Native_error
   | Wrong_domain
@@ -2176,6 +2179,72 @@ module Command4 : sig
 
     val end_encoding : t -> (unit, error) result
     val destroyed : t -> bool
+  end
+end
+
+module Indirect_command_buffer : sig
+  type command_type =
+    | Indirect_draw
+    | Indirect_draw_indexed
+    | Indirect_concurrent_dispatch
+    | Indirect_concurrent_dispatch_threads
+
+  type descriptor
+  type t
+  type buffer = t
+
+  val descriptor :
+    ?inherit_buffers:bool -> ?inherit_pipeline_state:bool ->
+    ?max_vertex_buffer_bind_count:int -> ?max_fragment_buffer_bind_count:int ->
+    ?max_kernel_buffer_bind_count:int -> ?support_ray_tracing:bool ->
+    ?support_dynamic_attribute_stride:bool ->
+    ?max_kernel_threadgroup_memory_bind_count:int ->
+    ?max_object_buffer_bind_count:int -> ?max_mesh_buffer_bind_count:int ->
+    ?max_object_threadgroup_memory_bind_count:int ->
+    ?inherit_depth_stencil_state:bool -> ?inherit_depth_bias:bool ->
+    ?inherit_depth_clip_mode:bool -> ?inherit_cull_mode:bool ->
+    ?inherit_front_facing_winding:bool -> ?inherit_triangle_fill_mode:bool ->
+    ?support_color_attachment_mapping:bool -> command_types:command_type list ->
+    unit -> descriptor
+
+  val create :
+    device:Device.t -> ?storage:Buffer.storage_mode ->
+    ?cpu_cache:Buffer.cpu_cache_mode ->
+    ?hazard_tracking:Buffer.hazard_tracking_mode -> max_command_count:int ->
+    descriptor -> (t, error) result
+  val device : t -> Device.t
+  val generation : t -> int64
+  val destroyed : t -> bool
+  val max_command_count : t -> int
+  val allocated_size : t -> int64
+  val reset : t -> location:int -> length:int -> (unit, error) result
+  val destroy : t -> (unit, error) result
+
+  module Render_command : sig
+    type t
+    type primitive = Point | Line | Line_strip | Triangle | Triangle_strip
+    val at : buffer -> int -> (t, error) result
+    val destroyed : t -> bool
+    val reset : t -> (unit, error) result
+    val set_pipeline : t -> Render_pipeline.t -> (unit, error) result
+    val set_vertex_buffer : t -> index:int -> offset:int64 -> Buffer.t -> (unit, error) result
+    val set_fragment_buffer : t -> index:int -> offset:int64 -> Buffer.t -> (unit, error) result
+    val draw_primitives : t -> primitive:primitive -> vertex_start:int ->
+      vertex_count:int -> ?instance_count:int -> ?base_instance:int -> unit ->
+      (unit, error) result
+    val destroy : t -> (unit, error) result
+  end
+
+  module Compute_command : sig
+    type t
+    val at : buffer -> int -> (t, error) result
+    val destroyed : t -> bool
+    val reset : t -> (unit, error) result
+    val set_pipeline : t -> Compute_pipeline.t -> (unit, error) result
+    val set_kernel_buffer : t -> index:int -> offset:int64 -> Buffer.t -> (unit, error) result
+    val dispatch_threads : t -> threads:(int * int * int) ->
+      threadgroup:(int * int * int) -> (unit, error) result
+    val destroy : t -> (unit, error) result
   end
 end
 

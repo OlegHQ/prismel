@@ -1,5 +1,6 @@
 module Enum = Metal_enum_generated
 module Value = Metal_value_record_generated
+module Descriptor = Metal_descriptor_generated
 
 type error_kind =
   | Native_error
@@ -1306,6 +1307,60 @@ type blit_encoder =
   { raw : Metal_raw.handle
   ; lifetime : lifetime
   ; command_buffer : command_buffer
+  }
+
+type indirect_command_kind =
+  | Indirect_draw
+  | Indirect_draw_indexed
+  | Indirect_concurrent_dispatch
+  | Indirect_concurrent_dispatch_threads
+
+type indirect_command_buffer_descriptor =
+  { command_types : indirect_command_kind list
+  ; inherit_buffers : bool
+  ; inherit_pipeline_state : bool
+  ; max_vertex_buffer_bind_count : int
+  ; max_fragment_buffer_bind_count : int
+  ; max_kernel_buffer_bind_count : int
+  ; support_ray_tracing : bool
+  ; support_dynamic_attribute_stride : bool
+  ; max_kernel_threadgroup_memory_bind_count : int
+  ; max_object_buffer_bind_count : int
+  ; max_mesh_buffer_bind_count : int
+  ; max_object_threadgroup_memory_bind_count : int
+  ; inherit_depth_stencil_state : bool
+  ; inherit_depth_bias : bool
+  ; inherit_depth_clip_mode : bool
+  ; inherit_cull_mode : bool
+  ; inherit_front_facing_winding : bool
+  ; inherit_triangle_fill_mode : bool
+  ; support_color_attachment_mapping : bool
+  }
+
+type indirect_retained =
+  | Indirect_buffer of buffer
+  | Indirect_compute_pipeline of compute_pipeline
+  | Indirect_render_pipeline of render_pipeline
+
+type indirect_command_buffer =
+  { raw : Metal_raw.handle
+  ; lifetime : lifetime
+  ; device : device
+  ; max_command_count : int
+  ; command_types : indirect_command_kind list
+  ; retained : indirect_retained list ref
+  }
+
+type indirect_render_command =
+  { raw : Metal_raw.handle
+  ; lifetime : lifetime
+  ; parent : indirect_command_buffer
+  }
+
+type indirect_compute_command =
+  { raw : Metal_raw.handle
+  ; lifetime : lifetime
+  ; parent : indirect_command_buffer
   }
 
 let make_device raw =
@@ -12742,6 +12797,219 @@ module Command4 = struct
                    detach value.command_buffer.lifetime
                  end;
                  Ok ()))
+  end
+end
+
+module Indirect_command_buffer = struct
+  type command_type = indirect_command_kind =
+    | Indirect_draw
+    | Indirect_draw_indexed
+    | Indirect_concurrent_dispatch
+    | Indirect_concurrent_dispatch_threads
+
+  type descriptor = indirect_command_buffer_descriptor
+  type t = indirect_command_buffer
+  type buffer = t
+
+  let descriptor ?(inherit_buffers = false) ?(inherit_pipeline_state = false)
+      ?(max_vertex_buffer_bind_count = 0)
+      ?(max_fragment_buffer_bind_count = 0)
+      ?(max_kernel_buffer_bind_count = 0) ?(support_ray_tracing = false)
+      ?(support_dynamic_attribute_stride = false)
+      ?(max_kernel_threadgroup_memory_bind_count = 0)
+      ?(max_object_buffer_bind_count = 0) ?(max_mesh_buffer_bind_count = 0)
+      ?(max_object_threadgroup_memory_bind_count = 0)
+      ?(inherit_depth_stencil_state = true) ?(inherit_depth_bias = true)
+      ?(inherit_depth_clip_mode = true) ?(inherit_cull_mode = true)
+      ?(inherit_front_facing_winding = true)
+      ?(inherit_triangle_fill_mode = true)
+      ?(support_color_attachment_mapping = false) ~command_types () =
+    { command_types; inherit_buffers; inherit_pipeline_state
+    ; max_vertex_buffer_bind_count; max_fragment_buffer_bind_count
+    ; max_kernel_buffer_bind_count; support_ray_tracing
+    ; support_dynamic_attribute_stride
+    ; max_kernel_threadgroup_memory_bind_count; max_object_buffer_bind_count
+    ; max_mesh_buffer_bind_count; max_object_threadgroup_memory_bind_count
+    ; inherit_depth_stencil_state; inherit_depth_bias; inherit_depth_clip_mode
+    ; inherit_cull_mode; inherit_front_facing_winding
+    ; inherit_triangle_fill_mode; support_color_attachment_mapping }
+
+  let command_bit = function
+    | Indirect_draw -> 1L
+    | Indirect_draw_indexed -> 2L
+    | Indirect_concurrent_dispatch -> 32L
+    | Indirect_concurrent_dispatch_threads -> 64L
+
+  let has kind kinds = List.exists (( = ) kind) kinds
+  let release_retained retained =
+    let values = !retained in
+    retained := [];
+    List.iter (function
+      | Indirect_buffer value -> detach value.lifetime
+      | Indirect_compute_pipeline value -> detach value.lifetime
+      | Indirect_render_pipeline value -> detach value.lifetime) values
+
+  let retain value retained =
+    let lifetime = match retained with
+      | Indirect_buffer value -> value.lifetime
+      | Indirect_compute_pipeline value -> value.lifetime
+      | Indirect_render_pipeline value -> value.lifetime
+    in
+    attach lifetime;
+    value.retained := retained :: !(value.retained)
+
+  let raw_descriptor (value : descriptor) =
+    ({ Metal_raw.command_types =
+         List.fold_left (fun bits kind -> Int64.logor bits (command_bit kind)) 0L
+           value.command_types
+     ; inherit_buffers = value.inherit_buffers
+     ; inherit_pipeline_state = value.inherit_pipeline_state
+     ; max_vertex_buffer_bind_count = Int64.of_int value.max_vertex_buffer_bind_count
+     ; max_fragment_buffer_bind_count = Int64.of_int value.max_fragment_buffer_bind_count
+     ; max_kernel_buffer_bind_count = Int64.of_int value.max_kernel_buffer_bind_count
+     ; support_ray_tracing = value.support_ray_tracing
+     ; support_dynamic_attribute_stride = value.support_dynamic_attribute_stride
+     ; max_kernel_threadgroup_memory_bind_count = Int64.of_int value.max_kernel_threadgroup_memory_bind_count
+     ; max_object_buffer_bind_count = Int64.of_int value.max_object_buffer_bind_count
+     ; max_mesh_buffer_bind_count = Int64.of_int value.max_mesh_buffer_bind_count
+     ; max_object_threadgroup_memory_bind_count = Int64.of_int value.max_object_threadgroup_memory_bind_count
+     ; inherit_depth_stencil_state = value.inherit_depth_stencil_state
+     ; inherit_depth_bias = value.inherit_depth_bias
+     ; inherit_depth_clip_mode = value.inherit_depth_clip_mode
+     ; inherit_cull_mode = value.inherit_cull_mode
+     ; inherit_front_facing_winding = value.inherit_front_facing_winding
+     ; inherit_triangle_fill_mode = value.inherit_triangle_fill_mode
+     ; support_color_attachment_mapping = value.support_color_attachment_mapping
+     } : Metal_raw.indirect_command_buffer_descriptor)
+
+  let create ~(device : Device.t) ?(storage = Buffer.Private)
+      ?(cpu_cache = Buffer.Default_cache)
+      ?(hazard_tracking = Buffer.Default_hazard_tracking) ~max_command_count
+      (descriptor : descriptor) =
+    let operation = "Metal.Indirect_command_buffer.create" in
+    on_main operation (fun () ->
+      let counts = [ descriptor.max_vertex_buffer_bind_count;
+        descriptor.max_fragment_buffer_bind_count; descriptor.max_kernel_buffer_bind_count;
+        descriptor.max_kernel_threadgroup_memory_bind_count;
+        descriptor.max_object_buffer_bind_count; descriptor.max_mesh_buffer_bind_count;
+        descriptor.max_object_threadgroup_memory_bind_count ] in
+      match ensure_live operation device.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when descriptor.command_types = [] ->
+          error operation Invalid_argument "at least one indirect command type is required"
+      | Ok () when List.sort_uniq compare descriptor.command_types <> descriptor.command_types ->
+          error operation Invalid_argument "indirect command types must be unique and ordered"
+      | Ok () when max_command_count <= 0 ->
+          error operation Invalid_argument "maximum command count must be positive"
+      | Ok () when List.exists (fun count -> count < 0 || count > 31) counts ->
+          error operation Invalid_argument "indirect binding counts must be in [0, 31]"
+      | Ok () ->
+          let options = resource_options_code ~storage ~cpu_cache ~hazard_tracking in
+          match Metal_raw.indirect_command_buffer_create device.raw
+                  (raw_descriptor descriptor) (Int64.of_int max_command_count)
+                  (Int64.of_int options) with
+          | Error message -> native_error operation message
+          | Ok raw ->
+              let value = { raw; lifetime = lifetime (); device; max_command_count;
+                command_types = descriptor.command_types; retained = ref [] } in
+              attach device.lifetime;
+              attach_finalizer ~on_finalize:(fun () -> release_retained value.retained)
+                value value.lifetime device.lifetime;
+              Ok value)
+
+  let device (value : t) = value.device
+  let generation (value : t) = Metal_raw.generation value.raw
+  let destroyed (value : t) = is_destroyed value.lifetime
+  let max_command_count (value : t) = value.max_command_count
+  let allocated_size (value : t) = Metal_raw.indirect_command_buffer_size value.raw
+
+  let validate_range operation (value : t) ~location ~length =
+    if location < 0 || length < 0 || location > value.max_command_count ||
+       length > value.max_command_count - location then
+      error operation Invalid_argument "range exceeds the indirect command buffer"
+    else Ok ()
+
+  let reset (value : t) ~location ~length =
+    let operation = "Metal.Indirect_command_buffer.reset" in
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when dependent_count value.lifetime <> 0 ->
+          error operation Parent_has_dependents "indirect commands are still borrowed"
+      | Ok () -> Result.bind (validate_range operation value ~location ~length)
+          (fun () -> match Metal_raw.indirect_command_buffer_reset value.raw
+                    (Int64.of_int location) (Int64.of_int length) with
+            | Error message -> native_error operation message
+            | Ok () -> release_retained value.retained; Ok ()))
+
+  let destroy (value : t) =
+    destroy_parent "Metal.Indirect_command_buffer.destroy" value.lifetime value.raw
+      (fun () -> release_retained value.retained; detach value.device.lifetime)
+
+  module Render_command = struct
+    type t = indirect_render_command
+    type primitive = Point | Line | Line_strip | Triangle | Triangle_strip
+    let primitive_code = function Point -> 0 | Line -> 1 | Line_strip -> 2 | Triangle -> 3 | Triangle_strip -> 4
+    let at (value : buffer) index =
+      let operation = "Metal.Indirect_command_buffer.Render_command.at" in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () when not (has Indirect_draw value.command_types || has Indirect_draw_indexed value.command_types) ->
+            error operation Invalid_state "descriptor does not enable render commands"
+        | Ok () -> Result.bind (validate_range operation value ~location:index ~length:1)
+            (fun () -> match Metal_raw.indirect_render_command value.raw (Int64.of_int index) with
+              | Error message -> native_error operation message
+              | Ok raw -> let command : t = { raw; lifetime = lifetime (); parent = value } in
+                  attach value.lifetime; attach_finalizer command command.lifetime value.lifetime; Ok command))
+    let destroyed (value : t) = is_destroyed value.lifetime
+    let reset (value : t) = on_main "Metal.Indirect_command_buffer.Render_command.reset" (fun () ->
+      match ensure_live "Metal.Indirect_command_buffer.Render_command.reset" value.lifetime with
+      | Error _ as failure -> failure | Ok () -> Result.map_error
+          (fun message -> { operation="Metal.Indirect_command_buffer.Render_command.reset"; kind=Native_error; message })
+          (Metal_raw.indirect_render_command_reset value.raw))
+    let set_pipeline (value : t) (pipeline : Render_pipeline.t) =
+      let operation="Metal.Indirect_command_buffer.Render_command.set_pipeline" in on_main operation (fun () ->
+      match ensure_live operation value.lifetime with Error _ as e -> e | Ok () ->
+      match ensure_live operation pipeline.lifetime with Error _ as e -> e | Ok () ->
+      match ensure_same_device operation value.parent.device pipeline.device with Error _ as e -> e | Ok () ->
+      match Metal_raw.generated_mtl_render_pipeline_state_support_indirect_command_buffers pipeline.raw with
+      | Error message -> native_error operation message | Ok false -> error operation Unsupported "pipeline was not compiled for indirect command buffers"
+      | Ok true -> match Metal_raw.indirect_render_command_set_pipeline value.raw pipeline.raw with
+        | Error message -> native_error operation message | Ok () -> retain value.parent (Indirect_render_pipeline pipeline); Ok ())
+    let set_buffer operation native (value : t) ~index ~offset (buffer : Buffer.t) = on_main operation (fun () ->
+      match ensure_live operation value.lifetime with Error _ as e -> e | Ok () ->
+      match ensure_buffer_usable operation buffer with Error _ as e -> e
+      | Ok () when index < 0 || index >= 31 -> error operation Invalid_argument "buffer index must be in [0, 31)"
+      | Ok () when offset < 0L || offset > buffer.length -> error operation Invalid_argument "buffer offset is outside the resource"
+      | Ok () -> match ensure_same_device operation value.parent.device buffer.device with Error _ as e -> e | Ok () ->
+        match native value.raw buffer.raw offset index with Error message -> native_error operation message
+        | Ok () -> retain value.parent (Indirect_buffer buffer); Ok ())
+    let set_vertex_buffer value ~index ~offset buffer = set_buffer "Metal.Indirect_command_buffer.Render_command.set_vertex_buffer" Metal_raw.indirect_render_command_set_vertex_buffer value ~index ~offset buffer
+    let set_fragment_buffer value ~index ~offset buffer = set_buffer "Metal.Indirect_command_buffer.Render_command.set_fragment_buffer" Metal_raw.indirect_render_command_set_fragment_buffer value ~index ~offset buffer
+    let draw_primitives (value : t) ~primitive ~vertex_start ~vertex_count ?(instance_count=1) ?(base_instance=0) () =
+      let operation="Metal.Indirect_command_buffer.Render_command.draw_primitives" in on_main operation (fun () ->
+      match ensure_live operation value.lifetime with Error _ as e -> e
+      | Ok () when vertex_start < 0 || vertex_count <= 0 || instance_count <= 0 || base_instance < 0 -> error operation Invalid_argument "draw ranges must be nonnegative and counts positive"
+      | Ok () -> match Metal_raw.indirect_render_command_draw_primitives value.raw (primitive_code primitive) (Int64.of_int vertex_start) (Int64.of_int vertex_count) (Int64.of_int instance_count) (Int64.of_int base_instance) with Error message -> native_error operation message | Ok () -> Ok ())
+    let destroy (value : t) = destroy_leaf "Metal.Indirect_command_buffer.Render_command.destroy" value.lifetime value.raw (fun () -> detach value.parent.lifetime)
+  end
+
+  module Compute_command = struct
+    type t = indirect_compute_command
+    let at (value : buffer) index =
+      let operation="Metal.Indirect_command_buffer.Compute_command.at" in on_main operation (fun () ->
+      match ensure_live operation value.lifetime with Error _ as e -> e
+      | Ok () when not (has Indirect_concurrent_dispatch value.command_types || has Indirect_concurrent_dispatch_threads value.command_types) -> error operation Invalid_state "descriptor does not enable compute commands"
+      | Ok () -> Result.bind (validate_range operation value ~location:index ~length:1) (fun () ->
+        match Metal_raw.indirect_compute_command value.raw (Int64.of_int index) with Error message -> native_error operation message
+        | Ok raw -> let command : t = {raw;lifetime=lifetime ();parent=value} in attach value.lifetime; attach_finalizer command command.lifetime value.lifetime; Ok command))
+    let destroyed (value : t) = is_destroyed value.lifetime
+    let reset (value : t) = on_main "Metal.Indirect_command_buffer.Compute_command.reset" (fun () -> match ensure_live "Metal.Indirect_command_buffer.Compute_command.reset" value.lifetime with Error _ as e -> e | Ok () -> match Metal_raw.indirect_compute_command_reset value.raw with Error message -> native_error "Metal.Indirect_command_buffer.Compute_command.reset" message | Ok () -> Ok ())
+    let set_pipeline (value : t) (pipeline : Compute_pipeline.t) = let operation="Metal.Indirect_command_buffer.Compute_command.set_pipeline" in on_main operation (fun () -> match ensure_live operation value.lifetime with Error _ as e -> e | Ok () -> match ensure_live operation pipeline.lifetime with Error _ as e -> e | Ok () -> match ensure_same_device operation value.parent.device pipeline.device with Error _ as e -> e | Ok () -> match Metal_raw.generated_mtl_compute_pipeline_state_support_indirect_command_buffers pipeline.raw with Error message -> native_error operation message | Ok false -> error operation Unsupported "pipeline was not compiled for indirect command buffers" | Ok true -> match Metal_raw.indirect_compute_command_set_pipeline value.raw pipeline.raw with Error message -> native_error operation message | Ok () -> retain value.parent (Indirect_compute_pipeline pipeline); Ok ())
+    let set_kernel_buffer (value : t) ~index ~offset (buffer : Buffer.t) = let operation="Metal.Indirect_command_buffer.Compute_command.set_kernel_buffer" in on_main operation (fun () -> match ensure_live operation value.lifetime with Error _ as e -> e | Ok () -> match ensure_buffer_usable operation buffer with Error _ as e -> e | Ok () when index<0 || index>=31 -> error operation Invalid_argument "buffer index must be in [0, 31)" | Ok () when offset<0L || offset>buffer.length -> error operation Invalid_argument "buffer offset is outside the resource" | Ok () -> match ensure_same_device operation value.parent.device buffer.device with Error _ as e -> e | Ok () -> match Metal_raw.indirect_compute_command_set_kernel_buffer value.raw buffer.raw offset index with Error message -> native_error operation message | Ok () -> retain value.parent (Indirect_buffer buffer); Ok ())
+    let dispatch_threads (value : t) ~threads ~threadgroup = let operation="Metal.Indirect_command_buffer.Compute_command.dispatch_threads" in on_main operation (fun () -> match ensure_live operation value.lifetime with Error _ as e -> e | Ok () -> match Metal_raw.indirect_compute_command_dispatch_threads value.raw threads threadgroup with Error message -> native_error operation message | Ok () -> Ok ())
+    let destroy (value : t) = destroy_leaf "Metal.Indirect_command_buffer.Compute_command.destroy" value.lifetime value.raw (fun () -> detach value.parent.lifetime)
   end
 end
 
