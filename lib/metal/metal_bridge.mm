@@ -420,6 +420,8 @@ API_AVAILABLE(macos(26.0))
                        buffers:(NSArray<PrismelMetal4CommandBufferState *> *)buffers;
 - (void)finishWithFeedback:(id<MTL4CommitFeedback>)feedback;
 - (nullable NSError *)waitUntilCompleted;
+- (double)startTime;
+- (double)endTime;
 @end
 
 @implementation PrismelMetal4SubmissionState {
@@ -427,6 +429,8 @@ API_AVAILABLE(macos(26.0))
   NSArray<PrismelMetal4CommandBufferState *> *_buffers;
   NSCondition *_condition;
   NSError *_error;
+  double _startTime;
+  double _endTime;
   BOOL _completed;
 }
 
@@ -446,6 +450,8 @@ API_AVAILABLE(macos(26.0))
   [_condition lock];
   if (!_completed) {
     _error = feedback.error;
+    _startTime = feedback.GPUStartTime;
+    _endTime = feedback.GPUEndTime;
     for (PrismelMetal4CommandBufferState *buffer in _buffers) {
       [buffer releaseEncodedObjects];
     }
@@ -455,6 +461,9 @@ API_AVAILABLE(macos(26.0))
   }
   [_condition unlock];
 }
+
+- (double)startTime { [_condition lock]; double v = _startTime; [_condition unlock]; return v; }
+- (double)endTime { [_condition lock]; double v = _endTime; [_condition unlock]; return v; }
 
 - (NSError *)waitUntilCompleted {
   [_condition lock];
@@ -10529,6 +10538,11 @@ extern "C" CAMLprim value caml_prismel_metal_command4_queue_create(
       if (@available(macOS 26.0, *)) {
         MTL4CommandQueueDescriptor *descriptor =
             [[MTL4CommandQueueDescriptor alloc] init];
+        descriptor.feedbackQueue = nil;
+        if (descriptor.feedbackQueue != nil) {
+          CAMLreturn(result_error_text(
+              "Metal changed the default command-queue feedback queue"));
+        }
         if (Is_block(raw_label)) {
           NSString *label = string_from_ocaml(Field(raw_label, 0));
           if (label == nil) {
@@ -12696,6 +12710,34 @@ extern "C" CAMLprim value caml_prismel_metal_command4_submission_wait(
     }
     CAMLreturn(result_error_text("Metal 4 commands require macOS 26"));
   }
+}
+
+extern "C" CAMLprim value caml_prismel_metal_command4_submission_times(
+    value raw) {
+  CAMLparam1(raw);
+  CAMLlocal2(pair, result);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      PrismelMetal4SubmissionState *submission = submission4_state_of_handle(raw);
+      NSError *error = [submission waitUntilCompleted];
+      if (error != nil) {
+        CAMLreturn(result_error(error_description(
+            error, @"Metal 4 command submission failed")));
+      }
+      const double start = [submission startTime];
+      const double finish = [submission endTime];
+      if (!std::isfinite(start) || !std::isfinite(finish) || start < 0.0 ||
+          finish < start) {
+        CAMLreturn(result_error_text("Metal returned invalid GPU feedback times"));
+      }
+      pair = caml_alloc_tuple(2);
+      Store_field(pair, 0, caml_copy_double(start));
+      Store_field(pair, 1, caml_copy_double(finish));
+      result = result_ok(pair);
+      CAMLreturn(result);
+    }
+  }
+  CAMLreturn(result_error_text("Metal 4 commands require macOS 26"));
 }
 
 extern "C" CAMLprim value
