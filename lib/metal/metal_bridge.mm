@@ -4,6 +4,7 @@
 #include <array>
 #include <atomic>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <initializer_list>
@@ -9605,6 +9606,63 @@ bool prismel_metal4_indexed_draw(
   return true;
 }
 
+struct PrismelMetal4BufferRange {
+  MTLGPUAddress address;
+  NSUInteger length;
+};
+
+static_assert(sizeof(MTLDrawPrimitivesIndirectArguments) == 16);
+static_assert(offsetof(MTLDrawPrimitivesIndirectArguments, vertexCount) == 0);
+static_assert(offsetof(MTLDrawPrimitivesIndirectArguments, instanceCount) == 4);
+static_assert(offsetof(MTLDrawPrimitivesIndirectArguments, vertexStart) == 8);
+static_assert(offsetof(MTLDrawPrimitivesIndirectArguments, baseInstance) == 12);
+static_assert(sizeof(MTLDrawIndexedPrimitivesIndirectArguments) == 20);
+static_assert(
+    offsetof(MTLDrawIndexedPrimitivesIndirectArguments, indexCount) == 0);
+static_assert(
+    offsetof(MTLDrawIndexedPrimitivesIndirectArguments, instanceCount) == 4);
+static_assert(
+    offsetof(MTLDrawIndexedPrimitivesIndirectArguments, indexStart) == 8);
+static_assert(
+    offsetof(MTLDrawIndexedPrimitivesIndirectArguments, baseVertex) == 12);
+static_assert(
+    offsetof(MTLDrawIndexedPrimitivesIndirectArguments, baseInstance) == 16);
+
+API_AVAILABLE(macos(26.0))
+bool prismel_metal4_explicit_buffer_range(
+    id<MTLBuffer> buffer, PrismelMetal4CommandBufferState *command_buffer,
+    std::int64_t signed_offset, std::int64_t signed_length,
+    NSUInteger alignment, PrismelMetal4BufferRange *range,
+    NSString *__autoreleasing *failure) {
+  if (buffer.device.registryID !=
+          command_buffer.commandBuffer.device.registryID ||
+      signed_offset < 0 || signed_length <= 0) {
+    *failure = @"Metal 4 GPU-address buffer range is invalid";
+    return false;
+  }
+  const std::uint64_t unsigned_offset =
+      static_cast<std::uint64_t>(signed_offset);
+  const std::uint64_t unsigned_length =
+      static_cast<std::uint64_t>(signed_length);
+  if (alignment == 0 || unsigned_offset % alignment != 0 ||
+      unsigned_length % alignment != 0 || unsigned_offset > buffer.length ||
+      unsigned_length > buffer.length - unsigned_offset) {
+    *failure = @"Metal 4 GPU-address buffer range is misaligned or out of bounds";
+    return false;
+  }
+  const MTLGPUAddress base_address = buffer.gpuAddress;
+  if (base_address == 0 ||
+      static_cast<MTLGPUAddress>(unsigned_offset) >
+          std::numeric_limits<MTLGPUAddress>::max() - base_address) {
+    *failure = @"Metal 4 GPU-address buffer range overflows";
+    return false;
+  }
+  range->address =
+      base_address + static_cast<MTLGPUAddress>(unsigned_offset);
+  range->length = static_cast<NSUInteger>(unsigned_length);
+  return true;
+}
+
 extern "C" CAMLprim value
 caml_prismel_metal_command4_render_encoder_draw_indexed_primitives(
     value raw_encoder, value raw_buffer, value raw_tables,
@@ -9699,6 +9757,109 @@ caml_prismel_metal_command4_render_encoder_draw_indexed_primitives_instanced(
       }
     }
     CAMLreturn(result_error_text("Metal 4 instanced draws require macOS 26"));
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_command4_render_encoder_draw_primitives_indirect(
+    value raw_encoder, value raw_buffer, value raw_tables,
+    value raw_indirect_buffer, value raw_draw) {
+  CAMLparam5(raw_encoder, raw_buffer, raw_tables, raw_indirect_buffer, raw_draw);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4RenderCommandEncoder> encoder =
+            object_of_handle(raw_encoder, Handle_kind::Render_encoder4);
+        PrismelMetal4CommandBufferState *command_buffer =
+            command_buffer4_state_of_handle(raw_buffer);
+        id<MTLBuffer> indirect_buffer =
+            object_of_handle(raw_indirect_buffer, Handle_kind::Buffer);
+        const intnat primitive = Long_val(Field(raw_draw, 0));
+        const std::int64_t indirect_offset = Int64_val(Field(raw_draw, 1));
+        PrismelMetal4BufferRange indirect_range;
+        NSString *validation_failure = nil;
+        if (encoder.commandBuffer != command_buffer.commandBuffer ||
+            primitive < 0 || primitive > 4 ||
+            !prismel_metal4_explicit_buffer_range(
+                indirect_buffer, command_buffer, indirect_offset, 16, 4,
+                &indirect_range, &validation_failure)) {
+          CAMLreturn(result_error(
+              validation_failure != nil
+                  ? validation_failure
+                  : @"Metal 4 indirect primitive-draw arguments are invalid"));
+        }
+        if (!retain_metal4_render_argument_tables(
+                raw_tables, command_buffer, &validation_failure)) {
+          CAMLreturn(result_error(validation_failure));
+        }
+        [command_buffer retainEncodedObject:indirect_buffer];
+        [encoder drawPrimitives:static_cast<MTLPrimitiveType>(primitive)
+                    indirectBuffer:indirect_range.address];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("Metal 4 indirect draws require macOS 26"));
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_command4_render_encoder_draw_indexed_primitives_indirect(
+    value raw_encoder, value raw_buffer, value raw_tables, value raw_buffers,
+    value raw_draw) {
+  CAMLparam5(raw_encoder, raw_buffer, raw_tables, raw_buffers, raw_draw);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4RenderCommandEncoder> encoder =
+            object_of_handle(raw_encoder, Handle_kind::Render_encoder4);
+        PrismelMetal4CommandBufferState *command_buffer =
+            command_buffer4_state_of_handle(raw_buffer);
+        id<MTLBuffer> index_buffer =
+            object_of_handle(Field(raw_buffers, 0), Handle_kind::Buffer);
+        id<MTLBuffer> indirect_buffer =
+            object_of_handle(Field(raw_buffers, 1), Handle_kind::Buffer);
+        const intnat primitive = Long_val(Field(raw_draw, 0));
+        const intnat index_type = Long_val(Field(raw_draw, 1));
+        const std::int64_t index_offset = Int64_val(Field(raw_draw, 2));
+        const std::int64_t index_length = Int64_val(Field(raw_draw, 3));
+        const std::int64_t indirect_offset = Int64_val(Field(raw_draw, 4));
+        PrismelMetal4BufferRange index_range;
+        PrismelMetal4BufferRange indirect_range;
+        NSString *validation_failure = nil;
+        const NSUInteger index_alignment = index_type == 0 ? 2 : 4;
+        if (encoder.commandBuffer != command_buffer.commandBuffer ||
+            primitive < 0 || primitive > 4 || index_type < 0 ||
+            index_type > 1 ||
+            !prismel_metal4_explicit_buffer_range(
+                index_buffer, command_buffer, index_offset, index_length,
+                index_alignment, &index_range, &validation_failure) ||
+            !prismel_metal4_explicit_buffer_range(
+                indirect_buffer, command_buffer, indirect_offset, 20, 4,
+                &indirect_range, &validation_failure)) {
+          CAMLreturn(result_error(
+              validation_failure != nil
+                  ? validation_failure
+                  : @"Metal 4 indexed indirect-draw arguments are invalid"));
+        }
+        if (!retain_metal4_render_argument_tables(
+                raw_tables, command_buffer, &validation_failure)) {
+          CAMLreturn(result_error(validation_failure));
+        }
+        [command_buffer retainEncodedObject:index_buffer];
+        [command_buffer retainEncodedObject:indirect_buffer];
+        [encoder drawIndexedPrimitives:static_cast<MTLPrimitiveType>(primitive)
+                                 indexType:static_cast<MTLIndexType>(index_type)
+                               indexBuffer:index_range.address
+                         indexBufferLength:index_range.length
+                              indirectBuffer:indirect_range.address];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("Metal 4 indirect draws require macOS 26"));
   }
 }
 

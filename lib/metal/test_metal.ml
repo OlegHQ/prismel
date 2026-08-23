@@ -4606,6 +4606,175 @@ let test_metal4_instanced_commands device =
     true
   end
 
+let test_metal4_indirect_commands device =
+  if not (get (Device.supports_family device Device.Metal4)) then false
+  else begin
+    let compiler = get (Compiler.create device) in
+    let library =
+      get
+        (Compiler.compile_source ~name:"metal4-command-indirect-library"
+           compiler instanced_render_shader_source)
+    in
+    let make_pipeline label vertex =
+      get
+        (Compiler.create_render_pipeline ~label
+           ~fragment:"prismel_instanced_fragment" compiler ~library ~vertex)
+    in
+    let direct_pipeline =
+      make_pipeline "Metal 4 direct indirect pipeline"
+        "prismel_direct_instanced_vertex"
+    in
+    let indexed_pipeline =
+      make_pipeline "Metal 4 indexed indirect pipeline"
+        "prismel_indexed_instanced_vertex"
+    in
+    let make_target label =
+      get
+        (Texture.create ~device
+           (Texture.descriptor_2d ~storage:Buffer.Shared
+              ~usage:[ Texture.Render_target ] ~format:Texture.Bgra8_unorm
+              ~width:8 ~height:8 ~label ()))
+    in
+    let direct_target = make_target "Metal 4 direct indirect target" in
+    let indexed_target = make_target "Metal 4 indexed indirect target" in
+    let direct_bytes = Bytes.make 24 '\000' in
+    Bytes.set_int32_le direct_bytes 4 4l;
+    Bytes.set_int32_le direct_bytes 8 2l;
+    Bytes.set_int32_le direct_bytes 12 4l;
+    Bytes.set_int32_le direct_bytes 16 5l;
+    let direct_arguments =
+      get (Buffer.create ~device ~length:24L ~storage:Buffer.Shared ())
+    in
+    get (Buffer.write_bytes direct_arguments ~dst_offset:0L direct_bytes);
+    let indexed_bytes = Bytes.make 28 '\000' in
+    Bytes.set_int32_le indexed_bytes 4 6l;
+    Bytes.set_int32_le indexed_bytes 8 2l;
+    Bytes.set_int32_le indexed_bytes 12 1l;
+    Bytes.set_int32_le indexed_bytes 16 (-2l);
+    Bytes.set_int32_le indexed_bytes 20 8l;
+    let indexed_arguments =
+      get (Buffer.create ~device ~length:28L ~storage:Buffer.Shared ())
+    in
+    get (Buffer.write_bytes indexed_arguments ~dst_offset:0L indexed_bytes);
+    let index_bytes = Bytes.make 20 '\000' in
+    Array.iteri
+      (fun index value -> Bytes.set_uint16_le index_bytes (4 + (index * 2)) value)
+      [| 2; 3; 4; 4; 3; 5 |];
+    let index_buffer =
+      get (Buffer.create ~device ~length:20L ~storage:Buffer.Shared ())
+    in
+    get (Buffer.write_bytes index_buffer ~dst_offset:0L index_bytes);
+    let allocator =
+      get (Command4.Allocator.create ~label:"Metal 4 indirect allocator" device)
+    in
+    let queue =
+      get (Command4.Queue.create ~label:"Metal 4 indirect queue" device)
+    in
+    let commands =
+      get
+        (Command4.Command_buffer.create allocator
+           ~label:"Metal 4 indirect commands" ())
+    in
+    let attachment texture =
+      Command4.Render_encoder.color_attachment texture
+    in
+    let direct_encoder =
+      get
+        (Command4.Render_encoder.create ~label:"Metal 4 direct indirect encoder"
+           commands ~color_attachments:[ attachment direct_target ])
+    in
+    ignore
+      (expect_error Invalid_state
+         (Command4.Render_encoder.draw_primitives_indirect direct_encoder
+            Command4.Render_encoder.Triangle_strip
+            ~indirect_buffer:direct_arguments ~indirect_offset:4L));
+    get (Command4.Render_encoder.set_pipeline direct_encoder direct_pipeline);
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.draw_primitives_indirect direct_encoder
+            Command4.Render_encoder.Triangle_strip
+            ~indirect_buffer:direct_arguments ~indirect_offset:2L));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.draw_primitives_indirect direct_encoder
+            Command4.Render_encoder.Triangle_strip
+            ~indirect_buffer:direct_arguments ~indirect_offset:12L));
+    get
+      (Command4.Render_encoder.draw_primitives_indirect direct_encoder
+         Command4.Render_encoder.Triangle_strip
+         ~indirect_buffer:direct_arguments ~indirect_offset:4L);
+    get (Command4.Render_encoder.end_encoding direct_encoder);
+    let indexed_encoder =
+      get
+        (Command4.Render_encoder.create
+           ~label:"Metal 4 indexed indirect encoder" commands
+           ~color_attachments:[ attachment indexed_target ])
+    in
+    get (Command4.Render_encoder.set_pipeline indexed_encoder indexed_pipeline);
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.draw_indexed_primitives_indirect
+            indexed_encoder Command4.Render_encoder.Triangle
+            Command4.Render_encoder.Uint16 ~index_buffer ~index_offset:1L
+            ~index_length:18L ~indirect_buffer:indexed_arguments
+            ~indirect_offset:4L));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.draw_indexed_primitives_indirect
+            indexed_encoder Command4.Render_encoder.Triangle
+            Command4.Render_encoder.Uint16 ~index_buffer ~index_offset:2L
+            ~index_length:17L ~indirect_buffer:indexed_arguments
+            ~indirect_offset:4L));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.draw_indexed_primitives_indirect
+            indexed_encoder Command4.Render_encoder.Triangle
+            Command4.Render_encoder.Uint16 ~index_buffer ~index_offset:2L
+            ~index_length:18L ~indirect_buffer:indexed_arguments
+            ~indirect_offset:12L));
+    get
+      (Command4.Render_encoder.draw_indexed_primitives_indirect indexed_encoder
+         Command4.Render_encoder.Triangle Command4.Render_encoder.Uint16
+         ~index_buffer ~index_offset:2L ~index_length:18L
+         ~indirect_buffer:indexed_arguments ~indirect_offset:4L);
+    List.iter
+      (fun buffer ->
+        ignore (expect_error Parent_has_dependents (Buffer.destroy buffer)))
+      [ direct_arguments; indexed_arguments; index_buffer ];
+    get (Command4.Render_encoder.end_encoding indexed_encoder);
+    get (Command4.Command_buffer.end_recording commands);
+    let submission = get (Command4.Queue.commit queue [ commands ]) in
+    get (Command4.Submission.wait submission);
+    let read_target texture =
+      get
+        (Texture.read_bytes texture
+           ~region:
+             { Texture.x = 0; y = 0; z = 0; width = 8; height = 8; depth = 1 }
+           ~mip_level:0 ~slice:0 ~bytes_per_row:32 ~bytes_per_image:256)
+    in
+    check_vertical_split_bgra ~label:"Metal 4 direct indirect draw"
+      ~left:(255, 0, 0, 255) ~right:(0, 255, 0, 255)
+      (read_target direct_target);
+    check_vertical_split_bgra ~label:"Metal 4 indexed indirect draw"
+      ~left:(0, 0, 255, 255) ~right:(255, 0, 0, 255)
+      (read_target indexed_target);
+    get (Render_pipeline.destroy direct_pipeline);
+    get (Render_pipeline.destroy indexed_pipeline);
+    List.iter (fun buffer -> get (Buffer.destroy buffer))
+      [ direct_arguments; indexed_arguments; index_buffer ];
+    get (Texture.destroy direct_target);
+    get (Texture.destroy indexed_target);
+    get (Command4.Submission.destroy submission);
+    get (Command4.Command_buffer.destroy commands);
+    get (Command4.Allocator.reset allocator);
+    get (Command4.Queue.destroy queue);
+    get (Command4.Allocator.destroy allocator);
+    get (Library.destroy library);
+    get (Compiler.destroy compiler);
+    Printf.printf "Metal 4 direct/indexed indirect-command conformance passed\n%!";
+    true
+  end
+
 let test_metal4_mesh_commands device =
   if
     not (get (Device.supports_family device Device.Metal4))
@@ -5058,6 +5227,7 @@ let () =
     ignore (test_metal4_render_commands device);
     ignore (test_metal4_indexed_commands device);
     ignore (test_metal4_instanced_commands device);
+    ignore (test_metal4_indirect_commands device);
     ignore (test_metal4_mesh_commands device);
     ignore (test_metal4_tile_commands device);
     ignore (test_metal4_compute_commands device);
@@ -6867,6 +7037,6 @@ let () =
         stats.external_deallocations
         stats.external_deallocation_mismatches;
     Printf.printf
-      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/compiler-task/pipeline-dataset/binary-function/static-link/reflection/compute/render/mesh/object/tile/command4-argument-table/compute/render/indexed/instanced/mesh/tile conformance passed on %s\n%!"
+      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/compiler-task/pipeline-dataset/binary-function/static-link/reflection/compute/render/mesh/object/tile/command4-argument-table/compute/render/indexed/instanced/indirect/mesh/tile conformance passed on %s\n%!"
       info.name
   end

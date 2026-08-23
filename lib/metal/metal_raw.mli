@@ -903,6 +903,16 @@ external command4_render_encoder_draw_indexed_primitives_instanced :
   (int * int * int * int64 * int * int * int) -> (unit, string) result =
   "caml_prismel_metal_command4_render_encoder_draw_indexed_primitives_instanced"
 
+external command4_render_encoder_draw_primitives_indirect :
+  handle -> handle -> handle array -> handle -> (int * int64) ->
+  (unit, string) result =
+  "caml_prismel_metal_command4_render_encoder_draw_primitives_indirect"
+
+external command4_render_encoder_draw_indexed_primitives_indirect :
+  handle -> handle -> handle array -> (handle * handle) ->
+  (int * int * int64 * int64 * int64) -> (unit, string) result =
+  "caml_prismel_metal_command4_render_encoder_draw_indexed_primitives_indirect"
+
 external command4_render_encoder_draw_mesh_threadgroups :
   handle -> handle -> handle array ->
   (int * int * int * int * int * int * int * int * int) ->

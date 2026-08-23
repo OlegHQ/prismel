@@ -608,6 +608,17 @@ offset. The M1 conformance path renders exact left/right color splits for a
 nonzero direct vertex start and base instance, then for a 2-byte-offset `uint16`
 buffer with base vertex `-2` and base instance `8`.
 
+Indirect conventional and indexed draws consume the standard packed
+`MTLDrawPrimitivesIndirectArguments` and
+`MTLDrawIndexedPrimitivesIndirectArguments` layouts from checked,
+4-byte-aligned 16- and 20-byte buffer ranges. Indexed commands additionally
+take an explicit positive, naturally aligned index-buffer range so Metal can
+bound GPU-selected `indexStart` and `indexCount` values. Both buffers and every
+bound argument-table snapshot remain completion-owned. The M1 conformance path
+uses nonzero indirect offsets and an indexed record with `indexStart = 1`, base
+vertex `-2`, and base instance `8`, then verifies two exact split-color 8×8
+targets.
+
 `Command4.Compute_encoder` binds a checked compute pipeline and an optional
 argument table, then dispatches positive direct grid/threadgroup dimensions
 whose threadgroup cardinality fits the compiled pipeline limit. Each dispatch
@@ -645,9 +656,8 @@ The M1 conformance path compiles an exact 32×32 full-tile pipeline, clears its
 argument-table slot immediately after dispatch, and verifies the retained shared
 buffer contains the tile shader's exact value `23` after commit feedback.
 
-Indirect draws, blend/depth/stencil
-policy, vertex descriptors, dynamic render linking, and positive offline
-`.metallib` provenance remain open.
+Blend/depth/stencil policy, vertex descriptors, dynamic render linking, and
+positive offline `.metallib` provenance remain open.
 
 `test_metal.exe` runs a real M1 compute kernel, wrong-domain and invalid-state
 cases, full labeled shader diagnostics, function-constant introspection and
@@ -673,6 +683,7 @@ argument-table buffer/texture/sampler ownership and render-stage snapshots, plus
 pixel-exact conventional Metal 4 offscreen render execution and exact
 16-/32-bit indexed execution with two nonzero-offset pixel-exact targets,
 base-aware direct/indexed instancing with two exact split-color targets,
+direct/indexed indirect execution from checked packed OCaml buffers,
 argument-table-backed Metal 4 compute execution, direct and object-stage mesh
 command execution with two pixel-exact offscreen targets, and exact full-tile
 command execution through a completion-retained output buffer,

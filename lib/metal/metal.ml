@@ -9875,6 +9875,32 @@ module Command4 = struct
           "indexed draw exceeds the index-buffer bounds"
       else Ok ()
 
+    let ensure_buffer_device operation (value : t) (buffer : Buffer.t) =
+      let ( let* ) result callback = Result.bind result callback in
+      let* () = ensure_buffer_usable operation buffer in
+      ensure_same_device operation value.command_buffer.allocator.device
+        buffer.device
+
+    let validate_aligned_buffer_range operation (buffer : Buffer.t) ~name
+        ~offset ~length ~alignment =
+      if offset < 0L || Int64.rem offset alignment <> 0L then
+        error operation Invalid_argument
+          (Printf.sprintf "%s offset is negative or misaligned" name)
+      else if length <= 0L || Int64.rem length alignment <> 0L then
+        error operation Invalid_argument
+          (Printf.sprintf "%s length is not a positive aligned span" name)
+      else if
+        offset > buffer.length || length > Int64.sub buffer.length offset
+      then
+        error operation Invalid_argument
+          (Printf.sprintf "%s range exceeds its buffer" name)
+      else Ok ()
+
+    let validate_indirect_arguments operation (buffer : Buffer.t) ~offset
+        ~size =
+      validate_aligned_buffer_range operation buffer ~name:"indirect-buffer"
+        ~offset ~length:size ~alignment:4L
+
     let draw_primitives (value : t) primitive ~vertex_start ~vertex_count =
       let operation = "Metal.Command4.Render_encoder.draw_primitives" in
       on_main operation (fun () ->
@@ -9923,11 +9949,7 @@ module Command4 = struct
         let ( let* ) result callback = Result.bind result callback in
         let* () = ensure_live operation value.lifetime in
         let* () = ensure_conventional_pipeline operation value in
-        let* () = ensure_buffer_usable operation index_buffer in
-        let* () =
-          ensure_same_device operation value.command_buffer.allocator.device
-            index_buffer.device
-        in
+        let* () = ensure_buffer_device operation value index_buffer in
         let* () =
           validate_index_range operation index_type index_buffer ~index_offset
             ~index_count
@@ -9953,11 +9975,7 @@ module Command4 = struct
         let ( let* ) result callback = Result.bind result callback in
         let* () = ensure_live operation value.lifetime in
         let* () = ensure_conventional_pipeline operation value in
-        let* () = ensure_buffer_usable operation index_buffer in
-        let* () =
-          ensure_same_device operation value.command_buffer.allocator.device
-            index_buffer.device
-        in
+        let* () = ensure_buffer_device operation value index_buffer in
         let* () =
           validate_index_range operation index_type index_buffer ~index_offset
             ~index_count
@@ -9972,6 +9990,64 @@ module Command4 = struct
             value.raw value.command_buffer.raw raw_tables index_buffer.raw
             ( primitive_code primitive, index_count, index_type_code index_type
             , index_offset, instance_count, base_vertex, base_instance )
+        with
+        | Ok () -> Ok ()
+        | Error message -> native_error operation message)
+
+    let draw_primitives_indirect (value : t) primitive
+        ~(indirect_buffer : Buffer.t) ~indirect_offset =
+      let operation =
+        "Metal.Command4.Render_encoder.draw_primitives_indirect"
+      in
+      on_main operation (fun () ->
+        let ( let* ) result callback = Result.bind result callback in
+        let* () = ensure_live operation value.lifetime in
+        let* () = ensure_conventional_pipeline operation value in
+        let* () = ensure_buffer_device operation value indirect_buffer in
+        let* () =
+          validate_indirect_arguments operation indirect_buffer
+            ~offset:indirect_offset ~size:16L
+        in
+        let* raw_tables = prepare_argument_tables operation value in
+        retain_command4_buffer value.command_buffer indirect_buffer;
+        match
+          Metal_raw.command4_render_encoder_draw_primitives_indirect value.raw
+            value.command_buffer.raw raw_tables indirect_buffer.raw
+            (primitive_code primitive, indirect_offset)
+        with
+        | Ok () -> Ok ()
+        | Error message -> native_error operation message)
+
+    let draw_indexed_primitives_indirect (value : t) primitive index_type
+        ~(index_buffer : Buffer.t) ~index_offset ~index_length
+        ~(indirect_buffer : Buffer.t) ~indirect_offset =
+      let operation =
+        "Metal.Command4.Render_encoder.draw_indexed_primitives_indirect"
+      in
+      on_main operation (fun () ->
+        let ( let* ) result callback = Result.bind result callback in
+        let* () = ensure_live operation value.lifetime in
+        let* () = ensure_conventional_pipeline operation value in
+        let* () = ensure_buffer_device operation value index_buffer in
+        let* () = ensure_buffer_device operation value indirect_buffer in
+        let* () =
+          validate_aligned_buffer_range operation index_buffer
+            ~name:"index-buffer" ~offset:index_offset ~length:index_length
+            ~alignment:(index_stride index_type)
+        in
+        let* () =
+          validate_indirect_arguments operation indirect_buffer
+            ~offset:indirect_offset ~size:20L
+        in
+        let* raw_tables = prepare_argument_tables operation value in
+        retain_command4_buffer value.command_buffer index_buffer;
+        retain_command4_buffer value.command_buffer indirect_buffer;
+        match
+          Metal_raw.command4_render_encoder_draw_indexed_primitives_indirect
+            value.raw value.command_buffer.raw raw_tables
+            (index_buffer.raw, indirect_buffer.raw)
+            ( primitive_code primitive, index_type_code index_type, index_offset
+            , index_length, indirect_offset )
         with
         | Ok () -> Ok ()
         | Error message -> native_error operation message)

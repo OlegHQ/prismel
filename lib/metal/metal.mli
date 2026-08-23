@@ -1581,6 +1581,22 @@ module Command4 : sig
       index_offset:int64 -> index_count:int -> instance_count:int ->
       base_vertex:int -> base_instance:int -> (unit, error) result
 
+    (** Reads one 16-byte [MTLDrawPrimitivesIndirectArguments] value from a
+        checked 4-byte-aligned buffer range. *)
+    val draw_primitives_indirect :
+      t -> primitive -> indirect_buffer:Buffer.t -> indirect_offset:int64 ->
+      (unit, error) result
+
+    (** Reads one 20-byte [MTLDrawIndexedPrimitivesIndirectArguments] value
+        from a checked 4-byte-aligned range. [index_length] is a positive,
+        naturally aligned accessible range starting at [index_offset]. Both
+        buffers and current argument-table resources remain owned through
+        completion. *)
+    val draw_indexed_primitives_indirect :
+      t -> primitive -> index_type -> index_buffer:Buffer.t ->
+      index_offset:int64 -> index_length:int64 -> indirect_buffer:Buffer.t ->
+      indirect_offset:int64 -> (unit, error) result
+
     (** Dispatches a positive grid of mesh threadgroups. [object_threadgroup]
         is required exactly when the compiled pipeline has an object stage.
         Required sizes, pipeline maxima, and execution-width promises are
