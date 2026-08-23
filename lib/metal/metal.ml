@@ -658,6 +658,17 @@ type compiler =
   ; dataset : pipeline_dataset option
   }
 
+type 'a compiler_task =
+  { raw : Metal_raw.handle
+  ; lifetime : lifetime
+  ; compiler : compiler
+  ; take :
+      Metal_raw.handle ->
+      (((Metal_raw.handle, string) result option, string) result)
+  ; decode : Metal_raw.handle -> 'a
+  ; mutable consumed : bool
+  }
+
 type compute_pipeline =
   { raw : Metal_raw.handle
   ; lifetime : lifetime
@@ -7044,6 +7055,109 @@ let validate_pipeline_archives operation device archives =
   in
   loop [] archives
 
+module Compiler_task = struct
+  type 'a t = 'a compiler_task
+
+  type status =
+    | None_
+    | Scheduled
+    | Compiling
+    | Finished
+    | Unknown_status of int
+
+  type 'a poll =
+    | Pending
+    | Complete of ('a, error) result
+
+  let make (compiler : compiler) take decode raw =
+    let value =
+      { raw; lifetime = lifetime (); compiler; take; decode; consumed = false }
+    in
+    attach compiler.lifetime;
+    attach_finalizer value value.lifetime compiler.lifetime;
+    value
+
+  let status_of_code = function
+    | 0 -> None_
+    | 1 -> Scheduled
+    | 2 -> Compiling
+    | 3 -> Finished
+    | code -> Unknown_status code
+
+  let id (value : _ t) = Metal_raw.compiler_task_id value.raw
+  let device (value : _ t) = value.compiler.device
+  let generation (value : _ t) = Metal_raw.generation value.raw
+  let destroyed (value : _ t) = is_destroyed value.lifetime
+  let completion_capacity = Metal_raw.compiler_completion_capacity ()
+
+  let status (value : _ t) =
+    let operation = "Metal.Compiler_task.status" in
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () -> Ok (status_of_code (Metal_raw.compiler_task_status value.raw)))
+
+  let wait (value : _ t) =
+    let operation = "Metal.Compiler_task.wait" in
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          Metal_raw.compiler_task_wait value.raw;
+          Ok ())
+
+  let poll (value : 'a t) =
+    let operation = "Metal.Compiler_task.poll" in
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when value.consumed ->
+          error operation Invalid_state
+            "compiler task completion was already consumed"
+      | Ok () ->
+          (match value.take value.raw with
+           | Error message -> native_error operation message
+           | Ok None -> Ok Pending
+           | Ok (Some (Ok raw)) ->
+               value.consumed <- true;
+               Ok (Complete (Ok (value.decode raw)))
+           | Ok (Some (Error message)) ->
+               value.consumed <- true;
+               Ok
+                 (Complete
+                    (Error { operation; kind = Native_error; message }))))
+
+  let drain_completions ?(limit = completion_capacity) () =
+    let operation = "Metal.Compiler_task.drain_completions" in
+    on_main operation (fun () ->
+      if limit <= 0 || limit > completion_capacity then
+        error operation Invalid_argument
+          "completion drain limit must be within the queue capacity"
+      else
+        let identifiers = Metal_raw.compiler_completion_drain limit in
+        let dropped = Metal_raw.compiler_completion_dropped () in
+        if dropped <> 0L then
+          error operation Release_queue_overflow
+            (Printf.sprintf
+               "the bounded compiler-completion queue dropped %Ld identifier(s)"
+               dropped)
+        else Ok (Array.to_list identifiers))
+
+  let dropped_completions () =
+    let operation = "Metal.Compiler_task.dropped_completions" in
+    on_main operation (fun () ->
+      Ok (Metal_raw.compiler_completion_dropped ()))
+
+  let pending_completions () =
+    let operation = "Metal.Compiler_task.pending_completions" in
+    on_main operation (fun () ->
+      Ok (Metal_raw.compiler_completion_pending ()))
+
+  let destroy (value : _ t) =
+    destroy_leaf "Metal.Compiler_task.destroy" value.lifetime value.raw
+      (fun () -> detach value.compiler.lifetime)
+end
+
 module Compiler = struct
   type t = compiler
 
@@ -7182,25 +7296,47 @@ module Compiler = struct
         | Error message -> native_error operation message
         | Ok raw -> Ok (make device dataset raw))
 
+  let validate_library_source operation (value : t) ?name source =
+    match ensure_live operation value.lifetime with
+    | Error _ as failure -> failure
+    | Ok () when source = "" ->
+        error operation Invalid_argument "shader source is empty"
+    | Ok () when contains_nul source ->
+        error operation Invalid_argument "shader source contains a NUL byte"
+    | Ok ()
+      when option_exists
+             (fun name -> name = "" || contains_nul name)
+             name ->
+        error operation Invalid_argument
+          "library name must be nonempty and contain no NUL byte"
+    | Ok () -> Ok ()
+
   let compile_source ?name (value : t) source =
     let operation = "Metal.Compiler.compile_source" in
     on_main operation (fun () ->
-      match ensure_live operation value.lifetime with
+      match validate_library_source operation value ?name source with
       | Error _ as failure -> failure
-      | Ok () when source = "" ->
-          error operation Invalid_argument "shader source is empty"
-      | Ok () when contains_nul source ->
-          error operation Invalid_argument "shader source contains a NUL byte"
-      | Ok ()
-        when option_exists
-               (fun name -> name = "" || contains_nul name)
-               name ->
-          error operation Invalid_argument
-            "library name must be nonempty and contain no NUL byte"
       | Ok () ->
           (match Metal_raw.compiler_compile_library value.raw source name with
            | Error message -> native_error operation message
            | Ok raw -> Ok (Library.make value.device raw)))
+
+  let compile_source_async ?name (value : t) source =
+    let operation = "Metal.Compiler.compile_source_async" in
+    on_main operation (fun () ->
+      match validate_library_source operation value ?name source with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match
+             Metal_raw.compiler_compile_library_async value.raw source name
+           with
+           | Error message -> native_error operation message
+           | Ok raw ->
+               Ok
+                 (Compiler_task.make value
+                    Metal_raw.compiler_task_take_library
+                    (fun raw -> Library.make value.device raw)
+                    raw)))
 
   let create_binary_function ?(pipeline_independent = false)
       ?(lookup_archives = []) (value : t) ~(source : Function.t) ~name =
@@ -7388,7 +7524,7 @@ module Compiler = struct
       | Ok () -> Ok (Metal_raw.compiler_label value.raw))
 
   let destroy (value : t) =
-    destroy_leaf "Metal.Compiler.destroy" value.lifetime value.raw (fun () ->
+    destroy_parent "Metal.Compiler.destroy" value.lifetime value.raw (fun () ->
       detach value.device.lifetime;
       Option.iter
         (fun (dataset : pipeline_dataset) -> detach dataset.lifetime)

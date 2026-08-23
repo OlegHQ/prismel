@@ -481,8 +481,19 @@ private functions, and unique nonempty function groups. Public/group linking
 is function-pointer gated; private-only linking remains available without that
 capability, matching Metal's export distinction. Descriptor sources are needed
 only for synchronous compilation and can be destroyed before the resulting
-pipeline executes. Asynchronous compiler tasks, render/mesh/object pipelines,
-and positive offline `.metallib` provenance remain open M4 work.
+pipeline executes.
+
+`Compiler.compile_source_async` returns a typed `Compiler_task.t`. Metal worker
+completion blocks never enter the OCaml runtime or retain OCaml roots: they
+store the native result in task-local immutable completion state and enqueue
+only a monotonically increasing ID into a process-wide 1,024-entry ring.
+`Compiler_task.drain_completions` and `poll` run on the initial domain, and only
+`poll` materializes the resulting owned `Library.t`. Results are one-shot;
+duplicate consumption is `Invalid_state`, task/compiler parent ownership is
+explicit, queue overflow is reported, and blocking `wait` releases the OCaml
+runtime lock. Remaining asynchronous dynamic-library, binary-function, and
+pipeline task variants, render/mesh/object pipelines, and positive offline
+`.metallib` provenance remain open M4 work.
 
 `test_metal.exe` runs a real M1 compute kernel, wrong-domain and invalid-state
 cases, full labeled shader diagnostics, function-constant introspection and
@@ -493,7 +504,8 @@ metadata, `.metallib` path/error handling, Metal 4 compiler library and
 reflected compute creation, descriptor and binary dataset capture, serialized
 Metal 4 archive reload/strict binary lookup, binary-function compilation and
 dynamic pipeline linking, public/private/grouped static-link descriptors,
-compiler/dataset parent ownership, and complete Metal 4 compile diagnostics,
+asynchronous library success/error completion and bounded ID draining,
+compiler/task/dataset parent ownership, and complete Metal 4 compile diagnostics,
 copied/no-copy external buffer ownership,
 shareable texture/handle/import lifetimes, single- and multi-plane IOSurface
 ownership and byte visibility, buffer-backed 2D/texture-buffer creation across

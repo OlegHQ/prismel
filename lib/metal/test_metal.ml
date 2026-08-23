@@ -2201,6 +2201,140 @@ let test_metal4_compiler device =
            || Compiler.generation compiler <= 0L
            || Option.is_none (Compiler.dataset compiler)
         then fail "Metal 4 compiler metadata is wrong";
+        if Compiler_task.completion_capacity <= 0
+           || get (Compiler_task.pending_completions ()) <> 0
+           || get (Compiler_task.dropped_completions ()) <> 0L
+        then fail "Metal 4 compiler completion queue metadata is wrong";
+        ignore
+          (expect_error Invalid_argument
+             (Compiler_task.drain_completions ~limit:0 ()));
+        ignore
+          (expect_error Invalid_argument
+             (Compiler_task.drain_completions
+                ~limit:(Compiler_task.completion_capacity + 1) ()));
+        if get (Compiler_task.drain_completions ()) <> [] then
+          fail "Metal 4 compiler completion queue was not initially empty";
+        let before_invalid_async = get (Release_queue.stats ()) in
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.compile_source_async compiler ""));
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.compile_source_async ~name:"invalid\000async" compiler
+                shader_source));
+        let after_invalid_async = get (Release_queue.stats ()) in
+        if after_invalid_async.total_created
+           <> before_invalid_async.total_created
+        then fail "invalid async compilation allocated a native handle";
+        let async_library_task =
+          get
+            (Compiler.compile_source_async ~name:"async-library" compiler
+               shader_source)
+        in
+        let async_error_task =
+          get
+            (Compiler.compile_source_async ~name:"async-diagnostic" compiler
+               "kernel this is not valid MSL")
+        in
+        if Compiler_task.id async_library_task <= 0L
+           || Compiler_task.id async_error_task <= 0L
+           || Compiler_task.id async_library_task
+              = Compiler_task.id async_error_task
+           || not
+                (Device.same device (Compiler_task.device async_library_task))
+        then fail "Metal 4 compiler-task identity is wrong";
+        ignore
+          (expect_error Parent_has_dependents (Compiler.destroy compiler));
+        ignore
+          (expect_error Wrong_domain
+             (Domain.spawn (fun () -> Compiler_task.status async_library_task)
+              |> Domain.join));
+        get (Compiler_task.wait async_library_task);
+        get (Compiler_task.wait async_error_task);
+        if get (Compiler_task.status async_library_task)
+           <> Compiler_task.Finished
+           || get (Compiler_task.status async_error_task)
+              <> Compiler_task.Finished
+        then fail "waited Metal 4 compiler task is not finished";
+        if get (Compiler_task.pending_completions ()) <> 2 then
+          fail "Metal 4 compiler completion queue pending count is wrong";
+        let completed_ids = get (Compiler_task.drain_completions ()) in
+        if
+          not
+            (List.mem (Compiler_task.id async_library_task) completed_ids)
+          || not
+               (List.mem (Compiler_task.id async_error_task) completed_ids)
+        then fail "Metal 4 compiler completion IDs were not drained";
+        if get (Compiler_task.pending_completions ()) <> 0 then
+          fail "drained Metal 4 compiler completion IDs remained pending";
+        let async_library =
+          match get (Compiler_task.poll async_library_task) with
+          | Compiler_task.Complete (Ok library) -> library
+          | Compiler_task.Complete (Error error) ->
+              fail "async library compilation failed: %s"
+                (Format.asprintf "%a" pp_error error)
+          | Compiler_task.Pending ->
+              fail "waited async library compilation remained pending"
+        in
+        let async_diagnostic =
+          match get (Compiler_task.poll async_error_task) with
+          | Compiler_task.Complete (Error error) -> error
+          | Compiler_task.Complete (Ok library) ->
+              get (Library.destroy library);
+              fail "invalid async shader unexpectedly compiled"
+          | Compiler_task.Pending ->
+              fail "waited invalid async compilation remained pending"
+        in
+        if get (Library.label async_library) <> Some "async-library"
+           || not
+                (List.mem "increment"
+                   (get (Library.function_names async_library)))
+        then fail "async Metal 4 library metadata is wrong";
+        if
+          not
+            (contains_substring async_diagnostic.message "async-diagnostic")
+          || not (contains_substring async_diagnostic.message "domain=")
+          || not (contains_substring async_diagnostic.message "userInfo=")
+        then fail "async Metal 4 compilation lost its full diagnostic";
+        ignore
+          (expect_error Invalid_state
+             (Compiler_task.poll async_library_task));
+        get (Library.destroy async_library);
+        get (Compiler_task.destroy async_error_task);
+        get (Compiler_task.destroy async_library_task);
+        ignore
+          (expect_error Destroyed
+             (Compiler_task.status async_library_task));
+        let before_async_finalizer = get (Release_queue.stats ()) in
+        let allocate_unreleased_async_task () =
+          let task =
+            get
+              (Compiler.compile_source_async
+                 ~name:"finalized-async-library" compiler shader_source)
+          in
+          let identifier = Compiler_task.id task in
+          get (Compiler_task.wait task);
+          identifier
+        in
+        let finalized_async_id = allocate_unreleased_async_task () in
+        let after_async_finalizer =
+          settle_finalizers ~expected_live:before_async_finalizer.live_handles
+        in
+        if
+          Int64.sub after_async_finalizer.total_created
+            before_async_finalizer.total_created
+          <> 1L
+          || Int64.sub after_async_finalizer.total_released
+               before_async_finalizer.total_released
+             <> 1L
+        then fail "Metal 4 compiler-task finalizer did not release one handle";
+        if
+          not
+            (List.mem finalized_async_id
+               (get (Compiler_task.drain_completions ())))
+        then fail "finalized compiler task did not enqueue its completion ID";
+        if get (Compiler_task.dropped_completions ()) <> 0L then
+          fail "Metal 4 compiler completion queue dropped an identifier";
         ignore
           (expect_error Parent_has_dependents
              (Pipeline_dataset.destroy dataset));
@@ -4426,6 +4560,6 @@ let () =
         stats.external_deallocations
         stats.external_deallocation_mismatches;
     Printf.printf
-      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/pipeline-dataset/binary-function/static-link/reflection/compute conformance passed on %s\n%!"
+      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/compiler-task/pipeline-dataset/binary-function/static-link/reflection/compute conformance passed on %s\n%!"
       info.name
   end

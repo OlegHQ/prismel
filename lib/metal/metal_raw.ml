@@ -588,6 +588,35 @@ external compiler_compile_library :
   handle -> string -> string option -> (handle, string) result =
   "caml_prismel_metal_compiler_compile_library"
 
+external compiler_compile_library_async :
+  handle -> string -> string option -> (handle, string) result =
+  "caml_prismel_metal_compiler_compile_library_async"
+
+external compiler_task_id : handle -> int64 =
+  "caml_prismel_metal_compiler_task_id"
+
+external compiler_task_status : handle -> int =
+  "caml_prismel_metal_compiler_task_status"
+
+external compiler_task_wait : handle -> unit =
+  "caml_prismel_metal_compiler_task_wait"
+
+external compiler_task_take_library :
+  handle -> (((handle, string) result option, string) result) =
+  "caml_prismel_metal_compiler_task_take_library"
+
+external compiler_completion_drain : int -> int64 array =
+  "caml_prismel_metal_compiler_completion_drain"
+
+external compiler_completion_dropped : unit -> int64 =
+  "caml_prismel_metal_compiler_completion_dropped"
+
+external compiler_completion_pending : unit -> int =
+  "caml_prismel_metal_compiler_completion_pending"
+
+external compiler_completion_capacity : unit -> int =
+  "caml_prismel_metal_compiler_completion_capacity"
+
 external compiler_create_binary_function :
   handle -> metal4_binary_function_descriptor -> (handle, string) result =
   "caml_prismel_metal_compiler_create_binary_function"

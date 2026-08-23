@@ -50,6 +50,7 @@ let bound_identifiers =
   ; "class:MTLTextureDescriptor"
   ; "class:MTLTextureViewDescriptor"
   ; "enum:MTL4BinaryFunctionOptions"
+  ; "enum:MTL4CompilerTaskStatus"
   ; "enum:MTLCommandBufferStatus"
   ; "enum:MTL4VisibilityOptions"
   ; "enum:MTL4IndirectCommandBufferSupportState"
@@ -128,6 +129,7 @@ let bound_identifiers =
   ; "protocol:MTL4ComputeCommandEncoder"
   ; "protocol:MTL4Archive"
   ; "protocol:MTL4Compiler"
+  ; "protocol:MTL4CompilerTask"
   ; "protocol:MTL4PipelineDataSetSerializer"
   ; "protocol:MTLBinaryArchive"
   ; "protocol:MTLBuffer"
@@ -156,6 +158,7 @@ let bound_identifiers =
   ; "protocol:MTLTextureBinding"
   ; "protocol:MTLThreadgroupBinding"
   ; "typedef:MTL4BinaryFunctionOptions"
+  ; "typedef:MTL4CompilerTaskStatus"
   ; "typedef:MTLCommandBufferStatus"
   ; "typedef:MTL4IndirectCommandBufferSupportState"
   ; "typedef:MTL4PipelineDataSetSerializerConfiguration"
@@ -197,6 +200,7 @@ let bound_identifiers =
   ; "typedef:MTLTextureSwizzle"
   ; "typedef:MTLTextureSwizzleChannels"
   ; "typedef:MTLTextureUsage"
+  ; "typedef:MTLNewLibraryCompletionHandler"
   ; "variable:swizzle"
   ]
   @ methods
@@ -229,8 +233,11 @@ let bound_identifiers =
           ; "newBinaryFunctionWithDescriptor:compilerTaskOptions:error:"
           ; "newComputePipelineStateWithDescriptor:compilerTaskOptions:error:"
           ; "newComputePipelineStateWithDescriptor:dynamicLinkingDescriptor:compilerTaskOptions:error:"
+          ; "newLibraryWithDescriptor:completionHandler:"
           ; "newLibraryWithDescriptor:error:"; "pipelineDataSetSerializer"
           ] )
+      ; ( "MTL4CompilerTask"
+        , [ "compiler"; "status"; "waitUntilCompleted" ] )
       ; ( "MTL4CompilerDescriptor"
         , [ "label"; "pipelineDataSetSerializer"; "setLabel:"
           ; "setPipelineDataSetSerializer:"
@@ -488,6 +495,7 @@ let bound_identifiers =
         , [ "functionDescriptor"; "name"; "options" ] )
       ; ( "MTL4Compiler"
         , [ "device"; "label"; "pipelineDataSetSerializer" ] )
+      ; "MTL4CompilerTask", [ "compiler"; "status" ]
       ; ( "MTL4CompilerDescriptor"
         , [ "label"; "pipelineDataSetSerializer" ] )
       ; "MTL4CompilerTaskOptions", [ "lookupArchives" ]
@@ -610,6 +618,10 @@ let bound_identifiers =
   @ enum_cases "MTL4BinaryFunctionOptions"
       [ "MTL4BinaryFunctionOptionNone"
       ; "MTL4BinaryFunctionOptionPipelineIndependent"
+      ]
+  @ enum_cases "MTL4CompilerTaskStatus"
+      [ "MTL4CompilerTaskStatusNone"; "MTL4CompilerTaskStatusScheduled"
+      ; "MTL4CompilerTaskStatusCompiling"; "MTL4CompilerTaskStatusFinished"
       ]
   @ enum_cases "MTL4IndirectCommandBufferSupportState"
       [ "MTL4IndirectCommandBufferSupportStateDisabled"

@@ -111,6 +111,102 @@ using PrismelMetalXpcReply =
 
 static thread_local bool prismel_metal_xpc_main_executor = false;
 
+constexpr std::size_t kCompilerCompletionCapacity = 1024;
+static std::array<std::uint64_t, kCompilerCompletionCapacity>
+    compiler_completion_ids;
+static std::mutex compiler_completion_mutex;
+static std::size_t compiler_completion_head = 0;
+static std::size_t compiler_completion_count = 0;
+static std::atomic<std::uint64_t> compiler_completion_dropped{0};
+static std::atomic<std::uint64_t> next_compiler_task_id{1};
+
+static void enqueue_compiler_completion(std::uint64_t identifier) {
+  std::lock_guard<std::mutex> lock(compiler_completion_mutex);
+  if (compiler_completion_count == kCompilerCompletionCapacity) {
+    compiler_completion_dropped.fetch_add(1, std::memory_order_relaxed);
+    return;
+  }
+  const std::size_t tail =
+      (compiler_completion_head + compiler_completion_count) %
+      kCompilerCompletionCapacity;
+  compiler_completion_ids[tail] = identifier;
+  ++compiler_completion_count;
+}
+
+typedef NS_ENUM(NSUInteger, PrismelMetalCompilerResultState) {
+  PrismelMetalCompilerResultPending = 0,
+  PrismelMetalCompilerResultSuccess = 1,
+  PrismelMetalCompilerResultFailure = 2,
+  PrismelMetalCompilerResultConsumed = 3,
+};
+
+API_AVAILABLE(macos(26.0))
+@interface PrismelMetalCompilerTaskState : NSObject
+@property(nonatomic, readonly) std::uint64_t identifier;
+@property(nonatomic, strong) id<MTL4CompilerTask> task;
+@property(nonatomic, readonly) NSString *label;
+- (instancetype)initWithLabel:(nullable NSString *)label;
+- (void)finishWithObject:(nullable id)object error:(nullable NSError *)error;
+- (PrismelMetalCompilerResultState)takeObject:(id __autoreleasing *)object
+                                        error:(NSError *__autoreleasing *)error;
+@end
+
+@implementation PrismelMetalCompilerTaskState {
+  std::uint64_t _identifier;
+  id<MTL4CompilerTask> _task;
+  NSString *_label;
+  id _resultObject;
+  NSError *_resultError;
+  PrismelMetalCompilerResultState _resultState;
+  std::mutex _resultMutex;
+}
+
+- (instancetype)initWithLabel:(NSString *)label {
+  self = [super init];
+  if (self != nil) {
+    _identifier = next_compiler_task_id.fetch_add(1, std::memory_order_relaxed);
+    _label = [label copy];
+    _resultState = PrismelMetalCompilerResultPending;
+  }
+  return self;
+}
+
+- (std::uint64_t)identifier { return _identifier; }
+- (id<MTL4CompilerTask>)task { return _task; }
+- (void)setTask:(id<MTL4CompilerTask>)task { _task = task; }
+- (NSString *)label { return _label; }
+
+- (void)finishWithObject:(id)object error:(NSError *)error {
+  {
+    std::lock_guard<std::mutex> lock(_resultMutex);
+    if (_resultState != PrismelMetalCompilerResultPending) {
+      return;
+    }
+    _resultObject = object;
+    _resultError = error;
+    _resultState = object == nil ? PrismelMetalCompilerResultFailure
+                                 : PrismelMetalCompilerResultSuccess;
+  }
+  enqueue_compiler_completion(_identifier);
+}
+
+- (PrismelMetalCompilerResultState)takeObject:(id *)object
+                                        error:(NSError **)error {
+  std::lock_guard<std::mutex> lock(_resultMutex);
+  const PrismelMetalCompilerResultState state = _resultState;
+  if (state == PrismelMetalCompilerResultSuccess ||
+      state == PrismelMetalCompilerResultFailure) {
+    *object = _resultObject;
+    *error = _resultError;
+    _resultObject = nil;
+    _resultError = nil;
+    _resultState = PrismelMetalCompilerResultConsumed;
+  }
+  return state;
+}
+
+@end
+
 @interface PrismelMetalXpcRequest : NSObject
 @property(nonatomic, readonly) NSString *operation;
 @property(nonatomic, readonly) id resource;
@@ -547,6 +643,7 @@ enum class Handle_kind : std::uint32_t {
   Pipeline_archive,
   Compiler,
   Binary_function,
+  Compiler_task,
 };
 
 struct Handle {
@@ -1342,6 +1439,66 @@ MTL4StaticLinkingDescriptor *checked_static_linking_descriptor(
     }
   }
   return descriptor;
+}
+
+API_AVAILABLE(macos(26.0))
+MTL4LibraryDescriptor *checked_compiler_library_descriptor(
+    value raw_source, value raw_name,
+    NSString *__autoreleasing *expected_name,
+    NSString *__autoreleasing *failure) {
+  NSString *source = string_from_ocaml(raw_source);
+  if (source == nil || source.length == 0) {
+    *failure = @"Metal compiler source is not valid nonempty UTF-8";
+    return nil;
+  }
+  NSString *name = nil;
+  if (Is_block(raw_name)) {
+    name = string_from_ocaml(Field(raw_name, 0));
+    if (name == nil || name.length == 0) {
+      *failure = @"Metal compiler library name is not valid nonempty UTF-8";
+      return nil;
+    }
+  }
+  MTLCompileOptions *options = [[MTLCompileOptions alloc] init];
+  options.fastMathEnabled = NO;
+  MTL4LibraryDescriptor *descriptor = [[MTL4LibraryDescriptor alloc] init];
+  descriptor.source = source;
+  descriptor.options = options;
+  if (name != nil) {
+    descriptor.name = name;
+  }
+  if (![descriptor.source isEqualToString:source] ||
+      descriptor.options.fastMathEnabled ||
+      ((name == nil) != (descriptor.name == nil)) ||
+      (name != nil && ![descriptor.name isEqualToString:name])) {
+    *failure =
+        @"Metal changed checked compiler library descriptor properties";
+    return nil;
+  }
+  *expected_name = name;
+  return descriptor;
+}
+
+API_AVAILABLE(macos(26.0))
+bool checked_compiler_library_result(id<MTLLibrary> library,
+                                     id<MTL4Compiler> compiler,
+                                     NSString *expected_name,
+                                     NSString *__autoreleasing *failure) {
+  if (library == nil) {
+    *failure = @"Metal returned no compiled library";
+    return false;
+  }
+  if (expected_name != nil) {
+    library.label = expected_name;
+  }
+  if (library.device.registryID != compiler.device.registryID ||
+      ((expected_name == nil) != (library.label == nil)) ||
+      (expected_name != nil &&
+       ![library.label isEqualToString:expected_name])) {
+    *failure = @"Metal changed checked compiler library properties";
+    return false;
+  }
+  return true;
 }
 
 API_AVAILABLE(macos(26.0))
@@ -5665,35 +5822,13 @@ extern "C" CAMLprim value caml_prismel_metal_compiler_compile_library(
       @try {
         id<MTL4Compiler> compiler =
             object_of_handle(raw_compiler, Handle_kind::Compiler);
-        NSString *source = string_from_ocaml(raw_source);
-        if (source == nil || source.length == 0) {
-          CAMLreturn(result_error_text(
-              "Metal compiler source is not valid nonempty UTF-8"));
-        }
         NSString *expected_name = nil;
-        if (Is_block(raw_name)) {
-          expected_name = string_from_ocaml(Field(raw_name, 0));
-          if (expected_name == nil || expected_name.length == 0) {
-            CAMLreturn(result_error_text(
-                "Metal compiler library name is not valid nonempty UTF-8"));
-          }
-        }
-        MTLCompileOptions *options = [[MTLCompileOptions alloc] init];
-        options.fastMathEnabled = NO;
+        NSString *validation_failure = nil;
         MTL4LibraryDescriptor *descriptor =
-            [[MTL4LibraryDescriptor alloc] init];
-        descriptor.source = source;
-        descriptor.options = options;
-        if (expected_name != nil) {
-          descriptor.name = expected_name;
-        }
-        if (![descriptor.source isEqualToString:source] ||
-            descriptor.options.fastMathEnabled ||
-            ((expected_name == nil) != (descriptor.name == nil)) ||
-            (expected_name != nil &&
-             ![descriptor.name isEqualToString:expected_name])) {
-          CAMLreturn(result_error_text(
-              "Metal changed checked compiler library descriptor properties"));
+            checked_compiler_library_descriptor(
+                raw_source, raw_name, &expected_name, &validation_failure);
+        if (descriptor == nil) {
+          CAMLreturn(result_error(validation_failure));
         }
         NSError *error = nil;
         id<MTLLibrary> library =
@@ -5703,15 +5838,9 @@ extern "C" CAMLprim value caml_prismel_metal_compiler_compile_library(
               expected_name, error,
               @"Metal 4 library compilation failed without NSError")));
         }
-        if (expected_name != nil) {
-          library.label = expected_name;
-        }
-        if (library.device.registryID != compiler.device.registryID ||
-            ((expected_name == nil) != (library.label == nil)) ||
-            (expected_name != nil &&
-             ![library.label isEqualToString:expected_name])) {
-          CAMLreturn(result_error_text(
-              "Metal changed checked compiler library properties"));
+        if (!checked_compiler_library_result(
+                library, compiler, expected_name, &validation_failure)) {
+          CAMLreturn(result_error(validation_failure));
         }
         raw = allocate_handle(library, Handle_kind::Library);
       } @catch (NSException *exception) {
@@ -5723,6 +5852,205 @@ extern "C" CAMLprim value caml_prismel_metal_compiler_compile_library(
     }
   }
   CAMLreturn(result_ok(raw));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_compiler_compile_library_async(
+    value raw_compiler, value raw_source, value raw_name) {
+  CAMLparam3(raw_compiler, raw_source, raw_name);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4Compiler> compiler =
+            object_of_handle(raw_compiler, Handle_kind::Compiler);
+        NSString *expected_name = nil;
+        NSString *validation_failure = nil;
+        MTL4LibraryDescriptor *descriptor =
+            checked_compiler_library_descriptor(
+                raw_source, raw_name, &expected_name, &validation_failure);
+        if (descriptor == nil) {
+          CAMLreturn(result_error(validation_failure));
+        }
+        PrismelMetalCompilerTaskState *state =
+            [[PrismelMetalCompilerTaskState alloc]
+                initWithLabel:expected_name];
+        __weak PrismelMetalCompilerTaskState *weak_state = state;
+        id<MTL4CompilerTask> task =
+            [compiler newLibraryWithDescriptor:descriptor
+                             completionHandler:^(id<MTLLibrary> library,
+                                                 NSError *error) {
+                               PrismelMetalCompilerTaskState *strong_state =
+                                   weak_state;
+                               [strong_state finishWithObject:library
+                                                        error:error];
+                             }];
+        if (task == nil) {
+          CAMLreturn(result_error(labeled_error_description(
+              expected_name, nil,
+              @"Metal 4 asynchronous library task creation failed")));
+        }
+        state.task = task;
+        if (state.identifier == 0 || task.compiler.device.registryID !=
+                                         compiler.device.registryID) {
+          CAMLreturn(result_error_text(
+              "Metal changed checked asynchronous compiler task properties"));
+        }
+        raw = allocate_handle(state, Handle_kind::Compiler_task);
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    } else {
+      CAMLreturn(result_error_text(
+          "asynchronous Metal 4 compilation requires macOS 26 or newer"));
+    }
+  }
+  CAMLreturn(result_ok(raw));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_compiler_task_id(value raw) {
+  CAMLparam1(raw);
+  std::int64_t identifier = 0;
+  if (@available(macOS 26.0, *)) {
+    PrismelMetalCompilerTaskState *state =
+        object_of_handle(raw, Handle_kind::Compiler_task);
+    identifier = static_cast<std::int64_t>(state.identifier);
+  }
+  CAMLreturn(caml_copy_int64(identifier));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_compiler_task_status(value raw) {
+  CAMLparam1(raw);
+  int result = 0;
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      PrismelMetalCompilerTaskState *state =
+          object_of_handle(raw, Handle_kind::Compiler_task);
+      result = static_cast<int>(state.task.status);
+    }
+  }
+  CAMLreturn(Val_int(result));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_compiler_task_wait(value raw) {
+  CAMLparam1(raw);
+  if (@available(macOS 26.0, *)) {
+    PrismelMetalCompilerTaskState *state =
+        object_of_handle(raw, Handle_kind::Compiler_task);
+    id<MTL4CompilerTask> task = state.task;
+    caml_enter_blocking_section();
+    @autoreleasepool {
+      [task waitUntilCompleted];
+    }
+    caml_leave_blocking_section();
+  }
+  CAMLreturn(Val_unit);
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_compiler_task_take_library(value raw) {
+  CAMLparam1(raw);
+  CAMLlocal3(raw_library, completion, option);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        PrismelMetalCompilerTaskState *state =
+            object_of_handle(raw, Handle_kind::Compiler_task);
+        id result_object = nil;
+        NSError *result_error_value = nil;
+        const PrismelMetalCompilerResultState result_state =
+            [state takeObject:&result_object error:&result_error_value];
+        if (result_state == PrismelMetalCompilerResultPending) {
+          CAMLreturn(result_ok(Val_none));
+        }
+        if (result_state == PrismelMetalCompilerResultConsumed) {
+          CAMLreturn(result_error_text(
+              "compiler task completion was already consumed"));
+        }
+        if (result_state == PrismelMetalCompilerResultFailure) {
+          completion = result_error(labeled_error_description(
+              state.label, result_error_value,
+              @"Metal 4 asynchronous library compilation failed without NSError"));
+        } else {
+          id<MTLLibrary> library = static_cast<id<MTLLibrary>>(result_object);
+          NSString *validation_failure = nil;
+          if (!checked_compiler_library_result(
+                  library, state.task.compiler, state.label,
+                  &validation_failure)) {
+            completion = result_error(validation_failure);
+          } else {
+            raw_library = allocate_handle(library, Handle_kind::Library);
+            completion = result_ok(raw_library);
+          }
+        }
+        option = caml_alloc(1, 0);
+        Store_field(option, 0, completion);
+        CAMLreturn(result_ok(option));
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    } else {
+      CAMLreturn(result_error_text(
+          "asynchronous Metal 4 compilation requires macOS 26 or newer"));
+    }
+  }
+  CAMLreturn(result_error_text("unreachable compiler-task result"));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_compiler_completion_drain(
+    value raw_limit) {
+  CAMLparam1(raw_limit);
+  CAMLlocal2(array, identifier);
+  const intnat requested = Long_val(raw_limit);
+  const std::size_t limit = requested <= 0
+      ? 0
+      : std::min(static_cast<std::size_t>(requested),
+                 kCompilerCompletionCapacity);
+  std::vector<std::uint64_t> drained;
+  {
+    std::lock_guard<std::mutex> lock(compiler_completion_mutex);
+    const std::size_t count = std::min(limit, compiler_completion_count);
+    drained.reserve(count);
+    for (std::size_t index = 0; index < count; ++index) {
+      drained.push_back(compiler_completion_ids[compiler_completion_head]);
+      compiler_completion_head =
+          (compiler_completion_head + 1) % kCompilerCompletionCapacity;
+      --compiler_completion_count;
+    }
+  }
+  array = caml_alloc(drained.size(), 0);
+  for (std::size_t index = 0; index < drained.size(); ++index) {
+    identifier = caml_copy_int64(static_cast<std::int64_t>(drained[index]));
+    Store_field(array, index, identifier);
+  }
+  CAMLreturn(array);
+}
+
+extern "C" CAMLprim value caml_prismel_metal_compiler_completion_dropped(
+    value raw_unit) {
+  CAMLparam1(raw_unit);
+  (void)raw_unit;
+  CAMLreturn(caml_copy_int64(
+      static_cast<std::int64_t>(
+          compiler_completion_dropped.load(std::memory_order_relaxed))));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_compiler_completion_pending(
+    value raw_unit) {
+  CAMLparam1(raw_unit);
+  (void)raw_unit;
+  std::size_t pending = 0;
+  {
+    std::lock_guard<std::mutex> lock(compiler_completion_mutex);
+    pending = compiler_completion_count;
+  }
+  CAMLreturn(Val_int(pending));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_compiler_completion_capacity(
+    value raw_unit) {
+  CAMLparam1(raw_unit);
+  (void)raw_unit;
+  CAMLreturn(Val_int(kCompilerCompletionCapacity));
 }
 
 extern "C" CAMLprim value caml_prismel_metal_compiler_create_binary_function(

@@ -2,11 +2,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 0,
-    "bound": 1129,
+    "bound": 1143,
     "scope-excluded": 7,
-    "unreviewed": 4150
+    "unreviewed": 4136
   },
-  "classification_source_sha256": "41c3e7abfa4e4eba21c3e82e88043a7ea3ba1a3d11d9fdb1c72f93506d592961",
+  "classification_source_sha256": "6e6617e0d5ef6b89ba43c5c7d384798411b6557738813dc0d87fbca72150820f",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "header_aggregate_sha256": "c2ee1e44c76606cf05fa81d1a8314dadfa49efe900342e8bcb3670363c16f0d1",
@@ -2983,50 +2983,50 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CompilerTask.h",
       "id": "enum-case:MTL4CompilerTaskStatus:MTL4CompilerTaskStatusCompiling",
       "kind": "enum-case",
       "line": 29,
       "name": "MTL4CompilerTaskStatusCompiling",
       "owner": "MTL4CompilerTaskStatus",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTL4CompilerTaskStatus"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CompilerTask.h",
       "id": "enum-case:MTL4CompilerTaskStatus:MTL4CompilerTaskStatusFinished",
       "kind": "enum-case",
       "line": 32,
       "name": "MTL4CompilerTaskStatusFinished",
       "owner": "MTL4CompilerTaskStatus",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTL4CompilerTaskStatus"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CompilerTask.h",
       "id": "enum-case:MTL4CompilerTaskStatus:MTL4CompilerTaskStatusNone",
       "kind": "enum-case",
       "line": 23,
       "name": "MTL4CompilerTaskStatusNone",
       "owner": "MTL4CompilerTaskStatus",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTL4CompilerTaskStatus"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CompilerTask.h",
       "id": "enum-case:MTL4CompilerTaskStatus:MTL4CompilerTaskStatusScheduled",
       "kind": "enum-case",
       "line": 26,
       "name": "MTL4CompilerTaskStatusScheduled",
       "owner": "MTL4CompilerTaskStatus",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTL4CompilerTaskStatus"
     },
     {
@@ -14301,14 +14301,14 @@
       "attributes": [
         "EnumExtensibilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CompilerTask.h",
       "id": "enum:MTL4CompilerTaskStatus",
       "kind": "enum",
       "line": 21,
       "name": "MTL4CompilerTaskStatus",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -21748,14 +21748,14 @@
       "attributes": [
         "NSReturnsRetainedAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4Compiler.h",
       "id": "method:-[MTL4Compiler newLibraryWithDescriptor:completionHandler:]",
       "kind": "method",
       "line": 238,
       "name": "newLibraryWithDescriptor:completionHandler:",
       "owner": "MTL4Compiler",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTL4LibraryDescriptor * _Nonnull __strong, MTLNewLibraryCompletionHandler  _Nonnull __strong) -> id<MTL4CompilerTask> _Nonnull"
     },
     {
@@ -21948,38 +21948,38 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CompilerTask.h",
       "id": "method:-[MTL4CompilerTask compiler]",
       "kind": "method",
       "line": 40,
       "name": "compiler",
       "owner": "MTL4CompilerTask",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> id<MTL4Compiler> _Nonnull"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CompilerTask.h",
       "id": "method:-[MTL4CompilerTask status]",
       "kind": "method",
       "line": 45,
       "name": "status",
       "owner": "MTL4CompilerTask",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTL4CompilerTaskStatus"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CompilerTask.h",
       "id": "method:-[MTL4CompilerTask waitUntilCompleted]",
       "kind": "method",
       "line": 48,
       "name": "waitUntilCompleted",
       "owner": "MTL4CompilerTask",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> void"
     },
     {
@@ -51733,26 +51733,26 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CompilerTask.h",
       "id": "property:MTL4CompilerTask:compiler",
       "kind": "property",
       "line": 40,
       "name": "compiler",
       "owner": "MTL4CompilerTask",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "id<MTL4Compiler> _Nonnull"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CompilerTask.h",
       "id": "property:MTL4CompilerTask:status",
       "kind": "property",
       "line": 45,
       "name": "status",
       "owner": "MTL4CompilerTask",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTL4CompilerTaskStatus"
     },
     {
@@ -63705,14 +63705,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CompilerTask.h",
       "id": "protocol:MTL4CompilerTask",
       "kind": "protocol",
       "line": 38,
       "name": "MTL4CompilerTask",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -65331,14 +65331,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CompilerTask.h",
       "id": "typedef:MTL4CompilerTaskStatus",
       "kind": "typedef",
       "line": 21,
       "name": "MTL4CompilerTaskStatus",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "enum MTL4CompilerTaskStatus"
     },
     {
@@ -66850,14 +66850,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "typedef:MTLNewLibraryCompletionHandler",
       "kind": "typedef",
       "line": 37,
       "name": "MTLNewLibraryCompletionHandler",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "void (^)(id<MTLLibrary>  _Nullable __strong, NSError * _Nullable __strong)"
     },
     {

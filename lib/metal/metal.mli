@@ -1129,6 +1129,39 @@ module Pipeline_archive : sig
   val destroy : t -> (unit, error) result
 end
 
+module Compiler_task : sig
+  type 'a t
+
+  type status =
+    | None_
+    | Scheduled
+    | Compiling
+    | Finished
+    | Unknown_status of int
+
+  type 'a poll =
+    | Pending
+    | Complete of ('a, error) result
+
+  val id : 'a t -> int64
+  val device : 'a t -> Device.t
+  val generation : 'a t -> int64
+  val destroyed : 'a t -> bool
+  val status : 'a t -> (status, error) result
+
+  (** Blocks without holding the OCaml runtime lock. The native completion
+      handler only records immutable result state and a bounded completion ID;
+      [poll] materializes the OCaml result on the initial domain. *)
+  val wait : 'a t -> (unit, error) result
+  val poll : 'a t -> ('a poll, error) result
+
+  val completion_capacity : int
+  val drain_completions : ?limit:int -> unit -> (int64 list, error) result
+  val dropped_completions : unit -> (int64, error) result
+  val pending_completions : unit -> (int, error) result
+  val destroy : 'a t -> (unit, error) result
+end
+
 module Compiler : sig
   type t
 
@@ -1156,6 +1189,10 @@ module Compiler : sig
       library descriptor name and is included in compilation diagnostics. *)
   val compile_source :
     ?name:string -> t -> string -> (Library.t, error) result
+
+  val compile_source_async :
+    ?name:string -> t -> string ->
+    (Library.t Compiler_task.t, error) result
 
   (** Compiles a visible or intersection function to device machine code.
       Lookup archives are searched by Metal before compiling a miss. *)
