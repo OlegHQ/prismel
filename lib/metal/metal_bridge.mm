@@ -1711,8 +1711,14 @@ NSArray<MTL4FunctionDescriptor *> *checked_static_function_descriptors(
 }
 
 API_AVAILABLE(macos(26.0))
+bool checked_stored_static_function_descriptors(
+    NSArray<MTL4FunctionDescriptor *> *stored,
+    NSArray<MTL4FunctionDescriptor *> *expected, NSString *category,
+    NSString *__autoreleasing *failure);
+
+API_AVAILABLE(macos(26.0))
 MTL4StaticLinkingDescriptor *checked_static_linking_descriptor(
-    value raw_option, id<MTLDevice> device,
+    value raw_option, id<MTLDevice> device, bool supports_public_linking,
     NSString *__autoreleasing *failure) {
   if (!Is_block(raw_option)) {
     return nil;
@@ -1764,7 +1770,7 @@ MTL4StaticLinkingDescriptor *checked_static_linking_descriptor(
     return nil;
   }
   if ((functions.count != 0 || groups.count != 0) &&
-      !device.supportsFunctionPointers) {
+      !supports_public_linking) {
     *failure = @"Metal 4 public static linking requires function pointers";
     return nil;
   }
@@ -1786,19 +1792,124 @@ MTL4StaticLinkingDescriptor *checked_static_linking_descriptor(
   descriptor.privateFunctionDescriptors =
       private_functions.count == 0 ? nil : private_functions;
   descriptor.groups = groups.count == 0 ? nil : groups;
-  if (descriptor.functionDescriptors.count != functions.count ||
-      descriptor.privateFunctionDescriptors.count != private_functions.count ||
+  if (!checked_stored_static_function_descriptors(
+          descriptor.functionDescriptors, functions,
+          @"public static-linked", failure) ||
+      !checked_stored_static_function_descriptors(
+          descriptor.privateFunctionDescriptors, private_functions,
+          @"private static-linked", failure) ||
       descriptor.groups.count != groups.count) {
+    if (*failure != nil) {
+      return nil;
+    }
     *failure = @"Metal changed checked static-linking descriptor properties";
     return nil;
   }
   for (NSString *name in groups) {
-    if (descriptor.groups[name].count != groups[name].count) {
-      *failure = @"Metal changed checked static-link group properties";
+    if (descriptor.groups[name] == nil ||
+        !checked_stored_static_function_descriptors(
+            descriptor.groups[name], groups[name],
+            [@"static-link group " stringByAppendingString:name], failure)) {
       return nil;
     }
   }
   return descriptor;
+}
+
+API_AVAILABLE(macos(26.0))
+MTL4StaticLinkingDescriptor *checked_render_static_linking_descriptor(
+    value raw_option, id<MTLDevice> device,
+    NSString *__autoreleasing *failure) {
+  return checked_static_linking_descriptor(
+      raw_option, device, device.supportsFunctionPointersFromRender, failure);
+}
+
+API_AVAILABLE(macos(26.0))
+bool checked_stored_static_function_descriptors(
+    NSArray<MTL4FunctionDescriptor *> *stored,
+    NSArray<MTL4FunctionDescriptor *> *expected, NSString *category,
+    NSString *__autoreleasing *failure) {
+  if (stored.count != expected.count) {
+    *failure = [NSString
+        stringWithFormat:@"Metal changed checked %@ function count", category];
+    return false;
+  }
+  for (NSUInteger index = 0; index < expected.count; ++index) {
+    MTL4FunctionDescriptor *stored_function = stored[index];
+    MTL4FunctionDescriptor *expected_function = expected[index];
+    if (![stored_function
+            isKindOfClass:[MTL4LibraryFunctionDescriptor class]] ||
+        ![expected_function
+            isKindOfClass:[MTL4LibraryFunctionDescriptor class]]) {
+      *failure = [NSString
+          stringWithFormat:@"Metal changed checked %@ function type", category];
+      return false;
+    }
+    MTL4LibraryFunctionDescriptor *stored_library_function =
+        static_cast<MTL4LibraryFunctionDescriptor *>(stored_function);
+    MTL4LibraryFunctionDescriptor *expected_library_function =
+        static_cast<MTL4LibraryFunctionDescriptor *>(expected_function);
+    if (stored_library_function.library !=
+            expected_library_function.library ||
+        ![stored_library_function.name
+            isEqualToString:expected_library_function.name]) {
+      *failure = [NSString
+          stringWithFormat:@"Metal changed checked %@ function identity",
+                           category];
+      return false;
+    }
+  }
+  return true;
+}
+
+API_AVAILABLE(macos(26.0))
+bool checked_stored_static_linking_descriptor(
+    MTL4StaticLinkingDescriptor *stored,
+    MTL4StaticLinkingDescriptor *expected, NSString *stage,
+    NSString *__autoreleasing *failure) {
+  if (expected == nil) {
+    if (stored != nil &&
+        (stored.functionDescriptors.count != 0 ||
+         stored.privateFunctionDescriptors.count != 0 ||
+         stored.groups.count != 0)) {
+      *failure = [NSString
+          stringWithFormat:@"Metal changed absent %@ static-linking descriptor",
+                           stage];
+      return false;
+    }
+    return true;
+  }
+  if (stored == nil ||
+      !checked_stored_static_function_descriptors(
+          stored.functionDescriptors, expected.functionDescriptors,
+          [NSString stringWithFormat:@"%@ public static-linked", stage],
+          failure) ||
+      !checked_stored_static_function_descriptors(
+          stored.privateFunctionDescriptors,
+          expected.privateFunctionDescriptors,
+          [NSString stringWithFormat:@"%@ private static-linked", stage],
+          failure) ||
+      stored.groups.count != expected.groups.count) {
+    if (*failure == nil) {
+      *failure = [NSString
+          stringWithFormat:@"Metal changed checked %@ static-linking descriptor",
+                           stage];
+    }
+    return false;
+  }
+  for (NSString *name in expected.groups) {
+    NSArray<MTL4FunctionDescriptor *> *stored_group = stored.groups[name];
+    NSArray<MTL4FunctionDescriptor *> *expected_group = expected.groups[name];
+    if (stored_group == nil ||
+        !checked_stored_static_function_descriptors(
+            stored_group, expected_group,
+            [NSString stringWithFormat:@"%@ static-link group %@", stage,
+                                       name],
+            failure)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 API_AVAILABLE(macos(26.0))
@@ -2788,6 +2899,16 @@ caml_prismel_metal_device_supports_function_pointers(value raw) {
   CAMLparam1(raw);
   id<MTLDevice> device = object_of_handle(raw, Handle_kind::Device);
   CAMLreturn(Val_bool(device.supportsFunctionPointers));
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_device_supports_function_pointers_from_render(value raw) {
+  CAMLparam1(raw);
+  id<MTLDevice> device = object_of_handle(raw, Handle_kind::Device);
+  const bool supported =
+      [device respondsToSelector:@selector(supportsFunctionPointersFromRender)] &&
+      device.supportsFunctionPointersFromRender;
+  CAMLreturn(Val_bool(supported));
 }
 
 extern "C" CAMLprim value
@@ -7182,7 +7303,8 @@ PrismelMetalCheckedComputeRequest *checked_compute_request(
   NSString *static_linking_failure = nil;
   MTL4StaticLinkingDescriptor *static_linking =
       checked_static_linking_descriptor(
-          raw_static_linking, compiler.device, &static_linking_failure);
+          raw_static_linking, compiler.device,
+          compiler.device.supportsFunctionPointers, &static_linking_failure);
   if (Is_block(raw_static_linking) && static_linking == nil) {
     *failure = static_linking_failure;
     return nil;
@@ -7759,7 +7881,7 @@ bool configure_render_stage_dynamic_linking(
       [NSMutableArray arrayWithCapacity:binary_functions.size()];
   NSMutableSet<id<MTL4BinaryFunction>> *binary_set = [NSMutableSet set];
   for (id<MTL4BinaryFunction> function : binary_functions) {
-    if (!device.supportsFunctionPointers ||
+    if (!device.supportsFunctionPointersFromRender ||
         [binary_set containsObject:function]) {
       *failure = [NSString
           stringWithFormat:@"Metal 4 %@ binary function is incompatible or duplicated",
@@ -7819,26 +7941,16 @@ bool configure_render_stage_dynamic_linking(
 
 API_AVAILABLE(macos(26.0))
 MTL4RenderPipelineDynamicLinkingDescriptor *
-checked_render_dynamic_linking_descriptor(
-    value raw_vertex, value raw_fragment, id<MTLDevice> device,
-    bool support_vertex, bool support_fragment,
+new_checked_render_dynamic_linking_descriptor(
     NSString *__autoreleasing *failure) {
-  if (!Is_block(raw_vertex) && !Is_block(raw_fragment)) {
-    return nil;
-  }
   MTL4RenderPipelineDynamicLinkingDescriptor *descriptor =
       [[MTL4RenderPipelineDynamicLinkingDescriptor alloc] init];
   if (descriptor.vertexLinkingDescriptor == nil ||
       descriptor.fragmentLinkingDescriptor == nil ||
-      !configure_render_stage_dynamic_linking(
-          descriptor.vertexLinkingDescriptor, raw_vertex, device,
-          support_vertex, @"vertex", failure) ||
-      !configure_render_stage_dynamic_linking(
-          descriptor.fragmentLinkingDescriptor, raw_fragment, device,
-          support_fragment, @"fragment", failure)) {
-    if (*failure == nil) {
-      *failure = @"Metal returned incomplete render dynamic-link descriptors";
-    }
+      descriptor.tileLinkingDescriptor == nil ||
+      descriptor.objectLinkingDescriptor == nil ||
+      descriptor.meshLinkingDescriptor == nil) {
+    *failure = @"Metal returned incomplete render dynamic-link descriptors";
     return nil;
   }
   return descriptor;
@@ -7922,26 +8034,69 @@ PrismelMetalCheckedRenderRequest *checked_render_request(
       Bool_val(Field(raw_descriptor, 12));
   const bool support_fragment_binary_linking =
       Bool_val(Field(raw_descriptor, 13));
+  value raw_vertex_static_linking = Field(raw_descriptor, 16);
+  value raw_fragment_static_linking = Field(raw_descriptor, 17);
+  if (fragment == nil &&
+      (support_fragment_binary_linking ||
+       Is_block(Field(raw_descriptor, 15)) ||
+       Is_block(raw_fragment_static_linking))) {
+    *failure = @"Metal 4 render linking targets an absent fragment stage";
+    return nil;
+  }
   if ((support_vertex_binary_linking || support_fragment_binary_linking) &&
-      !compiler.device.supportsFunctionPointers) {
+      !compiler.device.supportsFunctionPointersFromRender) {
     *failure = @"Metal 4 render binary linking requires function pointers";
+    return nil;
+  }
+  NSString *static_linking_failure = nil;
+  MTL4StaticLinkingDescriptor *vertex_static_linking =
+      checked_render_static_linking_descriptor(
+          raw_vertex_static_linking, compiler.device, &static_linking_failure);
+  if (Is_block(raw_vertex_static_linking) && vertex_static_linking == nil) {
+    *failure = static_linking_failure;
+    return nil;
+  }
+  MTL4StaticLinkingDescriptor *fragment_static_linking =
+      checked_render_static_linking_descriptor(
+          raw_fragment_static_linking, compiler.device,
+          &static_linking_failure);
+  if (Is_block(raw_fragment_static_linking) &&
+      fragment_static_linking == nil) {
+    *failure = static_linking_failure;
     return nil;
   }
   descriptor.supportVertexBinaryLinking = support_vertex_binary_linking;
   descriptor.supportFragmentBinaryLinking = support_fragment_binary_linking;
+  descriptor.vertexStaticLinkingDescriptor = vertex_static_linking;
+  descriptor.fragmentStaticLinkingDescriptor = fragment_static_linking;
+  if (!checked_stored_static_linking_descriptor(
+          descriptor.vertexStaticLinkingDescriptor, vertex_static_linking,
+          @"vertex", failure) ||
+      !checked_stored_static_linking_descriptor(
+          descriptor.fragmentStaticLinkingDescriptor,
+          fragment_static_linking, @"fragment", failure)) {
+    return nil;
+  }
   if (!configure_render_vertex_descriptor(
           descriptor, Field(raw_descriptor, 11), failure)) {
     return nil;
   }
-  MTL4RenderPipelineDynamicLinkingDescriptor *dynamic_linking =
-      checked_render_dynamic_linking_descriptor(
-          Field(raw_descriptor, 14), Field(raw_descriptor, 15),
-          compiler.device, support_vertex_binary_linking,
-          support_fragment_binary_linking, failure);
-  if ((Is_block(Field(raw_descriptor, 14)) ||
-       Is_block(Field(raw_descriptor, 15))) &&
-      dynamic_linking == nil) {
-    return nil;
+  MTL4RenderPipelineDynamicLinkingDescriptor *dynamic_linking = nil;
+  if (Is_block(Field(raw_descriptor, 14)) ||
+      Is_block(Field(raw_descriptor, 15))) {
+    dynamic_linking =
+        new_checked_render_dynamic_linking_descriptor(failure);
+    if (dynamic_linking == nil ||
+        !configure_render_stage_dynamic_linking(
+            dynamic_linking.vertexLinkingDescriptor,
+            Field(raw_descriptor, 14), compiler.device,
+            support_vertex_binary_linking, @"vertex", failure) ||
+        !configure_render_stage_dynamic_linking(
+            dynamic_linking.fragmentLinkingDescriptor,
+            Field(raw_descriptor, 15), compiler.device,
+            support_fragment_binary_linking, @"fragment", failure)) {
+      return nil;
+    }
   }
   if (!configure_render_color_attachments(descriptor.colorAttachments,
                                           raw_attachments,
@@ -8099,6 +8254,62 @@ PrismelMetalCheckedRenderRequest *checked_mesh_request(
     *failure = @"Metal 4 indirect mesh draws require Apple9 or newer";
     return nil;
   }
+  const bool support_object_binary_linking =
+      Bool_val(Field(raw_descriptor, 23));
+  const bool support_mesh_binary_linking =
+      Bool_val(Field(raw_descriptor, 24));
+  const bool support_fragment_binary_linking =
+      Bool_val(Field(raw_descriptor, 25));
+  value raw_object_static_linking = Field(raw_descriptor, 29);
+  value raw_mesh_static_linking = Field(raw_descriptor, 30);
+  value raw_fragment_static_linking = Field(raw_descriptor, 31);
+  if ((object == nil &&
+       (support_object_binary_linking ||
+        Is_block(Field(raw_descriptor, 26)) ||
+        Is_block(raw_object_static_linking))) ||
+      (fragment == nil &&
+       (support_fragment_binary_linking ||
+        Is_block(Field(raw_descriptor, 28)) ||
+        Is_block(raw_fragment_static_linking)))) {
+    *failure = @"Metal 4 mesh linking targets an absent pipeline stage";
+    return nil;
+  }
+  if ((support_object_binary_linking || support_mesh_binary_linking) &&
+      ![compiler.device supportsFamily:MTLGPUFamilyApple9]) {
+    *failure =
+        @"Metal 4 object/mesh binary linking requires Apple9 or newer";
+    return nil;
+  }
+  if ((support_object_binary_linking || support_mesh_binary_linking ||
+       support_fragment_binary_linking) &&
+      !compiler.device.supportsFunctionPointersFromRender) {
+    *failure = @"Metal 4 mesh binary linking requires function pointers";
+    return nil;
+  }
+  NSString *static_linking_failure = nil;
+  MTL4StaticLinkingDescriptor *object_static_linking =
+      checked_render_static_linking_descriptor(
+          raw_object_static_linking, compiler.device, &static_linking_failure);
+  if (Is_block(raw_object_static_linking) && object_static_linking == nil) {
+    *failure = static_linking_failure;
+    return nil;
+  }
+  MTL4StaticLinkingDescriptor *mesh_static_linking =
+      checked_render_static_linking_descriptor(
+          raw_mesh_static_linking, compiler.device, &static_linking_failure);
+  if (Is_block(raw_mesh_static_linking) && mesh_static_linking == nil) {
+    *failure = static_linking_failure;
+    return nil;
+  }
+  MTL4StaticLinkingDescriptor *fragment_static_linking =
+      checked_render_static_linking_descriptor(
+          raw_fragment_static_linking, compiler.device,
+          &static_linking_failure);
+  if (Is_block(raw_fragment_static_linking) &&
+      fragment_static_linking == nil) {
+    *failure = static_linking_failure;
+    return nil;
+  }
   MTL4MeshRenderPipelineDescriptor *descriptor =
       [[MTL4MeshRenderPipelineDescriptor alloc] init];
   descriptor.label = expected_label;
@@ -8121,6 +8332,44 @@ PrismelMetalCheckedRenderRequest *checked_mesh_request(
       ? MTL4IndirectCommandBufferSupportStateEnabled
       : MTL4IndirectCommandBufferSupportStateDisabled;
   descriptor.supportIndirectCommandBuffers = indirect_support;
+  descriptor.supportObjectBinaryLinking = support_object_binary_linking;
+  descriptor.supportMeshBinaryLinking = support_mesh_binary_linking;
+  descriptor.supportFragmentBinaryLinking = support_fragment_binary_linking;
+  descriptor.objectStaticLinkingDescriptor = object_static_linking;
+  descriptor.meshStaticLinkingDescriptor = mesh_static_linking;
+  descriptor.fragmentStaticLinkingDescriptor = fragment_static_linking;
+  if (!checked_stored_static_linking_descriptor(
+          descriptor.objectStaticLinkingDescriptor, object_static_linking,
+          @"object", failure) ||
+      !checked_stored_static_linking_descriptor(
+          descriptor.meshStaticLinkingDescriptor, mesh_static_linking, @"mesh",
+          failure) ||
+      !checked_stored_static_linking_descriptor(
+          descriptor.fragmentStaticLinkingDescriptor,
+          fragment_static_linking, @"fragment", failure)) {
+    return nil;
+  }
+  MTL4RenderPipelineDynamicLinkingDescriptor *dynamic_linking = nil;
+  if (Is_block(Field(raw_descriptor, 26)) ||
+      Is_block(Field(raw_descriptor, 27)) ||
+      Is_block(Field(raw_descriptor, 28))) {
+    dynamic_linking =
+        new_checked_render_dynamic_linking_descriptor(failure);
+    if (dynamic_linking == nil ||
+        !configure_render_stage_dynamic_linking(
+            dynamic_linking.objectLinkingDescriptor,
+            Field(raw_descriptor, 26), compiler.device,
+            support_object_binary_linking, @"object", failure) ||
+        !configure_render_stage_dynamic_linking(
+            dynamic_linking.meshLinkingDescriptor, Field(raw_descriptor, 27),
+            compiler.device, support_mesh_binary_linking, @"mesh", failure) ||
+        !configure_render_stage_dynamic_linking(
+            dynamic_linking.fragmentLinkingDescriptor,
+            Field(raw_descriptor, 28), compiler.device,
+            support_fragment_binary_linking, @"fragment", failure)) {
+      return nil;
+    }
+  }
   value raw_attachments = Field(raw_descriptor, 19);
   if (!configure_render_color_attachments(descriptor.colorAttachments,
                                           raw_attachments,
@@ -8169,6 +8418,11 @@ PrismelMetalCheckedRenderRequest *checked_mesh_request(
       descriptor.rasterSampleCount != sample_count ||
       descriptor.isRasterizationEnabled != rasterization_enabled ||
       descriptor.supportIndirectCommandBuffers != indirect_support ||
+      descriptor.supportObjectBinaryLinking !=
+          support_object_binary_linking ||
+      descriptor.supportMeshBinaryLinking != support_mesh_binary_linking ||
+      descriptor.supportFragmentBinaryLinking !=
+          support_fragment_binary_linking ||
       (reflection_requested &&
        (descriptor.options == nil ||
         descriptor.options.shaderReflection != expected_reflection)) ||
@@ -8190,6 +8444,7 @@ PrismelMetalCheckedRenderRequest *checked_mesh_request(
   PrismelMetalCheckedRenderRequest *request =
       [[PrismelMetalCheckedRenderRequest alloc] init];
   request.descriptor = descriptor;
+  request.dynamicLinking = dynamic_linking;
   request.taskOptions = task_options;
   request.label = expected_label;
   request.reflectionRequested = reflection_requested;
@@ -8245,14 +8500,15 @@ PrismelMetalCheckedRenderRequest *checked_tile_request(
     return nil;
   }
   const bool support_binary_linking = Bool_val(Field(raw_descriptor, 11));
-  if (support_binary_linking && !compiler.device.supportsFunctionPointers) {
+  if (support_binary_linking &&
+      !compiler.device.supportsFunctionPointersFromRender) {
     *failure = @"Metal 4 tile binary linking requires function pointers";
     return nil;
   }
   value raw_static_linking = Field(raw_descriptor, 12);
   NSString *static_linking_failure = nil;
   MTL4StaticLinkingDescriptor *static_linking =
-      checked_static_linking_descriptor(
+      checked_render_static_linking_descriptor(
           raw_static_linking, compiler.device, &static_linking_failure);
   if (Is_block(raw_static_linking) && static_linking == nil) {
     *failure = static_linking_failure;
@@ -8269,6 +8525,22 @@ PrismelMetalCheckedRenderRequest *checked_tile_request(
   descriptor.requiredThreadsPerThreadgroup = required_threads;
   descriptor.supportBinaryLinking = support_binary_linking;
   descriptor.staticLinkingDescriptor = static_linking;
+  if (!checked_stored_static_linking_descriptor(
+          descriptor.staticLinkingDescriptor, static_linking, @"tile",
+          failure)) {
+    return nil;
+  }
+  MTL4RenderPipelineDynamicLinkingDescriptor *dynamic_linking = nil;
+  if (Is_block(Field(raw_descriptor, 14))) {
+    dynamic_linking =
+        new_checked_render_dynamic_linking_descriptor(failure);
+    if (dynamic_linking == nil ||
+        !configure_render_stage_dynamic_linking(
+            dynamic_linking.tileLinkingDescriptor, Field(raw_descriptor, 14),
+            compiler.device, support_binary_linking, @"tile", failure)) {
+      return nil;
+    }
+  }
   if (!configure_tile_color_attachments(
           descriptor.colorAttachments, Field(raw_descriptor, 5), failure)) {
     return nil;
@@ -8300,19 +8572,6 @@ PrismelMetalCheckedRenderRequest *checked_tile_request(
           required_threads.height ||
       descriptor.requiredThreadsPerThreadgroup.depth != required_threads.depth ||
       descriptor.supportBinaryLinking != support_binary_linking ||
-      (static_linking == nil && descriptor.staticLinkingDescriptor != nil &&
-       (descriptor.staticLinkingDescriptor.functionDescriptors.count != 0 ||
-        descriptor.staticLinkingDescriptor.privateFunctionDescriptors.count !=
-            0 ||
-        descriptor.staticLinkingDescriptor.groups.count != 0)) ||
-      (static_linking != nil &&
-       (descriptor.staticLinkingDescriptor == nil ||
-        descriptor.staticLinkingDescriptor.functionDescriptors.count !=
-            static_linking.functionDescriptors.count ||
-        descriptor.staticLinkingDescriptor.privateFunctionDescriptors.count !=
-            static_linking.privateFunctionDescriptors.count ||
-        descriptor.staticLinkingDescriptor.groups.count !=
-            static_linking.groups.count)) ||
       (reflection_requested &&
        (descriptor.options == nil ||
         descriptor.options.shaderReflection != expected_reflection)) ||
@@ -8328,6 +8587,7 @@ PrismelMetalCheckedRenderRequest *checked_tile_request(
   PrismelMetalCheckedRenderRequest *request =
       [[PrismelMetalCheckedRenderRequest alloc] init];
   request.descriptor = descriptor;
+  request.dynamicLinking = dynamic_linking;
   request.taskOptions = task_options;
   request.label = expected_label;
   request.reflectionRequested = reflection_requested;

@@ -442,7 +442,142 @@ using namespace metal;
 [[visible]] uint private_static_identity(uint value) {
   return value;
 }
+
+[[visible]] uint vertex_public_static_identity(uint value) {
+  return value;
+}
+
+[[visible]] uint vertex_private_static_identity(uint value) {
+  return value;
+}
+
+[[visible]] uint fragment_public_static_identity(uint value) {
+  return value;
+}
+
+[[visible]] uint fragment_private_static_identity(uint value) {
+  return value;
+}
+
+[[visible]] uint object_public_static_identity(uint value) {
+  return value;
+}
+
+[[visible]] uint object_private_static_identity(uint value) {
+  return value;
+}
+
+[[visible]] uint mesh_public_static_identity(uint value) {
+  return value;
+}
+
+[[visible]] uint mesh_private_static_identity(uint value) {
+  return value;
+}
+
+[[visible]] uint tile_public_static_identity(uint value) {
+  return value;
+}
+
+[[visible]] uint tile_private_static_identity(uint value) {
+  return value;
+}
 |}
+
+type render_link_fixture =
+  { compiler : Compiler.t
+  ; binary_library : Library.t
+  ; binary_source : Function.t
+  ; binary_function : Binary_function.t
+  ; dynamic_source : Library.t
+  ; dynamic_library : Dynamic_library.t
+  ; static_provider : Library.t
+  }
+
+let create_render_link_fixture device name =
+  let compiler = get (Compiler.create device) in
+  let binary_library =
+    get
+      (Compiler.compile_source
+         ~name:(Printf.sprintf "%s-render-link-binary" name)
+         compiler shader_source)
+  in
+  let binary_source =
+    get (Function.find ~library:binary_library "linked_identity")
+  in
+  let binary_function =
+    get
+      (Compiler.create_binary_function ~pipeline_independent:true compiler
+         ~source:binary_source
+         ~name:(Printf.sprintf "%s-render-linked-identity" name))
+  in
+  let dynamic_source =
+    get
+      (Library.compile_dynamic_source ~device
+         ~label:(Printf.sprintf "%s render preload source" name)
+         ~install_name:
+           (Printf.sprintf "@rpath/prismel-%s-render-link.dylib" name)
+         dynamic_library_source)
+  in
+  let dynamic_library =
+    get
+      (Compiler.create_dynamic_library
+         ~label:(Printf.sprintf "%s render preload" name)
+         compiler dynamic_source)
+  in
+  let static_provider =
+    get
+      (Compiler.compile_source
+         ~name:(Printf.sprintf "%s-render-static-provider" name)
+         compiler static_provider_source)
+  in
+  { compiler
+  ; binary_library
+  ; binary_source
+  ; binary_function
+  ; dynamic_source
+  ; dynamic_library
+  ; static_provider
+  }
+
+let binary_stage_linking fixture depth =
+  Compiler.stage_linking ~binary_functions:[ fixture.binary_function ]
+    ~max_call_stack_depth:depth ()
+
+let preload_stage_linking fixture depth =
+  Compiler.stage_linking ~preloaded_libraries:[ fixture.dynamic_library ]
+    ~max_call_stack_depth:depth ()
+
+let full_stage_linking fixture depth =
+  Compiler.stage_linking ~binary_functions:[ fixture.binary_function ]
+    ~preloaded_libraries:[ fixture.dynamic_library ]
+    ~max_call_stack_depth:depth ()
+
+let static_stage_linking fixture stage =
+  let public : Compiler.static_function =
+    { library = fixture.static_provider
+    ; name = stage ^ "_public_static_identity"
+    }
+  in
+  let private_ : Compiler.static_function =
+    { library = fixture.static_provider
+    ; name = stage ^ "_private_static_identity"
+    }
+  in
+  ({ functions = [ public ]
+   ; private_functions = [ private_ ]
+   ; groups = [ stage ^ "_identity", [ public ] ]
+   }
+    : Compiler.static_linking)
+
+let destroy_render_link_fixture fixture =
+  get (Function.destroy fixture.binary_source);
+  get (Binary_function.destroy fixture.binary_function);
+  get (Dynamic_library.destroy fixture.dynamic_library);
+  get (Library.destroy fixture.dynamic_source);
+  get (Library.destroy fixture.binary_library);
+  get (Library.destroy fixture.static_provider);
+  get (Compiler.destroy fixture.compiler)
 
 let input_values () =
   let bytes = Bytes.create 16 in
@@ -5574,45 +5709,17 @@ let test_metal4_vertex_descriptor_commands device =
 let test_metal4_render_linking_commands device =
   if not (get (Device.supports_family device Device.Metal4)) then false
   else begin
-    let compiler = get (Compiler.create device) in
-    let binary_library =
-      get
-        (Compiler.compile_source ~name:"metal4-render-link-binary" compiler
-           shader_source)
-    in
-    let visible_source =
-      get (Function.find ~library:binary_library "linked_identity")
-    in
-    let binary_function =
-      get
-        (Compiler.create_binary_function ~pipeline_independent:true compiler
-           ~source:visible_source ~name:"metal4-render-linked-identity")
-    in
-    let dynamic_source =
-      get
-        (Library.compile_dynamic_source ~device
-           ~label:"Metal 4 render preload source"
-           ~install_name:"@rpath/prismel-render-link.dylib"
-           dynamic_library_source)
-    in
-    let preloaded_library =
-      get
-        (Compiler.create_dynamic_library ~label:"Metal 4 render preload"
-           compiler dynamic_source)
-    in
+    let fixture = create_render_link_fixture device "conventional" in
+    let compiler = fixture.compiler in
     let render_library =
       get
         (Compiler.compile_source ~name:"metal4-render-link-client" compiler
            render_shader_source)
     in
-    let vertex_linking =
-      Compiler.stage_linking ~binary_functions:[ binary_function ]
-        ~max_call_stack_depth:2 ()
-    in
-    let fragment_linking =
-      Compiler.stage_linking ~preloaded_libraries:[ preloaded_library ]
-        ~max_call_stack_depth:3 ()
-    in
+    let vertex_linking = binary_stage_linking fixture 2 in
+    let fragment_linking = preload_stage_linking fixture 3 in
+    let vertex_static_linking = static_stage_linking fixture "vertex" in
+    let fragment_static_linking = static_stage_linking fixture "fragment" in
     let before_invalid = get (Release_queue.stats ()) in
     ignore
       (expect_error Invalid_argument
@@ -5636,7 +5743,8 @@ let test_metal4_render_linking_commands device =
             ~support_vertex_binary_linking:true
             ~vertex_dynamic_linking:
               (Compiler.stage_linking
-                 ~binary_functions:[ binary_function; binary_function ] ())
+                 ~binary_functions:
+                   [ fixture.binary_function; fixture.binary_function ] ())
             compiler ~library:render_library
             ~vertex:"prismel_fullscreen_vertex"));
     ignore
@@ -5646,12 +5754,23 @@ let test_metal4_render_linking_commands device =
             ~fragment_dynamic_linking:
               (Compiler.stage_linking
                  ~preloaded_libraries:
-                   [ preloaded_library; preloaded_library ] ())
+                   [ fixture.dynamic_library; fixture.dynamic_library ] ())
             compiler ~library:render_library
             ~vertex:"prismel_fullscreen_vertex"));
+    ignore
+      (expect_error Invalid_argument
+         (Compiler.create_render_pipeline ~rasterization_enabled:false
+            ~color_formats:[] ~fragment_dynamic_linking:fragment_linking
+            compiler ~library:render_library ~vertex:"prismel_vertex_only"));
+    ignore
+      (expect_error Invalid_argument
+         (Compiler.create_render_pipeline ~rasterization_enabled:false
+            ~color_formats:[]
+            ~fragment_static_linking:fragment_static_linking compiler
+            ~library:render_library ~vertex:"prismel_vertex_only"));
     let after_invalid = get (Release_queue.stats ()) in
     if after_invalid.total_created <> before_invalid.total_created then
-      fail "invalid render dynamic linking allocated native handles";
+      fail "invalid render-stage linking allocated native handles";
     let create_synchronous_pipeline () =
       Compiler.create_render_pipeline
         ~label:"Metal 4 dynamically linked render"
@@ -5659,7 +5778,8 @@ let test_metal4_render_linking_commands device =
         ~support_vertex_binary_linking:true
         ~support_fragment_binary_linking:true
         ~vertex_dynamic_linking:vertex_linking
-        ~fragment_dynamic_linking:fragment_linking compiler
+        ~fragment_dynamic_linking:fragment_linking
+        ~vertex_static_linking ~fragment_static_linking compiler
         ~library:render_library
         ~vertex:"prismel_fullscreen_vertex"
     in
@@ -5670,7 +5790,8 @@ let test_metal4_render_linking_commands device =
         ~support_vertex_binary_linking:true
         ~support_fragment_binary_linking:true
         ~vertex_dynamic_linking:vertex_linking
-        ~fragment_dynamic_linking:fragment_linking compiler
+        ~fragment_dynamic_linking:fragment_linking
+        ~vertex_static_linking ~fragment_static_linking compiler
         ~library:render_library
         ~vertex:"prismel_fullscreen_vertex"
     in
@@ -5701,14 +5822,9 @@ let test_metal4_render_linking_commands device =
         None, None
       end
     in
-    get (Function.destroy visible_source);
-    get (Binary_function.destroy binary_function);
-    get (Dynamic_library.destroy preloaded_library);
-    get (Library.destroy dynamic_source);
-    get (Library.destroy binary_library);
     get (Library.destroy render_library);
     Option.iter (fun task -> get (Compiler_task.destroy task)) asynchronous_task;
-    get (Compiler.destroy compiler);
+    destroy_render_link_fixture fixture;
     let pipelines =
       synchronous_pipeline :: Option.to_list asynchronous_pipeline
     in
@@ -5778,7 +5894,8 @@ let test_metal4_render_linking_commands device =
     get (Command4.Allocator.reset allocator);
     get (Command4.Queue.destroy queue);
     get (Command4.Allocator.destroy allocator);
-    Printf.printf "Metal 4 render-stage dynamic-link conformance passed\n%!";
+    Printf.printf
+      "Metal 4 render-stage static/dynamic-link conformance passed\n%!";
     true
   end
 
@@ -5790,12 +5907,82 @@ let test_metal4_mesh_commands device =
           || get (Device.supports_family device Device.Mac2))
   then false
   else begin
-    let compiler = get (Compiler.create device) in
+    let fixture = create_render_link_fixture device "mesh" in
+    let compiler = fixture.compiler in
     let library =
       get
         (Compiler.compile_source ~name:"metal4-command-mesh-library" compiler
            mesh_shader_source)
     in
+    let supports_mesh_stage_binary_linking =
+      get (Device.supports_family device Device.Apple9)
+    in
+    let object_dynamic_linking =
+      if supports_mesh_stage_binary_linking then
+        binary_stage_linking fixture 2
+      else preload_stage_linking fixture 2
+    in
+    let mesh_dynamic_linking =
+      if supports_mesh_stage_binary_linking then full_stage_linking fixture 3
+      else preload_stage_linking fixture 3
+    in
+    let fragment_dynamic_linking = full_stage_linking fixture 4 in
+    let object_static_linking = static_stage_linking fixture "object" in
+    let mesh_static_linking = static_stage_linking fixture "mesh" in
+    let fragment_static_linking = static_stage_linking fixture "fragment" in
+    let before_invalid_linking = get (Release_queue.stats ()) in
+    ignore
+      (expect_error Invalid_argument
+         (Compiler.create_mesh_pipeline
+            ~fragment:"prismel_mesh_fragment"
+            ~object_dynamic_linking compiler ~library ~mesh:"prismel_mesh"));
+    ignore
+      (expect_error Invalid_argument
+         (Compiler.create_mesh_pipeline
+            ~fragment:"prismel_mesh_fragment"
+            ~object_static_linking compiler ~library ~mesh:"prismel_mesh"));
+    ignore
+      (expect_error Invalid_argument
+         (Compiler.create_mesh_pipeline ~rasterization_enabled:false
+            ~color_formats:[] ~fragment_dynamic_linking compiler ~library
+            ~mesh:"prismel_mesh"));
+    ignore
+      (expect_error Invalid_argument
+         (Compiler.create_mesh_pipeline ~rasterization_enabled:false
+            ~color_formats:[] ~fragment_static_linking compiler ~library
+            ~mesh:"prismel_mesh"));
+    ignore
+      (expect_error Invalid_argument
+         (Compiler.create_mesh_pipeline
+            ~fragment:"prismel_mesh_fragment"
+            ~mesh_dynamic_linking:(binary_stage_linking fixture 1) compiler
+            ~library ~mesh:"prismel_mesh"));
+    ignore
+      (expect_error Invalid_argument
+         (Compiler.create_mesh_pipeline ~object_function:"prismel_object"
+            ~fragment:"prismel_mesh_fragment"
+            ~object_dynamic_linking:
+              (Compiler.stage_linking ~max_call_stack_depth:0 ())
+            compiler ~library ~mesh:"prismel_object_mesh"));
+    if not supports_mesh_stage_binary_linking then begin
+      ignore
+        (expect_error Unsupported
+           (Compiler.create_mesh_pipeline ~object_function:"prismel_object"
+              ~fragment:"prismel_mesh_fragment"
+              ~support_object_binary_linking:true compiler ~library
+              ~mesh:"prismel_object_mesh"));
+      ignore
+        (expect_error Unsupported
+           (Compiler.create_mesh_pipeline
+              ~fragment:"prismel_mesh_fragment"
+              ~support_mesh_binary_linking:true compiler ~library
+              ~mesh:"prismel_mesh"))
+    end;
+    let after_invalid_linking = get (Release_queue.stats ()) in
+    if
+      after_invalid_linking.total_created
+      <> before_invalid_linking.total_created
+    then fail "invalid mesh-stage linking allocated native handles";
     let mesh_pipeline =
       get
         (Compiler.create_mesh_pipeline ~label:"Metal 4 executable mesh"
@@ -5805,7 +5992,11 @@ let test_metal4_mesh_commands device =
                  ~blending:Render_pipeline.Blend_enabled Texture.Bgra8_unorm
              ]
            ~max_total_threads_per_mesh_threadgroup:3
-           ~required_threads_per_mesh_threadgroup:(3, 1, 1) compiler ~library
+           ~required_threads_per_mesh_threadgroup:(3, 1, 1)
+           ~support_mesh_binary_linking:supports_mesh_stage_binary_linking
+           ~support_fragment_binary_linking:true
+           ~mesh_dynamic_linking ~fragment_dynamic_linking
+           ~mesh_static_linking ~fragment_static_linking compiler ~library
            ~mesh:"prismel_mesh")
     in
     let object_mesh_pipeline =
@@ -5818,8 +6009,56 @@ let test_metal4_mesh_commands device =
            ~required_threads_per_object_threadgroup:(1, 1, 1)
            ~required_threads_per_mesh_threadgroup:(3, 1, 1)
            ~payload_memory_length:8 ~max_total_threadgroups_per_mesh_grid:1
+           ~support_object_binary_linking:supports_mesh_stage_binary_linking
+           ~support_mesh_binary_linking:supports_mesh_stage_binary_linking
+           ~support_fragment_binary_linking:true
+           ~object_dynamic_linking ~mesh_dynamic_linking
+           ~fragment_dynamic_linking ~object_static_linking
+           ~mesh_static_linking ~fragment_static_linking
            compiler ~library ~mesh:"prismel_object_mesh")
     in
+    let create_async_linked_mesh () =
+      Compiler.create_mesh_pipeline_async
+        ~label:"Metal 4 asynchronously linked object mesh"
+        ~object_function:"prismel_object"
+        ~fragment:"prismel_mesh_fragment"
+        ~max_total_threads_per_object_threadgroup:1
+        ~max_total_threads_per_mesh_threadgroup:3
+        ~required_threads_per_object_threadgroup:(1, 1, 1)
+        ~required_threads_per_mesh_threadgroup:(3, 1, 1)
+        ~payload_memory_length:8 ~max_total_threadgroups_per_mesh_grid:1
+        ~support_object_binary_linking:supports_mesh_stage_binary_linking
+        ~support_mesh_binary_linking:supports_mesh_stage_binary_linking
+        ~support_fragment_binary_linking:true ~object_dynamic_linking
+        ~mesh_dynamic_linking ~fragment_dynamic_linking
+        ~object_static_linking ~mesh_static_linking ~fragment_static_linking
+        compiler ~library ~mesh:"prismel_object_mesh"
+    in
+    if get (Device.supports_family device Device.Apple9) then begin
+      let task = get (create_async_linked_mesh ()) in
+      get (Compiler_task.wait task);
+      let pipeline =
+        match get (Compiler_task.poll task) with
+        | Compiler_task.Complete (Ok pipeline) -> pipeline
+        | Complete (Error error) ->
+            fail "asynchronous dynamically linked mesh failed: %s"
+              (Format.asprintf "%a" pp_error error)
+        | Pending -> fail "waited dynamically linked mesh task remained pending"
+      in
+      if Render_pipeline.kind pipeline <> Render_pipeline.Mesh then
+        fail "async linked mesh produced a non-mesh pipeline";
+      get (Render_pipeline.destroy pipeline);
+      get (Compiler_task.destroy task)
+    end
+    else begin
+      let before_async = get (Release_queue.stats ()) in
+      ignore (expect_error Unsupported (create_async_linked_mesh ()));
+      let after_async = get (Release_queue.stats ()) in
+      if after_async.total_created <> before_async.total_created then
+        fail "unsupported async mesh linking allocated a native handle"
+    end;
+    get (Library.destroy library);
+    destroy_render_link_fixture fixture;
     let make_target label =
       get
         (Texture.create ~device
@@ -5980,9 +6219,8 @@ let test_metal4_mesh_commands device =
     get (Command4.Allocator.reset allocator);
     get (Command4.Queue.destroy queue);
     get (Command4.Allocator.destroy allocator);
-    get (Library.destroy library);
-    get (Compiler.destroy compiler);
-    Printf.printf "Metal 4 direct/object mesh-command conformance passed\n%!";
+    Printf.printf
+      "Metal 4 linked direct/object mesh-command conformance passed\n%!";
     true
   end
 
@@ -5992,12 +6230,39 @@ let test_metal4_tile_commands device =
     || not (get (Device.supports_family device Device.Apple4))
   then false
   else begin
-    let compiler = get (Compiler.create device) in
+    let fixture = create_render_link_fixture device "tile" in
+    let compiler = fixture.compiler in
     let library =
       get
         (Compiler.compile_source ~name:"metal4-command-tile-library" compiler
            tile_shader_source)
     in
+    let dynamic_linking = full_stage_linking fixture 2 in
+    let static_linking = static_stage_linking fixture "tile" in
+    let before_invalid_linking = get (Release_queue.stats ()) in
+    ignore
+      (expect_error Invalid_argument
+         (Compiler.create_tile_pipeline ~dynamic_linking compiler ~library
+            ~tile:"prismel_tile"));
+    ignore
+      (expect_error Invalid_argument
+         (Compiler.create_tile_pipeline ~support_binary_linking:true
+            ~dynamic_linking:
+              (Compiler.stage_linking ~max_call_stack_depth:0 ())
+            compiler ~library ~tile:"prismel_tile"));
+    ignore
+      (expect_error Invalid_argument
+         (Compiler.create_tile_pipeline ~support_binary_linking:true
+            ~dynamic_linking:
+              (Compiler.stage_linking
+                 ~preloaded_libraries:
+                   [ fixture.dynamic_library; fixture.dynamic_library ] ())
+            compiler ~library ~tile:"prismel_tile"));
+    let after_invalid_linking = get (Release_queue.stats ()) in
+    if
+      after_invalid_linking.total_created
+      <> before_invalid_linking.total_created
+    then fail "invalid tile-stage linking allocated native handles";
     let output =
       get (Buffer.create ~device ~length:4L ~storage:Buffer.Shared ())
     in
@@ -6041,8 +6306,43 @@ let test_metal4_tile_commands device =
            ~threadgroup_size_matches_tile_size:true
            ~max_total_threads_per_threadgroup:tile_threads
            ~required_threads_per_threadgroup:(tile_width, tile_height, 1)
+           ~support_binary_linking:true ~static_linking ~dynamic_linking
            compiler ~library ~tile:"prismel_tile")
     in
+    let create_async_linked_tile () =
+      Compiler.create_tile_pipeline_async
+        ~label:"Metal 4 asynchronously linked tile"
+        ~threadgroup_size_matches_tile_size:true
+        ~max_total_threads_per_threadgroup:tile_threads
+        ~required_threads_per_threadgroup:(tile_width, tile_height, 1)
+        ~support_binary_linking:true ~static_linking ~dynamic_linking compiler
+        ~library ~tile:"prismel_tile"
+    in
+    if get (Device.supports_family device Device.Apple9) then begin
+      let task = get (create_async_linked_tile ()) in
+      get (Compiler_task.wait task);
+      let async_pipeline =
+        match get (Compiler_task.poll task) with
+        | Compiler_task.Complete (Ok pipeline) -> pipeline
+        | Complete (Error error) ->
+            fail "asynchronous dynamically linked tile failed: %s"
+              (Format.asprintf "%a" pp_error error)
+        | Pending -> fail "waited dynamically linked tile task remained pending"
+      in
+      if Render_pipeline.kind async_pipeline <> Render_pipeline.Tile then
+        fail "async linked tile produced a non-tile pipeline";
+      get (Render_pipeline.destroy async_pipeline);
+      get (Compiler_task.destroy task)
+    end
+    else begin
+      let before_async = get (Release_queue.stats ()) in
+      ignore (expect_error Unsupported (create_async_linked_tile ()));
+      let after_async = get (Release_queue.stats ()) in
+      if after_async.total_created <> before_async.total_created then
+        fail "unsupported async tile linking allocated a native handle"
+    end;
+    get (Library.destroy library);
+    destroy_render_link_fixture fixture;
     ignore
       (expect_error Invalid_state
          (Command4.Render_encoder.dispatch_threads_per_tile encoder
@@ -6105,9 +6405,8 @@ let test_metal4_tile_commands device =
     get (Command4.Allocator.reset allocator);
     get (Command4.Queue.destroy queue);
     get (Command4.Allocator.destroy allocator);
-    get (Library.destroy library);
-    get (Compiler.destroy compiler);
-    Printf.printf "Metal 4 tile-command conformance passed (%dx%d threads)\n%!"
+    Printf.printf
+      "Metal 4 linked tile-command conformance passed (%dx%d threads)\n%!"
       tile_width tile_height;
     true
   end

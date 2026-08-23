@@ -667,21 +667,45 @@ interleaved `Float2` positions and normalized `Uchar4` colors, then verifies a
 static-stride direct draw as exact BGRA `(51, 34, 17, 255)` and a dynamic-stride
 indexed draw as exact BGRA `(47, 101, 203, 255)` across separate 8×8 targets.
 
-Conventional render pipelines also accept immutable per-stage dynamic-linking
-policy for the vertex and fragment stages. Each `Compiler.stage_linking` value
-contains a positive maximum call-stack depth, checked binary functions, and
-checked preloaded dynamic libraries. Binary functions require the corresponding
-pipeline support flag; every handle must be live, belong to the compiler's
-device, and be unique within its stage. The native boundary copies the two
-stage descriptors into `MTL4RenderPipelineDynamicLinkingDescriptor` and reads
-back the support flags, depth, and exact function/library identities after
-validating unique dynamic-library install names. Synchronous compilation and
-execution are supported on the M1. Asynchronous dynamic render linking is
-rejected without native allocation before Apple9/M3 because that older driver
-cannot safely serialize the request. The M1 conformance path destroys every
-source function, binary function, dynamic library, source library, and compiler
-before drawing through the compiled pipeline, then verifies an exact green 8×8
-BGRA target.
+All three Metal 4 render-pipeline families accept immutable, stage-local static
+and dynamic linking policy. Conventional pipelines expose independent vertex
+and fragment policy, mesh pipelines expose object, mesh, and fragment policy,
+and tile pipelines expose tile policy. A static and a dynamic descriptor may be
+used independently or together at the same stage. Static policy uses the shared
+checked public, private, and grouped-function representation; each supplied
+`Compiler.stage_linking` dynamic value creates a stage descriptor with a
+positive maximum call-stack depth, checked binary functions, and checked
+preloaded dynamic libraries.
+
+Linking policy for an absent optional object or fragment stage is rejected
+before native allocation. Public/group static functions and render-stage binary
+functions require `MTLDevice.supportsFunctionPointersFromRender`; the safe
+layer does not substitute the compute-oriented `supportsFunctionPointers`
+capability. Object- and mesh-stage binary functions additionally require
+Apple9/M3. A binary function also requires the corresponding per-stage support
+flag. Private-only static linking does not add that requirement. Every input
+handle must be live, same-device, and unique within the relevant category,
+while dynamic-library preloads additionally require dynamic-library support and
+unique nonempty install names. The native boundary copies each static
+descriptor to its exact pipeline-stage property, sets and reads back every
+support flag, fills only the requested children of
+`MTL4RenderPipelineDynamicLinkingDescriptor`, and verifies the copied static
+function/name/group structure plus dynamic depth and exact binary-function and
+preloaded-library identities.
+
+Synchronous static/dynamic compilation and ordinary or static-only asynchronous
+compilation execute on the Apple7/M1 qualification lane. Any asynchronous
+render, mesh, or tile request containing dynamic linking is rejected without a
+native allocation before Apple9/M3 because the older driver cannot safely
+serialize it. M1 conformance combines static and dynamic stage inputs, then
+destroys the source `Function`, `Binary_function`, `Dynamic_library`, source,
+provider, and client `Library` values, completed `Compiler_task` values, and
+`Compiler` before using the resulting pipelines. Conventional and direct-mesh
+pipelines produce exact 8×8 BGRA green `(0, 255, 0, 255)` targets, the
+object-to-mesh pipeline produces exact 8×8 BGRA red `(0, 0, 255, 255)`, and the
+tile pipeline writes the exact shared-buffer `int32` value `23`. The M1 async
+negative cases prove typed rejection without allocation; positive asynchronous
+dynamic linking requires the Apple9/M3 lane.
 
 `Command4.Compute_encoder` binds a checked compute pipeline and an optional
 argument table, then dispatches positive direct grid/threadgroup dimensions
@@ -720,8 +744,7 @@ The M1 conformance path compiles an exact 32×32 full-tile pipeline, clears its
 argument-table slot immediately after dispatch, and verifies the retained shared
 buffer contains the tile shader's exact value `23` after commit feedback.
 
-Mesh/object/tile-stage dynamic render linking and positive offline `.metallib`
-provenance remain open.
+Positive offline `.metallib` provenance remains open.
 
 `test_metal.exe` runs a real M1 compute kernel, wrong-domain and invalid-state
 cases, full labeled shader diagnostics, function-constant introspection and
@@ -752,8 +775,9 @@ immutable depth compare/write state and a pixel-exact depth-ordered target,
 front/back stencil policy and a pixel-exact reference-rejected target,
 typed render/mesh blend policy and a pixel-exact constant-blended target,
 typed static/dynamic vertex layouts with exact direct/indexed targets,
-typed vertex/fragment dynamic render linking with destroyed source handles and
-an exact green target,
+typed static/dynamic vertex, fragment, object, mesh, and tile linking with
+destroyed source handles, exact green conventional/direct-mesh targets, an
+exact red object-to-mesh target, and exact tile value `23`,
 argument-table-backed Metal 4 compute execution, direct and object-stage mesh
 command execution with two pixel-exact offscreen targets, and exact full-tile
 command execution through a completion-retained output buffer,

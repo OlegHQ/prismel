@@ -1524,9 +1524,10 @@ module Compiler : sig
       formats or typed color attachments, but not both. Vertex-only pipelines
       use a void-returning vertex function, disable rasterization, and use no
       color attachments. An optional immutable vertex descriptor enables
-      Metal stage-in attribute fetch. Optional vertex and fragment linking
-      values carry stage-specific binary functions, preloaded libraries, and
-      maximum call-stack depth. *)
+      Metal stage-in attribute fetch. Optional static descriptors and dynamic
+      linking values configure the vertex and fragment stages independently;
+      dynamic values carry binary functions, preloaded libraries, and maximum
+      call-stack depth. *)
   val create_render_pipeline :
     ?label:string -> ?fragment:string -> ?reflection:bool ->
     ?raster_sample_count:int -> ?color_formats:Texture.format list ->
@@ -1536,6 +1537,8 @@ module Compiler : sig
     ?support_fragment_binary_linking:bool ->
     ?vertex_dynamic_linking:stage_linking ->
     ?fragment_dynamic_linking:stage_linking ->
+    ?vertex_static_linking:static_linking ->
+    ?fragment_static_linking:static_linking ->
     ?rasterization_enabled:bool ->
     ?primitive_topology:Render_pipeline.primitive_topology ->
     ?support_indirect_command_buffers:bool ->
@@ -1554,6 +1557,8 @@ module Compiler : sig
     ?support_fragment_binary_linking:bool ->
     ?vertex_dynamic_linking:stage_linking ->
     ?fragment_dynamic_linking:stage_linking ->
+    ?vertex_static_linking:static_linking ->
+    ?fragment_static_linking:static_linking ->
     ?rasterization_enabled:bool ->
     ?primitive_topology:Render_pipeline.primitive_topology ->
     ?support_indirect_command_buffers:bool ->
@@ -1564,7 +1569,10 @@ module Compiler : sig
   (** Compiles a Metal 4 mesh pipeline, optionally with an object stage.
       Object-stage limits and payload configuration require [object_function].
       Rasterization and color-format rules match [create_render_pipeline].
-      Mesh shading requires an Apple7-or-newer or Mac2 GPU. *)
+      Mesh shading requires an Apple7-or-newer or Mac2 GPU. Optional stage
+      linking uses the same checked [stage_linking] values as conventional
+      rendering. Binary functions in object or mesh stages require Apple9/M3;
+      static linking and dynamic-library preloads remain independently gated. *)
   val create_mesh_pipeline :
     ?label:string -> ?object_function:string -> ?fragment:string ->
     ?reflection:bool ->
@@ -1577,13 +1585,23 @@ module Compiler : sig
     ?max_total_threadgroups_per_mesh_grid:int -> ?raster_sample_count:int ->
     ?color_formats:Texture.format list ->
     ?color_attachments:Render_pipeline.color_attachment list ->
+    ?support_object_binary_linking:bool ->
+    ?support_mesh_binary_linking:bool ->
+    ?support_fragment_binary_linking:bool ->
+    ?object_dynamic_linking:stage_linking ->
+    ?mesh_dynamic_linking:stage_linking ->
+    ?fragment_dynamic_linking:stage_linking ->
+    ?object_static_linking:static_linking ->
+    ?mesh_static_linking:static_linking ->
+    ?fragment_static_linking:static_linking ->
     ?rasterization_enabled:bool ->
     ?support_indirect_command_buffers:bool ->
     ?lookup_archives:Pipeline_archive.t list -> t -> library:Library.t ->
     mesh:string -> (Render_pipeline.t, error) result
 
-  (** The native task retains the mesh descriptor and every function library
-      through completion. Indirect mesh draws are rejected below Apple9/M3. *)
+  (** The native task retains the mesh descriptor and every linking input
+      through completion. Indirect mesh draws and asynchronous dynamic linking
+      are rejected below Apple9/M3. *)
   val create_mesh_pipeline_async :
     ?label:string -> ?object_function:string -> ?fragment:string ->
     ?reflection:bool ->
@@ -1596,6 +1614,15 @@ module Compiler : sig
     ?max_total_threadgroups_per_mesh_grid:int -> ?raster_sample_count:int ->
     ?color_formats:Texture.format list ->
     ?color_attachments:Render_pipeline.color_attachment list ->
+    ?support_object_binary_linking:bool ->
+    ?support_mesh_binary_linking:bool ->
+    ?support_fragment_binary_linking:bool ->
+    ?object_dynamic_linking:stage_linking ->
+    ?mesh_dynamic_linking:stage_linking ->
+    ?fragment_dynamic_linking:stage_linking ->
+    ?object_static_linking:static_linking ->
+    ?mesh_static_linking:static_linking ->
+    ?fragment_static_linking:static_linking ->
     ?rasterization_enabled:bool ->
     ?support_indirect_command_buffers:bool ->
     ?lookup_archives:Pipeline_archive.t list -> t -> library:Library.t ->
@@ -1611,11 +1638,13 @@ module Compiler : sig
     ?max_total_threads_per_threadgroup:int ->
     ?required_threads_per_threadgroup:(int * int * int) ->
     ?support_binary_linking:bool -> ?static_linking:static_linking ->
+    ?dynamic_linking:stage_linking ->
     ?lookup_archives:Pipeline_archive.t list -> t -> library:Library.t ->
     tile:string -> (Render_pipeline.t, error) result
 
   (** The native compiler task owns the tile descriptor, source libraries,
-      static-link inputs, and lookup archives through completion. *)
+      static/dynamic-link inputs, and lookup archives through completion.
+      Asynchronous dynamic linking requires Apple9/M3 or newer. *)
   val create_tile_pipeline_async :
     ?label:string -> ?reflection:bool -> ?raster_sample_count:int ->
     ?color_formats:Texture.format list ->
@@ -1623,6 +1652,7 @@ module Compiler : sig
     ?max_total_threads_per_threadgroup:int ->
     ?required_threads_per_threadgroup:(int * int * int) ->
     ?support_binary_linking:bool -> ?static_linking:static_linking ->
+    ?dynamic_linking:stage_linking ->
     ?lookup_archives:Pipeline_archive.t list -> t -> library:Library.t ->
     tile:string -> (Render_pipeline.t Compiler_task.t, error) result
 

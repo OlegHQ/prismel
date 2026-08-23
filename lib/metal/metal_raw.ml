@@ -160,6 +160,8 @@ type metal4_render_descriptor =
   ; support_fragment_binary_linking : bool
   ; vertex_dynamic_linking : metal4_stage_dynamic_linking_descriptor option
   ; fragment_dynamic_linking : metal4_stage_dynamic_linking_descriptor option
+  ; vertex_static_linking : metal4_static_linking_descriptor option
+  ; fragment_static_linking : metal4_static_linking_descriptor option
   }
 
 type metal4_mesh_descriptor =
@@ -186,6 +188,15 @@ type metal4_mesh_descriptor =
   ; rasterization_enabled : bool
   ; support_indirect_commands : bool
   ; lookup_archives : handle array
+  ; support_object_binary_linking : bool
+  ; support_mesh_binary_linking : bool
+  ; support_fragment_binary_linking : bool
+  ; object_dynamic_linking : metal4_stage_dynamic_linking_descriptor option
+  ; mesh_dynamic_linking : metal4_stage_dynamic_linking_descriptor option
+  ; fragment_dynamic_linking : metal4_stage_dynamic_linking_descriptor option
+  ; object_static_linking : metal4_static_linking_descriptor option
+  ; mesh_static_linking : metal4_static_linking_descriptor option
+  ; fragment_static_linking : metal4_static_linking_descriptor option
   }
 
 type metal4_tile_descriptor =
@@ -203,6 +214,7 @@ type metal4_tile_descriptor =
   ; support_binary_linking : bool
   ; static_linking : metal4_static_linking_descriptor option
   ; lookup_archives : handle array
+  ; dynamic_linking : metal4_stage_dynamic_linking_descriptor option
   }
 
 (** Positional native ABI record for one base-level, single-sample Metal 4
@@ -348,6 +360,9 @@ external device_supports_dynamic_libraries : handle -> bool =
 
 external device_supports_function_pointers : handle -> bool =
   "caml_prismel_metal_device_supports_function_pointers"
+
+external device_supports_function_pointers_from_render : handle -> bool =
+  "caml_prismel_metal_device_supports_function_pointers_from_render"
 
 external device_supports_residency_sets : handle -> bool =
   "caml_prismel_metal_device_supports_residency_sets"

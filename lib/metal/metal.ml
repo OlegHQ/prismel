@@ -8248,7 +8248,7 @@ module Compiler = struct
     in
     loop [] [] functions
 
-  let validate_static_linking operation device = function
+  let validate_static_linking ?supports_public_linking operation device = function
     | None -> Ok None
     | Some ({ functions; private_functions; groups } : static_linking) ->
         let ( let* ) result callback = Result.bind result callback in
@@ -8294,10 +8294,15 @@ module Compiler = struct
                     ((name, raw_group) :: reversed) rest
             in
             let* raw_groups = validate_groups [] [] groups in
+            let supports_public_linking =
+              match supports_public_linking with
+              | Some supported -> supported
+              | None ->
+                  Metal_raw.device_supports_function_pointers device.raw
+            in
             if
               (functions <> [] || groups <> [])
-              && not
-                   (Metal_raw.device_supports_function_pointers device.raw)
+              && not supports_public_linking
             then
               error operation Unsupported
                 "public static linking requires Metal function-pointer support"
@@ -8882,7 +8887,8 @@ module Compiler = struct
       ?color_formats ?color_attachments ?vertex_descriptor
       ?(support_vertex_binary_linking = false)
       ?(support_fragment_binary_linking = false) ?vertex_dynamic_linking
-      ?fragment_dynamic_linking
+      ?fragment_dynamic_linking ?vertex_static_linking
+      ?fragment_static_linking
       ?(rasterization_enabled = true)
       ?(primitive_topology = Render_pipeline.Triangle)
       ?(support_indirect_command_buffers = false) ?(lookup_archives = [])
@@ -8897,9 +8903,20 @@ module Compiler = struct
         validate_optional_pipeline_entry operation library ~stage:"fragment"
           fragment
       in
+      let render_function_pointers =
+        Metal_raw.device_supports_function_pointers_from_render value.device.raw
+      in
       if option_exists contains_nul label then
         error operation Invalid_argument
           "render-pipeline label contains a NUL byte"
+      else if
+        Option.is_none fragment
+        && (support_fragment_binary_linking
+            || Option.is_some fragment_dynamic_linking
+            || Option.is_some fragment_static_linking)
+      then
+        error operation Invalid_argument
+          "fragment-stage linking requires a fragment function"
       else
         let* color_attachments =
           resolve_color_attachments operation ?color_formats ?color_attachments
@@ -8914,8 +8931,7 @@ module Compiler = struct
           if
             (support_vertex_binary_linking
             || support_fragment_binary_linking)
-            && not
-                 (Metal_raw.device_supports_function_pointers value.device.raw)
+            && not render_function_pointers
           then
             error operation Unsupported
               "render binary linking requires function-pointer support"
@@ -8930,6 +8946,16 @@ module Compiler = struct
           raw_stage_dynamic_linking operation value.device
             ~support_binary_linking:support_fragment_binary_linking
             ~stage:"fragment" fragment_dynamic_linking
+        in
+        let* vertex_static_linking =
+          validate_static_linking
+            ~supports_public_linking:render_function_pointers operation
+            value.device vertex_static_linking
+        in
+        let* fragment_static_linking =
+          validate_static_linking
+            ~supports_public_linking:render_function_pointers operation
+            value.device fragment_static_linking
         in
         let* () =
           validate_pipeline_archives operation value.device lookup_archives
@@ -8956,6 +8982,8 @@ module Compiler = struct
           ; support_fragment_binary_linking
           ; vertex_dynamic_linking
           ; fragment_dynamic_linking
+          ; vertex_static_linking
+          ; fragment_static_linking
           }
         in
         callback reflection vertex_descriptor color_attachments color_formats
@@ -8966,7 +8994,8 @@ module Compiler = struct
       ?color_formats ?color_attachments ?vertex_descriptor
       ?(support_vertex_binary_linking = false)
       ?(support_fragment_binary_linking = false) ?vertex_dynamic_linking
-      ?fragment_dynamic_linking
+      ?fragment_dynamic_linking ?vertex_static_linking
+      ?fragment_static_linking
       ?(rasterization_enabled = true)
       ?(primitive_topology = Render_pipeline.Triangle)
       ?(support_indirect_command_buffers = false) ?(lookup_archives = [])
@@ -8987,6 +9016,7 @@ module Compiler = struct
       ?color_attachments ?vertex_descriptor
       ~support_vertex_binary_linking ~support_fragment_binary_linking
       ?vertex_dynamic_linking ?fragment_dynamic_linking
+      ?vertex_static_linking ?fragment_static_linking
       ~rasterization_enabled ~primitive_topology
       ~support_indirect_command_buffers ~lookup_archives value ~library
       ~vertex
@@ -8996,7 +9026,8 @@ module Compiler = struct
       ?color_formats ?color_attachments ?vertex_descriptor
       ?(support_vertex_binary_linking = false)
       ?(support_fragment_binary_linking = false) ?vertex_dynamic_linking
-      ?fragment_dynamic_linking
+      ?fragment_dynamic_linking ?vertex_static_linking
+      ?fragment_static_linking
       ?(rasterization_enabled = true)
       ?(primitive_topology = Render_pipeline.Triangle)
       ?(support_indirect_command_buffers = false) ?(lookup_archives = [])
@@ -9034,6 +9065,7 @@ module Compiler = struct
       ?color_attachments ?vertex_descriptor
       ~support_vertex_binary_linking ~support_fragment_binary_linking
       ?vertex_dynamic_linking ?fragment_dynamic_linking
+      ?vertex_static_linking ?fragment_static_linking
       ~rasterization_enabled ~primitive_topology
       ~support_indirect_command_buffers ~lookup_archives value ~library
       ~vertex
@@ -9081,6 +9113,11 @@ module Compiler = struct
       ?(mesh_threadgroup_size_multiple = false) ?payload_memory_length
       ?max_total_threadgroups_per_mesh_grid ?(raster_sample_count = 1)
       ?color_formats ?color_attachments
+      ?(support_object_binary_linking = false)
+      ?(support_mesh_binary_linking = false)
+      ?(support_fragment_binary_linking = false) ?object_dynamic_linking
+      ?mesh_dynamic_linking ?fragment_dynamic_linking ?object_static_linking
+      ?mesh_static_linking ?fragment_static_linking
       ?(rasterization_enabled = true)
       ?(support_indirect_command_buffers = false) ?(lookup_archives = [])
       (value : t) ~(library : Library.t) ~mesh =
@@ -9097,6 +9134,9 @@ module Compiler = struct
       let* () =
         validate_optional_pipeline_entry operation library ~stage:"fragment"
           fragment
+      in
+      let render_function_pointers =
+        Metal_raw.device_supports_function_pointers_from_render value.device.raw
       in
       if option_exists contains_nul label then
         error operation Invalid_argument
@@ -9116,10 +9156,36 @@ module Compiler = struct
             || Option.is_some required_threads_per_object_threadgroup
             || object_threadgroup_size_multiple
             || Option.is_some payload_memory_length
-            || Option.is_some max_total_threadgroups_per_mesh_grid)
+            || Option.is_some max_total_threadgroups_per_mesh_grid
+            || support_object_binary_linking
+            || Option.is_some object_dynamic_linking
+            || Option.is_some object_static_linking)
       then
         error operation Invalid_argument
           "object-stage configuration requires an object function"
+      else if
+        Option.is_none fragment
+        && (support_fragment_binary_linking
+            || Option.is_some fragment_dynamic_linking
+            || Option.is_some fragment_static_linking)
+      then
+        error operation Invalid_argument
+          "fragment-stage linking requires a fragment function"
+      else if
+        (support_object_binary_linking || support_mesh_binary_linking)
+        && not
+             (Metal_raw.device_supports_family value.device.raw
+                (Device.family_code Device.Apple9))
+      then
+        error operation Unsupported
+          "object/mesh binary linking requires an Apple9/M3-or-newer GPU"
+      else if
+        (support_object_binary_linking || support_mesh_binary_linking
+        || support_fragment_binary_linking)
+        && not render_function_pointers
+      then
+        error operation Unsupported
+          "mesh binary linking requires Metal function-pointer support"
       else if
         support_indirect_command_buffers
         && not
@@ -9164,6 +9230,36 @@ module Compiler = struct
             ~has_fragment:(Option.is_some fragment) ~raster_sample_count
             ~color_attachments ~rasterization_enabled
         in
+        let* object_dynamic_linking =
+          raw_stage_dynamic_linking operation value.device
+            ~support_binary_linking:support_object_binary_linking
+            ~stage:"object" object_dynamic_linking
+        in
+        let* mesh_dynamic_linking =
+          raw_stage_dynamic_linking operation value.device
+            ~support_binary_linking:support_mesh_binary_linking ~stage:"mesh"
+            mesh_dynamic_linking
+        in
+        let* fragment_dynamic_linking =
+          raw_stage_dynamic_linking operation value.device
+            ~support_binary_linking:support_fragment_binary_linking
+            ~stage:"fragment" fragment_dynamic_linking
+        in
+        let* object_static_linking =
+          validate_static_linking
+            ~supports_public_linking:render_function_pointers operation
+            value.device object_static_linking
+        in
+        let* mesh_static_linking =
+          validate_static_linking
+            ~supports_public_linking:render_function_pointers operation
+            value.device mesh_static_linking
+        in
+        let* fragment_static_linking =
+          validate_static_linking
+            ~supports_public_linking:render_function_pointers operation
+            value.device fragment_static_linking
+        in
         let* () =
           validate_pipeline_archives operation value.device lookup_archives
         in
@@ -9195,6 +9291,15 @@ module Compiler = struct
                 (List.map
                    (fun (archive : Pipeline_archive.t) -> archive.raw)
                    lookup_archives)
+          ; support_object_binary_linking
+          ; support_mesh_binary_linking
+          ; support_fragment_binary_linking
+          ; object_dynamic_linking
+          ; mesh_dynamic_linking
+          ; fragment_dynamic_linking
+          ; object_static_linking
+          ; mesh_static_linking
+          ; fragment_static_linking
           }
         in
         callback reflection color_attachments color_formats descriptor)
@@ -9225,6 +9330,11 @@ module Compiler = struct
       ?(mesh_threadgroup_size_multiple = false) ?payload_memory_length
       ?max_total_threadgroups_per_mesh_grid ?(raster_sample_count = 1)
       ?color_formats ?color_attachments
+      ?(support_object_binary_linking = false)
+      ?(support_mesh_binary_linking = false)
+      ?(support_fragment_binary_linking = false) ?object_dynamic_linking
+      ?mesh_dynamic_linking ?fragment_dynamic_linking ?object_static_linking
+      ?mesh_static_linking ?fragment_static_linking
       ?(rasterization_enabled = true)
       ?(support_indirect_command_buffers = false) ?(lookup_archives = [])
       (value : t) ~(library : Library.t) ~mesh =
@@ -9255,6 +9365,10 @@ module Compiler = struct
       ~object_threadgroup_size_multiple ~mesh_threadgroup_size_multiple
       ?payload_memory_length ?max_total_threadgroups_per_mesh_grid
       ~raster_sample_count ?color_formats ?color_attachments
+      ~support_object_binary_linking ~support_mesh_binary_linking
+      ~support_fragment_binary_linking ?object_dynamic_linking
+      ?mesh_dynamic_linking ?fragment_dynamic_linking
+      ?object_static_linking ?mesh_static_linking ?fragment_static_linking
       ~rasterization_enabled
       ~support_indirect_command_buffers ~lookup_archives value ~library ~mesh
 
@@ -9267,35 +9381,52 @@ module Compiler = struct
       ?(mesh_threadgroup_size_multiple = false) ?payload_memory_length
       ?max_total_threadgroups_per_mesh_grid ?(raster_sample_count = 1)
       ?color_formats ?color_attachments
+      ?(support_object_binary_linking = false)
+      ?(support_mesh_binary_linking = false)
+      ?(support_fragment_binary_linking = false) ?object_dynamic_linking
+      ?mesh_dynamic_linking ?fragment_dynamic_linking ?object_static_linking
+      ?mesh_static_linking ?fragment_static_linking
       ?(rasterization_enabled = true)
       ?(support_indirect_command_buffers = false) ?(lookup_archives = [])
       (value : t) ~(library : Library.t) ~mesh =
     let operation = "Metal.Compiler.create_mesh_pipeline_async" in
     with_mesh_descriptor operation
       (fun reflection color_attachments color_formats descriptor ->
-        match
-          Metal_raw.compiler_create_mesh_pipeline_async value.raw descriptor
-        with
-        | Error message -> native_error operation message
-        | Ok raw ->
-            let mesh_constraints =
-              mesh_pipeline_constraints ?object_function
-                ?max_total_threads_per_object_threadgroup
-                ?max_total_threads_per_mesh_threadgroup
-                ?required_threads_per_object_threadgroup
-                ?required_threads_per_mesh_threadgroup
-                ~object_threadgroup_size_multiple ~mesh_threadgroup_size_multiple
-                ?max_total_threadgroups_per_mesh_grid ()
-            in
-            Ok
-              (Compiler_task.make value
-                 Metal_raw.compiler_task_take_render_pipeline
-                 (fun (raw, raw_reflection) ->
-                   Render_pipeline.make ~mesh_constraints value.device
-                     ~kind:Render_pipeline.Mesh ~raster_sample_count
-                     ~color_formats ~color_attachments ~reflection raw
-                     raw_reflection)
-                 raw))
+        if
+          (Option.is_some descriptor.object_dynamic_linking
+          || Option.is_some descriptor.mesh_dynamic_linking
+          || Option.is_some descriptor.fragment_dynamic_linking)
+          && not
+               (Metal_raw.device_supports_family value.device.raw
+                  (Device.family_code Device.Apple9))
+        then
+          error operation Unsupported
+            "asynchronous dynamic mesh linking requires an Apple9/M3-or-newer GPU"
+        else
+          match
+            Metal_raw.compiler_create_mesh_pipeline_async value.raw descriptor
+          with
+          | Error message -> native_error operation message
+          | Ok raw ->
+              let mesh_constraints =
+                mesh_pipeline_constraints ?object_function
+                  ?max_total_threads_per_object_threadgroup
+                  ?max_total_threads_per_mesh_threadgroup
+                  ?required_threads_per_object_threadgroup
+                  ?required_threads_per_mesh_threadgroup
+                  ~object_threadgroup_size_multiple
+                  ~mesh_threadgroup_size_multiple
+                  ?max_total_threadgroups_per_mesh_grid ()
+              in
+              Ok
+                (Compiler_task.make value
+                   Metal_raw.compiler_task_take_render_pipeline
+                   (fun (raw, raw_reflection) ->
+                     Render_pipeline.make ~mesh_constraints value.device
+                       ~kind:Render_pipeline.Mesh ~raster_sample_count
+                       ~color_formats ~color_attachments ~reflection raw
+                       raw_reflection)
+                   raw))
       ?label ?object_function ?fragment ~reflection
       ?max_total_threads_per_object_threadgroup
       ?max_total_threads_per_mesh_threadgroup
@@ -9304,6 +9435,10 @@ module Compiler = struct
       ~object_threadgroup_size_multiple ~mesh_threadgroup_size_multiple
       ?payload_memory_length ?max_total_threadgroups_per_mesh_grid
       ~raster_sample_count ?color_formats ?color_attachments
+      ~support_object_binary_linking ~support_mesh_binary_linking
+      ~support_fragment_binary_linking ?object_dynamic_linking
+      ?mesh_dynamic_linking ?fragment_dynamic_linking
+      ?object_static_linking ?mesh_static_linking ?fragment_static_linking
       ~rasterization_enabled
       ~support_indirect_command_buffers ~lookup_archives value ~library ~mesh
 
@@ -9332,7 +9467,7 @@ module Compiler = struct
       ?(color_formats = [ Texture.Bgra8_unorm ])
       ?(threadgroup_size_matches_tile_size = false)
       ?max_total_threads_per_threadgroup ?required_threads_per_threadgroup
-      ?(support_binary_linking = false) ?static_linking
+      ?(support_binary_linking = false) ?static_linking ?dynamic_linking
       ?(lookup_archives = []) (value : t) ~(library : Library.t) ~tile =
     on_main operation (fun () ->
       let ( let* ) result callback = Result.bind result callback in
@@ -9340,6 +9475,9 @@ module Compiler = struct
       let* () = ensure_live operation library.lifetime in
       let* () = ensure_same_device operation value.device library.device in
       let* () = validate_pipeline_entry operation library ~stage:"tile" tile in
+      let render_function_pointers =
+        Metal_raw.device_supports_function_pointers_from_render value.device.raw
+      in
       if option_exists contains_nul label then
         error operation Invalid_argument
           "tile-pipeline label contains a NUL byte"
@@ -9351,8 +9489,7 @@ module Compiler = struct
         error operation Unsupported "tile shaders require an Apple4-or-newer GPU"
       else if
         support_binary_linking
-        && not
-             (Metal_raw.device_supports_function_pointers value.device.raw)
+        && not render_function_pointers
       then
         error operation Unsupported
           "tile binary linking requires Metal function-pointer support"
@@ -9367,7 +9504,13 @@ module Compiler = struct
             ~color_formats
         in
         let* static_linking =
-          validate_static_linking operation value.device static_linking
+          validate_static_linking
+            ~supports_public_linking:render_function_pointers operation
+            value.device static_linking
+        in
+        let* dynamic_linking =
+          raw_stage_dynamic_linking operation value.device
+            ~support_binary_linking ~stage:"tile" dynamic_linking
         in
         let* () =
           validate_pipeline_archives operation value.device lookup_archives
@@ -9391,6 +9534,7 @@ module Compiler = struct
                 (List.map
                    (fun (archive : Pipeline_archive.t) -> archive.raw)
                    lookup_archives)
+          ; dynamic_linking
           }
         in
         callback reflection descriptor)
@@ -9407,7 +9551,7 @@ module Compiler = struct
       ?(color_formats = [ Texture.Bgra8_unorm ])
       ?(threadgroup_size_matches_tile_size = false)
       ?max_total_threads_per_threadgroup ?required_threads_per_threadgroup
-      ?(support_binary_linking = false) ?static_linking
+      ?(support_binary_linking = false) ?static_linking ?dynamic_linking
       ?(lookup_archives = []) (value : t) ~(library : Library.t) ~tile =
     let operation = "Metal.Compiler.create_tile_pipeline" in
     with_tile_descriptor operation
@@ -9427,42 +9571,51 @@ module Compiler = struct
       ?label ~reflection ~raster_sample_count ~color_formats
       ~threadgroup_size_matches_tile_size
       ?max_total_threads_per_threadgroup ?required_threads_per_threadgroup
-      ~support_binary_linking ?static_linking ~lookup_archives value ~library
-      ~tile
+      ~support_binary_linking ?static_linking ?dynamic_linking ~lookup_archives
+      value ~library ~tile
 
   let create_tile_pipeline_async ?label ?(reflection = false)
       ?(raster_sample_count = 1)
       ?(color_formats = [ Texture.Bgra8_unorm ])
       ?(threadgroup_size_matches_tile_size = false)
       ?max_total_threads_per_threadgroup ?required_threads_per_threadgroup
-      ?(support_binary_linking = false) ?static_linking
+      ?(support_binary_linking = false) ?static_linking ?dynamic_linking
       ?(lookup_archives = []) (value : t) ~(library : Library.t) ~tile =
     let operation = "Metal.Compiler.create_tile_pipeline_async" in
     with_tile_descriptor operation
       (fun reflection descriptor ->
-        match
-          Metal_raw.compiler_create_tile_pipeline_async value.raw descriptor
-        with
-        | Error message -> native_error operation message
-        | Ok raw ->
-            let tile_constraints =
-              tile_pipeline_constraints ?max_total_threads_per_threadgroup
-                ?required_threads_per_threadgroup
-                ~threadgroup_size_matches_tile_size ()
-            in
-            Ok
-              (Compiler_task.make value
-                 Metal_raw.compiler_task_take_render_pipeline
-                 (fun (raw, raw_reflection) ->
-                   Render_pipeline.make ~tile_constraints value.device
-                     ~kind:Render_pipeline.Tile ~raster_sample_count
-                     ~color_formats ~reflection raw raw_reflection)
-                 raw))
+        if
+          Option.is_some descriptor.dynamic_linking
+          && not
+               (Metal_raw.device_supports_family value.device.raw
+                  (Device.family_code Device.Apple9))
+        then
+          error operation Unsupported
+            "asynchronous dynamic tile linking requires an Apple9/M3-or-newer GPU"
+        else
+          match
+            Metal_raw.compiler_create_tile_pipeline_async value.raw descriptor
+          with
+          | Error message -> native_error operation message
+          | Ok raw ->
+              let tile_constraints =
+                tile_pipeline_constraints ?max_total_threads_per_threadgroup
+                  ?required_threads_per_threadgroup
+                  ~threadgroup_size_matches_tile_size ()
+              in
+              Ok
+                (Compiler_task.make value
+                   Metal_raw.compiler_task_take_render_pipeline
+                   (fun (raw, raw_reflection) ->
+                     Render_pipeline.make ~tile_constraints value.device
+                       ~kind:Render_pipeline.Tile ~raster_sample_count
+                       ~color_formats ~reflection raw raw_reflection)
+                   raw))
       ?label ~reflection ~raster_sample_count ~color_formats
       ~threadgroup_size_matches_tile_size
       ?max_total_threads_per_threadgroup ?required_threads_per_threadgroup
-      ~support_binary_linking ?static_linking ~lookup_archives value ~library
-      ~tile
+      ~support_binary_linking ?static_linking ?dynamic_linking ~lookup_archives
+      value ~library ~tile
 
   let device (value : t) = value.device
   let generation (value : t) = Metal_raw.generation value.raw
