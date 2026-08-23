@@ -90,7 +90,9 @@ let () =
   get (Render_encoder.set_vertex_bytes encoder ~index:2 (Bytes.make 8 '\000'));
   get (Render_encoder.set_fragment_bytes encoder ~index:2 (Bytes.make 16 '\000'));
   get (Render_encoder.set_stage_bytes encoder ~stage:Render_encoder.Vertex ~index:3 (Bytes.make 8 '\000'));
-  get (Render_encoder.set_stage_texture encoder ~stage:Render_encoder.Fragment ~index:1 (Some sampled));
+  expect Unsupported (Render_encoder.set_stage_texture encoder ~stage:Render_encoder.Fragment ~index:1 (Some sampled));
+  get (Render_encoder.set_stage_textures encoder ~stage:Render_encoder.Fragment ~start:1 [Some sampled]);
+  get (Render_encoder.set_stage_sampler encoder ~stage:Render_encoder.Tile ~index:1 (Some sampler));
   get (Render_encoder.set_depth_clip_mode encoder ~clamp:false);
   get (Render_encoder.set_depth_bounds encoder ~minimum:0. ~maximum:1.);
   get (Render_encoder.set_vertex_sampler encoder ~index:0 sampler);

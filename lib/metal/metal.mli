@@ -2529,6 +2529,8 @@ module Render_encoder : sig
   val use_resources : t -> resource list -> usage:resource_usage list -> stages:stage list -> (unit,error) result
   val set_stage_buffer : t -> stage:stage -> index:int -> offset:int64 -> ?stride:int64 -> Buffer.t option -> (unit,error) result
   val set_stage_texture : t -> stage:stage -> index:int -> Texture.t option -> (unit,error) result
+  val set_stage_textures : t -> stage:stage -> start:int -> Texture.t option list -> (unit,error) result
+  val set_stage_sampler : t -> stage:stage -> index:int -> ?lod_min:float -> ?lod_max:float -> Sampler.t option -> (unit,error) result
   val set_stage_bytes : t -> stage:stage -> index:int -> bytes -> (unit,error) result
   val set_depth_clip_mode : t -> clamp:bool -> (unit,error) result
   val set_depth_bounds : t -> minimum:float -> maximum:float -> (unit,error) result

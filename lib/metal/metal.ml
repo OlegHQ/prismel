@@ -14897,7 +14897,8 @@ module Render_encoder = struct
     let operation="Metal.Render_encoder.set_stage_texture" in
     on_main operation (fun () ->
       match ensure_live operation value.lifetime with Error _ as e->e | Ok () ->
-      if index<0 || index>=31 then error operation Invalid_argument "texture index must be in [0, 31)"
+      if stage=Vertex || stage=Fragment then error operation Unsupported "vertex/fragment texture binding uses the array selector"
+      else if index<0 || index>=31 then error operation Invalid_argument "texture index must be in [0, 31)"
       else match texture with
       | Some t ->
           Result.bind (ensure_texture_usable operation t) (fun () ->
@@ -14911,11 +14912,49 @@ module Render_encoder = struct
                   (Int64.of_int index) with
           | Error m->native_error operation m | Ok ()->Ok ())
 
+  let set_stage_textures (value : t) ~stage ~start (textures : Texture.t option list) =
+    let operation="Metal.Render_encoder.set_stage_textures" in
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with Error _ as e->e | Ok () ->
+      if textures=[] || start<0 || start>31-List.length textures then
+        error operation Invalid_argument "texture range must be nonempty and within [0,31)"
+      else
+        let device=value.command_buffer.queue.device in
+        let rec validate = function
+          | []->Ok () | None::rest->validate rest
+          | Some t::rest->Result.bind(ensure_texture_usable operation t)(fun()->
+              Result.bind(ensure_same_device operation device t.device)(fun()->validate rest))
+        in
+        Result.bind(validate textures)(fun()->
+          match Metal_raw.render_stage_textures value.raw (binding_stage_code stage)
+                  (Array.of_list(List.map(Option.map(fun (t:texture)->t.raw))textures))
+                  (Int64.of_int start) with
+          | Error m->native_error operation m
+          | Ok ()->List.iter(Option.iter(retain_command_buffer_texture value.command_buffer))textures;Ok ()))
+
+  let set_stage_sampler (value : t) ~stage ~index ?lod_min ?lod_max
+      (sampler : Sampler.t option) =
+    let operation="Metal.Render_encoder.set_stage_sampler" in
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with Error _ as e->e | Ok () ->
+      if stage=Vertex || stage=Fragment then error operation Unsupported "vertex/fragment sampler binding uses the array selector"
+      else if index<0 || index>=31 then error operation Invalid_argument "sampler index must be in [0,31)"
+      else let lod = match lod_min,lod_max with None,None->Ok(false,(0.,0.))
+        | Some lo,Some hi when Float.is_finite lo && Float.is_finite hi && lo>=0. && lo<=hi->Ok(true,(lo,hi))
+        | _->error operation Invalid_argument "LOD clamps must be finite, ordered, and supplied together" in
+      Result.bind lod (fun (has_lod,clamps)->match sampler with
+      | Some s->Result.bind(ensure_live operation s.lifetime)(fun()->
+          Result.bind(ensure_same_device operation value.command_buffer.queue.device s.device)(fun()->
+          match Metal_raw.render_stage_sampler value.raw(binding_stage_code stage)(Some s.raw)has_lod clamps(Int64.of_int index)with
+          | Error m->native_error operation m|Ok()->retain_command_buffer_sampler value.command_buffer s;Ok()))
+      | None->if has_lod then error operation Invalid_argument "nil sampler cannot have LOD clamps" else
+          match Metal_raw.render_stage_sampler value.raw(binding_stage_code stage)None false clamps(Int64.of_int index)with Error m->native_error operation m|Ok()->Ok()))
+
   let set_stage_bytes (value : t) ~stage ~index bytes =
     let operation="Metal.Render_encoder.set_stage_bytes" in
     on_main operation (fun () ->
       match ensure_live operation value.lifetime with Error _ as e->e | Ok () ->
-      if index<0 || index>=31 || Bytes.length bytes=0 || Bytes.length bytes>4096 then
+      if stage=Fragment || index<0 || index>=31 || Bytes.length bytes=0 || Bytes.length bytes>4096 then
         error operation Invalid_argument "inline binding requires index [0,31) and 1..4096 bytes"
       else match Metal_raw.render_stage_bytes value.raw (binding_stage_code stage) bytes
                    (Int64.of_int (Bytes.length bytes)) (Int64.of_int index) with
