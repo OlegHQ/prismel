@@ -1827,3 +1827,85 @@ external shader_stitching_input_index :
 external shader_stitching_input_set_index :
   handle -> int64 -> (unit,string) result =
   "caml_prismel_metal_shader_stitching_input_set_index"
+(* Corrected Command-support121 exact native subset (18 mechanical / 103
+   handwritten partition). Callback and complex-copy families remain absent. *)
+external command_capture_set_destination : handle -> int -> (unit,string) result =
+  "caml_prismel_metal_capture_set_destination"
+external command_capture_is_capturing : handle -> (bool,string) result =
+  "caml_prismel_metal_capture_is_capturing"
+external command_function_log_type : handle -> (int64,string) result =
+  "caml_prismel_metal_function_log_type"
+external command_function_log_column : handle -> (int64,string) result =
+  "caml_prismel_metal_function_log_column"
+external command_function_log_line : handle -> (int64,string) result =
+  "caml_prismel_metal_function_log_line"
+external command_shared_event_value : handle -> (int64,string) result =
+  "caml_prismel_metal_shared_event_value"
+external command_shared_event_set_value : handle -> int64 -> (unit,string) result =
+  "caml_prismel_metal_shared_event_set_value"
+
+external command_capture_manager_shared : unit -> (handle,string) result =
+  "caml_prismel_metal_capture_manager_shared"
+external command_capture_descriptor_create : unit -> (handle,string) result =
+  "caml_prismel_metal_capture_descriptor_create"
+external command_capture_supports_destination : handle -> int -> (bool,string) result =
+  "caml_prismel_metal_capture_supports_destination"
+external command_capture_start : handle -> handle -> (unit,string) result =
+  "caml_prismel_metal_capture_start"
+external command_capture_stop : handle -> (unit,string) result =
+  "caml_prismel_metal_capture_stop"
+external command_event_label : handle -> (string option,string) result =
+  "caml_prismel_metal_event_label"
+external command_event_set_label : handle -> string option -> (unit,string) result =
+  "caml_prismel_metal_event_set_label"
+external command_event_device_id : handle -> (int64,string) result =
+  "caml_prismel_metal_event_device_id"
+
+external command_indirect_compute_clear_barrier : handle -> (unit,string) result =
+  "caml_prismel_metal_support_indirect_compute_clear_barrier"
+external command_indirect_compute_set_barrier : handle -> (unit,string) result =
+  "caml_prismel_metal_support_indirect_compute_set_barrier"
+external command_indirect_compute_imageblock :
+  handle -> int64 -> int64 -> (unit,string) result =
+  "caml_prismel_metal_support_indirect_compute_imageblock"
+external command_indirect_compute_stage_region :
+  handle -> (int64 * int64 * int64 * int64 * int64 * int64) ->
+  (unit,string) result =
+  "caml_prismel_metal_support_indirect_compute_stage_region"
+external command_indirect_compute_memory :
+  handle -> int64 -> int64 -> (unit,string) result =
+  "caml_prismel_metal_support_indirect_compute_memory"
+external command_indirect_compute_dispatch_groups :
+  handle -> (int64 * int64 * int64) -> (int64 * int64 * int64) ->
+  (unit,string) result =
+  "caml_prismel_metal_support_indirect_compute_dispatch_groups"
+
+external command_indirect_render_clear_barrier : handle -> (unit,string) result =
+  "caml_prismel_metal_support_indirect_render_clear_barrier"
+external command_indirect_render_set_barrier : handle -> (unit,string) result =
+  "caml_prismel_metal_support_indirect_render_set_barrier"
+external command_indirect_render_set_cull : handle -> int -> (unit,string) result =
+  "caml_prismel_metal_support_indirect_render_set_cull"
+external command_indirect_render_set_depth_clip : handle -> int -> (unit,string) result =
+  "caml_prismel_metal_support_indirect_render_set_depth_clip"
+external command_indirect_render_set_front_winding : handle -> int -> (unit,string) result =
+  "caml_prismel_metal_support_indirect_render_set_front_winding"
+external command_indirect_render_set_fill : handle -> int -> (unit,string) result =
+  "caml_prismel_metal_support_indirect_render_set_fill"
+external command_indirect_render_depth_bias :
+  handle -> float -> float -> float -> (unit,string) result =
+  "caml_prismel_metal_support_indirect_render_depth_bias"
+external command_indirect_render_depth_stencil :
+  handle -> handle -> (unit,string) result =
+  "caml_prismel_metal_support_indirect_render_depth_stencil"
+external command_indirect_render_object_memory :
+  handle -> int64 -> int64 -> (unit,string) result =
+  "caml_prismel_metal_support_indirect_render_object_memory"
+external command_indirect_render_mesh_groups :
+  handle -> (int64 * int64 * int64) -> (int64 * int64 * int64) ->
+  (int64 * int64 * int64) -> (unit,string) result =
+  "caml_prismel_metal_support_indirect_render_mesh_groups"
+external command_indirect_render_mesh_threads :
+  handle -> (int64 * int64 * int64) -> (int64 * int64 * int64) ->
+  (int64 * int64 * int64) -> (unit,string) result =
+  "caml_prismel_metal_support_indirect_render_mesh_threads"
