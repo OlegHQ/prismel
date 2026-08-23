@@ -106,6 +106,18 @@ type render_pipeline_reflection =
   ; mesh_bindings : pipeline_binding_info array
   }
 
+type metal4_render_color_attachment_descriptor =
+  { pixel_format : int
+  ; blending_state : int
+  ; source_rgb_blend_factor : int
+  ; destination_rgb_blend_factor : int
+  ; rgb_blend_operation : int
+  ; source_alpha_blend_factor : int
+  ; destination_alpha_blend_factor : int
+  ; alpha_blend_operation : int
+  ; write_mask : int
+  }
+
 type metal4_render_descriptor =
   { label : string option
   ; library : handle
@@ -113,7 +125,7 @@ type metal4_render_descriptor =
   ; fragment_function : string option
   ; reflection : bool
   ; raster_sample_count : int64
-  ; color_formats : int array
+  ; color_attachments : metal4_render_color_attachment_descriptor array
   ; rasterization_enabled : bool
   ; primitive_topology : int
   ; support_indirect_commands : bool
@@ -140,7 +152,7 @@ type metal4_mesh_descriptor =
   ; payload_memory_length : int64
   ; max_total_threadgroups_per_mesh_grid : int64
   ; raster_sample_count : int64
-  ; color_formats : int array
+  ; color_attachments : metal4_render_color_attachment_descriptor array
   ; rasterization_enabled : bool
   ; support_indirect_commands : bool
   ; lookup_archives : handle array
@@ -939,6 +951,11 @@ external command4_render_encoder_set_stencil_reference :
 external command4_render_encoder_set_stencil_references :
   handle -> handle -> int32 -> int32 -> (unit, string) result =
   "caml_prismel_metal_command4_render_encoder_set_stencil_references"
+
+external command4_render_encoder_set_blend_color :
+  handle -> handle -> (float * float * float * float) ->
+  (unit, string) result =
+  "caml_prismel_metal_command4_render_encoder_set_blend_color"
 
 external command4_render_encoder_set_argument_table :
   handle -> handle -> handle option -> int -> (unit, string) result =

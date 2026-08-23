@@ -711,6 +711,56 @@ type render_pipeline_kind =
   | Tile
   | Mesh
 
+type render_blend_state =
+  | Blend_disabled
+  | Blend_enabled
+
+type render_blend_factor =
+  | Blend_zero
+  | Blend_one
+  | Blend_source_color
+  | Blend_one_minus_source_color
+  | Blend_source_alpha
+  | Blend_one_minus_source_alpha
+  | Blend_destination_color
+  | Blend_one_minus_destination_color
+  | Blend_destination_alpha
+  | Blend_one_minus_destination_alpha
+  | Blend_source_alpha_saturated
+  | Blend_color
+  | Blend_one_minus_color
+  | Blend_alpha
+  | Blend_one_minus_alpha
+  | Blend_source1_color
+  | Blend_one_minus_source1_color
+  | Blend_source1_alpha
+  | Blend_one_minus_source1_alpha
+
+type render_blend_operation =
+  | Blend_add
+  | Blend_subtract
+  | Blend_reverse_subtract
+  | Blend_min
+  | Blend_max
+
+type render_color_write =
+  | Write_red
+  | Write_green
+  | Write_blue
+  | Write_alpha
+
+type render_color_attachment =
+  { format : pixel_format
+  ; blending : render_blend_state
+  ; source_rgb : render_blend_factor
+  ; destination_rgb : render_blend_factor
+  ; rgb_operation : render_blend_operation
+  ; source_alpha : render_blend_factor
+  ; destination_alpha : render_blend_factor
+  ; alpha_operation : render_blend_operation
+  ; write_mask : render_color_write list
+  }
+
 type render_pipeline_reflection =
   { vertex_bindings : shader_binding array
   ; fragment_bindings : shader_binding array
@@ -743,6 +793,7 @@ type render_pipeline =
   ; kind : render_pipeline_kind
   ; raster_sample_count : int
   ; color_formats : pixel_format list
+  ; color_attachments : render_color_attachment list
   ; reflection : render_pipeline_reflection option
   ; mesh_constraints : mesh_pipeline_constraints option
   ; tile_constraints : tile_pipeline_constraints option
@@ -7264,6 +7315,56 @@ module Render_pipeline = struct
     | Line
     | Triangle
 
+  type blend_state = render_blend_state =
+    | Blend_disabled
+    | Blend_enabled
+
+  type blend_factor = render_blend_factor =
+    | Blend_zero
+    | Blend_one
+    | Blend_source_color
+    | Blend_one_minus_source_color
+    | Blend_source_alpha
+    | Blend_one_minus_source_alpha
+    | Blend_destination_color
+    | Blend_one_minus_destination_color
+    | Blend_destination_alpha
+    | Blend_one_minus_destination_alpha
+    | Blend_source_alpha_saturated
+    | Blend_color
+    | Blend_one_minus_color
+    | Blend_alpha
+    | Blend_one_minus_alpha
+    | Blend_source1_color
+    | Blend_one_minus_source1_color
+    | Blend_source1_alpha
+    | Blend_one_minus_source1_alpha
+
+  type blend_operation = render_blend_operation =
+    | Blend_add
+    | Blend_subtract
+    | Blend_reverse_subtract
+    | Blend_min
+    | Blend_max
+
+  type color_write = render_color_write =
+    | Write_red
+    | Write_green
+    | Write_blue
+    | Write_alpha
+
+  type color_attachment = render_color_attachment =
+    { format : Texture.format
+    ; blending : blend_state
+    ; source_rgb : blend_factor
+    ; destination_rgb : blend_factor
+    ; rgb_operation : blend_operation
+    ; source_alpha : blend_factor
+    ; destination_alpha : blend_factor
+    ; alpha_operation : blend_operation
+    ; write_mask : color_write list
+    }
+
   type reflection =
     { vertex : Binding.t list
     ; fragment : Binding.t list
@@ -7272,9 +7373,80 @@ module Render_pipeline = struct
     ; mesh : Binding.t list
     }
 
+  let color_attachment ?(blending = Blend_disabled)
+      ?(source_rgb = Blend_one) ?(destination_rgb = Blend_zero)
+      ?(rgb_operation = Blend_add) ?(source_alpha = Blend_one)
+      ?(destination_alpha = Blend_zero) ?(alpha_operation = Blend_add)
+      ?(write_mask = [ Write_red; Write_green; Write_blue; Write_alpha ])
+      format =
+    { format
+    ; blending
+    ; source_rgb
+    ; destination_rgb
+    ; rgb_operation
+    ; source_alpha
+    ; destination_alpha
+    ; alpha_operation
+    ; write_mask
+    }
+
+  let blend_state_code = function Blend_disabled -> 0 | Blend_enabled -> 1
+
+  let blend_factor_code = function
+    | Blend_zero -> 0
+    | Blend_one -> 1
+    | Blend_source_color -> 2
+    | Blend_one_minus_source_color -> 3
+    | Blend_source_alpha -> 4
+    | Blend_one_minus_source_alpha -> 5
+    | Blend_destination_color -> 6
+    | Blend_one_minus_destination_color -> 7
+    | Blend_destination_alpha -> 8
+    | Blend_one_minus_destination_alpha -> 9
+    | Blend_source_alpha_saturated -> 10
+    | Blend_color -> 11
+    | Blend_one_minus_color -> 12
+    | Blend_alpha -> 13
+    | Blend_one_minus_alpha -> 14
+    | Blend_source1_color -> 15
+    | Blend_one_minus_source1_color -> 16
+    | Blend_source1_alpha -> 17
+    | Blend_one_minus_source1_alpha -> 18
+
+  let blend_operation_code = function
+    | Blend_add -> 0
+    | Blend_subtract -> 1
+    | Blend_reverse_subtract -> 2
+    | Blend_min -> 3
+    | Blend_max -> 4
+
+  let color_write_bit = function
+    | Write_red -> 8
+    | Write_green -> 4
+    | Write_blue -> 2
+    | Write_alpha -> 1
+
+  let write_mask_code values =
+    List.fold_left (fun mask value -> mask lor color_write_bit value) 0 values
+
+  let raw_color_attachment (value : color_attachment) =
+    ({ Metal_raw.pixel_format = Metal_format.code value.format
+     ; blending_state = blend_state_code value.blending
+     ; source_rgb_blend_factor = blend_factor_code value.source_rgb
+     ; destination_rgb_blend_factor =
+         blend_factor_code value.destination_rgb
+     ; rgb_blend_operation = blend_operation_code value.rgb_operation
+     ; source_alpha_blend_factor = blend_factor_code value.source_alpha
+     ; destination_alpha_blend_factor =
+         blend_factor_code value.destination_alpha
+     ; alpha_blend_operation = blend_operation_code value.alpha_operation
+     ; write_mask = write_mask_code value.write_mask
+     }
+      : Metal_raw.metal4_render_color_attachment_descriptor)
+
   let topology_code = function Point -> 1 | Line -> 2 | Triangle -> 3
 
-  let make ?mesh_constraints ?tile_constraints device ~kind
+  let make ?mesh_constraints ?tile_constraints ?color_attachments device ~kind
       ~raster_sample_count ~color_formats ~reflection raw
       (raw_reflection : Metal_raw.render_pipeline_reflection) =
     let map values = Array.map Binding.of_raw values in
@@ -7296,6 +7468,9 @@ module Render_pipeline = struct
       ; kind
       ; raster_sample_count
       ; color_formats
+      ; color_attachments =
+          Option.value color_attachments
+            ~default:(List.map color_attachment color_formats)
       ; reflection
       ; mesh_constraints
       ; tile_constraints
@@ -7311,6 +7486,7 @@ module Render_pipeline = struct
   let kind (value : t) = value.kind
   let raster_sample_count (value : t) = value.raster_sample_count
   let color_formats (value : t) = value.color_formats
+  let color_attachments (value : t) = value.color_attachments
 
   let reflection (value : t) =
     Option.map
@@ -8271,18 +8447,46 @@ module Compiler = struct
     | None -> Ok ()
     | Some name -> validate_pipeline_entry operation library ~stage name
 
+  let resolve_color_attachments operation ?color_formats ?color_attachments () =
+    match color_formats, color_attachments with
+    | Some _, Some _ ->
+        error operation Invalid_argument
+          "color_formats and color_attachments are mutually exclusive"
+    | Some formats, None ->
+        Ok (List.map Render_pipeline.color_attachment formats)
+    | None, Some attachments -> Ok attachments
+    | None, None ->
+        Ok [ Render_pipeline.color_attachment Texture.Bgra8_unorm ]
+
   let validate_render_target operation (device : Device.t) ~has_fragment
-      ~raster_sample_count ~color_formats ~rasterization_enabled =
+      ~raster_sample_count ~color_attachments ~rasterization_enabled =
     if rasterization_enabled <> has_fragment then
       error operation Invalid_argument
         "rasterization requires exactly one fragment function"
     else if
-      (rasterization_enabled && color_formats = [])
-      || ((not rasterization_enabled) && color_formats <> [])
-      || List.length color_formats > 8
+      (rasterization_enabled && color_attachments = [])
+      || ((not rasterization_enabled) && color_attachments <> [])
+      || List.length color_attachments > 8
     then
       error operation Invalid_argument
         "render color attachments must match rasterization and not exceed eight"
+    else if
+      List.exists
+        (fun (attachment : Render_pipeline.color_attachment) ->
+          Metal_format.is_depth_or_stencil attachment.format)
+        color_attachments
+    then
+      error operation Invalid_argument
+        "render color attachments require color pixel formats"
+    else if
+      List.exists
+        (fun (attachment : Render_pipeline.color_attachment) ->
+          List.length attachment.write_mask
+          <> List.length (List.sort_uniq compare attachment.write_mask))
+        color_attachments
+    then
+      error operation Invalid_argument
+        "render color-write masks contain duplicate channels"
     else if raster_sample_count <= 0 then
       error operation Invalid_argument
         "render raster sample count must be positive"
@@ -8296,11 +8500,16 @@ module Compiler = struct
     else
       Ok
         ( Int64.of_int raster_sample_count
-        , Array.of_list (List.map Metal_format.code color_formats) )
+        , List.map
+            (fun (attachment : Render_pipeline.color_attachment) ->
+              attachment.format)
+            color_attachments
+        , Array.of_list
+            (List.map Render_pipeline.raw_color_attachment color_attachments) )
 
   let with_render_descriptor operation callback ?label ?fragment
       ?(reflection = false) ?(raster_sample_count = 1)
-      ?(color_formats = [ Texture.Bgra8_unorm ])
+      ?color_formats ?color_attachments
       ?(rasterization_enabled = true)
       ?(primitive_topology = Render_pipeline.Triangle)
       ?(support_indirect_command_buffers = false) ?(lookup_archives = [])
@@ -8319,10 +8528,14 @@ module Compiler = struct
         error operation Invalid_argument
           "render-pipeline label contains a NUL byte"
       else
-        let* raster_sample_count, color_formats =
+        let* color_attachments =
+          resolve_color_attachments operation ?color_formats ?color_attachments
+            ()
+        in
+        let* raster_sample_count, color_formats, raw_color_attachments =
           validate_render_target operation value.device
             ~has_fragment:(Option.is_some fragment) ~raster_sample_count
-            ~color_formats ~rasterization_enabled
+            ~color_attachments ~rasterization_enabled
         in
         let* () =
           validate_pipeline_archives operation value.device lookup_archives
@@ -8334,7 +8547,7 @@ module Compiler = struct
           ; fragment_function = fragment
           ; reflection
           ; raster_sample_count
-          ; color_formats
+          ; color_attachments = raw_color_attachments
           ; rasterization_enabled
           ; primitive_topology =
               Render_pipeline.topology_code primitive_topology
@@ -8346,40 +8559,42 @@ module Compiler = struct
                    lookup_archives)
           }
         in
-        callback reflection descriptor)
+        callback reflection color_attachments color_formats descriptor)
 
   let create_render_pipeline ?label ?fragment ?(reflection = false)
       ?(raster_sample_count = 1)
-      ?(color_formats = [ Texture.Bgra8_unorm ])
+      ?color_formats ?color_attachments
       ?(rasterization_enabled = true)
       ?(primitive_topology = Render_pipeline.Triangle)
       ?(support_indirect_command_buffers = false) ?(lookup_archives = [])
       (value : t) ~(library : Library.t) ~vertex =
     let operation = "Metal.Compiler.create_render_pipeline" in
     with_render_descriptor operation
-      (fun reflection descriptor ->
+      (fun reflection color_attachments color_formats descriptor ->
         match Metal_raw.compiler_create_render_pipeline value.raw descriptor with
         | Error message -> native_error operation message
         | Ok (raw, raw_reflection) ->
             Ok
               (Render_pipeline.make value.device
                  ~kind:Render_pipeline.Render ~raster_sample_count
-                 ~color_formats ~reflection raw raw_reflection))
-      ?label ?fragment ~reflection ~raster_sample_count ~color_formats
+                 ~color_formats ~color_attachments ~reflection raw
+                 raw_reflection))
+      ?label ?fragment ~reflection ~raster_sample_count ?color_formats
+      ?color_attachments
       ~rasterization_enabled ~primitive_topology
       ~support_indirect_command_buffers ~lookup_archives value ~library
       ~vertex
 
   let create_render_pipeline_async ?label ?fragment ?(reflection = false)
       ?(raster_sample_count = 1)
-      ?(color_formats = [ Texture.Bgra8_unorm ])
+      ?color_formats ?color_attachments
       ?(rasterization_enabled = true)
       ?(primitive_topology = Render_pipeline.Triangle)
       ?(support_indirect_command_buffers = false) ?(lookup_archives = [])
       (value : t) ~(library : Library.t) ~vertex =
     let operation = "Metal.Compiler.create_render_pipeline_async" in
     with_render_descriptor operation
-      (fun reflection descriptor ->
+      (fun reflection color_attachments color_formats descriptor ->
         match
           Metal_raw.compiler_create_render_pipeline_async value.raw descriptor
         with
@@ -8391,10 +8606,11 @@ module Compiler = struct
                  (fun (raw, raw_reflection) ->
                    Render_pipeline.make value.device
                      ~kind:Render_pipeline.Render ~raster_sample_count
-                     ~color_formats ~reflection raw
+                     ~color_formats ~color_attachments ~reflection raw
                      raw_reflection)
                  raw))
-      ?label ?fragment ~reflection ~raster_sample_count ~color_formats
+      ?label ?fragment ~reflection ~raster_sample_count ?color_formats
+      ?color_attachments
       ~rasterization_enabled ~primitive_topology
       ~support_indirect_command_buffers ~lookup_archives value ~library
       ~vertex
@@ -8441,7 +8657,7 @@ module Compiler = struct
       ?(object_threadgroup_size_multiple = false)
       ?(mesh_threadgroup_size_multiple = false) ?payload_memory_length
       ?max_total_threadgroups_per_mesh_grid ?(raster_sample_count = 1)
-      ?(color_formats = [ Texture.Bgra8_unorm ])
+      ?color_formats ?color_attachments
       ?(rasterization_enabled = true)
       ?(support_indirect_command_buffers = false) ?(lookup_archives = [])
       (value : t) ~(library : Library.t) ~mesh =
@@ -8516,10 +8732,14 @@ module Compiler = struct
                 "maximum mesh-grid threadgroups must be positive"
           | Some count -> Ok (Int64.of_int count)
         in
-        let* raster_sample_count, color_formats =
+        let* color_attachments =
+          resolve_color_attachments operation ?color_formats ?color_attachments
+            ()
+        in
+        let* raster_sample_count, color_formats, raw_color_attachments =
           validate_render_target operation value.device
             ~has_fragment:(Option.is_some fragment) ~raster_sample_count
-            ~color_formats ~rasterization_enabled
+            ~color_attachments ~rasterization_enabled
         in
         let* () =
           validate_pipeline_archives operation value.device lookup_archives
@@ -8544,7 +8764,7 @@ module Compiler = struct
           ; payload_memory_length
           ; max_total_threadgroups_per_mesh_grid
           ; raster_sample_count
-          ; color_formats
+          ; color_attachments = raw_color_attachments
           ; rasterization_enabled
           ; support_indirect_commands = support_indirect_command_buffers
           ; lookup_archives =
@@ -8554,7 +8774,7 @@ module Compiler = struct
                    lookup_archives)
           }
         in
-        callback reflection descriptor)
+        callback reflection color_attachments color_formats descriptor)
 
   let mesh_pipeline_constraints ?object_function
       ?max_total_threads_per_object_threadgroup
@@ -8581,13 +8801,13 @@ module Compiler = struct
       ?(object_threadgroup_size_multiple = false)
       ?(mesh_threadgroup_size_multiple = false) ?payload_memory_length
       ?max_total_threadgroups_per_mesh_grid ?(raster_sample_count = 1)
-      ?(color_formats = [ Texture.Bgra8_unorm ])
+      ?color_formats ?color_attachments
       ?(rasterization_enabled = true)
       ?(support_indirect_command_buffers = false) ?(lookup_archives = [])
       (value : t) ~(library : Library.t) ~mesh =
     let operation = "Metal.Compiler.create_mesh_pipeline" in
     with_mesh_descriptor operation
-      (fun reflection descriptor ->
+      (fun reflection color_attachments color_formats descriptor ->
         match Metal_raw.compiler_create_mesh_pipeline value.raw descriptor with
         | Error message -> native_error operation message
         | Ok (raw, raw_reflection) ->
@@ -8603,7 +8823,7 @@ module Compiler = struct
             Ok
               (Render_pipeline.make ~mesh_constraints value.device
                  ~kind:Render_pipeline.Mesh ~raster_sample_count ~color_formats
-                 ~reflection raw raw_reflection))
+                 ~color_attachments ~reflection raw raw_reflection))
       ?label ?object_function ?fragment ~reflection
       ?max_total_threads_per_object_threadgroup
       ?max_total_threads_per_mesh_threadgroup
@@ -8611,7 +8831,8 @@ module Compiler = struct
       ?required_threads_per_mesh_threadgroup
       ~object_threadgroup_size_multiple ~mesh_threadgroup_size_multiple
       ?payload_memory_length ?max_total_threadgroups_per_mesh_grid
-      ~raster_sample_count ~color_formats ~rasterization_enabled
+      ~raster_sample_count ?color_formats ?color_attachments
+      ~rasterization_enabled
       ~support_indirect_command_buffers ~lookup_archives value ~library ~mesh
 
   let create_mesh_pipeline_async ?label ?object_function ?fragment
@@ -8622,13 +8843,13 @@ module Compiler = struct
       ?(object_threadgroup_size_multiple = false)
       ?(mesh_threadgroup_size_multiple = false) ?payload_memory_length
       ?max_total_threadgroups_per_mesh_grid ?(raster_sample_count = 1)
-      ?(color_formats = [ Texture.Bgra8_unorm ])
+      ?color_formats ?color_attachments
       ?(rasterization_enabled = true)
       ?(support_indirect_command_buffers = false) ?(lookup_archives = [])
       (value : t) ~(library : Library.t) ~mesh =
     let operation = "Metal.Compiler.create_mesh_pipeline_async" in
     with_mesh_descriptor operation
-      (fun reflection descriptor ->
+      (fun reflection color_attachments color_formats descriptor ->
         match
           Metal_raw.compiler_create_mesh_pipeline_async value.raw descriptor
         with
@@ -8649,7 +8870,8 @@ module Compiler = struct
                  (fun (raw, raw_reflection) ->
                    Render_pipeline.make ~mesh_constraints value.device
                      ~kind:Render_pipeline.Mesh ~raster_sample_count
-                     ~color_formats ~reflection raw raw_reflection)
+                     ~color_formats ~color_attachments ~reflection raw
+                     raw_reflection)
                  raw))
       ?label ?object_function ?fragment ~reflection
       ?max_total_threads_per_object_threadgroup
@@ -8658,7 +8880,8 @@ module Compiler = struct
       ?required_threads_per_mesh_threadgroup
       ~object_threadgroup_size_multiple ~mesh_threadgroup_size_multiple
       ?payload_memory_length ?max_total_threadgroups_per_mesh_grid
-      ~raster_sample_count ~color_formats ~rasterization_enabled
+      ~raster_sample_count ?color_formats ?color_attachments
+      ~rasterization_enabled
       ~support_indirect_command_buffers ~lookup_archives value ~library ~mesh
 
   let validate_tile_target operation (device : Device.t) ~raster_sample_count
@@ -10096,6 +10319,29 @@ module Command4 = struct
             (match
                Metal_raw.command4_render_encoder_set_stencil_references
                  value.raw value.command_buffer.raw front back
+             with
+             | Error message -> native_error operation message
+             | Ok () -> Ok ()))
+
+    let set_blend_color (value : t) color =
+      let operation = "Metal.Command4.Render_encoder.set_blend_color" in
+      let float32 value =
+        Float.is_finite value && Float.abs value <= 3.402823466e38
+      in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok ()
+          when not
+                 (float32 color.red && float32 color.green
+                 && float32 color.blue && float32 color.alpha) ->
+            error operation Invalid_argument
+              "blend-color components must be finite float32 values"
+        | Ok () ->
+            (match
+               Metal_raw.command4_render_encoder_set_blend_color value.raw
+                 value.command_buffer.raw
+                 (color.red, color.green, color.blue, color.alpha)
              with
              | Error message -> native_error operation message
              | Ok () -> Ok ()))

@@ -7359,30 +7359,86 @@ bool checked_stored_render_function(
 API_AVAILABLE(macos(26.0))
 bool configure_render_color_attachments(
     MTL4RenderPipelineColorAttachmentDescriptorArray *attachments,
-    value raw_formats, bool rasterization_enabled,
+    value raw_attachments, bool rasterization_enabled,
     NSString *__autoreleasing *failure) {
-  const mlsize_t format_count = Wosize_val(raw_formats);
-  if ((rasterization_enabled && format_count == 0) ||
-      (!rasterization_enabled && format_count != 0) || format_count > 8) {
+  const mlsize_t attachment_count = Wosize_val(raw_attachments);
+  if ((rasterization_enabled && attachment_count == 0) ||
+      (!rasterization_enabled && attachment_count != 0) ||
+      attachment_count > 8) {
     *failure = @"Metal 4 render color-attachment count is invalid";
     return false;
   }
-  for (mlsize_t index = 0; index < format_count; ++index) {
-    const intnat code = Long_val(Field(raw_formats, index));
-    if (code <= static_cast<intnat>(MTLPixelFormatInvalid)) {
-      *failure = @"Metal 4 render color format is invalid";
+  for (mlsize_t index = 0; index < attachment_count; ++index) {
+    value raw_attachment = Field(raw_attachments, index);
+    const intnat pixel_format = Long_val(Field(raw_attachment, 0));
+    const intnat blending_state = Long_val(Field(raw_attachment, 1));
+    const intnat source_rgb = Long_val(Field(raw_attachment, 2));
+    const intnat destination_rgb = Long_val(Field(raw_attachment, 3));
+    const intnat rgb_operation = Long_val(Field(raw_attachment, 4));
+    const intnat source_alpha = Long_val(Field(raw_attachment, 5));
+    const intnat destination_alpha = Long_val(Field(raw_attachment, 6));
+    const intnat alpha_operation = Long_val(Field(raw_attachment, 7));
+    const intnat write_mask = Long_val(Field(raw_attachment, 8));
+    if (pixel_format <= static_cast<intnat>(MTLPixelFormatInvalid) ||
+        blending_state < 0 || blending_state > 1 || source_rgb < 0 ||
+        source_rgb > 18 || destination_rgb < 0 || destination_rgb > 18 ||
+        rgb_operation < 0 || rgb_operation > 4 || source_alpha < 0 ||
+        source_alpha > 18 || destination_alpha < 0 ||
+        destination_alpha > 18 || alpha_operation < 0 ||
+        alpha_operation > 4 || write_mask < 0 || (write_mask & ~15) != 0) {
+      *failure = @"Metal 4 render color-attachment state is invalid";
       return false;
     }
     MTL4RenderPipelineColorAttachmentDescriptor *attachment =
         [[MTL4RenderPipelineColorAttachmentDescriptor alloc] init];
-    attachment.pixelFormat = static_cast<MTLPixelFormat>(code);
+    attachment.pixelFormat = static_cast<MTLPixelFormat>(pixel_format);
+    attachment.blendingState = static_cast<MTL4BlendState>(blending_state);
+    attachment.sourceRGBBlendFactor =
+        static_cast<MTLBlendFactor>(source_rgb);
+    attachment.destinationRGBBlendFactor =
+        static_cast<MTLBlendFactor>(destination_rgb);
+    attachment.rgbBlendOperation =
+        static_cast<MTLBlendOperation>(rgb_operation);
+    attachment.sourceAlphaBlendFactor =
+        static_cast<MTLBlendFactor>(source_alpha);
+    attachment.destinationAlphaBlendFactor =
+        static_cast<MTLBlendFactor>(destination_alpha);
+    attachment.alphaBlendOperation =
+        static_cast<MTLBlendOperation>(alpha_operation);
+    attachment.writeMask = static_cast<MTLColorWriteMask>(write_mask);
     [attachments setObject:attachment atIndexedSubscript:index];
   }
-  for (mlsize_t index = 0; index < format_count; ++index) {
+  for (mlsize_t index = 0; index < attachment_count; ++index) {
+    value raw_attachment = Field(raw_attachments, index);
     const MTL4RenderPipelineColorAttachmentDescriptor *attachment =
         [attachments objectAtIndexedSubscript:index];
     if (attachment.pixelFormat !=
-        static_cast<MTLPixelFormat>(Long_val(Field(raw_formats, index)))) {
+            static_cast<MTLPixelFormat>(
+                Long_val(Field(raw_attachment, 0))) ||
+        attachment.blendingState !=
+            static_cast<MTL4BlendState>(
+                Long_val(Field(raw_attachment, 1))) ||
+        attachment.sourceRGBBlendFactor !=
+            static_cast<MTLBlendFactor>(
+                Long_val(Field(raw_attachment, 2))) ||
+        attachment.destinationRGBBlendFactor !=
+            static_cast<MTLBlendFactor>(
+                Long_val(Field(raw_attachment, 3))) ||
+        attachment.rgbBlendOperation !=
+            static_cast<MTLBlendOperation>(
+                Long_val(Field(raw_attachment, 4))) ||
+        attachment.sourceAlphaBlendFactor !=
+            static_cast<MTLBlendFactor>(
+                Long_val(Field(raw_attachment, 5))) ||
+        attachment.destinationAlphaBlendFactor !=
+            static_cast<MTLBlendFactor>(
+                Long_val(Field(raw_attachment, 6))) ||
+        attachment.alphaBlendOperation !=
+            static_cast<MTLBlendOperation>(
+                Long_val(Field(raw_attachment, 7))) ||
+        attachment.writeMask !=
+            static_cast<MTLColorWriteMask>(
+                Long_val(Field(raw_attachment, 8)))) {
       *failure = @"Metal changed checked render color-attachment properties";
       return false;
     }
@@ -7513,7 +7569,7 @@ PrismelMetalCheckedRenderRequest *checked_render_request(
     *failure = @"Metal 4 render sample count is unsupported";
     return nil;
   }
-  value raw_formats = Field(raw_descriptor, 6);
+  value raw_attachments = Field(raw_descriptor, 6);
   const intnat topology_code = Long_val(Field(raw_descriptor, 8));
   if (topology_code <
           static_cast<intnat>(MTLPrimitiveTopologyClassPoint) ||
@@ -7536,7 +7592,7 @@ PrismelMetalCheckedRenderRequest *checked_render_request(
       : MTL4IndirectCommandBufferSupportStateDisabled;
   descriptor.supportIndirectCommandBuffers = indirect_support;
   if (!configure_render_color_attachments(descriptor.colorAttachments,
-                                          raw_formats,
+                                          raw_attachments,
                                           rasterization_enabled, failure)) {
     return nil;
   }
@@ -7708,9 +7764,9 @@ PrismelMetalCheckedRenderRequest *checked_mesh_request(
       ? MTL4IndirectCommandBufferSupportStateEnabled
       : MTL4IndirectCommandBufferSupportStateDisabled;
   descriptor.supportIndirectCommandBuffers = indirect_support;
-  value raw_formats = Field(raw_descriptor, 19);
+  value raw_attachments = Field(raw_descriptor, 19);
   if (!configure_render_color_attachments(descriptor.colorAttachments,
-                                          raw_formats,
+                                          raw_attachments,
                                           rasterization_enabled, failure)) {
     return nil;
   }
@@ -9706,6 +9762,43 @@ caml_prismel_metal_command4_render_encoder_set_stencil_references(
                                                Int32_val(raw_front))
                        backReferenceValue:static_cast<std::uint32_t>(
                                               Int32_val(raw_back))];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("Metal 4 commands require macOS 26"));
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_command4_render_encoder_set_blend_color(
+    value raw_encoder, value raw_buffer, value raw_color) {
+  CAMLparam3(raw_encoder, raw_buffer, raw_color);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4RenderCommandEncoder> encoder =
+            object_of_handle(raw_encoder, Handle_kind::Render_encoder4);
+        PrismelMetal4CommandBufferState *command_buffer =
+            command_buffer4_state_of_handle(raw_buffer);
+        const double red = Double_val(Field(raw_color, 0));
+        const double green = Double_val(Field(raw_color, 1));
+        const double blue = Double_val(Field(raw_color, 2));
+        const double alpha = Double_val(Field(raw_color, 3));
+        const double float_max = std::numeric_limits<float>::max();
+        if (encoder.commandBuffer != command_buffer.commandBuffer ||
+            !std::isfinite(red) || !std::isfinite(green) ||
+            !std::isfinite(blue) || !std::isfinite(alpha) ||
+            std::abs(red) > float_max || std::abs(green) > float_max ||
+            std::abs(blue) > float_max || std::abs(alpha) > float_max) {
+          CAMLreturn(result_error_text(
+              "Metal 4 blend color is invalid for this command buffer"));
+        }
+        [encoder setBlendColorRed:static_cast<float>(red)
+                            green:static_cast<float>(green)
+                             blue:static_cast<float>(blue)
+                            alpha:static_cast<float>(alpha)];
         CAMLreturn(result_unit());
       } @catch (NSException *exception) {
         CAMLreturn(result_error(exception.reason));

@@ -641,6 +641,18 @@ replaces its value with reference one during a red draw, changes to an `Equal`
 test with independent references of two, and verifies that the rejected green
 draw leaves every pixel exactly red.
 
+Conventional and mesh render pipelines accept typed color-attachment policies
+that combine the pixel format, concrete enabled/disabled blend state, separate
+RGB/alpha factors and operations, and a unique per-channel write mask. The
+legacy `color_formats` list remains a default-state shorthand and is mutually
+exclusive with typed attachments. Synchronous and asynchronous compiler paths
+copy the complete policy into the retained native descriptor. Render encoders
+also accept a finite float32 blend constant. The M1 conformance path clears an
+8×8 target to cyan, blends a red fragment with component-wise blend-color and
+one-minus-blend-color factors, suppresses green writes, and verifies every BGRA
+pixel is exactly `(64, 255, 64, 255)`. A blend-enabled mesh pipeline separately
+executes with the default one/zero equation.
+
 `Command4.Compute_encoder` binds a checked compute pipeline and an optional
 argument table, then dispatches positive direct grid/threadgroup dimensions
 whose threadgroup cardinality fits the compiled pipeline limit. Each dispatch
@@ -678,8 +690,8 @@ The M1 conformance path compiles an exact 32×32 full-tile pipeline, clears its
 argument-table slot immediately after dispatch, and verifies the retained shared
 buffer contains the tile shader's exact value `23` after commit feedback.
 
-Programmable blend policy, vertex descriptors, dynamic render linking, and
-positive offline `.metallib` provenance remain open.
+Vertex descriptors, dynamic render linking, and positive offline `.metallib`
+provenance remain open.
 
 `test_metal.exe` runs a real M1 compute kernel, wrong-domain and invalid-state
 cases, full labeled shader diagnostics, function-constant introspection and
@@ -708,6 +720,7 @@ base-aware direct/indexed instancing with two exact split-color targets,
 direct/indexed indirect execution from checked packed OCaml buffers,
 immutable depth compare/write state and a pixel-exact depth-ordered target,
 front/back stencil policy and a pixel-exact reference-rejected target,
+typed render/mesh blend policy and a pixel-exact constant-blended target,
 argument-table-backed Metal 4 compute execution, direct and object-stage mesh
 command execution with two pixel-exact offscreen targets, and exact full-tile
 command execution through a completion-retained output buffer,

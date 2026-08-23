@@ -1135,6 +1135,64 @@ module Render_pipeline : sig
     | Line
     | Triangle
 
+  type blend_state =
+    | Blend_disabled
+    | Blend_enabled
+
+  type blend_factor =
+    | Blend_zero
+    | Blend_one
+    | Blend_source_color
+    | Blend_one_minus_source_color
+    | Blend_source_alpha
+    | Blend_one_minus_source_alpha
+    | Blend_destination_color
+    | Blend_one_minus_destination_color
+    | Blend_destination_alpha
+    | Blend_one_minus_destination_alpha
+    | Blend_source_alpha_saturated
+    | Blend_color
+    | Blend_one_minus_color
+    | Blend_alpha
+    | Blend_one_minus_alpha
+    | Blend_source1_color
+    | Blend_one_minus_source1_color
+    | Blend_source1_alpha
+    | Blend_one_minus_source1_alpha
+
+  type blend_operation =
+    | Blend_add
+    | Blend_subtract
+    | Blend_reverse_subtract
+    | Blend_min
+    | Blend_max
+
+  type color_write =
+    | Write_red
+    | Write_green
+    | Write_blue
+    | Write_alpha
+
+  type color_attachment = private
+    { format : Texture.format
+    ; blending : blend_state
+    ; source_rgb : blend_factor
+    ; destination_rgb : blend_factor
+    ; rgb_operation : blend_operation
+    ; source_alpha : blend_factor
+    ; destination_alpha : blend_factor
+    ; alpha_operation : blend_operation
+    ; write_mask : color_write list
+    }
+
+  (** Builds one concrete color-attachment pipeline policy. *)
+  val color_attachment :
+    ?blending:blend_state -> ?source_rgb:blend_factor ->
+    ?destination_rgb:blend_factor -> ?rgb_operation:blend_operation ->
+    ?source_alpha:blend_factor -> ?destination_alpha:blend_factor ->
+    ?alpha_operation:blend_operation -> ?write_mask:color_write list ->
+    Texture.format -> color_attachment
+
   type reflection =
     { vertex : Binding.t list
     ; fragment : Binding.t list
@@ -1149,6 +1207,7 @@ module Render_pipeline : sig
   val kind : t -> kind
   val raster_sample_count : t -> int
   val color_formats : t -> Texture.format list
+  val color_attachments : t -> color_attachment list
   val reflection : t -> reflection option
   val label : t -> (string option, error) result
   val destroy : t -> (unit, error) result
@@ -1346,11 +1405,13 @@ module Compiler : sig
 
   (** Compiles a conventional vertex/fragment Metal 4 render pipeline.
       Rasterized pipelines require a fragment function and one to eight color
-      formats. Vertex-only pipelines use a void-returning vertex function,
-      disable rasterization, and use no color formats. *)
+      formats or typed color attachments, but not both. Vertex-only pipelines
+      use a void-returning vertex function, disable rasterization, and use no
+      color attachments. *)
   val create_render_pipeline :
     ?label:string -> ?fragment:string -> ?reflection:bool ->
     ?raster_sample_count:int -> ?color_formats:Texture.format list ->
+    ?color_attachments:Render_pipeline.color_attachment list ->
     ?rasterization_enabled:bool ->
     ?primitive_topology:Render_pipeline.primitive_topology ->
     ?support_indirect_command_buffers:bool ->
@@ -1363,6 +1424,7 @@ module Compiler : sig
   val create_render_pipeline_async :
     ?label:string -> ?fragment:string -> ?reflection:bool ->
     ?raster_sample_count:int -> ?color_formats:Texture.format list ->
+    ?color_attachments:Render_pipeline.color_attachment list ->
     ?rasterization_enabled:bool ->
     ?primitive_topology:Render_pipeline.primitive_topology ->
     ?support_indirect_command_buffers:bool ->
@@ -1384,7 +1446,9 @@ module Compiler : sig
     ?object_threadgroup_size_multiple:bool ->
     ?mesh_threadgroup_size_multiple:bool -> ?payload_memory_length:int ->
     ?max_total_threadgroups_per_mesh_grid:int -> ?raster_sample_count:int ->
-    ?color_formats:Texture.format list -> ?rasterization_enabled:bool ->
+    ?color_formats:Texture.format list ->
+    ?color_attachments:Render_pipeline.color_attachment list ->
+    ?rasterization_enabled:bool ->
     ?support_indirect_command_buffers:bool ->
     ?lookup_archives:Pipeline_archive.t list -> t -> library:Library.t ->
     mesh:string -> (Render_pipeline.t, error) result
@@ -1401,7 +1465,9 @@ module Compiler : sig
     ?object_threadgroup_size_multiple:bool ->
     ?mesh_threadgroup_size_multiple:bool -> ?payload_memory_length:int ->
     ?max_total_threadgroups_per_mesh_grid:int -> ?raster_sample_count:int ->
-    ?color_formats:Texture.format list -> ?rasterization_enabled:bool ->
+    ?color_formats:Texture.format list ->
+    ?color_attachments:Render_pipeline.color_attachment list ->
+    ?rasterization_enabled:bool ->
     ?support_indirect_command_buffers:bool ->
     ?lookup_archives:Pipeline_archive.t list -> t -> library:Library.t ->
     mesh:string -> (Render_pipeline.t Compiler_task.t, error) result
@@ -1637,6 +1703,9 @@ module Command4 : sig
     (** Sets independent unsigned 32-bit front/back stencil references. *)
     val set_stencil_references :
       t -> front:int32 -> back:int32 -> (unit, error) result
+
+    (** Sets the finite float32 blend constant for subsequent draws. *)
+    val set_blend_color : t -> color -> (unit, error) result
 
     (** Associates [table] with the selected render stages. Metal snapshots
         the table's current resources at each subsequent draw. [None] clears

@@ -2876,9 +2876,14 @@ let test_metal4_compiler device =
             (Compiler.compile_source ~name:"async-render-source" compiler
                render_shader_source)
         in
+        let async_render_attachment =
+          Render_pipeline.color_attachment
+            ~blending:Render_pipeline.Blend_enabled Texture.Bgra8_unorm
+        in
         let async_render_task =
           get
             (Compiler.create_render_pipeline_async
+               ~color_attachments:[async_render_attachment]
                ~label:"async reflected render" ~fragment:"prismel_fragment"
                ~reflection:true compiler ~library:async_render_library
                ~vertex:"prismel_vertex")
@@ -2906,6 +2911,8 @@ let test_metal4_compiler device =
               <> Render_pipeline.Render
            || Option.is_none
                 (Render_pipeline.reflection async_render_pipeline)
+           || Render_pipeline.color_attachments async_render_pipeline
+              <> [async_render_attachment]
         then fail "async Metal 4 render-pipeline metadata is wrong";
         get (Render_pipeline.destroy async_render_pipeline);
         get (Compiler_task.destroy async_render_task);
@@ -5155,6 +5162,137 @@ let test_metal4_stencil_commands device =
     true
   end
 
+let test_metal4_blend_commands device =
+  if not (get (Device.supports_family device Device.Metal4)) then false
+  else begin
+    let compiler = get (Compiler.create device) in
+    let library =
+      get
+        (Compiler.compile_source ~name:"metal4-command-blend-library" compiler
+           depth_render_shader_source)
+    in
+    let blend_attachment =
+      Render_pipeline.color_attachment
+        ~blending:Render_pipeline.Blend_enabled
+        ~source_rgb:Render_pipeline.Blend_color
+        ~destination_rgb:Render_pipeline.Blend_one_minus_color
+        ~rgb_operation:Render_pipeline.Blend_add
+        ~source_alpha:Render_pipeline.Blend_one
+        ~destination_alpha:Render_pipeline.Blend_zero
+        ~alpha_operation:Render_pipeline.Blend_add
+        ~write_mask:
+          [ Render_pipeline.Write_red; Render_pipeline.Write_blue
+          ; Render_pipeline.Write_alpha
+          ]
+        Texture.Bgra8_unorm
+    in
+    ignore
+      (expect_error Invalid_argument
+         (Compiler.create_render_pipeline
+            ~fragment:"prismel_depth_red_fragment"
+            ~color_formats:[ Texture.Bgra8_unorm ]
+            ~color_attachments:[ blend_attachment ] compiler ~library
+            ~vertex:"prismel_depth_near_vertex"));
+    let duplicate_mask =
+      Render_pipeline.color_attachment
+        ~write_mask:[ Render_pipeline.Write_red; Render_pipeline.Write_red ]
+        Texture.Bgra8_unorm
+    in
+    ignore
+      (expect_error Invalid_argument
+         (Compiler.create_render_pipeline
+            ~fragment:"prismel_depth_red_fragment"
+            ~color_attachments:[ duplicate_mask ] compiler ~library
+            ~vertex:"prismel_depth_near_vertex"));
+    ignore
+      (expect_error Invalid_argument
+         (Compiler.create_render_pipeline
+            ~fragment:"prismel_depth_red_fragment"
+            ~color_attachments:
+              [ Render_pipeline.color_attachment Texture.Depth32_float ]
+            compiler ~library ~vertex:"prismel_depth_near_vertex"));
+    let pipeline =
+      get
+        (Compiler.create_render_pipeline ~label:"Metal 4 executable blend"
+           ~fragment:"prismel_depth_red_fragment"
+           ~color_attachments:[ blend_attachment ] compiler ~library
+           ~vertex:"prismel_depth_near_vertex")
+    in
+    if
+      Render_pipeline.color_attachments pipeline <> [ blend_attachment ]
+      || Render_pipeline.color_formats pipeline <> [ Texture.Bgra8_unorm ]
+    then fail "Metal 4 blend-pipeline metadata is wrong";
+    let target =
+      get
+        (Texture.create ~device
+           (Texture.descriptor_2d ~storage:Buffer.Shared
+              ~usage:[ Texture.Render_target ] ~format:Texture.Bgra8_unorm
+              ~width:8 ~height:8 ~label:"Metal 4 blend target" ()))
+    in
+    let allocator =
+      get (Command4.Allocator.create ~label:"Metal 4 blend allocator" device)
+    in
+    let queue = get (Command4.Queue.create ~label:"Metal 4 blend queue" device) in
+    let commands =
+      get
+        (Command4.Command_buffer.create allocator
+           ~label:"Metal 4 blend commands" ())
+    in
+    let clear =
+      Command4.Render_encoder.color ~red:0. ~green:1. ~blue:1. ~alpha:1.
+    in
+    let encoder =
+      get
+        (Command4.Render_encoder.create ~label:"Metal 4 blend encoder" commands
+           ~color_attachments:
+             [ Command4.Render_encoder.color_attachment
+                 ~load_action:(Command4.Render_encoder.Clear clear) target
+             ])
+    in
+    get (Command4.Render_encoder.set_pipeline encoder pipeline);
+    let invalid_blend =
+      Command4.Render_encoder.color ~red:nan ~green:0. ~blue:0. ~alpha:0.
+    in
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.set_blend_color encoder invalid_blend));
+    let blend =
+      Command4.Render_encoder.color ~red:0.25 ~green:0.5 ~blue:0.75
+        ~alpha:0.5
+    in
+    get (Command4.Render_encoder.set_blend_color encoder blend);
+    ignore
+      (expect_error Parent_has_dependents
+         (Render_pipeline.destroy pipeline));
+    get
+      (Command4.Render_encoder.draw_primitives encoder
+         Command4.Render_encoder.Triangle ~vertex_start:0 ~vertex_count:3);
+    get (Command4.Render_encoder.end_encoding encoder);
+    get (Command4.Command_buffer.end_recording commands);
+    let submission = get (Command4.Queue.commit queue [ commands ]) in
+    get (Command4.Submission.wait submission);
+    let pixels =
+      get
+        (Texture.read_bytes target
+           ~region:
+             { Texture.x = 0; y = 0; z = 0; width = 8; height = 8; depth = 1 }
+           ~mip_level:0 ~slice:0 ~bytes_per_row:32 ~bytes_per_image:256)
+    in
+    check_solid_bgra ~label:"Metal 4 constant-blended draw" ~blue:64
+      ~green:255 ~red:64 ~alpha:255 pixels;
+    get (Render_pipeline.destroy pipeline);
+    get (Texture.destroy target);
+    get (Command4.Submission.destroy submission);
+    get (Command4.Command_buffer.destroy commands);
+    get (Command4.Allocator.reset allocator);
+    get (Command4.Queue.destroy queue);
+    get (Command4.Allocator.destroy allocator);
+    get (Library.destroy library);
+    get (Compiler.destroy compiler);
+    Printf.printf "Metal 4 blend policy/constant conformance passed\n%!";
+    true
+  end
+
 let test_metal4_mesh_commands device =
   if
     not (get (Device.supports_family device Device.Metal4))
@@ -5173,6 +5311,10 @@ let test_metal4_mesh_commands device =
       get
         (Compiler.create_mesh_pipeline ~label:"Metal 4 executable mesh"
            ~fragment:"prismel_mesh_fragment"
+           ~color_attachments:
+             [ Render_pipeline.color_attachment
+                 ~blending:Render_pipeline.Blend_enabled Texture.Bgra8_unorm
+             ]
            ~max_total_threads_per_mesh_threadgroup:3
            ~required_threads_per_mesh_threadgroup:(3, 1, 1) compiler ~library
            ~mesh:"prismel_mesh")
@@ -5610,6 +5752,7 @@ let () =
     ignore (test_metal4_indirect_commands device);
     ignore (test_metal4_depth_commands device);
     ignore (test_metal4_stencil_commands device);
+    ignore (test_metal4_blend_commands device);
     ignore (test_metal4_mesh_commands device);
     ignore (test_metal4_tile_commands device);
     ignore (test_metal4_compute_commands device);
@@ -7419,6 +7562,6 @@ let () =
         stats.external_deallocations
         stats.external_deallocation_mismatches;
     Printf.printf
-      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/compiler-task/pipeline-dataset/binary-function/static-link/reflection/compute/render/mesh/object/tile/command4-argument-table/compute/render/indexed/instanced/indirect/depth/stencil/mesh/tile conformance passed on %s\n%!"
+      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/compiler-task/pipeline-dataset/binary-function/static-link/reflection/compute/render/mesh/object/tile/command4-argument-table/compute/render/indexed/instanced/indirect/depth/stencil/blend/mesh/tile conformance passed on %s\n%!"
       info.name
   end
