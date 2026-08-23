@@ -1555,6 +1555,27 @@ module Command4 : sig
     val end_encoding : t -> (unit, error) result
     val destroyed : t -> bool
   end
+
+  module Compute_encoder : sig
+    type t
+
+    val create :
+      ?label:string -> Command_buffer.t -> (t, error) result
+
+    val set_pipeline : t -> Compute_pipeline.t -> (unit, error) result
+
+    (** Associates the table with the compute stage. Metal snapshots its
+        current resources at each subsequent dispatch. [None] clears it. *)
+    val set_argument_table :
+      t -> Argument_table.t option -> (unit, error) result
+
+    val dispatch_threads :
+      t -> threads:(int * int * int) -> threadgroup:(int * int * int) ->
+      (unit, error) result
+
+    val end_encoding : t -> (unit, error) result
+    val destroyed : t -> bool
+  end
 end
 
 module Command_queue : sig

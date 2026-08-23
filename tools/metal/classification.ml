@@ -300,6 +300,10 @@ let bound_identifiers =
         , [ "label"; "setLabel:" ] )
       ; "MTL4CommitFeedback", [ "error" ]
       ; "MTL4CommitOptions", [ "addFeedbackHandler:" ]
+      ; ( "MTL4ComputeCommandEncoder"
+        , [ "dispatchThreads:threadsPerThreadgroup:"
+          ; "setArgumentTable:"; "setComputePipelineState:"
+          ] )
       ; ( "MTL4RenderCommandEncoder"
         , [ "drawPrimitives:vertexStart:vertexCount:"
           ; "setArgumentTable:atStages:"; "setRenderPipelineState:"

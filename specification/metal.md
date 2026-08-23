@@ -589,6 +589,17 @@ its fragment tint from an ordinary OCaml-created shared buffer at argument-table
 slot 1; the pixel-exact green result therefore exercises the binding rather
 than a constant-color shader.
 
+`Command4.Compute_encoder` binds a checked compute pipeline and an optional
+argument table, then dispatches positive direct grid/threadgroup dimensions
+whose threadgroup cardinality fits the compiled pipeline limit. Each dispatch
+snapshots the table's current resources into both the OCaml dependency graph
+and native completion-owned state. The M1 conformance kernel increments four
+shared-buffer values through argument-table slot 0, clears that slot immediately
+after encoding, proves the buffer remains protected until feedback, and verifies
+the exact four-value result. Missing pipelines, invalid dimensions, overflow,
+oversized threadgroups, open-encoder teardown, and premature pipeline/table/
+buffer destruction are rejected deterministically.
+
 Mesh and tile command execution, indexed/indirect draws, blend/depth/stencil
 policy, vertex descriptors, dynamic render linking, and positive offline
 `.metallib` provenance remain open.
@@ -614,7 +625,8 @@ attachmentless Metal 4 tile compilation, private tile static linking, invalid
 tile stage/threadgroup rejection, asynchronous tile completion after
 source-library destruction, allocator/queue/buffer/submission lifecycle,
 argument-table buffer/texture/sampler ownership and render-stage snapshots, plus
-pixel-exact conventional Metal 4 offscreen render execution,
+pixel-exact conventional Metal 4 offscreen render execution and exact
+argument-table-backed Metal 4 compute execution,
 compiler/task/dataset parent ownership, and complete Metal 4 compile diagnostics,
 copied/no-copy external buffer ownership,
 shareable texture/handle/import lifetimes, single- and multi-plane IOSurface

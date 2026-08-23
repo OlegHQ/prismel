@@ -908,6 +908,7 @@ enum class Handle_kind : std::uint32_t {
   Render_encoder4,
   Submission4,
   Argument_table4,
+  Compute_encoder4,
 };
 
 struct Handle {
@@ -8986,6 +8987,185 @@ extern "C" CAMLprim value caml_prismel_metal_command4_buffer_end(value raw) {
         PrismelMetal4CommandBufferState *state =
             command_buffer4_state_of_handle(raw);
         [state.commandBuffer endCommandBuffer];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("Metal 4 commands require macOS 26"));
+  }
+}
+
+extern "C" CAMLprim value caml_prismel_metal_command4_compute_encoder_create(
+    value raw_buffer, value raw_label) {
+  CAMLparam2(raw_buffer, raw_label);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        PrismelMetal4CommandBufferState *state =
+            command_buffer4_state_of_handle(raw_buffer);
+        NSString *expected_label = nil;
+        if (Is_block(raw_label)) {
+          expected_label = string_from_ocaml(Field(raw_label, 0));
+          if (expected_label == nil) {
+            CAMLreturn(result_error_text(
+                "Metal 4 compute-encoder label is not valid UTF-8"));
+          }
+        }
+        id<MTL4ComputeCommandEncoder> encoder =
+            state.commandBuffer.computeCommandEncoder;
+        if (encoder == nil || encoder.commandBuffer != state.commandBuffer) {
+          CAMLreturn(result_error_text(
+              "Metal failed to create a checked Metal 4 compute encoder"));
+        }
+        if (expected_label != nil) {
+          encoder.label = expected_label;
+          if (![encoder.label isEqualToString:expected_label]) {
+            [encoder endEncoding];
+            CAMLreturn(result_error_text(
+                "Metal changed the checked Metal 4 compute-encoder label"));
+          }
+        }
+        raw = allocate_handle(encoder, Handle_kind::Compute_encoder4);
+        CAMLreturn(result_ok(raw));
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("Metal 4 commands require macOS 26"));
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_command4_compute_encoder_set_pipeline(
+    value raw_encoder, value raw_buffer, value raw_pipeline) {
+  CAMLparam3(raw_encoder, raw_buffer, raw_pipeline);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4ComputeCommandEncoder> encoder =
+            object_of_handle(raw_encoder, Handle_kind::Compute_encoder4);
+        PrismelMetal4CommandBufferState *state =
+            command_buffer4_state_of_handle(raw_buffer);
+        id<MTLComputePipelineState> pipeline =
+            object_of_handle(raw_pipeline, Handle_kind::Compute_pipeline);
+        if (encoder.commandBuffer != state.commandBuffer ||
+            pipeline.device.registryID !=
+                state.commandBuffer.device.registryID) {
+          CAMLreturn(result_error_text(
+              "Metal 4 compute pipeline belongs to another command graph"));
+        }
+        [encoder setComputePipelineState:pipeline];
+        [state retainEncodedObject:pipeline];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("Metal 4 commands require macOS 26"));
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_command4_compute_encoder_set_argument_table(
+    value raw_encoder, value raw_buffer, value raw_table) {
+  CAMLparam3(raw_encoder, raw_buffer, raw_table);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4ComputeCommandEncoder> encoder =
+            object_of_handle(raw_encoder, Handle_kind::Compute_encoder4);
+        PrismelMetal4CommandBufferState *command_buffer =
+            command_buffer4_state_of_handle(raw_buffer);
+        if (encoder.commandBuffer != command_buffer.commandBuffer) {
+          CAMLreturn(result_error_text(
+              "Metal 4 compute encoder belongs to another command graph"));
+        }
+        id<MTL4ArgumentTable> table = nil;
+        PrismelMetal4ArgumentTableState *table_state = nil;
+        if (Is_block(raw_table)) {
+          table_state =
+              argument_table4_state_of_handle(Field(raw_table, 0));
+          table = table_state.argumentTable;
+          if (table.device.registryID !=
+              command_buffer.commandBuffer.device.registryID) {
+            CAMLreturn(result_error_text(
+                "Metal 4 argument table belongs to another command graph"));
+          }
+        }
+        [encoder setArgumentTable:table];
+        if (table_state != nil) {
+          [command_buffer retainEncodedObject:table_state];
+        }
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("Metal 4 argument tables require macOS 26"));
+  }
+}
+
+extern "C" CAMLprim value caml_prismel_metal_command4_compute_encoder_dispatch(
+    value raw_encoder, value raw_buffer, value raw_table, value raw_sizes) {
+  CAMLparam4(raw_encoder, raw_buffer, raw_table, raw_sizes);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4ComputeCommandEncoder> encoder =
+            object_of_handle(raw_encoder, Handle_kind::Compute_encoder4);
+        PrismelMetal4CommandBufferState *command_buffer =
+            command_buffer4_state_of_handle(raw_buffer);
+        const intnat grid_x = Long_val(Field(raw_sizes, 0));
+        const intnat grid_y = Long_val(Field(raw_sizes, 1));
+        const intnat grid_z = Long_val(Field(raw_sizes, 2));
+        const intnat group_x = Long_val(Field(raw_sizes, 3));
+        const intnat group_y = Long_val(Field(raw_sizes, 4));
+        const intnat group_z = Long_val(Field(raw_sizes, 5));
+        if (encoder.commandBuffer != command_buffer.commandBuffer || grid_x <= 0 ||
+            grid_y <= 0 || grid_z <= 0 || group_x <= 0 || group_y <= 0 ||
+            group_z <= 0) {
+          CAMLreturn(result_error_text(
+              "Metal 4 compute dispatch dimensions are invalid"));
+        }
+        if (Is_block(raw_table)) {
+          PrismelMetal4ArgumentTableState *table =
+              argument_table4_state_of_handle(Field(raw_table, 0));
+          if (table.argumentTable.device.registryID !=
+              command_buffer.commandBuffer.device.registryID) {
+            CAMLreturn(result_error_text(
+                "Metal 4 dispatch argument table belongs to another device"));
+          }
+          [command_buffer retainEncodedObject:table];
+          [table retainBoundObjectsInCommandBuffer:command_buffer];
+        }
+        [encoder
+                  dispatchThreads:MTLSizeMake(static_cast<NSUInteger>(grid_x),
+                                              static_cast<NSUInteger>(grid_y),
+                                              static_cast<NSUInteger>(grid_z))
+            threadsPerThreadgroup:
+                MTLSizeMake(static_cast<NSUInteger>(group_x),
+                            static_cast<NSUInteger>(group_y),
+                            static_cast<NSUInteger>(group_z))];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("Metal 4 commands require macOS 26"));
+  }
+}
+
+extern "C" CAMLprim value caml_prismel_metal_command4_compute_encoder_end(
+    value raw) {
+  CAMLparam1(raw);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4ComputeCommandEncoder> encoder =
+            object_of_handle(raw, Handle_kind::Compute_encoder4);
+        [encoder endEncoding];
         CAMLreturn(result_unit());
       } @catch (NSException *exception) {
         CAMLreturn(result_error(exception.reason));

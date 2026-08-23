@@ -837,6 +837,26 @@ external command4_buffer_label : handle -> string option =
 external command4_buffer_end : handle -> (unit, string) result =
   "caml_prismel_metal_command4_buffer_end"
 
+external command4_compute_encoder_create :
+  handle -> string option -> (handle, string) result =
+  "caml_prismel_metal_command4_compute_encoder_create"
+
+external command4_compute_encoder_set_pipeline :
+  handle -> handle -> handle -> (unit, string) result =
+  "caml_prismel_metal_command4_compute_encoder_set_pipeline"
+
+external command4_compute_encoder_set_argument_table :
+  handle -> handle -> handle option -> (unit, string) result =
+  "caml_prismel_metal_command4_compute_encoder_set_argument_table"
+
+external command4_compute_encoder_dispatch :
+  handle -> handle -> handle option ->
+  (int * int * int * int * int * int) -> (unit, string) result =
+  "caml_prismel_metal_command4_compute_encoder_dispatch"
+
+external command4_compute_encoder_end : handle -> (unit, string) result =
+  "caml_prismel_metal_command4_compute_encoder_end"
+
 external command4_render_encoder_create :
   handle -> metal4_render_attachment array -> (int * int) -> string option ->
   (handle, string) result =

@@ -2,11 +2,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 1420,
+    "bound": 1423,
     "scope-excluded": 7,
-    "unreviewed": 3858
+    "unreviewed": 3855
   },
-  "classification_source_sha256": "7f66cf868bf13cbe10361cd8e4ed8c1bfd0c0505a78155f0f35a48e1c4e0db6d",
+  "classification_source_sha256": "935b5bbfaefeed56cc800ad400b5b8c913e0e28f22c5832790e1af9893cfefbf",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "header_aggregate_sha256": "c2ee1e44c76606cf05fa81d1a8314dadfa49efe900342e8bcb3670363c16f0d1",
@@ -22188,14 +22188,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4ComputeCommandEncoder.h",
       "id": "method:-[MTL4ComputeCommandEncoder dispatchThreads:threadsPerThreadgroup:]",
       "kind": "method",
       "line": 77,
       "name": "dispatchThreads:threadsPerThreadgroup:",
       "owner": "MTL4ComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLSize, MTLSize) -> void"
     },
     {
@@ -22356,26 +22356,26 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4ComputeCommandEncoder.h",
       "id": "method:-[MTL4ComputeCommandEncoder setArgumentTable:]",
       "kind": "method",
       "line": 572,
       "name": "setArgumentTable:",
       "owner": "MTL4ComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (id<MTL4ArgumentTable>  _Nullable __strong) -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4ComputeCommandEncoder.h",
       "id": "method:-[MTL4ComputeCommandEncoder setComputePipelineState:]",
       "kind": "method",
       "line": 51,
       "name": "setComputePipelineState:",
       "owner": "MTL4ComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (id<MTLComputePipelineState>  _Nonnull __strong) -> void"
     },
     {

@@ -4189,6 +4189,113 @@ let test_metal4_render_commands device =
     true
   end
 
+let test_metal4_compute_commands device =
+  if not (get (Device.supports_family device Device.Metal4)) then false
+  else begin
+    let compiler = get (Compiler.create device) in
+    let library =
+      get
+        (Compiler.compile_source ~name:"metal4-command-compute-library"
+           compiler shader_source)
+    in
+    let pipeline =
+      get
+        (Compiler.create_compute_pipeline ~label:"Metal 4 executable compute"
+           compiler ~library "increment")
+    in
+    let buffer =
+      get (Buffer.create ~device ~length:16L ~storage:Buffer.Shared ())
+    in
+    get (Buffer.write_bytes buffer ~dst_offset:0L (input_values ()));
+    let arguments =
+      get
+        (Command4.Argument_table.create ~label:"Metal 4 compute arguments"
+           ~max_buffers:1 device ())
+    in
+    get (Command4.Argument_table.set_buffer arguments ~index:0 buffer);
+    let allocator =
+      get (Command4.Allocator.create ~label:"Metal 4 compute allocator" device)
+    in
+    let queue =
+      get (Command4.Queue.create ~label:"Metal 4 compute queue" device)
+    in
+    let commands =
+      get
+        (Command4.Command_buffer.create allocator
+           ~label:"Metal 4 compute commands" ())
+    in
+    let before_invalid = get (Release_queue.stats ()) in
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Compute_encoder.create ~label:"invalid\000compute" commands));
+    let after_invalid = get (Release_queue.stats ()) in
+    if after_invalid.total_created <> before_invalid.total_created then
+      fail "invalid Metal 4 compute-encoder label allocated a native handle";
+    let encoder =
+      get
+        (Command4.Compute_encoder.create ~label:"Metal 4 compute encoder"
+           commands)
+    in
+    ignore
+      (expect_error Invalid_state
+         (Command4.Command_buffer.end_recording commands));
+    ignore
+      (expect_error Invalid_state
+         (Command4.Compute_encoder.dispatch_threads encoder
+            ~threads:(4, 1, 1) ~threadgroup:(4, 1, 1)));
+    get (Command4.Compute_encoder.set_pipeline encoder pipeline);
+    ignore
+      (expect_error Parent_has_dependents
+         (Compute_pipeline.destroy pipeline));
+    get (Command4.Compute_encoder.set_argument_table encoder (Some arguments));
+    ignore
+      (expect_error Parent_has_dependents
+         (Command4.Argument_table.destroy arguments));
+    ignore (expect_error Parent_has_dependents (Buffer.destroy buffer));
+    get (Command4.Compute_encoder.set_argument_table encoder None);
+    get (Command4.Compute_encoder.set_argument_table encoder (Some arguments));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Compute_encoder.dispatch_threads encoder
+            ~threads:(0, 1, 1) ~threadgroup:(1, 1, 1)));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Compute_encoder.dispatch_threads encoder
+            ~threads:(4, 1, 1) ~threadgroup:(max_int, 2, 1)));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Compute_encoder.dispatch_threads encoder
+            ~threads:(4, 1, 1)
+            ~threadgroup:
+              ( Compute_pipeline.max_total_threads_per_threadgroup pipeline + 1
+              , 1
+              , 1 )));
+    get
+      (Command4.Compute_encoder.dispatch_threads encoder ~threads:(4, 1, 1)
+         ~threadgroup:(4, 1, 1));
+    get (Command4.Argument_table.clear_buffer arguments ~index:0);
+    ignore (expect_error Parent_has_dependents (Buffer.destroy buffer));
+    get (Command4.Compute_encoder.end_encoding encoder);
+    if not (Command4.Compute_encoder.destroyed encoder) then
+      fail "ended Metal 4 compute encoder remained live";
+    get (Command4.Command_buffer.end_recording commands);
+    let submission = get (Command4.Queue.commit queue [ commands ]) in
+    get (Command4.Submission.wait submission);
+    Buffer.read_bytes buffer ~offset:0L ~length:16 |> get |> check_values;
+    get (Compute_pipeline.destroy pipeline);
+    get (Command4.Argument_table.destroy arguments);
+    get (Buffer.destroy buffer);
+    get (Command4.Submission.destroy submission);
+    get (Command4.Command_buffer.destroy commands);
+    get (Command4.Allocator.reset allocator);
+    get (Command4.Queue.destroy queue);
+    get (Command4.Allocator.destroy allocator);
+    get (Library.destroy library);
+    get (Compiler.destroy compiler);
+    Printf.printf "Metal 4 compute-command conformance passed\n%!";
+    true
+  end
+
 let () =
   if Sys.os_type <> "Unix"
      || not (Sys.file_exists "/System/Library/Frameworks/Metal.framework")
@@ -4206,6 +4313,7 @@ let () =
     test_pipeline_assets device;
     ignore (test_metal4_compiler device);
     ignore (test_metal4_render_commands device);
+    ignore (test_metal4_compute_commands device);
     test_format_matrix device;
     test_texture_swizzle_and_compression device;
     let residency_sets_supported = test_residency_set device in
@@ -6012,6 +6120,6 @@ let () =
         stats.external_deallocations
         stats.external_deallocation_mismatches;
     Printf.printf
-      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/compiler-task/pipeline-dataset/binary-function/static-link/reflection/compute/render/mesh/object/tile/command4-argument-table/render conformance passed on %s\n%!"
+      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/compiler-task/pipeline-dataset/binary-function/static-link/reflection/compute/render/mesh/object/tile/command4-argument-table/compute/render conformance passed on %s\n%!"
       info.name
   end

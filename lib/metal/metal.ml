@@ -739,6 +739,7 @@ type command4_resource =
   | Command4_buffer of buffer
   | Command4_texture of texture
   | Command4_sampler of sampler
+  | Command4_compute_pipeline of compute_pipeline
   | Command4_render_pipeline of render_pipeline
 
 type command4_buffer =
@@ -767,6 +768,14 @@ type command4_render_encoder =
   ; color_formats : pixel_format list
   ; mutable pipeline : render_pipeline option
   ; argument_tables : command4_argument_table option array
+  }
+
+type command4_compute_encoder =
+  { raw : Metal_raw.handle
+  ; lifetime : lifetime
+  ; command_buffer : command4_buffer
+  ; mutable pipeline : compute_pipeline option
+  ; mutable argument_table : command4_argument_table option
   }
 
 type residency_allocation =
@@ -879,6 +888,7 @@ let command4_resource_lifetime = function
   | Command4_buffer buffer -> buffer.lifetime
   | Command4_texture texture -> texture.lifetime
   | Command4_sampler sampler -> sampler.lifetime
+  | Command4_compute_pipeline pipeline -> pipeline.lifetime
   | Command4_render_pipeline pipeline -> pipeline.lifetime
 
 let command4_resource_heap = function
@@ -887,7 +897,7 @@ let command4_resource_heap = function
       { parent = (Device_resource _ | External_resource _); _ } -> None
   | Command4_texture texture -> command_texture_heap texture
   | Command4_argument_table _ | Command4_sampler _
-  | Command4_render_pipeline _ -> None
+  | Command4_compute_pipeline _ | Command4_render_pipeline _ -> None
 
 let release_command4_resources resources =
   let retained = !resources in
@@ -907,7 +917,7 @@ let retain_command4_argument_table (command_buffer : command4_buffer)
         | Command4_argument_table candidate ->
             candidate.lifetime == table.lifetime
         | Command4_buffer _ | Command4_texture _ | Command4_sampler _
-        | Command4_render_pipeline _ -> false)
+        | Command4_compute_pipeline _ | Command4_render_pipeline _ -> false)
       !(command_buffer.resources)
   in
   if not retained then begin
@@ -922,7 +932,7 @@ let retain_command4_buffer (command_buffer : command4_buffer) (buffer : buffer) 
       (function
         | Command4_buffer candidate -> candidate.lifetime == buffer.lifetime
         | Command4_argument_table _ | Command4_texture _ | Command4_sampler _
-        | Command4_render_pipeline _ -> false)
+        | Command4_compute_pipeline _ | Command4_render_pipeline _ -> false)
       !(command_buffer.resources)
   in
   if not retained then begin
@@ -942,7 +952,7 @@ let retain_command4_texture (command_buffer : command4_buffer)
       (function
         | Command4_texture candidate -> candidate.lifetime == texture.lifetime
         | Command4_argument_table _ | Command4_buffer _ | Command4_sampler _
-        | Command4_render_pipeline _ -> false)
+        | Command4_compute_pipeline _ | Command4_render_pipeline _ -> false)
       !(command_buffer.resources)
   in
   if not retained then begin
@@ -960,13 +970,31 @@ let retain_command4_sampler (command_buffer : command4_buffer)
       (function
         | Command4_sampler candidate -> candidate.lifetime == sampler.lifetime
         | Command4_argument_table _ | Command4_buffer _ | Command4_texture _
-        | Command4_render_pipeline _ -> false)
+        | Command4_compute_pipeline _ | Command4_render_pipeline _ -> false)
       !(command_buffer.resources)
   in
   if not retained then begin
     attach sampler.lifetime;
     command_buffer.resources :=
       Command4_sampler sampler :: !(command_buffer.resources)
+  end
+
+let retain_command4_compute_pipeline (command_buffer : command4_buffer)
+    (pipeline : compute_pipeline) =
+  let retained =
+    List.exists
+      (function
+        | Command4_compute_pipeline candidate ->
+            candidate.lifetime == pipeline.lifetime
+        | Command4_argument_table _ | Command4_buffer _
+        | Command4_texture _ | Command4_sampler _
+        | Command4_render_pipeline _ -> false)
+      !(command_buffer.resources)
+  in
+  if not retained then begin
+    attach pipeline.lifetime;
+    command_buffer.resources :=
+      Command4_compute_pipeline pipeline :: !(command_buffer.resources)
   end
 
 let retain_command4_render_pipeline (command_buffer : command4_buffer)
@@ -978,7 +1006,8 @@ let retain_command4_render_pipeline (command_buffer : command4_buffer)
            | Command4_render_pipeline retained ->
                retained.lifetime == pipeline.lifetime
            | Command4_argument_table _ | Command4_buffer _
-           | Command4_texture _ | Command4_sampler _ -> false)
+           | Command4_texture _ | Command4_sampler _
+           | Command4_compute_pipeline _ -> false)
          !(command_buffer.resources))
   then begin
     attach pipeline.lifetime;
@@ -7014,7 +7043,7 @@ module Compute_pipeline = struct
       | Ok () -> Ok (Metal_raw.compute_pipeline_label value.raw))
 
   let destroy (value : t) =
-    destroy_leaf "Metal.Compute_pipeline.destroy" value.lifetime value.raw
+    destroy_parent "Metal.Compute_pipeline.destroy" value.lifetime value.raw
       (fun () -> detach value.device.lifetime)
 end
 
@@ -9617,6 +9646,179 @@ module Command4 = struct
         | Error _ as failure -> failure
         | Ok () ->
             (match Metal_raw.command4_render_encoder_end value.raw with
+             | Error message -> native_error operation message
+             | Ok () ->
+                 if Atomic.compare_and_set value.lifetime.destroyed false true
+                 then begin
+                   ignore (Metal_raw.destroy value.raw);
+                   detach value.command_buffer.lifetime
+                 end;
+                 Ok ()))
+  end
+
+  module Compute_encoder = struct
+    type t = command4_compute_encoder
+
+    let create ?label (command_buffer : Command_buffer.t) =
+      let operation = "Metal.Command4.Compute_encoder.create" in
+      on_main operation (fun () ->
+        match ensure_live operation command_buffer.lifetime with
+        | Error _ as failure -> failure
+        | Ok () when command_buffer.phase <> Command4_recording ->
+            error operation Invalid_state "command buffer is not recording"
+        | Ok () when dependent_count command_buffer.lifetime <> 0 ->
+            error operation Invalid_state
+              "command buffer already owns an open encoder"
+        | Ok () when option_exists contains_nul label ->
+            error operation Invalid_argument "label contains a NUL byte"
+        | Ok () ->
+            (match
+               Metal_raw.command4_compute_encoder_create command_buffer.raw label
+             with
+             | Error message -> native_error operation message
+             | Ok raw ->
+                 let value : t =
+                   { raw
+                   ; lifetime = lifetime ()
+                   ; command_buffer
+                   ; pipeline = None
+                   ; argument_table = None
+                   }
+                 in
+                 attach command_buffer.lifetime;
+                 attach_finalizer
+                   ~on_finalize:(fun () ->
+                     if command_buffer.phase = Command4_recording then
+                       command_buffer.phase <-
+                         Command4_failed
+                           "compute encoder was abandoned before end_encoding")
+                   value value.lifetime command_buffer.lifetime;
+                 Ok value))
+
+    let destroyed (value : t) = is_destroyed value.lifetime
+
+    let set_pipeline (value : t) (pipeline : Compute_pipeline.t) =
+      let operation = "Metal.Command4.Compute_encoder.set_pipeline" in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () ->
+            (match ensure_live operation pipeline.lifetime with
+             | Error _ as failure -> failure
+             | Ok () ->
+                 (match
+                    ensure_same_device operation
+                      value.command_buffer.allocator.device pipeline.device
+                  with
+                  | Error _ as failure -> failure
+                  | Ok () ->
+                      match
+                        Metal_raw.command4_compute_encoder_set_pipeline value.raw
+                          value.command_buffer.raw pipeline.raw
+                      with
+                      | Error message -> native_error operation message
+                      | Ok () ->
+                          retain_command4_compute_pipeline value.command_buffer
+                            pipeline;
+                          value.pipeline <- Some pipeline;
+                          Ok ())))
+
+    let set_argument_table (value : t) table =
+      let operation = "Metal.Command4.Compute_encoder.set_argument_table" in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () ->
+            let validation =
+              match table with
+              | None -> Ok ()
+              | Some (table : Argument_table.t) ->
+                  (match ensure_live operation table.lifetime with
+                   | Error _ as failure -> failure
+                   | Ok () ->
+                       ensure_same_device operation
+                         value.command_buffer.allocator.device table.device)
+            in
+            (match validation with
+             | Error _ as failure -> failure
+             | Ok () ->
+                 let raw_table =
+                   Option.map
+                     (fun (table : command4_argument_table) -> table.raw)
+                     table
+                 in
+                 match
+                   Metal_raw.command4_compute_encoder_set_argument_table
+                     value.raw value.command_buffer.raw raw_table
+                 with
+                 | Error message -> native_error operation message
+                 | Ok () ->
+                     Option.iter
+                       (retain_command4_argument_table value.command_buffer)
+                       table;
+                     value.argument_table <- table;
+                     Ok ()))
+
+    let positive_size (x, y, z) = x > 0 && y > 0 && z > 0
+
+    let product3 x y z =
+      if x > max_int / y then None
+      else
+        let xy = x * y in
+        if xy > max_int / z then None else Some (xy * z)
+
+    let dispatch_threads (value : t) ~threads ~threadgroup =
+      let operation = "Metal.Command4.Compute_encoder.dispatch_threads" in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () when Option.is_none value.pipeline ->
+            error operation Invalid_state "no compute pipeline is bound"
+        | Ok () when not (positive_size threads && positive_size threadgroup) ->
+            error operation Invalid_argument
+              "thread and threadgroup dimensions must be positive"
+        | Ok () ->
+            let tx, ty, tz = threadgroup in
+            let pipeline = Option.get value.pipeline in
+            (match product3 tx ty tz with
+             | None ->
+                 error operation Invalid_argument
+                   "threadgroup cardinality overflows an OCaml integer"
+             | Some product when product > pipeline.max_total_threads ->
+                 error operation Invalid_argument
+                   "threadgroup exceeds the pipeline's maximum total thread count"
+             | Some _ ->
+                 let retained =
+                   match value.argument_table with
+                   | None -> Ok ()
+                   | Some table ->
+                       retain_command4_argument_bindings operation
+                         value.command_buffer table
+                 in
+                 (match retained with
+                  | Error _ as failure -> failure
+                  | Ok () ->
+                      let raw_table =
+                        Option.map
+                          (fun (table : command4_argument_table) -> table.raw)
+                          value.argument_table
+                      in
+                      let gx, gy, gz = threads in
+                      match
+                        Metal_raw.command4_compute_encoder_dispatch value.raw
+                          value.command_buffer.raw raw_table
+                          (gx, gy, gz, tx, ty, tz)
+                      with
+                      | Ok () -> Ok ()
+                      | Error message -> native_error operation message)))
+
+    let end_encoding (value : t) =
+      let operation = "Metal.Command4.Compute_encoder.end_encoding" in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () ->
+            (match Metal_raw.command4_compute_encoder_end value.raw with
              | Error message -> native_error operation message
              | Ok () ->
                  if Atomic.compare_and_set value.lifetime.destroyed false true
