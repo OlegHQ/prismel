@@ -1787,6 +1787,8 @@ external io_compression_finish : io_compression_context -> (int,string) result =
 external io_scratch_allocator_create : handle -> (handle,string) result = "caml_prismel_metal_io_scratch_allocator_create"
 external io_scratch_allocate : handle -> int64 -> ((handle * handle),string) result = "caml_prismel_metal_io_scratch_allocate"
 external io_queue_create_scratch : handle -> handle -> (handle,string) result = "caml_prismel_metal_io_queue_create_scratch"
+external io_command_load_bytes : handle -> int64 -> handle -> int64 -> ((bytes,string) result -> unit) -> (nativeint,string) result = "caml_prismel_metal_io_command_load_bytes"
+external io_load_bytes_cancel : nativeint -> unit = "caml_prismel_metal_io_load_bytes_cancel"
 
 (** Exact callable subset of the prepared authoritative Metal4 shards. *)
 external metal4_command_buffer_begin :
