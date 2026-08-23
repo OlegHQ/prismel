@@ -14374,3 +14374,8 @@ extern "C" CAMLprim value caml_prismel_metal_pipeline_render_imageblock_length(v
 #include "../../tools/metal/metal_mesh_tile_mechanical_generated.mm"
 #include "../../tools/metal/metal_mesh_tile_mechanical_callable_bridge.inc"
 #pragma clang diagnostic pop
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunguarded-availability-new"
+#include "../../tools/metal/metal_command_event_constructors.inc"
+#pragma clang diagnostic pop
