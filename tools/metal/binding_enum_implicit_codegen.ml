@@ -157,6 +157,8 @@ let render_raw_mli ?(outer_module = "Implicit_enum_constants") selection =
 let render_static_asserts selection =
   let output = Buffer.create 4096 in
   Buffer.add_string output "// Compile-time validation for SDK enums whose implicit values are absent from clang JSON.\n";
+  Buffer.add_string output
+    "#pragma clang diagnostic push\n#pragma clang diagnostic ignored \"-Wunguarded-availability-new\"\n";
   List.iter
     (fun family ->
       List.iter
@@ -166,4 +168,36 @@ let render_static_asserts selection =
             case.spec.sdk_name case.spec.unsigned_decimal case.spec.sdk_name)
         family.cases)
     selection;
+  Buffer.add_string output "#pragma clang diagnostic pop\n";
   Buffer.contents output
+
+let manifest_json selection =
+  let family_json family =
+    `Assoc
+      [ "name", `String family.spec.sdk_name
+      ; "module_name", `String family.module_name
+      ; "header", `String family.spec.header
+      ; "enum_id", `String family.enum_declaration.id
+      ; "typedef_id", `String family.typedef_declaration.id
+      ; ( "cases"
+        , `List
+            (List.map
+               (fun case ->
+                 `Assoc
+                   [ "id", `String case.declaration.id
+                   ; "name", `String case.spec.sdk_name
+                   ; "ocaml_name", `String case.ocaml_name
+                   ; "uint64_decimal", `String case.spec.unsigned_decimal
+                   ; "uint64_bits", `String (Printf.sprintf "0x%016Lx" case.bits)
+                   ])
+               family.cases) )
+      ]
+  in
+  `Assoc
+    [ "enum_family_count", `Int (family_count selection)
+    ; "enum_case_count", `Int (case_count selection)
+    ; "enum_declaration_count", `Int (declaration_count selection)
+    ; ( "enum_identifiers"
+      , `List (List.map (fun id -> `String id) (identifiers selection)) )
+    ; "enum_families", `List (List.map family_json selection)
+    ]

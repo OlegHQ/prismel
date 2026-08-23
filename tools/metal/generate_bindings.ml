@@ -9,6 +9,7 @@ type inventory_declaration =
   ; name : string
   ; owner : string option
   ; header : string
+  ; line : int option
   ; signature : string
   ; attributes : string list
   ; classification : string
@@ -174,6 +175,7 @@ let inventory_declaration value =
   ; name = require_string "name" value
   ; owner = member_string "owner" value
   ; header = require_string "header" value
+  ; line = member_int "line" value
   ; signature = require_string "signature" value
   ; attributes = require_string_list "attributes" value
   ; classification = require_string "classification" value
@@ -244,6 +246,120 @@ let select_mechanical_enums inventory =
       Binding_enum_plan.expected_declaration_count selection.family_count
       selection.case_count selection.declaration_count;
   selection
+
+let select_implicit_mechanical_enums inventory =
+  let declarations =
+    inventory |> String_map.to_seq
+    |> Seq.map (fun (_, declaration) ->
+      ({ id = declaration.identifier
+       ; kind = declaration.kind
+       ; name = declaration.name
+       ; owner = declaration.owner
+       ; header = declaration.header
+       ; line = declaration.line
+       ; signature = declaration.signature
+       ; classification = declaration.classification
+       ; constant_value = declaration.constant_value
+       }
+        : Binding_enum_implicit_codegen.declaration))
+    |> List.of_seq
+  in
+  let selection =
+    try Binding_enum_implicit_codegen.select declarations with
+    | Binding_enum_implicit_codegen.Error message ->
+        fail "invalid implicit Metal enum batch: %s" message
+  in
+  let families = Binding_enum_implicit_codegen.family_count selection in
+  let cases = Binding_enum_implicit_codegen.case_count selection in
+  let declarations = Binding_enum_implicit_codegen.declaration_count selection in
+  if families <> Binding_enum_implicit_plan.expected_family_count
+     || cases <> Binding_enum_implicit_plan.expected_case_count
+     || declarations <> Binding_enum_implicit_plan.expected_declaration_count
+  then
+    fail
+      "implicit Metal enum batch cardinality drift: expected %d/%d/%d, found %d/%d/%d"
+      Binding_enum_implicit_plan.expected_family_count
+      Binding_enum_implicit_plan.expected_case_count
+      Binding_enum_implicit_plan.expected_declaration_count families cases
+      declarations;
+  selection
+
+let validate_struct_native_output inventory
+    (output : Binding_struct_native_codegen.output) =
+  let identifiers = output.method_ids @ output.property_ids in
+  if List.length output.method_ids
+     <> Binding_struct_native_codegen.expected_method_count
+     || List.length output.property_ids
+        <> Binding_struct_native_codegen.expected_property_count
+     || List.length identifiers <> 27
+     || List.length (List.sort_uniq String.compare identifiers) <> 27
+  then fail "generated Metal struct-native identifier cardinality drift";
+  let selected =
+    inventory |> String_map.to_seq
+    |> Seq.map (fun (_, declaration) ->
+      ({ id = declaration.identifier
+       ; kind = declaration.kind
+       ; owner = declaration.owner
+       ; signature = declaration.signature
+       ; classification = declaration.classification
+       }
+        : Binding_struct_plan.declaration))
+    |> List.of_seq |> Binding_struct_plan.select
+  in
+  let planned =
+    selected.declarations
+    |> List.fold_left
+         (fun ids (declaration : Binding_struct_plan.declaration) ->
+           String_set.add declaration.id ids)
+         String_set.empty
+  in
+  let validate kind identifier =
+    let declaration =
+      match String_map.find_opt identifier inventory with
+      | Some declaration -> declaration
+      | None -> fail "generated Metal struct-native id is absent: %s" identifier
+    in
+    if declaration.kind <> kind || declaration.classification <> "unreviewed"
+       || not (String_set.mem identifier planned)
+    then fail "generated Metal struct-native inventory mismatch: %s" identifier
+  in
+  List.iter (validate "method") output.method_ids;
+  List.iter (validate "property") output.property_ids
+
+let validate_string_entries inventory entries =
+  let validate_declaration entry ~identifier ~kind ~signature =
+    let declaration =
+      match String_map.find_opt identifier inventory with
+      | Some declaration -> declaration
+      | None -> fail "generated Metal NSString id is absent: %s" identifier
+    in
+    if declaration.kind <> kind || declaration.owner <> Some entry.Binding_string_spec.owner
+       || declaration.header <> entry.header || declaration.signature <> signature
+       || declaration.attributes <> entry.attributes
+       || declaration.classification <> "unreviewed"
+       ||
+       (match declaration.macos_introduced with
+        | Some version ->
+            not (Binding_availability.equal version entry.macos_introduced)
+        | None -> true)
+    then fail "generated Metal NSString inventory mismatch: %s" identifier
+  in
+  List.iter
+    (fun entry ->
+      validate_declaration entry ~identifier:entry.Binding_string_spec.property_sdk_id
+        ~kind:"property" ~signature:entry.signature;
+      validate_declaration entry ~identifier:entry.getter_sdk_id ~kind:"method"
+        ~signature:("instance () -> " ^ entry.signature);
+      Option.iter
+        (fun identifier ->
+          validate_declaration entry ~identifier ~kind:"method"
+            ~signature:("instance (" ^ entry.signature ^ ") -> void"))
+        entry.setter_sdk_id)
+    entries;
+  let identifiers = List.concat_map Binding_string_spec.inventory_ids entries in
+  if List.length entries <> 2 || List.length identifiers <> 5
+     || List.length (List.sort_uniq String.compare identifiers) <> 5
+  then fail "generated Metal NSString qualified cardinality drift"
 
 let valid_identifier ~initial value =
   let valid_initial character =
@@ -1174,25 +1290,43 @@ let add_direct_raw_external output
   Buffer.add_string output " =\n    ";
   Buffer.add_string output (Printf.sprintf "%S\n\n" entry.c_symbol)
 
-let raw_ml ~header ~enum_selection ~direct_methods entries =
+let raw_ml ~header ~enum_selection ~implicit_enum_selection ~struct_output
+    ~string_entries ~direct_methods entries =
   let output = Buffer.create 4096 in
   Printf.bprintf output "(* %s *)\n\n" header;
   Buffer.add_string output "module Make (Types : sig\n  type handle\nend) = struct\n";
   Buffer.add_string output
     (Binding_enum_codegen.render_raw_ml enum_selection);
   Buffer.add_char output '\n';
+  Buffer.add_string output
+    (Binding_enum_implicit_codegen.render_raw_ml implicit_enum_selection);
+  Buffer.add_char output '\n';
+  Buffer.add_string output struct_output.Binding_struct_native_codegen.raw_ml;
+  Buffer.add_char output '\n';
+  Buffer.add_string output
+    (Binding_string_codegen.render_raw_body string_entries);
+  Buffer.add_char output '\n';
   List.iter (add_raw_external output) entries;
   List.iter (add_direct_raw_external output) direct_methods;
   Buffer.add_string output "end\n";
   Buffer.contents output
 
-let raw_mli ~header ~enum_selection ~direct_methods entries =
+let raw_mli ~header ~enum_selection ~implicit_enum_selection ~struct_output
+    ~string_entries ~direct_methods entries =
   let output = Buffer.create 4096 in
   Printf.bprintf output "(* %s *)\n\n" header;
   Buffer.add_string output
     "module Make (Types : sig\n  type handle\nend) : sig\n";
   Buffer.add_string output
     (Binding_enum_codegen.render_raw_mli enum_selection);
+  Buffer.add_char output '\n';
+  Buffer.add_string output
+    (Binding_enum_implicit_codegen.render_raw_mli implicit_enum_selection);
+  Buffer.add_char output '\n';
+  Buffer.add_string output struct_output.Binding_struct_native_codegen.raw_mli;
+  Buffer.add_char output '\n';
+  Buffer.add_string output
+    (Binding_string_codegen.render_raw_body string_entries);
   Buffer.add_char output '\n';
   List.iter (add_raw_external output) entries;
   List.iter (add_direct_raw_external output) direct_methods;
@@ -1538,9 +1672,18 @@ let add_native_binding output entry =
   | Binding_plan.Manual | Binding_plan.Exclude _ | Binding_plan.Pending ->
       fail "internal error: non-generated Metal binding %s" entry.sdk_id
 
-let native_include ~header ~direct_methods entries =
+let native_include ~header ~implicit_enum_selection ~struct_output
+    ~string_entries ~direct_methods entries =
   let output = Buffer.create 8192 in
   Printf.bprintf output "/* %s */\n\n" header;
+  Buffer.add_string output
+    (Binding_enum_implicit_codegen.render_static_asserts
+       implicit_enum_selection);
+  Buffer.add_char output '\n';
+  Buffer.add_string output struct_output.Binding_struct_native_codegen.native;
+  Buffer.add_char output '\n';
+  Buffer.add_string output (Binding_string_codegen.render_native string_entries);
+  Buffer.add_char output '\n';
   List.iter (add_native_binding output) entries;
   List.iter (add_direct_native_binding output) direct_methods;
   let contents = Buffer.contents output in
@@ -1772,7 +1915,8 @@ let direct_batch_json methods properties =
 
 let manifest ~sdk_version ~plan_sha256 ~generator_sha256 ~inventory_sha256
     ~raw_ml_contents ~raw_mli_contents ~native_contents ~enum_selection
-    ~direct_methods ~direct_properties entries =
+    ~implicit_enum_selection ~struct_output ~string_entries ~direct_methods
+    ~direct_properties entries =
   pretty_json
     (`Assoc
        [ "schema", `Int 2
@@ -1789,6 +1933,28 @@ let manifest ~sdk_version ~plan_sha256 ~generator_sha256 ~inventory_sha256
        ; "entries", `List (List.map entry_json entries)
        ; ( "mechanical_enum_batch"
          , Binding_enum_codegen.manifest_json enum_selection )
+       ; ( "mechanical_implicit_enum_batch"
+         , Binding_enum_implicit_codegen.manifest_json
+             implicit_enum_selection )
+       ; ( "mechanical_struct_native_batch"
+         , `Assoc
+             [ "method_count", `Int (List.length struct_output.Binding_struct_native_codegen.method_ids)
+             ; "property_count", `Int (List.length struct_output.property_ids)
+             ; "declaration_count", `Int 27
+             ; "safe_bound_count", `Int 0
+             ; "method_ids", `List (List.map (fun id -> `String id) struct_output.method_ids)
+             ; "property_ids", `List (List.map (fun id -> `String id) struct_output.property_ids)
+             ] )
+       ; ( "mechanical_string_batch"
+         , let identifiers =
+             List.concat_map Binding_string_spec.inventory_ids string_entries
+           in
+           `Assoc
+             [ "property_count", `Int (List.length string_entries)
+             ; "declaration_count", `Int (List.length identifiers)
+             ; "safe_bound_count", `Int 0
+             ; "identifiers", `List (List.map (fun id -> `String id) identifiers)
+             ] )
        ; ( "mechanical_direct_handle_batch"
          , direct_batch_json direct_methods direct_properties )
        ])
@@ -1799,6 +1965,22 @@ let generator_source_paths =
   ; "tools/metal/binding_availability.mli"
   ; "tools/metal/binding_enum_codegen.ml"
   ; "tools/metal/binding_enum_codegen.mli"
+  ; "tools/metal/binding_enum_implicit_plan.ml"
+  ; "tools/metal/binding_enum_implicit_plan.mli"
+  ; "tools/metal/binding_enum_implicit_codegen.ml"
+  ; "tools/metal/binding_enum_implicit_codegen.mli"
+  ; "tools/metal/binding_struct_spec.ml"
+  ; "tools/metal/binding_struct_spec.mli"
+  ; "tools/metal/binding_struct_plan.ml"
+  ; "tools/metal/binding_struct_plan.mli"
+  ; "tools/metal/binding_struct_native_codegen.ml"
+  ; "tools/metal/binding_struct_native_codegen.mli"
+  ; "tools/metal/binding_string_spec.ml"
+  ; "tools/metal/binding_string_spec.mli"
+  ; "tools/metal/binding_string_properties.ml"
+  ; "tools/metal/binding_string_properties.mli"
+  ; "tools/metal/binding_string_codegen.ml"
+  ; "tools/metal/binding_string_codegen.mli"
   ; "tools/metal/binding_receiver_catalog.ml"
   ; "tools/metal/binding_receiver_catalog.mli"
   ]
@@ -1936,6 +2118,13 @@ let main () =
   in
   let inventory_sha256 = sha256 inventory_contents in
   let enum_selection = select_mechanical_enums inventory in
+  let implicit_enum_selection =
+    select_implicit_mechanical_enums inventory
+  in
+  let struct_output = Binding_struct_native_codegen.generate () in
+  validate_struct_native_output inventory struct_output;
+  let string_entries = Binding_string_codegen.qualified_entries () in
+  validate_string_entries inventory string_entries;
   let manual_native = read_file options.manual_native in
   let manual_raw_ml = read_file options.manual_raw_ml in
   let manual_raw_mli = read_file options.manual_raw_mli in
@@ -1949,24 +2138,31 @@ let main () =
   in
   let header = generated_header ~plan_sha256 ~inventory_sha256 in
   let raw_ml_contents =
-    raw_ml ~header ~enum_selection ~direct_methods entries
+    raw_ml ~header ~enum_selection ~implicit_enum_selection ~struct_output
+      ~string_entries ~direct_methods entries
   in
   let raw_mli_contents =
-    raw_mli ~header ~enum_selection ~direct_methods entries
+    raw_mli ~header ~enum_selection ~implicit_enum_selection ~struct_output
+      ~string_entries ~direct_methods entries
   in
-  let native_contents = native_include ~header ~direct_methods entries in
+  let native_contents =
+    native_include ~header ~implicit_enum_selection ~struct_output
+      ~string_entries ~direct_methods entries
+  in
   let manifest_contents =
     manifest ~sdk_version ~plan_sha256 ~generator_sha256 ~inventory_sha256
       ~raw_ml_contents ~raw_mli_contents ~native_contents ~enum_selection
-      ~direct_methods ~direct_properties entries
+      ~implicit_enum_selection ~struct_output ~string_entries ~direct_methods
+      ~direct_properties entries
   in
   write_file options.output_raw_ml raw_ml_contents;
   write_file options.output_raw_mli raw_mli_contents;
   write_file options.output_native native_contents;
   write_file options.output_manifest manifest_contents;
   Printf.printf
-    "generated %d checked-plan calls, %d raw-only direct calls, %d direct properties, and %d mechanical enum declarations\n%!"
+    "generated %d checked-plan calls, %d raw-only direct calls, %d direct properties, %d explicit-value enum declarations, and %d implicit-value enum declarations\n%!"
     (List.length entries) (List.length direct_methods)
     (List.length direct_properties) enum_selection.declaration_count
+    (Binding_enum_implicit_codegen.declaration_count implicit_enum_selection)
 
 let () = protect_main main

@@ -7,13 +7,17 @@
   binding_enum_misc
   binding_enum_plan
   binding_enum_codegen
+  binding_enum_implicit_plan
+  binding_enum_implicit_codegen
   binding_availability
   binding_availability_ast
   binding_receiver_catalog
   binding_string_spec
   binding_string_properties
+  binding_string_codegen
   binding_struct_spec
   binding_struct_plan
+  binding_struct_native_codegen
   binding_direct_spec
   binding_direct_methods
   binding_direct_properties
@@ -57,6 +61,22 @@
   binding_enum_plan.mli
   binding_enum_codegen.ml
   binding_enum_codegen.mli
+  binding_enum_implicit_plan.ml
+  binding_enum_implicit_plan.mli
+  binding_enum_implicit_codegen.ml
+  binding_enum_implicit_codegen.mli
+  binding_struct_native_codegen.ml
+  binding_struct_native_codegen.mli
+  binding_struct_spec.ml
+  binding_struct_spec.mli
+  binding_struct_plan.ml
+  binding_struct_plan.mli
+  binding_string_spec.ml
+  binding_string_spec.mli
+  binding_string_properties.ml
+  binding_string_properties.mli
+  binding_string_codegen.ml
+  binding_string_codegen.mli
   binding_availability.ml
   binding_availability.mli
   binding_receiver_catalog.ml
@@ -105,6 +125,24 @@
  (action
   (run %{test}
    --inventory %{dep:../../lib/metal/generated_api_inventory.json})))
+
+(test
+ (name test_binding_enum_implicit)
+ (modules test_binding_enum_implicit)
+ (libraries metal_inventory_classification yojson)
+ (deps ../../lib/metal/generated_api_inventory.json)
+ (action
+  (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
+
+(test
+ (name test_binding_struct_native_codegen)
+ (modules test_binding_struct_native_codegen)
+ (libraries metal_inventory_classification))
+
+(test
+ (name test_binding_string_codegen)
+ (modules test_binding_string_codegen)
+ (libraries metal_inventory_classification))
 
 (test
  (name test_binding_direct_plan)

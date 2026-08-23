@@ -68,7 +68,7 @@ let render_raw_mli = render_raw
 
 let c_string value = Printf.sprintf "%S" value
 
-let add_receiver output entry receiver =
+let add_receiver output receiver =
   match receiver.Binding_receiver_catalog.bridge_access with
   | Binding_receiver_catalog.Object_of_handle ->
       Printf.bprintf output "        %s %s =\n            object_of_handle(raw_receiver, Handle_kind::%s);\n"
@@ -94,7 +94,7 @@ let add_getter output entry receiver =
   Buffer.add_string output "  CAMLparam1(raw_receiver);\n  CAMLlocal3(result, option, copied);\n  @autoreleasepool {\n";
   Printf.bprintf output "    if (@available(macOS %s, *)) {\n      @try {\n"
     (availability entry);
-  add_receiver output entry receiver;
+  add_receiver output receiver;
   Printf.bprintf output "        NSString *native_result = [%s %s];\n"
     receiver.local_name (getter_selector entry);
   (match entry.nullability with
@@ -115,15 +115,15 @@ let add_setter output entry receiver selector =
   Buffer.add_string output "  CAMLparam2(raw_receiver, raw_value);\n  @autoreleasepool {\n";
   Printf.bprintf output "    if (@available(macOS %s, *)) {\n      @try {\n"
     (availability entry);
-  add_receiver output entry receiver;
+  add_receiver output receiver;
   (match entry.nullability with
   | Nullable ->
       Buffer.add_string output
-        "        NSString *value = raw_value == Val_none ? nil : string_from_ocaml(Field(raw_value, 0));\n"
+        "        NSString *native_value = raw_value == Val_none ? nil : string_from_ocaml(Field(raw_value, 0));\n"
   | Nonnull ->
       Buffer.add_string output
-        "        NSString *value = string_from_ocaml(raw_value);\n");
-  Printf.bprintf output "        [%s %svalue];\n        CAMLreturn(result_unit());\n"
+        "        NSString *native_value = string_from_ocaml(raw_value);\n");
+  Printf.bprintf output "        [%s %snative_value];\n        CAMLreturn(result_unit());\n"
     receiver.local_name selector;
   Buffer.add_string output
     "      } @catch (NSException *exception) {\n        CAMLreturn(result_error(exception.reason));\n      }\n    }\n";

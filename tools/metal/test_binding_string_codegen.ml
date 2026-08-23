@@ -32,7 +32,7 @@ let () =
   ; "id<MTLCommandQueue> command_queue"
   ; "[binary_function name]"
   ; "[command_queue label]"
-  ; "[command_queue setLabel:value]"
+  ; "[command_queue setLabel:native_value]"
   ; "copy_optional_string(native_result)"
   ; "raw_value == Val_none ? nil : string_from_ocaml(Field(raw_value, 0))"
   ; "@available(macOS 26.0, *)"

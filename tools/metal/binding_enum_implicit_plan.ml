@@ -97,8 +97,6 @@ let expected_declaration_count = 37
 let source_paths =
   [ "tools/metal/binding_enum_implicit_plan.ml"
   ; "tools/metal/binding_enum_implicit_plan.mli"
-  ; "tools/metal/binding_enum_implicit_codegen.ml"
-  ; "tools/metal/binding_enum_implicit_codegen.mli"
   ]
 
 let validate () =

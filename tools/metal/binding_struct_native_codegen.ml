@@ -38,8 +38,8 @@ let wrapped owner objc_type kind local_name wrapper property =
   { owner; objc_type; raw_name = "raw_" ^ local_name; local_name
   ; recovery =
       Printf.sprintf
-        "object_of_handle(raw_%s, Handle_kind::%s).%s /* %s */"
-        local_name kind property wrapper
+        "((%s)object_of_handle(raw_%s, Handle_kind::%s)).%s"
+        wrapper local_name kind property
   }
 
 let device = direct "MTLDevice" "id<MTLDevice>" "Device" "device"
@@ -156,7 +156,7 @@ let add_result output = function
       Buffer.add_string output "        copied_result = caml_copy_int64(static_cast<std::int64_t>(static_cast<std::uint64_t>(native_result)));\n"
 
 let add_method raw_ml raw_mli native entry =
-  let types = "Handle.t" :: List.map ocaml_type entry.arguments in
+  let types = "Types.handle" :: List.map ocaml_type entry.arguments in
   let result_type = match entry.result with None -> "unit" | Some value -> ocaml_type value in
   let declaration = String.concat " -> " (types @ [ "(" ^ result_type ^ ", string) result" ]) in
   Printf.bprintf raw_mli "val %s : %s\n" (name entry) declaration;
@@ -184,7 +184,7 @@ static MTLSize prismel_mtl_size_of_value(value raw) {
   return MTLSizeMake(static_cast<NSUInteger>(Int64_val(Field(raw, 0))), static_cast<NSUInteger>(Int64_val(Field(raw, 1))), static_cast<NSUInteger>(Int64_val(Field(raw, 2))));
 }
 static MTLRegion prismel_mtl_region_of_value(value raw) {
-  return MTLRegionMake(prismel_mtl_size_of_value(Field(raw, 0)).width, prismel_mtl_size_of_value(Field(raw, 0)).height, prismel_mtl_size_of_value(Field(raw, 0)).depth, prismel_mtl_size_of_value(Field(raw, 1)).width, prismel_mtl_size_of_value(Field(raw, 1)).height, prismel_mtl_size_of_value(Field(raw, 1)).depth);
+  return MTLRegionMake3D(prismel_mtl_size_of_value(Field(raw, 0)).width, prismel_mtl_size_of_value(Field(raw, 0)).height, prismel_mtl_size_of_value(Field(raw, 0)).depth, prismel_mtl_size_of_value(Field(raw, 1)).width, prismel_mtl_size_of_value(Field(raw, 1)).height, prismel_mtl_size_of_value(Field(raw, 1)).depth);
 }
 static MTLResourceID prismel_mtl_resource_id_of_value(value raw) { return MTLResourceID{static_cast<uint64_t>(Int64_val(raw))}; }
 static value prismel_value_of_mtl_resource_id(MTLResourceID value_) { return caml_copy_int64(static_cast<int64_t>(value_._impl)); }

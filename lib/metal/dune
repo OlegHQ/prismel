@@ -49,6 +49,22 @@
   ../../tools/metal/binding_enum_plan.mli
   ../../tools/metal/binding_enum_codegen.ml
   ../../tools/metal/binding_enum_codegen.mli
+  ../../tools/metal/binding_enum_implicit_plan.ml
+  ../../tools/metal/binding_enum_implicit_plan.mli
+  ../../tools/metal/binding_enum_implicit_codegen.ml
+  ../../tools/metal/binding_enum_implicit_codegen.mli
+  ../../tools/metal/binding_struct_native_codegen.ml
+  ../../tools/metal/binding_struct_native_codegen.mli
+  ../../tools/metal/binding_struct_spec.ml
+  ../../tools/metal/binding_struct_spec.mli
+  ../../tools/metal/binding_struct_plan.ml
+  ../../tools/metal/binding_struct_plan.mli
+  ../../tools/metal/binding_string_spec.ml
+  ../../tools/metal/binding_string_spec.mli
+  ../../tools/metal/binding_string_properties.ml
+  ../../tools/metal/binding_string_properties.mli
+  ../../tools/metal/binding_string_codegen.ml
+  ../../tools/metal/binding_string_codegen.mli
   ../../tools/metal/binding_availability.ml
   ../../tools/metal/binding_availability.mli
   ../../tools/metal/binding_receiver_catalog.ml

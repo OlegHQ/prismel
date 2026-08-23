@@ -884,6 +884,22 @@ let generator_source_sha256 entry_source =
   ; "tools/metal/binding_availability.mli"
   ; "tools/metal/binding_enum_codegen.ml"
   ; "tools/metal/binding_enum_codegen.mli"
+  ; "tools/metal/binding_enum_implicit_plan.ml"
+  ; "tools/metal/binding_enum_implicit_plan.mli"
+  ; "tools/metal/binding_enum_implicit_codegen.ml"
+  ; "tools/metal/binding_enum_implicit_codegen.mli"
+  ; "tools/metal/binding_struct_spec.ml"
+  ; "tools/metal/binding_struct_spec.mli"
+  ; "tools/metal/binding_struct_plan.ml"
+  ; "tools/metal/binding_struct_plan.mli"
+  ; "tools/metal/binding_struct_native_codegen.ml"
+  ; "tools/metal/binding_struct_native_codegen.mli"
+  ; "tools/metal/binding_string_spec.ml"
+  ; "tools/metal/binding_string_spec.mli"
+  ; "tools/metal/binding_string_properties.ml"
+  ; "tools/metal/binding_string_properties.mli"
+  ; "tools/metal/binding_string_codegen.ml"
+  ; "tools/metal/binding_string_codegen.mli"
   ; "tools/metal/binding_receiver_catalog.ml"
   ; "tools/metal/binding_receiver_catalog.mli"
   ]
@@ -947,6 +963,72 @@ let check_mechanical_enum_batch raw_ml raw_mli value =
   |> List.iter (fun (contents, needle) ->
     if count_occurrences ~needle contents <> 1 then
       fail "generated Metal UINT64_MAX raw enum constant drift")
+
+let check_implicit_enum_batch raw_ml raw_mli native value =
+  let batch = member_exn "mechanical_implicit_enum_batch" value in
+  if member_int "enum_family_count" batch <> Some 7
+     || member_int "enum_case_count" batch <> Some 23
+     || member_int "enum_declaration_count" batch <> Some 37
+  then fail "generated Metal implicit enum cardinality drift";
+  let identifiers = json_string_list "enum_identifiers" batch in
+  if List.length identifiers <> 37
+     || List.length (List.sort_uniq String.compare identifiers) <> 37
+  then fail "generated Metal implicit enum identifier closure drift";
+  [ raw_ml, "module Implicit_enum_constants = struct"
+  ; raw_ml, "let mtl_log_level_fault : int64 = 0x0000000000000005L"
+  ; raw_mli, "module Implicit_enum_constants : sig"
+  ; raw_mli, "val mtl_log_level_fault : int64"
+  ; ( native
+    , "static_assert(static_cast<uint64_t>(MTLLogLevelFault) == UINT64_C(5)" )
+  ]
+  |> List.iter (fun (contents, needle) ->
+    if count_occurrences ~needle contents <> 1 then
+      fail "generated Metal implicit enum output drift: %s" needle);
+  if count_occurrences ~needle:"Metal enum value drift:" native <> 23 then
+    fail "generated Metal implicit enum static-assert count drift"
+
+let check_struct_native_batch raw_ml raw_mli native value =
+  let batch = member_exn "mechanical_struct_native_batch" value in
+  if member_int "method_count" batch <> Some 19
+     || member_int "property_count" batch <> Some 8
+     || member_int "declaration_count" batch <> Some 27
+     || member_int "safe_bound_count" batch <> Some 0
+  then fail "generated Metal struct-native cardinality drift";
+  let method_ids = json_string_list "method_ids" batch in
+  let property_ids = json_string_list "property_ids" batch in
+  if List.length method_ids <> 19 || List.length property_ids <> 8
+     || List.length
+          (List.sort_uniq String.compare (method_ids @ property_ids))
+        <> 27
+  then fail "generated Metal struct-native identifier closure drift";
+  [ raw_ml, "external generated_struct_m_t_l_device_max_threads_per_threadgroup"
+  ; raw_mli, "Types.handle -> (int64 * int64 * int64, string) result"
+  ; native, "static MTLSize prismel_mtl_size_of_value"
+  ; native, "dispatchThreadgroups:argument_0 threadsPerThreadgroup:argument_1"
+  ]
+  |> List.iter (fun (contents, needle) ->
+    if not (contains ~needle contents) then
+      fail "generated Metal struct-native output drift: %s" needle)
+
+let check_string_batch raw_ml raw_mli native value =
+  let batch = member_exn "mechanical_string_batch" value in
+  if member_int "property_count" batch <> Some 2
+     || member_int "declaration_count" batch <> Some 5
+     || member_int "safe_bound_count" batch <> Some 0
+  then fail "generated Metal NSString cardinality drift";
+  let identifiers = json_string_list "identifiers" batch in
+  if List.length identifiers <> 5
+     || List.length (List.sort_uniq String.compare identifiers) <> 5
+  then fail "generated Metal NSString identifier closure drift";
+  [ raw_ml, "generated_mtl4_binary_function_name_get"
+  ; raw_mli, "generated_mtl_command_queue_label_set"
+  ; native, "[binary_function name]"
+  ; native, "[command_queue setLabel:native_value]"
+  ; native, "copy_optional_string(native_result)"
+  ]
+  |> List.iter (fun (contents, needle) ->
+    if not (contains ~needle contents) then
+      fail "generated Metal NSString output drift: %s" needle)
 
 let check_json_fields context expected value =
   let actual =
@@ -1493,6 +1575,9 @@ let check_manifest inputs outputs =
   let raw_mli = read_file outputs.raw_mli in
   let native = read_file outputs.native in
   check_mechanical_enum_batch raw_ml raw_mli value;
+  check_implicit_enum_batch raw_ml raw_mli native value;
+  check_struct_native_batch raw_ml raw_mli native value;
+  check_string_batch raw_ml raw_mli native value;
   check_mechanical_direct_batch raw_ml raw_mli native value;
   List.iter
     (fun expected ->

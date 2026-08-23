@@ -22,4 +22,4 @@ val declaration_count : selection -> int
 val render_raw_ml : ?outer_module:string -> selection -> string
 val render_raw_mli : ?outer_module:string -> selection -> string
 val render_static_asserts : selection -> string
-
+val manifest_json : selection -> Yojson.Safe.t
