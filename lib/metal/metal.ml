@@ -14976,6 +14976,46 @@ module Render_encoder = struct
           else match Metal_raw.render_command_depth_bounds value.raw minimum maximum with
           | Error m->native_error operation m | Ok ()->Ok ())
 
+  let set_viewports (value : t) viewports =
+    let operation="Metal.Render_encoder.set_viewports" in
+    on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->
+      if viewports=[] then error operation Invalid_argument "viewports must be nonempty"
+      else
+        let convert (v:viewport)=
+          let xs=[v.x;v.y;v.width;v.height;v.znear;v.zfar] in
+          if not(List.for_all Float.is_finite xs)||v.x<0.||v.y<0.||v.width<=0.||v.height<=0.
+             ||v.x+.v.width>float value.target.descriptor.width
+             ||v.y+.v.height>float value.target.descriptor.height
+             ||v.znear<0.||v.zfar>1.||v.znear>v.zfar then None
+          else Some(v.x,v.y,v.width,v.height,v.znear,v.zfar) in
+        match List.map convert viewports with
+        | converted when List.exists Option.is_none converted->error operation Invalid_argument "a viewport is outside the target or depth range"
+        | converted->match Metal_raw.render_viewports value.raw(Array.of_list(List.map Option.get converted))with Error m->native_error operation m|Ok()->Ok())
+
+  let set_scissors (value : t) scissors =
+    let operation="Metal.Render_encoder.set_scissors" in
+    on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->
+      if scissors=[] then error operation Invalid_argument "scissors must be nonempty"
+      else if List.exists(fun(s:scissor)->s.x<0||s.y<0||s.width<=0||s.height<=0
+        ||s.x>value.target.descriptor.width-s.width||s.y>value.target.descriptor.height-s.height)scissors
+      then error operation Invalid_argument "a scissor is outside the render target"
+      else match Metal_raw.render_scissors value.raw(Array.of_list(List.map(fun(s:scissor)->Int64.of_int s.x,Int64.of_int s.y,Int64.of_int s.width,Int64.of_int s.height)scissors))with
+      | Error m->native_error operation m|Ok()->Ok())
+
+  let set_tessellation_factor_scale (value : t) scale =
+    let operation="Metal.Render_encoder.set_tessellation_factor_scale" in
+    on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->
+      if not(Float.is_finite scale)||scale<0. then error operation Invalid_argument "tessellation scale must be finite and nonnegative"
+      else match Metal_raw.render_command_tessellation_scale value.raw scale with Error m->native_error operation m|Ok()->Ok())
+
+  let set_vertex_amplification (value : t) mappings =
+    let operation="Metal.Render_encoder.set_vertex_amplification" in
+    on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->
+      if mappings=[]||List.exists(fun(viewport_index,render_target_index)->viewport_index<0||render_target_index<0)mappings
+      then error operation Invalid_argument "amplification mappings must be nonempty and nonnegative"
+      else match Metal_raw.render_vertex_amplification value.raw(Array.of_list(List.map(fun(a,b)->Int64.of_int a,Int64.of_int b)mappings))with
+      | Error m->native_error operation m|Ok()->Ok())
+
   let pipeline_supports_icb operation (value : t) = match value.pipeline with None->error operation Invalid_state "no render pipeline is bound"|Some p->(match Metal_raw.generated_mtl_render_pipeline_state_support_indirect_command_buffers p.raw with Error m->native_error operation m|Ok b->Ok b)
   let execute_indirect_commands (value : t) (commands : indirect_command_buffer) ~location ~length = let operation="Metal.Render_encoder.execute_indirect_commands" in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match ensure_live operation commands.lifetime with Error _ as e->e|Ok()->Result.bind(ensure_same_device operation value.command_buffer.queue.device commands.device)(fun()->Result.bind(Indirect_command_buffer.validate_range operation commands ~location ~length)(fun()->Result.bind(pipeline_supports_icb operation value)(function false->error operation Unsupported "pipeline lacks indirect-command-buffer support"|true->match Metal_raw.render_encoder_execute_icb_range value.raw commands.raw location length with Error m->native_error operation m|Ok()->retain_command_buffer_indirect value.command_buffer commands;Ok()))))
   let execute_indirect_commands_indirect_range (value : t) (commands : indirect_command_buffer) ~(range_buffer : buffer) ~offset = let operation="Metal.Render_encoder.execute_indirect_commands_indirect_range" in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match ensure_live operation commands.lifetime with Error _ as e->e|Ok()->match ensure_buffer_usable operation range_buffer with Error _ as e->e|Ok() when offset<0L||Int64.rem offset 8L<>0L||offset>Int64.sub range_buffer.length 8L->error operation Invalid_argument "indirect range offset is invalid"|Ok()->Result.bind(ensure_same_device operation value.command_buffer.queue.device commands.device)(fun()->Result.bind(ensure_same_device operation value.command_buffer.queue.device range_buffer.device)(fun()->Result.bind(pipeline_supports_icb operation value)(function false->error operation Unsupported "pipeline lacks indirect-command-buffer support"|true->match Metal_raw.render_encoder_execute_icb_indirect_range value.raw commands.raw range_buffer.raw offset with Error m->native_error operation m|Ok()->retain_command_buffer_indirect value.command_buffer commands;retain_command_buffer_buffer value.command_buffer range_buffer;Ok()))))

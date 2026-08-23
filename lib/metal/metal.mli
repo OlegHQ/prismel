@@ -2534,6 +2534,10 @@ module Render_encoder : sig
   val set_stage_bytes : t -> stage:stage -> index:int -> bytes -> (unit,error) result
   val set_depth_clip_mode : t -> clamp:bool -> (unit,error) result
   val set_depth_bounds : t -> minimum:float -> maximum:float -> (unit,error) result
+  val set_viewports : t -> viewport list -> (unit,error) result
+  val set_scissors : t -> scissor list -> (unit,error) result
+  val set_tessellation_factor_scale : t -> float -> (unit,error) result
+  val set_vertex_amplification : t -> (int * int) list -> (unit,error) result
   val execute_indirect_commands : t -> Indirect_command_buffer.t -> location:int -> length:int -> (unit,error) result
   val execute_indirect_commands_indirect_range : t -> Indirect_command_buffer.t -> range_buffer:Buffer.t -> offset:int64 -> (unit,error) result
   val draw_triangles :

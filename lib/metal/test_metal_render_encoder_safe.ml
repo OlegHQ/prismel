@@ -51,6 +51,9 @@ let () =
   expect Invalid_argument (Render_encoder.set_vertex_bytes encoder ~index:0 Bytes.empty);
   expect Invalid_argument (Render_encoder.set_stage_bytes encoder ~stage:Render_encoder.Mesh ~index:0 Bytes.empty);
   expect Invalid_argument (Render_encoder.set_depth_bounds encoder ~minimum:0.8 ~maximum:0.2);
+  expect Invalid_argument (Render_encoder.set_viewports encoder []);
+  expect Invalid_argument (Render_encoder.set_scissors encoder []);
+  expect Invalid_argument (Render_encoder.set_tessellation_factor_scale encoder nan);
   expect Invalid_argument (Render_encoder.set_stage_buffer encoder ~stage:Render_encoder.Mesh ~index:0 ~offset:1L None);
   expect Invalid_argument
     (Render_encoder.set_fragment_sampler encoder ~index:0 ~lod_min:2. ~lod_max:1. sampler);
@@ -95,6 +98,9 @@ let () =
   get (Render_encoder.set_stage_sampler encoder ~stage:Render_encoder.Tile ~index:1 (Some sampler));
   get (Render_encoder.set_depth_clip_mode encoder ~clamp:false);
   get (Render_encoder.set_depth_bounds encoder ~minimum:0. ~maximum:1.);
+  get (Render_encoder.set_viewports encoder [{x=0.;y=0.;width=8.;height=8.;znear=0.;zfar=1.}]);
+  get (Render_encoder.set_scissors encoder [{x=0;y=0;width=8;height=8}]);
+  get (Render_encoder.set_tessellation_factor_scale encoder 1.);
   get (Render_encoder.set_vertex_sampler encoder ~index:0 sampler);
   get
     (Render_encoder.set_fragment_sampler encoder ~index:0 ~lod_min:0. ~lod_max:1.
