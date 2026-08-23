@@ -112,6 +112,9 @@ module Device : sig
   val supports_bc_texture_compression : t -> (bool, error) result
   val supports_residency_sets : t -> (bool, error) result
   val supports_sparse_textures : t -> (bool, error) result
+
+  (** Runtime-gated macOS 26.4 placement-sparse capability. *)
+  val supports_placement_sparse : t -> (bool, error) result
   val destroy : t -> (unit, error) result
 end
 
@@ -147,10 +150,22 @@ module Buffer : sig
     | Untracked
     | Tracked
 
+  type sparse_tier =
+    | Not_sparse
+    | Sparse_tier_1
+
   val create :
     device:Device.t -> length:int64 -> storage:storage_mode ->
     ?cpu_cache:cpu_cache_mode -> ?hazard_tracking:hazard_tracking_mode ->
     ?label:string -> unit -> (t, error) result
+
+  (** Creates an initially unbacked virtual buffer. Physical pages are assigned
+      by Metal 4 placement-mapping operations, not CPU mapping. *)
+  val create_placement_sparse :
+    device:Device.t -> page_size:Sparse_page_size.t -> length:int64 ->
+    storage:storage_mode -> ?cpu_cache:cpu_cache_mode ->
+    ?hazard_tracking:hazard_tracking_mode -> ?label:string -> unit ->
+    (t, error) result
   val create_copy :
     device:Device.t -> storage:storage_mode -> ?cpu_cache:cpu_cache_mode ->
     ?hazard_tracking:hazard_tracking_mode -> ?label:string -> ?src_offset:int ->
@@ -166,6 +181,11 @@ module Buffer : sig
   val cpu_cache_mode : t -> cpu_cache_mode
   val hazard_tracking_mode : t -> hazard_tracking_mode
   val heap_offset : t -> int64 option
+  val placement_sparse_page_size : t -> Sparse_page_size.t option
+
+  (** Returns the native tier when callable and the guaranteed tier-1 minimum
+      for a typed sparse resource when a driver omits the tier selector. *)
+  val sparse_tier : t -> (sparse_tier, error) result
   val external_memory : t -> External.t option
   val destroyed : t -> bool
   val label : t -> (string option, error) result
@@ -362,6 +382,11 @@ module Texture : sig
     | Pixel_format_view
     | Shader_atomic
 
+  type sparse_tier =
+    | Not_sparse
+    | Sparse_tier_1
+    | Sparse_tier_2
+
   type descriptor =
     { kind : kind
     ; format : format
@@ -504,6 +529,12 @@ module Texture : sig
   val minimum_buffer_alignment :
     device:Device.t -> kind:kind -> format:format -> (int64, error) result
   val create : device:Device.t -> descriptor -> (t, error) result
+
+  (** Creates an initially unbacked virtual texture. The descriptor is
+      capability-checked before native allocation. *)
+  val create_placement_sparse :
+    device:Device.t -> page_size:Sparse_page_size.t -> descriptor ->
+    (t, error) result
   val create_shared : device:Device.t -> descriptor -> (t, error) result
   val create_from_buffer :
     buffer:Buffer.t -> offset:int64 -> bytes_per_row:int -> descriptor ->
@@ -517,8 +548,13 @@ module Texture : sig
   val device : t -> Device.t
   val descriptor : t -> descriptor
   val heap_offset : t -> int64 option
+  val placement_sparse_page_size : t -> Sparse_page_size.t option
   val buffer_backing : t -> buffer_backing option
   val io_surface_backing : t -> io_surface_backing option
+
+  (** Returns the native tier when callable and the guaranteed tier-1 minimum
+      for a typed sparse resource when a driver omits the tier selector. *)
+  val sparse_tier : t -> (sparse_tier, error) result
   val sparse_info : t -> (sparse_info option, error) result
   val is_shareable : t -> (bool, error) result
   val shared_handle : t -> (Shared_handle.t, error) result
@@ -558,6 +594,8 @@ module Heap : sig
     ; hazard_tracking : hazard_tracking_mode
     ; kind : kind
     ; sparse_page_size : Sparse_page_size.t option
+      (** Exact page size for [Sparse], or the maximum compatible placement
+          sparse page size for [Placement]. [Automatic] requires [None]. *)
     ; label : string option
     }
 

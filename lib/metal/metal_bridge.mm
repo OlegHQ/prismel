@@ -745,6 +745,54 @@ bool device_supports_sparse_textures(id<MTLDevice> device) {
   return false;
 }
 
+bool device_supports_placement_sparse(id<MTLDevice> device) {
+  if (@available(macOS 26.4, *)) {
+    return [device respondsToSelector:@selector(supportsPlacementSparse)] &&
+           device.supportsPlacementSparse &&
+           [device respondsToSelector:
+               @selector(newBufferWithLength:options:placementSparsePageSize:)] &&
+           [device respondsToSelector:
+               @selector(sparseTileSizeInBytesForSparsePageSize:)] &&
+           [device respondsToSelector:
+               @selector(sparseTileSizeWithTextureType:pixelFormat:sampleCount:sparsePageSize:)] &&
+           [MTLTextureDescriptor instancesRespondToSelector:
+               @selector(setPlacementSparsePageSize:)] &&
+           [MTLHeapDescriptor instancesRespondToSelector:
+               @selector(setMaxCompatiblePlacementSparsePageSize:)];
+  }
+  return false;
+}
+
+int buffer_sparse_tier_or_unavailable(id<MTLBuffer> buffer) {
+  if (@available(macOS 26.0, *)) {
+    @try {
+      if ([buffer respondsToSelector:@selector(sparseBufferTier)]) {
+        return static_cast<int>(buffer.sparseBufferTier);
+      }
+    } @catch (NSException *exception) {
+      (void)exception;
+    }
+  }
+  return -1;
+}
+
+int texture_sparse_tier_or_unavailable(id<MTLTexture> texture) {
+  if (@available(macOS 26.0, *)) {
+    @try {
+      if ([texture respondsToSelector:@selector(sparseTextureTier)]) {
+        return static_cast<int>(texture.sparseTextureTier);
+      }
+    } @catch (NSException *exception) {
+      (void)exception;
+    }
+  }
+  return -1;
+}
+
+bool texture_is_sparse_resource(id<MTLTexture> texture) {
+  return texture.isSparse || texture_sparse_tier_or_unavailable(texture) > 0;
+}
+
 MTLPurgeableState purgeable_state(int state) {
   switch (state) {
   case MTLPurgeableStateKeepCurrent:
@@ -1463,6 +1511,13 @@ caml_prismel_metal_device_supports_sparse_textures(value raw) {
 }
 
 extern "C" CAMLprim value
+caml_prismel_metal_device_supports_placement_sparse(value raw) {
+  CAMLparam1(raw);
+  id<MTLDevice> device = object_of_handle(raw, Handle_kind::Device);
+  CAMLreturn(Val_bool(device_supports_placement_sparse(device)));
+}
+
+extern "C" CAMLprim value
 caml_prismel_metal_device_sparse_tile_size_in_bytes(value raw,
                                                      value raw_page_size) {
   CAMLparam2(raw, raw_page_size);
@@ -1506,7 +1561,8 @@ caml_prismel_metal_device_sparse_texture_tile_size(
       const int page_size = Int_val(raw_page_size);
       const intnat sample_count = Long_val(raw_sample_count);
       if (!valid_sparse_page_size(page_size) || sample_count <= 0 ||
-          !device_supports_sparse_textures(device)) {
+          (!device_supports_sparse_textures(device) &&
+           !device_supports_placement_sparse(device))) {
         CAMLreturn(result_error_text(
             "sparse texture tile query is unsupported"));
       }
@@ -1556,6 +1612,62 @@ extern "C" CAMLprim value caml_prismel_metal_buffer_create(
     raw = allocate_handle(buffer, Handle_kind::Buffer);
   }
   CAMLreturn(result_ok(raw));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_buffer_placement_sparse_create(
+    value raw_device, value raw_length, value raw_options,
+    value raw_page_size) {
+  CAMLparam4(raw_device, raw_length, raw_options, raw_page_size);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    @try {
+      id<MTLDevice> device =
+          object_of_handle(raw_device, Handle_kind::Device);
+      const std::int64_t signed_length = Int64_val(raw_length);
+      const int page_size = Int_val(raw_page_size);
+      if (signed_length <= 0) {
+        CAMLreturn(result_error_text(
+            "placement sparse buffer length must be positive"));
+      }
+      if (!device_supports_placement_sparse(device)) {
+        CAMLreturn(result_error_text(
+            "device does not support placement sparse resources"));
+      }
+      if (!valid_sparse_page_size(page_size)) {
+        CAMLreturn(result_error_text(
+            "placement sparse buffer page size is invalid"));
+      }
+      if (@available(macOS 26.0, *)) {
+        id<MTLBuffer> buffer = [device
+            newBufferWithLength:static_cast<NSUInteger>(signed_length)
+                         options:resource_options(Int_val(raw_options))
+         placementSparsePageSize:static_cast<MTLSparsePageSize>(page_size)];
+        if (buffer == nil || buffer.heap != nil) {
+          CAMLreturn(result_error_text(
+              "Metal rejected or changed the placement sparse buffer"));
+        }
+        const int sparse_tier = buffer_sparse_tier_or_unavailable(buffer);
+        if (sparse_tier != -1 && sparse_tier != MTLBufferSparseTier1) {
+          CAMLreturn(result_error_text(
+              "Metal returned a non-sparse buffer from the placement sparse "
+              "constructor"));
+        }
+        raw = allocate_handle(buffer, Handle_kind::Buffer);
+      } else {
+        CAMLreturn(result_error_text(
+            "placement sparse buffers require macOS 26"));
+      }
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+  CAMLreturn(result_ok(raw));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_buffer_sparse_tier(value raw) {
+  CAMLparam1(raw);
+  id<MTLBuffer> buffer = object_of_handle(raw, Handle_kind::Buffer);
+  CAMLreturn(Val_int(buffer_sparse_tier_or_unavailable(buffer)));
 }
 
 extern "C" CAMLprim value caml_prismel_metal_buffer_create_copy(
@@ -2057,9 +2169,37 @@ extern "C" CAMLprim value caml_prismel_metal_heap_create(
       }
       descriptor.sparsePageSize =
           static_cast<MTLSparsePageSize>(sparse_page_size);
+    } else if (heap_type == MTLHeapTypePlacement && sparse_page_size != 0) {
+      if (!device_supports_placement_sparse(device)) {
+        CAMLreturn(result_error_text(
+            "device does not support placement sparse resources"));
+      }
+      if (!valid_sparse_page_size(sparse_page_size)) {
+        CAMLreturn(result_error_text(
+            "placement heaps require a valid maximum sparse page size"));
+      }
+      if (@available(macOS 26.0, *)) {
+        const NSUInteger page_bytes = [device
+            sparseTileSizeInBytesForSparsePageSize:
+                static_cast<MTLSparsePageSize>(sparse_page_size)];
+        if (page_bytes == 0 || descriptor.size % page_bytes != 0) {
+          CAMLreturn(result_error_text(
+              "placement heap size is not a whole number of sparse pages"));
+        }
+        descriptor.maxCompatiblePlacementSparsePageSize =
+            static_cast<MTLSparsePageSize>(sparse_page_size);
+        if (descriptor.maxCompatiblePlacementSparsePageSize !=
+            static_cast<MTLSparsePageSize>(sparse_page_size)) {
+          CAMLreturn(result_error_text(
+              "Metal changed the placement heap's maximum sparse page size"));
+        }
+      } else {
+        CAMLreturn(result_error_text(
+            "placement sparse heaps require macOS 26"));
+      }
     } else if (sparse_page_size != 0) {
       CAMLreturn(result_error_text(
-          "only sparse heaps accept a sparse page size"));
+          "only sparse or placement heaps accept a sparse page size"));
     }
     id<MTLHeap> heap = [device newHeapWithDescriptor:descriptor];
     if (heap == nil) {
@@ -2830,6 +2970,52 @@ extern "C" CAMLprim value caml_prismel_metal_texture_create(
   CAMLreturn(result_ok(raw));
 }
 
+extern "C" CAMLprim value
+caml_prismel_metal_texture_placement_sparse_create(
+    value raw_device, value raw_descriptor, value raw_page_size) {
+  CAMLparam3(raw_device, raw_descriptor, raw_page_size);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    @try {
+      id<MTLDevice> device =
+          object_of_handle(raw_device, Handle_kind::Device);
+      const int page_size = Int_val(raw_page_size);
+      if (!device_supports_placement_sparse(device)) {
+        CAMLreturn(result_error_text(
+            "device does not support placement sparse resources"));
+      }
+      if (!valid_sparse_page_size(page_size)) {
+        CAMLreturn(result_error_text(
+            "placement sparse texture page size is invalid"));
+      }
+      if (@available(macOS 26.0, *)) {
+        MTLTextureDescriptor *descriptor = texture_descriptor(raw_descriptor);
+        descriptor.placementSparsePageSize =
+            static_cast<MTLSparsePageSize>(page_size);
+        if (descriptor.placementSparsePageSize !=
+            static_cast<MTLSparsePageSize>(page_size)) {
+          CAMLreturn(result_error_text(
+              "Metal changed the placement sparse texture page size"));
+        }
+        id<MTLTexture> texture =
+            [device newTextureWithDescriptor:descriptor];
+        if (texture == nil || texture.heap != nil ||
+            !texture_is_sparse_resource(texture)) {
+          CAMLreturn(result_error_text(
+              "Metal rejected or changed the placement sparse texture"));
+        }
+        raw = allocate_handle(texture, Handle_kind::Texture);
+      } else {
+        CAMLreturn(result_error_text(
+            "placement sparse textures require macOS 26"));
+      }
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+  CAMLreturn(result_ok(raw));
+}
+
 extern "C" CAMLprim value caml_prismel_metal_texture_shared_create(
     value raw_device, value raw_descriptor, value raw_label) {
   CAMLparam3(raw_device, raw_descriptor, raw_label);
@@ -2889,7 +3075,13 @@ extern "C" CAMLprim value caml_prismel_metal_texture_info(value raw) {
 extern "C" CAMLprim value caml_prismel_metal_texture_is_sparse(value raw) {
   CAMLparam1(raw);
   id<MTLTexture> texture = object_of_handle(raw, Handle_kind::Texture);
-  CAMLreturn(Val_bool(texture.isSparse));
+  CAMLreturn(Val_bool(texture_is_sparse_resource(texture)));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_texture_sparse_tier(value raw) {
+  CAMLparam1(raw);
+  id<MTLTexture> texture = object_of_handle(raw, Handle_kind::Texture);
+  CAMLreturn(Val_int(texture_sparse_tier_or_unavailable(texture)));
 }
 
 extern "C" CAMLprim value caml_prismel_metal_texture_sparse_info(
@@ -2903,7 +3095,7 @@ extern "C" CAMLprim value caml_prismel_metal_texture_sparse_info(
       id<MTLTexture> texture =
           object_of_handle(raw_texture, Handle_kind::Texture);
       const int page_size = Int_val(raw_page_size);
-      if (!texture.isSparse) {
+      if (!texture_is_sparse_resource(texture)) {
         CAMLreturn(result_error_text("texture is not sparse"));
       }
       if (!valid_sparse_page_size(page_size)) {

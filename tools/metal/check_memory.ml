@@ -131,6 +131,7 @@ let tests mode artifacts =
       let lanes =
         [ "buffers"; "textures-samplers"; "heaps-resources"
         ; "sparse-heaps-textures"; "sparse-depth-stencil"
+        ; "placement-sparse-resources"
         ; "residency-sets-resources"
         ; "buffer-backed-textures"; "shared-textures"; "io-surfaces"
         ; "external-buffers"

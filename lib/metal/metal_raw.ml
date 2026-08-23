@@ -69,6 +69,9 @@ external device_supports_residency_sets : handle -> bool =
 external device_supports_sparse_textures : handle -> bool =
   "caml_prismel_metal_device_supports_sparse_textures"
 
+external device_supports_placement_sparse : handle -> bool =
+  "caml_prismel_metal_device_supports_placement_sparse"
+
 external device_sparse_tile_size_in_bytes :
   handle -> int -> (int64, string) result
   = "caml_prismel_metal_device_sparse_tile_size_in_bytes"
@@ -83,6 +86,13 @@ external device_minimum_texture_alignment :
 
 external buffer_create : handle -> int64 -> int -> (handle, string) result =
   "caml_prismel_metal_buffer_create"
+
+external buffer_placement_sparse_create :
+  handle -> int64 -> int -> int -> (handle, string) result
+  = "caml_prismel_metal_buffer_placement_sparse_create"
+
+external buffer_sparse_tier : handle -> int =
+  "caml_prismel_metal_buffer_sparse_tier"
 
 external buffer_create_copy :
   handle -> bytes -> int -> int -> int -> (handle, string) result
@@ -239,6 +249,12 @@ external texture_create :
   string option -> (handle, string) result
   = "caml_prismel_metal_texture_create"
 
+external texture_placement_sparse_create :
+  handle ->
+  (int * int * int * int * int * int * int * int * int * int * int * int * bool) ->
+  int -> (handle, string) result
+  = "caml_prismel_metal_texture_placement_sparse_create"
+
 external texture_shared_create :
   handle ->
   (int * int * int * int * int * int * int * int * int * int * int * int * bool) ->
@@ -249,6 +265,9 @@ external texture_info : handle -> int array = "caml_prismel_metal_texture_info"
 
 external texture_is_sparse : handle -> bool =
   "caml_prismel_metal_texture_is_sparse"
+
+external texture_sparse_tier : handle -> int =
+  "caml_prismel_metal_texture_sparse_tier"
 
 external texture_sparse_info :
   handle -> handle -> int -> (int64 array, string) result

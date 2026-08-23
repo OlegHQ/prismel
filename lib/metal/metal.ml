@@ -295,6 +295,7 @@ and buffer =
   ; hazard_tracking : resource_hazard_tracking_mode
   ; parent : resource_parent
   ; heap_offset : int64 option
+  ; placement_sparse_page_size : sparse_page_size option
   ; allocation : heap_allocation option
   ; state : resource_state
   }
@@ -306,6 +307,7 @@ and texture =
   ; descriptor : texture_descriptor
   ; parent : texture_parent
   ; heap_offset : int64 option
+  ; placement_sparse_page_size : sparse_page_size option
   ; allocation : heap_allocation option
   ; state : resource_state
   }
@@ -879,6 +881,14 @@ module Device = struct
       | Error _ as failure -> failure
       | Ok () -> Ok (Metal_raw.device_supports_sparse_textures value.raw))
 
+  let supports_placement_sparse (value : t) =
+    on_main "Metal.Device.supports_placement_sparse" (fun () ->
+      match
+        ensure_live "Metal.Device.supports_placement_sparse" value.lifetime
+      with
+      | Error _ as failure -> failure
+      | Ok () -> Ok (Metal_raw.device_supports_placement_sparse value.raw))
+
   let destroy (value : t) =
     destroy_parent "Metal.Device.destroy" value.lifetime value.raw (fun () -> ())
 end
@@ -891,6 +901,10 @@ module Buffer = struct
     | Default_hazard_tracking
     | Untracked
     | Tracked
+
+  type sparse_tier =
+    | Not_sparse
+    | Sparse_tier_1
 
   module External = struct
     type t = external_memory
@@ -1017,8 +1031,9 @@ module Buffer = struct
       error operation Invalid_argument "label contains a NUL byte"
     else Ok ()
 
-  let finish_create operation ~(device : Device.t) ~parent ~length ~storage
-      ~cpu_cache ~hazard_tracking ~heap_offset ~allocation ~label raw =
+  let finish_create ?placement_sparse_page_size operation ~(device : Device.t)
+      ~parent ~length ~storage ~cpu_cache ~hazard_tracking ~heap_offset
+      ~allocation ~label raw =
     let actual_length, actual_storage, actual_cache, actual_hazard, actual_offset =
       Metal_raw.buffer_info raw
     in
@@ -1060,6 +1075,7 @@ module Buffer = struct
             ; hazard_tracking = expected_hazard
             ; parent
             ; heap_offset
+            ; placement_sparse_page_size
             ; allocation
             ; state = resource_state ()
             }
@@ -1093,6 +1109,34 @@ module Buffer = struct
                      ~parent:(Device_resource device) ~length ~storage ~cpu_cache
                    ~hazard_tracking ~heap_offset:None ~allocation:None ~label
                    raw))
+
+  let create_placement_sparse ~(device : Device.t) ~page_size ~length ~storage
+      ?(cpu_cache = Default_cache)
+      ?(hazard_tracking = Default_hazard_tracking) ?label () =
+    let operation = "Metal.Buffer.create_placement_sparse" in
+    on_main operation (fun () ->
+      match ensure_live operation device.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when not (Metal_raw.device_supports_placement_sparse device.raw) ->
+          error operation Unsupported
+            "device does not support placement sparse resources"
+      | Ok () ->
+          (match validate_create operation device ~length ~label with
+           | Error _ as failure -> failure
+           | Ok () ->
+               let options =
+                 resource_options_code ~storage ~cpu_cache ~hazard_tracking
+               in
+               match
+                 Metal_raw.buffer_placement_sparse_create device.raw length
+                   options (sparse_page_size_code page_size)
+               with
+               | Error message -> error operation Unsupported message
+               | Ok raw ->
+                   finish_create ~placement_sparse_page_size:page_size operation
+                     ~device ~parent:(Device_resource device) ~length ~storage
+                     ~cpu_cache ~hazard_tracking ~heap_offset:None
+                     ~allocation:None ~label raw))
 
   let create_copy ~(device : Device.t) ~storage
       ?(cpu_cache = Default_cache)
@@ -1182,6 +1226,27 @@ module Buffer = struct
   let cpu_cache_mode (value : t) = value.cpu_cache
   let hazard_tracking_mode (value : t) = value.hazard_tracking
   let heap_offset (value : t) = value.heap_offset
+  let placement_sparse_page_size (value : t) =
+    value.placement_sparse_page_size
+
+  let sparse_tier (value : t) =
+    let operation = "Metal.Buffer.sparse_tier" in
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when Option.is_none value.placement_sparse_page_size ->
+          Ok Not_sparse
+      | Ok () ->
+          (match Metal_raw.buffer_sparse_tier value.raw with
+           | 1 -> Ok Sparse_tier_1
+           | -1 -> Ok Sparse_tier_1
+           | 0 ->
+               native_error operation
+                 "placement sparse buffer lost its sparse tier"
+           | tier ->
+               native_error operation
+                 (Printf.sprintf "Metal returned unknown buffer sparse tier %d"
+                    tier)))
   let external_memory (value : t) =
     match value.parent with
     | External_resource memory -> Some memory
@@ -1219,6 +1284,9 @@ module Buffer = struct
     on_main "Metal.Buffer.write_bytes" (fun () ->
       match ensure_buffer_usable "Metal.Buffer.write_bytes" value with
       | Error _ as failure -> failure
+      | Ok () when Option.is_some value.placement_sparse_page_size ->
+          error "Metal.Buffer.write_bytes" Invalid_state
+            "placement sparse buffers have no CPU-visible backing until mapped"
       | Ok () when value.storage = Private ->
           error "Metal.Buffer.write_bytes" Unsupported
             "private buffers have no CPU mapping"
@@ -1246,6 +1314,9 @@ module Buffer = struct
     on_main "Metal.Buffer.read_bytes" (fun () ->
       match ensure_buffer_usable "Metal.Buffer.read_bytes" value with
       | Error _ as failure -> failure
+      | Ok () when Option.is_some value.placement_sparse_page_size ->
+          error "Metal.Buffer.read_bytes" Invalid_state
+            "placement sparse buffers have no CPU-visible backing until mapped"
       | Ok () when value.storage = Private ->
           error "Metal.Buffer.read_bytes" Unsupported
             "private buffers have no CPU mapping"
@@ -1322,6 +1393,9 @@ module Buffer = struct
     on_main "Metal.Buffer.with_mapping" (fun () ->
       match ensure_buffer_usable "Metal.Buffer.with_mapping" value with
       | Error _ as failure -> failure
+      | Ok () when Option.is_some value.placement_sparse_page_size ->
+          error "Metal.Buffer.with_mapping" Invalid_state
+            "placement sparse buffers have no CPU-visible backing until mapped"
       | Ok () when value.storage = Private ->
           error "Metal.Buffer.with_mapping" Unsupported
             "private buffers have no CPU mapping"
@@ -1353,6 +1427,9 @@ module Buffer = struct
     on_main "Metal.Buffer.purgeable_state" (fun () ->
       match ensure_live "Metal.Buffer.purgeable_state" value.lifetime with
       | Error _ as failure -> failure
+      | Ok () when Option.is_some value.placement_sparse_page_size ->
+          error "Metal.Buffer.purgeable_state" Invalid_state
+            "the placement heap controls physical-page purgeability"
       | Ok () ->
           query_purgeable_state "Metal.Buffer.purgeable_state"
             (Metal_raw.resource_set_purgeable_state value.raw)
@@ -1362,6 +1439,9 @@ module Buffer = struct
     on_main "Metal.Buffer.set_purgeable_state" (fun () ->
       match ensure_live "Metal.Buffer.set_purgeable_state" value.lifetime with
       | Error _ as failure -> failure
+      | Ok () when Option.is_some value.placement_sparse_page_size ->
+          error "Metal.Buffer.set_purgeable_state" Invalid_state
+            "set purgeability on the placement heap"
       | Ok () when Atomic.get value.state.relinquished ->
           error "Metal.Buffer.set_purgeable_state" Invalid_state
             "an aliasable resource cannot change purgeability"
@@ -1383,12 +1463,18 @@ module Buffer = struct
     on_main "Metal.Buffer.is_aliasable" (fun () ->
       match ensure_live "Metal.Buffer.is_aliasable" value.lifetime with
       | Error _ as failure -> failure
+      | Ok () when Option.is_some value.placement_sparse_page_size ->
+          error "Metal.Buffer.is_aliasable" Invalid_state
+            "placement sparse aliasing is controlled by mapping operations"
       | Ok () -> Ok (Metal_raw.resource_is_aliasable value.raw))
 
   let make_aliasable (value : t) =
     on_main "Metal.Buffer.make_aliasable" (fun () ->
       match ensure_live "Metal.Buffer.make_aliasable" value.lifetime with
       | Error _ as failure -> failure
+      | Ok () when Option.is_some value.placement_sparse_page_size ->
+          error "Metal.Buffer.make_aliasable" Invalid_state
+            "placement sparse aliasing is controlled by mapping operations"
       | Ok () when Atomic.get value.state.relinquished -> Ok ()
       | Ok () when Atomic.get value.state.purgeable <> Nonvolatile ->
           error "Metal.Buffer.make_aliasable" Invalid_state
@@ -1597,6 +1683,11 @@ module Texture = struct
     | Render_target
     | Pixel_format_view
     | Shader_atomic
+
+  type sparse_tier =
+    | Not_sparse
+    | Sparse_tier_1
+    | Sparse_tier_2
 
   type descriptor = texture_descriptor =
     { kind : kind
@@ -2609,8 +2700,8 @@ module Texture = struct
         native_error operation
           "Metal changed a checked texture descriptor during creation"
 
-  let finish_create ?expected_shareable operation ~device ~descriptor ~parent
-      ~heap_offset ~allocation raw =
+  let finish_create ?expected_shareable ?placement_sparse_page_size operation
+      ~device ~descriptor ~parent ~heap_offset ~allocation raw =
     let heap =
       match parent with
       | Texture_resource (Heap_resource _) -> true
@@ -2632,6 +2723,14 @@ module Texture = struct
           "Metal changed the checked texture sharing mode during creation"
     | Ok descriptor ->
         let parent_lifetime = texture_parent_lifetime parent in
+        let placement_sparse_page_size =
+          match placement_sparse_page_size, parent with
+          | Some page_size, _ -> Some page_size
+          | None, Texture_view texture -> texture.placement_sparse_page_size
+          | None,
+            (Texture_resource _ | Texture_buffer_resource _
+            | Texture_io_surface_resource _) -> None
+        in
         let state =
           match parent with
           | Texture_resource _ -> resource_state ()
@@ -2646,6 +2745,7 @@ module Texture = struct
           ; descriptor
           ; parent
           ; heap_offset
+          ; placement_sparse_page_size
           ; allocation
           ; state
           }
@@ -2684,6 +2784,56 @@ module Texture = struct
                      ~parent:(Texture_resource (Device_resource device))
                      ~heap_offset:None ~allocation:None raw))
 
+  let create_placement_sparse ~(device : Device.t) ~page_size descriptor =
+    let operation = "Metal.Texture.create_placement_sparse" in
+    on_main operation (fun () ->
+      match ensure_live operation device.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when not (Metal_raw.device_supports_placement_sparse device.raw) ->
+          error operation Unsupported
+            "device does not support placement sparse resources"
+      | Ok () ->
+          (match validate_descriptor operation device descriptor with
+           | Error _ as failure -> failure
+           | Ok () when descriptor.kind = Texture_buffer ->
+               error operation Invalid_argument
+                 "texture-buffer resources must be created from a buffer"
+           | Ok () ->
+               (match
+                  Metal_raw.device_sparse_texture_tile_size device.raw
+                    (kind_code descriptor.kind) (format_code descriptor.format)
+                    descriptor.sample_count (sparse_page_size_code page_size)
+                with
+                | Error message -> error operation Unsupported message
+                | Ok (width, height, depth)
+                  when width <= 0 || height <= 0 || depth <= 0 ->
+                    native_error operation
+                      "Metal returned invalid placement sparse tile dimensions"
+                | Ok _ ->
+                    (match
+                       Metal_raw.texture_placement_sparse_create device.raw
+                         (descriptor_tuple descriptor)
+                         (sparse_page_size_code page_size)
+                     with
+                     | Error message -> native_error operation message
+                     | Ok raw ->
+                         let label_result =
+                           match descriptor.label with
+                           | None -> Ok ()
+                           | Some label -> Metal_raw.texture_set_label raw label
+                         in
+                         (match label_result with
+                          | Error message ->
+                              ignore (Metal_raw.destroy raw);
+                              native_error operation message
+                          | Ok () ->
+                              finish_create
+                                ~placement_sparse_page_size:page_size operation
+                                ~device ~descriptor
+                                ~parent:
+                                  (Texture_resource (Device_resource device))
+                                ~heap_offset:None ~allocation:None raw)))))
+
   let create_shared ~(device : Device.t) descriptor =
     let operation = "Metal.Texture.create_shared" in
     on_main operation (fun () ->
@@ -2713,6 +2863,8 @@ module Texture = struct
   let device (value : t) = value.device
   let descriptor (value : t) = value.descriptor
   let heap_offset (value : t) = value.heap_offset
+  let placement_sparse_page_size (value : t) =
+    value.placement_sparse_page_size
   let generation (value : t) = Metal_raw.generation value.raw
   let destroyed (value : t) = is_destroyed value.lifetime
 
@@ -2727,6 +2879,31 @@ module Texture = struct
     | Texture_io_surface_resource backing -> Some backing
     | Texture_view parent -> io_surface_backing parent
     | Texture_resource _ | Texture_buffer_resource _ -> None
+
+  let sparse_tier (value : t) =
+    let operation = "Metal.Texture.sparse_tier" in
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          let known_sparse =
+            Option.is_some value.placement_sparse_page_size
+            || option_exists
+                 (fun (heap : heap) -> heap.descriptor.kind = Sparse)
+                 (texture_heap value)
+          in
+          if not known_sparse then Ok Not_sparse
+          else
+            match Metal_raw.texture_sparse_tier value.raw with
+            | 1 -> Ok Sparse_tier_1
+            | 2 -> Ok Sparse_tier_2
+            | -1 -> Ok Sparse_tier_1
+            | 0 ->
+                native_error operation "sparse texture lost its sparse tier"
+            | tier ->
+                native_error operation
+                  (Printf.sprintf "Metal returned unknown texture sparse tier %d"
+                     tier))
 
   let decode_sparse_info operation page_size values =
     if Array.length values <> 6 then
@@ -2765,13 +2942,27 @@ module Texture = struct
             "Metal returned invalid sparse texture tile dimensions"
 
   let sparse_info_raw operation (value : t) =
-    if not (Metal_raw.texture_is_sparse value.raw) then Ok None
-    else
-      match texture_heap value with
-      | Some
-          { descriptor =
-              { kind = Sparse; sparse_page_size = Some page_size; _ }
-          ; _ } ->
+    let page_size =
+      match value.placement_sparse_page_size with
+      | Some _ as page_size -> page_size
+      | None ->
+          (match texture_heap value with
+           | Some
+               { descriptor =
+                   { kind = Sparse; sparse_page_size = Some page_size; _ }
+               ; _ } -> Some page_size
+           | Some _ | None -> None)
+    in
+    match page_size with
+    | None ->
+        if Metal_raw.texture_is_sparse value.raw then
+          native_error operation
+            "sparse texture has no matching typed page-size metadata"
+        else Ok None
+    | Some page_size ->
+        if not (Metal_raw.texture_is_sparse value.raw) then
+          native_error operation "typed sparse texture lost its native identity"
+        else
           (match
              Metal_raw.texture_sparse_info value.device.raw value.raw
                (sparse_page_size_code page_size)
@@ -2781,9 +2972,6 @@ module Texture = struct
                (match decode_sparse_info operation page_size values with
                 | Error _ as failure -> failure
                 | Ok info -> Ok (Some info)))
-      | Some _ | None ->
-          native_error operation
-            "sparse texture has no matching typed sparse-heap ancestry"
 
   let sparse_info (value : t) =
     on_main "Metal.Texture.sparse_info" (fun () ->
@@ -2949,7 +3137,10 @@ module Texture = struct
   let validate_buffer_descriptor operation (buffer : Buffer.t)
       (descriptor : descriptor) =
     let invalid message = error operation Invalid_argument message in
-    match
+    if Option.is_some buffer.placement_sparse_page_size then
+      error operation Invalid_state
+        "placement sparse buffers cannot back linear textures before mapping"
+    else match
       validate_buffer_kind_format operation ~kind:descriptor.kind
         ~format:descriptor.format
     with
@@ -3056,7 +3247,10 @@ module Texture = struct
   let validate_transfer operation (value : t) ~region ~mip_level ~slice ~bytes_per_row
       ~bytes_per_image =
     let invalid message = error operation Invalid_argument message in
-    if value.descriptor.storage = Private then
+    if Option.is_some value.placement_sparse_page_size then
+      error operation Invalid_state
+        "placement sparse textures have no CPU-visible backing until mapped"
+    else if value.descriptor.storage = Private then
       error operation Unsupported "private textures have no CPU transfer mapping"
     else if is_multisample value.descriptor.kind then
       error operation Unsupported "multisample textures do not support CPU transfer"
@@ -3253,6 +3447,9 @@ module Texture = struct
     on_main "Metal.Texture.purgeable_state" (fun () ->
       match ensure_live "Metal.Texture.purgeable_state" value.lifetime with
       | Error _ as failure -> failure
+      | Ok () when Option.is_some value.placement_sparse_page_size ->
+          error "Metal.Texture.purgeable_state" Invalid_state
+            "the placement heap controls physical-page purgeability"
       | Ok ()
         when option_exists
                (fun (heap : heap) -> heap.descriptor.kind = Sparse)
@@ -3276,6 +3473,9 @@ module Texture = struct
     on_main "Metal.Texture.set_purgeable_state" (fun () ->
       match ensure_live "Metal.Texture.set_purgeable_state" value.lifetime with
       | Error _ as failure -> failure
+      | Ok () when Option.is_some value.placement_sparse_page_size ->
+          error "Metal.Texture.set_purgeable_state" Invalid_state
+            "set purgeability on the placement heap"
       | Ok () when Atomic.get value.state.relinquished ->
           error "Metal.Texture.set_purgeable_state" Invalid_state
             "an aliasable resource cannot change purgeability"
@@ -3315,6 +3515,9 @@ module Texture = struct
     on_main "Metal.Texture.is_aliasable" (fun () ->
       match ensure_live "Metal.Texture.is_aliasable" value.lifetime with
       | Error _ as failure -> failure
+      | Ok () when Option.is_some value.placement_sparse_page_size ->
+          error "Metal.Texture.is_aliasable" Invalid_state
+            "placement sparse aliasing is controlled by mapping operations"
       | Ok () ->
           (match buffer_backing value with
            | Some backing -> Buffer.is_aliasable backing.buffer
@@ -3324,6 +3527,9 @@ module Texture = struct
     on_main "Metal.Texture.make_aliasable" (fun () ->
       match ensure_live "Metal.Texture.make_aliasable" value.lifetime with
       | Error _ as failure -> failure
+      | Ok () when Option.is_some value.placement_sparse_page_size ->
+          error "Metal.Texture.make_aliasable" Invalid_state
+            "placement sparse aliasing is controlled by mapping operations"
       | Ok () when Atomic.get value.state.relinquished -> Ok ()
       | Ok () when Atomic.get value.state.purgeable <> Nonvolatile ->
           error "Metal.Texture.make_aliasable" Invalid_state
@@ -3467,9 +3673,9 @@ module Heap = struct
       error operation Invalid_argument "heap label contains a NUL byte"
     else
       match descriptor.kind, descriptor.sparse_page_size with
-      | (Automatic | Placement), Some _ ->
+      | Automatic, Some _ ->
           error operation Invalid_argument
-            "only sparse heaps accept a sparse page size"
+            "automatic heaps do not accept a sparse page size"
       | Sparse, None ->
           error operation Invalid_argument
             "sparse heaps require an explicit sparse page size"
@@ -3479,6 +3685,16 @@ module Heap = struct
           error operation Invalid_argument
             "sparse heaps require private default-cache storage"
       | (Automatic | Placement), None -> Ok ()
+      | Placement, Some _
+        when not (Metal_raw.device_supports_placement_sparse device.raw) ->
+          error operation Unsupported
+            "device does not support placement sparse resources"
+      | Placement, Some page_size ->
+          let page_bytes = Sparse_page_size.bytes page_size in
+          if Int64.rem descriptor.size page_bytes <> 0L then
+            error operation Invalid_argument
+              "placement heap size must be a whole number of sparse pages"
+          else Ok ()
       | Sparse, Some page_size ->
           (match sparse_tile_size_in_bytes_raw operation device page_size with
            | Error _ as failure -> failure
@@ -5249,6 +5465,9 @@ module Resource_state_encoder = struct
       | Ok () ->
           (match ensure_texture_usable operation texture with
            | Error _ as failure -> failure
+           | Ok () when Option.is_some texture.placement_sparse_page_size ->
+               error operation Unsupported
+                 "placement sparse mappings require the Metal 4 command queue"
            | Ok () ->
                (match
                   ensure_same_device operation

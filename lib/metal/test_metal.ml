@@ -508,6 +508,236 @@ let test_format_matrix device =
        get (Texture.destroy stencil);
        get (Texture.destroy depth_stencil))
 
+let test_placement_sparse_resources device =
+  let supported = get (Device.supports_placement_sparse device) in
+  let page_sizes =
+    [ Sparse_page_size.Page_16_kib
+    ; Sparse_page_size.Page_64_kib
+    ; Sparse_page_size.Page_256_kib
+    ]
+  in
+  let descriptor =
+    Texture.descriptor_2d ~mipmapped:true ~storage:Buffer.Private
+      ~usage:[ Texture.Shader_read; Texture.Pixel_format_view ]
+      ~label:"Metal placement sparse texture" ~format:Texture.R8_uint
+      ~width:256 ~height:256 ()
+  in
+  if not supported then begin
+    let before = get (Release_queue.stats ()) in
+    ignore
+      (expect_error Unsupported
+         (Buffer.create_placement_sparse ~device
+            ~page_size:Sparse_page_size.Page_16_kib ~length:16_384L
+            ~storage:Buffer.Private ()));
+    ignore
+      (expect_error Unsupported
+         (Texture.create_placement_sparse ~device
+            ~page_size:Sparse_page_size.Page_16_kib descriptor));
+    ignore
+      (expect_error Unsupported
+         (Heap.create ~device
+            (Heap.make_descriptor ~kind:Heap.Placement
+               ~sparse_page_size:Sparse_page_size.Page_16_kib ~size:16_384L
+               ())));
+    let after = get (Release_queue.stats ()) in
+    if after.total_created <> before.total_created then
+      fail "unsupported placement sparse paths allocated native handles";
+    Printf.printf "Metal placement sparse resources skipped: unsupported\n%!";
+    false
+  end
+  else begin
+    let supported_pages, failures =
+      List.fold_left
+        (fun (supported_pages, failures) page_size ->
+          let page_bytes = Sparse_page_size.bytes page_size in
+          match
+             Buffer.create_placement_sparse ~device ~page_size
+               ~length:page_bytes ~storage:Buffer.Private
+               ~label:"Metal placement sparse buffer" ()
+           with
+           | Error ({ kind = Unsupported; _ } as error) ->
+               ( supported_pages
+               , (Printf.sprintf "%Ld-byte buffer: %s" page_bytes
+                    (Format.asprintf "%a" pp_error error))
+                 :: failures )
+           | Error error -> fail "%s" (Format.asprintf "%a" pp_error error)
+           | Ok buffer ->
+               (match
+                  Texture.create_placement_sparse ~device ~page_size descriptor
+                with
+                | Ok texture ->
+                    if
+                      Buffer.placement_sparse_page_size buffer
+                      <> Some page_size
+                      || Texture.placement_sparse_page_size texture
+                         <> Some page_size
+                    then fail "placement sparse page identity changed";
+                    get (Texture.destroy texture);
+                    get (Buffer.destroy buffer);
+                    (page_size :: supported_pages, failures)
+                | Error ({ kind = Unsupported; _ } as error) ->
+                    get (Buffer.destroy buffer);
+                    ( supported_pages
+                    , (Printf.sprintf "%Ld-byte texture: %s" page_bytes
+                         (Format.asprintf "%a" pp_error error))
+                      :: failures )
+                | Error error ->
+                    get (Buffer.destroy buffer);
+                    fail "%s" (Format.asprintf "%a" pp_error error)))
+        ([], []) page_sizes
+    in
+    let page_size =
+      match List.rev supported_pages with
+      | page_size :: _ -> page_size
+      | [] ->
+          fail
+            "device reports placement sparse support but accepts no reviewed page size (%s)"
+            (String.concat "; " (List.rev failures))
+    in
+    let page_bytes = Sparse_page_size.bytes page_size in
+    let buffer =
+      get
+        (Buffer.create_placement_sparse ~device ~page_size ~length:page_bytes
+           ~storage:Buffer.Private ~label:"Metal placement sparse buffer" ())
+    and texture =
+      get (Texture.create_placement_sparse ~device ~page_size descriptor)
+    in
+    if
+      Buffer.placement_sparse_page_size buffer <> Some page_size
+      || Buffer.heap_offset buffer <> None
+      || Buffer.length buffer <> page_bytes
+      || Buffer.storage_mode buffer <> Buffer.Private
+      || get (Buffer.sparse_tier buffer) <> Buffer.Sparse_tier_1
+      || get (Buffer.label buffer) <> Some "Metal placement sparse buffer"
+    then fail "placement sparse buffer properties are inconsistent";
+    if
+      Texture.placement_sparse_page_size texture <> Some page_size
+      || Texture.heap_offset texture <> None
+      || get (Texture.sparse_tier texture) = Texture.Not_sparse
+      || get (Texture.label texture) <> Some "Metal placement sparse texture"
+    then fail "placement sparse texture properties are inconsistent";
+    let sparse_info =
+      match get (Texture.sparse_info texture) with
+      | Some info -> info
+      | None -> fail "placement sparse texture lost its sparse metadata"
+    in
+    if sparse_info.page_size <> page_size
+       || sparse_info.tile_size_in_bytes <> page_bytes
+       || sparse_info.tile_width <= 0 || sparse_info.tile_height <= 0
+       || sparse_info.tile_depth <= 0
+    then fail "placement sparse texture tile metadata is inconsistent";
+    let view =
+      get
+        (Texture.create_view texture ~format:Texture.R8_uint ~base_mip:0
+           ~mip_count:1 ~base_slice:0 ~slice_count:1
+           ~label:"Metal placement sparse view" ())
+    in
+    if
+      Texture.placement_sparse_page_size view <> Some page_size
+      || get (Texture.sparse_tier view) = Texture.Not_sparse
+      || Option.is_none (get (Texture.sparse_info view))
+    then fail "placement sparse texture view lost its sparse identity";
+    ignore
+      (expect_error Parent_has_dependents (Texture.destroy texture));
+    get (Texture.destroy view);
+    let ordinary_buffer =
+      get (Buffer.create ~device ~length:16L ~storage:Buffer.Private ())
+    and ordinary_texture =
+      get
+        (Texture.create ~device
+           (Texture.descriptor_2d ~storage:Buffer.Private
+              ~format:Texture.R8_uint ~width:1 ~height:1 ()))
+    in
+    if get (Buffer.sparse_tier ordinary_buffer) <> Buffer.Not_sparse
+       || get (Texture.sparse_tier ordinary_texture) <> Texture.Not_sparse
+    then fail "ordinary resources reported a placement sparse tier";
+    get (Texture.destroy ordinary_texture);
+    get (Buffer.destroy ordinary_buffer);
+    ignore
+      (expect_error Invalid_state
+         (Buffer.read_bytes buffer ~offset:0L ~length:1));
+    ignore
+      (expect_error Invalid_state
+         (Buffer.with_mapping buffer ~offset:0L ~length:1 (fun _ -> ())));
+    ignore (expect_error Invalid_state (Buffer.purgeable_state buffer));
+    ignore (expect_error Invalid_state (Buffer.is_aliasable buffer));
+    let region : Texture.region =
+      { x = 0; y = 0; z = 0; width = 1; height = 1; depth = 1 }
+    in
+    ignore
+      (expect_error Invalid_state
+         (Texture.read_bytes texture ~region ~mip_level:0 ~slice:0
+            ~bytes_per_row:1 ~bytes_per_image:1));
+    ignore (expect_error Invalid_state (Texture.purgeable_state texture));
+    ignore (expect_error Invalid_state (Texture.is_aliasable texture));
+    let before_invalid = get (Release_queue.stats ()) in
+    ignore
+      (expect_error Invalid_argument
+         (Buffer.create_placement_sparse ~device ~page_size ~length:0L
+            ~storage:Buffer.Private ()));
+    ignore
+      (expect_error Invalid_argument
+         (Buffer.create_placement_sparse ~device ~page_size
+            ~length:page_bytes ~storage:Buffer.Private
+            ~label:"invalid\000label" ()));
+    ignore
+      (expect_error Invalid_argument
+         (Texture.create_placement_sparse ~device ~page_size
+            { descriptor with width = 0 }));
+    ignore
+      (expect_error Invalid_argument
+         (Texture.create_placement_sparse ~device ~page_size
+            { descriptor with label = Some "invalid\000label" }));
+    ignore
+      (expect_error Invalid_argument
+         (Heap.create ~device
+            (Heap.make_descriptor ~kind:Heap.Placement
+               ~sparse_page_size:page_size ~size:(Int64.pred page_bytes) ())));
+    ignore
+      (expect_error Invalid_argument
+         (Heap.create ~device
+            (Heap.make_descriptor ~sparse_page_size:page_size
+               ~size:page_bytes ())));
+    let after_invalid = get (Release_queue.stats ()) in
+    if after_invalid.total_created <> before_invalid.total_created then
+      fail "invalid placement sparse inputs allocated native handles";
+    let heap =
+      get
+        (Heap.create ~device
+           (Heap.make_descriptor ~kind:Heap.Placement
+              ~sparse_page_size:page_size ~label:"Metal sparse-compatible heap"
+              ~size:(Int64.mul 4L page_bytes) ()))
+    in
+    if
+      (Heap.descriptor heap).sparse_page_size <> Some page_size
+      || (get (Heap.info heap)).kind <> Heap.Placement
+      || get (Heap.label heap) <> Some "Metal sparse-compatible heap"
+    then fail "placement sparse heap compatibility metadata is inconsistent";
+    let queue = get (Command_queue.create device) in
+    let commands = get (Command_buffer.create queue ()) in
+    let encoder = get (Resource_state_encoder.create commands) in
+    let tile : Resource_state_encoder.tile_region =
+      { x = 0; y = 0; z = 0; width = 1; height = 1; depth = 1 }
+    in
+    ignore
+      (expect_error Unsupported
+         (Resource_state_encoder.update_texture_mapping encoder
+            ~mode:Resource_state_encoder.Map texture ~mip_level:0 ~slice:0
+            ~region:tile));
+    get (Resource_state_encoder.end_encoding encoder);
+    complete_commands commands;
+    get (Command_queue.destroy queue);
+    get (Texture.destroy texture);
+    get (Buffer.destroy buffer);
+    get (Heap.destroy heap);
+    ignore (expect_error Destroyed (Buffer.sparse_tier buffer));
+    ignore (expect_error Destroyed (Texture.sparse_tier texture));
+    Printf.printf
+      "Metal placement sparse buffer/texture/heap conformance passed (%Ld-byte pages)\n%!"
+      page_bytes;
+    true
+  end
+
 let test_sparse_textures device =
   if not (get (Device.supports_sparse_textures device)) then false
   else begin
@@ -641,6 +871,8 @@ let test_sparse_textures device =
     let texture = get (Heap.create_texture heap descriptor) in
     if Texture.heap_offset texture <> None then
       fail "sparse texture unexpectedly reports a placement offset";
+    if get (Texture.sparse_tier texture) = Texture.Not_sparse then
+      fail "legacy sparse texture lost its minimum sparse tier";
     let sparse_info =
       match get (Texture.sparse_info texture) with
       | Some info -> info
@@ -1022,6 +1254,7 @@ let () =
     if info.max_buffer_length < 16L then fail "device buffer limit is invalid";
     test_format_matrix device;
     let residency_sets_supported = test_residency_set device in
+    ignore (test_placement_sparse_resources device);
     ignore (test_sparse_textures device);
     let before_finalizer = get (Release_queue.stats ()) in
     let allocate_unreleased_buffer () =

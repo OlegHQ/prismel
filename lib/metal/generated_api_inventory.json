@@ -2,11 +2,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 0,
-    "bound": 601,
+    "bound": 623,
     "scope-excluded": 7,
-    "unreviewed": 4678
+    "unreviewed": 4656
   },
-  "classification_source_sha256": "c7a5cc7619e0bf9a72f61b648daaff64f9d56e8343b7c70bb4ff29d6495688c1",
+  "classification_source_sha256": "d373086a406ac70a413d691b6c6c47c10706e68a1b476244cbf17ea61aa45267",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "header_aggregate_sha256": "c2ee1e44c76606cf05fa81d1a8314dadfa49efe900342e8bcb3670363c16f0d1",
@@ -5011,26 +5011,26 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResource.h",
       "id": "enum-case:MTLBufferSparseTier:MTLBufferSparseTier1",
       "kind": "enum-case",
       "line": 219,
       "name": "MTLBufferSparseTier1",
       "owner": "MTLBufferSparseTier",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLBufferSparseTier"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResource.h",
       "id": "enum-case:MTLBufferSparseTier:MTLBufferSparseTierNone",
       "kind": "enum-case",
       "line": 206,
       "name": "MTLBufferSparseTierNone",
       "owner": "MTLBufferSparseTier",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLBufferSparseTier"
     },
     {
@@ -13045,38 +13045,38 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResource.h",
       "id": "enum-case:MTLTextureSparseTier:MTLTextureSparseTier1",
       "kind": "enum-case",
       "line": 241,
       "name": "MTLTextureSparseTier1",
       "owner": "MTLTextureSparseTier",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLTextureSparseTier"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResource.h",
       "id": "enum-case:MTLTextureSparseTier:MTLTextureSparseTier2",
       "kind": "enum-case",
       "line": 248,
       "name": "MTLTextureSparseTier2",
       "owner": "MTLTextureSparseTier",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLTextureSparseTier"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResource.h",
       "id": "enum-case:MTLTextureSparseTier:MTLTextureSparseTierNone",
       "kind": "enum-case",
       "line": 226,
       "name": "MTLTextureSparseTierNone",
       "owner": "MTLTextureSparseTier",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLTextureSparseTier"
     },
     {
@@ -14653,14 +14653,14 @@
         "AvailabilityAttr",
         "EnumExtensibilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResource.h",
       "id": "enum:MTLBufferSparseTier",
       "kind": "enum",
       "line": 203,
       "name": "MTLBufferSparseTier",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -15968,14 +15968,14 @@
         "AvailabilityAttr",
         "EnumExtensibilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResource.h",
       "id": "enum:MTLTextureSparseTier",
       "kind": "enum",
       "line": 223,
       "name": "MTLTextureSparseTier",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -30444,14 +30444,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBuffer.h",
       "id": "method:-[MTLBuffer sparseBufferTier]",
       "kind": "method",
       "line": 126,
       "name": "sparseBufferTier",
       "owner": "MTLBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLBufferSparseTier"
     },
     {
@@ -34592,14 +34592,14 @@
         "AvailabilityAttr",
         "NSReturnsRetainedAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newBufferWithLength:options:placementSparsePageSize:]",
       "kind": "method",
       "line": 1478,
       "name": "newBufferWithLength:options:placementSparsePageSize:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (NSUInteger, MTLResourceOptions, MTLSparsePageSize) -> id<MTLBuffer> _Nullable"
     },
     {
@@ -35796,14 +35796,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice supportsPlacementSparse]",
       "kind": "method",
       "line": 1251,
       "name": "supportsPlacementSparse",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -37289,14 +37289,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "method:-[MTLHeapDescriptor maxCompatiblePlacementSparsePageSize]",
       "kind": "method",
       "line": 112,
       "name": "maxCompatiblePlacementSparsePageSize",
       "owner": "MTLHeapDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLSparsePageSize"
     },
     {
@@ -37343,14 +37343,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "method:-[MTLHeapDescriptor setMaxCompatiblePlacementSparsePageSize:]",
       "kind": "method",
       "line": 112,
       "name": "setMaxCompatiblePlacementSparsePageSize:",
       "owner": "MTLHeapDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLSparsePageSize) -> void"
     },
     {
@@ -48855,14 +48855,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTexture sparseTextureTier]",
       "kind": "method",
       "line": 558,
       "name": "sparseTextureTier",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLTextureSparseTier"
     },
     {
@@ -49097,14 +49097,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTextureDescriptor placementSparsePageSize]",
       "kind": "method",
       "line": 263,
       "name": "placementSparsePageSize",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLSparsePageSize"
     },
     {
@@ -49251,14 +49251,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTextureDescriptor setPlacementSparsePageSize:]",
       "kind": "method",
       "line": null,
       "name": "setPlacementSparsePageSize:",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLSparsePageSize) -> void"
     },
     {
@@ -55213,14 +55213,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBuffer.h",
       "id": "property:MTLBuffer:sparseBufferTier",
       "kind": "property",
       "line": 126,
       "name": "sparseBufferTier",
       "owner": "MTLBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLBufferSparseTier"
     },
     {
@@ -57107,14 +57107,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "property:MTLDevice:supportsPlacementSparse",
       "kind": "property",
       "line": 1251,
       "name": "supportsPlacementSparse",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "BOOL"
     },
     {
@@ -57995,14 +57995,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "property:MTLHeapDescriptor:maxCompatiblePlacementSparsePageSize",
       "kind": "property",
       "line": 112,
       "name": "maxCompatiblePlacementSparsePageSize",
       "owner": "MTLHeapDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLSparsePageSize"
     },
     {
@@ -62679,14 +62679,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLTexture:sparseTextureTier",
       "kind": "property",
       "line": 558,
       "name": "sparseTextureTier",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLTextureSparseTier"
     },
     {
@@ -62921,14 +62921,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLTextureDescriptor:placementSparsePageSize",
       "kind": "property",
       "line": 263,
       "name": "placementSparsePageSize",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLSparsePageSize"
     },
     {
@@ -65843,14 +65843,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResource.h",
       "id": "typedef:MTLBufferSparseTier",
       "kind": "typedef",
       "line": 203,
       "name": "MTLBufferSparseTier",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "enum MTLBufferSparseTier"
     },
     {
@@ -67470,14 +67470,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResource.h",
       "id": "typedef:MTLTextureSparseTier",
       "kind": "typedef",
       "line": 223,
       "name": "MTLTextureSparseTier",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "enum MTLTextureSparseTier"
     },
     {

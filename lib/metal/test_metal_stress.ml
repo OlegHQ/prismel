@@ -144,6 +144,63 @@ let run_sparse_depth_cycles device ~page_size ~page_bytes
     get (Heap.destroy heap)
   done
 
+let placement_sparse_page device =
+  let texture_descriptor =
+    Texture.descriptor_2d ~storage:Buffer.Private
+      ~usage:[ Texture.Shader_read ] ~format:Texture.R8_uint ~width:1
+      ~height:1 ()
+  in
+  [ Sparse_page_size.Page_16_kib
+  ; Sparse_page_size.Page_64_kib
+  ; Sparse_page_size.Page_256_kib
+  ]
+  |> List.find_map (fun page_size ->
+    let page_bytes = Sparse_page_size.bytes page_size in
+    match
+      Buffer.create_placement_sparse ~device ~page_size ~length:page_bytes
+        ~storage:Buffer.Private ()
+    with
+    | Error { kind = Unsupported; _ } -> None
+    | Error error -> fail "%s" (Format.asprintf "%a" pp_error error)
+    | Ok buffer ->
+        (match
+           Texture.create_placement_sparse ~device ~page_size
+             texture_descriptor
+         with
+         | Error { kind = Unsupported; _ } ->
+             get (Buffer.destroy buffer);
+             None
+         | Error error ->
+             get (Buffer.destroy buffer);
+             fail "%s" (Format.asprintf "%a" pp_error error)
+         | Ok texture ->
+             get (Texture.destroy texture);
+             get (Buffer.destroy buffer);
+             Some (page_size, page_bytes, texture_descriptor)))
+
+let run_placement_sparse_cycles device ~page_size ~page_bytes
+    ~texture_descriptor count =
+  let heap_descriptor =
+    Heap.make_descriptor ~kind:Heap.Placement ~sparse_page_size:page_size
+      ~size:page_bytes ()
+  in
+  for _ = 1 to count do
+    let heap = get (Heap.create ~device heap_descriptor) in
+    let buffer =
+      get
+        (Buffer.create_placement_sparse ~device ~page_size ~length:page_bytes
+           ~storage:Buffer.Private ())
+    in
+    let texture =
+      get
+        (Texture.create_placement_sparse ~device ~page_size
+           texture_descriptor)
+    in
+    get (Texture.destroy texture);
+    get (Buffer.destroy buffer);
+    get (Heap.destroy heap)
+  done
+
 let run_residency_cycles device count =
   let descriptor = Residency_set.make_descriptor ~initial_capacity:1 () in
   for _ = 1 to count do
@@ -269,6 +326,7 @@ type lane =
   | Heaps_and_resources
   | Sparse_heaps_and_textures
   | Sparse_depth_stencil
+  | Placement_sparse_resources
   | Residency_sets_and_resources
   | Buffer_backed_textures
   | Shared_textures
@@ -281,6 +339,7 @@ let lane_name = function
   | Heaps_and_resources -> "heaps-resources"
   | Sparse_heaps_and_textures -> "sparse-heaps-textures"
   | Sparse_depth_stencil -> "sparse-depth-stencil"
+  | Placement_sparse_resources -> "placement-sparse-resources"
   | Residency_sets_and_resources -> "residency-sets-resources"
   | Buffer_backed_textures -> "buffer-backed-textures"
   | Shared_textures -> "shared-textures"
@@ -293,6 +352,7 @@ let lane_of_name = function
   | "heaps-resources" -> Heaps_and_resources
   | "sparse-heaps-textures" -> Sparse_heaps_and_textures
   | "sparse-depth-stencil" -> Sparse_depth_stencil
+  | "placement-sparse-resources" -> Placement_sparse_resources
   | "residency-sets-resources" -> Residency_sets_and_resources
   | "buffer-backed-textures" -> Buffer_backed_textures
   | "shared-textures" -> Shared_textures
@@ -306,6 +366,7 @@ let lanes =
   ; Heaps_and_resources
   ; Sparse_heaps_and_textures
   ; Sparse_depth_stencil
+  ; Placement_sparse_resources
   ; Residency_sets_and_resources
   ; Buffer_backed_textures
   ; Shared_textures
@@ -383,6 +444,24 @@ let run_lane lane =
                   in
                   measure device ~name:"sparse depth/stencil" ~warmup:500
                     ~cycles:10_000 ~expected:20_000L run))
+  | Placement_sparse_resources ->
+      if not (get (Device.supports_placement_sparse device)) then begin
+        finish_device device;
+        Printf.printf
+          "Metal ownership lane placement sparse resources skipped: unsupported\n%!"
+      end
+      else
+        (match placement_sparse_page device with
+         | None ->
+             fail
+               "placement sparse device exposes no usable reviewed page size"
+         | Some (page_size, page_bytes, texture_descriptor) ->
+             let run device count =
+               run_placement_sparse_cycles device ~page_size ~page_bytes
+                 ~texture_descriptor count
+             in
+             measure device ~name:"placement sparse resources" ~warmup:500
+               ~cycles:10_000 ~expected:30_000L run)
   | Residency_sets_and_resources ->
       if not (get (Device.supports_residency_sets device)) then begin
         finish_device device;

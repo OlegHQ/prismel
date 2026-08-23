@@ -254,9 +254,30 @@ The qualified M1 accepts `Depth16Unorm`, `Depth32Float`, `Stencil8`, and
 `Depth32Float_Stencil8`; its unsupported `Depth24Unorm_Stencil8` path remains
 explicitly capability-gated and allocates no safe handle.
 
+`Device.supports_placement_sparse` separately gates the macOS 26.4 placement
+sparse model. `Buffer.create_placement_sparse` and
+`Texture.create_placement_sparse` create device-owned, initially unbacked
+virtual resources and retain their exact 16, 64, or 256 KiB page choice in the
+typed OCaml handle. Texture creation preflights the complete
+kind/format/sample/page tile layout before allocation. A `Heap.Placement`
+descriptor may use `sparse_page_size` as
+`maxCompatiblePlacementSparsePageSize`; its size must be a whole number of
+those pages. This heap remains independently owned because Metal 4 mapping,
+not resource construction, connects its pages to the virtual resource.
+
+`Buffer.sparse_tier` and `Texture.sparse_tier` query the macOS 26 native tier
+when the concrete driver implements the selector. The qualified M1/macOS 26.4
+driver advertises the selector but raises an Objective-C unrecognized-selector
+exception when it is invoked. The bridge catches that platform failure and
+reports the tier-1 semantic minimum guaranteed by the typed sparse constructor;
+it never lets the exception cross the OCaml boundary. Ordinary resources report
+`Not_sparse`, placement page identity propagates through texture views, and
+stale tier queries remain deterministic `Destroyed` errors.
+
 `Texture.sparse_info` returns the exact device tile dimensions, page bytes,
-first mip in the packed tail, and tail bytes while retaining typed sparse-heap
-ancestry. `Resource_state_encoder.update_texture_mapping` accepts tile—not
+first mip in the packed tail, and tail bytes for both sparse models while
+retaining typed page metadata and, for legacy sparse textures, heap ancestry.
+`Resource_state_encoder.update_texture_mapping` accepts tile—not
 pixel—coordinates and checks positive cardinality, mip and slice bounds, tile
 bounds, packed-tail addressing, device identity, and whether one request can
 fit in the heap before Objective-C. A successful map or unmap retains the
@@ -273,8 +294,12 @@ and verifies the same shader observes Metal's defined zero result. The narrow
 row/image pitch, total source span, destination mip/slice/region, format stride,
 sample count, and device identity before encoding; both resources remain owned
 through completion. Bulk/indirect mapping, access-counter residency maps,
-mapping moves, and macOS-26.4 placement-sparse buffers and textures remain
-unreviewed rather than being conflated with this qualified path.
+mapping moves, and Metal 4 placement-sparse mapping remain unreviewed rather
+than being conflated with this qualified legacy command-encoder path. The
+legacy encoder rejects placement resources before Objective-C. Until the Metal
+4 mapping surface lands, placement sparse CPU transfer, purgeability, and
+ordinary heap aliasability entry points also reject explicitly instead of
+pretending an initially unbacked resource owns physical memory.
 
 `Residency_set` availability-gates the macOS 15 API at runtime because the
 library deployment target remains macOS 14. A set accepts only typed `Buffer`,
@@ -308,10 +333,10 @@ address modes and border colors, normalized coordinates, finite float32 LOD
 clamps, comparison, LOD averaging, and argument-buffer support. Invalid
 anisotropy, non-finite or inverted clamps, illegal unnormalized-coordinate
 combinations, and malformed labels fail before sampler creation. Sparse
-placement resources plus a public cross-process IOSurface transport are still
-pending; sparse depth/stencil and shared-handle XPC transport are covered, but
-this resource slice is therefore progress toward M3 rather than an M3
-completion claim.
+placement resource construction, sparse depth/stencil, and shared-handle XPC
+transport are covered. Metal 4 placement mapping plus a public cross-process
+IOSurface transport remain pending, so this resource slice stays progress
+toward M3 rather than an M3 completion claim until the explicit audit.
 
 `test_metal.exe` runs a real M1 compute kernel, wrong-domain and invalid-state
 cases, shader diagnostics, copied/no-copy external buffer ownership,
@@ -327,7 +352,9 @@ generic format-block transfers, encoded-block CPU round trips for all 66
 capability-supported compressed formats, all 42 bidirectional compressed
 linear/sRGB views, compressed private blits and volume creation, Depth24 and BC
 capability gating, sparse page and tile capability queries, compressed sparse-tile
-alignment, depth/stencil creation, map/blit/read/unmap behavior,
+alignment, depth/stencil creation, legacy map/blit/read/unmap behavior,
+placement-sparse capability, all page-size constructors, typed tiers, texture
+views, sparse-compatible placement heaps, unmapped-state rejection,
 command-resource retention, parent ownership, idempotent destruction, stale
 access, and GC-finalizer release. The
 separate XPC conformance app exercises a real cross-process shared-texture
@@ -339,10 +366,12 @@ cycles covering 30,000 measured heap/child-resource handles, and 10,000
 residency add/commit/remove/commit cycles covering 20,000 measured
 set/resource handles. Ten thousand sparse heap/color-texture cycles and a
 separate 10,000 sparse heap/depth-texture cycles each cover 20,000 measured
-handles on the qualified M1. Another 10,000 buffer/linear-texture ownership cycles
-cover 20,000 handles; 10,000 shareable-source/handle/import cycles cover 30,000
-handles; 10,000 IOSurface/texture cycles cover 20,000 handles; and 10,000
-external-memory/no-copy cycles cover 20,000 handles and exact
+handles on the qualified M1. Ten thousand placement-sparse
+heap/buffer/texture cycles cover another 30,000 measured handles. Another
+10,000 buffer/linear-texture ownership cycles cover 20,000 handles; 10,000
+shareable-source/handle/import cycles cover 30,000 handles; 10,000
+IOSurface/texture cycles cover 20,000 handles; and 10,000 external-memory/no-copy
+cycles cover 20,000 handles and exact
 deferred-deallocator layout. Each lane requires exact
 created/released balance, zero pending or dropped releases, stable live-handle
 count, and bounded settled RSS growth. The stress executable launches each lane
@@ -399,11 +428,16 @@ opam exec -- dune runtest lib/metal --force
 opam exec -- dune build @all @doc
 opam exec -- dune build @metal-bench
 
-PRISMEL_METAL_SANITIZERS=address opam exec -- dune build \
+PRISMEL_METAL_SANITIZERS=address,undefined opam exec -- dune build \
   --build-dir /tmp/prismel-metal-asan \
   lib/metal/test_metal.exe lib/metal/test_metal_stress.exe
 opam exec -- dune exec tools/metal/check_memory.exe -- \
   --mode address --artifacts /tmp/prismel-metal-asan/default
+PRISMEL_METAL_SANITIZERS=thread opam exec -- dune build \
+  --build-dir /tmp/prismel-metal-tsan \
+  lib/metal/test_metal.exe lib/metal/test_metal_stress.exe
+opam exec -- dune exec tools/metal/check_memory.exe -- \
+  --mode thread --artifacts /tmp/prismel-metal-tsan/default
 PRISMEL_METAL_SANITIZERS=address,undefined opam exec -- dune build \
   --build-dir /tmp/prismel-metal-xpc-asan \
   lib/metal/metal_xpc_conformance.app

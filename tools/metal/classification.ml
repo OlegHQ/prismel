@@ -31,6 +31,7 @@ let bound_identifiers =
   ; "class:MTLTextureDescriptor"
   ; "enum:MTLCommandBufferStatus"
   ; "enum:MTLCompareFunction"
+  ; "enum:MTLBufferSparseTier"
   ; "enum:MTLCPUCacheMode"
   ; "enum:MTLGPUFamily"
   ; "enum:MTLHazardTrackingMode"
@@ -46,6 +47,7 @@ let bound_identifiers =
   ; "enum:MTLSparseTextureMappingMode"
   ; "enum:MTLStorageMode"
   ; "enum:MTLTextureType"
+  ; "enum:MTLTextureSparseTier"
   ; "enum:MTLTextureUsage"
   ; "function:MTLCopyAllDevices"
   ; "function:MTLCreateSystemDefaultDevice"
@@ -85,6 +87,7 @@ let bound_identifiers =
   ; "protocol:MTLTexture"
   ; "typedef:MTLCommandBufferStatus"
   ; "typedef:MTLCompareFunction"
+  ; "typedef:MTLBufferSparseTier"
   ; "typedef:MTLCPUCacheMode"
   ; "typedef:MTLGPUFamily"
   ; "typedef:MTLHazardTrackingMode"
@@ -104,11 +107,12 @@ let bound_identifiers =
   ; "typedef:MTLSizeAndAlign"
   ; "typedef:MTLStorageMode"
   ; "typedef:MTLTextureType"
+  ; "typedef:MTLTextureSparseTier"
   ; "typedef:MTLTextureUsage"
   ]
   @ methods
       [ ( "MTLBuffer"
-        , [ "contents"; "didModifyRange:"; "length"
+        , [ "contents"; "didModifyRange:"; "length"; "sparseBufferTier"
           ; "newTextureWithDescriptor:offset:bytesPerRow:"
           ] )
       ; "MTLAllocation", [ "allocatedSize" ]
@@ -140,7 +144,9 @@ let bound_identifiers =
           ; "minimumTextureBufferAlignmentForPixelFormat:"
           ; "newBufferWithBytes:length:options:"
           ; "newBufferWithBytesNoCopy:length:options:deallocator:"
-          ; "newBufferWithLength:options:"; "newCommandQueue"
+          ; "newBufferWithLength:options:"
+          ; "newBufferWithLength:options:placementSparsePageSize:"
+          ; "newCommandQueue"
           ; "newComputePipelineStateWithFunction:error:"
           ; "newLibraryWithSource:options:error:"
           ; "newHeapWithDescriptor:"
@@ -159,6 +165,7 @@ let bound_identifiers =
           ; "supportsDynamicLibraries"; "supportsFamily:"
           ; "supportsFunctionPointers"; "supportsRaytracing"
           ; "supportsRaytracingFromRender"; "supportsTextureSampleCount:"
+          ; "supportsPlacementSparse"
           ] )
       ; "MTLFunction", [ "name" ]
       ; ( "MTLHeap"
@@ -173,7 +180,9 @@ let bound_identifiers =
           ] )
       ; ( "MTLHeapDescriptor"
         , [ "cpuCacheMode"; "hazardTrackingMode"; "setCpuCacheMode:"
+          ; "maxCompatiblePlacementSparsePageSize"
           ; "setHazardTrackingMode:"; "setSize:"; "setStorageMode:"
+          ; "setMaxCompatiblePlacementSparsePageSize:"
           ; "setSparsePageSize:"; "setType:"; "size"; "sparsePageSize"
           ; "storageMode"; "type"
           ] )
@@ -218,7 +227,8 @@ let bound_identifiers =
           ; "newTextureViewWithPixelFormat:textureType:levels:slices:"
           ; "pixelFormat"
           ; "replaceRegion:mipmapLevel:slice:withBytes:bytesPerRow:bytesPerImage:"
-          ; "sampleCount"; "tailSizeInBytes"; "textureType"; "usage"; "width"
+          ; "sampleCount"; "sparseTextureTier"; "tailSizeInBytes"
+          ; "textureType"; "usage"; "width"
           ] )
       ; ( "MTLTextureDescriptor"
         , [ "allowGPUOptimizedContents"; "arrayLength"; "cpuCacheMode"
@@ -227,6 +237,7 @@ let bound_identifiers =
           ; "setArrayLength:"; "setCpuCacheMode:"; "setDepth:"
           ; "setHazardTrackingMode:"; "setHeight:"
           ; "setMipmapLevelCount:"; "setPixelFormat:"; "setSampleCount:"
+          ; "placementSparsePageSize"; "setPlacementSparsePageSize:"
           ; "setStorageMode:"; "setTextureType:"; "setUsage:"; "setWidth:"
           ; "storageMode"; "textureType"; "usage"; "width"
           ] )
@@ -247,7 +258,8 @@ let bound_identifiers =
           ; "name"; "recommendedMaxWorkingSetSize"
           ; "registryID"; "removable"; "supportsDynamicLibraries"
           ; "supportsFunctionPointers"; "supportsRaytracing"
-          ; "supportsRaytracingFromRender"; "sparseTileSizeInBytes"
+          ; "supportsPlacementSparse"; "supportsRaytracingFromRender"
+          ; "sparseTileSizeInBytes"
           ] )
       ; "MTLFunction", [ "name" ]
       ; ( "MTLHeap"
@@ -255,8 +267,9 @@ let bound_identifiers =
           ; "label"; "size"; "storageMode"; "type"; "usedSize"
           ] )
       ; ( "MTLHeapDescriptor"
-        , [ "cpuCacheMode"; "hazardTrackingMode"; "size"; "sparsePageSize"
-          ; "storageMode"; "type"
+        , [ "cpuCacheMode"; "hazardTrackingMode"
+          ; "maxCompatiblePlacementSparsePageSize"; "size"
+          ; "sparsePageSize"; "storageMode"; "type"
           ] )
       ; ( "MTLResource"
         , [ "cpuCacheMode"; "hazardTrackingMode"; "heapOffset"; "label"
@@ -279,16 +292,16 @@ let bound_identifiers =
       ; ( "MTLTexture"
         , [ "arrayLength"; "depth"; "firstMipmapInTail"; "height"
           ; "iosurface"; "iosurfacePlane"; "isSparse"; "mipmapLevelCount"
-          ; "pixelFormat"; "sampleCount"; "tailSizeInBytes"; "textureType"
-          ; "usage"; "width"
+          ; "pixelFormat"; "sampleCount"; "sparseTextureTier"
+          ; "tailSizeInBytes"; "textureType"; "usage"; "width"
           ] )
       ; ( "MTLTextureDescriptor"
         , [ "allowGPUOptimizedContents"; "arrayLength"; "cpuCacheMode"
           ; "depth"; "hazardTrackingMode"; "height"; "mipmapLevelCount"
-          ; "pixelFormat"; "sampleCount"; "storageMode"; "textureType"
-          ; "usage"; "width"
+          ; "pixelFormat"; "placementSparsePageSize"; "sampleCount"
+          ; "storageMode"; "textureType"; "usage"; "width"
           ] )
-      ; "MTLBuffer", [ "length" ]
+      ; "MTLBuffer", [ "length"; "sparseBufferTier" ]
       ]
   @ enum_cases "MTLGPUFamily"
       [ "MTLGPUFamilyApple1"; "MTLGPUFamilyApple2"; "MTLGPUFamilyApple3"
@@ -329,6 +342,12 @@ let bound_identifiers =
       ]
   @ enum_cases "MTLSparseTextureMappingMode"
       [ "MTLSparseTextureMappingModeMap"; "MTLSparseTextureMappingModeUnmap" ]
+  @ enum_cases "MTLBufferSparseTier"
+      [ "MTLBufferSparseTierNone"; "MTLBufferSparseTier1" ]
+  @ enum_cases "MTLTextureSparseTier"
+      [ "MTLTextureSparseTierNone"; "MTLTextureSparseTier1"
+      ; "MTLTextureSparseTier2"
+      ]
   @ enum_cases "MTLPixelFormat"
       [ "MTLPixelFormatA8Unorm"; "MTLPixelFormatR8Unorm"
       ; "MTLPixelFormatR8Unorm_sRGB"; "MTLPixelFormatR8Snorm"
