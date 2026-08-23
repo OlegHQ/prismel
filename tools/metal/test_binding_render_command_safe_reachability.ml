@@ -6,5 +6,7 @@ let () =
       if item.Audit.public_operation = "" || item.required_test = "" then
         failwith ("empty Render-command102 evidence: " ^ item.id))
     Audit.items;
-  Printf.printf "Render-command102 public audit: %d promotable, %d blocked; exact102 closed\n"
-    (List.length Audit.promotable_ids) (List.length Audit.blocked)
+  Printf.printf
+    "Render-command102 public audit: %d promotable, %d blocked; exact102 closed\n"
+    (List.length Audit.promotable_ids)
+    (List.length Audit.blocked)

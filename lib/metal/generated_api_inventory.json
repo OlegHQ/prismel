@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 3622,
+    "bound": 3679,
     "scope-excluded": 37,
-    "unreviewed": 1626
+    "unreviewed": 1569
   },
-  "classification_source_sha256": "2db1fff0892baeee574dc3a7a3a22a313b9096e609ca30f23c0db056f73318d2",
+  "classification_source_sha256": "1cb43896f40ca80e31d7423145f1bf29729f8bb757604fd1a045fa3b242c5492",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -67935,7 +67935,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder drawIndexedPrimitives:indexCount:indexType:indexBuffer:indexBufferOffset:]",
       "kind": "method",
@@ -67943,7 +67943,7 @@
       "macos_introduced": "10.11",
       "name": "drawIndexedPrimitives:indexCount:indexType:indexBuffer:indexBufferOffset:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (MTLPrimitiveType, NSUInteger, MTLIndexType, id<MTLBuffer>  _Nonnull __strong, NSUInteger) -> void"
     },
     {
@@ -67954,7 +67954,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder drawIndexedPrimitives:indexCount:indexType:indexBuffer:indexBufferOffset:instanceCount:]",
       "kind": "method",
@@ -67962,7 +67962,7 @@
       "macos_introduced": "10.11",
       "name": "drawIndexedPrimitives:indexCount:indexType:indexBuffer:indexBufferOffset:instanceCount:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (MTLPrimitiveType, NSUInteger, MTLIndexType, id<MTLBuffer>  _Nonnull __strong, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -67979,7 +67979,7 @@
           "line": 768
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder drawIndexedPrimitives:indexCount:indexType:indexBuffer:indexBufferOffset:instanceCount:baseVertex:baseInstance:]",
       "kind": "method",
@@ -67987,7 +67987,7 @@
       "macos_introduced": "10.11",
       "name": "drawIndexedPrimitives:indexCount:indexType:indexBuffer:indexBufferOffset:instanceCount:baseVertex:baseInstance:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (MTLPrimitiveType, NSUInteger, MTLIndexType, id<MTLBuffer>  _Nonnull __strong, NSUInteger, NSUInteger, NSInteger, NSUInteger) -> void"
     },
     {
@@ -68004,7 +68004,7 @@
           "line": 789
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder drawIndexedPrimitives:indexType:indexBuffer:indexBufferOffset:indirectBuffer:indirectBufferOffset:]",
       "kind": "method",
@@ -68012,7 +68012,7 @@
       "macos_introduced": "10.11",
       "name": "drawIndexedPrimitives:indexType:indexBuffer:indexBufferOffset:indirectBuffer:indirectBufferOffset:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (MTLPrimitiveType, MTLIndexType, id<MTLBuffer>  _Nonnull __strong, NSUInteger, id<MTLBuffer>  _Nonnull __strong, NSUInteger) -> void"
     },
     {
@@ -68104,7 +68104,7 @@
           "line": 819
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder drawPatches:patchIndexBuffer:patchIndexBufferOffset:indirectBuffer:indirectBufferOffset:]",
       "kind": "method",
@@ -68112,7 +68112,7 @@
       "macos_introduced": "10.12",
       "name": "drawPatches:patchIndexBuffer:patchIndexBufferOffset:indirectBuffer:indirectBufferOffset:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (NSUInteger, id<MTLBuffer>  _Nullable __strong, NSUInteger, id<MTLBuffer>  _Nonnull __strong, NSUInteger) -> void"
     },
     {
@@ -68129,7 +68129,7 @@
           "line": 817
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder drawPatches:patchStart:patchCount:patchIndexBuffer:patchIndexBufferOffset:instanceCount:baseInstance:]",
       "kind": "method",
@@ -68137,7 +68137,7 @@
       "macos_introduced": "10.12",
       "name": "drawPatches:patchStart:patchCount:patchIndexBuffer:patchIndexBufferOffset:instanceCount:baseInstance:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (NSUInteger, NSUInteger, NSUInteger, id<MTLBuffer>  _Nullable __strong, NSUInteger, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -68154,7 +68154,7 @@
           "line": 777
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder drawPrimitives:indirectBuffer:indirectBufferOffset:]",
       "kind": "method",
@@ -68162,7 +68162,7 @@
       "macos_introduced": "10.11",
       "name": "drawPrimitives:indirectBuffer:indirectBufferOffset:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (MTLPrimitiveType, id<MTLBuffer>  _Nonnull __strong, NSUInteger) -> void"
     },
     {
@@ -68499,7 +68499,7 @@
           "line": 314
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setDepthClipMode:]",
       "kind": "method",
@@ -68507,7 +68507,7 @@
       "macos_introduced": "10.11",
       "name": "setDepthClipMode:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (MTLDepthClipMode) -> void"
     },
     {
@@ -68518,7 +68518,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setDepthStencilState:]",
       "kind": "method",
@@ -68526,7 +68526,7 @@
       "macos_introduced": "10.11",
       "name": "setDepthStencilState:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLDepthStencilState>  _Nullable __strong) -> void"
     },
     {
@@ -68593,7 +68593,7 @@
           "line": 332
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setDepthTestMinBound:maxBound:]",
       "kind": "method",
@@ -68601,7 +68601,7 @@
       "macos_introduced": "26.0",
       "name": "setDepthTestMinBound:maxBound:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (float, float) -> void"
     },
     {
@@ -68618,7 +68618,7 @@
           "line": 443
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setFragmentAccelerationStructure:atBufferIndex:]",
       "kind": "method",
@@ -68626,7 +68626,7 @@
       "macos_introduced": "12.0",
       "name": "setFragmentAccelerationStructure:atBufferIndex:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLAccelerationStructure>  _Nullable __strong, NSUInteger) -> void"
     },
     {
@@ -68731,7 +68731,7 @@
           "line": 431
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setFragmentIntersectionFunctionTable:atBufferIndex:]",
       "kind": "method",
@@ -68739,7 +68739,7 @@
       "macos_introduced": "12.0",
       "name": "setFragmentIntersectionFunctionTable:atBufferIndex:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLIntersectionFunctionTable>  _Nullable __strong, NSUInteger) -> void"
     },
     {
@@ -68756,7 +68756,7 @@
           "line": 437
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setFragmentIntersectionFunctionTables:withBufferRange:]",
       "kind": "method",
@@ -68764,7 +68764,7 @@
       "macos_introduced": "12.0",
       "name": "setFragmentIntersectionFunctionTables:withBufferRange:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLIntersectionFunctionTable>  _Nullable const __unsafe_unretained * _Nonnull, NSRange) -> void"
     },
     {
@@ -68832,7 +68832,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setFragmentSamplerStates:withRange:]",
       "kind": "method",
@@ -68840,7 +68840,7 @@
       "macos_introduced": "10.11",
       "name": "setFragmentSamplerStates:withRange:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLSamplerState>  _Nullable const __unsafe_unretained * _Nonnull, NSRange) -> void"
     },
     {
@@ -68870,7 +68870,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setFragmentTextures:withRange:]",
       "kind": "method",
@@ -68878,7 +68878,7 @@
       "macos_introduced": "10.11",
       "name": "setFragmentTextures:withRange:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLTexture>  _Nullable const __unsafe_unretained * _Nonnull, NSRange) -> void"
     },
     {
@@ -68895,7 +68895,7 @@
           "line": 419
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setFragmentVisibleFunctionTable:atBufferIndex:]",
       "kind": "method",
@@ -68903,7 +68903,7 @@
       "macos_introduced": "12.0",
       "name": "setFragmentVisibleFunctionTable:atBufferIndex:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLVisibleFunctionTable>  _Nullable __strong, NSUInteger) -> void"
     },
     {
@@ -68920,7 +68920,7 @@
           "line": 425
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setFragmentVisibleFunctionTables:withBufferRange:]",
       "kind": "method",
@@ -68928,7 +68928,7 @@
       "macos_introduced": "12.0",
       "name": "setFragmentVisibleFunctionTables:withBufferRange:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLVisibleFunctionTable>  _Nullable const __unsafe_unretained * _Nonnull, NSRange) -> void"
     },
     {
@@ -68964,7 +68964,7 @@
           "line": 605
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setMeshBuffer:offset:atIndex:]",
       "kind": "method",
@@ -68972,7 +68972,7 @@
       "macos_introduced": "13.0",
       "name": "setMeshBuffer:offset:atIndex:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLBuffer>  _Nullable __strong, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -69039,7 +69039,7 @@
           "line": 599
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setMeshBytes:length:atIndex:]",
       "kind": "method",
@@ -69047,7 +69047,7 @@
       "macos_introduced": "13.0",
       "name": "setMeshBytes:length:atIndex:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (const void * _Nonnull, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -69064,7 +69064,7 @@
           "line": 636
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setMeshSamplerState:atIndex:]",
       "kind": "method",
@@ -69072,7 +69072,7 @@
       "macos_introduced": "13.0",
       "name": "setMeshSamplerState:atIndex:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLSamplerState>  _Nullable __strong, NSUInteger) -> void"
     },
     {
@@ -69089,7 +69089,7 @@
           "line": 648
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setMeshSamplerState:lodMinClamp:lodMaxClamp:atIndex:]",
       "kind": "method",
@@ -69097,7 +69097,7 @@
       "macos_introduced": "13.0",
       "name": "setMeshSamplerState:lodMinClamp:lodMaxClamp:atIndex:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLSamplerState>  _Nullable __strong, float, float, NSUInteger) -> void"
     },
     {
@@ -69139,7 +69139,7 @@
           "line": 642
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setMeshSamplerStates:withRange:]",
       "kind": "method",
@@ -69147,7 +69147,7 @@
       "macos_introduced": "13.0",
       "name": "setMeshSamplerStates:withRange:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLSamplerState>  _Nullable const __unsafe_unretained * _Nonnull, NSRange) -> void"
     },
     {
@@ -69164,7 +69164,7 @@
           "line": 623
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setMeshTexture:atIndex:]",
       "kind": "method",
@@ -69172,7 +69172,7 @@
       "macos_introduced": "13.0",
       "name": "setMeshTexture:atIndex:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLTexture>  _Nullable __strong, NSUInteger) -> void"
     },
     {
@@ -69189,7 +69189,7 @@
           "line": 629
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setMeshTextures:withRange:]",
       "kind": "method",
@@ -69197,7 +69197,7 @@
       "macos_introduced": "13.0",
       "name": "setMeshTextures:withRange:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLTexture>  _Nullable const __unsafe_unretained * _Nonnull, NSRange) -> void"
     },
     {
@@ -69214,7 +69214,7 @@
           "line": 536
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setObjectBuffer:offset:atIndex:]",
       "kind": "method",
@@ -69222,7 +69222,7 @@
       "macos_introduced": "13.0",
       "name": "setObjectBuffer:offset:atIndex:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLBuffer>  _Nullable __strong, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -69289,7 +69289,7 @@
           "line": 530
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setObjectBytes:length:atIndex:]",
       "kind": "method",
@@ -69297,7 +69297,7 @@
       "macos_introduced": "13.0",
       "name": "setObjectBytes:length:atIndex:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (const void * _Nonnull, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -69314,7 +69314,7 @@
           "line": 567
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setObjectSamplerState:atIndex:]",
       "kind": "method",
@@ -69322,7 +69322,7 @@
       "macos_introduced": "13.0",
       "name": "setObjectSamplerState:atIndex:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLSamplerState>  _Nullable __strong, NSUInteger) -> void"
     },
     {
@@ -69339,7 +69339,7 @@
           "line": 579
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setObjectSamplerState:lodMinClamp:lodMaxClamp:atIndex:]",
       "kind": "method",
@@ -69347,7 +69347,7 @@
       "macos_introduced": "13.0",
       "name": "setObjectSamplerState:lodMinClamp:lodMaxClamp:atIndex:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLSamplerState>  _Nullable __strong, float, float, NSUInteger) -> void"
     },
     {
@@ -69389,7 +69389,7 @@
           "line": 573
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setObjectSamplerStates:withRange:]",
       "kind": "method",
@@ -69397,7 +69397,7 @@
       "macos_introduced": "13.0",
       "name": "setObjectSamplerStates:withRange:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLSamplerState>  _Nullable const __unsafe_unretained * _Nonnull, NSRange) -> void"
     },
     {
@@ -69414,7 +69414,7 @@
           "line": 554
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setObjectTexture:atIndex:]",
       "kind": "method",
@@ -69422,7 +69422,7 @@
       "macos_introduced": "13.0",
       "name": "setObjectTexture:atIndex:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLTexture>  _Nullable __strong, NSUInteger) -> void"
     },
     {
@@ -69439,7 +69439,7 @@
           "line": 560
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setObjectTextures:withRange:]",
       "kind": "method",
@@ -69447,7 +69447,7 @@
       "macos_introduced": "13.0",
       "name": "setObjectTextures:withRange:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLTexture>  _Nullable const __unsafe_unretained * _Nonnull, NSRange) -> void"
     },
     {
@@ -69527,7 +69527,7 @@
           "line": 345
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setScissorRects:count:]",
       "kind": "method",
@@ -69535,7 +69535,7 @@
       "macos_introduced": "10.13",
       "name": "setScissorRects:count:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (const MTLScissorRect * _Nonnull, NSUInteger) -> void"
     },
     {
@@ -69571,7 +69571,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setStencilReferenceValue:]",
       "kind": "method",
@@ -69579,7 +69579,7 @@
       "macos_introduced": "10.11",
       "name": "setStencilReferenceValue:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (uint32_t) -> void"
     },
     {
@@ -69646,7 +69646,7 @@
           "line": 813
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setTessellationFactorBuffer:offset:instanceStride:]",
       "kind": "method",
@@ -69654,7 +69654,7 @@
       "macos_introduced": "10.12",
       "name": "setTessellationFactorBuffer:offset:instanceStride:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLBuffer>  _Nullable __strong, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -69671,7 +69671,7 @@
           "line": 815
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setTessellationFactorScale:]",
       "kind": "method",
@@ -69679,7 +69679,7 @@
       "macos_introduced": "10.12",
       "name": "setTessellationFactorScale:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (float) -> void"
     },
     {
@@ -69721,7 +69721,7 @@
           "line": 930
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setTileAccelerationStructure:atBufferIndex:]",
       "kind": "method",
@@ -69729,7 +69729,7 @@
       "macos_introduced": "12.0",
       "name": "setTileAccelerationStructure:atBufferIndex:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLAccelerationStructure>  _Nullable __strong, NSUInteger) -> void"
     },
     {
@@ -69746,7 +69746,7 @@
           "line": 850
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setTileBuffer:offset:atIndex:]",
       "kind": "method",
@@ -69754,7 +69754,7 @@
       "macos_introduced": "11.0",
       "name": "setTileBuffer:offset:atIndex:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLBuffer>  _Nullable __strong, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -69821,7 +69821,7 @@
           "line": 844
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setTileBytes:length:atIndex:]",
       "kind": "method",
@@ -69829,7 +69829,7 @@
       "macos_introduced": "11.0",
       "name": "setTileBytes:length:atIndex:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (const void * _Nonnull, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -69846,7 +69846,7 @@
           "line": 918
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setTileIntersectionFunctionTable:atBufferIndex:]",
       "kind": "method",
@@ -69854,7 +69854,7 @@
       "macos_introduced": "12.0",
       "name": "setTileIntersectionFunctionTable:atBufferIndex:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLIntersectionFunctionTable>  _Nullable __strong, NSUInteger) -> void"
     },
     {
@@ -69871,7 +69871,7 @@
           "line": 924
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setTileIntersectionFunctionTables:withBufferRange:]",
       "kind": "method",
@@ -69879,7 +69879,7 @@
       "macos_introduced": "12.0",
       "name": "setTileIntersectionFunctionTables:withBufferRange:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLIntersectionFunctionTable>  _Nullable const __unsafe_unretained * _Nonnull, NSRange) -> void"
     },
     {
@@ -69896,7 +69896,7 @@
           "line": 880
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setTileSamplerState:atIndex:]",
       "kind": "method",
@@ -69904,7 +69904,7 @@
       "macos_introduced": "11.0",
       "name": "setTileSamplerState:atIndex:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLSamplerState>  _Nullable __strong, NSUInteger) -> void"
     },
     {
@@ -69921,7 +69921,7 @@
           "line": 892
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setTileSamplerState:lodMinClamp:lodMaxClamp:atIndex:]",
       "kind": "method",
@@ -69929,7 +69929,7 @@
       "macos_introduced": "11.0",
       "name": "setTileSamplerState:lodMinClamp:lodMaxClamp:atIndex:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLSamplerState>  _Nullable __strong, float, float, NSUInteger) -> void"
     },
     {
@@ -69971,7 +69971,7 @@
           "line": 886
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setTileSamplerStates:withRange:]",
       "kind": "method",
@@ -69979,7 +69979,7 @@
       "macos_introduced": "11.0",
       "name": "setTileSamplerStates:withRange:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLSamplerState>  _Nullable const __unsafe_unretained * _Nonnull, NSRange) -> void"
     },
     {
@@ -69996,7 +69996,7 @@
           "line": 868
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setTileTexture:atIndex:]",
       "kind": "method",
@@ -70004,7 +70004,7 @@
       "macos_introduced": "11.0",
       "name": "setTileTexture:atIndex:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLTexture>  _Nullable __strong, NSUInteger) -> void"
     },
     {
@@ -70021,7 +70021,7 @@
           "line": 874
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setTileTextures:withRange:]",
       "kind": "method",
@@ -70029,7 +70029,7 @@
       "macos_introduced": "11.0",
       "name": "setTileTextures:withRange:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLTexture>  _Nullable const __unsafe_unretained * _Nonnull, NSRange) -> void"
     },
     {
@@ -70046,7 +70046,7 @@
           "line": 905
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setTileVisibleFunctionTable:atBufferIndex:]",
       "kind": "method",
@@ -70054,7 +70054,7 @@
       "macos_introduced": "12.0",
       "name": "setTileVisibleFunctionTable:atBufferIndex:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLVisibleFunctionTable>  _Nullable __strong, NSUInteger) -> void"
     },
     {
@@ -70071,7 +70071,7 @@
           "line": 911
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setTileVisibleFunctionTables:withBufferRange:]",
       "kind": "method",
@@ -70079,7 +70079,7 @@
       "macos_introduced": "12.0",
       "name": "setTileVisibleFunctionTables:withBufferRange:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLVisibleFunctionTable>  _Nullable const __unsafe_unretained * _Nonnull, NSRange) -> void"
     },
     {
@@ -70115,7 +70115,7 @@
           "line": 275
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setVertexAccelerationStructure:atBufferIndex:]",
       "kind": "method",
@@ -70123,7 +70123,7 @@
       "macos_introduced": "12.0",
       "name": "setVertexAccelerationStructure:atBufferIndex:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLAccelerationStructure>  _Nullable __strong, NSUInteger) -> void"
     },
     {
@@ -70140,7 +70140,7 @@
           "line": 302
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setVertexAmplificationCount:viewMappings:]",
       "kind": "method",
@@ -70148,7 +70148,7 @@
       "macos_introduced": "10.15.4",
       "name": "setVertexAmplificationCount:viewMappings:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (NSUInteger, const MTLVertexAmplificationViewMapping * _Nullable) -> void"
     },
     {
@@ -70184,7 +70184,7 @@
           "line": 177
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setVertexBuffer:offset:attributeStride:atIndex:]",
       "kind": "method",
@@ -70192,7 +70192,7 @@
       "macos_introduced": "14.0",
       "name": "setVertexBuffer:offset:attributeStride:atIndex:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLBuffer>  _Nullable __strong, NSUInteger, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -70353,7 +70353,7 @@
           "line": 263
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setVertexIntersectionFunctionTable:atBufferIndex:]",
       "kind": "method",
@@ -70361,7 +70361,7 @@
       "macos_introduced": "12.0",
       "name": "setVertexIntersectionFunctionTable:atBufferIndex:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLIntersectionFunctionTable>  _Nullable __strong, NSUInteger) -> void"
     },
     {
@@ -70378,7 +70378,7 @@
           "line": 269
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setVertexIntersectionFunctionTables:withBufferRange:]",
       "kind": "method",
@@ -70386,7 +70386,7 @@
       "macos_introduced": "12.0",
       "name": "setVertexIntersectionFunctionTables:withBufferRange:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLIntersectionFunctionTable>  _Nullable const __unsafe_unretained * _Nonnull, NSRange) -> void"
     },
     {
@@ -70454,7 +70454,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setVertexSamplerStates:withRange:]",
       "kind": "method",
@@ -70462,7 +70462,7 @@
       "macos_introduced": "10.11",
       "name": "setVertexSamplerStates:withRange:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLSamplerState>  _Nullable const __unsafe_unretained * _Nonnull, NSRange) -> void"
     },
     {
@@ -70492,7 +70492,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setVertexTextures:withRange:]",
       "kind": "method",
@@ -70500,7 +70500,7 @@
       "macos_introduced": "10.11",
       "name": "setVertexTextures:withRange:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLTexture>  _Nullable const __unsafe_unretained * _Nonnull, NSRange) -> void"
     },
     {
@@ -70517,7 +70517,7 @@
           "line": 251
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setVertexVisibleFunctionTable:atBufferIndex:]",
       "kind": "method",
@@ -70525,7 +70525,7 @@
       "macos_introduced": "12.0",
       "name": "setVertexVisibleFunctionTable:atBufferIndex:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLVisibleFunctionTable>  _Nullable __strong, NSUInteger) -> void"
     },
     {
@@ -70542,7 +70542,7 @@
           "line": 257
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setVertexVisibleFunctionTables:withBufferRange:]",
       "kind": "method",
@@ -70550,7 +70550,7 @@
       "macos_introduced": "12.0",
       "name": "setVertexVisibleFunctionTables:withBufferRange:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLVisibleFunctionTable>  _Nullable const __unsafe_unretained * _Nonnull, NSRange) -> void"
     },
     {
@@ -70586,7 +70586,7 @@
           "line": 287
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setViewports:count:]",
       "kind": "method",
@@ -70594,7 +70594,7 @@
       "macos_introduced": "10.13",
       "name": "setViewports:count:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance.",
       "signature": "instance (const MTLViewport * _Nonnull, NSUInteger) -> void"
     },
     {

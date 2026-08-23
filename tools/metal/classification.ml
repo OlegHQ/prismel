@@ -1620,4 +1620,10 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier Binding_resource_safe_reachability.promotable_ids then
     Bound,
       "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance."
+  else if
+    List.mem identifier
+      Binding_render_command_safe_reachability.promotable_ids
+  then
+    Bound,
+      "Implemented by the classic render-command safe surface with checked state and resource validation, completion retention, and M1 conformance."
   else Unreviewed, "Binding classification pending during Phase 2."
