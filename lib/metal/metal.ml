@@ -14979,6 +14979,13 @@ module Render_encoder = struct
           | Error m->native_error operation m|Ok()->retain_command_buffer_sampler value.command_buffer s;Ok()))
       | None->if has_lod then error operation Invalid_argument "nil sampler cannot have LOD clamps" else
           match Metal_raw.render_stage_sampler value.raw(binding_stage_code stage)None false clamps(Int64.of_int index)with Error m->native_error operation m|Ok()->Ok()))
+  let set_stage_samplers (value:t) ~stage ~start items =
+    let operation="Metal.Render_encoder.set_stage_samplers" in on_main operation(fun()->
+    match ensure_live operation value.lifetime with Error _ as e->e|Ok()->
+    if items=[]||start<0||start>31-List.length items then error operation Invalid_argument "sampler range must be nonempty and within [0,31)" else
+    let rec valid=function []->Ok()|None::xs->valid xs|Some(s:sampler)::xs->Result.bind(ensure_live operation s.lifetime)(fun()->Result.bind(ensure_same_device operation value.command_buffer.queue.device s.device)(fun()->valid xs))in
+    Result.bind(valid items)(fun()->match Metal_raw.render_stage_samplers value.raw(binding_stage_code stage)(Array.of_list(List.map(Option.map(fun(s:sampler)->s.raw))items))false[||][||](Int64.of_int start)with
+    | Error m->native_error operation m|Ok()->List.iter(Option.iter(retain_command_buffer_sampler value.command_buffer))items;Ok()))
 
   let validate_table_stage operation stage index =
     if stage=Object||stage=Mesh then error operation Unsupported "binding is supported only for vertex, fragment, and tile stages"
