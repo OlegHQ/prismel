@@ -2124,3 +2124,10 @@ external pipeline_compute_compile :
   handle -> handle -> int64 ->
   ((handle * pipeline_binding_info array),string) result =
   "caml_prismel_metal_pipeline_compute_compile"
+
+(* Metal4 render-pass owned descriptor graph. *)
+external metal4_render_pass_descriptor : unit -> (handle,string) result =
+  "caml_prismel_metal4_render_pass_descriptor"
+external metal4_render_pass_sample_positions :
+  handle -> (float * float) array -> ((float * float) array,string) result =
+  "caml_prismel_metal4_render_pass_sample_positions"
