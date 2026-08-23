@@ -549,3 +549,20 @@
  (action
   (bash
    "status=0; ./test_metal_command_support121_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal_mesh_tile105_descriptor_native.exe)
+ (deps
+  test_metal_mesh_tile105_descriptor_native.mm
+  ../../tools/metal/metal_mesh_tile_ownership_materializers.inc)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -framework Foundation
+   -framework Metal %{dep:test_metal_mesh_tile105_descriptor_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_mesh_tile105_descriptor_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal_mesh_tile105_descriptor_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
