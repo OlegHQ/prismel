@@ -8,6 +8,10 @@ let ()=match Device.system_default()with
  |Error e when e.kind=Unsupported||e.kind=Native_error->ignore(Device.destroy device);print_endline"metal4 callable safe: skipped (Metal4 unavailable)"
  |Error e->failwith(Format.asprintf "%a"pp_error e)
  |Ok allocator->
+  let binary_descriptor=get(Binary_function.Descriptor.create())in
+  get(Binary_function.Descriptor.set binary_descriptor Binary_function.Descriptor.Vertex []);
+  if get(Binary_function.Descriptor.get binary_descriptor Binary_function.Descriptor.Vertex)<>[]then failwith"binary descriptor reset drift";
+  get(Binary_function.Descriptor.reset binary_descriptor);
   let source=get(Buffer.create~device~length:1024L~storage:Buffer.Shared())in
   let destination=get(Buffer.create~device~length:1024L~storage:Buffer.Shared())in
   let counter=get(Command4.Counter_heap.create device~kind:Command4.Counter_heap.Timestamp~count:8L)in
@@ -44,5 +48,6 @@ let ()=match Device.system_default()with
   ignore(get(Command4.Counter_heap.resolve counter~location:0L~length:1L));
   get(Command4.Submission.destroy submission);get(Command4.Command_buffer.destroy commands);
   get(Buffer.destroy source);get(Buffer.destroy destination);get(Command4.Counter_heap.destroy counter);
-  get(Residency_set.destroy residency);get(Command4.Queue.destroy queue);get(Command4.Allocator.destroy allocator);get(Device.destroy device);
+  get(Residency_set.destroy residency);get(Command4.Queue.destroy queue);get(Command4.Allocator.destroy allocator);
+  get(Binary_function.Descriptor.destroy binary_descriptor);get(Device.destroy device);
   print_endline"metal4 callable safe: ok"

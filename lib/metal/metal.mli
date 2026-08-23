@@ -1704,6 +1704,7 @@ end
 
 module Binary_function : sig
   type t
+  type function_t = t
 
   val device : t -> Device.t
   val generation : t -> int64
@@ -1715,6 +1716,16 @@ module Binary_function : sig
   val name : t -> string
   val kind : t -> Function.kind
   val destroy : t -> (unit, error) result
+  module Descriptor : sig
+    type t
+    type stage = Vertex | Fragment | Tile | Object | Mesh
+    val create : unit -> (t, error) result
+    val destroyed : t -> bool
+    val set : t -> stage -> function_t list -> (unit, error) result
+    val get : t -> stage -> (function_t list, error) result
+    val reset : t -> (unit, error) result
+    val destroy : t -> (unit, error) result
+  end
 end
 
 module Pipeline_archive : sig

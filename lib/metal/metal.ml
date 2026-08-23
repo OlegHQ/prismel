@@ -1084,6 +1084,13 @@ type binary_function =
   ; kind : function_kind
   }
 
+type binary_functions_descriptor =
+  { raw : Metal_raw.handle
+  ; lifetime : lifetime
+  ; mutable descriptor_device : device option
+  ; descriptor_stages : binary_function list array
+  }
+
 type compiler =
   { raw : Metal_raw.handle
   ; lifetime : lifetime
@@ -9304,6 +9311,7 @@ end
 
 module Binary_function = struct
   type t = binary_function
+  type function_t = t
 
   let make device ~pipeline_independent ~name ~kind raw =
     let value : t =
@@ -9329,6 +9337,70 @@ module Binary_function = struct
   let destroy (value : t) =
     destroy_leaf "Metal.Binary_function.destroy" value.lifetime value.raw
       (fun () -> detach value.device.lifetime)
+
+  module Descriptor = struct
+    type t = binary_functions_descriptor
+    type stage = Vertex | Fragment | Tile | Object | Mesh
+    let stage_code = function Vertex->0|Fragment->1|Tile->2|Object->3|Mesh->4
+    let create () =
+      let operation="Metal.Binary_function.Descriptor.create" in
+      on_main operation (fun () -> match Metal_raw.metal4_binary_functions_create() with
+        | Error message->native_error operation message
+        | Ok raw->
+            let value={raw;lifetime=lifetime();descriptor_device=None;
+              descriptor_stages=Array.make 5 []}in
+            Gc.finalise(fun (value:t)->if Atomic.compare_and_set value.lifetime.destroyed false true then begin
+              Array.iter(List.iter(fun(function_:binary_function)->detach function_.lifetime))value.descriptor_stages;
+              ignore(Metal_raw.destroy value.raw)end)value;
+            Ok value)
+    let destroyed (value:t)=is_destroyed value.lifetime
+    let validate operation (value:t) functions =
+      let rec loop (device:device option) (seen:binary_function list)
+          (remaining:binary_function list)=match remaining with
+        |[]->Ok device
+        |(function_:binary_function)::rest->
+            if List.exists(fun(other:binary_function)->other.lifetime==function_.lifetime)seen then error operation Invalid_argument "duplicate binary function"
+            else Result.bind(ensure_live operation function_.lifetime)(fun()->
+              match device with
+              |None->loop(Some function_.device)(function_::seen)rest
+              |Some device->Result.bind(ensure_same_device operation device function_.device)(fun()->loop(Some device)(function_::seen)rest))in
+      loop value.descriptor_device[]functions
+    let set (value:t) stage functions =
+      let operation="Metal.Binary_function.Descriptor.set"in
+      on_main operation(fun()->Result.bind(ensure_live operation value.lifetime)(fun()->
+        Result.bind(validate operation value functions)(fun device->
+          match Metal_raw.metal4_binary_functions_set value.raw(stage_code stage)
+            (Array.of_list(List.map(fun(function_:binary_function)->function_.raw)functions))with
+          |Error message->native_error operation message
+          |Ok()->let index=stage_code stage in
+              List.iter(fun(function_:binary_function)->detach function_.lifetime)value.descriptor_stages.(index);
+              List.iter(fun(function_:binary_function)->attach function_.lifetime)functions;
+              value.descriptor_stages.(index)<-functions;value.descriptor_device<-device;Ok())) )
+    let get (value:t) stage =
+      let operation="Metal.Binary_function.Descriptor.get"in
+      on_main operation(fun()->Result.bind(ensure_live operation value.lifetime)(fun()->
+        match Metal_raw.metal4_binary_functions_get value.raw(stage_code stage)with
+        |Error message->native_error operation message
+        |Ok handles->
+            let expected=value.descriptor_stages.(stage_code stage)in
+            let rec verify index=
+              if index=Array.length handles then if index=List.length expected then Ok expected else native_error operation "binary function array length changed"
+              else match List.nth_opt expected index with
+                |None->native_error operation "binary function array length changed"
+                |Some(function_:binary_function)->
+                    match Metal_raw.metal4_binary_function_info handles.(index)with
+                    |Error message->native_error operation message
+                    |Ok(name,kind) when name<>Some function_.name||Function.kind_of_code kind<>function_.kind->native_error operation "binary function identity changed"
+                    |Ok _->verify(index+1)in
+            let result=verify 0 in Array.iter(fun raw->ignore(Metal_raw.destroy raw))handles;result))
+    let reset (value:t) =
+      let operation="Metal.Binary_function.Descriptor.reset"in
+      on_main operation(fun()->Result.bind(ensure_live operation value.lifetime)(fun()->
+        match Metal_raw.metal4_binary_functions_reset value.raw with
+        |Error message->native_error operation message
+        |Ok()->Array.iteri(fun index functions->List.iter(fun(function_:binary_function)->detach function_.lifetime)functions;value.descriptor_stages.(index)<-[])value.descriptor_stages;value.descriptor_device<-None;Ok()))
+    let destroy (value:t)=destroy_leaf "Metal.Binary_function.Descriptor.destroy" value.lifetime value.raw(fun()->Array.iter(List.iter(fun(function_:binary_function)->detach function_.lifetime))value.descriptor_stages)
+  end
 end
 
 let validate_binary_function_source operation device
