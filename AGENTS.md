@@ -100,6 +100,46 @@ renderer library. Runtime alone combines the SDL3 Metal view with an
 `ogpu_metal` surface, while Prismel records through `ogpu` and renders the
 deterministic targets through `raster2` without receiving raw native pointers.
 
+## Metal binding generation
+
+The remaining Metal SDK surface follows a hybrid OCaml/Dune code-generation
+workflow. Preserve the existing binding and migrate it incrementally; do not
+discard or replace the checked public API, ownership model, native validation,
+conformance fixtures, or committed inventory work.
+
+- Generate only mechanical binding layers: enum constants and mappings, simple
+  getters/setters, raw OCaml external declarations, availability guards, and
+  typed Objective-C++ selector calls. New generator and validation tooling must
+  be written in OCaml and run through Dune; do not introduce Python glue.
+- Keep the safe `Metal` API handwritten. Resource ownership, lifetimes,
+  same-device checks, numeric/range validation, capability policy, command
+  completion retention, complex descriptor marshalling, and GPU behavior never
+  come from an unchecked SDK-signature guess.
+- Generate statically typed direct Objective-C calls. Do not replace them with
+  `objc_msgSend`, stringly typed selectors, runtime signature dispatch, or a
+  public unsafe catch-all API.
+- Use one declarative binding plan as the source of truth for generated symbol
+  IDs, SDK signatures, native handle kinds, parameter/result representations,
+  availability, and validation templates. Generation must fail on an inventory
+  mismatch, duplicate OCaml/C symbol, unsupported type, or stale output.
+- Treat the current handwritten raw/native implementations as golden templates.
+  Migrate representable selectors gradually without changing their OCaml names,
+  C symbols, public call sites, error semantics, or tests. Do not hand-add a
+  mechanical raw external and native trampoline when the binding plan can
+  represent it.
+- A generated low-level declaration is not sufficient to call an SDK feature
+  complete or mark it bound. Expose it only through the safe layer and add
+  capability, rejection, exact-behavior, no-handle-delta, and completion-owned
+  lifetime tests appropriate to that feature before updating inventory status.
+- Keep complex command encoding, resource-returning constructors, callbacks,
+  blocks, variable-size structures, nullable ownership transfer, descriptor
+  graphs, and cross-object invariants handwritten until an explicit generator
+  template models their complete semantics.
+- Generated artifacts must be deterministic Dune targets with drift/provenance
+  checks. A generator change must build bytecode/native/shared forms, retain the
+  FFI benchmark envelope, and run the relevant Metal conformance, ownership,
+  sanitizer, inventory, and frozen-plan checks.
+
 Geometry libraries follow this additional direction:
 
 ```text
