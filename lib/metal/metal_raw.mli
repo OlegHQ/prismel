@@ -1703,6 +1703,18 @@ external io_load_buffer :
   handle -> handle -> int64 -> int64 -> handle -> int64 ->
   (unit,string) result =
   "caml_prismel_io_load_buffer_bytecode" "caml_prismel_io_load_buffer"
+external io_queue_create :
+  handle -> int -> int64 -> int64 -> string option ->
+  ((handle * int64),string) result =
+  "caml_prismel_metal_io_queue_create"
+external io_file_create :
+  handle -> string -> string option -> ((handle * int64),string) result =
+  "caml_prismel_metal_io_file_create"
+external io_command_create :
+  handle -> string option -> (handle,string) result =
+  "caml_prismel_metal_io_command_create"
+external io_command_commit_wait : handle -> (int,string) result =
+  "caml_prismel_metal_io_command_commit_wait"
 
 (** Exact callable subset of the prepared authoritative Metal4 shards. *)
 external metal4_command_buffer_begin :
