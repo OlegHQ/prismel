@@ -1669,3 +1669,28 @@ external pipeline_render_tile_threads : handle -> ((int64*int64*int64),string) r
 external pipeline_render_shader_validation : handle -> (int64,string) result = "caml_prismel_metal_pipeline_render_shader_validation"
 external pipeline_render_indirect : handle -> (bool,string) result = "caml_prismel_metal_pipeline_render_indirect"
 external pipeline_render_imageblock_length : handle -> (int64*int64*int64) -> (int64,string) result = "caml_prismel_metal_pipeline_render_imageblock_length"
+
+type mesh_pipeline_descriptor_inputs =
+  { object_function : handle option
+  ; mesh_function : handle
+  ; fragment_function : handle option
+  ; binary_archives : handle array
+  ; object_linked_functions : handle option
+  ; mesh_linked_functions : handle option
+  ; fragment_linked_functions : handle option
+  }
+
+type tile_pipeline_descriptor_inputs =
+  { tile_function : handle
+  ; binary_archives : handle array
+  ; preloaded_libraries : handle array
+  ; linked_functions : handle option
+  }
+
+external mesh_pipeline_descriptor_owned :
+  mesh_pipeline_descriptor_inputs -> (handle,string) result =
+  "caml_prismel_mesh_pipeline_descriptor"
+
+external tile_pipeline_descriptor_owned :
+  tile_pipeline_descriptor_inputs -> (handle,string) result =
+  "caml_prismel_tile_pipeline_descriptor"
