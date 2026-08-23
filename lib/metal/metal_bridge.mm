@@ -1014,6 +1014,11 @@ enum class Handle_kind : std::uint32_t {
   Io_command_queue,
   Io_scratch_buffer,
   Io_scratch_allocator,
+  Raster_rate_layer,
+  Raster_rate_sample_array,
+  Raster_rate_layer_array,
+  Raster_rate_descriptor,
+  Raster_rate_map,
   Render_pipeline_descriptor,
   Compute_pipeline_descriptor,
 };
@@ -14688,4 +14693,6 @@ extern "C" CAMLprim value caml_prismel_metal_pipeline_render_imageblock_length(v
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunguarded-availability-new"
 #include "../../tools/metal/metal_tensor_mechanical_callable_bridge.inc"
+#include "../../tools/metal/metal_rasterization_rate_callable_bridge.inc"
+#include "../../tools/metal/metal_tensor_ownership_callable_bridge.inc"
 #pragma clang diagnostic pop

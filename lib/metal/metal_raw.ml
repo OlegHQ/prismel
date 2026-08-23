@@ -2272,3 +2272,25 @@ external tensor_extents_extent : handle -> int64 -> (int64,string) result =
   "caml_prismel_metal_tensor_extents_extent"
 external tensor_extents_rank : handle -> (int64,string) result =
   "caml_prismel_metal_tensor_extents_rank"
+external tensor_extents_create : int64 array -> (handle,string) result =
+  "caml_prismel_metal_tensor_extents_create"
+external tensor_descriptor_create : unit -> (handle,string) result =
+  "caml_prismel_metal_tensor_descriptor_create"
+external tensor_buffer : handle -> (handle option,string) result =
+  "caml_prismel_metal_tensor_buffer"
+external tensor_dimensions : handle -> (handle option,string) result =
+  "caml_prismel_metal_tensor_dimensions"
+external tensor_strides : handle -> (handle option,string) result =
+  "caml_prismel_metal_tensor_strides"
+external tensor_descriptor_dimensions : handle -> (handle option,string) result =
+  "caml_prismel_metal_tensor_descriptor_dimensions"
+external tensor_descriptor_strides : handle -> (handle option,string) result =
+  "caml_prismel_metal_tensor_descriptor_strides"
+external tensor_descriptor_set_dimensions : handle -> handle -> (unit,string) result =
+  "caml_prismel_metal_tensor_descriptor_set_dimensions"
+external tensor_descriptor_set_strides : handle -> handle -> (unit,string) result =
+  "caml_prismel_metal_tensor_descriptor_set_strides"
+external tensor_get_bytes : handle -> bytes -> int64 array -> handle -> handle -> (unit,string) result =
+  "caml_prismel_metal_tensor_get_bytes_bytecode" "caml_prismel_metal_tensor_get_bytes"
+external tensor_replace_bytes : handle -> bytes -> int64 array -> handle -> handle -> (unit,string) result =
+  "caml_prismel_metal_tensor_replace_bytes_bytecode" "caml_prismel_metal_tensor_replace_bytes"
