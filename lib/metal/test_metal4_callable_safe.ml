@@ -80,6 +80,8 @@ let ()=match Device.system_default()with
   get(Command4.Queue.remove_residency_set queue residency);
   let submission=get(Command4.Queue.commit queue[commands])in
   get(Command4.Submission.wait submission);
+  let feedback=get(Command4.Submission.feedback submission)in
+  if feedback.gpu_duration<0.||feedback.gpu_end_time<feedback.gpu_start_time then failwith"submission feedback drift";
   get(Command4.Counter_heap.invalidate counter~location:0L~length:1L);
   ignore(get(Command4.Counter_heap.resolve counter~location:0L~length:1L));
   get(Command4.Submission.destroy submission);get(Command4.Command_buffer.destroy commands);

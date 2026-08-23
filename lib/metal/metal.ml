@@ -11971,6 +11971,7 @@ module Command4 = struct
 
   module Submission = struct
     type t = command4_submission
+    type feedback={gpu_start_time:float;gpu_end_time:float;gpu_duration:float}
 
     let release_buffers buffers phase =
       let retained = !buffers in
@@ -12005,6 +12006,17 @@ module Command4 = struct
     let generation (value : t) = Metal_raw.generation value.raw
     let destroyed (value : t) = is_destroyed value.lifetime
     let completed (value : t) = Option.is_some value.outcome
+
+    let feedback (value:t)=
+      let operation="Metal.Command4.Submission.feedback"in
+      on_main operation(fun()->Result.bind(ensure_live operation value.lifetime)(fun()->
+        match value.outcome with
+        |None->error operation Invalid_state "submission has not completed"
+        |Some(Error _ as failure)->failure
+        |Some(Ok())->match Metal_raw.command4_submission_times value.raw with
+          |Error message->native_error operation message
+          |Ok(start_time,end_time) when not(Float.is_finite start_time&&Float.is_finite end_time)||end_time<start_time->native_error operation "Metal returned invalid GPU timing feedback"
+          |Ok(start_time,end_time)->Ok{gpu_start_time=start_time;gpu_end_time=end_time;gpu_duration=end_time-.start_time}))
 
     let wait (value : t) =
       let operation = "Metal.Command4.Submission.wait" in

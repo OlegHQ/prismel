@@ -2211,11 +2211,13 @@ module Command4 : sig
 
   module Submission : sig
     type t
+    type feedback={gpu_start_time:float;gpu_end_time:float;gpu_duration:float}
 
     val device : t -> Device.t
     val generation : t -> int64
     val destroyed : t -> bool
     val completed : t -> bool
+    val feedback : t -> (feedback,error) result
 
     (** Blocks without holding the OCaml runtime lock. GPU execution errors are
         returned from Metal 4 commit feedback with their native diagnostics. *)
