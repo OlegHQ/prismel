@@ -146,6 +146,9 @@ external device_supports_texture_sample_count : handle -> int -> bool =
 external device_supports_depth24_stencil8 : handle -> bool =
   "caml_prismel_metal_device_supports_depth24_stencil8"
 
+external device_supports_bc_texture_compression : handle -> bool =
+  "caml_prismel_metal_device_supports_bc_texture_compression"
+
 external heap_buffer_size_and_align : handle -> int64 -> int -> int64 * int64 =
   "caml_prismel_metal_heap_buffer_size_and_align"
 

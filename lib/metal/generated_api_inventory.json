@@ -2,11 +2,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 0,
-    "bound": 534,
+    "bound": 601,
     "scope-excluded": 7,
-    "unreviewed": 4745
+    "unreviewed": 4678
   },
-  "classification_source_sha256": "2cdff058a0cff1e3ad46683c5f0627c0524c83ba08b179815b2dc71fb818e36a",
+  "classification_source_sha256": "c7a5cc7619e0bf9a72f61b648daaff64f9d56e8343b7c70bb4ff29d6495688c1",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "header_aggregate_sha256": "c2ee1e44c76606cf05fa81d1a8314dadfa49efe900342e8bcb3670363c16f0d1",
@@ -9533,588 +9533,588 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatASTC_10x10_HDR",
       "kind": "enum-case",
       "line": 191,
       "name": "MTLPixelFormatASTC_10x10_HDR",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatASTC_10x10_LDR",
       "kind": "enum-case",
       "line": 174,
       "name": "MTLPixelFormatASTC_10x10_LDR",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatASTC_10x10_sRGB",
       "kind": "enum-case",
       "line": 159,
       "name": "MTLPixelFormatASTC_10x10_sRGB",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatASTC_10x5_HDR",
       "kind": "enum-case",
       "line": 188,
       "name": "MTLPixelFormatASTC_10x5_HDR",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatASTC_10x5_LDR",
       "kind": "enum-case",
       "line": 171,
       "name": "MTLPixelFormatASTC_10x5_LDR",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatASTC_10x5_sRGB",
       "kind": "enum-case",
       "line": 156,
       "name": "MTLPixelFormatASTC_10x5_sRGB",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatASTC_10x6_HDR",
       "kind": "enum-case",
       "line": 189,
       "name": "MTLPixelFormatASTC_10x6_HDR",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatASTC_10x6_LDR",
       "kind": "enum-case",
       "line": 172,
       "name": "MTLPixelFormatASTC_10x6_LDR",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatASTC_10x6_sRGB",
       "kind": "enum-case",
       "line": 157,
       "name": "MTLPixelFormatASTC_10x6_sRGB",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatASTC_10x8_HDR",
       "kind": "enum-case",
       "line": 190,
       "name": "MTLPixelFormatASTC_10x8_HDR",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatASTC_10x8_LDR",
       "kind": "enum-case",
       "line": 173,
       "name": "MTLPixelFormatASTC_10x8_LDR",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatASTC_10x8_sRGB",
       "kind": "enum-case",
       "line": 158,
       "name": "MTLPixelFormatASTC_10x8_sRGB",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatASTC_12x10_HDR",
       "kind": "enum-case",
       "line": 192,
       "name": "MTLPixelFormatASTC_12x10_HDR",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatASTC_12x10_LDR",
       "kind": "enum-case",
       "line": 175,
       "name": "MTLPixelFormatASTC_12x10_LDR",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatASTC_12x10_sRGB",
       "kind": "enum-case",
       "line": 160,
       "name": "MTLPixelFormatASTC_12x10_sRGB",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatASTC_12x12_HDR",
       "kind": "enum-case",
       "line": 193,
       "name": "MTLPixelFormatASTC_12x12_HDR",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatASTC_12x12_LDR",
       "kind": "enum-case",
       "line": 176,
       "name": "MTLPixelFormatASTC_12x12_LDR",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatASTC_12x12_sRGB",
       "kind": "enum-case",
       "line": 161,
       "name": "MTLPixelFormatASTC_12x12_sRGB",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatASTC_4x4_HDR",
       "kind": "enum-case",
       "line": 180,
       "name": "MTLPixelFormatASTC_4x4_HDR",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatASTC_4x4_LDR",
       "kind": "enum-case",
       "line": 163,
       "name": "MTLPixelFormatASTC_4x4_LDR",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatASTC_4x4_sRGB",
       "kind": "enum-case",
       "line": 148,
       "name": "MTLPixelFormatASTC_4x4_sRGB",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatASTC_5x4_HDR",
       "kind": "enum-case",
       "line": 181,
       "name": "MTLPixelFormatASTC_5x4_HDR",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatASTC_5x4_LDR",
       "kind": "enum-case",
       "line": 164,
       "name": "MTLPixelFormatASTC_5x4_LDR",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatASTC_5x4_sRGB",
       "kind": "enum-case",
       "line": 149,
       "name": "MTLPixelFormatASTC_5x4_sRGB",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatASTC_5x5_HDR",
       "kind": "enum-case",
       "line": 182,
       "name": "MTLPixelFormatASTC_5x5_HDR",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatASTC_5x5_LDR",
       "kind": "enum-case",
       "line": 165,
       "name": "MTLPixelFormatASTC_5x5_LDR",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatASTC_5x5_sRGB",
       "kind": "enum-case",
       "line": 150,
       "name": "MTLPixelFormatASTC_5x5_sRGB",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatASTC_6x5_HDR",
       "kind": "enum-case",
       "line": 183,
       "name": "MTLPixelFormatASTC_6x5_HDR",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatASTC_6x5_LDR",
       "kind": "enum-case",
       "line": 166,
       "name": "MTLPixelFormatASTC_6x5_LDR",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatASTC_6x5_sRGB",
       "kind": "enum-case",
       "line": 151,
       "name": "MTLPixelFormatASTC_6x5_sRGB",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatASTC_6x6_HDR",
       "kind": "enum-case",
       "line": 184,
       "name": "MTLPixelFormatASTC_6x6_HDR",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatASTC_6x6_LDR",
       "kind": "enum-case",
       "line": 167,
       "name": "MTLPixelFormatASTC_6x6_LDR",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatASTC_6x6_sRGB",
       "kind": "enum-case",
       "line": 152,
       "name": "MTLPixelFormatASTC_6x6_sRGB",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatASTC_8x5_HDR",
       "kind": "enum-case",
       "line": 185,
       "name": "MTLPixelFormatASTC_8x5_HDR",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatASTC_8x5_LDR",
       "kind": "enum-case",
       "line": 168,
       "name": "MTLPixelFormatASTC_8x5_LDR",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatASTC_8x5_sRGB",
       "kind": "enum-case",
       "line": 153,
       "name": "MTLPixelFormatASTC_8x5_sRGB",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatASTC_8x6_HDR",
       "kind": "enum-case",
       "line": 186,
       "name": "MTLPixelFormatASTC_8x6_HDR",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatASTC_8x6_LDR",
       "kind": "enum-case",
       "line": 169,
       "name": "MTLPixelFormatASTC_8x6_LDR",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatASTC_8x6_sRGB",
       "kind": "enum-case",
       "line": 154,
       "name": "MTLPixelFormatASTC_8x6_sRGB",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatASTC_8x8_HDR",
       "kind": "enum-case",
       "line": 187,
       "name": "MTLPixelFormatASTC_8x8_HDR",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatASTC_8x8_LDR",
       "kind": "enum-case",
       "line": 170,
       "name": "MTLPixelFormatASTC_8x8_LDR",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatASTC_8x8_sRGB",
       "kind": "enum-case",
       "line": 155,
       "name": "MTLPixelFormatASTC_8x8_sRGB",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
@@ -10135,196 +10135,196 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatBC1_RGBA",
       "kind": "enum-case",
       "line": 105,
       "name": "MTLPixelFormatBC1_RGBA",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatBC1_RGBA_sRGB",
       "kind": "enum-case",
       "line": 106,
       "name": "MTLPixelFormatBC1_RGBA_sRGB",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatBC2_RGBA",
       "kind": "enum-case",
       "line": 107,
       "name": "MTLPixelFormatBC2_RGBA",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatBC2_RGBA_sRGB",
       "kind": "enum-case",
       "line": 108,
       "name": "MTLPixelFormatBC2_RGBA_sRGB",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatBC3_RGBA",
       "kind": "enum-case",
       "line": 109,
       "name": "MTLPixelFormatBC3_RGBA",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatBC3_RGBA_sRGB",
       "kind": "enum-case",
       "line": 110,
       "name": "MTLPixelFormatBC3_RGBA_sRGB",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatBC4_RSnorm",
       "kind": "enum-case",
       "line": 114,
       "name": "MTLPixelFormatBC4_RSnorm",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatBC4_RUnorm",
       "kind": "enum-case",
       "line": 113,
       "name": "MTLPixelFormatBC4_RUnorm",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatBC5_RGSnorm",
       "kind": "enum-case",
       "line": 116,
       "name": "MTLPixelFormatBC5_RGSnorm",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatBC5_RGUnorm",
       "kind": "enum-case",
       "line": 115,
       "name": "MTLPixelFormatBC5_RGUnorm",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatBC6H_RGBFloat",
       "kind": "enum-case",
       "line": 119,
       "name": "MTLPixelFormatBC6H_RGBFloat",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatBC6H_RGBUfloat",
       "kind": "enum-case",
       "line": 120,
       "name": "MTLPixelFormatBC6H_RGBUfloat",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatBC7_RGBAUnorm",
       "kind": "enum-case",
       "line": 121,
       "name": "MTLPixelFormatBC7_RGBAUnorm",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatBC7_RGBAUnorm_sRGB",
       "kind": "enum-case",
       "line": 122,
       "name": "MTLPixelFormatBC7_RGBAUnorm_sRGB",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
@@ -10505,140 +10505,140 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatEAC_R11Snorm",
       "kind": "enum-case",
       "line": 136,
       "name": "MTLPixelFormatEAC_R11Snorm",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatEAC_R11Unorm",
       "kind": "enum-case",
       "line": 135,
       "name": "MTLPixelFormatEAC_R11Unorm",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatEAC_RG11Snorm",
       "kind": "enum-case",
       "line": 138,
       "name": "MTLPixelFormatEAC_RG11Snorm",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatEAC_RG11Unorm",
       "kind": "enum-case",
       "line": 137,
       "name": "MTLPixelFormatEAC_RG11Unorm",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatEAC_RGBA8",
       "kind": "enum-case",
       "line": 139,
       "name": "MTLPixelFormatEAC_RGBA8",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatEAC_RGBA8_sRGB",
       "kind": "enum-case",
       "line": 140,
       "name": "MTLPixelFormatEAC_RGBA8_sRGB",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatETC2_RGB8",
       "kind": "enum-case",
       "line": 142,
       "name": "MTLPixelFormatETC2_RGB8",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatETC2_RGB8A1",
       "kind": "enum-case",
       "line": 144,
       "name": "MTLPixelFormatETC2_RGB8A1",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatETC2_RGB8A1_sRGB",
       "kind": "enum-case",
       "line": 145,
       "name": "MTLPixelFormatETC2_RGB8A1_sRGB",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatETC2_RGB8_sRGB",
       "kind": "enum-case",
       "line": 143,
       "name": "MTLPixelFormatETC2_RGB8_sRGB",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
@@ -35698,14 +35698,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice supportsBCTextureCompression]",
       "kind": "method",
       "line": 601,
       "name": "supportsBCTextureCompression",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> BOOL"
     },
     {

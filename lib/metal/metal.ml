@@ -858,6 +858,15 @@ module Device = struct
       | Error _ as failure -> failure
       | Ok () -> Ok (Metal_raw.device_supports_depth24_stencil8 value.raw))
 
+  let supports_bc_texture_compression (value : t) =
+    on_main "Metal.Device.supports_bc_texture_compression" (fun () ->
+      match
+        ensure_live "Metal.Device.supports_bc_texture_compression" value.lifetime
+      with
+      | Error _ as failure -> failure
+      | Ok () ->
+          Ok (Metal_raw.device_supports_bc_texture_compression value.raw))
+
   let supports_residency_sets (value : t) =
     on_main "Metal.Device.supports_residency_sets" (fun () ->
       match ensure_live "Metal.Device.supports_residency_sets" value.lifetime with
@@ -1494,6 +1503,72 @@ module Texture = struct
     | Rgba32_uint
     | Rgba32_sint
     | Rgba32_float
+    | Bc1_rgba
+    | Bc1_rgba_srgb
+    | Bc2_rgba
+    | Bc2_rgba_srgb
+    | Bc3_rgba
+    | Bc3_rgba_srgb
+    | Bc4_r_unorm
+    | Bc4_r_snorm
+    | Bc5_rg_unorm
+    | Bc5_rg_snorm
+    | Bc6h_rgb_float
+    | Bc6h_rgb_ufloat
+    | Bc7_rgba_unorm
+    | Bc7_rgba_unorm_srgb
+    | Eac_r11_unorm
+    | Eac_r11_snorm
+    | Eac_rg11_unorm
+    | Eac_rg11_snorm
+    | Eac_rgba8
+    | Eac_rgba8_srgb
+    | Etc2_rgb8
+    | Etc2_rgb8_srgb
+    | Etc2_rgb8a1
+    | Etc2_rgb8a1_srgb
+    | Astc_4x4_srgb
+    | Astc_5x4_srgb
+    | Astc_5x5_srgb
+    | Astc_6x5_srgb
+    | Astc_6x6_srgb
+    | Astc_8x5_srgb
+    | Astc_8x6_srgb
+    | Astc_8x8_srgb
+    | Astc_10x5_srgb
+    | Astc_10x6_srgb
+    | Astc_10x8_srgb
+    | Astc_10x10_srgb
+    | Astc_12x10_srgb
+    | Astc_12x12_srgb
+    | Astc_4x4_ldr
+    | Astc_5x4_ldr
+    | Astc_5x5_ldr
+    | Astc_6x5_ldr
+    | Astc_6x6_ldr
+    | Astc_8x5_ldr
+    | Astc_8x6_ldr
+    | Astc_8x8_ldr
+    | Astc_10x5_ldr
+    | Astc_10x6_ldr
+    | Astc_10x8_ldr
+    | Astc_10x10_ldr
+    | Astc_12x10_ldr
+    | Astc_12x12_ldr
+    | Astc_4x4_hdr
+    | Astc_5x4_hdr
+    | Astc_5x5_hdr
+    | Astc_6x5_hdr
+    | Astc_6x6_hdr
+    | Astc_8x5_hdr
+    | Astc_8x6_hdr
+    | Astc_8x8_hdr
+    | Astc_10x5_hdr
+    | Astc_10x6_hdr
+    | Astc_10x8_hdr
+    | Astc_10x10_hdr
+    | Astc_12x10_hdr
+    | Astc_12x12_hdr
     | Gbgr422
     | Bgrg422
     | Depth16_unorm
@@ -1855,7 +1930,30 @@ module Texture = struct
 
   let bytes_per_pixel format =
     let layout = format_layout format in
-    layout.bytes_per_block / (layout.block_width * layout.block_height)
+    if layout.block_width = 1 && layout.block_height = 1 then
+      layout.bytes_per_block
+    else 0
+
+  let supports_family_raw (device : Device.t) family =
+    Metal_raw.device_supports_family device.raw (Device.family_code family)
+
+  let supports_compression_raw (device : Device.t) format =
+    match Metal_format.compression_family format with
+    | None -> true
+    | Some Metal_format.Bc ->
+        Metal_raw.device_supports_bc_texture_compression device.raw
+    | Some (Metal_format.Eac_etc2 | Metal_format.Astc_ldr) ->
+        supports_family_raw device Device.Apple2
+        || supports_family_raw device Device.Metal4
+    | Some Metal_format.Astc_hdr ->
+        supports_family_raw device Device.Apple6
+        || supports_family_raw device Device.Metal4
+
+  let supports_compressed_volume_raw (device : Device.t) =
+    supports_family_raw device Device.Apple3
+    || supports_family_raw device Device.Mac2
+    || supports_family_raw device Device.Metal3
+    || supports_family_raw device Device.Metal4
 
   let validate_buffer_kind_format operation ~kind ~format =
     if kind <> Texture_2d && kind <> Texture_buffer then
@@ -1946,8 +2044,39 @@ module Texture = struct
     then
       error operation Unsupported
         "device does not support Depth24Unorm_Stencil8 textures"
+    else if not (supports_compression_raw device descriptor.format) then
+      error operation Unsupported
+        "device does not support the selected compressed texture format"
     else if Metal_format.is_view_only descriptor.format then
       invalid "stencil-plane formats can only be created as texture views"
+    else if
+      Metal_format.is_compressed descriptor.format
+      &&
+      (match descriptor.kind with
+       | Texture_2d | Texture_2d_array | Texture_cube | Texture_cube_array
+       | Texture_3d -> false
+       | Texture_1d | Texture_1d_array | Texture_2d_multisample
+       | Texture_2d_multisample_array | Texture_buffer -> true)
+    then
+      invalid
+        "compressed formats require a 2D, 2D-array, cube, cube-array, or 3D texture"
+    else if
+      Metal_format.is_compressed descriptor.format
+      && descriptor.kind = Texture_3d
+      && not (supports_compressed_volume_raw device)
+    then
+      error operation Unsupported
+        "device does not support compressed volume textures"
+    else if
+      Metal_format.is_compressed descriptor.format
+      && List.exists
+           (function
+             | Shader_write | Render_target | Shader_atomic -> true
+             | Shader_read | Pixel_format_view -> false)
+           descriptor.usage
+    then
+      invalid
+        "compressed textures support only shader-read and pixel-format-view usage"
     else if
       Metal_format.is_subsampled descriptor.format
       && (descriptor.kind <> Texture_2d || descriptor.width mod 2 <> 0
@@ -3299,8 +3428,8 @@ module Heap = struct
                           error "Metal.Heap.create_texture" Unsupported
                             "sparse heaps support reviewed 2D, cube, and 3D texture kinds"
                         else if
-                          not
-                            (Texture.supports_buffer_backing descriptor.format)
+                          Metal_format.is_depth_or_stencil descriptor.format
+                          || Metal_format.is_subsampled descriptor.format
                         then
                           error "Metal.Heap.create_texture" Unsupported
                             "sparse depth, stencil, and subsampled textures are not yet in the reviewed format matrix"

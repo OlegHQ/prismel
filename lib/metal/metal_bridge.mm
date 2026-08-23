@@ -418,7 +418,13 @@ NSUInteger texture_slice_count(id<MTLTexture> texture) {
   }
 }
 
-NSUInteger texture_bytes_per_pixel(MTLPixelFormat format) {
+struct Texture_format_layout {
+  NSUInteger block_width;
+  NSUInteger block_height;
+  NSUInteger bytes_per_block;
+};
+
+Texture_format_layout texture_format_layout(MTLPixelFormat format) {
   switch (format) {
   case MTLPixelFormatA8Unorm:
   case MTLPixelFormatR8Unorm:
@@ -427,7 +433,7 @@ NSUInteger texture_bytes_per_pixel(MTLPixelFormat format) {
   case MTLPixelFormatR8Uint:
   case MTLPixelFormatR8Sint:
   case MTLPixelFormatStencil8:
-    return 1;
+    return {1, 1, 1};
   case MTLPixelFormatR16Unorm:
   case MTLPixelFormatR16Snorm:
   case MTLPixelFormatR16Uint:
@@ -442,10 +448,8 @@ NSUInteger texture_bytes_per_pixel(MTLPixelFormat format) {
   case MTLPixelFormatA1BGR5Unorm:
   case MTLPixelFormatABGR4Unorm:
   case MTLPixelFormatBGR5A1Unorm:
-  case MTLPixelFormatGBGR422:
-  case MTLPixelFormatBGRG422:
   case MTLPixelFormatDepth16Unorm:
-    return 2;
+    return {1, 1, 2};
   case MTLPixelFormatR32Uint:
   case MTLPixelFormatR32Sint:
   case MTLPixelFormatR32Float:
@@ -473,7 +477,7 @@ NSUInteger texture_bytes_per_pixel(MTLPixelFormat format) {
   case MTLPixelFormatDepth32Float:
   case MTLPixelFormatDepth24Unorm_Stencil8:
   case MTLPixelFormatX24_Stencil8:
-    return 4;
+    return {1, 1, 4};
   case MTLPixelFormatRG32Uint:
   case MTLPixelFormatRG32Sint:
   case MTLPixelFormatRG32Float:
@@ -484,14 +488,106 @@ NSUInteger texture_bytes_per_pixel(MTLPixelFormat format) {
   case MTLPixelFormatRGBA16Float:
   case MTLPixelFormatDepth32Float_Stencil8:
   case MTLPixelFormatX32_Stencil8:
-    return 8;
+    return {1, 1, 8};
   case MTLPixelFormatRGBA32Uint:
   case MTLPixelFormatRGBA32Sint:
   case MTLPixelFormatRGBA32Float:
-    return 16;
+    return {1, 1, 16};
+  case MTLPixelFormatBC1_RGBA:
+  case MTLPixelFormatBC1_RGBA_sRGB:
+  case MTLPixelFormatBC4_RUnorm:
+  case MTLPixelFormatBC4_RSnorm:
+  case MTLPixelFormatEAC_R11Unorm:
+  case MTLPixelFormatEAC_R11Snorm:
+  case MTLPixelFormatETC2_RGB8:
+  case MTLPixelFormatETC2_RGB8_sRGB:
+  case MTLPixelFormatETC2_RGB8A1:
+  case MTLPixelFormatETC2_RGB8A1_sRGB:
+    return {4, 4, 8};
+  case MTLPixelFormatBC2_RGBA:
+  case MTLPixelFormatBC2_RGBA_sRGB:
+  case MTLPixelFormatBC3_RGBA:
+  case MTLPixelFormatBC3_RGBA_sRGB:
+  case MTLPixelFormatBC5_RGUnorm:
+  case MTLPixelFormatBC5_RGSnorm:
+  case MTLPixelFormatBC6H_RGBFloat:
+  case MTLPixelFormatBC6H_RGBUfloat:
+  case MTLPixelFormatBC7_RGBAUnorm:
+  case MTLPixelFormatBC7_RGBAUnorm_sRGB:
+  case MTLPixelFormatEAC_RG11Unorm:
+  case MTLPixelFormatEAC_RG11Snorm:
+  case MTLPixelFormatEAC_RGBA8:
+  case MTLPixelFormatEAC_RGBA8_sRGB:
+  case MTLPixelFormatASTC_4x4_sRGB:
+  case MTLPixelFormatASTC_4x4_LDR:
+  case MTLPixelFormatASTC_4x4_HDR:
+    return {4, 4, 16};
+  case MTLPixelFormatASTC_5x4_sRGB:
+  case MTLPixelFormatASTC_5x4_LDR:
+  case MTLPixelFormatASTC_5x4_HDR:
+    return {5, 4, 16};
+  case MTLPixelFormatASTC_5x5_sRGB:
+  case MTLPixelFormatASTC_5x5_LDR:
+  case MTLPixelFormatASTC_5x5_HDR:
+    return {5, 5, 16};
+  case MTLPixelFormatASTC_6x5_sRGB:
+  case MTLPixelFormatASTC_6x5_LDR:
+  case MTLPixelFormatASTC_6x5_HDR:
+    return {6, 5, 16};
+  case MTLPixelFormatASTC_6x6_sRGB:
+  case MTLPixelFormatASTC_6x6_LDR:
+  case MTLPixelFormatASTC_6x6_HDR:
+    return {6, 6, 16};
+  case MTLPixelFormatASTC_8x5_sRGB:
+  case MTLPixelFormatASTC_8x5_LDR:
+  case MTLPixelFormatASTC_8x5_HDR:
+    return {8, 5, 16};
+  case MTLPixelFormatASTC_8x6_sRGB:
+  case MTLPixelFormatASTC_8x6_LDR:
+  case MTLPixelFormatASTC_8x6_HDR:
+    return {8, 6, 16};
+  case MTLPixelFormatASTC_8x8_sRGB:
+  case MTLPixelFormatASTC_8x8_LDR:
+  case MTLPixelFormatASTC_8x8_HDR:
+    return {8, 8, 16};
+  case MTLPixelFormatASTC_10x5_sRGB:
+  case MTLPixelFormatASTC_10x5_LDR:
+  case MTLPixelFormatASTC_10x5_HDR:
+    return {10, 5, 16};
+  case MTLPixelFormatASTC_10x6_sRGB:
+  case MTLPixelFormatASTC_10x6_LDR:
+  case MTLPixelFormatASTC_10x6_HDR:
+    return {10, 6, 16};
+  case MTLPixelFormatASTC_10x8_sRGB:
+  case MTLPixelFormatASTC_10x8_LDR:
+  case MTLPixelFormatASTC_10x8_HDR:
+    return {10, 8, 16};
+  case MTLPixelFormatASTC_10x10_sRGB:
+  case MTLPixelFormatASTC_10x10_LDR:
+  case MTLPixelFormatASTC_10x10_HDR:
+    return {10, 10, 16};
+  case MTLPixelFormatASTC_12x10_sRGB:
+  case MTLPixelFormatASTC_12x10_LDR:
+  case MTLPixelFormatASTC_12x10_HDR:
+    return {12, 10, 16};
+  case MTLPixelFormatASTC_12x12_sRGB:
+  case MTLPixelFormatASTC_12x12_LDR:
+  case MTLPixelFormatASTC_12x12_HDR:
+    return {12, 12, 16};
+  case MTLPixelFormatGBGR422:
+  case MTLPixelFormatBGRG422:
+    return {2, 1, 4};
   default:
+    return {0, 0, 0};
+  }
+}
+
+NSUInteger texture_bytes_per_pixel(MTLPixelFormat format) {
+  const Texture_format_layout layout = texture_format_layout(format);
+  if (layout.block_width != 1 || layout.block_height != 1) {
     return 0;
   }
+  return layout.bytes_per_block;
 }
 
 bool texture_supports_buffer_backing(MTLPixelFormat format) {
@@ -507,7 +603,9 @@ bool texture_supports_buffer_backing(MTLPixelFormat format) {
   case MTLPixelFormatX24_Stencil8:
     return false;
   default:
-    return texture_bytes_per_pixel(format) != 0;
+    const Texture_format_layout layout = texture_format_layout(format);
+    return layout.block_width == 1 && layout.block_height == 1 &&
+           layout.bytes_per_block != 0;
   }
 }
 
@@ -551,28 +649,34 @@ bool texture_transfer_range(id<MTLTexture> texture, value raw_transfer,
       uh > mip_height - uy || uz > mip_depth || ud > mip_depth - uz) {
     return false;
   }
-  if ((texture.pixelFormat == MTLPixelFormatGBGR422 ||
-       texture.pixelFormat == MTLPixelFormatBGRG422) &&
-      (ux % 2 != 0 || uw % 2 != 0)) {
+  const Texture_format_layout layout =
+      texture_format_layout(texture.pixelFormat);
+  if (layout.block_width == 0 || layout.block_height == 0 ||
+      layout.bytes_per_block == 0 || ux % layout.block_width != 0 ||
+      uy % layout.block_height != 0 ||
+      (uw % layout.block_width != 0 && ux + uw != mip_width) ||
+      (uh % layout.block_height != 0 && uy + uh != mip_height)) {
     return false;
   }
-  const NSUInteger bytes_per_pixel = texture_bytes_per_pixel(texture.pixelFormat);
-  if (bytes_per_pixel == 0 || uw > static_cast<NSUInteger>(Max_long) / bytes_per_pixel) {
+  const NSUInteger row_blocks =
+      uw / layout.block_width + (uw % layout.block_width == 0 ? 0 : 1);
+  const NSUInteger image_block_rows =
+      uh / layout.block_height + (uh % layout.block_height == 0 ? 0 : 1);
+  if (row_blocks > static_cast<NSUInteger>(Max_long) /
+                       layout.bytes_per_block) {
     return false;
   }
-  const intnat row_alignment =
-      texture.pixelFormat == MTLPixelFormatGBGR422 ||
-              texture.pixelFormat == MTLPixelFormatBGRG422
-          ? 4
-          : static_cast<intnat>(bytes_per_pixel);
   const intnat minimum_row =
-      static_cast<intnat>(uw * bytes_per_pixel);
+      static_cast<intnat>(row_blocks * layout.bytes_per_block);
   if (*bytes_per_row < minimum_row ||
-      *bytes_per_row % row_alignment != 0 ||
-      *bytes_per_row > Max_long / height) {
+      *bytes_per_row % static_cast<intnat>(layout.bytes_per_block) != 0 ||
+      image_block_rows > static_cast<NSUInteger>(Max_long) ||
+      *bytes_per_row >
+          Max_long / static_cast<intnat>(image_block_rows)) {
     return false;
   }
-  const intnat minimum_image = *bytes_per_row * height;
+  const intnat minimum_image =
+      *bytes_per_row * static_cast<intnat>(image_block_rows);
   if (*bytes_per_image < minimum_image || *bytes_per_image > Max_long / depth) {
     return false;
   }
@@ -1438,6 +1542,13 @@ caml_prismel_metal_device_supports_depth24_stencil8(value raw) {
   CAMLparam1(raw);
   id<MTLDevice> device = object_of_handle(raw, Handle_kind::Device);
   CAMLreturn(Val_bool(device.depth24Stencil8PixelFormatSupported));
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_device_supports_bc_texture_compression(value raw) {
+  CAMLparam1(raw);
+  id<MTLDevice> device = object_of_handle(raw, Handle_kind::Device);
+  CAMLreturn(Val_bool(device.supportsBCTextureCompression));
 }
 
 extern "C" CAMLprim value caml_prismel_metal_heap_buffer_size_and_align(
@@ -3158,11 +3269,12 @@ caml_prismel_metal_blit_encoder_copy_buffer_to_texture(
       const intnat x = Long_val(Field(raw_origin, 0));
       const intnat y = Long_val(Field(raw_origin, 1));
       const intnat z = Long_val(Field(raw_origin, 2));
-      const NSUInteger pixel_bytes =
-          texture_bytes_per_pixel(texture.pixelFormat);
+      const Texture_format_layout layout =
+          texture_format_layout(texture.pixelFormat);
       if (source_offset < 0 || bytes_per_row <= 0 || bytes_per_image <= 0 ||
           width <= 0 || height <= 0 || depth <= 0 || slice < 0 || level < 0 ||
-          x < 0 || y < 0 || z < 0 || pixel_bytes == 0 ||
+          x < 0 || y < 0 || z < 0 || layout.block_width == 0 ||
+          layout.block_height == 0 || layout.bytes_per_block == 0 ||
           static_cast<NSUInteger>(slice) >= texture_slice_count(texture) ||
           static_cast<NSUInteger>(level) >= texture.mipmapLevelCount ||
           texture.sampleCount != 1 ||
@@ -3181,21 +3293,25 @@ caml_prismel_metal_blit_encoder_copy_buffer_to_texture(
           std::max<NSUInteger>(1, texture.height >> level);
       const NSUInteger mip_depth =
           std::max<NSUInteger>(1, texture.depth >> level);
-      if (((texture.pixelFormat == MTLPixelFormatGBGR422 ||
-            texture.pixelFormat == MTLPixelFormatBGRG422) &&
-           (destination_x % 2 != 0 || copy_width % 2 != 0)) ||
-          copy_width > std::numeric_limits<NSUInteger>::max() / pixel_bytes ||
-          static_cast<NSUInteger>(bytes_per_row) < copy_width * pixel_bytes ||
-          static_cast<NSUInteger>(bytes_per_row) %
-                  ((texture.pixelFormat == MTLPixelFormatGBGR422 ||
-                    texture.pixelFormat == MTLPixelFormatBGRG422)
-                       ? 4
-                       : pixel_bytes) !=
-              0 ||
+      const NSUInteger row_blocks = copy_width / layout.block_width +
+          (copy_width % layout.block_width == 0 ? 0 : 1);
+      const NSUInteger image_block_rows = copy_height / layout.block_height +
+          (copy_height % layout.block_height == 0 ? 0 : 1);
+      if (destination_x % layout.block_width != 0 ||
+          destination_y % layout.block_height != 0 ||
+          (copy_width % layout.block_width != 0 &&
+           destination_x + copy_width != mip_width) ||
+          (copy_height % layout.block_height != 0 &&
+           destination_y + copy_height != mip_height) ||
+          row_blocks > std::numeric_limits<NSUInteger>::max() /
+                           layout.bytes_per_block ||
+          static_cast<NSUInteger>(bytes_per_row) <
+              row_blocks * layout.bytes_per_block ||
+          static_cast<NSUInteger>(bytes_per_row) % layout.bytes_per_block != 0 ||
           static_cast<NSUInteger>(bytes_per_row) >
-              std::numeric_limits<NSUInteger>::max() / copy_height ||
+              std::numeric_limits<NSUInteger>::max() / image_block_rows ||
           static_cast<NSUInteger>(bytes_per_image) <
-              static_cast<NSUInteger>(bytes_per_row) * copy_height ||
+              static_cast<NSUInteger>(bytes_per_row) * image_block_rows ||
           static_cast<NSUInteger>(bytes_per_image) >
               std::numeric_limits<NSUInteger>::max() / copy_depth ||
           destination_x > mip_width || copy_width > mip_width - destination_x ||

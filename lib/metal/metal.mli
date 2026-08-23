@@ -109,6 +109,7 @@ module Device : sig
   val supports_family : t -> family -> (bool, error) result
   val supports_texture_sample_count : t -> int -> (bool, error) result
   val supports_depth24_stencil8 : t -> (bool, error) result
+  val supports_bc_texture_compression : t -> (bool, error) result
   val supports_residency_sets : t -> (bool, error) result
   val supports_sparse_textures : t -> (bool, error) result
   val destroy : t -> (unit, error) result
@@ -263,6 +264,72 @@ module Texture : sig
     | Rgba32_uint
     | Rgba32_sint
     | Rgba32_float
+    | Bc1_rgba
+    | Bc1_rgba_srgb
+    | Bc2_rgba
+    | Bc2_rgba_srgb
+    | Bc3_rgba
+    | Bc3_rgba_srgb
+    | Bc4_r_unorm
+    | Bc4_r_snorm
+    | Bc5_rg_unorm
+    | Bc5_rg_snorm
+    | Bc6h_rgb_float
+    | Bc6h_rgb_ufloat
+    | Bc7_rgba_unorm
+    | Bc7_rgba_unorm_srgb
+    | Eac_r11_unorm
+    | Eac_r11_snorm
+    | Eac_rg11_unorm
+    | Eac_rg11_snorm
+    | Eac_rgba8
+    | Eac_rgba8_srgb
+    | Etc2_rgb8
+    | Etc2_rgb8_srgb
+    | Etc2_rgb8a1
+    | Etc2_rgb8a1_srgb
+    | Astc_4x4_srgb
+    | Astc_5x4_srgb
+    | Astc_5x5_srgb
+    | Astc_6x5_srgb
+    | Astc_6x6_srgb
+    | Astc_8x5_srgb
+    | Astc_8x6_srgb
+    | Astc_8x8_srgb
+    | Astc_10x5_srgb
+    | Astc_10x6_srgb
+    | Astc_10x8_srgb
+    | Astc_10x10_srgb
+    | Astc_12x10_srgb
+    | Astc_12x12_srgb
+    | Astc_4x4_ldr
+    | Astc_5x4_ldr
+    | Astc_5x5_ldr
+    | Astc_6x5_ldr
+    | Astc_6x6_ldr
+    | Astc_8x5_ldr
+    | Astc_8x6_ldr
+    | Astc_8x8_ldr
+    | Astc_10x5_ldr
+    | Astc_10x6_ldr
+    | Astc_10x8_ldr
+    | Astc_10x10_ldr
+    | Astc_12x10_ldr
+    | Astc_12x12_ldr
+    | Astc_4x4_hdr
+    | Astc_5x4_hdr
+    | Astc_5x5_hdr
+    | Astc_6x5_hdr
+    | Astc_6x6_hdr
+    | Astc_8x5_hdr
+    | Astc_8x6_hdr
+    | Astc_8x8_hdr
+    | Astc_10x5_hdr
+    | Astc_10x6_hdr
+    | Astc_10x8_hdr
+    | Astc_10x10_hdr
+    | Astc_12x10_hdr
+    | Astc_12x12_hdr
     | Gbgr422
     | Bgrg422
     | Depth16_unorm

@@ -77,11 +77,65 @@ let complete_commands commands =
    | _ -> fail "sparse conformance command buffer did not complete");
   get (Command_buffer.destroy commands)
 
-let test_uncompressed_format_matrix device =
+let test_format_matrix device =
   let formats = Texture.all_formats in
-  if List.length formats <> 64
+  if List.length formats <> 130
      || List.length (List.sort_uniq compare formats) <> List.length formats
-  then fail "uncompressed Metal pixel-format inventory is incomplete or duplicated";
+  then fail "Metal pixel-format inventory is incomplete or duplicated";
+  let bc_formats =
+    [ Texture.Bc1_rgba; Texture.Bc1_rgba_srgb; Texture.Bc2_rgba
+    ; Texture.Bc2_rgba_srgb; Texture.Bc3_rgba; Texture.Bc3_rgba_srgb
+    ; Texture.Bc4_r_unorm; Texture.Bc4_r_snorm; Texture.Bc5_rg_unorm
+    ; Texture.Bc5_rg_snorm; Texture.Bc6h_rgb_float; Texture.Bc6h_rgb_ufloat
+    ; Texture.Bc7_rgba_unorm; Texture.Bc7_rgba_unorm_srgb
+    ]
+  and eac_etc2_formats =
+    [ Texture.Eac_r11_unorm; Texture.Eac_r11_snorm; Texture.Eac_rg11_unorm
+    ; Texture.Eac_rg11_snorm; Texture.Eac_rgba8; Texture.Eac_rgba8_srgb
+    ; Texture.Etc2_rgb8; Texture.Etc2_rgb8_srgb; Texture.Etc2_rgb8a1
+    ; Texture.Etc2_rgb8a1_srgb
+    ]
+  and astc_ldr_formats =
+    [ Texture.Astc_4x4_srgb; Texture.Astc_5x4_srgb; Texture.Astc_5x5_srgb
+    ; Texture.Astc_6x5_srgb; Texture.Astc_6x6_srgb; Texture.Astc_8x5_srgb
+    ; Texture.Astc_8x6_srgb; Texture.Astc_8x8_srgb
+    ; Texture.Astc_10x5_srgb; Texture.Astc_10x6_srgb
+    ; Texture.Astc_10x8_srgb; Texture.Astc_10x10_srgb
+    ; Texture.Astc_12x10_srgb; Texture.Astc_12x12_srgb
+    ; Texture.Astc_4x4_ldr; Texture.Astc_5x4_ldr; Texture.Astc_5x5_ldr
+    ; Texture.Astc_6x5_ldr; Texture.Astc_6x6_ldr; Texture.Astc_8x5_ldr
+    ; Texture.Astc_8x6_ldr; Texture.Astc_8x8_ldr; Texture.Astc_10x5_ldr
+    ; Texture.Astc_10x6_ldr; Texture.Astc_10x8_ldr
+    ; Texture.Astc_10x10_ldr; Texture.Astc_12x10_ldr
+    ; Texture.Astc_12x12_ldr
+    ]
+  and astc_hdr_formats =
+    [ Texture.Astc_4x4_hdr; Texture.Astc_5x4_hdr; Texture.Astc_5x5_hdr
+    ; Texture.Astc_6x5_hdr; Texture.Astc_6x6_hdr; Texture.Astc_8x5_hdr
+    ; Texture.Astc_8x6_hdr; Texture.Astc_8x8_hdr; Texture.Astc_10x5_hdr
+    ; Texture.Astc_10x6_hdr; Texture.Astc_10x8_hdr
+    ; Texture.Astc_10x10_hdr; Texture.Astc_12x10_hdr
+    ; Texture.Astc_12x12_hdr
+    ]
+  in
+  let compressed_formats =
+    bc_formats @ eac_etc2_formats @ astc_ldr_formats @ astc_hdr_formats
+  in
+  if List.length compressed_formats <> 66 then
+    fail "compressed Metal pixel-format test inventory is incomplete";
+  let supports_bc = get (Device.supports_bc_texture_compression device) in
+  let supports_apple2 = get (Device.supports_family device Device.Apple2) in
+  let supports_apple6 = get (Device.supports_family device Device.Apple6) in
+  let supports_metal4 = get (Device.supports_family device Device.Metal4) in
+  let supports_eac_astc = supports_apple2 || supports_metal4 in
+  let supports_astc_hdr = supports_apple6 || supports_metal4 in
+  let expects_compressed format =
+    if List.mem format bc_formats then supports_bc
+    else if List.mem format eac_etc2_formats then supports_eac_astc
+    else if List.mem format astc_ldr_formats then supports_eac_astc
+    else if List.mem format astc_hdr_formats then supports_astc_hdr
+    else false
+  in
   let expect_layout format block_width block_height bytes_per_block =
     let layout = Texture.format_layout format in
     if layout.block_width <> block_width
@@ -93,6 +147,10 @@ let test_uncompressed_format_matrix device =
   expect_layout Texture.B5g6r5_unorm 1 1 2;
   expect_layout Texture.Rgba32_uint 1 1 16;
   expect_layout Texture.Gbgr422 2 1 4;
+  expect_layout Texture.Bc1_rgba 4 4 8;
+  expect_layout Texture.Bc7_rgba_unorm 4 4 16;
+  expect_layout Texture.Eac_r11_unorm 4 4 8;
+  expect_layout Texture.Astc_10x6_hdr 10 6 16;
   let before_invalid = get (Release_queue.stats ()) in
   ignore
     (expect_error Invalid_argument
@@ -124,25 +182,264 @@ let test_uncompressed_format_matrix device =
     if after.total_created <> before.total_created then
       fail "unsupported Depth24Unorm_Stencil8 allocated a native handle"
   end;
-  let supported = ref 0 in
+  let supported_uncompressed = ref 0 in
+  let supported_compressed = ref 0 in
   List.iteri
     (fun index format ->
       if format <> Texture.X32_stencil8 && format <> Texture.X24_stencil8 then
+        let compressed = List.mem format compressed_formats in
+        let expected = expects_compressed format in
+        let before = get (Release_queue.stats ()) in
         let descriptor =
           Texture.descriptor_2d ~storage:Buffer.Private
-            ~usage:[ Texture.Shader_read ] ~format ~width:4 ~height:4 ()
+            ~usage:[ Texture.Shader_read ] ~format ~width:12 ~height:12 ()
         in
         match Texture.create ~device descriptor with
         | Ok texture ->
-            incr supported;
+            if compressed && not expected then
+              fail "unsupported compressed format %d reached Metal" index;
+            if compressed then incr supported_compressed
+            else incr supported_uncompressed;
             if (Texture.descriptor texture).format <> format then
               fail "Metal changed pixel format at matrix index %d" index;
             get (Texture.destroy texture)
+        | Error { kind = Unsupported; _ } when compressed && not expected ->
+            let after = get (Release_queue.stats ()) in
+            if after.total_created <> before.total_created then
+              fail "unsupported compressed format %d allocated a handle" index
+        | Error error when compressed ->
+            fail "compressed format %d contradicted its capability gate: %s"
+              index (Format.asprintf "%a" pp_error error)
         | Error { kind = (Native_error | Unsupported); _ } -> ()
         | Error error -> fail "%s" (Format.asprintf "%a" pp_error error))
     formats;
-  if !supported < 48 then
-    fail "device accepted only %d of 62 creatable uncompressed formats" !supported;
+  if !supported_uncompressed < 48 then
+    fail "device accepted only %d of 62 creatable uncompressed formats"
+      !supported_uncompressed;
+  let expected_compressed_count =
+    (if supports_bc then List.length bc_formats else 0)
+    + (if supports_eac_astc then
+         List.length eac_etc2_formats + List.length astc_ldr_formats
+       else 0)
+    + (if supports_astc_hdr then List.length astc_hdr_formats else 0)
+  in
+  if !supported_compressed <> expected_compressed_count then
+    fail "device accepted %d/%d capability-gated compressed formats"
+      !supported_compressed expected_compressed_count;
+  List.iteri
+    (fun index format ->
+      if expects_compressed format then begin
+        let layout = Texture.format_layout format in
+        let width = (2 * layout.block_width) - 1 in
+        let height = (2 * layout.block_height) - 1 in
+        let row_bytes = 2 * layout.bytes_per_block in
+        let image_bytes = 2 * row_bytes in
+        let source =
+          Bytes.init image_bytes (fun byte ->
+            Char.chr (((index * 47) + (byte * 43)) land 0xff))
+        in
+        let texture =
+          get
+            (Texture.create ~device
+               (Texture.descriptor_2d ~storage:Buffer.Shared
+                  ~usage:[ Texture.Shader_read ] ~format ~width ~height ()))
+        in
+        let region : Texture.region =
+          { x = 0; y = 0; z = 0; width; height; depth = 1 }
+        in
+        get
+          (Texture.write_bytes texture ~region ~mip_level:0 ~slice:0
+             ~bytes_per_row:row_bytes ~bytes_per_image:image_bytes source);
+        if
+          get
+            (Texture.read_bytes texture ~region ~mip_level:0 ~slice:0
+               ~bytes_per_row:row_bytes ~bytes_per_image:image_bytes)
+          <> source
+        then
+          fail "compressed format %d did not preserve its encoded blocks" index;
+        get (Texture.destroy texture)
+      end)
+    compressed_formats;
+  let compressed_view_pairs =
+    (if supports_bc then
+       [ Texture.Bc1_rgba, Texture.Bc1_rgba_srgb
+       ; Texture.Bc2_rgba, Texture.Bc2_rgba_srgb
+       ; Texture.Bc3_rgba, Texture.Bc3_rgba_srgb
+       ; Texture.Bc7_rgba_unorm, Texture.Bc7_rgba_unorm_srgb
+       ]
+     else [])
+    @
+    if supports_eac_astc then
+      [ Texture.Eac_rgba8, Texture.Eac_rgba8_srgb
+      ; Texture.Etc2_rgb8, Texture.Etc2_rgb8_srgb
+      ; Texture.Etc2_rgb8a1, Texture.Etc2_rgb8a1_srgb
+      ; Texture.Astc_4x4_ldr, Texture.Astc_4x4_srgb
+      ; Texture.Astc_5x4_ldr, Texture.Astc_5x4_srgb
+      ; Texture.Astc_5x5_ldr, Texture.Astc_5x5_srgb
+      ; Texture.Astc_6x5_ldr, Texture.Astc_6x5_srgb
+      ; Texture.Astc_6x6_ldr, Texture.Astc_6x6_srgb
+      ; Texture.Astc_8x5_ldr, Texture.Astc_8x5_srgb
+      ; Texture.Astc_8x6_ldr, Texture.Astc_8x6_srgb
+      ; Texture.Astc_8x8_ldr, Texture.Astc_8x8_srgb
+      ; Texture.Astc_10x5_ldr, Texture.Astc_10x5_srgb
+      ; Texture.Astc_10x6_ldr, Texture.Astc_10x6_srgb
+      ; Texture.Astc_10x8_ldr, Texture.Astc_10x8_srgb
+      ; Texture.Astc_10x10_ldr, Texture.Astc_10x10_srgb
+      ; Texture.Astc_12x10_ldr, Texture.Astc_12x10_srgb
+      ; Texture.Astc_12x12_ldr, Texture.Astc_12x12_srgb
+      ]
+    else []
+  in
+  List.iter
+    (fun (linear, srgb) ->
+      List.iter
+        (fun (source, target) ->
+          let layout = Texture.format_layout source in
+          let parent =
+            get
+              (Texture.create ~device
+                 (Texture.descriptor_2d ~storage:Buffer.Private
+                    ~usage:[ Texture.Shader_read; Texture.Pixel_format_view ]
+                    ~format:source ~width:layout.block_width
+                    ~height:layout.block_height ()))
+          in
+          let view =
+            get
+              (Texture.create_view parent ~format:target ~base_mip:0
+                 ~mip_count:1 ~base_slice:0 ~slice_count:1 ())
+          in
+          if (Texture.descriptor view).format <> target then
+            fail "Metal changed a compressed texture-view format";
+          get (Texture.destroy view);
+          get (Texture.destroy parent))
+        [ linear, srgb; srgb, linear ])
+    compressed_view_pairs;
+  let compression_probe =
+    if supports_bc then Some (Texture.Bc1_rgba, Texture.Bc1_rgba_srgb)
+    else if supports_eac_astc then
+      Some (Texture.Eac_rgba8, Texture.Eac_rgba8_srgb)
+    else None
+  in
+  Option.iter
+    (fun (format, view_format) ->
+      let layout = Texture.format_layout format in
+      let width = (2 * layout.block_width) - 1 in
+      let height = (2 * layout.block_height) - 1 in
+      let before = get (Release_queue.stats ()) in
+      let base =
+        Texture.descriptor_2d ~storage:Buffer.Shared
+          ~usage:[ Texture.Shader_read ] ~format ~width ~height ()
+      in
+      ignore
+        (expect_error Invalid_argument
+           (Texture.create ~device
+              { base with kind = Texture.Texture_1d; height = 1 }));
+      ignore
+        (expect_error Invalid_argument
+           (Texture.create ~device
+              { base with usage = [ Texture.Shader_write ] }));
+      ignore
+        (expect_error Invalid_argument
+           (Texture.minimum_buffer_alignment ~device ~kind:Texture.Texture_2d
+              ~format));
+      let after = get (Release_queue.stats ()) in
+      if after.total_created <> before.total_created then
+        fail "invalid compressed descriptors allocated native handles";
+      let volume_supported =
+        get (Device.supports_family device Device.Apple3)
+        || get (Device.supports_family device Device.Mac2)
+        || get (Device.supports_family device Device.Metal3)
+        || supports_metal4
+      in
+      let volume_descriptor =
+        { base with
+          kind = Texture.Texture_3d
+        ; width = 8
+        ; height = 8
+        ; depth = 4
+        ; storage = Buffer.Private
+        }
+      in
+      if volume_supported then
+        get (Texture.create ~device volume_descriptor) |> Texture.destroy |> get
+      else begin
+        let before_volume = get (Release_queue.stats ()) in
+        ignore
+          (expect_error Unsupported
+             (Texture.create ~device volume_descriptor));
+        let after_volume = get (Release_queue.stats ()) in
+        if after_volume.total_created <> before_volume.total_created then
+          fail "unsupported compressed volume allocated a native handle"
+      end;
+      let texture = get (Texture.create ~device base) in
+      let full : Texture.region =
+        { x = 0; y = 0; z = 0; width; height; depth = 1 }
+      in
+      let row_bytes = 2 * layout.bytes_per_block in
+      let image_bytes = 2 * row_bytes in
+      let compressed_bytes =
+        Bytes.init image_bytes (fun index -> Char.chr ((index * 43) land 0xff))
+      in
+      ignore
+        (expect_error Invalid_argument
+           (Texture.write_bytes texture
+              ~region:{ full with x = 1; width = layout.block_width }
+              ~mip_level:0 ~slice:0 ~bytes_per_row:row_bytes
+              ~bytes_per_image:image_bytes compressed_bytes));
+      get
+        (Texture.write_bytes texture ~region:full ~mip_level:0 ~slice:0
+           ~bytes_per_row:row_bytes ~bytes_per_image:image_bytes
+           compressed_bytes);
+      if
+        get
+          (Texture.read_bytes texture ~region:full ~mip_level:0 ~slice:0
+             ~bytes_per_row:row_bytes ~bytes_per_image:image_bytes)
+        <> compressed_bytes
+      then fail "compressed texture blocks did not round-trip exactly";
+      get (Texture.destroy texture);
+      let view_parent =
+        get
+          (Texture.create ~device
+             { base with
+               storage = Buffer.Private
+             ; usage = [ Texture.Shader_read; Texture.Pixel_format_view ]
+             })
+      in
+      let view =
+        get
+          (Texture.create_view view_parent ~format:view_format ~base_mip:0
+             ~mip_count:1 ~base_slice:0 ~slice_count:1 ())
+      in
+      get (Texture.destroy view);
+      get (Texture.destroy view_parent);
+      let staging =
+        get
+          (Buffer.create_copy ~device ~storage:Buffer.Shared compressed_bytes)
+      in
+      let destination =
+        get (Texture.create ~device { base with storage = Buffer.Private })
+      in
+      let queue = get (Command_queue.create device) in
+      let commands = get (Command_buffer.create queue ()) in
+      let blit = get (Blit_encoder.create commands) in
+      ignore
+        (expect_error Invalid_argument
+           (Blit_encoder.copy_buffer_to_texture blit ~source:staging
+              ~source_offset:0L ~source_bytes_per_row:row_bytes
+              ~source_bytes_per_image:image_bytes ~destination
+              ~destination_slice:0 ~destination_level:0
+              ~destination_region:{ full with y = 1; height = layout.block_height }));
+      get
+        (Blit_encoder.copy_buffer_to_texture blit ~source:staging
+           ~source_offset:0L ~source_bytes_per_row:row_bytes
+           ~source_bytes_per_image:image_bytes ~destination
+           ~destination_slice:0 ~destination_level:0 ~destination_region:full);
+      get (Blit_encoder.end_encoding blit);
+      complete_commands commands;
+      get (Texture.destroy destination);
+      get (Buffer.destroy staging);
+      get (Command_queue.destroy queue))
+    compression_probe;
   let transfer_descriptor =
     Texture.descriptor_2d ~storage:Buffer.Shared
       ~format:Texture.Rgba8_uint ~width:4 ~height:2 ()
@@ -317,6 +614,23 @@ let test_sparse_textures device =
        || sparse_info.tile_width <= 0 || sparse_info.tile_height <= 0
        || sparse_info.tile_depth <= 0
     then fail "sparse texture metadata is inconsistent";
+    let compressed_texture =
+      get
+        (Heap.create_texture heap
+           (Texture.descriptor_2d ~mipmapped:true ~storage:Buffer.Private
+              ~usage:[ Texture.Shader_read ] ~format:Texture.Astc_4x4_ldr
+              ~width:256 ~height:256 ()))
+    in
+    let compressed_sparse_info =
+      match get (Texture.sparse_info compressed_texture) with
+      | Some info -> info
+      | None -> fail "compressed sparse texture lost its sparse metadata"
+    in
+    if compressed_sparse_info.page_size <> page_size
+       || compressed_sparse_info.tile_size_in_bytes <> page_bytes
+       || compressed_sparse_info.tile_width mod 4 <> 0
+       || compressed_sparse_info.tile_height mod 4 <> 0
+    then fail "compressed sparse tile metadata is not block-aligned";
     ignore (expect_error Invalid_state (Texture.purgeable_state texture));
     ignore
       (expect_error Invalid_state
@@ -502,6 +816,7 @@ let test_sparse_textures device =
     get (Library.destroy library);
     get (Texture.destroy overflow_texture);
     get (Texture.destroy ordinary);
+    get (Texture.destroy compressed_texture);
     get (Texture.destroy texture);
     get (Heap.destroy heap);
     get (Command_queue.destroy queue);
@@ -668,7 +983,7 @@ let () =
     if info.name = "" || info.registry_id = 0L then
       fail "default device identity is incomplete";
     if info.max_buffer_length < 16L then fail "device buffer limit is invalid";
-    test_uncompressed_format_matrix device;
+    test_format_matrix device;
     let residency_sets_supported = test_residency_set device in
     ignore (test_sparse_textures device);
     let before_finalizer = get (Release_queue.stats ()) in

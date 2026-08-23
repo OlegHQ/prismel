@@ -91,32 +91,44 @@ as a hard ownership failure.
 
 `Texture.descriptor` models all current Metal texture kinds, explicit
 dimensions, mip/sample/array counts, storage/cache/hazard modes, usage, GPU
-optimization intent, and all 64 non-compressed numeric, packed, subsampled,
-extended-range, depth, stencil, and stencil-plane formats in the pinned SDK.
-`Texture.format_layout` exposes their checked block dimensions and byte size.
+optimization intent, and all 130 concrete, non-deprecated pixel formats in the
+pinned SDK: 64 numeric, packed, subsampled, extended-range, depth, stencil, and
+stencil-plane formats plus 66 BC, EAC/ETC2, and ASTC block-compressed formats.
+The deprecated PVRTC family, `Invalid`, and the Metal 4 unspecialized sentinel
+are not presented as concrete resource formats. `Texture.format_layout`
+exposes each reviewed format's checked block dimensions and byte size.
 `Texture.create` validates positive and bounded dimensions, mip cardinality,
 array/kind shape, duplicate usage, multisample structure, view-only formats,
 4:2:2 shape, device sample-count support, and the device's explicit
-Depth24/Stencil8 capability before entering Objective-C. The bridge then checks
-that Metal preserved every observable descriptor property. A native rejection
-remains a labeled `Native_error`; it never leaves a partially owned safe
-handle.
+Depth24/Stencil8 capability before entering Objective-C. BC creation is gated
+by `supportsBCTextureCompression`; EAC/ETC2 and LDR ASTC require Apple family 2
+or Metal 4, HDR ASTC requires Apple family 6 or Metal 4, and compressed volume
+textures require the reviewed Apple 3, Mac 2, Metal 3, or Metal 4 feature.
+Compressed descriptors reject 1D, multisample, texture-buffer, writable,
+atomic, and render-target shapes before native allocation. The bridge then
+checks that Metal preserved every observable descriptor property. A native
+rejection remains a labeled `Native_error`; it never leaves a partially owned
+safe handle.
 
 Shared and managed texture transfers accept explicit regions, mip levels,
 slices, source offsets, row pitches, and image pitches. Region bounds, format
 block alignment, cardinality, OCaml byte-buffer limits, and source coverage are
-checked in OCaml and defensively repeated at the C boundary, including exact
-two-pixel blocks for packed 4:2:2 formats. Private and multisample textures
-reject CPU transfer. Reads initialize the entire result so Metal's untouched
-pitch padding cannot expose native memory. Texture views require
+checked in OCaml and defensively repeated at the C boundary through one generic
+block-layout path, including partial final blocks at mip edges, exact two-pixel
+blocks for packed 4:2:2 formats, and every BC/EAC/ETC2/ASTC block size. Private
+and multisample textures reject CPU transfer. Reads initialize the entire
+result so Metal's untouched pitch padding cannot expose native memory. Texture
+views require
 `Pixel_format_view` usage, preserve kind/slice shape, permit the reviewed equal,
-linear/sRGB, extended-range/sRGB, and depth-stencil/stencil-plane pairs, and
-hold their parent alive until explicit destruction or finalization.
+linear/sRGB, extended-range/sRGB, compressed linear/sRGB, and
+depth-stencil/stencil-plane pairs, and hold their parent alive until explicit
+destruction or finalization.
 
 `Texture.minimum_buffer_alignment` distinguishes ordinary 2D linear textures
 from the `Texture_buffer` kind and exposes Metal's per-device, per-format
 alignment as a checked positive power of two. `Texture.create_from_buffer`
-accepts only those two kinds and ordinary numeric or packed color formats. It requires
+accepts only those two kinds and ordinary numeric or packed color formats;
+subsampled and block-compressed formats remain non-linear resources. It requires
 depth, array length, mip count, and sample count of one; normalizes and matches
 the buffer's storage/cache/hazard modes; gates render-target usage on Apple GPU
 family 1; and checks offset, aligned row pitch, pixel-row cardinality, 64-bit
@@ -204,7 +216,9 @@ supported by the device, and a heap size that is an exact multiple of that
 page. Legacy sparse heaps reject buffers and placement offsets. The binding
 preflights each texture kind/format/sample/page
 combination through the device tile-layout query before allocation and verifies
-that a heap-created texture reports `isSparse`.
+that a heap-created texture reports `isSparse`. This includes compressed
+EAC/ETC2 and ASTC resources on Apple family 6 or newer; their reported tile
+dimensions must remain aligned to the selected format's blocks.
 
 `Texture.sparse_info` returns the exact device tile dimensions, page bytes,
 first mip in the packed tail, and tail bytes while retaining typed sparse-heap
@@ -261,9 +275,9 @@ address modes and border colors, normalized coordinates, finite float32 LOD
 clamps, comparison, LOD averaging, and argument-buffer support. Invalid
 anisotropy, non-finite or inverted clamps, illegal unnormalized-coordinate
 combinations, and malformed labels fail before sampler creation. Sparse
-depth/stencil and placement resources, cross-process IOSurface/shared-handle
-transport and compressed block-format coverage are still pending; this
-resource slice is therefore progress toward M3, not an M3 completion claim.
+depth/stencil and placement resources plus cross-process
+IOSurface/shared-handle transport are still pending; this resource slice is
+therefore progress toward M3, not an M3 completion claim.
 
 `test_metal.exe` runs a real M1 compute kernel, wrong-domain and invalid-state
 cases, shader diagnostics, copied/no-copy external buffer ownership,
@@ -274,9 +288,12 @@ configured cache/hazard modes, and shared transfer, buffer and texture bounds,
 stride, and cardinality checks, texture mip transfer and views, sampler
 validation, multisample capability gating, heap alignment and placement,
 aliasing, purgeability, residency
-membership/commit/queue/command retention, the 64-format uncompressed matrix,
-format-block transfers, Depth24 capability gating, sparse page and tile
-capability queries, map/blit/read/unmap behavior, command-resource retention, parent
+membership/commit/queue/command retention, the complete 130-format matrix,
+generic format-block transfers, encoded-block CPU round trips for all 66
+capability-supported compressed formats, all 42 bidirectional compressed
+linear/sRGB views, compressed private blits and volume creation, Depth24 and BC
+capability gating, sparse page and tile capability queries, compressed sparse-tile
+alignment, map/blit/read/unmap behavior, command-resource retention, parent
 ownership, idempotent destruction, stale access, and GC-finalizer release. The
 separate ownership stress performs
 warm-up followed
