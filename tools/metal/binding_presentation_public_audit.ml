@@ -20,6 +20,11 @@ let selector_reachable =
   ; "method:-[MTLRenderPassDescriptor setRenderTargetHeight:]"
   ; "method:-[MTLRenderPassDescriptor setRenderTargetArrayLength:]"
   ; "method:-[MTLRenderPassDescriptor setDefaultRasterSampleCount:]" ]
+  @ [ "method:-[MTLRenderPassDescriptor colorAttachments]"
+    ; "method:-[MTLRenderPassDescriptor depthAttachment]"
+    ; "method:-[MTLRenderPassDescriptor stencilAttachment]"
+    ; "method:-[MTLRenderPassDescriptor visibilityResultBuffer]"
+    ; "method:-[MTLRenderPassDescriptor setVisibilityResultBuffer:]" ]
 
 let property_companions =
   [ "property:CAMetalLayer:device"; "property:CAMetalLayer:drawableSize"
@@ -33,6 +38,10 @@ let property_companions =
   ; "property:MTLRenderPassDescriptor:renderTargetHeight"
   ; "property:MTLRenderPassDescriptor:renderTargetArrayLength"
   ; "property:MTLRenderPassDescriptor:defaultRasterSampleCount" ]
+  @ [ "property:MTLRenderPassDescriptor:colorAttachments"
+    ; "property:MTLRenderPassDescriptor:depthAttachment"
+    ; "property:MTLRenderPassDescriptor:stencilAttachment"
+    ; "property:MTLRenderPassDescriptor:visibilityResultBuffer" ]
 
 let safe_reachable = List.sort_uniq String.compare (selector_reachable @ property_companions)
 let missing_public =

@@ -3,9 +3,9 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 3572,
+    "bound": 3581,
     "scope-excluded": 37,
-    "unreviewed": 1676
+    "unreviewed": 1667
   },
   "classification_source_sha256": "e5b3c5eeebf4227deb2efb29a3d0de1cef34c4f62234d8d7d0eca8e837e9453d",
   "deployment_target": "14.0",
@@ -71543,7 +71543,7 @@
           "line": 299
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassDescriptor colorAttachments]",
       "kind": "method",
@@ -71551,7 +71551,7 @@
       "macos_introduced": "10.11",
       "name": "colorAttachments",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned layer/drawable/render-pass values, checked presentation state and callback lifetimes, and real M1 drawable/readback conformance.",
       "signature": "instance () -> MTLRenderPassColorAttachmentDescriptorArray * _Nonnull"
     },
     {
@@ -71587,7 +71587,7 @@
           "line": 299
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassDescriptor depthAttachment]",
       "kind": "method",
@@ -71595,7 +71595,7 @@
       "macos_introduced": "10.11",
       "name": "depthAttachment",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned layer/drawable/render-pass values, checked presentation state and callback lifetimes, and real M1 drawable/readback conformance.",
       "signature": "instance () -> MTLRenderPassDepthAttachmentDescriptor * _Nonnull"
     },
     {
@@ -72094,7 +72094,7 @@
           "line": 299
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassDescriptor setVisibilityResultBuffer:]",
       "kind": "method",
@@ -72102,7 +72102,7 @@
       "macos_introduced": "10.11",
       "name": "setVisibilityResultBuffer:",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned layer/drawable/render-pass values, checked presentation state and callback lifetimes, and real M1 drawable/readback conformance.",
       "signature": "instance (id<MTLBuffer> _Nullable) -> void"
     },
     {
@@ -72138,7 +72138,7 @@
           "line": 299
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassDescriptor stencilAttachment]",
       "kind": "method",
@@ -72146,7 +72146,7 @@
       "macos_introduced": "10.11",
       "name": "stencilAttachment",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned layer/drawable/render-pass values, checked presentation state and callback lifetimes, and real M1 drawable/readback conformance.",
       "signature": "instance () -> MTLRenderPassStencilAttachmentDescriptor * _Nonnull"
     },
     {
@@ -72257,7 +72257,7 @@
           "line": 299
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassDescriptor visibilityResultBuffer]",
       "kind": "method",
@@ -72265,7 +72265,7 @@
       "macos_introduced": "10.11",
       "name": "visibilityResultBuffer",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned layer/drawable/render-pass values, checked presentation state and callback lifetimes, and real M1 drawable/readback conformance.",
       "signature": "instance () -> id<MTLBuffer> _Nullable"
     },
     {
@@ -98175,7 +98175,7 @@
           "line": 299
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "property:MTLRenderPassDescriptor:colorAttachments",
       "kind": "property",
@@ -98183,7 +98183,7 @@
       "macos_introduced": "10.11",
       "name": "colorAttachments",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned layer/drawable/render-pass values, checked presentation state and callback lifetimes, and real M1 drawable/readback conformance.",
       "signature": "MTLRenderPassColorAttachmentDescriptorArray * _Nonnull"
     },
     {
@@ -98219,7 +98219,7 @@
           "line": 299
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "property:MTLRenderPassDescriptor:depthAttachment",
       "kind": "property",
@@ -98227,7 +98227,7 @@
       "macos_introduced": "10.11",
       "name": "depthAttachment",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned layer/drawable/render-pass values, checked presentation state and callback lifetimes, and real M1 drawable/readback conformance.",
       "signature": "MTLRenderPassDepthAttachmentDescriptor * _Null_unspecified"
     },
     {
@@ -98388,7 +98388,7 @@
           "line": 299
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "property:MTLRenderPassDescriptor:stencilAttachment",
       "kind": "property",
@@ -98396,7 +98396,7 @@
       "macos_introduced": "10.11",
       "name": "stencilAttachment",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned layer/drawable/render-pass values, checked presentation state and callback lifetimes, and real M1 drawable/readback conformance.",
       "signature": "MTLRenderPassStencilAttachmentDescriptor * _Null_unspecified"
     },
     {
@@ -98507,7 +98507,7 @@
           "line": 299
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "property:MTLRenderPassDescriptor:visibilityResultBuffer",
       "kind": "property",
@@ -98515,7 +98515,7 @@
       "macos_introduced": "10.11",
       "name": "visibilityResultBuffer",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned layer/drawable/render-pass values, checked presentation state and callback lifetimes, and real M1 drawable/readback conformance.",
       "signature": "id<MTLBuffer> _Nullable"
     },
     {
