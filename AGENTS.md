@@ -127,6 +127,18 @@ conformance fixtures, or committed inventory work.
   C symbols, public call sites, error semantics, or tests. Do not hand-add a
   mechanical raw external and native trampoline when the binding plan can
   represent it.
+- Batch mechanical coverage at production scale. When the pinned inventory has
+  enough compatible declarations, one generation batch should cover at least
+  100 primary/companion declarations rather than qualifying one selector at a
+  time. Partition the plan and its goldens into independent OCaml modules by
+  header or API family so parallel agents can edit disjoint files. Run focused
+  deterministic checks per shard while iterating, then run the repository-wide
+  build, Metal benchmark, conformance, ownership, and sanitizer gates once for
+  the integrated large batch rather than once per declaration.
+- Report generated mechanical coverage separately from fully safe/bound
+  coverage. Raw-only generated declarations count as generator throughput but
+  remain `unreviewed`; only handwritten safe integration and the required
+  conformance evidence may move them to `bound`.
 - A generated low-level declaration is not sufficient to call an SDK feature
   complete or mark it bound. Expose it only through the safe layer and add
   capability, rejection, exact-behavior, no-handle-delta, and completion-owned
