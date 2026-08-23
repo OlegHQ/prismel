@@ -1,4 +1,4 @@
-type status = Pending_safe_native | Blocked
+type status = Promotable | Blocked
 type item =
   { id : string
   ; safe_operation : string
@@ -8,4 +8,5 @@ type item =
   }
 val items : item list
 val pending_ids : string list
+val promotable_ids : string list
 val validate : unit -> unit

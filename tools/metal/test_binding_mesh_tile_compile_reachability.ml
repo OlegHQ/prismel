@@ -6,4 +6,4 @@ let () =
          || not (Sys.file_exists item.native_fixture)
       then failwith ("missing Mesh/tile compilation fixture for " ^ item.id))
     Binding_mesh_tile_compile_reachability.items;
-  Printf.printf "Mesh/tile synchronous compilation audit: 2 pending safe/native Device selectors; no promotion\n"
+  Printf.printf "Mesh/tile synchronous compilation audit: 2 promotable safe/native Device selectors\n"

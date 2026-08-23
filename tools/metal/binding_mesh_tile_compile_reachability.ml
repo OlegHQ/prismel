@@ -1,4 +1,4 @@
-type status = Pending_safe_native | Blocked
+type status = Promotable | Blocked
 type item =
   { id : string
   ; safe_operation : string
@@ -12,14 +12,15 @@ let items =
     ; safe_operation = "Metal.Mesh_tile_pipeline.compile_mesh"
     ; safe_fixture = "lib/metal/test_metal_mesh_tile105_safe.ml"
     ; native_fixture = "tools/metal/test_mesh_tile_pipeline_native.mm"
-    ; status = Pending_safe_native }
+    ; status = Promotable }
   ; { id = "method:-[MTLDevice newRenderPipelineStateWithTileDescriptor:options:reflection:error:]"
     ; safe_operation = "Metal.Mesh_tile_pipeline.compile_tile"
     ; safe_fixture = "lib/metal/test_metal_mesh_tile105_safe.ml"
     ; native_fixture = "tools/metal/test_mesh_tile_pipeline_native.mm"
-    ; status = Pending_safe_native } ]
+    ; status = Promotable } ]
 
 let pending_ids = List.map (fun item -> item.id) items
+let promotable_ids = pending_ids
 let validate () =
   if List.length items <> 2 || List.length (List.sort_uniq String.compare pending_ids) <> 2
      || List.exists (fun item -> item.safe_operation = "" || item.safe_fixture = "" || item.native_fixture = "") items

@@ -41,6 +41,8 @@ let relevant declaration =
           || String.equal declaration.classification "bound"
              && List.mem declaration.id Binding_mesh_tile_safe_reachability.promotable_ids
           || String.equal declaration.classification "bound"
+             && List.mem declaration.id Binding_mesh_tile_compile_reachability.promotable_ids
+          || String.equal declaration.classification "bound"
              && List.mem declaration.id Binding_command_support_safe_reachability.promotable_ids
           || String.equal declaration.classification "bound"
              && List.mem declaration.id Binding_io_safe_reachability.promotable_ids))

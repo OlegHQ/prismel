@@ -37,6 +37,7 @@
   binding_shader_graph_manifest
   binding_shader_safe_reachability
   binding_mesh_tile_safe_reachability
+  binding_mesh_tile_compile_reachability
   binding_command_support_manifest
   binding_command_support_safe_reachability
   binding_io_counter_manifest
@@ -500,6 +501,11 @@
 (test
  (name test_binding_metal4_callable_safe_reachability)
  (modules test_binding_metal4_callable_safe_reachability)
+ (libraries metal_inventory_classification))
+
+(test
+ (name test_binding_mesh_tile_compile_reachability)
+ (modules test_binding_mesh_tile_compile_reachability)
  (libraries metal_inventory_classification))
 
 (test

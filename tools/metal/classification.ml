@@ -1641,6 +1641,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier Binding_mesh_tile_safe_reachability.promotable_ids then
     Bound,
       "Implemented by safe mesh/tile contained descriptor values with exact scalar round trips and native conformance."
+  else if List.mem identifier Binding_mesh_tile_compile_reachability.promotable_ids then
+    Bound,
+      "Implemented by safe synchronous mesh/tile compilation with descriptor ownership, validation, reflection handling, and native conformance."
   else if List.mem identifier Binding_command_support_safe_reachability.promotable_ids then
     Bound,
       "Implemented by safe indirect-command, capture-state, and event operations with validation, ownership, and native conformance."
