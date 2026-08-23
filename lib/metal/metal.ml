@@ -1103,6 +1103,12 @@ type metal4_specialized_descriptor =
 type metal4_stitched_descriptor =
   { raw : Metal_raw.handle; lifetime : lifetime
   ; mutable stitched_functions : metal4_function_descriptor list }
+type machine_learning_descriptor =
+  { raw:Metal_raw.handle; lifetime:lifetime; library:library; function_name:string
+  ; mutable ml_label:string option; ml_inputs:(int64,int64 array option) Hashtbl.t }
+type machine_learning_pipeline =
+  { raw:Metal_raw.handle; lifetime:lifetime; device:device; ml_pipeline_label:string option
+  ; intermediates_heap_size:int64; ml_bindings:shader_binding list }
 
 type compiler =
   { raw : Metal_raw.handle
@@ -11268,6 +11274,62 @@ let retain_command4_argument_bindings operation
         (Option.iter (retain_command4_sampler command_buffer))
         table.samplers;
       Ok ()
+
+module Machine_learning = struct
+  module Descriptor = struct
+    type t=machine_learning_descriptor
+    let valid_dimensions dimensions=Array.length dimensions>0&&Array.length dimensions<=8&&Array.for_all(fun x->x>0L)dimensions
+    let create ?label ~(library:Library.t) ~function_name ()=
+      let operation="Metal.Machine_learning.Descriptor.create"in
+      if function_name=""||contains_nul function_name||option_exists contains_nul label then error operation Invalid_argument "ML name or label is invalid"else on_main operation(fun()->Result.bind(ensure_live operation library.lifetime)(fun()->match Metal_raw.metal4_ml_descriptor_create library.raw function_name label with Error m->native_error operation m|Ok raw->let value:t={raw;lifetime=lifetime();library;function_name;ml_label=label;ml_inputs=Hashtbl.create 8}in attach library.lifetime;attach_finalizer value value.lifetime library.lifetime;Ok value))
+    let set_label (value:t) label=let operation="Metal.Machine_learning.Descriptor.set_label"in if option_exists contains_nul label then error operation Invalid_argument "ML label contains NUL"else on_main operation(fun()->Result.bind(ensure_live operation value.lifetime)(fun()->match Metal_raw.metal4_ml_descriptor_label value.raw label with Error m->native_error operation m|Ok returned when returned<>label->native_error operation "Metal changed ML label"|Ok _->value.ml_label<-label;Ok()))
+    let label (value:t)=value.ml_label
+    let function_ (value:t)=let operation="Metal.Machine_learning.Descriptor.function_"in on_main operation(fun()->Result.bind(ensure_live operation value.lifetime)(fun()->match Metal_raw.metal4_ml_descriptor_function value.raw with Error m->native_error operation m|Ok(raw,name)->ignore(Metal_raw.destroy raw);if name<>value.function_name then native_error operation "ML function identity changed"else Ok(value.library,name)))
+    let set_input_dimensions (value:t) ~index dimensions=let operation="Metal.Machine_learning.Descriptor.set_input_dimensions"in if index<0L||index>255L||not(valid_dimensions dimensions)then error operation Invalid_argument "ML input dimensions are invalid"else on_main operation(fun()->Result.bind(ensure_live operation value.lifetime)(fun()->match Metal_raw.metal4_ml_descriptor_input value.raw index(Some dimensions)with Error m->native_error operation m|Ok returned when returned<>Some dimensions->native_error operation "Metal changed ML dimensions"|Ok _->Hashtbl.replace value.ml_inputs index(Some(Array.copy dimensions));Ok()))
+    let input_dimensions (value:t) ~index=let operation="Metal.Machine_learning.Descriptor.input_dimensions"in if index<0L||index>255L then error operation Invalid_argument "ML input index is invalid"else on_main operation(fun()->Result.bind(ensure_live operation value.lifetime)(fun()->match Metal_raw.metal4_ml_descriptor_input value.raw index None with Error m->native_error operation m|Ok dimensions->Ok(Option.map Array.copy dimensions)))
+    let set_input_dimensions_range (value:t) ~start dimensions=
+      let operation="Metal.Machine_learning.Descriptor.set_input_dimensions_range"in
+      let invalid=Array.exists(function Some x->not(valid_dimensions x)|None->false)dimensions in
+      if start<0L||start>255L||Array.length dimensions=0||
+         Int64.of_int(Array.length dimensions)>Int64.sub 256L start||invalid
+      then error operation Invalid_argument "ML input range is invalid"
+      else on_main operation(fun()->Result.bind(ensure_live operation value.lifetime)(fun()->
+        match Metal_raw.metal4_ml_descriptor_inputs value.raw start dimensions with
+        |Error m->native_error operation m
+        |Ok()->Array.iteri(fun i dims->Hashtbl.replace value.ml_inputs
+            (Int64.add start(Int64.of_int i))(Option.map Array.copy dims))dimensions;Ok()))
+    let reset (value:t)=let operation="Metal.Machine_learning.Descriptor.reset"in on_main operation(fun()->Result.bind(ensure_live operation value.lifetime)(fun()->match Metal_raw.metal4_ml_descriptor_reset value.raw with Error m->native_error operation m|Ok()->Hashtbl.clear value.ml_inputs;value.ml_label<-None;Ok()))
+    let destroy (value:t)=destroy_leaf "Metal.Machine_learning.Descriptor.destroy" value.lifetime value.raw(fun()->detach value.library.lifetime)
+  end
+  module Pipeline = struct
+    type t=machine_learning_pipeline
+    let compile (compiler:Compiler.t) (descriptor:Descriptor.t)=
+      let operation="Metal.Machine_learning.Pipeline.compile"in
+      on_main operation(fun()->
+        Result.bind(ensure_live operation compiler.lifetime)(fun()->
+          Result.bind(ensure_live operation descriptor.lifetime)(fun()->
+            Result.bind(ensure_same_device operation compiler.device descriptor.library.device)(fun()->
+              match Metal_raw.metal4_ml_compile compiler.raw descriptor.raw with
+              |Error m->native_error operation m
+              |Ok(raw,(label,registry,heap,bindings))->
+                  if registry<>compiler.device.registry_id then begin
+                    ignore(Metal_raw.destroy raw);
+                    error operation Device_mismatch "ML pipeline returned another device"
+                  end else
+                    let value:t={raw;lifetime=lifetime();device=compiler.device;
+                      ml_pipeline_label=label;intermediates_heap_size=heap;
+                      ml_bindings=Array.to_list(Array.map Binding.of_raw bindings)}in
+                    attach compiler.device.lifetime;
+                    attach_finalizer value value.lifetime compiler.device.lifetime;
+                    Ok value))))
+    let label(value:t)=value.ml_pipeline_label
+    let intermediates_heap_size(value:t)=value.intermediates_heap_size
+    let bindings(value:t)=value.ml_bindings
+    let device(value:t)=value.device
+    let destroyed(value:t)=is_destroyed value.lifetime
+    let destroy(value:t)=destroy_leaf "Metal.Machine_learning.Pipeline.destroy" value.lifetime value.raw(fun()->detach value.device.lifetime)
+  end
+end
 
 module Command4 = struct
   let positive_size (x, y, z) = x > 0 && y > 0 && z > 0

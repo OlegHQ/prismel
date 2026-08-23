@@ -1,6 +1,10 @@
 open Metal
 let get=function Ok x->x|Error e->failwith(Format.asprintf "%a"pp_error e)
 let expect kind=function Error e when e.kind=kind->()|Error e->failwith(Format.asprintf "wrong rejection: %a"pp_error e)|Ok _->failwith"expected rejection"
+let ml_source={|#include <metal_stdlib>
+using namespace metal;
+kernel void metal4_ml_fixture(device uint *out [[buffer(0)]]) { out[0]=32; }
+|}
 let ()=match Device.system_default()with
 |Error _->print_endline"metal4 callable safe: skipped (no device)"
 |Ok device->
@@ -8,6 +12,15 @@ let ()=match Device.system_default()with
  |Error e when e.kind=Unsupported||e.kind=Native_error->ignore(Device.destroy device);print_endline"metal4 callable safe: skipped (Metal4 unavailable)"
  |Error e->failwith(Format.asprintf "%a"pp_error e)
  |Ok allocator->
+  let ml_library=get(Library.compile_source~device ml_source)in
+  let ml_descriptor=get(Machine_learning.Descriptor.create~library:ml_library
+    ~function_name:"metal4_ml_fixture"~label:"ml"())in
+  let returned_library,returned_name=get(Machine_learning.Descriptor.function_ ml_descriptor)in
+  if returned_library!=ml_library||returned_name<>"metal4_ml_fixture"then failwith"ML function identity drift";
+  get(Machine_learning.Descriptor.set_input_dimensions ml_descriptor~index:0L[|1L;4L|]);
+  if get(Machine_learning.Descriptor.input_dimensions ml_descriptor~index:0L)<>Some[|1L;4L|]then failwith"ML dimensions drift";
+  expect Invalid_argument(Machine_learning.Descriptor.set_input_dimensions ml_descriptor~index:256L[|1L|]);
+  get(Machine_learning.Descriptor.reset ml_descriptor);
   let constants=get(Function_specialization.Constants.create_empty())in
   let specialized=get(Function_specialization.Specialized.create~name:"specialized"~constants())in
   let _,name,returned_constants=get(Function_specialization.Specialized.get specialized)in
@@ -72,5 +85,6 @@ let ()=match Device.system_default()with
   get(Function_specialization.Stitched.destroy stitched);
   get(Function_specialization.Specialized.destroy specialized);
   get(Function_specialization.Constants.destroy constants);
+  get(Machine_learning.Descriptor.destroy ml_descriptor);get(Library.destroy ml_library);
   get(Binary_function.Descriptor.destroy binary_descriptor);get(Device.destroy device);
   print_endline"metal4 callable safe: ok"

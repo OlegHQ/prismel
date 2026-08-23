@@ -2087,6 +2087,31 @@ end
     before its command resources are released. *)
 type indirect_command_buffer_handle
 
+module Machine_learning : sig
+  module Descriptor : sig
+    type t
+    val create : ?label:string -> library:Library.t -> function_name:string -> unit -> (t,error) result
+    val set_label : t -> string option -> (unit,error) result
+    val label : t -> string option
+    val function_ : t -> ((Library.t*string),error) result
+    val set_input_dimensions : t -> index:int64 -> int64 array -> (unit,error) result
+    val input_dimensions : t -> index:int64 -> (int64 array option,error) result
+    val set_input_dimensions_range : t -> start:int64 -> int64 array option array -> (unit,error) result
+    val reset : t -> (unit,error) result
+    val destroy : t -> (unit,error) result
+  end
+  module Pipeline : sig
+    type t
+    val compile : Compiler.t -> Descriptor.t -> (t,error) result
+    val label : t -> string option
+    val intermediates_heap_size : t -> int64
+    val bindings : t -> Binding.t list
+    val device : t -> Device.t
+    val destroyed : t -> bool
+    val destroy : t -> (unit,error) result
+  end
+end
+
 module Command4 : sig
   module Counter_heap : sig
     type t
