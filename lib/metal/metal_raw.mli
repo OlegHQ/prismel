@@ -1790,6 +1790,21 @@ external io_queue_create_scratch : handle -> handle -> (handle,string) result = 
 external io_command_load_bytes : handle -> int64 -> handle -> int64 -> ((bytes,string) result -> unit) -> (nativeint,string) result = "caml_prismel_metal_io_command_load_bytes"
 external io_load_bytes_cancel : nativeint -> unit = "caml_prismel_metal_io_load_bytes_cancel"
 
+(** RasterizationRate55 exact descriptor graph ABI. *)
+external raster_rate_layer_create : (int64 * int64 * int64) -> float array -> float array -> (handle,string) result = "caml_prismel_metal_rate_layer_create"
+external raster_rate_layer_snapshot : handle -> (((int64 * int64 * int64) * (int64 * int64 * int64) * float array * float array),string) result = "caml_prismel_metal_rate_layer_snapshot"
+external raster_rate_layer_set_count : handle -> (int64 * int64 * int64) -> (unit,string) result = "caml_prismel_metal_rate_layer_set_count"
+external raster_rate_sample : handle -> bool -> int64 -> bool -> float -> (float,string) result = "caml_prismel_metal_rate_sample"
+external raster_rate_descriptor_create : (int64 * int64 * int64) -> handle array -> string option -> (handle,string) result = "caml_prismel_metal_rate_descriptor_create"
+external raster_rate_descriptor_snapshot : handle -> (((int64 * int64 * int64) * string option * handle array),string) result = "caml_prismel_metal_rate_descriptor_snapshot"
+external raster_rate_descriptor_set : handle -> (int64 * int64 * int64) -> string option -> (unit,string) result = "caml_prismel_metal_rate_descriptor_set"
+external raster_rate_descriptor_layer : handle -> int64 -> handle option -> (handle option,string) result = "caml_prismel_metal_rate_descriptor_layer"
+external raster_rate_map_create : handle -> handle -> (handle,string) result = "caml_prismel_metal_rate_map_create"
+external raster_rate_map_snapshot : handle -> (((int64 * int64 * int64) * (int64 * int64 * int64) * int64 * (int64 * int64) * string option * int64),string) result = "caml_prismel_metal_rate_map_snapshot"
+external raster_rate_map_physical_size : handle -> int64 -> ((int64 * int64 * int64),string) result = "caml_prismel_metal_rate_map_physical_size"
+external raster_rate_map_coordinate : handle -> int64 -> bool -> (float * float) -> ((float * float),string) result = "caml_prismel_metal_rate_map_coordinate"
+external raster_rate_map_copy_parameters : handle -> handle -> int64 -> (unit,string) result = "caml_prismel_metal_rate_map_copy_parameters"
+
 (** Exact callable subset of the prepared authoritative Metal4 shards. *)
 external metal4_command_buffer_begin :
   handle -> handle -> string option -> (unit,string) result =
@@ -2267,7 +2282,7 @@ external tensor_descriptor_set_dimensions : handle -> handle -> (unit,string) re
   "caml_prismel_metal_tensor_descriptor_set_dimensions"
 external tensor_descriptor_set_strides : handle -> handle -> (unit,string) result =
   "caml_prismel_metal_tensor_descriptor_set_strides"
-external tensor_get_bytes : handle -> bytes -> int64 array -> handle -> handle -> (unit,string) result =
+external tensor_get_bytes : handle -> bytes -> handle -> handle -> handle -> (unit,string) result =
   "caml_prismel_metal_tensor_get_bytes_bytecode" "caml_prismel_metal_tensor_get_bytes"
-external tensor_replace_bytes : handle -> bytes -> int64 array -> handle -> handle -> (unit,string) result =
+external tensor_replace_bytes : handle -> bytes -> handle -> handle -> handle -> (unit,string) result =
   "caml_prismel_metal_tensor_replace_bytes_bytecode" "caml_prismel_metal_tensor_replace_bytes"

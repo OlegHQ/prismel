@@ -34,19 +34,19 @@ extern "C" CAMLprim value caml_prismel_metal_tensor_descriptor_set_dimensions(va
 extern "C" CAMLprim value caml_prismel_metal_tensor_descriptor_set_strides(value raw, value child) { CAMLparam2(raw, child); @try {
   MTLTensorDescriptor *object=object_of_handle(raw,Handle_kind::Tensor_descriptor); object.strides=object_of_handle(child,Handle_kind::Tensor_extents); CAMLreturn(result_unit());
 } @catch(NSException *exception){CAMLreturn(result_error(exception.reason));} }
-static bool prismel_tensor_slice_args(id<MTLTensor> tensor, value raw_strides, MTLTensorExtents *origin, MTLTensorExtents *dimensions, std::vector<NSInteger> &strides) {
-  strides=prismel_tensor_int_array(raw_strides); NSUInteger rank=tensor.dimensions.rank;
-  return rank>0 && strides.size()==rank && origin.rank==rank && dimensions.rank==rank;
+static bool prismel_tensor_slice_args(id<MTLTensor> tensor, MTLTensorExtents *strides, MTLTensorExtents *origin, MTLTensorExtents *dimensions) {
+  NSUInteger rank=tensor.dimensions.rank;
+  return rank>0 && strides.rank==rank && origin.rank==rank && dimensions.rank==rank;
 }
 extern "C" CAMLprim value caml_prismel_metal_tensor_get_bytes(value raw, value bytes, value raw_strides, value raw_origin, value raw_dimensions) {
-  CAMLparam5(raw,bytes,raw_strides,raw_origin,raw_dimensions); @try { id<MTLTensor> tensor=object_of_handle(raw,Handle_kind::Tensor); MTLTensorExtents *origin=object_of_handle(raw_origin,Handle_kind::Tensor_extents),*dimensions=object_of_handle(raw_dimensions,Handle_kind::Tensor_extents); std::vector<NSInteger> strides;
-    if(caml_string_length(bytes)==0||!prismel_tensor_slice_args(tensor,raw_strides,origin,dimensions,strides)) CAMLreturn(result_error_text("tensor byte slice rank/length is invalid"));
-    [tensor getBytes:Bytes_val(bytes) strides:strides.data() fromSliceOrigin:origin sliceDimensions:dimensions]; CAMLreturn(result_unit());
+  CAMLparam5(raw,bytes,raw_strides,raw_origin,raw_dimensions); @try { id<MTLTensor> tensor=object_of_handle(raw,Handle_kind::Tensor); MTLTensorExtents *strides=object_of_handle(raw_strides,Handle_kind::Tensor_extents),*origin=object_of_handle(raw_origin,Handle_kind::Tensor_extents),*dimensions=object_of_handle(raw_dimensions,Handle_kind::Tensor_extents);
+    if(caml_string_length(bytes)==0||!prismel_tensor_slice_args(tensor,strides,origin,dimensions)) CAMLreturn(result_error_text("tensor byte slice rank/length is invalid"));
+    [tensor getBytes:Bytes_val(bytes) strides:strides fromSliceOrigin:origin sliceDimensions:dimensions]; CAMLreturn(result_unit());
   } @catch(NSException *exception){CAMLreturn(result_error(exception.reason));} }
 extern "C" CAMLprim value caml_prismel_metal_tensor_get_bytes_bytecode(value *argv,int argn){(void)argn;return caml_prismel_metal_tensor_get_bytes(argv[0],argv[1],argv[2],argv[3],argv[4]);}
 extern "C" CAMLprim value caml_prismel_metal_tensor_replace_bytes(value raw, value bytes, value raw_strides, value raw_origin, value raw_dimensions) {
-  CAMLparam5(raw,bytes,raw_strides,raw_origin,raw_dimensions); @try { id<MTLTensor> tensor=object_of_handle(raw,Handle_kind::Tensor); MTLTensorExtents *origin=object_of_handle(raw_origin,Handle_kind::Tensor_extents),*dimensions=object_of_handle(raw_dimensions,Handle_kind::Tensor_extents); std::vector<NSInteger> strides;
-    if(caml_string_length(bytes)==0||!prismel_tensor_slice_args(tensor,raw_strides,origin,dimensions,strides)) CAMLreturn(result_error_text("tensor byte slice rank/length is invalid"));
-    [tensor replaceSliceOrigin:origin sliceDimensions:dimensions withBytes:Bytes_val(bytes) strides:strides.data()]; CAMLreturn(result_unit());
+  CAMLparam5(raw,bytes,raw_strides,raw_origin,raw_dimensions); @try { id<MTLTensor> tensor=object_of_handle(raw,Handle_kind::Tensor); MTLTensorExtents *strides=object_of_handle(raw_strides,Handle_kind::Tensor_extents),*origin=object_of_handle(raw_origin,Handle_kind::Tensor_extents),*dimensions=object_of_handle(raw_dimensions,Handle_kind::Tensor_extents);
+    if(caml_string_length(bytes)==0||!prismel_tensor_slice_args(tensor,strides,origin,dimensions)) CAMLreturn(result_error_text("tensor byte slice rank/length is invalid"));
+    [tensor replaceSliceOrigin:origin sliceDimensions:dimensions withBytes:Bytes_val(bytes) strides:strides]; CAMLreturn(result_unit());
   } @catch(NSException *exception){CAMLreturn(result_error(exception.reason));} }
 extern "C" CAMLprim value caml_prismel_metal_tensor_replace_bytes_bytecode(value *argv,int argn){(void)argn;return caml_prismel_metal_tensor_replace_bytes(argv[0],argv[1],argv[2],argv[3],argv[4]);}

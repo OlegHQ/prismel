@@ -7,6 +7,10 @@ static_assert(std::is_same_v<decltype(((MTLTensorDescriptor *)nil).cpuCacheMode)
 static_assert(std::is_same_v<decltype(((MTLTensorDescriptor *)nil).hazardTrackingMode), MTLHazardTrackingMode>);
 static_assert(std::is_same_v<decltype(((MTLTensorDescriptor *)nil).resourceOptions), MTLResourceOptions>);
 static_assert(std::is_same_v<decltype(((MTLTensorDescriptor *)nil).storageMode), MTLStorageMode>);
+static_assert(std::is_same_v<decltype(((MTLTensorDescriptor *)nil).dimensions), MTLTensorExtents *>);
+static_assert(std::is_same_v<decltype(((MTLTensorDescriptor *)nil).strides), MTLTensorExtents *>);
+static_assert(std::is_same_v<decltype(((id<MTLTensor>)nil).dimensions), MTLTensorExtents *>);
+static_assert(std::is_same_v<decltype(((id<MTLTensor>)nil).strides), MTLTensorExtents *>);
 static_assert(std::is_same_v<decltype(((MTLTensorExtents *)nil).rank), NSUInteger>);
 #define PRISMEL_TENSOR_GET(NAME, KIND, TYPE, EXPR)                              \
   extern "C" CAMLprim value NAME(value raw) {                                  \
