@@ -32,6 +32,7 @@ type selection =
   ; identifiers : string list
   ; family_count : int
   ; case_count : int
+  ; scope_excluded_case_count : int
   ; declaration_count : int
   }
 
@@ -183,6 +184,14 @@ let require_shape ~family ~expected_kind ~expected_id ~expected_signatures
       declaration.classification;
   if Option.is_some declaration.constant_value then
     fail "Metal inventory %s unexpectedly has a constant value" declaration.id
+
+let require_case_classification declaration =
+  match declaration.classification with
+  | "unreviewed" | "scope-excluded" -> ()
+  | classification ->
+      fail
+        "Metal inventory %s is %s, expected unreviewed or scope-excluded enum case"
+        declaration.id classification
 
 let id_family = function
   | id when String.starts_with ~prefix:"enum-case:" id ->
@@ -342,9 +351,7 @@ let select ~family_names declarations =
           if not signature_valid then
             fail "Metal enum case %s has unsupported signature %S"
               declaration.id declaration.signature;
-          if not (String.equal declaration.classification "unreviewed") then
-            fail "Metal inventory %s is %s, expected unreviewed" declaration.id
-              declaration.classification;
+          require_case_classification declaration;
           let unsigned_decimal =
             match declaration.constant_value with
             | Some value -> value
@@ -381,10 +388,26 @@ let select ~family_names declarations =
       (fun count (family : family) -> count + List.length family.cases)
       0 families
   in
+  let scope_excluded_case_count =
+    List.fold_left
+      (fun count (family : family) ->
+        List.fold_left
+          (fun count (case : selected_case) ->
+            if
+              String.equal case.declaration.classification "scope-excluded"
+            then count + 1
+            else count)
+          count family.cases)
+      0 families
+  in
   let declaration_count = List.length identifiers in
   if declaration_count <> case_count + (2 * family_count) then
     fail "internal Metal enum selection cardinality mismatch";
-  { families; identifiers; family_count; case_count; declaration_count }
+  if scope_excluded_case_count > case_count then
+    fail "internal Metal enum scope-excluded cardinality mismatch";
+  { families; identifiers; family_count; case_count
+  ; scope_excluded_case_count; declaration_count
+  }
 
 let render_raw_ml ?(outer_module = "Enum_constants") selection =
   let outer_module = ocaml_module_identifier outer_module in
@@ -429,6 +452,7 @@ let manifest_json selection =
              (fun (case : selected_case) ->
                `Assoc
                  [ "id", `String case.declaration.id
+                 ; "classification", `String case.declaration.classification
                  ; "name", `String case.declaration.name
                  ; "ocaml_name", `String case.ocaml_name
                  ; "uint64_bits", `String (Printf.sprintf "0x%016Lx" case.bits)
@@ -448,4 +472,6 @@ let manifest_json selection =
     ; "enum_family_count", `Int selection.family_count
     ; "enum_identifiers",
       `List (List.map (fun identifier -> `String identifier) selection.identifiers)
+    ; "enum_scope_excluded_case_count",
+      `Int selection.scope_excluded_case_count
     ]

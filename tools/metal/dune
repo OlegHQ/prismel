@@ -7,7 +7,13 @@
   binding_enum_misc
   binding_enum_plan
   binding_enum_codegen
+  binding_availability
+  binding_availability_ast
   binding_receiver_catalog
+  binding_direct_spec
+  binding_direct_methods
+  binding_direct_properties
+  binding_direct_plan
   binding_spec
   binding_plan_render
   binding_plan_compute
@@ -47,8 +53,18 @@
   binding_enum_plan.mli
   binding_enum_codegen.ml
   binding_enum_codegen.mli
+  binding_availability.ml
+  binding_availability.mli
   binding_receiver_catalog.ml
   binding_receiver_catalog.mli
+  binding_direct_spec.ml
+  binding_direct_spec.mli
+  binding_direct_methods.ml
+  binding_direct_methods.mli
+  binding_direct_properties.ml
+  binding_direct_properties.mli
+  binding_direct_plan.ml
+  binding_direct_plan.mli
   binding_plan.ml
   binding_plan.mli
   binding_plan_render.ml
@@ -87,6 +103,18 @@
    --inventory %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (name test_binding_direct_plan)
+ (modules test_binding_direct_plan)
+ (libraries
+  gpu_migration_support
+  metal_inventory_classification
+  yojson)
+ (deps ../../lib/metal/generated_api_inventory.json)
+ (action
+  (run %{test}
+   --inventory %{dep:../../lib/metal/generated_api_inventory.json})))
+
+(test
  (name test_binding_receiver_catalog)
  (modules test_binding_receiver_catalog)
  (libraries
@@ -100,6 +128,11 @@
   (run %{test}
    --inventory %{dep:../../lib/metal/generated_api_inventory.json}
    --bridge %{dep:../../lib/metal/metal_bridge.mm})))
+
+(test
+ (name test_binding_availability)
+ (modules test_binding_availability)
+ (libraries metal_inventory_classification yojson))
 
 (executable
  (name generate_inventory)
@@ -130,6 +163,18 @@
   binding_enum_misc.mli
   binding_enum_plan.ml
   binding_enum_plan.mli
+  binding_availability.ml
+  binding_availability.mli
+  binding_availability_ast.ml
+  binding_availability_ast.mli
+  binding_direct_spec.ml
+  binding_direct_spec.mli
+  binding_direct_methods.ml
+  binding_direct_methods.mli
+  binding_direct_properties.ml
+  binding_direct_properties.mli
+  binding_direct_plan.ml
+  binding_direct_plan.mli
   binding_plan.ml
   binding_plan.mli
   binding_plan_render.ml

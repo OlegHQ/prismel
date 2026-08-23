@@ -28,6 +28,9 @@ macOS are `scope-excluded`; remaining declarations stay `unreviewed` until the
 corresponding Phase 2 slice lands. M1 is not green until the generated inventory
 contains no unreviewed in-scope declaration.
 
+The schema-2 pinned inventory contains 5,286 declarations: 1,847 `bound`, one
+`availability-gated`, 27 `scope-excluded`, and 3,411 `unreviewed`.
+
 Binding generation is a hybrid OCaml/Dune architecture. The declarative binding
 plan is keyed by identifiers from that pinned inventory and repeats the expected
 owner, kind, pinned normalized signature, and explicit availability contract.
@@ -36,11 +39,37 @@ argument is accepted only when all cases in its SDK family have recorded values,
 and it names that complete expected family and its exact values. Plan resolution
 is fail-closed for an absent declaration, SDK/header/signature/enum-value drift,
 duplicate identifier, stale plan provenance, exact generated-symbol collision,
-or handwritten/generated overlap. Availability is reviewed explicitly against
-the pinned owner header because Clang's JSON rows do not expose the inherited
-introduced-version payload. Stable ordering, pinned inputs, content hashes, and
-emitted provenance keep generation deterministic and make Dune's
-generated-output regression checks fail on drift.
+or handwritten/generated overlap.
+
+Clang's JSON availability attributes identify source expansions rather than
+carrying a directly reusable introduced-version payload. The OCaml inventory
+generator resolves every direct attribute to an exact expansion site in a
+cached public Metal or CAMetalLayer header; malformed, conflicting,
+internal-only, or non-public locations fail generation. It parses the exact
+header line with a strict OCaml parser for `API_AVAILABLE`, `API_DEPRECATED`,
+and `API_DEPRECATED_WITH_REPLACEMENT`, rejecting malformed versions, overflow,
+duplicate macOS clauses, and ambiguous macro text instead of guessing.
+
+Availability on a protocol, interface, category, enum, record, or typedef is
+carried lexically to its members and combined with each member's direct sites.
+The effective macOS introduction is the maximum of those inherited and direct
+versions. Duplicate declaration collapse unions the evidence and fails if the
+same normalized source line resolves inconsistently. Schema 2 records the
+result on every symbol as canonical nullable `macos_introduced` plus a sorted,
+deduplicated `availability_sources` array of `{header, line}` objects. An exact
+`API_UNAVAILABLE(macos)` source overrides inherited introductions, leaves
+`macos_introduced` null, and preserves `scope-excluded`; unavailability for a
+different platform does not corrupt the macOS classification. Stable ordering,
+pinned inputs, content hashes, and emitted provenance keep generation
+deterministic and make Dune's generated-output regression checks fail on drift.
+
+Clang may emit a typedef-owned anonymous enum or record as separate forward,
+definition, and typedef roots. The inventory joins only the exact immediate
+`ownedTagDecl` and `previousDecl` identity family, unions declaration-level tag
+and typedef availability in both directions, and then carries that evidence to
+the tag's cases or fields. It never infers ownership from matching type names or
+promotes member-only evidence to a sibling. Conflicting owners, malformed sites,
+and order-dependent or duplicate-root results fail generation.
 
 The plan schema and direct-call entries are split into independent OCaml modules
 for render, compute, and resource work. Their provenance is one sorted,
@@ -60,19 +89,41 @@ catalog partition with the native enum, requires every SDK owner in the pinned
 inventory, and checks the declared direct/helper/wrapper recovery evidence in
 the bridge.
 
-The first production-scale mechanical batch selects 61 wholly unreviewed enum
-families whose pinned closure is complete: 61 enum declarations, 61 typedef
-companions, and 326 cases, or 448 inventory declarations in total. Three
-non-overlapping OCaml family shards feed one fail-closed selector. It requires
-canonical identifiers, supported enum/typedef signature forms, unreviewed
-classification, a recorded unsigned value for every case, exact aggregate
-cardinality, and collision-free OCaml names. The generated private
+A handle-backed callable batch is now integrated. It generates 59 statically
+typed raw selector calls and records 40 property declarations, covering 99 new
+unique inventory IDs. Together with the checked generator plan's prior ten
+primary methods and two property companions, the generated callable
+primary/companion closure now contains 111 unique declarations. The 99 new
+declarations remain private and `unreviewed`; they are not described as safely
+bound.
+
+The integrated production-scale mechanical enum batch selects 61 complete
+families: 61 `unreviewed` enum declarations, 61 `unreviewed` typedef companions,
+and 326 cases, or 448 inventory declarations in total. The cases split into 301
+in-scope `unreviewed` declarations and 25 macOS-unavailable `scope-excluded`
+declarations, so 423 IDs from the enum closure contribute to in-scope
+unreviewed mechanical coverage. Three non-overlapping OCaml family shards feed
+one fail-closed selector. It requires canonical identifiers, supported
+enum/typedef signature forms, `unreviewed` enum and typedef classification,
+case classification of exactly `unreviewed` or `scope-excluded`, a recorded
+unsigned value for every case, exact aggregate cardinality, and collision-free
+OCaml names. The generated private
 `Metal_raw.Enum_constants` modules preserve each unsigned 64-bit bit pattern as
 `int64`; this includes `18446744073709551615` as `0xffffffffffffffffL` rather
 than overflowing or narrowing through an OCaml `int`. The manifest records all
-448 identifiers, families, decimal values, bit patterns, and generated names.
-These declarations remain `unreviewed`: mechanical generation is reported
-separately and does not imply a safe public operation.
+448 identifiers, families, decimal values, bit patterns, generated names, every
+case classification, and the aggregate 25-case scope-excluded count. Selection
+separately validates that all 61 enum and 61 typedef companions are
+`unreviewed`.
+
+Combining the enum closure's 423 in-scope IDs with the direct batch's 99 new IDs
+gives private mechanical raw coverage of 522 of the inventory's 3,411
+`unreviewed` declarations, approximately 15.30%. This is generator throughput,
+not safe API completion: raw/private generation moves none of those declarations
+to `bound`. The safe/bound completion remains 1,847 of 5,259 in-scope
+declarations, or 35.12%, with 64.88% left. The safe percentage changes only
+when handwritten ownership, validation, lifetime, and conformance work moves an
+inventory declaration to `bound`.
 
 Public types, domain and lifetime checks, ownership and retention, validation,
 capability policy, asynchronous completion, complex records, and multi-object
@@ -146,10 +197,11 @@ pipeline and cached limits change only after the native bind succeeds, just as
 only a successful native setter updates the ledger.
 
 The compute static getter closure and safe compute setter move exactly three
-declarations from `unreviewed` to `bound`, leaving 1,847 `bound` and 3,431
+declarations from `unreviewed` to `bound`. The current schema-2 inventory has
+1,847 `bound`, one `availability-gated`, 27 `scope-excluded`, and 3,411
 `unreviewed`. The compute getter and setter allocate no native handles. The
-imageblock and render threadgroup-memory setters above remain raw-only and do
-not count as bound.
+imageblock and render
+threadgroup-memory setters above remain raw-only and do not count as bound.
 
 Exact M1 execution reports 16 bytes of static memory for the small/index-one
 fixtures, 32 bytes for the large fixture, and a 32,768-byte device limit. The

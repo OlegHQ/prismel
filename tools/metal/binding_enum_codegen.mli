@@ -30,6 +30,7 @@ type selection =
   ; identifiers : string list
   ; family_count : int
   ; case_count : int
+  ; scope_excluded_case_count : int
   ; declaration_count : int
   }
 
@@ -45,9 +46,11 @@ val ocaml_module_identifier : string -> string
     The returned [int64] is its exact two's-complement bit pattern. *)
 val uint64_bits : string -> int64
 
-(** Select complete unreviewed enum families from an inventory. The result is
-    canonicalized by family and case name and includes the enum and typedef
-    companion declaration identifiers. *)
+(** Select complete enum families from an inventory. Family enum declarations
+    and typedef companions must remain [unreviewed]. Individual enum cases may
+    be [unreviewed] or [scope-excluded]; every other classification fails
+    closed. The result is canonicalized by family and case name and includes
+    all enum, typedef, and case declaration identifiers. *)
 val select : family_names:string list -> declaration list -> selection
 
 (** Render a private raw implementation fragment. Constants are emitted as
@@ -57,5 +60,7 @@ val render_raw_ml : ?outer_module:string -> selection -> string
 (** Render the matching private raw interface fragment. *)
 val render_raw_mli : ?outer_module:string -> selection -> string
 
-(** Deterministic generator-manifest metadata for the selected enum batch. *)
+(** Deterministic generator-manifest metadata for the selected enum batch,
+    including every case classification and the aggregate selected
+    [scope-excluded] case count. *)
 val manifest_json : selection -> Yojson.Safe.t

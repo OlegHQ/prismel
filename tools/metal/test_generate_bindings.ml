@@ -733,9 +733,11 @@ let replace_once ~needle ~replacement value =
           (String.length value - start - String.length needle)
 
 let native_binding_body symbol native =
-  match find_from ~needle:symbol native 0 with
+  let definition = "\n" ^ symbol ^ "(" in
+  match find_from ~needle:definition native 0 with
   | None -> fail "generated native binding is absent: %s" symbol
-  | Some start ->
+  | Some definition_start ->
+      let start = definition_start + 1 in
       let ending =
         match find_from ~needle:"\nextern \"C\" CAMLprim value" native
                 (start + String.length symbol) with
@@ -878,6 +880,8 @@ let generator_source_sha256 entry_source =
   let tools_directory = Filename.dirname metal_directory in
   let root = Filename.dirname tools_directory in
   [ "tools/metal/generate_bindings.ml"
+  ; "tools/metal/binding_availability.ml"
+  ; "tools/metal/binding_availability.mli"
   ; "tools/metal/binding_enum_codegen.ml"
   ; "tools/metal/binding_enum_codegen.mli"
   ; "tools/metal/binding_receiver_catalog.ml"
@@ -944,6 +948,508 @@ let check_mechanical_enum_batch raw_ml raw_mli value =
     if count_occurrences ~needle contents <> 1 then
       fail "generated Metal UINT64_MAX raw enum constant drift")
 
+let check_json_fields context expected value =
+  let actual =
+    match value with
+    | `Assoc fields -> List.map fst fields
+    | _ -> fail "%s is not a JSON object" context
+  in
+  let sort = List.sort String.compare in
+  if sort actual <> sort expected then
+    fail "%s field-set drift: expected [%s], found [%s]" context
+      (String.concat ", " (sort expected))
+      (String.concat ", " (sort actual))
+
+let require_json_string context field expected value =
+  let actual = json_string field value in
+  if not (String.equal actual expected) then
+    fail "%s %s drift: expected %s, found %s" context field expected actual
+
+let require_json_string_list context field expected value =
+  let actual = json_string_list field value in
+  if actual <> expected then
+    fail "%s %s drift: expected [%s], found [%s]" context field
+      (String.concat ", " expected) (String.concat ", " actual)
+
+let direct_width_string = function
+  | Binding_direct_spec.Native -> "native64"
+  | Binding_direct_spec.Bits32 -> "32"
+  | Binding_direct_spec.Bits64 -> "64"
+
+let check_direct_scalar sdk_id role scalar value =
+  let context = Printf.sprintf "direct method %s %s" sdk_id role in
+  let abi, width =
+    match scalar with
+    | Binding_direct_spec.Bool -> "objc_bool", None
+    | Binding_direct_spec.Float64 _ -> "objc_float64", None
+    | Binding_direct_spec.Signed { width; _ } ->
+        "signed_integer", Some (direct_width_string width)
+    | Binding_direct_spec.Unsigned { width; _ } ->
+        "unsigned_bit_pattern", Some (direct_width_string width)
+  in
+  check_json_fields context
+    ([ "abi"; "objc_type"; "ocaml_type" ]
+     @ match width with None -> [] | Some _ -> [ "width" ])
+    value;
+  require_json_string context "abi" abi value;
+  require_json_string context "objc_type"
+    (Binding_direct_spec.scalar_objc_type scalar) value;
+  require_json_string context "ocaml_type"
+    (Binding_direct_spec.scalar_ocaml_type scalar) value;
+  match width with
+  | None -> ()
+  | Some width -> require_json_string context "width" width value
+
+let direct_semantics_string = function
+  | Binding_direct_spec.Query -> "query"
+  | Binding_direct_spec.Command -> "command"
+  | Binding_direct_spec.Blocking -> "blocking"
+  | Binding_direct_spec.Process_identity -> "process_identity"
+
+type expected_direct_receiver_access =
+  | Direct_object of string
+  | Helper_object of
+      { helper : string
+      ; handle_kinds : string list
+      }
+  | Wrapped_object of
+      { handle_kind : string
+      ; wrapper_type : string
+      ; property : string
+      }
+
+type expected_direct_receiver =
+  { objc_type : string
+  ; raw_name : string
+  ; local_name : string
+  ; access : expected_direct_receiver_access
+  }
+
+let expected_direct_receiver owner =
+  match
+    List.find_opt
+      (fun (receiver : Binding_receiver_catalog.polymorphic_receiver) ->
+        String.equal receiver.sdk_owner owner)
+      Binding_receiver_catalog.polymorphic_receivers
+  with
+  | Some receiver ->
+      { objc_type = receiver.objc_receiver_type
+      ; raw_name = receiver.raw_name
+      ; local_name = receiver.local_name
+      ; access =
+          Helper_object
+            { helper = receiver.helper
+            ; handle_kinds = receiver.accepted_handle_kinds
+            }
+      }
+  | None ->
+      (match
+         List.filter
+           (fun (receiver : Binding_receiver_catalog.receiver) ->
+             String.equal receiver.sdk_owner owner)
+           Binding_receiver_catalog.receivers
+       with
+       | [ receiver ] ->
+           let access =
+             match receiver.bridge_access with
+             | Binding_receiver_catalog.Object_of_handle ->
+                 Direct_object receiver.handle_kind
+             | Binding_receiver_catalog.Object_of_helper helper ->
+                 Helper_object
+                   { helper; handle_kinds = [ receiver.handle_kind ] }
+             | Binding_receiver_catalog.Wrapped_property
+                 { wrapper_type; property } ->
+                 Wrapped_object
+                   { handle_kind = receiver.handle_kind
+                   ; wrapper_type
+                   ; property
+                   }
+           in
+           { objc_type = receiver.objc_receiver_type
+           ; raw_name = receiver.raw_name
+           ; local_name = receiver.local_name
+           ; access
+           }
+       | [] -> fail "direct method owner has no receiver catalog entry: %s" owner
+       | _ -> fail "direct method owner has ambiguous receiver entries: %s" owner)
+
+let check_direct_receiver_manifest sdk_id
+    (expected : expected_direct_receiver) value =
+  let context = "direct method " ^ sdk_id ^ " receiver" in
+  let common = [ "objc_type"; "raw_name"; "local_name"; "access"; "handle_kinds" ] in
+  let fields =
+    match expected.access with
+    | Wrapped_object _ -> common @ [ "wrapper_type"; "wrapper_property" ]
+    | Direct_object _ | Helper_object _ -> common
+  in
+  check_json_fields context fields value;
+  require_json_string context "objc_type" expected.objc_type value;
+  require_json_string context "raw_name" expected.raw_name value;
+  require_json_string context "local_name" expected.local_name value;
+  (match expected.access with
+   | Direct_object handle_kind ->
+       require_json_string context "access" "object_of_handle" value;
+       require_json_string_list context "handle_kinds" [ handle_kind ] value
+   | Helper_object { helper; handle_kinds } ->
+       require_json_string context "access" helper value;
+       require_json_string_list context "handle_kinds" handle_kinds value
+   | Wrapped_object { handle_kind; wrapper_type; property } ->
+       require_json_string context "access" "wrapped_property" value;
+       require_json_string_list context "handle_kinds" [ handle_kind ] value;
+       require_json_string context "wrapper_type" wrapper_type value;
+       require_json_string context "wrapper_property" property value)
+
+let check_direct_method_manifest
+    (expected : Binding_direct_spec.method_entry) value =
+  let context = "direct method " ^ expected.sdk_id in
+  check_json_fields context
+    [ "sdk_id"; "owner"; "selector"; "header"; "signature"; "attributes"
+    ; "macos_introduced"; "semantics"; "arguments"; "result"; "ocaml_name"
+    ; "c_symbol"; "receiver"; "safe_api"
+    ] value;
+  [ "sdk_id", expected.sdk_id
+  ; "owner", expected.owner
+  ; "selector", expected.selector
+  ; "header", expected.header
+  ; "signature", expected.signature
+  ; "macos_introduced",
+    Binding_availability.canonical expected.macos_introduced
+  ; "semantics", direct_semantics_string expected.semantics
+  ; "ocaml_name", expected.ocaml_name
+  ; "c_symbol", expected.c_symbol
+  ]
+  |> List.iter (fun (field, expected_value) ->
+    require_json_string context field expected_value value);
+  require_json_string_list context "attributes" expected.attributes value;
+  let arguments = json_list "arguments" value in
+  if List.length arguments <> List.length expected.arguments then
+    fail "%s argument cardinality drift" context;
+  List.iteri
+    (fun index (scalar, argument) ->
+      check_direct_scalar expected.sdk_id
+        (Printf.sprintf "argument %d" index) scalar argument)
+    (List.combine expected.arguments arguments);
+  (match expected.result, member_exn "result" value with
+   | None, `Null -> ()
+   | None, _ -> fail "%s unexpectedly has a result" context
+   | Some _, `Null -> fail "%s is missing its result" context
+   | Some result, result_json ->
+       check_direct_scalar expected.sdk_id "result" result result_json);
+  check_direct_receiver_manifest expected.sdk_id
+    (expected_direct_receiver expected.owner)
+    (member_exn "receiver" value);
+  if member_exn "safe_api" value <> `Null then
+    fail "%s must remain raw-only" context
+
+let check_direct_property_manifest
+    (expected : Binding_direct_spec.property_entry) value =
+  let context = "direct property " ^ expected.sdk_id in
+  check_json_fields context
+    [ "sdk_id"; "owner"; "name"; "header"; "signature"; "attributes"
+    ; "macos_introduced"; "getter_sdk_id"; "setter_sdk_id"
+    ] value;
+  [ "sdk_id", expected.sdk_id
+  ; "owner", expected.owner
+  ; "name", expected.name
+  ; "header", expected.header
+  ; "signature", expected.signature
+  ; "macos_introduced",
+    Binding_availability.canonical expected.macos_introduced
+  ; "getter_sdk_id", expected.getter.sdk_id
+  ]
+  |> List.iter (fun (field, expected_value) ->
+    require_json_string context field expected_value value);
+  require_json_string_list context "attributes" expected.attributes value;
+  match expected.setter, member_exn "setter_sdk_id" value with
+  | None, `Null -> ()
+  | None, _ -> fail "%s unexpectedly has a setter" context
+  | Some _, `Null -> fail "%s is missing its setter" context
+  | Some setter, `String actual when String.equal actual setter.sdk_id -> ()
+  | Some setter, `String actual ->
+      fail "%s setter drift: expected %s, found %s" context setter.sdk_id
+        actual
+  | Some _, _ -> fail "%s setter_sdk_id is not a string" context
+
+let direct_raw_external (entry : Binding_direct_spec.method_entry) =
+  let result_type =
+    match entry.result with
+    | None -> "unit"
+    | Some result -> Binding_direct_spec.scalar_ocaml_type result
+  in
+  let types =
+    "Types.handle"
+    :: List.map Binding_direct_spec.scalar_ocaml_type entry.arguments
+    @ [ Printf.sprintf "(%s, string) result" result_type ]
+  in
+  Printf.sprintf "  external %s :\n    %s =\n    %S\n\n" entry.ocaml_name
+    (String.concat " -> " types) entry.c_symbol
+
+let direct_selector_pieces selector argument_count =
+  if argument_count = 0 then [ selector ]
+  else
+    match List.rev (String.split_on_char ':' selector) with
+    | "" :: reversed ->
+        let pieces = List.rev reversed in
+        if List.length pieces <> argument_count then
+          fail "direct selector/argument cardinality drift: %s" selector;
+        pieces
+    | _ -> fail "direct selector with arguments lacks trailing colon: %s" selector
+
+let direct_selector_call (entry : Binding_direct_spec.method_entry)
+    (receiver : expected_direct_receiver) =
+  match entry.arguments with
+  | [] -> Printf.sprintf "[%s %s]" receiver.local_name entry.selector
+  | arguments ->
+      direct_selector_pieces entry.selector (List.length arguments)
+      |> List.mapi (fun index piece ->
+        Printf.sprintf "%s:argument_%d" piece index)
+      |> String.concat " "
+      |> Printf.sprintf "[%s %s]" receiver.local_name
+
+let direct_receiver_recovery (receiver : expected_direct_receiver) =
+  match receiver.access with
+  | Direct_object handle_kind ->
+      Printf.sprintf
+        "%s %s =\n            object_of_handle(%s, Handle_kind::%s);"
+        receiver.objc_type receiver.local_name receiver.raw_name handle_kind
+  | Helper_object { helper; _ } ->
+      Printf.sprintf "%s %s = %s(%s);" receiver.objc_type receiver.local_name
+        helper receiver.raw_name
+  | Wrapped_object { handle_kind; wrapper_type; property } ->
+      Printf.sprintf
+        "%s receiver_state =\n            object_of_handle(%s, Handle_kind::%s);\n        %s %s = receiver_state.%s;"
+        wrapper_type receiver.raw_name handle_kind receiver.objc_type
+        receiver.local_name property
+
+let direct_native_signature (entry : Binding_direct_spec.method_entry)
+    (receiver : expected_direct_receiver) =
+  let raw_arguments =
+    receiver.raw_name
+    :: List.mapi (fun index _ -> Printf.sprintf "raw_argument_%d" index)
+         entry.arguments
+  in
+  Printf.sprintf "%s(\n    %s) {" entry.c_symbol
+    (raw_arguments
+     |> List.map (fun argument -> "value " ^ argument)
+     |> String.concat ", ")
+
+let direct_camlparam (entry : Binding_direct_spec.method_entry)
+    (receiver : expected_direct_receiver) =
+  let arguments =
+    receiver.raw_name
+    :: List.mapi (fun index _ -> Printf.sprintf "raw_argument_%d" index)
+         entry.arguments
+  in
+  Printf.sprintf "CAMLparam%d(%s);" (List.length arguments)
+    (String.concat ", " arguments)
+
+let direct_method_by_id sdk_id =
+  match
+    List.find_opt
+      (fun (entry : Binding_direct_spec.method_entry) ->
+        String.equal entry.sdk_id sdk_id)
+      Binding_direct_plan.methods
+  with
+  | Some entry -> entry
+  | None -> fail "representative direct method is absent from plan: %s" sdk_id
+
+let check_direct_needles sdk_id native needles =
+  let entry = direct_method_by_id sdk_id in
+  let body = native_binding_body entry.c_symbol native in
+  List.iter
+    (fun needle ->
+      if count_occurrences ~needle body <> 1 then
+        fail "representative native spelling %S must occur once for %s" needle
+          sdk_id)
+    needles;
+  entry, body
+
+let require_ordered_needles sdk_id body needles =
+  let rec loop start = function
+    | [] -> ()
+    | needle :: rest ->
+        (match find_from ~needle body start with
+         | None -> fail "native operation order drift for %s at %S" sdk_id needle
+         | Some index -> loop (index + String.length needle) rest)
+  in
+  loop 0 needles
+
+let check_direct_representatives native =
+  let _, _ =
+    check_direct_needles "method:-[MTLTexture isFramebufferOnly]" native
+      [ "const BOOL native_result = [texture isFramebufferOnly];"
+      ; "copied_result = Val_bool(native_result);"
+      ]
+  in
+  let unsigned_result objc_type receiver selector =
+    [ Printf.sprintf "const %s native_result = [%s %s];" objc_type receiver
+        selector
+    ; "copied_result = caml_copy_int64(static_cast<std::int64_t>(static_cast<std::uint64_t>(native_result)));"
+    ]
+  in
+  let _, _ =
+    check_direct_needles "method:-[MTLDevice peerCount]" native
+      (unsigned_result "uint32_t" "device" "peerCount")
+  in
+  let _, _ =
+    check_direct_needles "method:-[MTLDevice peerGroupID]" native
+      (unsigned_result "uint64_t" "device" "peerGroupID")
+  in
+  let _, _ =
+    check_direct_needles "method:-[MTLCommandBuffer GPUEndTime]" native
+      [ "const CFTimeInterval native_result = [command_buffer GPUEndTime];"
+      ; "copied_result = caml_copy_double(static_cast<double>(native_result));"
+      ]
+  in
+  let _, _ =
+    check_direct_needles
+      "method:-[MTLComputePipelineState shaderValidation]" native
+      [ "const MTLShaderValidation native_result = [compute_pipeline shaderValidation];"
+      ; "copied_result = caml_copy_int64(static_cast<std::int64_t>(native_result));"
+      ]
+  in
+  let _, _ =
+    check_direct_needles
+      "method:-[MTLDevice supportsRasterizationRateMapWithLayerCount:]"
+      native [ "if (@available(macOS 10.15.4, *))" ]
+  in
+  let command4 = direct_method_by_id "method:-[MTL4CommandBuffer popDebugGroup]" in
+  let command4_receiver = expected_direct_receiver command4.owner in
+  let _, _ =
+    check_direct_needles command4.sdk_id native
+      [ direct_receiver_recovery command4_receiver
+      ; "[command_buffer4 popDebugGroup];"
+      ]
+  in
+  let resource = direct_method_by_id "method:-[MTLResource allocatedSize]" in
+  let resource_receiver = expected_direct_receiver resource.owner in
+  let _, _ =
+    check_direct_needles resource.sdk_id native
+      [ direct_receiver_recovery resource_receiver
+      ; "const NSUInteger native_result = [resource allocatedSize];"
+      ]
+  in
+  let blocking_id = "method:-[MTLCommandBuffer waitUntilScheduled]" in
+  let _, blocking_body =
+    check_direct_needles blocking_id native
+      [ "caml_enter_blocking_section();"
+      ; "[command_buffer waitUntilScheduled];"
+      ; "caml_leave_blocking_section();"
+      ; "if (caught_exception != nil) {"
+      ]
+  in
+  require_ordered_needles blocking_id blocking_body
+    [ "id<MTLCommandBuffer> command_buffer ="
+    ; "caml_enter_blocking_section();"
+    ; "[command_buffer waitUntilScheduled];"
+    ; "caml_leave_blocking_section();"
+    ; "if (caught_exception != nil) {"
+    ];
+  let identity_id = "method:-[MTLResource setOwnerWithIdentity:]" in
+  let _, identity_body =
+    check_direct_needles identity_id native
+      [ "id<MTLResource> resource = resource_of_handle(raw_resource);"
+      ; "const std::int64_t signed_argument_0 = Int64_val(raw_argument_0);"
+      ; "if (signed_argument_0 < 0 || static_cast<std::uint64_t>(signed_argument_0) > UINT32_MAX) {"
+      ; "unsigned Metal argument is outside 32-bit range"
+      ; "const task_id_token_t argument_0 = static_cast<task_id_token_t>(static_cast<std::uint64_t>(signed_argument_0));"
+      ; "const kern_return_t native_result = [resource setOwnerWithIdentity:argument_0];"
+      ; "copied_result = caml_copy_int64(static_cast<std::int64_t>(native_result));"
+      ]
+  in
+  require_ordered_needles identity_id identity_body
+    [ "resource_of_handle(raw_resource)"
+    ; "Int64_val(raw_argument_0)"
+    ; "UINT32_MAX"
+    ; "const task_id_token_t argument_0"
+    ; "[resource setOwnerWithIdentity:argument_0]"
+    ; "caml_copy_int64"
+    ]
+
+let check_mechanical_direct_batch raw_ml raw_mli native value =
+  let batch = member_exn "mechanical_direct_handle_batch" value in
+  check_json_fields "mechanical direct-call batch"
+    [ "method_count"; "property_count"; "declaration_count"
+    ; "safe_bound_count"; "methods"; "properties"
+    ] batch;
+  let expected_counts =
+    [ "method_count", 59, Binding_direct_plan.expected_method_count
+    ; "property_count", 40, Binding_direct_plan.expected_property_count
+    ; "declaration_count", 99,
+      Binding_direct_plan.expected_declaration_count
+    ; "safe_bound_count", 0, 0
+    ]
+  in
+  List.iter
+    (fun (field, required, planned) ->
+      if planned <> required || member_int field batch <> Some required then
+        fail "generated Metal direct-call %s drift" field)
+    expected_counts;
+  let methods = json_list "methods" batch in
+  let properties = json_list "properties" batch in
+  if List.length methods <> 59 || List.length properties <> 40 then
+    fail "generated Metal direct-call manifest list cardinality drift";
+  let sort_manifest field =
+    List.sort
+      (fun left right ->
+        String.compare (json_string field left) (json_string field right))
+  in
+  let sort_methods =
+    List.sort
+      (fun (left : Binding_direct_spec.method_entry) right ->
+        String.compare left.sdk_id right.sdk_id)
+  in
+  let sort_properties =
+    List.sort
+      (fun (left : Binding_direct_spec.property_entry) right ->
+        String.compare left.sdk_id right.sdk_id)
+  in
+  let methods = sort_manifest "sdk_id" methods in
+  let properties = sort_manifest "sdk_id" properties in
+  let expected_methods = sort_methods Binding_direct_plan.methods in
+  let expected_properties = sort_properties Binding_direct_plan.properties in
+  let manifest_ids =
+    List.map (json_string "sdk_id") methods
+    @ List.map (json_string "sdk_id") properties
+  in
+  let sorted_ids = List.sort String.compare manifest_ids in
+  if List.length (List.sort_uniq String.compare manifest_ids) <> 99
+     || sorted_ids
+        <> List.sort String.compare Binding_direct_plan.inventory_ids
+  then fail "generated Metal direct-call inventory ID closure drift";
+  List.iter2 check_direct_method_manifest expected_methods methods;
+  List.iter2 check_direct_property_manifest expected_properties properties;
+  List.iter
+    (fun (entry : Binding_direct_spec.method_entry) ->
+      let receiver = expected_direct_receiver entry.owner in
+      let body = native_binding_body entry.c_symbol native in
+      [ "raw ML external", direct_raw_external entry, raw_ml
+      ; "raw MLI external", direct_raw_external entry, raw_mli
+      ; "native C symbol", direct_native_signature entry receiver, native
+      ; "native CAMLparam", direct_camlparam entry receiver, body
+      ; "native receiver recovery", direct_receiver_recovery receiver, body
+      ; "native direct selector", direct_selector_call entry receiver, body
+      ; ( "native availability guard"
+        , Printf.sprintf "if (@available(macOS %s, *))"
+            (Binding_availability.canonical entry.macos_introduced)
+        , body )
+      ]
+      |> List.iter (fun (description, needle, contents) ->
+        if count_occurrences ~needle contents <> 1 then
+          fail "%s must occur exactly once for %s" description entry.sdk_id);
+      let quoted_symbol = Printf.sprintf "%S" entry.c_symbol in
+      [ "raw ML C symbol", raw_ml; "raw MLI C symbol", raw_mli ]
+      |> List.iter (fun (description, contents) ->
+        if count_occurrences ~needle:quoted_symbol contents <> 1 then
+          fail "%s must occur exactly once for %s" description entry.sdk_id);
+      [ "objc_msgSend"; "performSelector"; "valueForKey" ]
+      |> List.iter (fun forbidden ->
+        if contains ~needle:forbidden body then
+          fail "direct method %s uses dynamic dispatch: %s" entry.sdk_id
+            forbidden))
+    expected_methods;
+  check_direct_representatives native
+
 let check_manifest inputs outputs =
   let value = read_file outputs.manifest |> Yojson.Safe.from_string in
   let plan_sha256 = Binding_plan.source_sha256 ~root:inputs.plan_root in
@@ -987,6 +1493,7 @@ let check_manifest inputs outputs =
   let raw_mli = read_file outputs.raw_mli in
   let native = read_file outputs.native in
   check_mechanical_enum_batch raw_ml raw_mli value;
+  check_mechanical_direct_batch raw_ml raw_mli native value;
   List.iter
     (fun expected ->
       let native_body = native_binding_body expected.c_symbol native in
@@ -1112,6 +1619,31 @@ let main () =
     require_failure "SDK signature drift test" "Metal inventory drift"
       (run inputs ~inventory:drift_inventory
          ~manual_native:inputs.manual_native (outputs directory "drift"));
+    let direct_signature_drift_inventory =
+      Filename.concat directory "direct-signature-drift.json"
+    in
+    read_file inputs.inventory |> Yojson.Safe.from_string
+    |> replace_symbol_field ~target:"method:-[MTLDevice peerCount]"
+         ~field:"signature" (`String "instance () -> uint64_t")
+    |> pretty_json |> write_file direct_signature_drift_inventory;
+    require_failure "direct-call SDK signature drift test"
+      "Metal inventory drift"
+      (run inputs ~inventory:direct_signature_drift_inventory
+         ~manual_native:inputs.manual_native
+         (outputs directory "direct-signature-drift"));
+    let direct_classification_drift_inventory =
+      Filename.concat directory "direct-classification-drift.json"
+    in
+    read_file inputs.inventory |> Yojson.Safe.from_string
+    |> replace_symbol_field
+         ~target:"method:-[MTLTexture isFramebufferOnly]"
+         ~field:"classification" (`String "bound")
+    |> pretty_json |> write_file direct_classification_drift_inventory;
+    require_failure "direct-call classification drift test"
+      "raw-only generated Metal direct call must remain unreviewed"
+      (run inputs ~inventory:direct_classification_drift_inventory
+         ~manual_native:inputs.manual_native
+         (outputs directory "direct-classification-drift"));
     let scalar_drift_inventory =
       Filename.concat directory "scalar-drift.json"
     in

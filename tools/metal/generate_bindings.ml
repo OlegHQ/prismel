@@ -13,6 +13,7 @@ type inventory_declaration =
   ; attributes : string list
   ; classification : string
   ; constant_value : string option
+  ; macos_introduced : Binding_availability.version option
   }
 
 type receiver_spec =
@@ -21,6 +22,23 @@ type receiver_spec =
   ; handle_kind : string
   ; raw_name : string
   ; local_name : string
+  }
+
+type direct_receiver_access =
+  | Direct_object of string
+  | Helper_object of string
+  | Wrapped_object of
+      { handle_kind : string
+      ; wrapper_type : string
+      ; property : string
+      }
+  | Polymorphic_object of string
+
+type direct_receiver_spec =
+  { objc_type : string
+  ; raw_name : string
+  ; local_name : string
+  ; access : direct_receiver_access
   }
 
 let catalog_receiver handle_kind =
@@ -67,6 +85,48 @@ let receiver_spec = function
       ; local_name = "pipeline"
       }
 
+let direct_receiver_spec owner =
+  let direct =
+    Binding_receiver_catalog.receivers
+    |> List.filter (fun (receiver : Binding_receiver_catalog.receiver) ->
+      String.equal receiver.sdk_owner owner)
+  in
+  let polymorphic =
+    Binding_receiver_catalog.polymorphic_receivers
+    |> List.filter
+         (fun (receiver : Binding_receiver_catalog.polymorphic_receiver) ->
+           String.equal receiver.sdk_owner owner)
+  in
+  match direct, polymorphic with
+  | [ receiver ], [] ->
+      let access =
+        match receiver.bridge_access with
+        | Binding_receiver_catalog.Object_of_handle ->
+            Direct_object receiver.handle_kind
+        | Binding_receiver_catalog.Object_of_helper helper ->
+            Helper_object helper
+        | Binding_receiver_catalog.Wrapped_property
+            { wrapper_type; property } ->
+            Wrapped_object
+              { handle_kind = receiver.handle_kind; wrapper_type; property }
+      in
+      { objc_type = receiver.objc_receiver_type
+      ; raw_name = receiver.raw_name
+      ; local_name = receiver.local_name
+      ; access
+      }
+  | [], [ receiver ] ->
+      { objc_type = receiver.objc_receiver_type
+      ; raw_name = receiver.raw_name
+      ; local_name = receiver.local_name
+      ; access = Polymorphic_object receiver.helper
+      }
+  | [], [] -> fail "Metal direct-call plan has no receiver for owner %s" owner
+  | _ ->
+      fail
+        "Metal direct-call plan owner %s is ambiguous in the receiver catalog"
+        owner
+
 let enum_objc_type = function
   | Binding_plan.Winding -> "MTLWinding"
   | Binding_plan.Cull_mode -> "MTLCullMode"
@@ -88,8 +148,28 @@ let require_string_list name value =
           | _ -> fail "Metal binding inventory field %s must contain strings" name)
         values
 
+let parse_inventory_version identifier = function
+  | None -> None
+  | Some value ->
+      let synthetic = "API_AVAILABLE(macos(" ^ value ^ "))" in
+      (match Binding_availability.parse_site synthetic with
+       | Ok (Some version)
+         when String.equal (Binding_availability.canonical version) value ->
+           Some version
+       | Ok (Some version) ->
+           fail
+             "Metal inventory has non-canonical macOS introduction %S for %s (canonical %s)"
+             value identifier (Binding_availability.canonical version)
+       | Ok None ->
+           fail "Metal inventory macOS introduction is absent for %s" identifier
+       | Error error ->
+           fail
+             "Metal inventory has invalid macOS introduction %S for %s at %d: %s"
+             value identifier error.offset error.message)
+
 let inventory_declaration value =
-  { identifier = require_string "id" value
+  let identifier = require_string "id" value in
+  { identifier
   ; kind = require_string "kind" value
   ; name = require_string "name" value
   ; owner = member_string "owner" value
@@ -98,10 +178,14 @@ let inventory_declaration value =
   ; attributes = require_string_list "attributes" value
   ; classification = require_string "classification" value
   ; constant_value = member_string "constant_value" value
+  ; macos_introduced =
+      parse_inventory_version identifier (member_string "macos_introduced" value)
   }
 
 let load_inventory path =
   let value = read_file path |> Yojson.Safe.from_string in
+  if member_int "schema" value <> Some 2 then
+    fail "Metal binding inventory schema must be 2";
   let sdk_version = require_string "sdk_version" value in
   let inventory_plan_sha256 =
     require_string "binding_plan_source_sha256" value
@@ -282,6 +366,126 @@ let require_declaration inventory identifier =
       fail "generated Metal identifier is absent from the pinned inventory: %s"
         identifier
 
+let deployment_floor : Binding_availability.version =
+  { major = 14; minor = 0; patch = 0 }
+
+let validate_direct_availability identifier planned actual =
+  match actual with
+  | Some actual when Binding_availability.equal planned actual -> ()
+  | Some actual ->
+      fail
+        "Metal direct-call availability drift for %s: planned %s, inventory %s"
+        identifier (Binding_availability.canonical planned)
+        (Binding_availability.canonical actual)
+  | None when Binding_availability.compare planned deployment_floor <= 0 -> ()
+  | None ->
+      fail
+        "Metal direct-call %s has no pinned introduction but requests post-floor guard %s"
+        identifier (Binding_availability.canonical planned)
+
+let expected_direct_signature (entry : Binding_direct_spec.method_entry) =
+  let arguments =
+    entry.arguments
+    |> List.map Binding_direct_spec.scalar_objc_type
+    |> String.concat ", "
+  in
+  let result =
+    match entry.result with
+    | None -> "void"
+    | Some result -> Binding_direct_spec.scalar_objc_type result
+  in
+  Printf.sprintf "instance (%s) -> %s" arguments result
+
+let validate_direct_method inventory
+    (entry : Binding_direct_spec.method_entry) =
+  let declaration = require_declaration inventory entry.sdk_id in
+  compare_declaration entry.sdk_id "kind" "method" declaration.kind;
+  (match declaration.owner with
+   | Some owner ->
+       compare_declaration entry.sdk_id "owner" entry.owner owner
+   | None -> fail "Metal direct-call inventory owner is absent for %s" entry.sdk_id);
+  compare_declaration entry.sdk_id "selector" entry.selector declaration.name;
+  compare_declaration entry.sdk_id "header" entry.header declaration.header;
+  compare_declaration entry.sdk_id "signature" entry.signature
+    declaration.signature;
+  compare_declaration entry.sdk_id "template-derived signature"
+    (expected_direct_signature entry) entry.signature;
+  if entry.attributes <> declaration.attributes then
+    fail "Metal direct-call inventory attributes drift for %s" entry.sdk_id;
+  validate_direct_availability entry.sdk_id entry.macos_introduced
+    declaration.macos_introduced;
+  if declaration.classification <> "unreviewed" then
+    fail
+      "raw-only generated Metal direct call must remain unreviewed, found %s for %s"
+      declaration.classification entry.sdk_id;
+  validate_identifier "direct-call OCaml external" ~initial:`Lower
+    entry.ocaml_name;
+  validate_identifier "direct-call C primitive" ~initial:`Any_letter
+    entry.c_symbol;
+  if not (String.starts_with ~prefix:"caml_prismel_metal_" entry.c_symbol)
+  then
+    fail "generated Metal direct-call C symbol has the wrong namespace: %s"
+      entry.c_symbol;
+  ignore (selector_pieces entry.selector (List.length entry.arguments));
+  if List.length entry.arguments + 1 > 5 then
+    fail "generated Metal direct call exceeds native arity five: %s"
+      entry.sdk_id;
+  ignore (direct_receiver_spec entry.owner);
+  (match entry.semantics, entry.result, entry.arguments with
+   | Binding_direct_spec.Query, Some _, _ -> ()
+   | Binding_direct_spec.Command, None, _ -> ()
+   | Binding_direct_spec.Blocking, None, [] -> ()
+   | Binding_direct_spec.Process_identity, Some _, [ _ ] -> ()
+   | _ -> fail "invalid direct-call semantics/result shape for %s" entry.sdk_id)
+
+let validate_direct_property inventory
+    (property : Binding_direct_spec.property_entry) =
+  let declaration = require_declaration inventory property.sdk_id in
+  compare_declaration property.sdk_id "kind" "property" declaration.kind;
+  (match declaration.owner with
+   | Some owner ->
+       compare_declaration property.sdk_id "owner" property.owner owner
+   | None ->
+       fail "Metal direct-property inventory owner is absent for %s"
+         property.sdk_id);
+  compare_declaration property.sdk_id "name" property.name declaration.name;
+  compare_declaration property.sdk_id "header" property.header
+    declaration.header;
+  compare_declaration property.sdk_id "signature" property.signature
+    declaration.signature;
+  if property.attributes <> declaration.attributes then
+    fail "Metal direct-property inventory attributes drift for %s"
+      property.sdk_id;
+  validate_direct_availability property.sdk_id property.macos_introduced
+    declaration.macos_introduced;
+  if declaration.classification <> "unreviewed" then
+    fail
+      "raw-only generated Metal direct property must remain unreviewed, found %s for %s"
+      declaration.classification property.sdk_id;
+  let getter = property.getter in
+  if getter.owner <> property.owner || getter.header <> property.header then
+    fail "Metal direct-property getter ownership drift for %s" property.sdk_id;
+  (match getter.result with
+   | Some result ->
+       compare_declaration property.sdk_id "getter result representation"
+         property.signature (Binding_direct_spec.scalar_objc_type result)
+   | None -> fail "Metal direct property has a void getter: %s" property.sdk_id);
+  validate_direct_method inventory getter;
+  match property.setter with
+  | None -> ()
+  | Some setter ->
+      if setter.owner <> property.owner || setter.header <> property.header then
+        fail "Metal direct-property setter ownership drift for %s"
+          property.sdk_id;
+      (match setter.arguments, setter.result with
+       | [ argument ], None ->
+           compare_declaration property.sdk_id "setter argument representation"
+             property.signature (Binding_direct_spec.scalar_objc_type argument)
+       | _ ->
+           fail "Metal direct property has an invalid setter: %s"
+             property.sdk_id);
+      validate_direct_method inventory setter
+
 let validate_companion inventory safe_api (companion : Binding_plan.companion) =
   let declaration = require_declaration inventory companion.sdk_id in
   let compare field expected actual =
@@ -365,6 +569,12 @@ let validate_entry inventory entry =
     fail "invalid macOS availability for Metal binding %s" entry.sdk_id;
   if availability.unavailable_error = "" then
     fail "empty availability error for Metal binding %s" entry.sdk_id;
+  validate_direct_availability entry.sdk_id
+    { Binding_availability.major = availability.macos_major
+    ; minor = availability.macos_minor
+    ; patch = 0
+    }
+    declaration.macos_introduced;
   match entry.disposition with
   | Binding_plan.Generate (Binding_plan.Direct_void binding as generation) ->
       ignore (validate_binding_identity entry generation);
@@ -828,6 +1038,88 @@ let validate_plan inventory manual_native manual_raw_ml manual_raw_mli safe_sour
     (fun left right -> String.compare left.Binding_plan.sdk_id right.sdk_id)
     entries
 
+let validate_direct_plan inventory manual_native manual_raw_ml manual_raw_mli
+    legacy_entries =
+  Binding_direct_plan.validate ();
+  let methods = Binding_direct_plan.methods in
+  let properties = Binding_direct_plan.properties in
+  if methods = [] || properties = [] then
+    fail "Metal direct-call plan must contain methods and properties";
+  let direct_inventory_ids =
+    List.map (fun (entry : Binding_direct_spec.method_entry) -> entry.sdk_id)
+      methods
+    @ List.map
+        (fun (entry : Binding_direct_spec.property_entry) -> entry.sdk_id)
+        properties
+  in
+  reject_duplicates "direct-call inventory identifier" direct_inventory_ids;
+  let legacy_inventory_ids =
+    Binding_plan.entries
+    |> List.concat_map (fun entry ->
+      entry.Binding_plan.sdk_id
+      :: List.map
+           (fun (companion : Binding_plan.companion) -> companion.sdk_id)
+           entry.companions)
+  in
+  reject_duplicates "legacy/direct-call inventory identifier"
+    (legacy_inventory_ids @ direct_inventory_ids);
+  reject_duplicates "direct-call generated OCaml name"
+    (List.map
+       (fun (entry : Binding_direct_spec.method_entry) -> entry.ocaml_name)
+       methods);
+  reject_duplicates "direct-call generated C symbol"
+    (List.map
+       (fun (entry : Binding_direct_spec.method_entry) -> entry.c_symbol)
+       methods);
+  reject_duplicates "all generated OCaml name"
+    (List.map generated_ocaml_name legacy_entries
+    @ List.map
+        (fun (entry : Binding_direct_spec.method_entry) -> entry.ocaml_name)
+        methods);
+  reject_duplicates "all generated C symbol"
+    (List.map generated_c_symbol legacy_entries
+    @ List.map
+        (fun (entry : Binding_direct_spec.method_entry) -> entry.c_symbol)
+        methods);
+  List.iter (validate_direct_method inventory) methods;
+  List.iter (validate_direct_property inventory) properties;
+  let manual_native_identifiers = c_identifiers manual_native in
+  let manual_raw_tokens =
+    let ml = ocaml_tokens manual_raw_ml in
+    let mli = ocaml_tokens manual_raw_mli in
+    { identifiers = String_set.union ml.identifiers mli.identifiers
+    ; strings = String_set.union ml.strings mli.strings
+    }
+  in
+  List.iter
+    (fun (entry : Binding_direct_spec.method_entry) ->
+      if String_set.mem entry.c_symbol manual_native_identifiers then
+        fail
+          "generated direct-call C symbol still exists in the handwritten bridge: %s"
+          entry.c_symbol;
+      if String_set.mem entry.ocaml_name manual_raw_tokens.identifiers then
+        fail
+          "generated direct-call OCaml external still exists in handwritten Metal_raw: %s"
+          entry.ocaml_name;
+      if String_set.mem entry.c_symbol manual_raw_tokens.strings then
+        fail
+          "generated direct-call C primitive still exists in handwritten Metal_raw: %s"
+          entry.c_symbol)
+    methods;
+  let methods =
+    List.sort
+      (fun (left : Binding_direct_spec.method_entry) right ->
+        String.compare left.sdk_id right.sdk_id)
+      methods
+  in
+  let properties =
+    List.sort
+      (fun (left : Binding_direct_spec.property_entry) right ->
+        String.compare left.sdk_id right.sdk_id)
+      properties
+  in
+  methods, properties
+
 let generated_header ~plan_sha256 ~inventory_sha256 =
   Printf.sprintf
     "Generated by tools/metal/generate_bindings.ml.\nPlan SHA-256: %s\nInventory SHA-256: %s\nDo not edit."
@@ -863,7 +1155,26 @@ let add_raw_external output entry =
   Buffer.add_string output " =\n    ";
   Buffer.add_string output (Printf.sprintf "%S\n\n" c_symbol)
 
-let raw_ml ~header ~enum_selection entries =
+let add_direct_raw_external output
+    (entry : Binding_direct_spec.method_entry) =
+  let result_type =
+    match entry.result with
+    | None -> "unit"
+    | Some result -> Binding_direct_spec.scalar_ocaml_type result
+  in
+  let arguments =
+    "Types.handle"
+    :: List.map Binding_direct_spec.scalar_ocaml_type entry.arguments
+    @ [ Printf.sprintf "(%s, string) result" result_type ]
+  in
+  Buffer.add_string output "  external ";
+  Buffer.add_string output entry.ocaml_name;
+  Buffer.add_string output " :\n    ";
+  Buffer.add_string output (String.concat " -> " arguments);
+  Buffer.add_string output " =\n    ";
+  Buffer.add_string output (Printf.sprintf "%S\n\n" entry.c_symbol)
+
+let raw_ml ~header ~enum_selection ~direct_methods entries =
   let output = Buffer.create 4096 in
   Printf.bprintf output "(* %s *)\n\n" header;
   Buffer.add_string output "module Make (Types : sig\n  type handle\nend) = struct\n";
@@ -871,10 +1182,11 @@ let raw_ml ~header ~enum_selection entries =
     (Binding_enum_codegen.render_raw_ml enum_selection);
   Buffer.add_char output '\n';
   List.iter (add_raw_external output) entries;
+  List.iter (add_direct_raw_external output) direct_methods;
   Buffer.add_string output "end\n";
   Buffer.contents output
 
-let raw_mli ~header ~enum_selection entries =
+let raw_mli ~header ~enum_selection ~direct_methods entries =
   let output = Buffer.create 4096 in
   Printf.bprintf output "(* %s *)\n\n" header;
   Buffer.add_string output
@@ -883,6 +1195,7 @@ let raw_mli ~header ~enum_selection entries =
     (Binding_enum_codegen.render_raw_mli enum_selection);
   Buffer.add_char output '\n';
   List.iter (add_raw_external output) entries;
+  List.iter (add_direct_raw_external output) direct_methods;
   Buffer.add_string output "end\n";
   Buffer.contents output
 
@@ -957,7 +1270,7 @@ let argument_expression (argument : Binding_plan.argument) =
   | Binding_plan.Unsigned_int _ ->
       Printf.sprintf "static_cast<NSUInteger>(%s)" argument.name
 
-let objc_call receiver selector arguments =
+let objc_call (receiver : receiver_spec) selector arguments =
   match arguments with
   | [] -> Printf.sprintf "[%s %s]" receiver.local_name selector
   | _ ->
@@ -975,6 +1288,88 @@ let camlparam arguments =
   let count = List.length arguments in
   if count < 1 || count > 5 then fail "unsupported CAMLparam arity: %d" count;
   Printf.sprintf "CAMLparam%d(%s);" count (String.concat ", " arguments)
+
+let direct_argument_name index = Printf.sprintf "argument_%d" index
+let direct_raw_argument_name index = "raw_" ^ direct_argument_name index
+
+let direct_argument_conversion output index scalar =
+  let name = direct_argument_name index in
+  let raw_name = direct_raw_argument_name index in
+  let objc_type = Binding_direct_spec.scalar_objc_type scalar in
+  match scalar with
+  | Binding_direct_spec.Bool ->
+      Printf.bprintf output "        const BOOL %s = Bool_val(%s) ? YES : NO;\n"
+        name raw_name
+  | Binding_direct_spec.Float64 _ ->
+      Printf.bprintf output
+        "        const %s %s = static_cast<%s>(Double_val(%s));\n"
+        objc_type name objc_type raw_name
+  | Binding_direct_spec.Signed { width; _ } ->
+      Printf.bprintf output
+        "        const std::int64_t signed_%s = Int64_val(%s);\n" name
+        raw_name;
+      (match width with
+       | Binding_direct_spec.Bits32 ->
+           Printf.bprintf output
+             "        if (signed_%s < INT32_MIN || signed_%s > INT32_MAX) {\n"
+             name name;
+           Buffer.add_string output
+             "          CAMLreturn(result_error_text(\"signed Metal argument is outside 32-bit range\"));\n";
+           Buffer.add_string output "        }\n"
+       | Binding_direct_spec.Native | Binding_direct_spec.Bits64 -> ());
+      Printf.bprintf output
+        "        const %s %s = static_cast<%s>(signed_%s);\n" objc_type
+        name objc_type name
+  | Binding_direct_spec.Unsigned { width; _ } ->
+      Printf.bprintf output
+        "        const std::int64_t signed_%s = Int64_val(%s);\n" name
+        raw_name;
+      (match width with
+       | Binding_direct_spec.Bits32 ->
+           Printf.bprintf output
+             "        if (signed_%s < 0 || static_cast<std::uint64_t>(signed_%s) > UINT32_MAX) {\n"
+             name name;
+           Buffer.add_string output
+             "          CAMLreturn(result_error_text(\"unsigned Metal argument is outside 32-bit range\"));\n";
+           Buffer.add_string output "        }\n"
+       | Binding_direct_spec.Native | Binding_direct_spec.Bits64 -> ());
+      Printf.bprintf output
+        "        const %s %s = static_cast<%s>(static_cast<std::uint64_t>(signed_%s));\n"
+        objc_type name objc_type name
+
+let direct_objc_call (receiver : direct_receiver_spec) selector argument_count =
+  if argument_count = 0 then
+    Printf.sprintf "[%s %s]" receiver.local_name selector
+  else
+    let pieces = selector_pieces selector argument_count in
+    pieces
+    |> List.mapi (fun index piece ->
+      Printf.sprintf "%s:%s" piece (direct_argument_name index))
+    |> String.concat " "
+    |> Printf.sprintf "[%s %s]" receiver.local_name
+
+let add_direct_receiver_recovery output (receiver : direct_receiver_spec) =
+  match receiver.access with
+  | Direct_object handle_kind ->
+      Printf.bprintf output "        %s %s =\n" receiver.objc_type
+        receiver.local_name;
+      Printf.bprintf output
+        "            object_of_handle(%s, Handle_kind::%s);\n"
+        receiver.raw_name handle_kind
+  | Helper_object helper | Polymorphic_object helper ->
+      Printf.bprintf output "        %s %s = %s(%s);\n" receiver.objc_type
+        receiver.local_name helper receiver.raw_name
+  | Wrapped_object { handle_kind; wrapper_type; property } ->
+      Printf.bprintf output "        %s receiver_state =\n" wrapper_type;
+      Printf.bprintf output
+        "            object_of_handle(%s, Handle_kind::%s);\n"
+        receiver.raw_name handle_kind;
+      Printf.bprintf output "        %s %s = receiver_state.%s;\n"
+        receiver.objc_type receiver.local_name property
+
+let direct_unavailable_error (entry : Binding_direct_spec.method_entry) =
+  Printf.sprintf "Metal selector %s requires macOS %s" entry.selector
+    (Binding_availability.canonical entry.macos_introduced)
 
 let add_native_void_binding output (entry : Binding_plan.entry)
     (binding : Binding_plan.direct_void) =
@@ -1049,6 +1444,91 @@ let add_native_getter_binding output (entry : Binding_plan.entry)
   Buffer.add_string output "  }\n";
   Buffer.add_string output "}\n\n"
 
+let add_direct_result output scalar call =
+  let objc_type = Binding_direct_spec.scalar_objc_type scalar in
+  Printf.bprintf output "        const %s native_result = %s;\n" objc_type
+    call;
+  (match scalar with
+   | Binding_direct_spec.Bool ->
+       Buffer.add_string output
+         "        copied_result = Val_bool(native_result);\n"
+   | Binding_direct_spec.Float64 _ ->
+       Buffer.add_string output
+         "        copied_result = caml_copy_double(static_cast<double>(native_result));\n"
+   | Binding_direct_spec.Signed _ ->
+       Buffer.add_string output
+         "        copied_result = caml_copy_int64(static_cast<std::int64_t>(native_result));\n"
+   | Binding_direct_spec.Unsigned _ ->
+       Buffer.add_string output
+         "        copied_result = caml_copy_int64(static_cast<std::int64_t>(static_cast<std::uint64_t>(native_result)));\n");
+  Buffer.add_string output "        result = result_ok(copied_result);\n";
+  Buffer.add_string output "        CAMLreturn(result);\n"
+
+let add_direct_native_binding output
+    (entry : Binding_direct_spec.method_entry) =
+  let receiver = direct_receiver_spec entry.owner in
+  let raw_arguments =
+    receiver.raw_name
+    :: List.mapi (fun index _ -> direct_raw_argument_name index) entry.arguments
+  in
+  Buffer.add_string output "extern \"C\" CAMLprim value\n";
+  Printf.bprintf output "%s(\n    %s) {\n" entry.c_symbol
+    (raw_arguments
+     |> List.map (fun argument -> "value " ^ argument)
+     |> String.concat ", ");
+  Printf.bprintf output "  %s\n" (camlparam raw_arguments);
+  (match entry.result with
+   | None -> ()
+   | Some _ -> Buffer.add_string output "  CAMLlocal2(result, copied_result);\n");
+  Buffer.add_string output "  @autoreleasepool {\n";
+  Printf.bprintf output "    if (@available(macOS %s, *)) {\n"
+    (Binding_availability.canonical entry.macos_introduced);
+  (match entry.semantics with
+   | Binding_direct_spec.Blocking ->
+       Buffer.add_string output "      @try {\n";
+       add_direct_receiver_recovery output receiver;
+       Buffer.add_string output
+         "        NSException *__strong caught_exception = nil;\n";
+       Buffer.add_string output "        caml_enter_blocking_section();\n";
+       Buffer.add_string output "        @try {\n";
+       Printf.bprintf output "          %s;\n"
+         (direct_objc_call receiver entry.selector 0);
+       Buffer.add_string output "        } @catch (NSException *exception) {\n";
+       Buffer.add_string output "          caught_exception = exception;\n";
+       Buffer.add_string output "        }\n";
+       Buffer.add_string output "        caml_leave_blocking_section();\n";
+       Buffer.add_string output "        if (caught_exception != nil) {\n";
+       Buffer.add_string output
+         "          CAMLreturn(result_error(caught_exception.reason));\n";
+       Buffer.add_string output "        }\n";
+       Buffer.add_string output "        CAMLreturn(result_unit());\n";
+       Buffer.add_string output "      } @catch (NSException *exception) {\n";
+       Buffer.add_string output
+         "        CAMLreturn(result_error(exception.reason));\n";
+       Buffer.add_string output "      }\n"
+   | (Binding_direct_spec.Query | Binding_direct_spec.Command
+     | Binding_direct_spec.Process_identity) ->
+       Buffer.add_string output "      @try {\n";
+       add_direct_receiver_recovery output receiver;
+       List.iteri (direct_argument_conversion output) entry.arguments;
+       let call =
+         direct_objc_call receiver entry.selector (List.length entry.arguments)
+       in
+       (match entry.result with
+        | None ->
+            Printf.bprintf output "        %s;\n" call;
+            Buffer.add_string output "        CAMLreturn(result_unit());\n"
+        | Some result -> add_direct_result output result call);
+       Buffer.add_string output "      } @catch (NSException *exception) {\n";
+       Buffer.add_string output
+         "        CAMLreturn(result_error(exception.reason));\n";
+       Buffer.add_string output "      }\n");
+  Buffer.add_string output "    }\n";
+  Printf.bprintf output "    CAMLreturn(result_error_text(%s));\n"
+    (c_string (direct_unavailable_error entry));
+  Buffer.add_string output "  }\n";
+  Buffer.add_string output "}\n\n"
+
 let add_native_binding output entry =
   match entry.Binding_plan.disposition with
   | Binding_plan.Generate (Binding_plan.Direct_void binding) ->
@@ -1058,10 +1538,11 @@ let add_native_binding output entry =
   | Binding_plan.Manual | Binding_plan.Exclude _ | Binding_plan.Pending ->
       fail "internal error: non-generated Metal binding %s" entry.sdk_id
 
-let native_include ~header entries =
+let native_include ~header ~direct_methods entries =
   let output = Buffer.create 8192 in
   Printf.bprintf output "/* %s */\n\n" header;
   List.iter (add_native_binding output) entries;
+  List.iter (add_direct_native_binding output) direct_methods;
   let contents = Buffer.contents output in
   [ "objc_msgSend"; "performSelector"; "valueForKey" ]
   |> List.iter (fun forbidden ->
@@ -1168,8 +1649,130 @@ let entry_json entry =
        ; "safe_api", safe_api_json entry.safe_api
        ])
 
+let direct_width_json = function
+  | Binding_direct_spec.Native -> `String "native64"
+  | Binding_direct_spec.Bits32 -> `String "32"
+  | Binding_direct_spec.Bits64 -> `String "64"
+
+let direct_scalar_json scalar =
+  let common abi =
+    [ "abi", `String abi
+    ; "objc_type", `String (Binding_direct_spec.scalar_objc_type scalar)
+    ; "ocaml_type", `String (Binding_direct_spec.scalar_ocaml_type scalar)
+    ]
+  in
+  match scalar with
+  | Binding_direct_spec.Bool -> `Assoc (common "objc_bool")
+  | Binding_direct_spec.Float64 _ -> `Assoc (common "objc_float64")
+  | Binding_direct_spec.Signed { width; _ } ->
+      `Assoc (common "signed_integer" @ [ "width", direct_width_json width ])
+  | Binding_direct_spec.Unsigned { width; _ } ->
+      `Assoc
+        (common "unsigned_bit_pattern"
+        @ [ "width", direct_width_json width ])
+
+let direct_semantics_json = function
+  | Binding_direct_spec.Query -> `String "query"
+  | Binding_direct_spec.Command -> `String "command"
+  | Binding_direct_spec.Blocking -> `String "blocking"
+  | Binding_direct_spec.Process_identity -> `String "process_identity"
+
+let direct_receiver_json owner =
+  let receiver = direct_receiver_spec owner in
+  let access_fields =
+    match receiver.access with
+    | Direct_object handle_kind ->
+        [ "access", `String "object_of_handle"
+        ; "handle_kinds", `List [ `String handle_kind ]
+        ]
+    | Helper_object helper ->
+        let handle_kind =
+          Binding_receiver_catalog.receivers
+          |> List.find (fun (catalog : Binding_receiver_catalog.receiver) ->
+            String.equal catalog.sdk_owner owner)
+          |> fun catalog -> catalog.handle_kind
+        in
+        [ "access", `String helper
+        ; "handle_kinds", `List [ `String handle_kind ]
+        ]
+    | Wrapped_object { handle_kind; wrapper_type; property } ->
+        [ "access", `String "wrapped_property"
+        ; "handle_kinds", `List [ `String handle_kind ]
+        ; "wrapper_type", `String wrapper_type
+        ; "wrapper_property", `String property
+        ]
+    | Polymorphic_object helper ->
+        let accepted =
+          Binding_receiver_catalog.polymorphic_receivers
+          |> List.find
+               (fun (catalog :
+                       Binding_receiver_catalog.polymorphic_receiver) ->
+                 String.equal catalog.sdk_owner owner)
+          |> fun catalog -> catalog.accepted_handle_kinds
+        in
+        [ "access", `String helper
+        ; "handle_kinds", `List (List.map (fun value -> `String value) accepted)
+        ]
+  in
+  `Assoc
+    ([ "objc_type", `String receiver.objc_type
+     ; "raw_name", `String receiver.raw_name
+     ; "local_name", `String receiver.local_name
+     ]
+    @ access_fields)
+
+let direct_method_json (entry : Binding_direct_spec.method_entry) =
+  `Assoc
+    [ "sdk_id", `String entry.sdk_id
+    ; "owner", `String entry.owner
+    ; "selector", `String entry.selector
+    ; "header", `String entry.header
+    ; "signature", `String entry.signature
+    ; "attributes", `List (List.map (fun value -> `String value) entry.attributes)
+    ; ( "macos_introduced"
+      , `String (Binding_availability.canonical entry.macos_introduced) )
+    ; "semantics", direct_semantics_json entry.semantics
+    ; "arguments", `List (List.map direct_scalar_json entry.arguments)
+    ; ( "result"
+      , match entry.result with
+        | None -> `Null
+        | Some result -> direct_scalar_json result )
+    ; "ocaml_name", `String entry.ocaml_name
+    ; "c_symbol", `String entry.c_symbol
+    ; "receiver", direct_receiver_json entry.owner
+    ; "safe_api", `Null
+    ]
+
+let direct_property_json (entry : Binding_direct_spec.property_entry) =
+  `Assoc
+    [ "sdk_id", `String entry.sdk_id
+    ; "owner", `String entry.owner
+    ; "name", `String entry.name
+    ; "header", `String entry.header
+    ; "signature", `String entry.signature
+    ; "attributes", `List (List.map (fun value -> `String value) entry.attributes)
+    ; ( "macos_introduced"
+      , `String (Binding_availability.canonical entry.macos_introduced) )
+    ; "getter_sdk_id", `String entry.getter.sdk_id
+    ; ( "setter_sdk_id"
+      , match entry.setter with
+        | None -> `Null
+        | Some setter -> `String setter.sdk_id )
+    ]
+
+let direct_batch_json methods properties =
+  `Assoc
+    [ "method_count", `Int (List.length methods)
+    ; "property_count", `Int (List.length properties)
+    ; "declaration_count", `Int (List.length methods + List.length properties)
+    ; "safe_bound_count", `Int 0
+    ; "methods", `List (List.map direct_method_json methods)
+    ; "properties", `List (List.map direct_property_json properties)
+    ]
+
 let manifest ~sdk_version ~plan_sha256 ~generator_sha256 ~inventory_sha256
-    ~raw_ml_contents ~raw_mli_contents ~native_contents ~enum_selection entries =
+    ~raw_ml_contents ~raw_mli_contents ~native_contents ~enum_selection
+    ~direct_methods ~direct_properties entries =
   pretty_json
     (`Assoc
        [ "schema", `Int 2
@@ -1186,10 +1789,14 @@ let manifest ~sdk_version ~plan_sha256 ~generator_sha256 ~inventory_sha256
        ; "entries", `List (List.map entry_json entries)
        ; ( "mechanical_enum_batch"
          , Binding_enum_codegen.manifest_json enum_selection )
+       ; ( "mechanical_direct_handle_batch"
+         , direct_batch_json direct_methods direct_properties )
        ])
 
 let generator_source_paths =
   [ "tools/metal/generate_bindings.ml"
+  ; "tools/metal/binding_availability.ml"
+  ; "tools/metal/binding_availability.mli"
   ; "tools/metal/binding_enum_codegen.ml"
   ; "tools/metal/binding_enum_codegen.mli"
   ; "tools/metal/binding_receiver_catalog.ml"
@@ -1329,25 +1936,37 @@ let main () =
   in
   let inventory_sha256 = sha256 inventory_contents in
   let enum_selection = select_mechanical_enums inventory in
+  let manual_native = read_file options.manual_native in
+  let manual_raw_ml = read_file options.manual_raw_ml in
+  let manual_raw_mli = read_file options.manual_raw_mli in
   let entries =
-    validate_plan inventory (read_file options.manual_native)
-      (read_file options.manual_raw_ml) (read_file options.manual_raw_mli)
+    validate_plan inventory manual_native manual_raw_ml manual_raw_mli
       (read_file options.safe_source) (read_file options.safe_tests)
   in
+  let direct_methods, direct_properties =
+    validate_direct_plan inventory manual_native manual_raw_ml manual_raw_mli
+      entries
+  in
   let header = generated_header ~plan_sha256 ~inventory_sha256 in
-  let raw_ml_contents = raw_ml ~header ~enum_selection entries in
-  let raw_mli_contents = raw_mli ~header ~enum_selection entries in
-  let native_contents = native_include ~header entries in
+  let raw_ml_contents =
+    raw_ml ~header ~enum_selection ~direct_methods entries
+  in
+  let raw_mli_contents =
+    raw_mli ~header ~enum_selection ~direct_methods entries
+  in
+  let native_contents = native_include ~header ~direct_methods entries in
   let manifest_contents =
     manifest ~sdk_version ~plan_sha256 ~generator_sha256 ~inventory_sha256
-      ~raw_ml_contents ~raw_mli_contents ~native_contents ~enum_selection entries
+      ~raw_ml_contents ~raw_mli_contents ~native_contents ~enum_selection
+      ~direct_methods ~direct_properties entries
   in
   write_file options.output_raw_ml raw_ml_contents;
   write_file options.output_raw_mli raw_mli_contents;
   write_file options.output_native native_contents;
   write_file options.output_manifest manifest_contents;
   Printf.printf
-    "generated %d typed Metal bindings and %d mechanical enum declarations\n%!"
-    (List.length entries) enum_selection.declaration_count
+    "generated %d checked-plan calls, %d raw-only direct calls, %d direct properties, and %d mechanical enum declarations\n%!"
+    (List.length entries) (List.length direct_methods)
+    (List.length direct_properties) enum_selection.declaration_count
 
 let () = protect_main main
