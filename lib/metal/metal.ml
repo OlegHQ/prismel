@@ -490,6 +490,8 @@ type device =
   ; lifetime : lifetime
   ; registry_id : int64
   }
+type command_event={raw:Metal_raw.handle;lifetime:lifetime;device:device;registry_id:int64}
+type command_shared_event={raw:Metal_raw.handle;lifetime:lifetime;device:device;registry_id:int64;mutable value:int64}
 
 type buffer_storage_mode =
   | Shared
@@ -1993,7 +1995,7 @@ let ensure_texture_usable operation (value : texture) =
   | Error _ as failure -> failure
   | Ok () -> ensure_resource_usable operation value.state (texture_heap value)
 
-let same_device left right = Int64.equal left.registry_id right.registry_id
+let same_device (left:device) (right:device) = Int64.equal left.registry_id right.registry_id
 
 let ensure_same_device operation expected actual =
   if same_device expected actual then Ok ()
@@ -2046,8 +2048,28 @@ let sparse_page_size_code = function
   | Page_64_kib -> 102
   | Page_256_kib -> 103
 
+module Event = struct
+  type t=command_event
+  let device_registry_id(value:t)=value.registry_id
+  let label(value:t)=let operation="Metal.Event.label"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.command_event_label value.raw with Error m->native_error operation m|Ok x->Ok x)
+  let set_label(value:t) label=let operation="Metal.Event.set_label"in if option_exists contains_nul label then error operation Invalid_argument "event label contains a NUL byte"else on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.command_event_set_label value.raw label with Error m->native_error operation m|Ok()->Ok())
+  let destroyed(value:t)=is_destroyed value.lifetime
+  let destroy(value:t)=destroy_leaf "Metal.Event.destroy" value.lifetime value.raw(fun()->detach value.device.lifetime)
+end
+module Shared_event = struct
+  type t=command_shared_event
+  let device_registry_id(value:t)=value.registry_id
+  let signaled_value(value:t)=let operation="Metal.Shared_event.signaled_value"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.command_shared_event_value value.raw with Error m->native_error operation m|Ok x->value.value<-x;Ok x)
+  let set_signaled_value(value:t) next=let operation="Metal.Shared_event.set_signaled_value"in if next<0L then error operation Invalid_argument "shared-event value must be nonnegative"else on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok() when next<value.value->error operation Invalid_argument "shared-event value must not decrease"|Ok()->match Metal_raw.command_shared_event_set_value value.raw next with Error m->native_error operation m|Ok()->value.value<-next;Ok())
+  let destroyed(value:t)=is_destroyed value.lifetime
+  let destroy(value:t)=destroy_leaf "Metal.Shared_event.destroy" value.lifetime value.raw(fun()->detach value.device.lifetime)
+end
+
 module Device = struct
   type t = device
+
+  let new_event(value:t)=let operation="Metal.Device.new_event"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.command_event_create value.raw with Error m->native_error operation m|Ok(raw,registry_id)when registry_id<>value.registry_id->ignore(Metal_raw.destroy raw);error operation Device_mismatch "event constructor returned another device identity"|Ok(raw,registry_id)->let event:command_event={raw;lifetime=lifetime();device=value;registry_id}in attach value.lifetime;attach_finalizer event event.lifetime value.lifetime;Ok event)
+  let new_shared_event(value:t)=let operation="Metal.Device.new_shared_event"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.command_shared_event_create value.raw with Error m->native_error operation m|Ok(raw,registry_id)when registry_id<>value.registry_id->ignore(Metal_raw.destroy raw);error operation Device_mismatch "shared-event constructor returned another device identity"|Ok(raw,registry_id)->match Metal_raw.command_shared_event_value raw with Error m->ignore(Metal_raw.destroy raw);native_error operation m|Ok current->let event:command_shared_event={raw;lifetime=lifetime();device=value;registry_id;value=current}in attach value.lifetime;attach_finalizer event event.lifetime value.lifetime;Ok event)
 
   type family =
     | Apple1
@@ -9035,6 +9057,11 @@ module Render_pipeline = struct
       | Ok () -> Ok (Metal_raw.render_pipeline_label value.raw))
 
   module Mesh_tile = struct
+    module Option=struct include Stdlib.Option let exists predicate=function Some x->predicate x|None->false end
+    module Function=struct
+      type kind=Fragment|Mesh|Object|Tile|Other
+      let kind_of_code=function 2->Fragment|3->Tile|7->Mesh|8->Object|_->Other
+    end
     type size3={width:int64;height:int64;depth:int64}
     type mutability=Default|Mutable|Immutable
     type mesh_descriptor={raw:Metal_raw.handle;lifetime:lifetime;functions:function_handle list;archives:binary_archive list}
@@ -9057,10 +9084,10 @@ module Render_pipeline = struct
         match Metal_raw.mesh_color_attachment_set raw(Int64.of_int r.pixel_format)r.source_rgb_blend_factor r.destination_rgb_blend_factor r.rgb_blend_operation r.source_alpha_blend_factor r.destination_alpha_blend_factor r.alpha_blend_operation(Int64.of_int r.write_mask)with
         |Error m->ignore(Metal_raw.destroy raw);native_error operation m|Ok()->Ok value)
     let positive s=s.width>0L&&s.height>0L&&s.depth>0L
-    let validate_functions operation device values=let rec loop=function []->Ok()|(x:function_handle)::xs->Result.bind(ensure_live operation x.lifetime)(fun()->Result.bind(ensure_same_device operation device x.library.device)(fun()->loop xs))in loop values
-    let mesh_descriptor ?label ?object_function ?fragment_function ?(binary_archives=[]) ~mesh_function ~depth_format ~stencil_format ~required_mesh_threads ~required_object_threads ()=let operation="Metal.Render_pipeline.Mesh_tile.mesh_descriptor"in
+    let validate_functions operation (device:device) (values:function_handle list)=let rec loop=function []->Ok()|(x:function_handle)::xs->Result.bind(ensure_live operation x.lifetime)(fun()->Result.bind(ensure_same_device operation device x.library.device)(fun()->loop xs))in loop values
+    let mesh_descriptor ?label ?(object_function:function_handle option) ?(fragment_function:function_handle option) ?(binary_archives=[]) ~(mesh_function:function_handle) ~depth_format ~stencil_format ~required_mesh_threads ~required_object_threads ()=let operation="Metal.Render_pipeline.Mesh_tile.mesh_descriptor"in
       if option_exists contains_nul label||not(positive required_mesh_threads&&positive required_object_threads)then error operation Invalid_argument "label or required threadgroup size is invalid"else if Function.kind_of_code(Metal_raw.function_kind mesh_function.raw)<>Function.Mesh then error operation Invalid_argument "mesh_function must be a mesh-stage function"else if Option.exists(fun(x:function_handle)->Function.kind_of_code(Metal_raw.function_kind x.raw)<>Function.Object)object_function||Option.exists(fun(x:function_handle)->Function.kind_of_code(Metal_raw.function_kind x.raw)<>Function.Fragment)fragment_function then error operation Invalid_argument "optional functions have the wrong stage"else let functions=mesh_function::List.filter_map(fun x->x)[object_function;fragment_function]in Result.bind(validate_functions operation mesh_function.library.device functions)(fun()->match Metal_raw.mesh_pipeline_descriptor_owned{object_function=Option.map(fun(x:function_handle)->x.raw)object_function;mesh_function=mesh_function.raw;fragment_function=Option.map(fun(x:function_handle)->x.raw)fragment_function;binary_archives=Array.of_list(List.map(fun(x:binary_archive)->x.raw)binary_archives);object_linked_functions=None;mesh_linked_functions=None;fragment_linked_functions=None}with Error m->native_error operation m|Ok raw->match Metal_raw.mesh_descriptor_set_mechanical raw label(Int64.of_int(Metal_format.code depth_format))(Int64.of_int(Metal_format.code stencil_format))(required_mesh_threads.width,required_mesh_threads.height,required_mesh_threads.depth)(required_object_threads.width,required_object_threads.height,required_object_threads.depth)with Error m->ignore(Metal_raw.destroy raw);native_error operation m|Ok()->let value:mesh_descriptor={raw;lifetime=lifetime();functions;archives=binary_archives}in List.iter(fun(x:function_handle)->attach x.lifetime)functions;List.iter(fun(x:binary_archive)->attach x.lifetime)binary_archives;Gc.finalise(fun _->if Atomic.compare_and_set value.lifetime.destroyed false true then(List.iter(fun(x:function_handle)->detach x.lifetime)value.functions;List.iter(fun(x:binary_archive)->detach x.lifetime)value.archives;ignore(Metal_raw.destroy value.raw)))value;Ok value)
-    let tile_descriptor ?label ?(binary_archives=[]) ?(preloaded_libraries=[]) ~tile_function ~required_threads ()=let operation="Metal.Render_pipeline.Mesh_tile.tile_descriptor"in if option_exists contains_nul label||not(positive required_threads)then error operation Invalid_argument "label or required threadgroup size is invalid"else if Function.kind_of_code(Metal_raw.function_kind tile_function.raw)<>Function.Tile then error operation Invalid_argument "tile_function must be a tile-stage function"else Result.bind(validate_functions operation tile_function.library.device[tile_function])(fun()->match Metal_raw.tile_pipeline_descriptor_owned{tile_function=tile_function.raw;binary_archives=Array.of_list(List.map(fun(x:binary_archive)->x.raw)binary_archives);preloaded_libraries=Array.of_list(List.map(fun(x:dynamic_library)->x.raw)preloaded_libraries);linked_functions=None}with Error m->native_error operation m|Ok raw->match Metal_raw.tile_descriptor_set_mechanical raw label(required_threads.width,required_threads.height,required_threads.depth)with Error m->ignore(Metal_raw.destroy raw);native_error operation m|Ok()->let value:tile_descriptor={raw;lifetime=lifetime();function_=tile_function;archives=binary_archives;libraries=preloaded_libraries}in attach tile_function.lifetime;List.iter(fun(x:binary_archive)->attach x.lifetime)binary_archives;List.iter(fun(x:dynamic_library)->attach x.lifetime)preloaded_libraries;Gc.finalise(fun _->if Atomic.compare_and_set value.lifetime.destroyed false true then(detach value.function_.lifetime;List.iter(fun(x:binary_archive)->detach x.lifetime)value.archives;List.iter(fun(x:dynamic_library)->detach x.lifetime)value.libraries;ignore(Metal_raw.destroy value.raw)))value;Ok value)
+    let tile_descriptor ?label ?(binary_archives=[]) ?(preloaded_libraries=[]) ~(tile_function:function_handle) ~required_threads ()=let operation="Metal.Render_pipeline.Mesh_tile.tile_descriptor"in if option_exists contains_nul label||not(positive required_threads)then error operation Invalid_argument "label or required threadgroup size is invalid"else if Function.kind_of_code(Metal_raw.function_kind tile_function.raw)<>Function.Tile then error operation Invalid_argument "tile_function must be a tile-stage function"else Result.bind(validate_functions operation tile_function.library.device[tile_function])(fun()->match Metal_raw.tile_pipeline_descriptor_owned{tile_function=tile_function.raw;binary_archives=Array.of_list(List.map(fun(x:binary_archive)->x.raw)binary_archives);preloaded_libraries=Array.of_list(List.map(fun(x:dynamic_library)->x.raw)preloaded_libraries);linked_functions=None}with Error m->native_error operation m|Ok raw->match Metal_raw.tile_descriptor_set_mechanical raw label(required_threads.width,required_threads.height,required_threads.depth)with Error m->ignore(Metal_raw.destroy raw);native_error operation m|Ok()->let value:tile_descriptor={raw;lifetime=lifetime();function_=tile_function;archives=binary_archives;libraries=preloaded_libraries}in attach tile_function.lifetime;List.iter(fun(x:binary_archive)->attach x.lifetime)binary_archives;List.iter(fun(x:dynamic_library)->attach x.lifetime)preloaded_libraries;Gc.finalise(fun _->if Atomic.compare_and_set value.lifetime.destroyed false true then(detach value.function_.lifetime;List.iter(fun(x:binary_archive)->detach x.lifetime)value.archives;List.iter(fun(x:dynamic_library)->detach x.lifetime)value.libraries;ignore(Metal_raw.destroy value.raw)))value;Ok value)
     let destroy_buffer(value:buffer_descriptor)=destroy_leaf "Metal.Render_pipeline.Mesh_tile.destroy_buffer" value.lifetime value.raw ignore
     let destroy_color(value:color_attachment)=destroy_leaf "Metal.Render_pipeline.Mesh_tile.destroy_color" value.lifetime value.raw ignore
     let destroy_mesh(value:mesh_descriptor)=destroy_leaf "Metal.Render_pipeline.Mesh_tile.destroy_mesh" value.lifetime value.raw(fun()->List.iter(fun(x:function_handle)->detach x.lifetime)value.functions;List.iter(fun(x:binary_archive)->detach x.lifetime)value.archives)

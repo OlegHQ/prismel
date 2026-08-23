@@ -81,6 +81,23 @@ module Release_queue : sig
   val stats : unit -> (stats, error) result
 end
 
+module Event : sig
+  type t
+  val device_registry_id:t->int64
+  val label:t->(string option,error)result
+  val set_label:t->string option->(unit,error)result
+  val destroyed:t->bool
+  val destroy:t->(unit,error)result
+end
+module Shared_event : sig
+  type t
+  val device_registry_id:t->int64
+  val signaled_value:t->(int64,error)result
+  val set_signaled_value:t->int64->(unit,error)result
+  val destroyed:t->bool
+  val destroy:t->(unit,error)result
+end
+
 module Device : sig
   type t
 
@@ -152,6 +169,8 @@ module Device : sig
     }
 
   val system_default : unit -> (t, error) result
+  val new_event:t->(Event.t,error)result
+  val new_shared_event:t->(Shared_event.t,error)result
   val all : unit -> (t list, error) result
   val generation : t -> int64
   val registry_id : t -> int64
