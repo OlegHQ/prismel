@@ -201,6 +201,10 @@
   ../../tools/metal/metal_render_command_draw_state.inc
   ../../tools/metal/metal_pipeline_header_mechanical_generated.mm
   ../../tools/metal/metal_pipeline_ownership_materializers.inc
+  ../../tools/metal/metal_shader_callable_bridge.inc
+  ../../tools/metal/metal_mesh_tile_ownership_materializers.inc
+  ../../tools/metal/metal_io_counter_ownership_materializers.inc
+  ../../tools/metal/metal_mesh_tile_counter_callable_bridge.inc
   c_library_flags.sexp)
  (action
   (run ./build_bridge.exe
@@ -501,3 +505,18 @@
  (action
   (bash
    "status=0; ./test_metal_pipeline113_state_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal_shader157_callable_native.exe)
+ (deps test_metal_shader157_callable_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -framework Foundation
+   -framework Metal %{dep:test_metal_shader157_callable_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_shader157_callable_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal_shader157_callable_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
