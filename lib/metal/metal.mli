@@ -1242,6 +1242,32 @@ and Shader_argument_encoder : sig
   val destroy : t -> (unit,error) result
 end
 
+module rec Shader_stage_descriptor : sig
+  type t
+  type index_type=Uint16|Uint32
+  val create:unit->(t,error)result
+  val index_buffer_index:t->(int64,error)result
+  val index_type:t->(index_type,error)result
+  val set_index_buffer_index:t->int64->(unit,error)result
+  val set_index_type:t->index_type->(unit,error)result
+  val reset:t->(unit,error)result
+  val attributes:t->(Shader_attribute_descriptors.t,error)result
+  val layouts:t->(Shader_buffer_layout_descriptors.t,error)result
+  val destroyed:t->bool
+  val destroy:t->(unit,error)result
+end
+and Shader_attribute_descriptors : sig type t val destroyed:t->bool val destroy:t->(unit,error)result end
+and Shader_buffer_layout_descriptors : sig type t val destroyed:t->bool val destroy:t->(unit,error)result end
+
+module Shader_stitching_input : sig
+  type t
+  val create:argument_index:int64->(t,error)result
+  val argument_index:t->(int64,error)result
+  val set_argument_index:t->int64->(unit,error)result
+  val destroyed:t->bool
+  val destroy:t->(unit,error)result
+end
+
 module Dynamic_library : sig
   type t
 

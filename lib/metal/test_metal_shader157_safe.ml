@@ -22,4 +22,19 @@ let () =
   List.iter(fun x->get(Shader_attribute.destroy x))attributes;
   get(Function.destroy function_);
   expect Destroyed(Function.options function_);
+  let stage=get(Shader_stage_descriptor.create())in
+  get(Shader_stage_descriptor.set_index_buffer_index stage 3L);
+  get(Shader_stage_descriptor.set_index_type stage Shader_stage_descriptor.Uint32);
+  if get(Shader_stage_descriptor.index_buffer_index stage)<>3L then fail "stage index drift";
+  let attributes=get(Shader_stage_descriptor.attributes stage)in
+  let layouts=get(Shader_stage_descriptor.layouts stage)in
+  expect Parent_has_dependents(Shader_stage_descriptor.destroy stage);
+  get(Shader_attribute_descriptors.destroy attributes);
+  get(Shader_buffer_layout_descriptors.destroy layouts);
+  get(Shader_stage_descriptor.reset stage);
+  get(Shader_stage_descriptor.destroy stage);
+  let input=get(Shader_stitching_input.create ~argument_index:2L)in
+  get(Shader_stitching_input.set_argument_index input 4L);
+  if get(Shader_stitching_input.argument_index input)<>4L then fail "stitching index drift";
+  get(Shader_stitching_input.destroy input);
   get(Library.destroy library);get(Device.destroy device)
