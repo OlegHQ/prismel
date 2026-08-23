@@ -142,8 +142,8 @@ static void qualify_tile(id<MTLDevice> device, id<MTLLibrary> library) {
 }
 
 int main(void) { @autoreleasepool {
-  id<MTLDevice> device = MTLCreateSystemDefaultDevice(); require(device != nil, @"Metal device");
-  require([device supportsFamily:MTLGPUFamilyApple7], @"M1/Apple7 qualification device");
+  id<MTLDevice> device = MTLCreateSystemDefaultDevice();
+  if (device == nil || ![device supportsFamily:MTLGPUFamilyApple7]) return 77;
   id<MTLLibrary> library = compile(device, shader_source());
   qualify_mesh(device, library); qualify_tile(device, library);
   NSLog(@"legacy mesh/tile pipeline ownership, unwind, and GPU conformance passed");
