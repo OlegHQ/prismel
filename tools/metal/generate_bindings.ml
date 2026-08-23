@@ -45,6 +45,13 @@ let receiver_spec = function
       ; raw_name = "raw_device"
       ; local_name = "device"
       }
+  | Binding_plan.Compute_pipeline ->
+      { owner = "MTLComputePipelineState"
+      ; objc_type = "id<MTLComputePipelineState>"
+      ; handle_kind = "Compute_pipeline"
+      ; raw_name = "raw_pipeline"
+      ; local_name = "pipeline"
+      }
 
 let enum_objc_type = function
   | Binding_plan.Winding -> "MTLWinding"

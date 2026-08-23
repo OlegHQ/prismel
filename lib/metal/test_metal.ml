@@ -34,6 +34,52 @@ kernel void increment(device uint *values [[buffer(0)]],
   values[index] += 1;
 }
 
+kernel void threadgroup_increment_small(
+    device uint *values [[buffer(1)]],
+    threadgroup uint *dynamic_values [[threadgroup(0)]],
+    uint index [[thread_position_in_grid]],
+    uint lane [[thread_index_in_threadgroup]]) {
+  threadgroup uint static_values[4];
+  static_values[lane] = lane + 1u;
+  dynamic_values[lane] = 4u - lane;
+  threadgroup_barrier(mem_flags::mem_threadgroup);
+  const uint next = (lane + 1u) & 3u;
+  values[index] +=
+      static_values[next] > 0u && dynamic_values[next] > 0u ? 1u : 0u;
+}
+
+kernel void threadgroup_increment_large(
+    device uint *values [[buffer(1)]],
+    threadgroup uint *dynamic_values [[threadgroup(0)]],
+    uint index [[thread_position_in_grid]],
+    uint lane [[thread_index_in_threadgroup]]) {
+  threadgroup uint static_values[8];
+  static_values[lane] = lane + 1u;
+  static_values[lane + 4u] = lane + 5u;
+  dynamic_values[lane] = 4u - lane;
+  threadgroup_barrier(mem_flags::mem_threadgroup);
+  const uint next = (lane + 1u) & 3u;
+  values[index] += static_values[next] > 0u
+                       && static_values[next + 4u] > 0u
+                       && dynamic_values[next] > 0u
+                   ? 1u
+                   : 0u;
+}
+
+kernel void threadgroup_increment_index_one(
+    device uint *values [[buffer(2)]],
+    threadgroup uint *dynamic_values [[threadgroup(1)]],
+    uint index [[thread_position_in_grid]],
+    uint lane [[thread_index_in_threadgroup]]) {
+  threadgroup uint static_values[4];
+  static_values[lane] = lane + 1u;
+  dynamic_values[lane] = 4u - lane;
+  threadgroup_barrier(mem_flags::mem_threadgroup);
+  const uint next = (lane + 1u) & 3u;
+  values[index] +=
+      static_values[next] > 0u && dynamic_values[next] > 0u ? 1u : 0u;
+}
+
 constant uint increment_amount [[function_constant(0)]];
 constant bool apply_twice [[function_constant(1)]];
 
@@ -8402,17 +8448,108 @@ let test_metal4_tile_commands device =
 let test_metal4_compute_commands device =
   if not (get (Device.supports_family device Device.Metal4)) then false
   else begin
+    let device_info = get (Device.info device) in
     let compiler = get (Compiler.create device) in
     let library =
       get
         (Compiler.compile_source ~name:"metal4-command-compute-library"
            compiler shader_source)
     in
-    let pipeline =
+    let missing_reflection_pipeline =
       get
-        (Compiler.create_compute_pipeline ~label:"Metal 4 executable compute"
-           compiler ~library "increment")
+        (Compiler.create_compute_pipeline
+           ~label:"Metal 4 unreflected threadgroup-memory compute" compiler
+           ~library "threadgroup_increment_small")
     in
+    let wrong_binding_pipeline =
+      get
+        (Compiler.create_compute_pipeline ~label:"Metal 4 buffer-only reflection"
+           ~reflection:true compiler ~library "increment")
+    in
+    let small_memory_pipeline =
+      get
+        (Compiler.create_compute_pipeline
+           ~label:"Metal 4 small static threadgroup memory" ~reflection:true
+           compiler ~library "threadgroup_increment_small")
+    in
+    let large_memory_pipeline =
+      get
+        (Compiler.create_compute_pipeline
+           ~label:"Metal 4 large static threadgroup memory" ~reflection:true
+           compiler ~library "threadgroup_increment_large")
+    in
+    let index_one_pipeline =
+      get
+        (Compiler.create_compute_pipeline
+           ~label:"Metal 4 threadgroup-memory index one" ~reflection:true
+           compiler ~library "threadgroup_increment_index_one")
+    in
+    let before_getters = get (Release_queue.stats ()) in
+    let small_static =
+      get
+        (Compute_pipeline.static_threadgroup_memory_length
+           small_memory_pipeline)
+    and large_static =
+      get
+        (Compute_pipeline.static_threadgroup_memory_length
+           large_memory_pipeline)
+    and index_one_static =
+      get
+        (Compute_pipeline.static_threadgroup_memory_length index_one_pipeline)
+    in
+    let after_getters = get (Release_queue.stats ()) in
+    if after_getters.total_created <> before_getters.total_created then
+      fail "compute static threadgroup-memory getters allocated native handles";
+    if small_static < 0L || large_static < 0L || index_one_static < 0L then
+      fail "compute pipeline reported negative static threadgroup memory";
+    if small_static <> 16L || index_one_static <> 16L then
+      fail
+        "small compute pipelines reported %Ld/%Ld bytes of static threadgroup memory, expected 16/16"
+        small_static index_one_static;
+    if large_static <> 32L then
+      fail
+        "large compute pipeline reported %Ld bytes of static threadgroup memory, expected 32"
+        large_static;
+    let has_threadgroup_binding pipeline index =
+      match Compute_pipeline.bindings pipeline with
+      | None -> false
+      | Some bindings ->
+          List.exists
+            (fun (binding : Binding.t) ->
+              binding.index = Int64.of_int index
+              &&
+              match binding.kind with
+              | Binding.Threadgroup_memory_binding _ -> true
+              | _ -> false)
+            bindings
+    in
+    if
+      not (has_threadgroup_binding small_memory_pipeline 0)
+      || not (has_threadgroup_binding large_memory_pipeline 0)
+      || not (has_threadgroup_binding index_one_pipeline 1)
+      || has_threadgroup_binding index_one_pipeline 0
+    then fail "compute threadgroup-memory reflection fixture drifted";
+    if Compute_pipeline.bindings missing_reflection_pipeline <> None then
+      fail "unreflected compute pipeline unexpectedly retained bindings";
+    if
+      Compute_pipeline.bindings wrong_binding_pipeline = None
+      || has_threadgroup_binding wrong_binding_pipeline 0
+    then fail "buffer-only compute reflection fixture drifted";
+    if
+      device_info.max_threadgroup_memory_length > Int64.of_int max_int
+      || device_info.max_threadgroup_memory_length < large_static
+      || Int64.rem device_info.max_threadgroup_memory_length 16L <> 0L
+    then fail "device threadgroup-memory limit cannot drive the conformance case";
+    let dynamic_ceiling =
+      Int64.sub device_info.max_threadgroup_memory_length small_static
+    in
+    if dynamic_ceiling < 16L || Int64.rem dynamic_ceiling 16L <> 0L then
+      fail "device dynamic threadgroup-memory ceiling is invalid";
+    let dynamic_ceiling = Int64.to_int dynamic_ceiling in
+    if dynamic_ceiling > max_int - 16 then
+      fail "device dynamic threadgroup-memory ceiling exceeds OCaml int range";
+    get (Library.destroy library);
+    get (Compiler.destroy compiler);
     let buffer =
       get (Buffer.create ~device ~length:16L ~storage:Buffer.Shared ())
     in
@@ -8420,9 +8557,9 @@ let test_metal4_compute_commands device =
     let arguments =
       get
         (Command4.Argument_table.create ~label:"Metal 4 compute arguments"
-           ~max_buffers:1 device ())
+           ~max_buffers:2 device ())
     in
-    get (Command4.Argument_table.set_buffer arguments ~index:0 buffer);
+    get (Command4.Argument_table.set_buffer arguments ~index:1 buffer);
     let allocator =
       get (Command4.Allocator.create ~label:"Metal 4 compute allocator" device)
     in
@@ -8453,10 +8590,27 @@ let test_metal4_compute_commands device =
       (expect_error Invalid_state
          (Command4.Compute_encoder.dispatch_threads encoder
             ~threads:(4, 1, 1) ~threadgroup:(4, 1, 1)));
-    get (Command4.Compute_encoder.set_pipeline encoder pipeline);
+    let before_memory_state = get (Release_queue.stats ()) in
+    ignore
+      (expect_error Invalid_state
+         (Command4.Compute_encoder.set_threadgroup_memory_length encoder
+            ~index:0 ~length:16));
+    get
+      (Command4.Compute_encoder.set_pipeline encoder
+         missing_reflection_pipeline);
+    ignore
+      (expect_error Invalid_state
+         (Command4.Compute_encoder.set_threadgroup_memory_length encoder
+            ~index:0 ~length:16));
+    get (Command4.Compute_encoder.set_pipeline encoder wrong_binding_pipeline);
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Compute_encoder.set_threadgroup_memory_length encoder
+            ~index:0 ~length:16));
+    get (Command4.Compute_encoder.set_pipeline encoder small_memory_pipeline);
     ignore
       (expect_error Parent_has_dependents
-         (Compute_pipeline.destroy pipeline));
+         (Compute_pipeline.destroy small_memory_pipeline));
     get (Command4.Compute_encoder.set_argument_table encoder (Some arguments));
     ignore
       (expect_error Parent_has_dependents
@@ -8464,6 +8618,38 @@ let test_metal4_compute_commands device =
     ignore (expect_error Parent_has_dependents (Buffer.destroy buffer));
     get (Command4.Compute_encoder.set_argument_table encoder None);
     get (Command4.Compute_encoder.set_argument_table encoder (Some arguments));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Compute_encoder.set_threadgroup_memory_length encoder
+            ~index:31 ~length:16));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Compute_encoder.set_threadgroup_memory_length encoder
+            ~index:0 ~length:8));
+    get
+      (Command4.Compute_encoder.set_threadgroup_memory_length encoder ~index:0
+         ~length:16);
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Compute_encoder.set_pipeline encoder index_one_pipeline));
+    get (Compute_pipeline.destroy index_one_pipeline);
+    ignore
+      (expect_error Destroyed
+         (Compute_pipeline.static_threadgroup_memory_length
+            index_one_pipeline));
+    get
+      (Command4.Compute_encoder.set_threadgroup_memory_length encoder ~index:0
+         ~length:dynamic_ceiling);
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Compute_encoder.set_threadgroup_memory_length encoder
+            ~index:0 ~length:(dynamic_ceiling + 16)));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Compute_encoder.set_pipeline encoder large_memory_pipeline));
+    get
+      (Command4.Compute_encoder.set_threadgroup_memory_length encoder ~index:0
+         ~length:16);
     ignore
       (expect_error Invalid_argument
          (Command4.Compute_encoder.dispatch_threads encoder
@@ -8477,22 +8663,42 @@ let test_metal4_compute_commands device =
          (Command4.Compute_encoder.dispatch_threads encoder
             ~threads:(4, 1, 1)
             ~threadgroup:
-              ( Compute_pipeline.max_total_threads_per_threadgroup pipeline + 1
+              ( Compute_pipeline.max_total_threads_per_threadgroup
+                  small_memory_pipeline
+                + 1
               , 1
               , 1 )));
     get
       (Command4.Compute_encoder.dispatch_threads encoder ~threads:(4, 1, 1)
          ~threadgroup:(4, 1, 1));
-    get (Command4.Argument_table.clear_buffer arguments ~index:0);
+    get
+      (Command4.Compute_encoder.set_threadgroup_memory_length encoder ~index:0
+         ~length:dynamic_ceiling);
+    get
+      (Command4.Compute_encoder.set_threadgroup_memory_length encoder ~index:0
+         ~length:0);
+    get
+      (Command4.Compute_encoder.set_pipeline encoder large_memory_pipeline);
+    let after_memory_state = get (Release_queue.stats ()) in
+    if after_memory_state.total_created <> before_memory_state.total_created then
+      fail "compute threadgroup-memory command state allocated native handles";
+    get (Command4.Argument_table.clear_buffer arguments ~index:1);
     ignore (expect_error Parent_has_dependents (Buffer.destroy buffer));
     get (Command4.Compute_encoder.end_encoding encoder);
     if not (Command4.Compute_encoder.destroyed encoder) then
       fail "ended Metal 4 compute encoder remained live";
+    ignore
+      (expect_error Destroyed
+         (Command4.Compute_encoder.set_threadgroup_memory_length encoder
+            ~index:0 ~length:16));
     get (Command4.Command_buffer.end_recording commands);
     let submission = get (Command4.Queue.commit queue [ commands ]) in
     get (Command4.Submission.wait submission);
     Buffer.read_bytes buffer ~offset:0L ~length:16 |> get |> check_values;
-    get (Compute_pipeline.destroy pipeline);
+    get (Compute_pipeline.destroy large_memory_pipeline);
+    get (Compute_pipeline.destroy small_memory_pipeline);
+    get (Compute_pipeline.destroy wrong_binding_pipeline);
+    get (Compute_pipeline.destroy missing_reflection_pipeline);
     get (Command4.Argument_table.destroy arguments);
     get (Buffer.destroy buffer);
     get (Command4.Submission.destroy submission);
@@ -8500,9 +8706,9 @@ let test_metal4_compute_commands device =
     get (Command4.Allocator.reset allocator);
     get (Command4.Queue.destroy queue);
     get (Command4.Allocator.destroy allocator);
-    get (Library.destroy library);
-    get (Compiler.destroy compiler);
-    Printf.printf "Metal 4 compute-command conformance passed\n%!";
+    Printf.printf
+      "Metal 4 compute-command conformance passed (static %Ld/%Ld, dynamic ceiling %d)\n%!"
+      small_static large_static dynamic_ceiling;
     true
   end
 

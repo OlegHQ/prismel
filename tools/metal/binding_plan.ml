@@ -1,6 +1,7 @@
 type receiver =
   | Render_encoder4
   | Compute_encoder4
+  | Compute_pipeline
   | Device
 
 type enum_type =
@@ -113,6 +114,13 @@ let macos_10_13_availability =
   { macos_major = 10
   ; macos_minor = 13
   ; unavailable_error = "Metal device limit requires macOS 10.13"
+  }
+
+let compute_pipeline_macos_10_13_availability =
+  { macos_major = 10
+  ; macos_minor = 13
+  ; unavailable_error =
+      "Metal compute-pipeline static threadgroup-memory length requires macOS 10.13"
   }
 
 let safe_api ~module_path ~value_name ~test_value =
@@ -249,7 +257,11 @@ let entries =
         ; unsigned_argument "index"
             "Metal 4 compute threadgroup-memory index must be nonnegative"
         ]
-      ~safe_api:None
+      ~safe_api:
+        (Some
+           (safe_api ~module_path:[ "Command4"; "Compute_encoder" ]
+              ~value_name:"set_threadgroup_memory_length"
+              ~test_value:"test_metal4_compute_commands"))
   ; direct_void
       ~sdk_id:
         "method:-[MTL4ComputeCommandEncoder setImageblockWidth:height:]"
@@ -344,6 +356,48 @@ let entries =
         Some
           (safe_api ~module_path:[ "Device" ] ~value_name:"info"
              ~test_value:"test_device_info")
+    }
+  ; { sdk_id =
+        "method:-[MTLComputePipelineState staticThreadgroupMemoryLength]"
+    ; expect =
+        { kind = "method"
+        ; owner = "MTLComputePipelineState"
+        ; name = "staticThreadgroupMemoryLength"
+        ; header = "Metal/MTLComputePipeline.h"
+        ; signature = "instance () -> NSUInteger"
+        ; attributes = [ "AvailabilityAttr" ]
+        ; availability = compute_pipeline_macos_10_13_availability
+        }
+    ; companions =
+        [ { sdk_id =
+              "property:MTLComputePipelineState:staticThreadgroupMemoryLength"
+          ; kind = "property"
+          ; owner = "MTLComputePipelineState"
+          ; name = "staticThreadgroupMemoryLength"
+          ; header = "Metal/MTLComputePipeline.h"
+          ; signature = "NSUInteger"
+          ; attributes = [ "AvailabilityAttr" ]
+          }
+        ]
+    ; disposition =
+        Generate
+          (Direct_getter
+             { ocaml_name =
+                 "compute_pipeline_static_threadgroup_memory_length"
+             ; c_symbol =
+                 "caml_prismel_metal_compute_pipeline_static_threadgroup_memory_length"
+             ; receiver = Compute_pipeline
+             ; result =
+                 Nsuint_to_checked_int64
+                   { overflow_error =
+                       "Metal returned a static threadgroup-memory length outside signed 64-bit range"
+                   }
+             })
+    ; safe_api =
+        Some
+          (safe_api ~module_path:[ "Compute_pipeline" ]
+             ~value_name:"static_threadgroup_memory_length"
+             ~test_value:"test_metal4_compute_commands")
     }
   ]
 

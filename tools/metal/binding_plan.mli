@@ -1,6 +1,7 @@
 type receiver =
   | Render_encoder4
   | Compute_encoder4
+  | Compute_pipeline
   | Device
 
 type enum_type =

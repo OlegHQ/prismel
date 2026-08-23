@@ -1123,6 +1123,7 @@ module Compute_pipeline : sig
   val bindings : t -> Binding.t list option
   val thread_execution_width : t -> int
   val max_total_threads_per_threadgroup : t -> int
+  val static_threadgroup_memory_length : t -> (int64, error) result
   val destroyed : t -> bool
   val destroy : t -> (unit, error) result
 end
@@ -2088,6 +2089,14 @@ module Command4 : sig
       ?label:string -> Command_buffer.t -> (t, error) result
 
     val set_pipeline : t -> Compute_pipeline.t -> (unit, error) result
+
+    (** Configures one reflected [[threadgroup(index)]] binding. The bound
+        pipeline must have been created with reflection, [index] is between
+        zero and thirty, and [length] is a nonnegative multiple of sixteen
+        bytes. Setting zero clears that index. Static and dynamic allocations
+        together must fit the device threadgroup-memory limit. *)
+    val set_threadgroup_memory_length :
+      t -> index:int -> length:int -> (unit, error) result
 
     (** Associates the table with the compute stage. Metal snapshots its
         current resources at each subsequent dispatch. [None] clears it. *)

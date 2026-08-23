@@ -1227,6 +1227,10 @@ type command4_compute_encoder =
   ; lifetime : lifetime
   ; command_buffer : command4_buffer
   ; mutable pipeline : compute_pipeline option
+  ; mutable pipeline_static_threadgroup_memory_length : int64 option
+  ; mutable device_max_threadgroup_memory_length : int64 option
+  ; threadgroup_memory_lengths : int64 array
+  ; mutable threadgroup_memory_total : int64
   ; mutable argument_table : command4_argument_table option
   }
 
@@ -7646,6 +7650,19 @@ module Compute_pipeline = struct
   let max_total_threads_per_threadgroup (value : t) = value.max_total_threads
   let destroyed (value : t) = is_destroyed value.lifetime
 
+  let static_threadgroup_memory_length (value : t) =
+    let operation = "Metal.Compute_pipeline.static_threadgroup_memory_length" in
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match
+             Metal_raw.compute_pipeline_static_threadgroup_memory_length
+               value.raw
+           with
+           | Error message -> native_error operation message
+           | Ok length -> Ok length))
+
   let label (value : t) =
     on_main "Metal.Compute_pipeline.label" (fun () ->
       match ensure_live "Metal.Compute_pipeline.label" value.lifetime with
@@ -12262,6 +12279,86 @@ module Command4 = struct
   module Compute_encoder = struct
     type t = command4_compute_encoder
 
+    let max_threadgroup_memory_bindings = 31
+
+    let validate_threadgroup_memory_binding ?(missing_kind = Invalid_state)
+        operation (pipeline : compute_pipeline) index =
+      match pipeline.bindings with
+      | None ->
+          error operation missing_kind
+            "compute threadgroup memory requires a pipeline created with reflection"
+      | Some bindings ->
+          let reflected_index = Int64.of_int index in
+          (match
+             Array.find_opt
+               (fun (binding : shader_binding) ->
+                 binding.index = reflected_index)
+               bindings
+           with
+           | Some { kind = Threadgroup_memory_binding _; _ } -> Ok ()
+           | Some _ ->
+               error operation Invalid_argument
+                 "compute binding index is not threadgroup memory"
+           | None ->
+               error operation Invalid_argument
+                 "compute pipeline has no reflected binding at that index")
+
+    let validate_configured_threadgroup_memory_bindings operation pipeline
+        lengths =
+      let rec loop index =
+        if index = Array.length lengths then Ok ()
+        else if lengths.(index) = 0L then loop (index + 1)
+        else
+          match
+            validate_threadgroup_memory_binding ~missing_kind:Invalid_argument
+              operation pipeline index
+          with
+          | Error _ as failure -> failure
+          | Ok () -> loop (index + 1)
+      in
+      loop 0
+
+    let read_threadgroup_memory_limits operation (device : device)
+        (pipeline : compute_pipeline) =
+      match
+        Metal_raw.compute_pipeline_static_threadgroup_memory_length pipeline.raw
+      with
+      | Error message -> native_error operation message
+      | Ok static_length ->
+          (match Metal_raw.device_max_threadgroup_memory_length device.raw with
+           | Error message -> native_error operation message
+           | Ok maximum_length -> Ok (static_length, maximum_length))
+
+    let validate_threadgroup_memory_budget operation ~static_length
+        ~dynamic_length ~maximum_length =
+      if
+        static_length < 0L || dynamic_length < 0L || maximum_length < 0L
+        || static_length > maximum_length
+        || dynamic_length > Int64.sub maximum_length static_length
+      then
+        error operation Invalid_argument
+          "compute threadgroup memory exceeds the device limit"
+      else Ok ()
+
+    let replacement_threadgroup_memory_total operation ~static_length
+        ~maximum_length ~current_total ~old_length ~requested_length =
+      let retained_length = Int64.sub current_total old_length in
+      if
+        retained_length < 0L || requested_length < 0L || static_length < 0L
+        || maximum_length < 0L || static_length > maximum_length
+      then
+        error operation Invalid_argument
+          "compute threadgroup-memory accounting is invalid"
+      else
+        let dynamic_capacity = Int64.sub maximum_length static_length in
+        if
+          retained_length > dynamic_capacity
+          || requested_length > Int64.sub dynamic_capacity retained_length
+        then
+          error operation Invalid_argument
+            "compute threadgroup memory exceeds the device limit"
+        else Ok (Int64.add retained_length requested_length)
+
     let create ?label (command_buffer : Command_buffer.t) =
       let operation = "Metal.Command4.Compute_encoder.create" in
       on_main operation (fun () ->
@@ -12285,6 +12382,11 @@ module Command4 = struct
                    ; lifetime = lifetime ()
                    ; command_buffer
                    ; pipeline = None
+                   ; pipeline_static_threadgroup_memory_length = None
+                   ; device_max_threadgroup_memory_length = None
+                   ; threadgroup_memory_lengths =
+                       Array.make max_threadgroup_memory_bindings 0L
+                   ; threadgroup_memory_total = 0L
                    ; argument_table = None
                    }
                  in
@@ -12303,28 +12405,88 @@ module Command4 = struct
     let set_pipeline (value : t) (pipeline : Compute_pipeline.t) =
       let operation = "Metal.Command4.Compute_encoder.set_pipeline" in
       on_main operation (fun () ->
-        match ensure_live operation value.lifetime with
-        | Error _ as failure -> failure
+        let ( let* ) result callback = Result.bind result callback in
+        let* () = ensure_live operation value.lifetime in
+        let* () = ensure_live operation pipeline.lifetime in
+        let device = value.command_buffer.allocator.device in
+        let* () = ensure_same_device operation device pipeline.device in
+        let* static_length, maximum_length =
+          read_threadgroup_memory_limits operation device pipeline
+        in
+        let* () =
+          validate_threadgroup_memory_budget operation ~static_length
+            ~dynamic_length:value.threadgroup_memory_total ~maximum_length
+        in
+        let* () =
+          validate_configured_threadgroup_memory_bindings operation pipeline
+            value.threadgroup_memory_lengths
+        in
+        match
+          Metal_raw.command4_compute_encoder_set_pipeline value.raw
+            value.command_buffer.raw pipeline.raw
+        with
+        | Error message -> native_error operation message
         | Ok () ->
-            (match ensure_live operation pipeline.lifetime with
-             | Error _ as failure -> failure
-             | Ok () ->
-                 (match
-                    ensure_same_device operation
-                      value.command_buffer.allocator.device pipeline.device
-                  with
-                  | Error _ as failure -> failure
-                  | Ok () ->
-                      match
-                        Metal_raw.command4_compute_encoder_set_pipeline value.raw
-                          value.command_buffer.raw pipeline.raw
-                      with
-                      | Error message -> native_error operation message
-                      | Ok () ->
-                          retain_command4_compute_pipeline value.command_buffer
-                            pipeline;
-                          value.pipeline <- Some pipeline;
-                          Ok ())))
+            retain_command4_compute_pipeline value.command_buffer pipeline;
+            value.pipeline <- Some pipeline;
+            value.pipeline_static_threadgroup_memory_length <-
+              Some static_length;
+            value.device_max_threadgroup_memory_length <- Some maximum_length;
+            Ok ())
+
+    let set_threadgroup_memory_length (value : t) ~index ~length =
+      let operation =
+        "Metal.Command4.Compute_encoder.set_threadgroup_memory_length"
+      in
+      on_main operation (fun () ->
+        let ( let* ) result callback = Result.bind result callback in
+        let* () = ensure_live operation value.lifetime in
+        match value.pipeline with
+        | None ->
+            error operation Invalid_state "no compute pipeline is bound"
+        | Some pipeline ->
+            let* () = ensure_live operation pipeline.lifetime in
+            let* () =
+              ensure_same_device operation value.command_buffer.allocator.device
+                pipeline.device
+            in
+            (match
+               value.pipeline_static_threadgroup_memory_length,
+               value.device_max_threadgroup_memory_length
+             with
+             | None, _ | _, None ->
+                 native_error operation
+                   "bound compute pipeline has no cached threadgroup-memory limits"
+             | Some static_length, Some maximum_length ->
+                 if index < 0 || index >= max_threadgroup_memory_bindings then
+                   error operation Invalid_argument
+                     "compute threadgroup-memory index is outside [0, 31)"
+                 else if length < 0 || length mod 16 <> 0 then
+                   error operation Invalid_argument
+                     "compute threadgroup-memory length must be nonnegative and a multiple of 16"
+                 else
+                   let* () =
+                     validate_threadgroup_memory_binding operation pipeline
+                       index
+                   in
+                   let old_length = value.threadgroup_memory_lengths.(index) in
+                   let requested_length = Int64.of_int length in
+                   let* dynamic_length =
+                     replacement_threadgroup_memory_total operation
+                       ~static_length ~maximum_length
+                       ~current_total:value.threadgroup_memory_total ~old_length
+                       ~requested_length
+                   in
+                   match
+                     Metal_raw.command4_compute_encoder_set_threadgroup_memory_length
+                       value.raw length index
+                   with
+                   | Error message -> native_error operation message
+                   | Ok () ->
+                       value.threadgroup_memory_lengths.(index) <-
+                         requested_length;
+                       value.threadgroup_memory_total <- dynamic_length;
+                       Ok ()))
 
     let set_argument_table (value : t) table =
       let operation = "Metal.Command4.Compute_encoder.set_argument_table" in

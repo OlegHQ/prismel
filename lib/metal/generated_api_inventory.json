@@ -1,11 +1,11 @@
 {
-  "binding_plan_source_sha256": "5af5a69c1ec5a214190434c8c8ef3c17cab896b417e5b12e3b542e9bf054e49f",
+  "binding_plan_source_sha256": "32dc8ed40f036aa607db726728a8bc7bf4dc9af63ba4ae7107bfd90015fb6b87",
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 1844,
+    "bound": 1847,
     "scope-excluded": 7,
-    "unreviewed": 3434
+    "unreviewed": 3431
   },
   "classification_source_sha256": "31fb7ff63641fff72ad8acc1553af2c320fcead21868a6fd524fc055dd33500d",
   "deployment_target": "14.0",
@@ -23276,14 +23276,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4ComputeCommandEncoder.h",
       "id": "method:-[MTL4ComputeCommandEncoder setThreadgroupMemoryLength:atIndex:]",
       "kind": "method",
       "line": 59,
       "name": "setThreadgroupMemoryLength:atIndex:",
       "owner": "MTL4ComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (NSUInteger, NSUInteger) -> void"
     },
     {
@@ -34460,14 +34460,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "method:-[MTLComputePipelineState staticThreadgroupMemoryLength]",
       "kind": "method",
       "line": 243,
       "name": "staticThreadgroupMemoryLength",
       "owner": "MTLComputePipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -57225,14 +57225,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "property:MTLComputePipelineState:staticThreadgroupMemoryLength",
       "kind": "property",
       "line": 243,
       "name": "staticThreadgroupMemoryLength",
       "owner": "MTLComputePipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {

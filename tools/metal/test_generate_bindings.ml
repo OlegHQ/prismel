@@ -248,7 +248,18 @@ let expected_bindings =
         ]
     ; result = None
     ; companions = []
-    ; safe_api = None
+    ; safe_api =
+        Some
+          { operation =
+              "Metal.Command4.Compute_encoder.set_threadgroup_memory_length"
+          ; module_path = [ "Command4"; "Compute_encoder" ]
+          ; value_name = "set_threadgroup_memory_length"
+          ; test_value = "test_metal4_compute_commands"
+          ; test_call =
+              [ "Command4"; "Compute_encoder"
+              ; "set_threadgroup_memory_length"
+              ]
+          }
     }
   ; { sdk_id = "method:-[MTL4RenderCommandEncoder setCullMode:]"
     ; selector = "setCullMode:"
@@ -443,6 +454,45 @@ let expected_bindings =
           ; test_value = "test_metal4_raster_state_commands"
           ; test_call =
               [ "Command4"; "Render_encoder"; "set_triangle_fill_mode" ]
+          }
+    }
+  ; { sdk_id =
+        "method:-[MTLComputePipelineState staticThreadgroupMemoryLength]"
+    ; selector = "staticThreadgroupMemoryLength"
+    ; ocaml_name = "compute_pipeline_static_threadgroup_memory_length"
+    ; c_symbol =
+        "caml_prismel_metal_compute_pipeline_static_threadgroup_memory_length"
+    ; receiver_handle_kind = "Compute_pipeline"
+    ; macos_major = 10
+    ; macos_minor = 13
+    ; arguments = []
+    ; result =
+        Some
+          { abi = "objc_nsuint_to_checked_ocaml_int64"
+          ; objc_type = "NSUInteger"
+          ; ocaml_type = "int64"
+          ; overflow_error =
+              "Metal returned a static threadgroup-memory length outside signed 64-bit range"
+          }
+    ; companions =
+        [ { sdk_id =
+              "property:MTLComputePipelineState:staticThreadgroupMemoryLength"
+          ; kind = "property"
+          ; owner = "MTLComputePipelineState"
+          ; name = "staticThreadgroupMemoryLength"
+          ; header = "Metal/MTLComputePipeline.h"
+          ; signature = "NSUInteger"
+          ; attributes = [ "AvailabilityAttr" ]
+          }
+        ]
+    ; safe_api =
+        Some
+          { operation = "Metal.Compute_pipeline.static_threadgroup_memory_length"
+          ; module_path = [ "Compute_pipeline" ]
+          ; value_name = "static_threadgroup_memory_length"
+          ; test_value = "test_metal4_compute_commands"
+          ; test_call =
+              [ "Compute_pipeline"; "static_threadgroup_memory_length" ]
           }
     }
   ; { sdk_id = "method:-[MTLDevice maxThreadgroupMemoryLength]"
@@ -675,12 +725,14 @@ let selector_pieces (expected : expected_binding) =
 let receiver_names (expected : expected_binding) =
   match expected.receiver_handle_kind with
   | "Device" -> "raw_device", "device"
+  | "Compute_pipeline" -> "raw_pipeline", "pipeline"
   | "Compute_encoder4" | "Render_encoder4" -> "raw_encoder", "encoder"
   | other -> fail "unknown golden receiver kind for %s: %s" expected.sdk_id other
 
 let receiver_objc_type (expected : expected_binding) =
   match expected.receiver_handle_kind with
   | "Device" -> "id<MTLDevice>"
+  | "Compute_pipeline" -> "id<MTLComputePipelineState>"
   | "Compute_encoder4" -> "id<MTL4ComputeCommandEncoder>"
   | "Render_encoder4" -> "id<MTL4RenderCommandEncoder>"
   | other -> fail "unknown golden receiver kind for %s: %s" expected.sdk_id other
@@ -957,6 +1009,20 @@ let main () =
       (run inputs ~inventory:getter_drift_inventory
          ~manual_native:inputs.manual_native
          (outputs directory "getter-drift"));
+    let compute_getter_drift_inventory =
+      Filename.concat directory "compute-getter-drift.json"
+    in
+    read_file inputs.inventory |> Yojson.Safe.from_string
+    |> replace_symbol_field
+         ~target:
+           "method:-[MTLComputePipelineState staticThreadgroupMemoryLength]"
+         ~field:"signature" (`String "instance () -> NSInteger")
+    |> pretty_json |> write_file compute_getter_drift_inventory;
+    require_failure "SDK compute-getter signature drift test"
+      "Metal inventory drift"
+      (run inputs ~inventory:compute_getter_drift_inventory
+         ~manual_native:inputs.manual_native
+         (outputs directory "compute-getter-drift"));
     let property_drift_inventory =
       Filename.concat directory "property-drift.json"
     in
@@ -969,6 +1035,20 @@ let main () =
       (run inputs ~inventory:property_drift_inventory
          ~manual_native:inputs.manual_native
          (outputs directory "property-drift"));
+    let compute_property_drift_inventory =
+      Filename.concat directory "compute-property-drift.json"
+    in
+    read_file inputs.inventory |> Yojson.Safe.from_string
+    |> replace_symbol_field
+         ~target:
+           "property:MTLComputePipelineState:staticThreadgroupMemoryLength"
+         ~field:"signature" (`String "NSInteger")
+    |> pretty_json |> write_file compute_property_drift_inventory;
+    require_failure "SDK compute companion-property drift test"
+      "Metal inventory drift"
+      (run inputs ~inventory:compute_property_drift_inventory
+         ~manual_native:inputs.manual_native
+         (outputs directory "compute-property-drift"));
     let enum_drift_inventory = Filename.concat directory "enum-drift.json" in
     read_file inputs.inventory |> Yojson.Safe.from_string
     |> replace_symbol_field
@@ -1034,12 +1114,19 @@ let main () =
        \  ignore\n\
        \    (Command4.Render_encoder.set_triangle_fill_mode encoder\n\
        \       (Obj.magic 0))\n\
+       let test_metal4_compute_commands pipeline encoder =\n\
+       \  ignore (Compute_pipeline.static_threadgroup_memory_length pipeline);\n\
+       \  ignore\n\
+       \    (Command4.Compute_encoder.set_threadgroup_memory_length encoder\n\
+       \       ~index:0 ~length:16)\n\
        let test_device_info device = ignore (Device.info device)\n\
-       let run_generated_conformance encoder device =\n\
+       let run_generated_conformance encoder pipeline compute_encoder device =\n\
        \  test_metal4_raster_state_commands encoder;\n\
+       \  test_metal4_compute_commands pipeline compute_encoder;\n\
        \  test_device_info device\n\
        let main () =\n\
        \  run_generated_conformance (Obj.magic ()) (Obj.magic ())\n\
+       \    (Obj.magic ()) (Obj.magic ())\n\
        let () = main ()\n";
     require_success "transitive conformance reachability test"
       (run inputs ~safe_tests:transitive_tests ~inventory:inputs.inventory

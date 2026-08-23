@@ -68,11 +68,14 @@ selectors:
 - `-[MTL4RenderCommandEncoder setObjectThreadgroupMemoryLength:atIndex:]`
 - `-[MTL4RenderCommandEncoder setThreadgroupMemoryLength:offset:atIndex:]`
 
-These entries deliberately retain `safe_api = null` and remain `unreviewed`.
-Their public completion needs handwritten pipeline and reflection checks,
-device memory-limit policy, and, for persistent render threadgroup memory,
+The compute threadgroup-memory selector now has a handwritten safe operation
+and conformance evidence. The imageblock selector and both render
+threadgroup-memory selectors deliberately retain `safe_api = null` and remain
+`unreviewed`: imageblocks still need pipeline/device sizing policy, while
+persistent render threadgroup memory also needs render-stage reflection and
 render-pass allocation validation. Generated raw/native glue alone is not a
-safe operation and does not make any of these inventory identifiers `bound`.
+safe operation and does not make any of those three inventory identifiers
+`bound`.
 
 The `Direct_getter` template covers no-argument scalar getters and validates
 the primary selector together with companion method/property closure metadata
@@ -84,11 +87,51 @@ only then copies the value to OCaml `int64`; overflow is a typed error rather
 than signed wraparound. The existing safe `Device.info` record exposes the
 result as `max_threadgroup_memory_length`.
 
-That method/property closure moves exactly two declarations from `unreviewed`
-to `bound`, leaving 1,844 `bound` and 3,434 `unreviewed`. It provides the
-device-wide byte ceiling needed by later handwritten validation of compute and
-render threadgroup-memory budgets; it does not by itself complete any of the
-four raw setter slices above.
+The second getter slice binds
+`-[MTLComputePipelineState staticThreadgroupMemoryLength]` and
+`property:MTLComputePipelineState:staticThreadgroupMemoryLength` as another
+read-only closure. `Compute_pipeline.static_threadgroup_memory_length` checks
+that the pipeline is live, performs the same checked `NSUInteger`-to-`int64`
+conversion, and reports native overflow rather than returning a wrapped value.
+
+`Command4.Compute_encoder.set_threadgroup_memory_length` requires a live
+encoder with a bound compute pipeline created with reflection. The index must
+be in `[0, 31)` and name an exact reflected `Threadgroup_memory_binding`; the
+length is nonnegative and a multiple of 16 bytes. Each encoder retains a
+31-slot `int64` length ledger across pipeline changes. A successful
+reassignment replaces that index's previous value, including zero as a clearing
+assignment, and failed validation or native execution leaves the ledger
+unchanged. The current dynamic total plus the pipeline's static
+threadgroup-memory length must not exceed
+`Device.info.max_threadgroup_memory_length`. Replacement subtracts the old slot
+before adding the checked OCaml integer, and the budget comparison uses
+`dynamic <= maximum - static`, so adversarial inputs cannot wrap.
+
+Missing reflection on the current pipeline is `Invalid_state`; an out-of-range
+index, absent or non-threadgroup reflected binding, invalid length, or exceeded
+budget is `Invalid_argument`. Native getter or setter failures remain
+`Native_error`. Binding a different pipeline first reads its checked static and
+device limits, validates the retained total, and requires each nonzero ledger
+slot to be an exact reflected threadgroup-memory binding in that candidate;
+missing or incompatible candidate reflection is `Invalid_argument`. The bound
+pipeline and cached limits change only after the native bind succeeds, just as
+only a successful native setter updates the ledger.
+
+The compute static getter closure and safe compute setter move exactly three
+declarations from `unreviewed` to `bound`, leaving 1,847 `bound` and 3,431
+`unreviewed`. The compute getter and setter allocate no native handles. The
+imageblock and render threadgroup-memory setters above remain raw-only and do
+not count as bound.
+
+Exact M1 execution reports 16 bytes of static memory for the small/index-one
+fixtures, 32 bytes for the large fixture, and a 32,768-byte device limit. The
+small pipeline accepts its exact 32,752-byte dynamic ceiling and rejects 32,768
+dynamic bytes; a four-thread dispatch with a 16-byte dynamic allocation changes
+`[1; 41; 99; -2]` to `[2; 42; 100; -1]`. Replacements
+`16 -> 32,752 -> 16` preserve execution, while `32,752 -> 0` permits switching
+to the 32-byte-static pipeline. Failed budget and reflected-index switches
+leave the prior pipeline usable, destroyed getters and ended-encoder setters
+return `Destroyed`, and the library/compiler can be destroyed before encoding.
 
 Migration is gradual. Each small family first receives deterministic per-entry
 golden assertions for generated OCaml, Objective-C++, validation domains,
