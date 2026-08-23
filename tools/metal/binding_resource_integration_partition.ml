@@ -68,6 +68,10 @@ let safe_ownership_tail =
   ; "property:MTLResourceStatePassDescriptor:sampleBufferAttachments"
   ; "method:-[MTLResourceStatePassSampleBufferAttachmentDescriptorArray objectAtIndexedSubscript:]"
   ; "method:-[MTLResourceStatePassSampleBufferAttachmentDescriptorArray setObject:atIndexedSubscript:]"
+  ; "method:-[MTLHeap device]"
+  ; "property:MTLHeap:device"
+  ; "method:-[MTLResourceStateCommandEncoder updateFence:]"
+  ; "method:-[MTLResourceStateCommandEncoder waitForFence:]"
   ]
 
 let handwritten_ownership =
@@ -77,5 +81,5 @@ let handwritten_ownership =
 
 let () =
   validate ();
-  if List.length safe_ownership_tail <> 24 then failwith "resource safe ownership24 drift";
-  if List.length handwritten_ownership <> 32 then failwith "resource handwritten32 drift"
+  if List.length safe_ownership_tail <> 28 then failwith "resource safe ownership28 drift";
+  if List.length handwritten_ownership <> 28 then failwith "resource handwritten28 drift"

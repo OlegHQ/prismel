@@ -3,9 +3,9 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4062,
+    "bound": 4066,
     "scope-excluded": 37,
-    "unreviewed": 1186
+    "unreviewed": 1182
   },
   "classification_source_sha256": "7ff476e493a9cf58288fd9b8dc6f1030a7f8e92df2f93ece481d6e8dc6d4ddc0",
   "deployment_target": "14.0",
@@ -59982,7 +59982,7 @@
           "line": 121
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "method:-[MTLHeap device]",
       "kind": "method",
@@ -59990,7 +59990,7 @@
       "macos_introduced": "10.13",
       "name": "device",
       "owner": "MTLHeap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "instance () -> id<MTLDevice> _Nonnull"
     },
     {
@@ -76225,7 +76225,7 @@
           "line": 95
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResourceStateCommandEncoder.h",
       "id": "method:-[MTLResourceStateCommandEncoder updateFence:]",
       "kind": "method",
@@ -76233,7 +76233,7 @@
       "macos_introduced": "11.0",
       "name": "updateFence:",
       "owner": "MTLResourceStateCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLFence>  _Nonnull __strong) -> void"
     },
     {
@@ -76325,7 +76325,7 @@
           "line": 103
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResourceStateCommandEncoder.h",
       "id": "method:-[MTLResourceStateCommandEncoder waitForFence:]",
       "kind": "method",
@@ -76333,7 +76333,7 @@
       "macos_introduced": "11.0",
       "name": "waitForFence:",
       "owner": "MTLResourceStateCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLFence>  _Nonnull __strong) -> void"
     },
     {
@@ -94682,7 +94682,7 @@
           "line": 121
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "property:MTLHeap:device",
       "kind": "property",
@@ -94690,7 +94690,7 @@
       "macos_introduced": "10.13",
       "name": "device",
       "owner": "MTLHeap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "id<MTLDevice> _Nonnull"
     },
     {

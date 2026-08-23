@@ -80,6 +80,8 @@ let public_operation id =
     "Metal.Resource_state_encoder.update_fence"
   else if contains id "waitForFence" then
     "Metal.Resource_state_encoder.wait_for_fence"
+  else if contains id "MTLHeap device" || contains id "MTLHeap:device" then
+    "Metal.Resource100.Heap_ops.checked_device"
   else if contains id "MTLResourceViewPool device"
        || contains id "MTLResourceViewPool:device" then
     "Metal.Resource100.Texture_view_pool.device"
