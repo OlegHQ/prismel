@@ -1777,6 +1777,9 @@ module Pipeline_archive : sig
     ?pipeline_independent:bool -> t -> source:Function.t -> name:string ->
     (Binary_function.t, error) result
 
+  val compile_compute : t -> library:Library.t -> string -> (Compute_pipeline.t,error) result
+  val compile_render : t -> library:Library.t -> vertex:string -> ?fragment:string -> color_format:Texture.format -> unit -> (Render_pipeline.t,error) result
+
   val destroy : t -> (unit, error) result
 end
 
