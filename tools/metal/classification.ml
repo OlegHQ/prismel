@@ -604,6 +604,7 @@ let bound_identifiers =
           ] )
       ; ( "MTLComputeCommandEncoder"
         , [ "dispatchThreads:threadsPerThreadgroup:"
+          ; "executeCommandsInBuffer:withRange:"
           ; "setBuffer:offset:atIndex:"
           ; "setComputePipelineState:"; "setTexture:atIndex:"
           ] )
@@ -612,11 +613,19 @@ let bound_identifiers =
           ; "preloadedLibraries"; "setBinaryArchives:"
           ; "setComputeFunction:"; "setLabel:"; "setLinkedFunctions:"
           ; "setPreloadedLibraries:"
+          ; "setSupportIndirectCommandBuffers:"
+          ; "supportIndirectCommandBuffers"
           ] )
       ; "MTLComputePipelineReflection", [ "bindings" ]
       ; ( "MTLComputePipelineState"
         , [ "device"; "label"; "maxTotalThreadsPerThreadgroup"; "reflection"
           ; "threadExecutionWidth"
+          ] )
+      ; ( "MTLIndirectCommandBuffer"
+        , [ "indirectComputeCommandAtIndex:"; "resetWithRange:"; "size" ] )
+      ; ( "MTLIndirectComputeCommand"
+        , [ "concurrentDispatchThreads:threadsPerThreadgroup:"; "reset"
+          ; "setComputePipelineState:"; "setKernelBuffer:offset:atIndex:"
           ] )
       ; ( "MTLRenderPipelineReflection"
         , [ "fragmentBindings"; "meshBindings"; "objectBindings"
@@ -677,6 +686,7 @@ let bound_identifiers =
           ; "newComputePipelineStateWithDescriptor:options:reflection:error:"
           ; "newComputePipelineStateWithFunction:error:"
           ; "newDepthStencilStateWithDescriptor:"
+          ; "newIndirectCommandBufferWithDescriptor:maxCommandCount:options:"
           ; "newDynamicLibrary:error:"; "newDynamicLibraryWithURL:error:"
           ; "newLibraryWithURL:error:"
           ; "newLibraryWithSource:options:error:"
@@ -955,13 +965,14 @@ let bound_identifiers =
         , [ "fastMathEnabled"; "installName"; "libraries"; "libraryType" ] )
       ; ( "MTLComputePipelineDescriptor"
         , [ "binaryArchives"; "computeFunction"; "label"; "linkedFunctions"
-          ; "preloadedLibraries"
+          ; "preloadedLibraries"; "supportIndirectCommandBuffers"
           ] )
       ; "MTLComputePipelineReflection", [ "bindings" ]
       ; ( "MTLComputePipelineState"
         , [ "device"; "label"; "maxTotalThreadsPerThreadgroup"; "reflection"
           ; "threadExecutionWidth"
           ] )
+      ; "MTLIndirectCommandBuffer", [ "size" ]
       ; ( "MTLRenderPipelineReflection"
         , [ "fragmentBindings"; "meshBindings"; "objectBindings"
           ; "tileBindings"; "vertexBindings"
