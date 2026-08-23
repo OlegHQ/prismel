@@ -965,6 +965,7 @@ enum class Handle_kind : std::uint32_t {
   Color_attachment_descriptor,
   Io_command_buffer,
   Io_file_handle,
+  Io_command_queue,
 };
 
 struct Handle {
@@ -14380,4 +14381,9 @@ extern "C" CAMLprim value caml_prismel_metal_pipeline_render_imageblock_length(v
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunguarded-availability-new"
 #include "../../tools/metal/metal_command_event_constructors.inc"
+#pragma clang diagnostic pop
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunguarded-availability-new"
+#include "../../tools/metal/metal_io_constructors.inc"
 #pragma clang diagnostic pop
