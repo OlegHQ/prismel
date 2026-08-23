@@ -96,6 +96,10 @@ let public_operation id =
     "Metal.Resource100.Texture_view_pool.set_from_buffer"
   else if contains id "newAccelerationStructureWithSize:" then
     "Metal.Resource100.Heap_ops.create_acceleration_structure"
+  else if contains id "indirectBuffer" then
+    "Metal.Resource_state_encoder.update_texture_mapping_indirect"
+  else if contains id "updateTextureMappings" then
+    "Metal.Resource_state_encoder.update_texture_mappings"
   else if contains id "MTLResourceViewPool baseResourceID"
        || contains id "MTLResourceViewPool:baseResourceID" then
     "Metal.Resource100.Texture_view_pool.base_resource_id"

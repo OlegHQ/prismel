@@ -62,6 +62,8 @@ let safe_ownership_tail =
   ; "property:MTLTexture:rootResource"
   ; "method:-[MTLTextureViewPool setTextureViewFromBuffer:descriptor:offset:bytesPerRow:atIndex:]"
   ; "method:-[MTLHeap newAccelerationStructureWithSize:]"
+  ; "method:-[MTLResourceStateCommandEncoder updateTextureMapping:mode:indirectBuffer:indirectBufferOffset:]"
+  ; "method:-[MTLResourceStateCommandEncoder updateTextureMappings:mode:regions:mipLevels:slices:numRegions:]"
   ]
 
 let handwritten_ownership =
@@ -71,5 +73,5 @@ let handwritten_ownership =
 
 let () =
   validate ();
-  if List.length safe_ownership_tail <> 18 then failwith "resource safe ownership18 drift";
-  if List.length handwritten_ownership <> 38 then failwith "resource handwritten38 drift"
+  if List.length safe_ownership_tail <> 20 then failwith "resource safe ownership20 drift";
+  if List.length handwritten_ownership <> 36 then failwith "resource handwritten36 drift"

@@ -3,9 +3,9 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4056,
+    "bound": 4058,
     "scope-excluded": 37,
-    "unreviewed": 1192
+    "unreviewed": 1190
   },
   "classification_source_sha256": "7ff476e493a9cf58288fd9b8dc6f1030a7f8e92df2f93ece481d6e8dc6d4ddc0",
   "deployment_target": "14.0",
@@ -76250,7 +76250,7 @@
           "line": 87
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResourceStateCommandEncoder.h",
       "id": "method:-[MTLResourceStateCommandEncoder updateTextureMapping:mode:indirectBuffer:indirectBufferOffset:]",
       "kind": "method",
@@ -76258,7 +76258,7 @@
       "macos_introduced": "11.0",
       "name": "updateTextureMapping:mode:indirectBuffer:indirectBufferOffset:",
       "owner": "MTLResourceStateCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLTexture>  _Nonnull __strong, const MTLSparseTextureMappingMode, id<MTLBuffer>  _Nonnull __strong, NSUInteger) -> void"
     },
     {
@@ -76300,7 +76300,7 @@
           "line": 63
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResourceStateCommandEncoder.h",
       "id": "method:-[MTLResourceStateCommandEncoder updateTextureMappings:mode:regions:mipLevels:slices:numRegions:]",
       "kind": "method",
@@ -76308,7 +76308,7 @@
       "macos_introduced": "11.0",
       "name": "updateTextureMappings:mode:regions:mipLevels:slices:numRegions:",
       "owner": "MTLResourceStateCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLTexture>  _Nonnull __strong, const MTLSparseTextureMappingMode, const MTLRegion * _Nonnull, const NSUInteger * _Nonnull, const NSUInteger * _Nonnull, NSUInteger) -> void"
     },
     {
