@@ -33,9 +33,13 @@ let () =
     "unique inventory IDs";
   let manifest = Binding_argument_reflection_codegen.render_manifest entries in
   let native = Binding_argument_reflection_codegen.render_native_calls entries in
+  let ownership =
+    Binding_argument_reflection_codegen.render_snapshot_ownership_helpers ()
+  in
   check (String.length manifest > 5_000) "manifest unexpectedly small";
   check (String.length native > 9_000) "native call batch unexpectedly small";
   check
     (not (String.contains native '\000'))
     "native output contains invalid byte";
+  check (String.length ownership > 700) "ownership helpers unexpectedly small";
   print_endline "Metal argument reflection plan: 57 methods + 44 property companions = 101 declarations"

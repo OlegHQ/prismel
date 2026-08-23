@@ -60,3 +60,24 @@ let render_native_calls entries =
         if contains 0 then invalid_arg ("dynamic dispatch forbidden: " ^ forbidden))
     [ "objc_msgSend"; "performSelector"; "valueForKey" ];
   output ^ "\n"
+
+let render_snapshot_ownership_helpers () =
+  {|
+/* A nullable child returned at +0 becomes an ordinary owned Metal handle. */
+static id prismel_reflection_retain_nullable(id child) {
+  return child == nil ? nil : [child retain];
+}
+
+/* Snapshot NSArray membership before OCaml allocation.  The copied array
+   retains every child; each exported temporary handle takes its own +1, then
+   releasing the snapshot cannot invalidate a handle during conversion. */
+static NSArray *prismel_reflection_copy_members(NSArray *members) {
+  return members == nil ? nil : [members copy];
+}
+static id prismel_reflection_retain_member(NSArray *snapshot, NSUInteger index) {
+  return [[snapshot objectAtIndex:index] retain];
+}
+static void prismel_reflection_release_snapshot(NSArray *snapshot) {
+  [snapshot release];
+}
+|}

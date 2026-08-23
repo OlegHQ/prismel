@@ -14,17 +14,18 @@ type symbol =
 let fail fmt =
   Printf.ksprintf (fun text -> invalid_arg ("Metal argument reflection evidence: " ^ text)) fmt
 
+let result_signature entry =
+  match entry.result with
+  | Bool -> "BOOL"
+  | Unsigned -> "NSUInteger"
+  | Enum name -> name
+  | String -> "NSString * _Nonnull"
+  | Retained_object { objc_type; nullable } ->
+      objc_type ^ " * " ^ if nullable then "_Nullable" else "_Nonnull"
+  | Retained_array element -> "NSArray<" ^ element ^ " *> * _Nonnull"
+
 let expected_signature entry =
-  let result =
-    match entry.result with
-    | Bool -> "BOOL"
-    | Unsigned -> "NSUInteger"
-    | Enum name -> name
-    | String -> "NSString * _Nonnull"
-    | Retained_object { objc_type; nullable } ->
-        objc_type ^ " * " ^ if nullable then "_Nullable" else "_Nonnull"
-    | Retained_array element -> "NSArray<" ^ element ^ " *> * _Nonnull"
-  in
+  let result = result_signature entry in
   let arguments =
     match entry.arguments with
     | [] -> ""
@@ -67,7 +68,9 @@ let validate_inventory symbols =
           in
           if property.kind <> "property"
              || property.owner <> Some entry.owner
+             || id <> "property:" ^ entry.owner ^ ":" ^ property.name
              || property.header <> "Metal/MTLArgument.h"
+             || property.signature <> result_signature entry
              || property.macos_introduced <> Some entry.macos_introduced
              || property.classification <> "unreviewed"
           then fail "inventory drift for %s" id)
