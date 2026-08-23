@@ -39,6 +39,19 @@ let run_buffer_cycles device count =
     get (Buffer.destroy buffer)
   done
 
+let run_metal4_argument_table_cycles device count =
+  for _ = 1 to count do
+    let buffer =
+      get (Buffer.create ~device ~length:16L ~storage:Buffer.Shared ())
+    in
+    let table =
+      get (Command4.Argument_table.create ~max_buffers:1 device ())
+    in
+    get (Command4.Argument_table.set_buffer table ~index:0 buffer);
+    get (Command4.Argument_table.destroy table);
+    get (Buffer.destroy buffer)
+  done
+
 let run_texture_sampler_cycles device count =
   let base_swizzle =
     Texture.make_swizzle ~red:Texture.Red ~green:Texture.One
@@ -389,6 +402,7 @@ let check_cycles ?rss_limit ?expected_mapping_operations ~name ~expected
 
 type lane =
   | Buffers
+  | Metal4_argument_tables
   | Textures_and_samplers
   | Texture_views
   | Heaps_and_resources
@@ -403,6 +417,7 @@ type lane =
 
 let lane_name = function
   | Buffers -> "buffers"
+  | Metal4_argument_tables -> "metal4-argument-tables"
   | Textures_and_samplers -> "textures-samplers"
   | Texture_views -> "texture-views"
   | Heaps_and_resources -> "heaps-resources"
@@ -417,6 +432,7 @@ let lane_name = function
 
 let lane_of_name = function
   | "buffers" -> Buffers
+  | "metal4-argument-tables" -> Metal4_argument_tables
   | "textures-samplers" -> Textures_and_samplers
   | "texture-views" -> Texture_views
   | "heaps-resources" -> Heaps_and_resources
@@ -432,6 +448,7 @@ let lane_of_name = function
 
 let lanes =
   [ Buffers
+  ; Metal4_argument_tables
   ; Textures_and_samplers
   ; Texture_views
   ; Heaps_and_resources
@@ -474,6 +491,16 @@ let run_lane lane =
   | Buffers ->
       measure device ~name:"buffers" ~warmup:5_000 ~cycles:100_000
         ~expected:100_000L run_buffer_cycles
+  | Metal4_argument_tables ->
+      if not (get (Device.supports_family device Device.Metal4)) then begin
+        finish_device device;
+        Printf.printf
+          "Metal ownership lane Metal 4 argument tables skipped: unsupported\n%!"
+      end
+      else
+        measure device ~name:"Metal 4 argument tables" ~warmup:2_500
+          ~cycles:50_000 ~expected:100_000L
+          run_metal4_argument_table_cycles
   | Textures_and_samplers ->
       measure device ~name:"textures/samplers" ~warmup:2_500 ~cycles:50_000
         ~expected:100_000L run_texture_sampler_cycles

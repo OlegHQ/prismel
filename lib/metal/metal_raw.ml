@@ -175,6 +175,16 @@ type metal4_render_attachment =
   ; clear_alpha : float
   }
 
+(** Positional native ABI record for a Metal 4 argument-table descriptor. *)
+type metal4_argument_table_descriptor =
+  { max_buffers : int
+  ; max_textures : int
+  ; max_samplers : int
+  ; initialize_bindings : bool
+  ; support_attribute_strides : bool
+  ; label : string option
+  }
+
 (** Positional native ABI record for a Metal 4 binary-function lookup or
     compilation. *)
 type metal4_binary_function_descriptor =
@@ -797,6 +807,26 @@ external command4_queue_create :
 external command4_queue_label : handle -> string option =
   "caml_prismel_metal_command4_queue_label"
 
+external command4_argument_table_create :
+  handle -> metal4_argument_table_descriptor -> (handle, string) result =
+  "caml_prismel_metal_command4_argument_table_create"
+
+external command4_argument_table_label : handle -> string option =
+  "caml_prismel_metal_command4_argument_table_label"
+
+external command4_argument_table_set_buffer :
+  handle -> handle option -> (int * int64 * int option) ->
+  (unit, string) result =
+  "caml_prismel_metal_command4_argument_table_set_buffer"
+
+external command4_argument_table_set_texture :
+  handle -> handle option -> int -> (unit, string) result =
+  "caml_prismel_metal_command4_argument_table_set_texture"
+
+external command4_argument_table_set_sampler :
+  handle -> handle option -> int -> (unit, string) result =
+  "caml_prismel_metal_command4_argument_table_set_sampler"
+
 external command4_buffer_create :
   handle -> string option -> (handle, string) result =
   "caml_prismel_metal_command4_buffer_create"
@@ -816,13 +846,18 @@ external command4_render_encoder_set_pipeline :
   handle -> handle -> handle -> (unit, string) result =
   "caml_prismel_metal_command4_render_encoder_set_pipeline"
 
+external command4_render_encoder_set_argument_table :
+  handle -> handle -> handle option -> int -> (unit, string) result =
+  "caml_prismel_metal_command4_render_encoder_set_argument_table"
+
 external command4_render_encoder_set_viewport :
   handle -> (float * float * float * float * float * float) ->
   (unit, string) result =
   "caml_prismel_metal_command4_render_encoder_set_viewport"
 
 external command4_render_encoder_draw_primitives :
-  handle -> int -> int -> int -> (unit, string) result =
+  handle -> handle -> handle array -> (int * int * int) ->
+  (unit, string) result =
   "caml_prismel_metal_command4_render_encoder_draw_primitives"
 
 external command4_render_encoder_end : handle -> (unit, string) result =

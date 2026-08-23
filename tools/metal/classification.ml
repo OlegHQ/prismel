@@ -23,7 +23,8 @@ let enum_cases owner names =
   List.map (fun name -> "enum-case:" ^ owner ^ ":" ^ name) names
 
 let bound_identifiers =
-  [ "class:MTL4BinaryFunctionDescriptor"
+  [ "class:MTL4ArgumentTableDescriptor"
+  ; "class:MTL4BinaryFunctionDescriptor"
   ; "class:MTL4CommandAllocatorDescriptor"
   ; "class:MTL4CommandQueueDescriptor"
   ; "class:MTL4CommitOptions"
@@ -68,6 +69,7 @@ let bound_identifiers =
   ; "enum:MTLCommandBufferStatus"
   ; "enum:MTLLoadAction"
   ; "enum:MTLPrimitiveType"
+  ; "enum:MTLRenderStages"
   ; "enum:MTLStoreAction"
   ; "enum:MTL4VisibilityOptions"
   ; "enum:MTL4IndirectCommandBufferSupportState"
@@ -116,6 +118,7 @@ let bound_identifiers =
   ; "record:MTL4UpdateSparseBufferMappingOperation"
   ; "record:MTL4UpdateSparseTextureMappingOperation"
   ; "record:MTLRegion"
+  ; "record:MTLResourceID"
   ; "record:MTLSize"
   ; "record:MTLSizeAndAlign"
   ; "record:MTLTextureSwizzleChannels"
@@ -129,6 +132,7 @@ let bound_identifiers =
   ; "field:MTLOrigin:z"
   ; "field:MTLRegion:origin"
   ; "field:MTLRegion:size"
+  ; "field:MTLResourceID:_impl"
   ; "field:MTLSize:width"
   ; "field:MTLSize:height"
   ; "field:MTLSize:depth"
@@ -152,6 +156,7 @@ let bound_identifiers =
   ; "field:MTL4UpdateSparseTextureMappingOperation:textureLevel"
   ; "field:MTL4UpdateSparseTextureMappingOperation:textureRegion"
   ; "field:MTL4UpdateSparseTextureMappingOperation:textureSlice"
+  ; "protocol:MTL4ArgumentTable"
   ; "protocol:MTL4BinaryFunction"
   ; "protocol:MTL4CommandAllocator"
   ; "protocol:MTL4CommandBuffer"
@@ -199,6 +204,8 @@ let bound_identifiers =
   ; "typedef:MTLClearColor"
   ; "typedef:MTLLoadAction"
   ; "typedef:MTLPrimitiveType"
+  ; "typedef:MTLRenderStages"
+  ; "typedef:MTLResourceID"
   ; "typedef:MTLStoreAction"
   ; "typedef:MTL4IndirectCommandBufferSupportState"
   ; "typedef:MTL4PipelineDataSetSerializerConfiguration"
@@ -216,6 +223,7 @@ let bound_identifiers =
   ; "typedef:MTLHazardTrackingMode"
   ; "typedef:MTLHeapType"
   ; "typedef:MTLFunctionType"
+  ; "typedef:MTLGPUAddress"
   ; "typedef:MTLLibraryType"
   ; "typedef:MTLOrigin"
   ; "typedef:MTLPixelFormat"
@@ -253,6 +261,19 @@ let bound_identifiers =
         , [ "label"; "newBinaryFunctionWithDescriptor:error:"
           ; "setLabel:"
           ] )
+      ; ( "MTL4ArgumentTable"
+        , [ "device"; "label"; "setAddress:atIndex:"
+          ; "setAddress:attributeStride:atIndex:"
+          ; "setSamplerState:atIndex:"; "setTexture:atIndex:"
+          ] )
+      ; ( "MTL4ArgumentTableDescriptor"
+        , [ "initializeBindings"; "label"; "maxBufferBindCount"
+          ; "maxSamplerStateBindCount"; "maxTextureBindCount"
+          ; "setInitializeBindings:"; "setLabel:"
+          ; "setMaxBufferBindCount:"; "setMaxSamplerStateBindCount:"
+          ; "setMaxTextureBindCount:"; "setSupportAttributeStrides:"
+          ; "supportAttributeStrides"
+          ] )
       ; ( "MTL4BinaryFunctionDescriptor"
         , [ "functionDescriptor"; "name"; "options"
           ; "setFunctionDescriptor:"; "setName:"; "setOptions:"
@@ -281,7 +302,8 @@ let bound_identifiers =
       ; "MTL4CommitOptions", [ "addFeedbackHandler:" ]
       ; ( "MTL4RenderCommandEncoder"
         , [ "drawPrimitives:vertexStart:vertexCount:"
-          ; "setRenderPipelineState:"; "setViewport:"
+          ; "setArgumentTable:atStages:"; "setRenderPipelineState:"
+          ; "setViewport:"
           ] )
       ; ( "MTL4RenderPassDescriptor"
         , [ "colorAttachments"; "defaultRasterSampleCount"
@@ -406,7 +428,8 @@ let bound_identifiers =
           ; "setPrivateFunctionDescriptors:"
           ] )
       ; ( "MTLBuffer"
-        , [ "contents"; "didModifyRange:"; "length"; "sparseBufferTier"
+        , [ "contents"; "didModifyRange:"; "gpuAddress"; "length"
+          ; "sparseBufferTier"
           ; "newTextureWithDescriptor:offset:bytesPerRow:"
           ] )
       ; "MTLAllocation", [ "allocatedSize" ]
@@ -470,6 +493,7 @@ let bound_identifiers =
           ; "newBufferWithBytesNoCopy:length:options:deallocator:"
           ; "newBufferWithLength:options:"
           ; "newBufferWithLength:options:placementSparsePageSize:"
+          ; "newArgumentTableWithDescriptor:error:"
           ; "newCommandAllocator"; "newCommandAllocatorWithDescriptor:error:"
           ; "newCommandBuffer"
           ; "newCommandQueue"
@@ -583,7 +607,7 @@ let bound_identifiers =
           ; "setSAddressMode:"; "setSupportArgumentBuffers:"
           ; "setTAddressMode:"; "supportArgumentBuffers"; "tAddressMode"
           ] )
-      ; "MTLSamplerState", [ "device"; "label" ]
+      ; "MTLSamplerState", [ "device"; "gpuResourceID"; "label" ]
       ; "MTLSharedTextureHandle", [ "device"; "label" ]
       ; "MTLSharedEvent", [ "waitUntilSignaledValue:timeoutMS:" ]
       ; ( "MTLTexture"
@@ -597,7 +621,7 @@ let bound_identifiers =
           ; "newTextureViewWithPixelFormat:textureType:levels:slices:"
           ; "newTextureViewWithPixelFormat:textureType:levels:slices:swizzle:"
           ; "parentRelativeLevel"; "parentRelativeSlice"; "parentTexture"
-          ; "pixelFormat"
+          ; "gpuResourceID"; "pixelFormat"
           ; "replaceRegion:mipmapLevel:slice:withBytes:bytesPerRow:bytesPerImage:"
           ; "sampleCount"; "sparseTextureTier"; "tailSizeInBytes"
           ; "swizzle"; "textureType"; "usage"; "width"
@@ -687,6 +711,12 @@ let bound_identifiers =
           ] )
       ; ( "MTL4StaticLinkingDescriptor"
         , [ "functionDescriptors"; "groups"; "privateFunctionDescriptors" ] )
+      ; "MTL4ArgumentTable", [ "device"; "label" ]
+      ; ( "MTL4ArgumentTableDescriptor"
+        , [ "initializeBindings"; "label"; "maxBufferBindCount"
+          ; "maxSamplerStateBindCount"; "maxTextureBindCount"
+          ; "supportAttributeStrides"
+          ] )
       ; "MTL4CommandAllocator", [ "device"; "label" ]
       ; "MTL4CommandAllocatorDescriptor", [ "label" ]
       ; "MTL4CommandBuffer", [ "device"; "label" ]
@@ -777,14 +807,15 @@ let bound_identifiers =
           ; "rAddressMode"; "reductionMode"; "sAddressMode"
           ; "supportArgumentBuffers"; "tAddressMode"
           ] )
-      ; "MTLSamplerState", [ "device"; "label" ]
+      ; "MTLSamplerState", [ "device"; "gpuResourceID"; "label" ]
       ; "MTLSharedTextureHandle", [ "device"; "label" ]
       ; ( "MTLTexture"
         , [ "allowGPUOptimizedContents"; "arrayLength"; "compressionType"
           ; "depth"; "firstMipmapInTail"; "height"
           ; "iosurface"; "iosurfacePlane"; "isSparse"; "mipmapLevelCount"
           ; "parentRelativeLevel"; "parentRelativeSlice"; "parentTexture"
-          ; "pixelFormat"; "sampleCount"; "shareable"; "sparseTextureTier"
+          ; "gpuResourceID"; "pixelFormat"; "sampleCount"; "shareable"
+          ; "sparseTextureTier"
           ; "swizzle"; "tailSizeInBytes"; "textureType"; "usage"; "width"
           ] )
       ; ( "MTLTextureDescriptor"
@@ -799,7 +830,7 @@ let bound_identifiers =
           ; "textureType"
           ] )
       ; "MTLTileRenderPipelineColorAttachmentDescriptor", [ "pixelFormat" ]
-      ; "MTLBuffer", [ "length"; "sparseBufferTier" ]
+      ; "MTLBuffer", [ "gpuAddress"; "length"; "sparseBufferTier" ]
       ]
   @ enum_cases "MTL4VisibilityOptions"
       [ "MTL4VisibilityOptionResourceAlias" ]
@@ -829,6 +860,11 @@ let bound_identifiers =
       [ "MTLPrimitiveTypeLine"; "MTLPrimitiveTypeLineStrip"
       ; "MTLPrimitiveTypePoint"; "MTLPrimitiveTypeTriangle"
       ; "MTLPrimitiveTypeTriangleStrip"
+      ]
+  @ enum_cases "MTLRenderStages"
+      [ "MTLRenderStageFragment"; "MTLRenderStageMesh"
+      ; "MTLRenderStageObject"; "MTLRenderStageTile"
+      ; "MTLRenderStageVertex"
       ]
   @ enum_cases "MTLStoreAction"
       [ "MTLStoreActionDontCare"; "MTLStoreActionStore" ]

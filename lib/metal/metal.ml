@@ -720,8 +720,25 @@ type command4_phase =
   | Command4_completed
   | Command4_failed of string
 
+type command4_argument_table =
+  { raw : Metal_raw.handle
+  ; lifetime : lifetime
+  ; device : device
+  ; max_buffers : int
+  ; max_textures : int
+  ; max_samplers : int
+  ; initialize_bindings : bool
+  ; support_attribute_strides : bool
+  ; buffers : buffer option array
+  ; textures : texture option array
+  ; samplers : sampler option array
+  }
+
 type command4_resource =
+  | Command4_argument_table of command4_argument_table
+  | Command4_buffer of buffer
   | Command4_texture of texture
+  | Command4_sampler of sampler
   | Command4_render_pipeline of render_pipeline
 
 type command4_buffer =
@@ -749,6 +766,7 @@ type command4_render_encoder =
   ; height : int
   ; color_formats : pixel_format list
   ; mutable pipeline : render_pipeline option
+  ; argument_tables : command4_argument_table option array
   }
 
 type residency_allocation =
@@ -857,29 +875,98 @@ let release_command_resources resources =
     retained
 
 let command4_resource_lifetime = function
+  | Command4_argument_table table -> table.lifetime
+  | Command4_buffer buffer -> buffer.lifetime
   | Command4_texture texture -> texture.lifetime
+  | Command4_sampler sampler -> sampler.lifetime
   | Command4_render_pipeline pipeline -> pipeline.lifetime
+
+let command4_resource_heap = function
+  | Command4_buffer { parent = Heap_resource heap; _ } -> Some heap
+  | Command4_buffer
+      { parent = (Device_resource _ | External_resource _); _ } -> None
+  | Command4_texture texture -> command_texture_heap texture
+  | Command4_argument_table _ | Command4_sampler _
+  | Command4_render_pipeline _ -> None
 
 let release_command4_resources resources =
   let retained = !resources in
   resources := [];
   List.iter
-    (fun resource -> detach (command4_resource_lifetime resource))
+    (fun resource ->
+      detach (command4_resource_lifetime resource);
+      Option.iter (fun heap -> Atomic.decr heap.active_uses)
+        (command4_resource_heap resource))
     retained
+
+let retain_command4_argument_table (command_buffer : command4_buffer)
+    (table : command4_argument_table) =
+  let retained =
+    List.exists
+      (function
+        | Command4_argument_table candidate ->
+            candidate.lifetime == table.lifetime
+        | Command4_buffer _ | Command4_texture _ | Command4_sampler _
+        | Command4_render_pipeline _ -> false)
+      !(command_buffer.resources)
+  in
+  if not retained then begin
+    attach table.lifetime;
+    command_buffer.resources :=
+      Command4_argument_table table :: !(command_buffer.resources)
+  end
+
+let retain_command4_buffer (command_buffer : command4_buffer) (buffer : buffer) =
+  let retained =
+    List.exists
+      (function
+        | Command4_buffer candidate -> candidate.lifetime == buffer.lifetime
+        | Command4_argument_table _ | Command4_texture _ | Command4_sampler _
+        | Command4_render_pipeline _ -> false)
+      !(command_buffer.resources)
+  in
+  if not retained then begin
+    attach buffer.lifetime;
+    Option.iter (fun heap -> Atomic.incr heap.active_uses)
+      (match buffer.parent with
+       | Heap_resource heap -> Some heap
+       | Device_resource _ | External_resource _ -> None);
+    command_buffer.resources :=
+      Command4_buffer buffer :: !(command_buffer.resources)
+  end
 
 let retain_command4_texture (command_buffer : command4_buffer)
     (texture : texture) =
-  if
-    not
-      (List.exists
-         (function
-           | Command4_texture retained -> retained.lifetime == texture.lifetime
-           | Command4_render_pipeline _ -> false)
-         !(command_buffer.resources))
-  then begin
+  let retained =
+    List.exists
+      (function
+        | Command4_texture candidate -> candidate.lifetime == texture.lifetime
+        | Command4_argument_table _ | Command4_buffer _ | Command4_sampler _
+        | Command4_render_pipeline _ -> false)
+      !(command_buffer.resources)
+  in
+  if not retained then begin
     attach texture.lifetime;
+    Option.iter (fun heap -> Atomic.incr heap.active_uses)
+      (command_texture_heap texture);
     command_buffer.resources :=
       Command4_texture texture :: !(command_buffer.resources)
+  end
+
+let retain_command4_sampler (command_buffer : command4_buffer)
+    (sampler : sampler) =
+  let retained =
+    List.exists
+      (function
+        | Command4_sampler candidate -> candidate.lifetime == sampler.lifetime
+        | Command4_argument_table _ | Command4_buffer _ | Command4_texture _
+        | Command4_render_pipeline _ -> false)
+      !(command_buffer.resources)
+  in
+  if not retained then begin
+    attach sampler.lifetime;
+    command_buffer.resources :=
+      Command4_sampler sampler :: !(command_buffer.resources)
   end
 
 let retain_command4_render_pipeline (command_buffer : command4_buffer)
@@ -890,13 +977,39 @@ let retain_command4_render_pipeline (command_buffer : command4_buffer)
          (function
            | Command4_render_pipeline retained ->
                retained.lifetime == pipeline.lifetime
-           | Command4_texture _ -> false)
+           | Command4_argument_table _ | Command4_buffer _
+           | Command4_texture _ | Command4_sampler _ -> false)
          !(command_buffer.resources))
   then begin
     attach pipeline.lifetime;
     command_buffer.resources :=
       Command4_render_pipeline pipeline :: !(command_buffer.resources)
   end
+
+let replace_argument_binding lifetime bindings index replacement =
+  match bindings.(index), replacement with
+  | Some current, Some next when lifetime current == lifetime next -> ()
+  | current, next ->
+      Option.iter (fun value -> attach (lifetime value)) next;
+      bindings.(index) <- next;
+      Option.iter (fun value -> detach (lifetime value)) current
+
+let release_argument_binding_array lifetime bindings =
+  Array.iteri
+    (fun index -> function
+      | None -> ()
+      | Some value ->
+          bindings.(index) <- None;
+          detach (lifetime value))
+    bindings
+
+let release_command4_argument_bindings buffers textures samplers =
+  release_argument_binding_array (fun (value : buffer) -> value.lifetime)
+    buffers;
+  release_argument_binding_array (fun (value : texture) -> value.lifetime)
+    textures;
+  release_argument_binding_array (fun (value : sampler) -> value.lifetime)
+    samplers
 
 let retain_command_buffer_buffer (command_buffer : command_buffer) (buffer : buffer) =
   let already_retained =
@@ -5855,7 +5968,7 @@ module Sampler = struct
       | Ok () -> Ok (Metal_raw.sampler_label value.raw))
 
   let destroy (value : t) =
-    destroy_leaf "Metal.Sampler.destroy" value.lifetime value.raw
+    destroy_parent "Metal.Sampler.destroy" value.lifetime value.raw
       (fun () -> detach value.device.lifetime)
 end
 
@@ -8436,7 +8549,337 @@ module Compiler = struct
         value.dataset)
 end
 
+let validate_command4_argument_bindings operation
+    (table : command4_argument_table) =
+  let rec validate_array validate index values =
+    if index = Array.length values then Ok ()
+    else
+      match values.(index) with
+      | None -> validate_array validate (index + 1) values
+      | Some value ->
+          (match validate value with
+           | Error _ as failure -> failure
+           | Ok () -> validate_array validate (index + 1) values)
+  in
+  match ensure_live operation table.lifetime with
+  | Error _ as failure -> failure
+  | Ok () ->
+      (match
+         validate_array
+           (fun (buffer : buffer) ->
+             match ensure_buffer_usable operation buffer with
+             | Error _ as failure -> failure
+             | Ok () -> ensure_same_device operation table.device buffer.device)
+           0 table.buffers
+       with
+       | Error _ as failure -> failure
+       | Ok () ->
+           (match
+              validate_array
+                (fun (texture : texture) ->
+                  match ensure_texture_usable operation texture with
+                  | Error _ as failure -> failure
+                  | Ok () ->
+                      ensure_same_device operation table.device texture.device)
+                0 table.textures
+            with
+            | Error _ as failure -> failure
+            | Ok () ->
+                validate_array
+                  (fun (sampler : sampler) ->
+                    match ensure_live operation sampler.lifetime with
+                    | Error _ as failure -> failure
+                    | Ok () ->
+                        ensure_same_device operation table.device sampler.device)
+                  0 table.samplers))
+
+let retain_command4_argument_bindings operation
+    (command_buffer : command4_buffer) (table : command4_argument_table) =
+  match validate_command4_argument_bindings operation table with
+  | Error _ as failure -> failure
+  | Ok () ->
+      Array.iter
+        (Option.iter (retain_command4_buffer command_buffer))
+        table.buffers;
+      Array.iter
+        (Option.iter (retain_command4_texture command_buffer))
+        table.textures;
+      Array.iter
+        (Option.iter (retain_command4_sampler command_buffer))
+        table.samplers;
+      Ok ()
+
 module Command4 = struct
+  module Argument_table = struct
+    type t = command4_argument_table
+
+    let validate_counts operation ~max_buffers ~max_textures ~max_samplers =
+      if max_buffers < 0 || max_buffers > 31 then
+        error operation Invalid_argument
+          "max_buffers must be between zero and 31"
+      else if max_textures < 0 || max_textures > 128 then
+        error operation Invalid_argument
+          "max_textures must be between zero and 128"
+      else if max_samplers < 0 || max_samplers > 16 then
+        error operation Invalid_argument
+          "max_samplers must be between zero and 16"
+      else if max_buffers = 0 && max_textures = 0 && max_samplers = 0 then
+        error operation Invalid_argument
+          "an argument table requires at least one binding slot"
+      else Ok ()
+
+    let create ?label ?(initialize_bindings = true)
+        ?(support_attribute_strides = false) ?(max_buffers = 0)
+        ?(max_textures = 0) ?(max_samplers = 0) (device : Device.t) () =
+      let operation = "Metal.Command4.Argument_table.create" in
+      on_main operation (fun () ->
+        match ensure_metal4 operation device with
+        | Error _ as failure -> failure
+        | Ok () ->
+            (match
+               validate_counts operation ~max_buffers ~max_textures
+                 ~max_samplers
+             with
+             | Error _ as failure -> failure
+             | Ok () when option_exists contains_nul label ->
+                 error operation Invalid_argument "label contains a NUL byte"
+             | Ok () ->
+                 let descriptor : Metal_raw.metal4_argument_table_descriptor =
+                   { max_buffers
+                   ; max_textures
+                   ; max_samplers
+                   ; initialize_bindings
+                   ; support_attribute_strides
+                   ; label
+                   }
+                 in
+                 match
+                   Metal_raw.command4_argument_table_create device.raw descriptor
+                 with
+                 | Error message -> native_error operation message
+                 | Ok raw ->
+                     let buffers = Array.make max_buffers None
+                     and textures = Array.make max_textures None
+                     and samplers = Array.make max_samplers None in
+                     let value : t =
+                       { raw
+                       ; lifetime = lifetime ()
+                       ; device
+                       ; max_buffers
+                       ; max_textures
+                       ; max_samplers
+                       ; initialize_bindings
+                       ; support_attribute_strides
+                       ; buffers
+                       ; textures
+                       ; samplers
+                       }
+                     in
+                     attach device.lifetime;
+                     attach_finalizer
+                       ~on_finalize:(fun () ->
+                         release_command4_argument_bindings buffers textures
+                           samplers)
+                       value value.lifetime device.lifetime;
+                     Ok value))
+
+    let device (value : t) = value.device
+    let generation (value : t) = Metal_raw.generation value.raw
+    let destroyed (value : t) = is_destroyed value.lifetime
+    let max_buffers (value : t) = value.max_buffers
+    let max_textures (value : t) = value.max_textures
+    let max_samplers (value : t) = value.max_samplers
+    let initializes_bindings (value : t) = value.initialize_bindings
+    let supports_attribute_strides (value : t) = value.support_attribute_strides
+
+    let label (value : t) =
+      let operation = "Metal.Command4.Argument_table.label" in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () -> Ok (Metal_raw.command4_argument_table_label value.raw))
+
+    let validate_index operation capacity index kind =
+      if index < 0 || index >= capacity then
+        error operation Invalid_argument
+          (Printf.sprintf "%s binding index %d is outside [0, %d)" kind index
+             capacity)
+      else Ok ()
+
+    let set_buffer (value : t) ~index ?(offset = 0L) ?attribute_stride
+        (buffer : Buffer.t) =
+      let operation = "Metal.Command4.Argument_table.set_buffer" in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () ->
+            (match validate_index operation value.max_buffers index "buffer" with
+             | Error _ as failure -> failure
+             | Ok () when offset < 0L || offset >= buffer.length ->
+                 error operation Invalid_argument
+                   "buffer offset is outside the buffer"
+             | Ok ()
+               when option_exists (fun stride -> stride <= 0) attribute_stride ->
+                 error operation Invalid_argument
+                   "attribute stride must be positive"
+             | Ok ()
+               when Option.is_some attribute_stride
+                    && not value.support_attribute_strides ->
+                 error operation Invalid_argument
+                   "the argument table does not support attribute strides"
+             | Ok () ->
+                 (match ensure_buffer_usable operation buffer with
+                  | Error _ as failure -> failure
+                  | Ok () ->
+                      (match
+                         ensure_same_device operation value.device buffer.device
+                       with
+                       | Error _ as failure -> failure
+                       | Ok () ->
+                           match
+                             Metal_raw.command4_argument_table_set_buffer
+                               value.raw (Some buffer.raw)
+                               (index, offset, attribute_stride)
+                           with
+                           | Error message -> native_error operation message
+                           | Ok () ->
+                               replace_argument_binding
+                                 (fun (candidate : buffer) -> candidate.lifetime)
+                                 value.buffers index (Some buffer);
+                               Ok ()))))
+
+    let clear_buffer (value : t) ~index =
+      let operation = "Metal.Command4.Argument_table.clear_buffer" in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () ->
+            (match validate_index operation value.max_buffers index "buffer" with
+             | Error _ as failure -> failure
+             | Ok () ->
+                 match
+                   Metal_raw.command4_argument_table_set_buffer value.raw None
+                     (index, 0L, None)
+                 with
+                 | Error message -> native_error operation message
+                 | Ok () ->
+                     replace_argument_binding
+                       (fun (candidate : buffer) -> candidate.lifetime)
+                       value.buffers index None;
+                     Ok ()))
+
+    let set_texture (value : t) ~index (texture : Texture.t) =
+      let operation = "Metal.Command4.Argument_table.set_texture" in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () ->
+            (match
+               validate_index operation value.max_textures index "texture"
+             with
+             | Error _ as failure -> failure
+             | Ok () ->
+                 (match ensure_texture_usable operation texture with
+                  | Error _ as failure -> failure
+                  | Ok () ->
+                      (match
+                         ensure_same_device operation value.device texture.device
+                       with
+                       | Error _ as failure -> failure
+                       | Ok () ->
+                           match
+                             Metal_raw.command4_argument_table_set_texture
+                               value.raw (Some texture.raw) index
+                           with
+                           | Error message -> native_error operation message
+                           | Ok () ->
+                               replace_argument_binding
+                                 (fun (candidate : texture) -> candidate.lifetime)
+                                 value.textures index (Some texture);
+                               Ok ()))))
+
+    let clear_texture (value : t) ~index =
+      let operation = "Metal.Command4.Argument_table.clear_texture" in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () ->
+            (match
+               validate_index operation value.max_textures index "texture"
+             with
+             | Error _ as failure -> failure
+             | Ok () ->
+                 match
+                   Metal_raw.command4_argument_table_set_texture value.raw None
+                     index
+                 with
+                 | Error message -> native_error operation message
+                 | Ok () ->
+                     replace_argument_binding
+                       (fun (candidate : texture) -> candidate.lifetime)
+                       value.textures index None;
+                     Ok ()))
+
+    let set_sampler (value : t) ~index (sampler : Sampler.t) =
+      let operation = "Metal.Command4.Argument_table.set_sampler" in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () ->
+            (match
+               validate_index operation value.max_samplers index "sampler"
+             with
+             | Error _ as failure -> failure
+             | Ok () ->
+                 (match ensure_live operation sampler.lifetime with
+                  | Error _ as failure -> failure
+                  | Ok () ->
+                      (match
+                         ensure_same_device operation value.device sampler.device
+                       with
+                       | Error _ as failure -> failure
+                       | Ok () ->
+                           match
+                             Metal_raw.command4_argument_table_set_sampler
+                               value.raw (Some sampler.raw) index
+                           with
+                           | Error message -> native_error operation message
+                           | Ok () ->
+                               replace_argument_binding
+                                 (fun (candidate : sampler) -> candidate.lifetime)
+                                 value.samplers index (Some sampler);
+                               Ok ()))))
+
+    let clear_sampler (value : t) ~index =
+      let operation = "Metal.Command4.Argument_table.clear_sampler" in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () ->
+            (match
+               validate_index operation value.max_samplers index "sampler"
+             with
+             | Error _ as failure -> failure
+             | Ok () ->
+                 match
+                   Metal_raw.command4_argument_table_set_sampler value.raw None
+                     index
+                 with
+                 | Error message -> native_error operation message
+                 | Ok () ->
+                     replace_argument_binding
+                       (fun (candidate : sampler) -> candidate.lifetime)
+                       value.samplers index None;
+                     Ok ()))
+
+    let destroy (value : t) =
+      destroy_parent "Metal.Command4.Argument_table.destroy" value.lifetime
+        value.raw (fun () ->
+          release_command4_argument_bindings value.buffers value.textures
+            value.samplers;
+          detach value.device.lifetime)
+  end
+
   module Allocator = struct
     type t = command4_allocator
 
@@ -8821,6 +9264,13 @@ module Command4 = struct
       | Triangle
       | Triangle_strip
 
+    type stage =
+      | Vertex
+      | Fragment
+      | Tile
+      | Object
+      | Mesh
+
     let color ~red ~green ~blue ~alpha = { red; green; blue; alpha }
     let transparent_black = color ~red:0. ~green:0. ~blue:0. ~alpha:0.
 
@@ -8947,6 +9397,7 @@ module Command4 = struct
                        ; height
                        ; color_formats
                        ; pipeline = None
+                       ; argument_tables = Array.make 5 None
                        }
                      in
                      attach command_buffer.lifetime;
@@ -8996,6 +9447,68 @@ module Command4 = struct
                           value.pipeline <- Some pipeline;
                           Ok ())))
 
+    let stage_index = function
+      | Vertex -> 0
+      | Fragment -> 1
+      | Tile -> 2
+      | Object -> 3
+      | Mesh -> 4
+
+    let stage_bit stage = 1 lsl stage_index stage
+
+    let validate_stages operation stages =
+      if stages = [] then
+        error operation Invalid_argument
+          "at least one render stage is required"
+      else if List.length stages <> List.length (List.sort_uniq compare stages)
+      then
+        error operation Invalid_argument
+          "render-stage list contains a duplicate"
+      else
+        Ok (List.fold_left (fun bits stage -> bits lor stage_bit stage) 0 stages)
+
+    let set_argument_table (value : t) ~stages table =
+      let operation = "Metal.Command4.Render_encoder.set_argument_table" in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () ->
+            (match validate_stages operation stages with
+             | Error _ as failure -> failure
+             | Ok stage_mask ->
+                 let validation =
+                   match table with
+                   | None -> Ok ()
+                   | Some (table : Argument_table.t) ->
+                       (match ensure_live operation table.lifetime with
+                        | Error _ as failure -> failure
+                        | Ok () ->
+                            ensure_same_device operation
+                              value.command_buffer.allocator.device table.device)
+                 in
+                 (match validation with
+                  | Error _ as failure -> failure
+                  | Ok () ->
+                      let raw_table =
+                        Option.map
+                          (fun (table : command4_argument_table) -> table.raw)
+                          table
+                      in
+                      match
+                        Metal_raw.command4_render_encoder_set_argument_table
+                          value.raw value.command_buffer.raw raw_table stage_mask
+                      with
+                      | Error message -> native_error operation message
+                      | Ok () ->
+                          Option.iter
+                            (retain_command4_argument_table value.command_buffer)
+                            table;
+                          List.iter
+                            (fun stage ->
+                              value.argument_tables.(stage_index stage) <- table)
+                            stages;
+                          Ok ())))
+
     let viewport ~x ~y ~width ~height ~z_near ~z_far =
       { x; y; width; height; z_near; z_far }
 
@@ -9039,6 +9552,33 @@ module Command4 = struct
       | Triangle -> 3
       | Triangle_strip -> 4
 
+    let current_argument_tables (value : t) =
+      Array.fold_left
+        (fun (tables : command4_argument_table list) -> function
+          | None -> tables
+          | Some (table : command4_argument_table)
+            when List.exists
+                   (fun (candidate : command4_argument_table) ->
+                     candidate.lifetime == table.lifetime)
+                   tables -> tables
+          | Some table -> table :: tables)
+        [] value.argument_tables
+      |> List.rev
+
+    let retain_argument_tables operation (value : t)
+        (tables : command4_argument_table list) =
+      let rec loop = function
+        | [] -> Ok ()
+        | table :: rest ->
+            (match
+               retain_command4_argument_bindings operation value.command_buffer
+                 table
+             with
+             | Error _ as failure -> failure
+             | Ok () -> loop rest)
+      in
+      loop tables
+
     let draw_primitives (value : t) primitive ~vertex_start ~vertex_count =
       let operation = "Metal.Command4.Render_encoder.draw_primitives" in
       on_main operation (fun () ->
@@ -9052,12 +9592,23 @@ module Command4 = struct
             error operation Invalid_argument
               "draw range must be positive and fit in an OCaml integer"
         | Ok () ->
-            (match
-               Metal_raw.command4_render_encoder_draw_primitives value.raw
-                 (primitive_code primitive) vertex_start vertex_count
-             with
-             | Ok () -> Ok ()
-             | Error message -> native_error operation message))
+            let tables = current_argument_tables value in
+            (match retain_argument_tables operation value tables with
+             | Error _ as failure -> failure
+             | Ok () ->
+                 let raw_tables =
+                   Array.of_list
+                     (List.map
+                        (fun (table : command4_argument_table) -> table.raw)
+                        tables)
+                 in
+                 match
+                   Metal_raw.command4_render_encoder_draw_primitives value.raw
+                     value.command_buffer.raw raw_tables
+                     (primitive_code primitive, vertex_start, vertex_count)
+                 with
+                 | Ok () -> Ok ()
+                 | Error message -> native_error operation message))
 
     let end_encoding (value : t) =
       let operation = "Metal.Command4.Render_encoder.end_encoding" in

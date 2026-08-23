@@ -3846,11 +3846,36 @@ let test_metal4_render_commands device =
       (expect_error Invalid_argument
          (Command4.Queue.create ~label:"invalid\000queue" device));
     ignore
+      (expect_error Invalid_argument
+         (Command4.Argument_table.create device ()));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Argument_table.create ~max_buffers:32 device ()));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Argument_table.create ~max_textures:129 device ()));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Argument_table.create ~max_samplers:17 device ()));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Argument_table.create ~label:"invalid\000arguments"
+            ~max_buffers:1 device ()));
+    ignore
       (expect_error Native_error
          (Command4.Allocator.create ~label:"\255" device));
     ignore
+      (expect_error Native_error
+         (Command4.Argument_table.create ~label:"\255" ~max_buffers:1 device
+            ()));
+    ignore
       (expect_error Wrong_domain
          (Domain.spawn (fun () -> Command4.Allocator.create device)
+          |> Domain.join));
+    ignore
+      (expect_error Wrong_domain
+         (Domain.spawn (fun () ->
+              Command4.Argument_table.create ~max_buffers:1 device ())
           |> Domain.join));
     let after_invalid = get (Release_queue.stats ()) in
     if after_invalid.total_created <> before_invalid.total_created then
@@ -3899,6 +3924,102 @@ let test_metal4_render_commands device =
               ~usage:[ Texture.Shader_read ] ~format:Texture.Bgra8_unorm
               ~width:8 ~height:8 ()))
     in
+    let tint_buffer =
+      get (Buffer.create ~device ~length:16L ~storage:Buffer.Shared ())
+    in
+    let tint_bytes = Bytes.create 16 in
+    [| 0.; 1.; 0.; 1. |]
+    |> Array.iteri (fun index component ->
+      Bytes.set_int32_le tint_bytes (index * 4) (Int32.bits_of_float component));
+    get (Buffer.write_bytes tint_buffer ~dst_offset:0L tint_bytes);
+    let transient_buffer =
+      get (Buffer.create ~device ~length:16L ~storage:Buffer.Shared ())
+    in
+    let transient_texture =
+      get
+        (Texture.create ~device
+           (Texture.descriptor_2d ~storage:Buffer.Shared
+              ~usage:[ Texture.Shader_read ] ~format:Texture.Rgba8_unorm
+              ~width:1 ~height:1 ()))
+    in
+    let transient_sampler = get (Sampler.create ~device (Sampler.default ())) in
+    let arguments =
+      get
+        (Command4.Argument_table.create ~label:"Metal 4 render arguments"
+           ~max_buffers:2 ~max_textures:1 ~max_samplers:1 device ())
+    in
+    if get (Command4.Argument_table.label arguments)
+       <> Some "Metal 4 render arguments"
+       || Command4.Argument_table.max_buffers arguments <> 2
+       || Command4.Argument_table.max_textures arguments <> 1
+       || Command4.Argument_table.max_samplers arguments <> 1
+       || not (Command4.Argument_table.initializes_bindings arguments)
+       || Command4.Argument_table.supports_attribute_strides arguments
+       || not
+            (Device.same device (Command4.Argument_table.device arguments))
+       || Command4.Argument_table.generation arguments <= 0L
+    then fail "Metal 4 argument-table metadata is wrong";
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Argument_table.set_buffer arguments ~index:2 tint_buffer));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Argument_table.set_buffer arguments ~index:0 ~offset:16L
+            tint_buffer));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Argument_table.set_buffer arguments ~index:0
+            ~attribute_stride:16 transient_buffer));
+    let stride_arguments =
+      get
+        (Command4.Argument_table.create ~initialize_bindings:false
+           ~support_attribute_strides:true ~max_buffers:1 device ())
+    in
+    if Command4.Argument_table.initializes_bindings stride_arguments
+       || not
+            (Command4.Argument_table.supports_attribute_strides
+               stride_arguments)
+    then fail "Metal 4 argument-table stride policy is wrong";
+    get
+      (Command4.Argument_table.set_buffer stride_arguments ~index:0
+         ~attribute_stride:16 transient_buffer);
+    get (Command4.Argument_table.clear_buffer stride_arguments ~index:0);
+    get (Command4.Argument_table.destroy stride_arguments);
+    get (Command4.Argument_table.destroy stride_arguments);
+    if not (Command4.Argument_table.destroyed stride_arguments) then
+      fail "destroyed Metal 4 argument table remained live";
+    ignore
+      (expect_error Destroyed
+         (Command4.Argument_table.label stride_arguments));
+    get
+      (Command4.Argument_table.set_buffer arguments ~index:0 transient_buffer);
+    ignore (expect_error Parent_has_dependents (Buffer.destroy transient_buffer));
+    get (Command4.Argument_table.clear_buffer arguments ~index:0);
+    get (Buffer.destroy transient_buffer);
+    get
+      (Command4.Argument_table.set_texture arguments ~index:0
+         transient_texture);
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Argument_table.set_texture arguments ~index:1
+            transient_texture));
+    ignore
+      (expect_error Parent_has_dependents (Texture.destroy transient_texture));
+    get (Command4.Argument_table.clear_texture arguments ~index:0);
+    get (Texture.destroy transient_texture);
+    get
+      (Command4.Argument_table.set_sampler arguments ~index:0
+         transient_sampler);
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Argument_table.set_sampler arguments ~index:1
+            transient_sampler));
+    ignore
+      (expect_error Parent_has_dependents (Sampler.destroy transient_sampler));
+    get (Command4.Argument_table.clear_sampler arguments ~index:0);
+    get (Sampler.destroy transient_sampler);
+    get (Command4.Argument_table.set_buffer arguments ~index:1 tint_buffer);
+    ignore (expect_error Parent_has_dependents (Buffer.destroy tint_buffer));
     let clear =
       Command4.Render_encoder.color ~red:1. ~green:0. ~blue:0. ~alpha:1.
     in
@@ -3938,7 +4059,7 @@ let test_metal4_render_commands device =
     let pipeline =
       get
         (Compiler.create_render_pipeline ~label:"Metal 4 executable render"
-           ~fragment:"prismel_green_fragment" compiler ~library
+           ~fragment:"prismel_fragment" compiler ~library
            ~vertex:"prismel_fullscreen_vertex")
     in
     if Render_pipeline.raster_sample_count pipeline <> 1
@@ -3964,6 +4085,30 @@ let test_metal4_render_commands device =
             (Command4.Render_encoder.viewport ~x:0. ~y:0. ~width:9. ~height:8.
                ~z_near:0. ~z_far:1.)));
     get (Command4.Render_encoder.set_pipeline encoder pipeline);
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.set_argument_table encoder ~stages:[]
+            (Some arguments)));
+    ignore
+      (expect_error Invalid_argument
+         (Command4.Render_encoder.set_argument_table encoder
+            ~stages:
+              [ Command4.Render_encoder.Fragment
+              ; Command4.Render_encoder.Fragment
+              ]
+            (Some arguments)));
+    get
+      (Command4.Render_encoder.set_argument_table encoder
+         ~stages:[ Command4.Render_encoder.Fragment ] (Some arguments));
+    ignore
+      (expect_error Parent_has_dependents
+         (Command4.Argument_table.destroy arguments));
+    get
+      (Command4.Render_encoder.set_argument_table encoder
+         ~stages:[ Command4.Render_encoder.Fragment ] None);
+    get
+      (Command4.Render_encoder.set_argument_table encoder
+         ~stages:[ Command4.Render_encoder.Fragment ] (Some arguments));
     ignore
       (expect_error Parent_has_dependents (Render_pipeline.destroy pipeline));
     get
@@ -4027,6 +4172,10 @@ let test_metal4_render_commands device =
     get (Render_pipeline.destroy pipeline);
     get (Texture.destroy render_target);
     get (Texture.destroy non_target);
+    get (Command4.Argument_table.destroy arguments);
+    if not (Command4.Argument_table.destroyed arguments) then
+      fail "destroyed render argument table remained live";
+    get (Buffer.destroy tint_buffer);
     get (Command4.Submission.destroy submission);
     get (Command4.Command_buffer.destroy commands);
     if get (Command4.Allocator.allocated_size allocator) < 0L then
@@ -5863,6 +6012,6 @@ let () =
         stats.external_deallocations
         stats.external_deallocation_mismatches;
     Printf.printf
-      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/compiler-task/pipeline-dataset/binary-function/static-link/reflection/compute/render/mesh/object/tile/command4-render conformance passed on %s\n%!"
+      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/compiler-task/pipeline-dataset/binary-function/static-link/reflection/compute/render/mesh/object/tile/command4-argument-table/render conformance passed on %s\n%!"
       info.name
   end

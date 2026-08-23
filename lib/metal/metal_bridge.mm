@@ -284,7 +284,7 @@ API_AVAILABLE(macos(26.0))
 @implementation PrismelMetal4CommandBufferState {
   id<MTL4CommandBuffer> _commandBuffer;
   id<MTL4CommandAllocator> _allocator;
-  NSMutableArray *_encodedObjects;
+  NSHashTable *_encodedObjects;
 }
 
 - (instancetype)initWithCommandBuffer:(id<MTL4CommandBuffer>)commandBuffer
@@ -293,7 +293,9 @@ API_AVAILABLE(macos(26.0))
   if (self != nil) {
     _commandBuffer = commandBuffer;
     _allocator = allocator;
-    _encodedObjects = [[NSMutableArray alloc] init];
+    _encodedObjects = [NSHashTable
+        hashTableWithOptions:NSPointerFunctionsStrongMemory |
+                             NSPointerFunctionsObjectPointerPersonality];
   }
   return self;
 }
@@ -308,6 +310,103 @@ API_AVAILABLE(macos(26.0))
 }
 
 - (void)releaseEncodedObjects { [_encodedObjects removeAllObjects]; }
+
+@end
+
+API_AVAILABLE(macos(26.0))
+@interface PrismelMetal4ArgumentTableState : NSObject
+@property(nonatomic, strong, readonly) id<MTL4ArgumentTable> argumentTable;
+@property(nonatomic, readonly) NSUInteger maxBufferBindCount;
+@property(nonatomic, readonly) NSUInteger maxTextureBindCount;
+@property(nonatomic, readonly) NSUInteger maxSamplerStateBindCount;
+@property(nonatomic, readonly) BOOL supportAttributeStrides;
+- (instancetype)initWithArgumentTable:(id<MTL4ArgumentTable>)argumentTable
+                       maxBufferCount:(NSUInteger)maxBufferCount
+                      maxTextureCount:(NSUInteger)maxTextureCount
+                      maxSamplerCount:(NSUInteger)maxSamplerCount
+               supportAttributeStrides:(BOOL)supportAttributeStrides;
+- (void)setBoundBuffer:(nullable id<MTLBuffer>)buffer
+                atIndex:(NSUInteger)index;
+- (void)setBoundTexture:(nullable id<MTLTexture>)texture
+                 atIndex:(NSUInteger)index;
+- (void)setBoundSampler:(nullable id<MTLSamplerState>)sampler
+                 atIndex:(NSUInteger)index;
+- (void)retainBoundObjectsInCommandBuffer:
+    (PrismelMetal4CommandBufferState *)commandBuffer;
+@end
+
+@implementation PrismelMetal4ArgumentTableState {
+  id<MTL4ArgumentTable> _argumentTable;
+  NSMutableArray *_buffers;
+  NSMutableArray *_textures;
+  NSMutableArray *_samplers;
+  BOOL _supportAttributeStrides;
+}
+
+- (instancetype)initWithArgumentTable:(id<MTL4ArgumentTable>)argumentTable
+                       maxBufferCount:(NSUInteger)maxBufferCount
+                      maxTextureCount:(NSUInteger)maxTextureCount
+                      maxSamplerCount:(NSUInteger)maxSamplerCount
+               supportAttributeStrides:(BOOL)supportAttributeStrides {
+  self = [super init];
+  if (self != nil) {
+    _argumentTable = argumentTable;
+    _buffers = [[NSMutableArray alloc] initWithCapacity:maxBufferCount];
+    _textures = [[NSMutableArray alloc] initWithCapacity:maxTextureCount];
+    _samplers = [[NSMutableArray alloc] initWithCapacity:maxSamplerCount];
+    for (NSUInteger index = 0; index < maxBufferCount; ++index) {
+      [_buffers addObject:NSNull.null];
+    }
+    for (NSUInteger index = 0; index < maxTextureCount; ++index) {
+      [_textures addObject:NSNull.null];
+    }
+    for (NSUInteger index = 0; index < maxSamplerCount; ++index) {
+      [_samplers addObject:NSNull.null];
+    }
+    _supportAttributeStrides = supportAttributeStrides;
+  }
+  return self;
+}
+
+- (id<MTL4ArgumentTable>)argumentTable { return _argumentTable; }
+- (NSUInteger)maxBufferBindCount { return _buffers.count; }
+- (NSUInteger)maxTextureBindCount { return _textures.count; }
+- (NSUInteger)maxSamplerStateBindCount { return _samplers.count; }
+- (BOOL)supportAttributeStrides { return _supportAttributeStrides; }
+
+- (void)setBoundObject:(id)object
+                inArray:(NSMutableArray *)objects
+                 atIndex:(NSUInteger)index {
+  objects[index] = object == nil ? NSNull.null : object;
+}
+
+- (void)setBoundBuffer:(id<MTLBuffer>)buffer atIndex:(NSUInteger)index {
+  [self setBoundObject:buffer inArray:_buffers atIndex:index];
+}
+
+- (void)setBoundTexture:(id<MTLTexture>)texture atIndex:(NSUInteger)index {
+  [self setBoundObject:texture inArray:_textures atIndex:index];
+}
+
+- (void)setBoundSampler:(id<MTLSamplerState>)sampler atIndex:(NSUInteger)index {
+  [self setBoundObject:sampler inArray:_samplers atIndex:index];
+}
+
+- (void)retainObjects:(NSArray *)objects
+    inCommandBuffer:(PrismelMetal4CommandBufferState *)commandBuffer {
+  for (id object in objects) {
+    if (object != NSNull.null) {
+      [commandBuffer retainEncodedObject:object];
+    }
+  }
+}
+
+- (void)retainBoundObjectsInCommandBuffer:
+    (PrismelMetal4CommandBufferState *)commandBuffer {
+  [self retainObjects:_buffers inCommandBuffer:commandBuffer];
+  [self retainObjects:_textures inCommandBuffer:commandBuffer];
+  [self retainObjects:_samplers inCommandBuffer:commandBuffer];
+}
 
 @end
 
@@ -808,6 +907,7 @@ enum class Handle_kind : std::uint32_t {
   Command_buffer4,
   Render_encoder4,
   Submission4,
+  Argument_table4,
 };
 
 struct Handle {
@@ -1000,6 +1100,11 @@ PrismelMetal4CommandBufferState *command_buffer4_state_of_handle(value raw) {
 API_AVAILABLE(macos(26.0))
 PrismelMetal4SubmissionState *submission4_state_of_handle(value raw) {
   return object_of_handle(raw, Handle_kind::Submission4);
+}
+
+API_AVAILABLE(macos(26.0))
+PrismelMetal4ArgumentTableState *argument_table4_state_of_handle(value raw) {
+  return object_of_handle(raw, Handle_kind::Argument_table4);
 }
 
 API_AVAILABLE(macos(15.0))
@@ -1428,7 +1533,9 @@ bool device_supports_metal4_commands(id<MTLDevice> device) {
                @selector(newCommandAllocatorWithDescriptor:error:)] &&
            [device respondsToSelector:@selector(newCommandBuffer)] &&
            [device respondsToSelector:
-               @selector(newMTL4CommandQueueWithDescriptor:error:)];
+               @selector(newMTL4CommandQueueWithDescriptor:error:)] &&
+           [device respondsToSelector:
+               @selector(newArgumentTableWithDescriptor:error:)];
   }
   return false;
 }
@@ -8569,6 +8676,251 @@ extern "C" CAMLprim value caml_prismel_metal_command4_queue_label(value raw) {
   }
 }
 
+extern "C" CAMLprim value caml_prismel_metal_command4_argument_table_create(
+    value raw_device, value raw_descriptor) {
+  CAMLparam2(raw_device, raw_descriptor);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    @try {
+      id<MTLDevice> device =
+          object_of_handle(raw_device, Handle_kind::Device);
+      if (!device_supports_metal4_commands(device)) {
+        CAMLreturn(result_error_text(
+            "device does not support the checked Metal 4 argument-table API"));
+      }
+      if (@available(macOS 26.0, *)) {
+        const intnat max_buffers = Long_val(Field(raw_descriptor, 0));
+        const intnat max_textures = Long_val(Field(raw_descriptor, 1));
+        const intnat max_samplers = Long_val(Field(raw_descriptor, 2));
+        const BOOL initialize_bindings = Bool_val(Field(raw_descriptor, 3));
+        const BOOL support_attribute_strides =
+            Bool_val(Field(raw_descriptor, 4));
+        if (max_buffers < 0 || max_buffers > 31 || max_textures < 0 ||
+            max_textures > 128 || max_samplers < 0 || max_samplers > 16 ||
+            (max_buffers == 0 && max_textures == 0 && max_samplers == 0)) {
+          CAMLreturn(result_error_text(
+              "Metal 4 argument-table capacities are invalid"));
+        }
+        MTL4ArgumentTableDescriptor *descriptor =
+            [[MTL4ArgumentTableDescriptor alloc] init];
+        descriptor.maxBufferBindCount = static_cast<NSUInteger>(max_buffers);
+        descriptor.maxTextureBindCount = static_cast<NSUInteger>(max_textures);
+        descriptor.maxSamplerStateBindCount =
+            static_cast<NSUInteger>(max_samplers);
+        descriptor.initializeBindings = initialize_bindings;
+        descriptor.supportAttributeStrides = support_attribute_strides;
+        if (Is_block(Field(raw_descriptor, 5))) {
+          NSString *label =
+              string_from_ocaml(Field(Field(raw_descriptor, 5), 0));
+          if (label == nil) {
+            CAMLreturn(result_error_text(
+                "Metal 4 argument-table label is not valid UTF-8"));
+          }
+          descriptor.label = label;
+        }
+        NSError *error = nil;
+        id<MTL4ArgumentTable> table =
+            [device newArgumentTableWithDescriptor:descriptor error:&error];
+        if (table == nil || table.device.registryID != device.registryID ||
+            descriptor.maxBufferBindCount !=
+                static_cast<NSUInteger>(max_buffers) ||
+            descriptor.maxTextureBindCount !=
+                static_cast<NSUInteger>(max_textures) ||
+            descriptor.maxSamplerStateBindCount !=
+                static_cast<NSUInteger>(max_samplers) ||
+            descriptor.initializeBindings != initialize_bindings ||
+            descriptor.supportAttributeStrides != support_attribute_strides ||
+            ((descriptor.label == nil) != (table.label == nil)) ||
+            (descriptor.label != nil &&
+             ![table.label isEqualToString:descriptor.label])) {
+          CAMLreturn(result_error(error_description(
+              error, @"Metal rejected the checked Metal 4 argument table")));
+        }
+        PrismelMetal4ArgumentTableState *state =
+            [[PrismelMetal4ArgumentTableState alloc]
+                     initWithArgumentTable:table
+                            maxBufferCount:static_cast<NSUInteger>(max_buffers)
+                           maxTextureCount:static_cast<NSUInteger>(max_textures)
+                           maxSamplerCount:static_cast<NSUInteger>(max_samplers)
+                    supportAttributeStrides:support_attribute_strides];
+        raw = allocate_handle(state, Handle_kind::Argument_table4);
+        CAMLreturn(result_ok(raw));
+      }
+      CAMLreturn(result_error_text("Metal 4 argument tables require macOS 26"));
+    } @catch (NSException *exception) {
+      CAMLreturn(result_error(exception.reason));
+    }
+  }
+}
+
+extern "C" CAMLprim value caml_prismel_metal_command4_argument_table_label(
+    value raw) {
+  CAMLparam1(raw);
+  CAMLlocal1(result);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      PrismelMetal4ArgumentTableState *state =
+          argument_table4_state_of_handle(raw);
+      result = copy_optional_string(state.argumentTable.label);
+      CAMLreturn(result);
+    }
+    caml_failwith("Metal 4 argument tables require macOS 26");
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_command4_argument_table_set_buffer(
+    value raw_table, value raw_buffer, value raw_binding) {
+  CAMLparam3(raw_table, raw_buffer, raw_binding);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        PrismelMetal4ArgumentTableState *state =
+            argument_table4_state_of_handle(raw_table);
+        const intnat index = Long_val(Field(raw_binding, 0));
+        const std::int64_t offset = Int64_val(Field(raw_binding, 1));
+        value raw_stride = Field(raw_binding, 2);
+        if (index < 0 ||
+            static_cast<NSUInteger>(index) >= state.maxBufferBindCount ||
+            offset < 0) {
+          CAMLreturn(result_error_text(
+              "Metal 4 argument-table buffer binding is out of range"));
+        }
+        if (!Is_block(raw_buffer)) {
+          if (Is_block(raw_stride)) {
+            CAMLreturn(result_error_text(
+                "a cleared Metal 4 buffer binding cannot have a stride"));
+          }
+          [state.argumentTable setAddress:0
+                                  atIndex:static_cast<NSUInteger>(index)];
+          [state setBoundBuffer:nil atIndex:static_cast<NSUInteger>(index)];
+          CAMLreturn(result_unit());
+        }
+        id<MTLBuffer> buffer = object_of_handle(
+            Field(raw_buffer, 0), Handle_kind::Buffer);
+        if (buffer.device.registryID !=
+                state.argumentTable.device.registryID ||
+            static_cast<std::uint64_t>(offset) >= buffer.length) {
+          CAMLreturn(result_error_text(
+              "Metal 4 argument-table buffer failed native validation"));
+        }
+        const MTLGPUAddress address = buffer.gpuAddress;
+        const std::uint64_t unsigned_offset =
+            static_cast<std::uint64_t>(offset);
+        if (address == 0 ||
+            unsigned_offset >
+                std::numeric_limits<MTLGPUAddress>::max() - address) {
+          CAMLreturn(result_error_text(
+              "Metal buffer exposes no usable GPU address at this offset"));
+        }
+        if (Is_block(raw_stride)) {
+          const intnat stride = Long_val(Field(raw_stride, 0));
+          if (!state.supportAttributeStrides || stride <= 0) {
+            CAMLreturn(result_error_text(
+                "Metal 4 argument-table attribute stride is invalid"));
+          }
+          [state.argumentTable
+                    setAddress:address + unsigned_offset
+               attributeStride:static_cast<NSUInteger>(stride)
+                       atIndex:static_cast<NSUInteger>(index)];
+        } else {
+          [state.argumentTable setAddress:address + unsigned_offset
+                                  atIndex:static_cast<NSUInteger>(index)];
+        }
+        [state setBoundBuffer:buffer atIndex:static_cast<NSUInteger>(index)];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("Metal 4 argument tables require macOS 26"));
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_command4_argument_table_set_texture(
+    value raw_table, value raw_texture, value raw_index) {
+  CAMLparam3(raw_table, raw_texture, raw_index);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        PrismelMetal4ArgumentTableState *state =
+            argument_table4_state_of_handle(raw_table);
+        const intnat index = Long_val(raw_index);
+        if (index < 0 ||
+            static_cast<NSUInteger>(index) >= state.maxTextureBindCount) {
+          CAMLreturn(result_error_text(
+              "Metal 4 argument-table texture binding is out of range"));
+        }
+        MTLResourceID resource_id = {};
+        id<MTLTexture> texture = nil;
+        if (Is_block(raw_texture)) {
+          texture = object_of_handle(Field(raw_texture, 0), Handle_kind::Texture);
+          if (texture.device.registryID !=
+              state.argumentTable.device.registryID) {
+            CAMLreturn(result_error_text(
+                "Metal 4 argument-table texture belongs to another device"));
+          }
+          resource_id = texture.gpuResourceID;
+          if (resource_id._impl == 0) {
+            CAMLreturn(result_error_text(
+                "Metal texture exposes no usable GPU resource ID"));
+          }
+        }
+        [state.argumentTable setTexture:resource_id
+                                atIndex:static_cast<NSUInteger>(index)];
+        [state setBoundTexture:texture atIndex:static_cast<NSUInteger>(index)];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("Metal 4 argument tables require macOS 26"));
+  }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_command4_argument_table_set_sampler(
+    value raw_table, value raw_sampler, value raw_index) {
+  CAMLparam3(raw_table, raw_sampler, raw_index);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        PrismelMetal4ArgumentTableState *state =
+            argument_table4_state_of_handle(raw_table);
+        const intnat index = Long_val(raw_index);
+        if (index < 0 ||
+            static_cast<NSUInteger>(index) >= state.maxSamplerStateBindCount) {
+          CAMLreturn(result_error_text(
+              "Metal 4 argument-table sampler binding is out of range"));
+        }
+        MTLResourceID resource_id = {};
+        id<MTLSamplerState> sampler = nil;
+        if (Is_block(raw_sampler)) {
+          sampler = object_of_handle(Field(raw_sampler, 0), Handle_kind::Sampler);
+          if (sampler.device.registryID !=
+              state.argumentTable.device.registryID) {
+            CAMLreturn(result_error_text(
+                "Metal 4 argument-table sampler belongs to another device"));
+          }
+          resource_id = sampler.gpuResourceID;
+          if (resource_id._impl == 0) {
+            CAMLreturn(result_error_text(
+                "Metal sampler exposes no usable GPU resource ID"));
+          }
+        }
+        [state.argumentTable setSamplerState:resource_id
+                                     atIndex:static_cast<NSUInteger>(index)];
+        [state setBoundSampler:sampler atIndex:static_cast<NSUInteger>(index)];
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("Metal 4 argument tables require macOS 26"));
+  }
+}
+
 extern "C" CAMLprim value caml_prismel_metal_command4_buffer_create(
     value raw_allocator, value raw_label) {
   CAMLparam2(raw_allocator, raw_label);
@@ -8763,6 +9115,49 @@ caml_prismel_metal_command4_render_encoder_set_pipeline(
 }
 
 extern "C" CAMLprim value
+caml_prismel_metal_command4_render_encoder_set_argument_table(
+    value raw_encoder, value raw_buffer, value raw_table, value raw_stages) {
+  CAMLparam4(raw_encoder, raw_buffer, raw_table, raw_stages);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4RenderCommandEncoder> encoder =
+            object_of_handle(raw_encoder, Handle_kind::Render_encoder4);
+        PrismelMetal4CommandBufferState *command_buffer =
+            command_buffer4_state_of_handle(raw_buffer);
+        const intnat stages = Long_val(raw_stages);
+        if (encoder.commandBuffer != command_buffer.commandBuffer || stages <= 0 ||
+            (stages & ~static_cast<intnat>(31)) != 0) {
+          CAMLreturn(result_error_text(
+              "Metal 4 render argument-table stages are invalid"));
+        }
+        id<MTL4ArgumentTable> table = nil;
+        PrismelMetal4ArgumentTableState *table_state = nil;
+        if (Is_block(raw_table)) {
+          table_state =
+              argument_table4_state_of_handle(Field(raw_table, 0));
+          table = table_state.argumentTable;
+          if (table.device.registryID !=
+              command_buffer.commandBuffer.device.registryID) {
+            CAMLreturn(result_error_text(
+                "Metal 4 argument table belongs to another command graph"));
+          }
+        }
+        [encoder setArgumentTable:table
+                         atStages:static_cast<MTLRenderStages>(stages)];
+        if (table_state != nil) {
+          [command_buffer retainEncodedObject:table_state];
+        }
+        CAMLreturn(result_unit());
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    }
+    CAMLreturn(result_error_text("Metal 4 argument tables require macOS 26"));
+  }
+}
+
+extern "C" CAMLprim value
 caml_prismel_metal_command4_render_encoder_set_viewport(
     value raw_encoder, value raw_viewport) {
   CAMLparam2(raw_encoder, raw_viewport);
@@ -8791,19 +9186,35 @@ caml_prismel_metal_command4_render_encoder_set_viewport(
 
 extern "C" CAMLprim value
 caml_prismel_metal_command4_render_encoder_draw_primitives(
-    value raw_encoder, value raw_primitive, value raw_start, value raw_count) {
-  CAMLparam4(raw_encoder, raw_primitive, raw_start, raw_count);
+    value raw_encoder, value raw_buffer, value raw_tables, value raw_draw) {
+  CAMLparam4(raw_encoder, raw_buffer, raw_tables, raw_draw);
   @autoreleasepool {
     if (@available(macOS 26.0, *)) {
       @try {
         id<MTL4RenderCommandEncoder> encoder =
             object_of_handle(raw_encoder, Handle_kind::Render_encoder4);
-        const intnat primitive = Long_val(raw_primitive);
-        const intnat start = Long_val(raw_start);
-        const intnat count = Long_val(raw_count);
-        if (primitive < 0 || primitive > 4 || start < 0 || count <= 0) {
+        PrismelMetal4CommandBufferState *command_buffer =
+            command_buffer4_state_of_handle(raw_buffer);
+        const intnat primitive = Long_val(Field(raw_draw, 0));
+        const intnat start = Long_val(Field(raw_draw, 1));
+        const intnat count = Long_val(Field(raw_draw, 2));
+        const mlsize_t table_count = Wosize_val(raw_tables);
+        if (encoder.commandBuffer != command_buffer.commandBuffer ||
+            primitive < 0 || primitive > 4 || start < 0 || count <= 0 ||
+            table_count > 5) {
           CAMLreturn(result_error_text(
               "Metal 4 primitive draw arguments are invalid"));
+        }
+        for (mlsize_t index = 0; index < table_count; ++index) {
+          PrismelMetal4ArgumentTableState *table =
+              argument_table4_state_of_handle(Field(raw_tables, index));
+          if (table.argumentTable.device.registryID !=
+              command_buffer.commandBuffer.device.registryID) {
+            CAMLreturn(result_error_text(
+                "Metal 4 draw argument table belongs to another device"));
+          }
+          [command_buffer retainEncodedObject:table];
+          [table retainBoundObjectsInCommandBuffer:command_buffer];
         }
         [encoder drawPrimitives:static_cast<MTLPrimitiveType>(primitive)
                      vertexStart:static_cast<NSUInteger>(start)

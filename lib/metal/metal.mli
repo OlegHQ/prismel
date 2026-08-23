@@ -1388,6 +1388,43 @@ end
     time, queues return explicit submissions, and a submission must complete
     before its command resources are released. *)
 module Command4 : sig
+  module Argument_table : sig
+    type t
+
+    (** Creates a checked Metal 4 argument table. The hardware limits are 31
+        buffer slots, 128 texture slots, and 16 sampler slots; at least one
+        capacity must be nonzero. *)
+    val create :
+      ?label:string -> ?initialize_bindings:bool ->
+      ?support_attribute_strides:bool -> ?max_buffers:int ->
+      ?max_textures:int -> ?max_samplers:int -> Device.t -> unit ->
+      (t, error) result
+
+    val device : t -> Device.t
+    val generation : t -> int64
+    val destroyed : t -> bool
+    val max_buffers : t -> int
+    val max_textures : t -> int
+    val max_samplers : t -> int
+    val initializes_bindings : t -> bool
+    val supports_attribute_strides : t -> bool
+    val label : t -> (string option, error) result
+
+    (** Binds [buffer] by GPU address. [offset] must select a byte inside the
+        buffer. [attribute_stride] requires a table created with
+        [support_attribute_strides:true]. *)
+    val set_buffer :
+      t -> index:int -> ?offset:int64 -> ?attribute_stride:int -> Buffer.t ->
+      (unit, error) result
+
+    val clear_buffer : t -> index:int -> (unit, error) result
+    val set_texture : t -> index:int -> Texture.t -> (unit, error) result
+    val clear_texture : t -> index:int -> (unit, error) result
+    val set_sampler : t -> index:int -> Sampler.t -> (unit, error) result
+    val clear_sampler : t -> index:int -> (unit, error) result
+    val destroy : t -> (unit, error) result
+  end
+
   module Allocator : sig
     type t
 
@@ -1481,6 +1518,13 @@ module Command4 : sig
       | Triangle
       | Triangle_strip
 
+    type stage =
+      | Vertex
+      | Fragment
+      | Tile
+      | Object
+      | Mesh
+
     val color :
       red:float -> green:float -> blue:float -> alpha:float -> color
 
@@ -1494,6 +1538,13 @@ module Command4 : sig
       color_attachments:color_attachment list -> (t, error) result
 
     val set_pipeline : t -> Render_pipeline.t -> (unit, error) result
+
+    (** Associates [table] with the selected render stages. Metal snapshots
+        the table's current resources at each subsequent draw. [None] clears
+        those stage bindings. *)
+    val set_argument_table :
+      t -> stages:stage list -> Argument_table.t option -> (unit, error) result
+
     val viewport :
       x:float -> y:float -> width:float -> height:float -> z_near:float ->
       z_far:float -> viewport

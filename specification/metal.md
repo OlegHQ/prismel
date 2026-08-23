@@ -576,9 +576,22 @@ pixel after commit feedback completes. Invalid labels, attachments, viewports,
 draw ranges, state transitions, duplicate submissions, and premature teardown
 are rejected before native handle allocation or submission where applicable.
 
-Mesh and tile command execution, argument tables, indexed/indirect draws,
-blend/depth/stencil policy, vertex descriptors, dynamic render linking, and
-positive offline `.metallib` provenance remain open.
+`Command4.Argument_table` owns checked buffer, texture, and sampler binding
+slots at Metal's 31/128/16 limits. Buffer bindings use a validated in-buffer
+GPU-address offset and optionally a positive dynamic attribute stride when the
+table opted into stride storage. Binding replacement and explicit clear update
+both native state and OCaml lifetime dependencies. A render encoder can assign
+one table to any nonempty unique set of vertex, fragment, tile, object, or mesh
+stages. Each draw snapshots the tables currently assigned to its stages and
+retains those exact resources through commit feedback, so later table mutation
+cannot release already encoded inputs. The offscreen conformance draw obtains
+its fragment tint from an ordinary OCaml-created shared buffer at argument-table
+slot 1; the pixel-exact green result therefore exercises the binding rather
+than a constant-color shader.
+
+Mesh and tile command execution, indexed/indirect draws, blend/depth/stencil
+policy, vertex descriptors, dynamic render linking, and positive offline
+`.metallib` provenance remain open.
 
 `test_metal.exe` runs a real M1 compute kernel, wrong-domain and invalid-state
 cases, full labeled shader diagnostics, function-constant introspection and
@@ -599,7 +612,8 @@ stage/threadgroup/payload rejection without handle allocation, and asynchronous
 reflected mesh completion after source-library destruction, reflected and
 attachmentless Metal 4 tile compilation, private tile static linking, invalid
 tile stage/threadgroup rejection, asynchronous tile completion after
-source-library destruction, and allocator/queue/buffer/submission lifecycle plus
+source-library destruction, allocator/queue/buffer/submission lifecycle,
+argument-table buffer/texture/sampler ownership and render-stage snapshots, plus
 pixel-exact conventional Metal 4 offscreen render execution,
 compiler/task/dataset parent ownership, and complete Metal 4 compile diagnostics,
 copied/no-copy external buffer ownership,
@@ -632,7 +646,9 @@ two-plane IOSurface mutation, typed metadata, and transport failures. The
 separate ownership stress performs
 warm-up followed
 by 100,000 measured buffer create/destroy cycles, 100,000 measured
-texture/sampler create/destroy cycles, 10,000 heap/purge/alias/replacement
+texture/sampler create/destroy cycles, and 50,000 Metal 4 argument-table/buffer
+bind/destroy cycles covering 100,000 measured handles. Ten thousand
+heap/purge/alias/replacement
 cycles covering 30,000 measured heap/child-resource handles, and 10,000
 residency add/commit/remove/commit cycles covering 20,000 measured
 set/resource handles. Ten thousand sparse heap/color-texture cycles and a
