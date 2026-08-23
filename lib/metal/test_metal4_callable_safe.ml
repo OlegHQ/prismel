@@ -11,6 +11,8 @@ let ()=match Device.system_default()with
   let source=get(Buffer.create~device~length:1024L~storage:Buffer.Shared())in
   let destination=get(Buffer.create~device~length:1024L~storage:Buffer.Shared())in
   let counter=get(Command4.Counter_heap.create device~kind:Command4.Counter_heap.Timestamp~count:8L)in
+  let kind,count,_=get(Command4.Counter_heap.info counter)in
+  if kind<>Command4.Counter_heap.Timestamp||count<>8L then failwith"counter enum mapping drift";
   let commands=get(Command4.Command_buffer.create allocator())in
   let encoder=get(Command4.Compute_encoder.create commands)in
   expect Invalid_argument(Command4.Compute_encoder.fill_buffer encoder source~offset:1000L~length:25L~byte:7);

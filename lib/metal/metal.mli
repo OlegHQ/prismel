@@ -2049,7 +2049,7 @@ type indirect_command_buffer_handle
 module Command4 : sig
   module Counter_heap : sig
     type t
-    type kind = Timestamp | Stage_statistics
+    type kind = Timestamp
     val create : ?label:string -> Device.t -> kind:kind -> count:int64 -> (t,error) result
     val info : t -> (kind * int64 * string option,error) result
     val set_label : t -> string option -> (unit,error) result

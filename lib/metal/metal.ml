@@ -11155,10 +11155,9 @@ module Command4 = struct
 
   module Counter_heap = struct
     type t = command4_counter_heap
-    type kind = Timestamp | Stage_statistics
-    let kind_code = function Timestamp -> 0 | Stage_statistics -> 1
-    let kind_of_code = function 0 -> Some Timestamp | 1 -> Some Stage_statistics
-      | _ -> None
+    type kind = Timestamp
+    let kind_code Timestamp = 1
+    let kind_of_code = function 1 -> Some Timestamp | _ -> None
     let create ?label (device : Device.t) ~kind ~count =
       let operation = "Metal.Command4.Counter_heap.create" in
       on_main operation (fun () ->
