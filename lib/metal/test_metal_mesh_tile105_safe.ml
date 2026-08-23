@@ -29,10 +29,11 @@ let ()=
       let mesh=get(Function.find~library "mesh_tile105_mesh")in
       let tile=get(Function.find~library "mesh_tile105_tile")in
       let one={width=1L;height=1L;depth=1L}in
+      let zero={width=0L;height=0L;depth=0L}in
       let three={width=3L;height=1L;depth=1L}in
       let mesh_descriptor=get(mesh_descriptor~mesh_function:mesh
         ~depth_format:Texture.Depth32_float~stencil_format:Texture.Stencil8
-        ~required_mesh_threads:three~required_object_threads:one())in
+        ~required_mesh_threads:three~required_object_threads:zero())in
       let tile_descriptor=get(tile_descriptor~tile_function:tile
         ~required_threads:one())in
       (match compile_mesh~reflection:true mesh_descriptor with
