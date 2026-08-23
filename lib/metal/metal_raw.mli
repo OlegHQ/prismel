@@ -1709,3 +1709,97 @@ external metal4_command_buffer_begin :
 external metal4_queue_wait_event :
   handle -> handle -> int64 -> (unit,string) result =
   "caml_prismel_metal4_wait_event"
+
+(** Shader157 exact callable raw subset. Descriptor graphs, reflection,
+    preprocessor dictionaries and callback compilation remain blocked. *)
+external shader_function_options :
+  handle -> (int64,string) result =
+  "caml_prismel_metal_shader_function_options"
+external shader_function_patch_control_point_count :
+  handle -> (int64,string) result =
+  "caml_prismel_metal_shader_function_patch_control_point_count"
+external shader_function_patch_type :
+  handle -> (int64,string) result =
+  "caml_prismel_metal_shader_function_patch_type"
+external shader_function_attributes :
+  handle -> bool -> (handle array,string) result =
+  "caml_prismel_metal_shader_function_attributes"
+external shader_function_argument_encoder :
+  handle -> int64 -> (handle,string) result =
+  "caml_prismel_metal_shader_function_argument_encoder"
+
+external shader_attribute_name :
+  handle -> bool -> (string option,string) result =
+  "caml_prismel_metal_shader_attribute_name"
+external shader_attribute_index :
+  handle -> bool -> (int64,string) result =
+  "caml_prismel_metal_shader_attribute_index"
+external shader_attribute_type :
+  handle -> bool -> (int64,string) result =
+  "caml_prismel_metal_shader_attribute_type"
+external shader_attribute_active :
+  handle -> bool -> (bool,string) result =
+  "caml_prismel_metal_shader_attribute_active"
+external shader_attribute_patch_control_point :
+  handle -> bool -> (bool,string) result =
+  "caml_prismel_metal_shader_attribute_patch_control_point"
+external shader_attribute_patch_data :
+  handle -> bool -> (bool,string) result =
+  "caml_prismel_metal_shader_attribute_patch_data"
+
+external shader_attribute_descriptor_buffer_index :
+  handle -> (int64,string) result =
+  "caml_prismel_metal_shader_attribute_descriptor_buffer_index"
+external shader_attribute_descriptor_offset :
+  handle -> (int64,string) result =
+  "caml_prismel_metal_shader_attribute_descriptor_offset"
+external shader_attribute_descriptor_format :
+  handle -> (int64,string) result =
+  "caml_prismel_metal_shader_attribute_descriptor_format"
+external shader_attribute_descriptor_set_buffer_index :
+  handle -> int64 -> (unit,string) result =
+  "caml_prismel_metal_shader_attribute_descriptor_set_buffer_index"
+external shader_attribute_descriptor_set_offset :
+  handle -> int64 -> (unit,string) result =
+  "caml_prismel_metal_shader_attribute_descriptor_set_offset"
+external shader_attribute_descriptor_set_format :
+  handle -> int64 -> (unit,string) result =
+  "caml_prismel_metal_shader_attribute_descriptor_set_format"
+external shader_attribute_descriptor_at :
+  handle -> int64 -> (handle,string) result =
+  "caml_prismel_metal_shader_attribute_descriptor_at"
+external shader_attribute_descriptor_set_at :
+  handle -> int64 -> handle -> (unit,string) result =
+  "caml_prismel_metal_shader_attribute_descriptor_set_at"
+
+external shader_stage_descriptor_create :
+  unit -> (handle,string) result =
+  "caml_prismel_metal_shader_stage_descriptor_create"
+external shader_stage_descriptor_index_buffer_index :
+  handle -> (int64,string) result =
+  "caml_prismel_metal_shader_stage_descriptor_index_buffer_index"
+external shader_stage_descriptor_index_type :
+  handle -> (int64,string) result =
+  "caml_prismel_metal_shader_stage_descriptor_index_type"
+external shader_stage_descriptor_set_index_buffer_index :
+  handle -> int64 -> (unit,string) result =
+  "caml_prismel_metal_shader_stage_descriptor_set_index_buffer_index"
+external shader_stage_descriptor_set_index_type :
+  handle -> int64 -> (unit,string) result =
+  "caml_prismel_metal_shader_stage_descriptor_set_index_type"
+external shader_stage_descriptor_reset :
+  handle -> (unit,string) result =
+  "caml_prismel_metal_shader_stage_descriptor_reset"
+external shader_stage_descriptor_child :
+  handle -> bool -> (handle,string) result =
+  "caml_prismel_metal_shader_stage_descriptor_child"
+
+external shader_stitching_input_create :
+  int64 -> (handle,string) result =
+  "caml_prismel_metal_shader_stitching_input_create"
+external shader_stitching_input_index :
+  handle -> (int64,string) result =
+  "caml_prismel_metal_shader_stitching_input_index"
+external shader_stitching_input_set_index :
+  handle -> int64 -> (unit,string) result =
+  "caml_prismel_metal_shader_stitching_input_set_index"
