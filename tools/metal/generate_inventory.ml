@@ -549,8 +549,7 @@ let generate root =
   validate_bound_identifiers declarations;
   let header_hash = aggregate_headers headers in
   let classification_path = Filename.concat root "tools/metal/classification.ml" in
-  let binding_plan_path = Filename.concat root "tools/metal/binding_plan.ml" in
-  let binding_plan_hash = sha256 (read_file binding_plan_path) in
+  let binding_plan_hash = Binding_plan.source_sha256 ~root in
   let value =
     `Assoc
       [ "schema", `Int 1

@@ -37,12 +37,18 @@
   metal_raw.ml
   metal_raw.mli
   test_metal.ml
+  ../../tools/metal/binding_spec.ml
+  ../../tools/metal/binding_spec.mli
   ../../tools/metal/binding_plan.ml
+  ../../tools/metal/binding_plan.mli
+  ../../tools/metal/binding_plan_render.ml
+  ../../tools/metal/binding_plan_compute.ml
+  ../../tools/metal/binding_plan_resource.ml
   ../../tools/metal/generate_bindings.ml)
  (action
   (run %{exe:../../tools/metal/generate_bindings.exe}
    --inventory %{dep:generated_api_inventory.json}
-   --plan-source %{dep:../../tools/metal/binding_plan.ml}
+   --plan-root %{workspace_root}
    --generator-source %{dep:../../tools/metal/generate_bindings.ml}
    --manual-native %{dep:metal_bridge.mm}
    --manual-raw-ml %{dep:metal_raw.ml}

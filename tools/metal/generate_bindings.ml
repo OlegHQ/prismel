@@ -1132,7 +1132,7 @@ let manifest ~sdk_version ~plan_sha256 ~generator_sha256 ~inventory_sha256
 
 type options =
   { inventory : string
-  ; plan_source : string
+  ; plan_root : string
   ; generator_source : string
   ; manual_native : string
   ; manual_raw_ml : string
@@ -1147,6 +1147,7 @@ type options =
 
 let options () =
   let inventory = ref "" in
+  let plan_root = ref "" in
   let plan_source = ref "" in
   let generator_source = ref "" in
   let manual_native = ref "" in
@@ -1161,7 +1162,12 @@ let options () =
   let set target value = target := value in
   let arguments =
     [ "--inventory", Arg.String (set inventory), "Pinned inventory JSON"
-    ; "--plan-source", Arg.String (set plan_source), "Binding plan source"
+    ; ( "--plan-root"
+      , Arg.String (set plan_root)
+      , "Workspace root containing every binding-plan source" )
+    ; ( "--plan-source"
+      , Arg.String (set plan_source)
+      , "Legacy binding_plan.ml path used to derive the plan root" )
     ; ( "--generator-source"
       , Arg.String (set generator_source)
       , "Generator source" )
@@ -1185,8 +1191,28 @@ let options () =
     if !value = "" then fail "missing required Metal generator option %s" name;
     !value
   in
+  let plan_root =
+    match !plan_root, !plan_source with
+    | root, "" when root <> "" -> root
+    | "", source when source <> "" ->
+        let metal_directory = Filename.dirname source in
+        let tools_directory = Filename.dirname metal_directory in
+        if
+          Filename.basename source <> "binding_plan.ml"
+          || Filename.basename metal_directory <> "metal"
+          || Filename.basename tools_directory <> "tools"
+        then
+          fail
+            "legacy --plan-source must name tools/metal/binding_plan.ml, found %s"
+            source;
+        Filename.dirname tools_directory
+    | "", "" ->
+        fail "missing required Metal generator option --plan-root"
+    | _, _ ->
+        fail "pass exactly one of --plan-root and legacy --plan-source"
+  in
   { inventory = require "--inventory" inventory
-  ; plan_source = require "--plan-source" plan_source
+  ; plan_root
   ; generator_source = require "--generator-source" generator_source
   ; manual_native = require "--manual-native" manual_native
   ; manual_raw_ml = require "--manual-raw-ml" manual_raw_ml
@@ -1202,7 +1228,7 @@ let options () =
 let main () =
   let options = options () in
   let inventory_contents = read_file options.inventory in
-  let plan_sha256 = read_file options.plan_source |> sha256 in
+  let plan_sha256 = Binding_plan.source_sha256 ~root:options.plan_root in
   let sdk_version, inventory_plan_sha256, inventory =
     load_inventory options.inventory
   in

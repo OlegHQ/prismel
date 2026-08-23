@@ -1,7 +1,14 @@
 (library
  (name metal_inventory_classification)
  (wrapped false)
- (modules binding_plan classification))
+ (modules
+  binding_spec
+  binding_plan_render
+  binding_plan_compute
+  binding_plan_resource
+  binding_plan
+  classification)
+ (libraries gpu_migration_support))
 
 (executable
  (name generate_bindings)
@@ -15,10 +22,20 @@
 (test
  (name test_generate_bindings)
  (modules test_generate_bindings)
- (libraries gpu_migration_support yojson)
+ (libraries
+  gpu_migration_support
+  metal_inventory_classification
+  unix
+  yojson)
  (deps
   generate_bindings.exe
+  binding_spec.ml
+  binding_spec.mli
   binding_plan.ml
+  binding_plan.mli
+  binding_plan_render.ml
+  binding_plan_compute.ml
+  binding_plan_resource.ml
   generate_bindings.ml
   ../../lib/metal/metal.cma
   ../../lib/metal/generated_api_inventory.json
@@ -31,7 +48,7 @@
   (run %{test}
    --generator %{exe:generate_bindings.exe}
    --inventory %{dep:../../lib/metal/generated_api_inventory.json}
-   --plan-source %{dep:binding_plan.ml}
+   --plan-root %{workspace_root}
    --generator-source %{dep:generate_bindings.ml}
    --manual-native %{dep:../../lib/metal/metal_bridge.mm}
    --manual-raw-ml %{dep:../../lib/metal/metal_raw.ml}
@@ -58,7 +75,13 @@
  (alias runtest)
  (deps
   generate_inventory.exe
+  binding_spec.ml
+  binding_spec.mli
   binding_plan.ml
+  binding_plan.mli
+  binding_plan_render.ml
+  binding_plan_compute.ml
+  binding_plan_resource.ml
   classification.ml
   ../../lib/metal/generated_api_inventory.json
   ../../lib/metal/generated_provenance.ml)
