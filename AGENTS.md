@@ -115,6 +115,13 @@ conformance fixtures, or committed inventory work.
   same-device checks, numeric/range validation, capability policy, command
   completion retention, complex descriptor marshalling, and GPU behavior never
   come from an unchecked SDK-signature guess.
+- Pure value surfaces are the deliberate bulk exception: generated typed enum
+  families/constants and fixed-layout value records may be re-exported through
+  the safe `Metal` API when the pinned inventory, Objective-C++ `static_assert`
+  checks, exhaustive generated round-trip tests, availability metadata, and
+  deterministic provenance jointly prove the mapping. This exception never
+  applies to object handles, callbacks, descriptor ownership, command state,
+  or cross-object validation.
 - Generate statically typed direct Objective-C calls. Do not replace them with
   `objc_msgSend`, stringly typed selectors, runtime signature dispatch, or a
   public unsafe catch-all API.
