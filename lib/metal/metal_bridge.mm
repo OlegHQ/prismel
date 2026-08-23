@@ -940,6 +940,9 @@ enum class Handle_kind : std::uint32_t {
   Counter_sample_buffer,
   Texture_view_descriptor,
   Texture_descriptor,
+  Render_sample_attachment_descriptor,
+  Render_sample_attachment_array,
+  Logical_to_physical_color_attachment_map,
 };
 
 struct Handle {
@@ -14274,3 +14277,12 @@ extern "C" CAMLprim value caml_prismel_metal_command_buffer_error(value raw) {
 #include "../../tools/metal/metal_resource_ownership_generated.inc"
 #pragma clang diagnostic pop
 #include "../../tools/metal/metal_resource_scalar_generated.inc"
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#pragma clang diagnostic ignored "-Wunguarded-availability-new"
+#include "../../tools/metal/metal_render_command_mechanical_generated.inc"
+#include "../../tools/metal/metal_render_command_sample_descriptor.inc"
+#include "../../tools/metal/metal_render_command_stage_bindings.inc"
+#include "../../tools/metal/metal_render_command_draw_state.inc"
+#pragma clang diagnostic pop
