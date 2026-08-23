@@ -1629,6 +1629,7 @@ external resource_texture_remote_view : handle -> handle -> (resource_texture_sn
 external resource_texture_view : handle -> int64 -> (resource_texture_snapshot option,string) result = "caml_prismel_metal_resource_texture_view"
 external resource_texture_remote_storage : handle -> (resource_texture_snapshot option,string) result = "caml_prismel_metal_resource_texture_remote_storage"
 external resource_texture_root : handle -> (resource_root_snapshot option,string) result = "caml_prismel_metal_resource_texture_root"
+external resource_texture_buffer_graph : handle -> ((resource_buffer_snapshot * int64 * int64) option,string) result = "caml_prismel_metal_resource_texture_buffer_graph"
 external resource_heap_device : handle -> (int64,string) result = "caml_prismel_metal_resource_heap_device"
 external resource_resource_device : handle -> (int64,string) result = "caml_prismel_metal_resource_resource_device"
 external resource_resource_heap : handle -> (handle option,string) result = "caml_prismel_metal_resource_resource_heap"
