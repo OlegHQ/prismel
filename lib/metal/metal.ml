@@ -1004,6 +1004,14 @@ type function_handle =
   ; library : library
   }
 
+type shader_attribute =
+  { raw : Metal_raw.handle; lifetime : lifetime; function_ : function_handle
+  ; vertex : bool }
+
+type shader_argument_encoder =
+  { raw : Metal_raw.handle; lifetime : lifetime; function_ : function_handle
+  ; buffer_index : int64 }
+
 type dynamic_library =
   { raw : Metal_raw.handle
   ; lifetime : lifetime
@@ -8011,9 +8019,47 @@ module Function = struct
   let generation (value : t) = Metal_raw.generation value.raw
   let destroyed (value : t) = is_destroyed value.lifetime
 
+  type options = int64
+  type patch_type = No_patch | Triangle_patch | Quad_patch | Other_patch of int64
+  let query operation raw (value:t)=on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match raw value.raw with Error m->native_error operation m|Ok x->Ok x)
+  let options value = query "Metal.Function.options" Metal_raw.shader_function_options value
+  let patch_control_point_count value = query "Metal.Function.patch_control_point_count" Metal_raw.shader_function_patch_control_point_count value
+  let patch_type value = Result.map(function 0L->No_patch|1L->Triangle_patch|2L->Quad_patch|x->Other_patch x)(query "Metal.Function.patch_type" Metal_raw.shader_function_patch_type value)
+
+  let attributes (value:t) ~vertex =
+    let operation="Metal.Function.attributes" in
+    Result.bind(query operation(fun raw->Metal_raw.shader_function_attributes raw vertex)value)(fun raws->
+      Ok(Array.to_list(Array.map(fun raw->let x:shader_attribute={raw;lifetime=lifetime();function_=value;vertex}in attach value.lifetime;attach_finalizer x x.lifetime value.lifetime;x)raws)))
+
+  let argument_encoder (value:t) ~buffer_index =
+    let operation="Metal.Function.argument_encoder" in
+    if buffer_index<0L then error operation Invalid_argument "buffer index must be nonnegative" else
+    Result.bind(query operation(fun raw->Metal_raw.shader_function_argument_encoder raw buffer_index)value)(fun raw->
+      let x:shader_argument_encoder={raw;lifetime=lifetime();function_=value;buffer_index}in attach value.lifetime;attach_finalizer x x.lifetime value.lifetime;Ok x)
+
   let destroy (value : t) =
     destroy_leaf "Metal.Function.destroy" value.lifetime value.raw
       (fun () -> detach value.library.lifetime)
+end
+
+module Shader_attribute = struct
+  type t = shader_attribute
+  let query operation raw (value:t)=on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match raw value.raw value.vertex with Error m->native_error operation m|Ok x->Ok x)
+  let name value=query "Metal.Shader_attribute.name" Metal_raw.shader_attribute_name value
+  let index value=query "Metal.Shader_attribute.index" Metal_raw.shader_attribute_index value
+  let data_type value=Result.map(fun x->Shader_type.of_code(Int64.to_int x))(query "Metal.Shader_attribute.data_type" Metal_raw.shader_attribute_type value)
+  let active value=query "Metal.Shader_attribute.active" Metal_raw.shader_attribute_active value
+  let patch_control_point_data value=query "Metal.Shader_attribute.patch_control_point_data" Metal_raw.shader_attribute_patch_control_point value
+  let patch_data value=query "Metal.Shader_attribute.patch_data" Metal_raw.shader_attribute_patch_data value
+  let destroyed (value:t)=is_destroyed value.lifetime
+  let destroy (value:t)=destroy_leaf "Metal.Shader_attribute.destroy" value.lifetime value.raw(fun()->detach value.function_.lifetime)
+end
+
+module Shader_argument_encoder = struct
+  type t = shader_argument_encoder
+  let buffer_index (value:t)=value.buffer_index
+  let destroyed (value:t)=is_destroyed value.lifetime
+  let destroy (value:t)=destroy_leaf "Metal.Shader_argument_encoder.destroy" value.lifetime value.raw(fun()->detach value.function_.lifetime)
 end
 
 let validate_linked_functions operation device linked_functions =

@@ -1149,8 +1149,10 @@ module Library : sig
   val destroy : t -> (unit, error) result
 end
 
-module Function : sig
+module rec Function : sig
   type t
+  type options = int64
+  type patch_type = No_patch | Triangle_patch | Quad_patch | Other_patch of int64
 
   type kind =
     | Vertex
@@ -1213,7 +1215,31 @@ module Function : sig
   val device : t -> Device.t
   val generation : t -> int64
   val destroyed : t -> bool
+  val options : t -> (options,error) result
+  val patch_control_point_count : t -> (int64,error) result
+  val patch_type : t -> (patch_type,error) result
+  val attributes : t -> vertex:bool -> (Shader_attribute.t list,error) result
+  val argument_encoder : t -> buffer_index:int64 -> (Shader_argument_encoder.t,error) result
   val destroy : t -> (unit, error) result
+end
+
+and Shader_attribute : sig
+  type t
+  val name : t -> (string option,error) result
+  val index : t -> (int64,error) result
+  val data_type : t -> (Shader_type.t,error) result
+  val active : t -> (bool,error) result
+  val patch_control_point_data : t -> (bool,error) result
+  val patch_data : t -> (bool,error) result
+  val destroyed : t -> bool
+  val destroy : t -> (unit,error) result
+end
+
+and Shader_argument_encoder : sig
+  type t
+  val buffer_index : t -> int64
+  val destroyed : t -> bool
+  val destroy : t -> (unit,error) result
 end
 
 module Dynamic_library : sig
