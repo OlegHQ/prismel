@@ -2588,6 +2588,15 @@ module Command4 : sig
     val end_encoding : t -> (unit, error) result
     val destroyed : t -> bool
   end
+
+  module Machine_learning_encoder : sig
+    type t
+    val create : Command_buffer.t -> (t,error) result
+    val set_pipeline : t -> Machine_learning.Pipeline.t -> (unit,error) result
+    val set_argument_table : t -> Argument_table.t option -> (unit,error) result
+    val dispatch : t -> Heap.t -> (unit,error) result
+    val end_encoding : t -> (unit,error) result
+  end
 end
 
 module Indirect_command_buffer : sig

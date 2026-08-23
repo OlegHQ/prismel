@@ -1373,6 +1373,11 @@ type command4_compute_encoder =
   ; mutable debug_group_depth : int
   }
 
+type command4_ml_encoder =
+  { raw:Metal_raw.handle; lifetime:lifetime; command_buffer:command4_buffer
+  ; mutable ml_pipeline:machine_learning_pipeline option
+  ; mutable ml_table:command4_argument_table option }
+
 type residency_allocation =
   | Buffer of buffer
   | Texture of texture
@@ -2155,6 +2160,7 @@ module Function_specialization = struct
     let get (value:t)=let operation="Metal.Function_specialization.Stitched.get"in on_main operation(fun()->Result.bind(ensure_live operation value.lifetime)(fun()->match Metal_raw.metal4_stitched_get value.raw with Error m->native_error operation m|Ok handles->let count=Array.length handles in Array.iter(fun raw->ignore(Metal_raw.destroy raw))handles;if count<>List.length value.stitched_functions then native_error operation "stitched descriptor length changed"else Ok value.stitched_functions))
     let destroy (value:t)=destroy_leaf "Metal.Function_specialization.Stitched.destroy" value.lifetime value.raw(fun()->List.iter(fun(x:metal4_function_descriptor)->detach x.lifetime)value.stitched_functions)
   end
+
 end
 
 let sparse_page_size_code = function
@@ -14419,6 +14425,16 @@ module Command4 = struct
                    detach value.command_buffer.lifetime
                  end;
                  Ok ()))
+  end
+
+  module Machine_learning_encoder = struct
+    type t=command4_ml_encoder
+    let create (command_buffer:command4_buffer)=let operation="Metal.Command4.Machine_learning_encoder.create"in on_main operation(fun()->Result.bind(ensure_live operation command_buffer.lifetime)(fun()->if command_buffer.phase<>Command4_recording then error operation Invalid_state "command buffer is not recording"else match Metal_raw.metal4_ml_encoder_create command_buffer.raw with Error m->native_error operation m|Ok raw->let value:t={raw;lifetime=lifetime();command_buffer;ml_pipeline=None;ml_table=None}in attach command_buffer.lifetime;attach_finalizer~on_finalize:(fun()->command_buffer.phase<-Command4_failed"ML encoder abandoned before end_encoding")value value.lifetime command_buffer.lifetime;Ok value))
+    let callable operation(value:t) callback=on_main operation(fun()->Result.bind(ensure_live operation value.lifetime)(fun()->if value.command_buffer.phase<>Command4_recording then error operation Invalid_state "command buffer is not recording"else callback()))
+    let set_pipeline(value:t)(pipeline:Machine_learning.Pipeline.t)=let operation="Metal.Command4.Machine_learning_encoder.set_pipeline"in callable operation value(fun()->Result.bind(ensure_live operation pipeline.lifetime)(fun()->Result.bind(ensure_same_device operation value.command_buffer.allocator.device pipeline.device)(fun()->match Metal_raw.metal4_ml_encoder_pipeline value.raw value.command_buffer.raw pipeline.raw with Error m->native_error operation m|Ok()->retain_command4_other value.command_buffer pipeline.lifetime;value.ml_pipeline<-Some pipeline;Ok())))
+    let set_argument_table(value:t)(table:command4_argument_table option)=let operation="Metal.Command4.Machine_learning_encoder.set_argument_table"in callable operation value(fun()->Result.bind(match table with None->Ok()|Some(table:command4_argument_table)->Result.bind(ensure_live operation table.lifetime)(fun()->ensure_same_device operation value.command_buffer.allocator.device table.device))(fun()->match Metal_raw.metal4_ml_encoder_table value.raw value.command_buffer.raw(Option.map(fun(table:command4_argument_table)->table.raw)table)with Error m->native_error operation m|Ok()->Option.iter(fun(table:command4_argument_table)->retain_command4_other value.command_buffer table.lifetime)table;value.ml_table<-table;Ok()))
+    let dispatch(value:t)(heap:heap)=let operation="Metal.Command4.Machine_learning_encoder.dispatch"in callable operation value(fun()->match value.ml_pipeline,value.ml_table with None,_->error operation Invalid_state "no ML pipeline is bound"|_,None->error operation Invalid_state "no ML argument table is bound"|Some _,Some _->Result.bind(ensure_live operation heap.lifetime)(fun()->Result.bind(ensure_same_device operation value.command_buffer.allocator.device heap.device)(fun()->match Metal_raw.metal4_ml_encoder_dispatch value.raw value.command_buffer.raw heap.raw with Error m->native_error operation m|Ok()->retain_command4_other value.command_buffer heap.lifetime;Ok())))
+    let end_encoding(value:t)=let operation="Metal.Command4.Machine_learning_encoder.end_encoding"in callable operation value(fun()->if Atomic.compare_and_set value.lifetime.destroyed false true then(ignore(Metal_raw.destroy value.raw);detach value.command_buffer.lifetime);Ok())
   end
 end
 

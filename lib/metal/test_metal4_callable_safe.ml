@@ -48,6 +48,9 @@ let ()=match Device.system_default()with
   get(Command4.Command_buffer.write_timestamp commands counter~index:1L);
   get(Command4.Command_buffer.resolve_counter commands counter~location:1L
     ~length:1L~destination~destination_offset:512L());
+  let ml_encoder=get(Command4.Machine_learning_encoder.create commands)in
+  get(Command4.Machine_learning_encoder.set_argument_table ml_encoder None);
+  get(Command4.Machine_learning_encoder.end_encoding ml_encoder);
   let render_target=get(Texture.create~device(Texture.descriptor_2d
     ~storage:Buffer.Shared~usage:[Texture.Render_target]
     ~format:Texture.Bgra8_unorm~width:4~height:4()))in
