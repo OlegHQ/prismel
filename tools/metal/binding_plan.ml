@@ -14,6 +14,7 @@ let source_paths =
   @ Binding_enum_plan.source_paths
   @ Binding_enum_implicit_plan.source_paths
   @ Binding_direct_plan.source_paths
+  @ Binding_descriptor_property_plan.source_paths
 
 let source_sha256 ~root =
   source_paths

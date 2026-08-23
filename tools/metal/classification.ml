@@ -1503,4 +1503,7 @@ let classify ~unavailable ~identifier =
     Bound, "Implemented by the generated, typed prismel.metal fixed-layout value-record surface."
   else if Binding_global_string_evidence.is_bound_identifier identifier then
     Bound, "Implemented by the generated prismel.metal copied global-string surface."
+  else if Binding_descriptor_property_evidence.is_bound_identifier identifier then
+    Bound,
+      "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance."
   else Unreviewed, "Binding classification pending during Phase 2."

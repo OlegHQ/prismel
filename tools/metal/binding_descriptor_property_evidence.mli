@@ -13,3 +13,8 @@ type inventory_symbol =
 val validate_inventory : inventory_symbol list -> unit
 val promotion_ids : string list
 val expected_promotion_count : int
+val bound_ids : string list
+val pending_icb_ids : string list
+val expected_bound_count : int
+val expected_pending_count : int
+val is_bound_identifier : string -> bool

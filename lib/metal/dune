@@ -38,7 +38,11 @@
   test_metal_value_record_generated.ml
   metal_global_generated.ml
   metal_global_generated.mli
-  test_metal_global_generated.ml)
+  test_metal_global_generated.ml
+  metal_descriptor_generated.ml
+  metal_descriptor_generated.mli
+  test_metal_descriptor_generated.ml
+  test_metal_descriptor_native.mm)
  (deps
   generated_api_inventory.json
   metal_bridge.mm
@@ -80,6 +84,16 @@
   ../../tools/metal/binding_global_string_evidence.mli
   ../../tools/metal/binding_global_string_conformance_codegen.ml
   ../../tools/metal/binding_global_string_conformance_codegen.mli
+  ../../tools/metal/binding_descriptor_property_spec.ml
+  ../../tools/metal/binding_descriptor_property_spec.mli
+  ../../tools/metal/binding_descriptor_property_plan.ml
+  ../../tools/metal/binding_descriptor_property_plan.mli
+  ../../tools/metal/binding_descriptor_property_codegen.ml
+  ../../tools/metal/binding_descriptor_property_codegen.mli
+  ../../tools/metal/binding_descriptor_property_evidence.ml
+  ../../tools/metal/binding_descriptor_property_evidence.mli
+  ../../tools/metal/binding_descriptor_default_evidence.ml
+  ../../tools/metal/binding_descriptor_default_evidence.mli
   ../../tools/metal/binding_struct_native_codegen.ml
   ../../tools/metal/binding_struct_native_codegen.mli
   ../../tools/metal/binding_struct_spec.ml
@@ -132,7 +146,23 @@
    --output-public-value-test test_metal_value_record_generated.ml
    --output-public-global-ml metal_global_generated.ml
    --output-public-global-mli metal_global_generated.mli
-   --output-public-global-test test_metal_global_generated.ml)))
+   --output-public-global-test test_metal_global_generated.ml
+   --output-public-descriptor-ml metal_descriptor_generated.ml
+   --output-public-descriptor-mli metal_descriptor_generated.mli
+   --output-public-descriptor-test test_metal_descriptor_generated.ml
+   --output-native-descriptor-test test_metal_descriptor_native.mm)))
+
+(rule
+ (targets test_metal_descriptor_native.exe)
+ (deps test_metal_descriptor_native.mm)
+ (action
+  (run clang++ -std=c++20 -framework Foundation -framework Metal
+   %{dep:test_metal_descriptor_native.mm} -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_descriptor_native.exe)
+ (action (run ./test_metal_descriptor_native.exe)))
 
 (rule
  (targets metal_bridge.o libmetal_bridge_stubs.a dllmetal_bridge_stubs.so)
@@ -150,7 +180,7 @@
 (library
  (name metal)
  (public_name prismel.metal)
- (modules Metal Metal_format Metal_raw Metal_raw_generated Metal_enum_generated Metal_value_record_generated Metal_global_generated Generated_provenance)
+ (modules Metal Metal_format Metal_raw Metal_raw_generated Metal_enum_generated Metal_value_record_generated Metal_global_generated Metal_descriptor_generated Generated_provenance)
  (private_modules
   Metal_format
   Metal_raw
@@ -158,6 +188,7 @@
   Metal_enum_generated
   Metal_value_record_generated
   Metal_global_generated
+  Metal_descriptor_generated
   Generated_provenance)
  (libraries threads)
  (foreign_archives metal_bridge_stubs)
@@ -176,6 +207,11 @@
 (test
  (name test_metal_enum_generated)
  (modules test_metal_enum_generated)
+ (libraries metal))
+
+(test
+ (name test_metal_descriptor_generated)
+ (modules test_metal_descriptor_generated)
  (libraries metal))
 
 (test

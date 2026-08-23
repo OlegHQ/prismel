@@ -1994,7 +1994,8 @@ let direct_batch_json methods properties =
 let manifest ~sdk_version ~plan_sha256 ~generator_sha256 ~inventory_sha256
     ~raw_ml_contents ~raw_mli_contents ~native_contents ~enum_selection
     ~implicit_enum_selection ~struct_output ~string_entries ~direct_methods
-    ~direct_properties ~value_record_ids ~global_string_entries entries =
+    ~direct_properties ~value_record_ids ~global_string_entries
+    ~descriptor_property_ids entries =
   pretty_json
     (`Assoc
        [ "schema", `Int 2
@@ -2057,6 +2058,14 @@ let manifest ~sdk_version ~plan_sha256 ~generator_sha256 ~inventory_sha256
              ] )
        ; ( "mechanical_direct_handle_batch"
          , direct_batch_json direct_methods direct_properties )
+       ; ( "generated_descriptor_property_batch"
+         , `Assoc
+             [ "property_count", `Int Binding_descriptor_property_plan.expected_property_count
+             ; "declaration_count", `Int (List.length descriptor_property_ids)
+             ; "safe_bound_count", `Int Binding_descriptor_property_evidence.expected_bound_count
+             ; "pending_icb_count", `Int Binding_descriptor_property_evidence.expected_pending_count
+             ; "identifiers", `List (List.map (fun id -> `String id) descriptor_property_ids)
+             ] )
        ])
 
 let generator_source_paths =
@@ -2087,6 +2096,16 @@ let generator_source_paths =
   ; "tools/metal/binding_global_string_evidence.mli"
   ; "tools/metal/binding_global_string_conformance_codegen.ml"
   ; "tools/metal/binding_global_string_conformance_codegen.mli"
+  ; "tools/metal/binding_descriptor_property_spec.ml"
+  ; "tools/metal/binding_descriptor_property_spec.mli"
+  ; "tools/metal/binding_descriptor_property_plan.ml"
+  ; "tools/metal/binding_descriptor_property_plan.mli"
+  ; "tools/metal/binding_descriptor_property_codegen.ml"
+  ; "tools/metal/binding_descriptor_property_codegen.mli"
+  ; "tools/metal/binding_descriptor_property_evidence.ml"
+  ; "tools/metal/binding_descriptor_property_evidence.mli"
+  ; "tools/metal/binding_descriptor_default_evidence.ml"
+  ; "tools/metal/binding_descriptor_default_evidence.mli"
   ; "tools/metal/binding_struct_spec.ml"
   ; "tools/metal/binding_struct_spec.mli"
   ; "tools/metal/binding_struct_plan.ml"
@@ -2148,6 +2167,10 @@ type options =
   ; output_public_global_ml : string
   ; output_public_global_mli : string
   ; output_public_global_test : string
+  ; output_public_descriptor_ml : string
+  ; output_public_descriptor_mli : string
+  ; output_public_descriptor_test : string
+  ; output_native_descriptor_test : string
   }
 
 let options () =
@@ -2173,6 +2196,10 @@ let options () =
   let output_public_global_ml = ref "" in
   let output_public_global_mli = ref "" in
   let output_public_global_test = ref "" in
+  let output_public_descriptor_ml = ref "" in
+  let output_public_descriptor_mli = ref "" in
+  let output_public_descriptor_test = ref "" in
+  let output_native_descriptor_test = ref "" in
   let set target value = target := value in
   let arguments =
     [ "--inventory", Arg.String (set inventory), "Pinned inventory JSON"
@@ -2205,6 +2232,10 @@ let options () =
     ; "--output-public-global-ml", Arg.String (set output_public_global_ml), "Generated public global-string ML"
     ; "--output-public-global-mli", Arg.String (set output_public_global_mli), "Generated public global-string MLI"
     ; "--output-public-global-test", Arg.String (set output_public_global_test), "Generated public global-string test"
+    ; "--output-public-descriptor-ml", Arg.String (set output_public_descriptor_ml), "Generated public descriptor ML"
+    ; "--output-public-descriptor-mli", Arg.String (set output_public_descriptor_mli), "Generated public descriptor MLI"
+    ; "--output-public-descriptor-test", Arg.String (set output_public_descriptor_test), "Generated public descriptor construction test"
+    ; "--output-native-descriptor-test", Arg.String (set output_native_descriptor_test), "Generated native descriptor conformance test"
     ]
   in
   Arg.parse arguments
@@ -2255,6 +2286,10 @@ let options () =
   ; output_public_global_ml = require "--output-public-global-ml" output_public_global_ml
   ; output_public_global_mli = require "--output-public-global-mli" output_public_global_mli
   ; output_public_global_test = require "--output-public-global-test" output_public_global_test
+  ; output_public_descriptor_ml = require "--output-public-descriptor-ml" output_public_descriptor_ml
+  ; output_public_descriptor_mli = require "--output-public-descriptor-mli" output_public_descriptor_mli
+  ; output_public_descriptor_test = require "--output-public-descriptor-test" output_public_descriptor_test
+  ; output_native_descriptor_test = require "--output-native-descriptor-test" output_native_descriptor_test
   }
 
 let main () =
@@ -2305,6 +2340,25 @@ let main () =
   validate_string_entries inventory string_entries;
   let global_string_entries = Binding_global_string_spec.entries in
   validate_global_string_entries inventory global_string_entries;
+  let descriptor_property_entries = Binding_descriptor_property_plan.entries in
+  let descriptor_symbols =
+    String_map.bindings inventory
+    |> List.map (fun (_, declaration) ->
+      { Binding_descriptor_property_evidence.id = declaration.identifier
+      ; kind = declaration.kind
+      ; owner = declaration.owner
+      ; name = declaration.name
+      ; header = declaration.header
+      ; signature = declaration.signature
+      ; macos_introduced =
+          Option.map Binding_availability.canonical
+            declaration.macos_introduced
+      ; attributes = declaration.attributes
+      ; classification = declaration.classification
+      })
+  in
+  Binding_descriptor_property_evidence.validate_inventory descriptor_symbols;
+  Binding_descriptor_default_evidence.validate ();
   let manual_native = read_file options.manual_native in
   let manual_raw_ml = read_file options.manual_raw_ml in
   let manual_raw_mli = read_file options.manual_raw_mli in
@@ -2329,11 +2383,16 @@ let main () =
     native_include ~header ~implicit_enum_selection ~struct_output
       ~value_record_checks:value_records.native_checks
       ~string_entries ~global_string_entries ~direct_methods entries
+    ^ "\n"
+    ^ Binding_descriptor_property_codegen.render_native_materializers
+        descriptor_property_entries
   in
   let manifest_contents =
     manifest ~sdk_version ~plan_sha256 ~generator_sha256 ~inventory_sha256
       ~raw_ml_contents ~raw_mli_contents ~native_contents ~enum_selection
       ~implicit_enum_selection ~struct_output ~string_entries ~direct_methods
+      ~descriptor_property_ids:
+        Binding_descriptor_property_evidence.promotion_ids
       ~direct_properties ~value_record_ids ~global_string_entries entries
   in
   write_file options.output_raw_ml raw_ml_contents;
@@ -2362,6 +2421,22 @@ let main () =
     (Printf.sprintf "(* %s *)\n\n%s" header
        (Binding_global_string_conformance_codegen.render_executable
           global_string_entries));
+  write_file options.output_public_descriptor_ml
+    (Printf.sprintf "(* %s *)\n\n%s" header
+       (Binding_descriptor_property_codegen.render_public_ml
+          descriptor_property_entries));
+  write_file options.output_public_descriptor_mli
+    (Printf.sprintf "(* %s *)\n\n%s" header
+       (Binding_descriptor_property_codegen.render_public_mli
+          descriptor_property_entries));
+  write_file options.output_public_descriptor_test
+    (Printf.sprintf "(* %s *)\n\n%s" header
+       (Binding_descriptor_property_codegen.render_public_tests
+          descriptor_property_entries));
+  write_file options.output_native_descriptor_test
+    (Printf.sprintf "/* %s */\n\n%s" header
+       (Binding_descriptor_property_codegen.render_native_conformance_executable
+          descriptor_property_entries));
   Printf.printf
     "generated %d checked-plan calls, %d direct calls (%d safe Device IDs), %d direct properties, %d explicit-value enum declarations, and %d implicit-value enum declarations\n%!"
     (List.length entries) (List.length direct_methods)

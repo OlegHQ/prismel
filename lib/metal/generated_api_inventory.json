@@ -1,13 +1,13 @@
 {
-  "binding_plan_source_sha256": "2c121f3be6fc006082aa55ad4161d777792b8c59898e0752fbd107360d5c8026",
+  "binding_plan_source_sha256": "daecf68f84bd7e6a087bdb9c49dbb93e9370770d03c92eb73f5c36d7e52eb098",
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 2527,
+    "bound": 2623,
     "scope-excluded": 37,
-    "unreviewed": 2721
+    "unreviewed": 2625
   },
-  "classification_source_sha256": "1f14995fb5951e7ac250fd992ba895b402b90c71d4f258fd3ce8bd669de20587",
+  "classification_source_sha256": "a410c9474157bcd43e161f6c9b6ae289e5a2e1f34fd357e6358f49623154846f",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "271bd5614a6f2ca840ce89a551c7fe0eff087fb6bd30e651d7acd230226f04a1",
@@ -38786,7 +38786,7 @@
           "line": 83
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4PipelineState.h",
       "id": "method:-[MTL4PipelineOptions setShaderValidation:]",
       "kind": "method",
@@ -38794,7 +38794,7 @@
       "macos_introduced": "26.0",
       "name": "setShaderValidation:",
       "owner": "MTL4PipelineOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (MTLShaderValidation) -> void"
     },
     {
@@ -38824,7 +38824,7 @@
           "line": 83
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4PipelineState.h",
       "id": "method:-[MTL4PipelineOptions shaderValidation]",
       "kind": "method",
@@ -38832,7 +38832,7 @@
       "macos_introduced": "26.0",
       "name": "shaderValidation",
       "owner": "MTL4PipelineOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> MTLShaderValidation"
     },
     {
@@ -40040,7 +40040,7 @@
           "line": 29
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPass.h",
       "id": "method:-[MTL4RenderPassDescriptor imageblockSampleLength]",
       "kind": "method",
@@ -40048,7 +40048,7 @@
       "macos_introduced": "26.0",
       "name": "imageblockSampleLength",
       "owner": "MTL4RenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -40078,7 +40078,7 @@
           "line": 29
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPass.h",
       "id": "method:-[MTL4RenderPassDescriptor renderTargetArrayLength]",
       "kind": "method",
@@ -40086,7 +40086,7 @@
       "macos_introduced": "26.0",
       "name": "renderTargetArrayLength",
       "owner": "MTL4RenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -40173,7 +40173,7 @@
           "line": 29
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPass.h",
       "id": "method:-[MTL4RenderPassDescriptor setImageblockSampleLength:]",
       "kind": "method",
@@ -40181,7 +40181,7 @@
       "macos_introduced": "26.0",
       "name": "setImageblockSampleLength:",
       "owner": "MTL4RenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -40211,7 +40211,7 @@
           "line": 29
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPass.h",
       "id": "method:-[MTL4RenderPassDescriptor setRenderTargetArrayLength:]",
       "kind": "method",
@@ -40219,7 +40219,7 @@
       "macos_introduced": "26.0",
       "name": "setRenderTargetArrayLength:",
       "owner": "MTL4RenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -40325,7 +40325,7 @@
           "line": 29
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPass.h",
       "id": "method:-[MTL4RenderPassDescriptor setThreadgroupMemoryLength:]",
       "kind": "method",
@@ -40333,7 +40333,7 @@
       "macos_introduced": "26.0",
       "name": "setThreadgroupMemoryLength:",
       "owner": "MTL4RenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -40344,7 +40344,7 @@
           "line": 29
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPass.h",
       "id": "method:-[MTL4RenderPassDescriptor setTileHeight:]",
       "kind": "method",
@@ -40352,7 +40352,7 @@
       "macos_introduced": "26.0",
       "name": "setTileHeight:",
       "owner": "MTL4RenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -40363,7 +40363,7 @@
           "line": 29
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPass.h",
       "id": "method:-[MTL4RenderPassDescriptor setTileWidth:]",
       "kind": "method",
@@ -40371,7 +40371,7 @@
       "macos_introduced": "26.0",
       "name": "setTileWidth:",
       "owner": "MTL4RenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -40458,7 +40458,7 @@
           "line": 29
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPass.h",
       "id": "method:-[MTL4RenderPassDescriptor threadgroupMemoryLength]",
       "kind": "method",
@@ -40466,7 +40466,7 @@
       "macos_introduced": "26.0",
       "name": "threadgroupMemoryLength",
       "owner": "MTL4RenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -40477,7 +40477,7 @@
           "line": 29
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPass.h",
       "id": "method:-[MTL4RenderPassDescriptor tileHeight]",
       "kind": "method",
@@ -40485,7 +40485,7 @@
       "macos_introduced": "26.0",
       "name": "tileHeight",
       "owner": "MTL4RenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -40496,7 +40496,7 @@
           "line": 29
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPass.h",
       "id": "method:-[MTL4RenderPassDescriptor tileWidth]",
       "kind": "method",
@@ -40504,7 +40504,7 @@
       "macos_introduced": "26.0",
       "name": "tileWidth",
       "owner": "MTL4RenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -51189,7 +51189,7 @@
           "line": 386
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLCompileOptions allowReferencingUndefinedSymbols]",
       "kind": "method",
@@ -51197,7 +51197,7 @@
       "macos_introduced": "13.3",
       "name": "allowReferencingUndefinedSymbols",
       "owner": "MTLCompileOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -51214,7 +51214,7 @@
           "line": 380
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLCompileOptions compileSymbolVisibility]",
       "kind": "method",
@@ -51222,7 +51222,7 @@
       "macos_introduced": "13.3",
       "name": "compileSymbolVisibility",
       "owner": "MTLCompileOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> MTLCompileSymbolVisibility"
     },
     {
@@ -51239,7 +51239,7 @@
           "line": 405
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLCompileOptions enableLogging]",
       "kind": "method",
@@ -51247,7 +51247,7 @@
       "macos_introduced": "15.0",
       "name": "enableLogging",
       "owner": "MTLCompileOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -51314,7 +51314,7 @@
           "line": 326
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLCompileOptions languageVersion]",
       "kind": "method",
@@ -51322,7 +51322,7 @@
       "macos_introduced": "10.11",
       "name": "languageVersion",
       "owner": "MTLCompileOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> MTLLanguageVersion"
     },
     {
@@ -51389,7 +51389,7 @@
           "line": 320
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLCompileOptions mathFloatingPointFunctions]",
       "kind": "method",
@@ -51397,7 +51397,7 @@
       "macos_introduced": "15.0",
       "name": "mathFloatingPointFunctions",
       "owner": "MTLCompileOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> MTLMathFloatingPointFunctions"
     },
     {
@@ -51414,7 +51414,7 @@
           "line": 314
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLCompileOptions mathMode]",
       "kind": "method",
@@ -51422,7 +51422,7 @@
       "macos_introduced": "15.0",
       "name": "mathMode",
       "owner": "MTLCompileOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> MTLMathMode"
     },
     {
@@ -51439,7 +51439,7 @@
           "line": 392
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLCompileOptions maxTotalThreadsPerThreadgroup]",
       "kind": "method",
@@ -51447,7 +51447,7 @@
       "macos_introduced": "13.3",
       "name": "maxTotalThreadsPerThreadgroup",
       "owner": "MTLCompileOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -51464,7 +51464,7 @@
           "line": 374
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLCompileOptions optimizationLevel]",
       "kind": "method",
@@ -51472,7 +51472,7 @@
       "macos_introduced": "13.0",
       "name": "optimizationLevel",
       "owner": "MTLCompileOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> MTLLibraryOptimizationLevel"
     },
     {
@@ -51508,7 +51508,7 @@
           "line": 368
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLCompileOptions preserveInvariance]",
       "kind": "method",
@@ -51516,7 +51516,7 @@
       "macos_introduced": "11.0",
       "name": "preserveInvariance",
       "owner": "MTLCompileOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -51558,7 +51558,7 @@
           "line": 386
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLCompileOptions setAllowReferencingUndefinedSymbols:]",
       "kind": "method",
@@ -51566,7 +51566,7 @@
       "macos_introduced": "13.3",
       "name": "setAllowReferencingUndefinedSymbols:",
       "owner": "MTLCompileOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -51583,7 +51583,7 @@
           "line": 380
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLCompileOptions setCompileSymbolVisibility:]",
       "kind": "method",
@@ -51591,7 +51591,7 @@
       "macos_introduced": "13.3",
       "name": "setCompileSymbolVisibility:",
       "owner": "MTLCompileOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (MTLCompileSymbolVisibility) -> void"
     },
     {
@@ -51608,7 +51608,7 @@
           "line": 405
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLCompileOptions setEnableLogging:]",
       "kind": "method",
@@ -51616,7 +51616,7 @@
       "macos_introduced": "15.0",
       "name": "setEnableLogging:",
       "owner": "MTLCompileOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -51683,7 +51683,7 @@
           "line": 326
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLCompileOptions setLanguageVersion:]",
       "kind": "method",
@@ -51691,7 +51691,7 @@
       "macos_introduced": "10.11",
       "name": "setLanguageVersion:",
       "owner": "MTLCompileOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (MTLLanguageVersion) -> void"
     },
     {
@@ -51758,7 +51758,7 @@
           "line": 320
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLCompileOptions setMathFloatingPointFunctions:]",
       "kind": "method",
@@ -51766,7 +51766,7 @@
       "macos_introduced": "15.0",
       "name": "setMathFloatingPointFunctions:",
       "owner": "MTLCompileOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (MTLMathFloatingPointFunctions) -> void"
     },
     {
@@ -51783,7 +51783,7 @@
           "line": 314
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLCompileOptions setMathMode:]",
       "kind": "method",
@@ -51791,7 +51791,7 @@
       "macos_introduced": "15.0",
       "name": "setMathMode:",
       "owner": "MTLCompileOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (MTLMathMode) -> void"
     },
     {
@@ -51808,7 +51808,7 @@
           "line": 392
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLCompileOptions setMaxTotalThreadsPerThreadgroup:]",
       "kind": "method",
@@ -51816,7 +51816,7 @@
       "macos_introduced": "13.3",
       "name": "setMaxTotalThreadsPerThreadgroup:",
       "owner": "MTLCompileOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -51833,7 +51833,7 @@
           "line": 374
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLCompileOptions setOptimizationLevel:]",
       "kind": "method",
@@ -51841,7 +51841,7 @@
       "macos_introduced": "13.0",
       "name": "setOptimizationLevel:",
       "owner": "MTLCompileOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (MTLLibraryOptimizationLevel) -> void"
     },
     {
@@ -51877,7 +51877,7 @@
           "line": 368
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLCompileOptions setPreserveInvariance:]",
       "kind": "method",
@@ -51885,7 +51885,7 @@
       "macos_introduced": "11.0",
       "name": "setPreserveInvariance:",
       "owner": "MTLCompileOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -53183,7 +53183,7 @@
           "line": 135
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "method:-[MTLComputePipelineDescriptor maxCallStackDepth]",
       "kind": "method",
@@ -53191,7 +53191,7 @@
       "macos_introduced": "11.0",
       "name": "maxCallStackDepth",
       "owner": "MTLComputePipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -53208,7 +53208,7 @@
           "line": 55
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "method:-[MTLComputePipelineDescriptor maxTotalThreadsPerThreadgroup]",
       "kind": "method",
@@ -53216,7 +53216,7 @@
       "macos_introduced": "10.14",
       "name": "maxTotalThreadsPerThreadgroup",
       "owner": "MTLComputePipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -53415,7 +53415,7 @@
           "line": 135
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "method:-[MTLComputePipelineDescriptor setMaxCallStackDepth:]",
       "kind": "method",
@@ -53423,7 +53423,7 @@
       "macos_introduced": "11.0",
       "name": "setMaxCallStackDepth:",
       "owner": "MTLComputePipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -53440,7 +53440,7 @@
           "line": 55
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "method:-[MTLComputePipelineDescriptor setMaxTotalThreadsPerThreadgroup:]",
       "kind": "method",
@@ -53448,7 +53448,7 @@
       "macos_introduced": "10.14",
       "name": "setMaxTotalThreadsPerThreadgroup:",
       "owner": "MTLComputePipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -53515,7 +53515,7 @@
           "line": 144
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "method:-[MTLComputePipelineDescriptor setShaderValidation:]",
       "kind": "method",
@@ -53523,7 +53523,7 @@
       "macos_introduced": "15.0",
       "name": "setShaderValidation:",
       "owner": "MTLComputePipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (MTLShaderValidation) -> void"
     },
     {
@@ -53565,7 +53565,7 @@
           "line": 127
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "method:-[MTLComputePipelineDescriptor setSupportAddingBinaryFunctions:]",
       "kind": "method",
@@ -53573,7 +53573,7 @@
       "macos_introduced": "11.0",
       "name": "setSupportAddingBinaryFunctions:",
       "owner": "MTLComputePipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -53590,7 +53590,7 @@
           "line": 73
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "method:-[MTLComputePipelineDescriptor setSupportIndirectCommandBuffers:]",
       "kind": "method",
@@ -53598,7 +53598,7 @@
       "macos_introduced": "11.0",
       "name": "setSupportIndirectCommandBuffers:",
       "owner": "MTLComputePipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -53609,7 +53609,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "method:-[MTLComputePipelineDescriptor setThreadGroupSizeIsMultipleOfThreadExecutionWidth:]",
       "kind": "method",
@@ -53617,7 +53617,7 @@
       "macos_introduced": "10.11",
       "name": "setThreadGroupSizeIsMultipleOfThreadExecutionWidth:",
       "owner": "MTLComputePipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -53634,7 +53634,7 @@
           "line": 144
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "method:-[MTLComputePipelineDescriptor shaderValidation]",
       "kind": "method",
@@ -53642,7 +53642,7 @@
       "macos_introduced": "15.0",
       "name": "shaderValidation",
       "owner": "MTLComputePipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> MTLShaderValidation"
     },
     {
@@ -53684,7 +53684,7 @@
           "line": 127
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "method:-[MTLComputePipelineDescriptor supportAddingBinaryFunctions]",
       "kind": "method",
@@ -53692,7 +53692,7 @@
       "macos_introduced": "11.0",
       "name": "supportAddingBinaryFunctions",
       "owner": "MTLComputePipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -53709,7 +53709,7 @@
           "line": 73
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "method:-[MTLComputePipelineDescriptor supportIndirectCommandBuffers]",
       "kind": "method",
@@ -53717,7 +53717,7 @@
       "macos_introduced": "11.0",
       "name": "supportIndirectCommandBuffers",
       "owner": "MTLComputePipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -53728,7 +53728,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "method:-[MTLComputePipelineDescriptor threadGroupSizeIsMultipleOfThreadExecutionWidth]",
       "kind": "method",
@@ -53736,7 +53736,7 @@
       "macos_introduced": "10.11",
       "name": "threadGroupSizeIsMultipleOfThreadExecutionWidth",
       "owner": "MTLComputePipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -60482,7 +60482,7 @@
           "line": 93
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "method:-[MTLHeapDescriptor resourceOptions]",
       "kind": "method",
@@ -60490,7 +60490,7 @@
       "macos_introduced": "10.15",
       "name": "resourceOptions",
       "owner": "MTLHeapDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> MTLResourceOptions"
     },
     {
@@ -60576,7 +60576,7 @@
           "line": 93
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "method:-[MTLHeapDescriptor setResourceOptions:]",
       "kind": "method",
@@ -60584,7 +60584,7 @@
       "macos_introduced": "10.15",
       "name": "setResourceOptions:",
       "owner": "MTLHeapDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (MTLResourceOptions) -> void"
     },
     {
@@ -70949,7 +70949,7 @@
           "line": 69
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassAttachmentDescriptor depthPlane]",
       "kind": "method",
@@ -70957,7 +70957,7 @@
       "macos_introduced": "10.11",
       "name": "depthPlane",
       "owner": "MTLRenderPassAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -70968,7 +70968,7 @@
           "line": 69
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassAttachmentDescriptor level]",
       "kind": "method",
@@ -70976,7 +70976,7 @@
       "macos_introduced": "10.11",
       "name": "level",
       "owner": "MTLRenderPassAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -71006,7 +71006,7 @@
           "line": 69
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassAttachmentDescriptor resolveDepthPlane]",
       "kind": "method",
@@ -71014,7 +71014,7 @@
       "macos_introduced": "10.11",
       "name": "resolveDepthPlane",
       "owner": "MTLRenderPassAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -71025,7 +71025,7 @@
           "line": 69
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassAttachmentDescriptor resolveLevel]",
       "kind": "method",
@@ -71033,7 +71033,7 @@
       "macos_introduced": "10.11",
       "name": "resolveLevel",
       "owner": "MTLRenderPassAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -71044,7 +71044,7 @@
           "line": 69
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassAttachmentDescriptor resolveSlice]",
       "kind": "method",
@@ -71052,7 +71052,7 @@
       "macos_introduced": "10.11",
       "name": "resolveSlice",
       "owner": "MTLRenderPassAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -71082,7 +71082,7 @@
           "line": 69
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassAttachmentDescriptor setDepthPlane:]",
       "kind": "method",
@@ -71090,7 +71090,7 @@
       "macos_introduced": "10.11",
       "name": "setDepthPlane:",
       "owner": "MTLRenderPassAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -71101,7 +71101,7 @@
           "line": 69
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassAttachmentDescriptor setLevel:]",
       "kind": "method",
@@ -71109,7 +71109,7 @@
       "macos_introduced": "10.11",
       "name": "setLevel:",
       "owner": "MTLRenderPassAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -71139,7 +71139,7 @@
           "line": 69
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassAttachmentDescriptor setResolveDepthPlane:]",
       "kind": "method",
@@ -71147,7 +71147,7 @@
       "macos_introduced": "10.11",
       "name": "setResolveDepthPlane:",
       "owner": "MTLRenderPassAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -71158,7 +71158,7 @@
           "line": 69
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassAttachmentDescriptor setResolveLevel:]",
       "kind": "method",
@@ -71166,7 +71166,7 @@
       "macos_introduced": "10.11",
       "name": "setResolveLevel:",
       "owner": "MTLRenderPassAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -71177,7 +71177,7 @@
           "line": 69
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassAttachmentDescriptor setResolveSlice:]",
       "kind": "method",
@@ -71185,7 +71185,7 @@
       "macos_introduced": "10.11",
       "name": "setResolveSlice:",
       "owner": "MTLRenderPassAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -71215,7 +71215,7 @@
           "line": 69
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassAttachmentDescriptor setSlice:]",
       "kind": "method",
@@ -71223,7 +71223,7 @@
       "macos_introduced": "10.11",
       "name": "setSlice:",
       "owner": "MTLRenderPassAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -71259,7 +71259,7 @@
           "line": 140
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassAttachmentDescriptor setStoreActionOptions:]",
       "kind": "method",
@@ -71267,7 +71267,7 @@
       "macos_introduced": "10.13",
       "name": "setStoreActionOptions:",
       "owner": "MTLRenderPassAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (MTLStoreActionOptions) -> void"
     },
     {
@@ -71297,7 +71297,7 @@
           "line": 69
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassAttachmentDescriptor slice]",
       "kind": "method",
@@ -71305,7 +71305,7 @@
       "macos_introduced": "10.11",
       "name": "slice",
       "owner": "MTLRenderPassAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -71322,7 +71322,7 @@
           "line": 140
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassAttachmentDescriptor storeActionOptions]",
       "kind": "method",
@@ -71330,7 +71330,7 @@
       "macos_introduced": "10.13",
       "name": "storeActionOptions",
       "owner": "MTLRenderPassAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> MTLStoreActionOptions"
     },
     {
@@ -71480,7 +71480,7 @@
           "line": 179
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassDepthAttachmentDescriptor depthResolveFilter]",
       "kind": "method",
@@ -71488,7 +71488,7 @@
       "macos_introduced": "10.14",
       "name": "depthResolveFilter",
       "owner": "MTLRenderPassDepthAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> MTLMultisampleDepthResolveFilter"
     },
     {
@@ -71524,7 +71524,7 @@
           "line": 179
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassDepthAttachmentDescriptor setDepthResolveFilter:]",
       "kind": "method",
@@ -71532,7 +71532,7 @@
       "macos_introduced": "10.14",
       "name": "setDepthResolveFilter:",
       "owner": "MTLRenderPassDepthAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (MTLMultisampleDepthResolveFilter) -> void"
     },
     {
@@ -72633,7 +72633,7 @@
           "line": 219
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassStencilAttachmentDescriptor setStencilResolveFilter:]",
       "kind": "method",
@@ -72641,7 +72641,7 @@
       "macos_introduced": "10.14",
       "name": "setStencilResolveFilter:",
       "owner": "MTLRenderPassStencilAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (MTLMultisampleStencilResolveFilter) -> void"
     },
     {
@@ -72658,7 +72658,7 @@
           "line": 219
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassStencilAttachmentDescriptor stencilResolveFilter]",
       "kind": "method",
@@ -72666,7 +72666,7 @@
       "macos_introduced": "10.14",
       "name": "stencilResolveFilter",
       "owner": "MTLRenderPassStencilAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> MTLMultisampleStencilResolveFilter"
     },
     {
@@ -80325,7 +80325,7 @@
           "line": 113
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTextureDescriptor resourceOptions]",
       "kind": "method",
@@ -80333,7 +80333,7 @@
       "macos_introduced": "10.11",
       "name": "resourceOptions",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance () -> MTLResourceOptions"
     },
     {
@@ -80583,7 +80583,7 @@
           "line": 113
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTextureDescriptor setResourceOptions:]",
       "kind": "method",
@@ -80591,7 +80591,7 @@
       "macos_introduced": "10.11",
       "name": "setResourceOptions:",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "instance (MTLResourceOptions) -> void"
     },
     {
@@ -86043,7 +86043,7 @@
           "line": 83
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4PipelineState.h",
       "id": "property:MTL4PipelineOptions:shaderValidation",
       "kind": "property",
@@ -86051,7 +86051,7 @@
       "macos_introduced": "26.0",
       "name": "shaderValidation",
       "owner": "MTL4PipelineOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "MTLShaderValidation"
     },
     {
@@ -86328,7 +86328,7 @@
           "line": 29
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPass.h",
       "id": "property:MTL4RenderPassDescriptor:imageblockSampleLength",
       "kind": "property",
@@ -86336,7 +86336,7 @@
       "macos_introduced": "26.0",
       "name": "imageblockSampleLength",
       "owner": "MTL4RenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -86366,7 +86366,7 @@
           "line": 29
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPass.h",
       "id": "property:MTL4RenderPassDescriptor:renderTargetArrayLength",
       "kind": "property",
@@ -86374,7 +86374,7 @@
       "macos_introduced": "26.0",
       "name": "renderTargetArrayLength",
       "owner": "MTL4RenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -86461,7 +86461,7 @@
           "line": 29
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPass.h",
       "id": "property:MTL4RenderPassDescriptor:threadgroupMemoryLength",
       "kind": "property",
@@ -86469,7 +86469,7 @@
       "macos_introduced": "26.0",
       "name": "threadgroupMemoryLength",
       "owner": "MTL4RenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -86480,7 +86480,7 @@
           "line": 29
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPass.h",
       "id": "property:MTL4RenderPassDescriptor:tileHeight",
       "kind": "property",
@@ -86488,7 +86488,7 @@
       "macos_introduced": "26.0",
       "name": "tileHeight",
       "owner": "MTL4RenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -86499,7 +86499,7 @@
           "line": 29
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPass.h",
       "id": "property:MTL4RenderPassDescriptor:tileWidth",
       "kind": "property",
@@ -86507,7 +86507,7 @@
       "macos_introduced": "26.0",
       "name": "tileWidth",
       "owner": "MTL4RenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -91023,7 +91023,7 @@
           "line": 386
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "property:MTLCompileOptions:allowReferencingUndefinedSymbols",
       "kind": "property",
@@ -91031,7 +91031,7 @@
       "macos_introduced": "13.3",
       "name": "allowReferencingUndefinedSymbols",
       "owner": "MTLCompileOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "BOOL"
     },
     {
@@ -91048,7 +91048,7 @@
           "line": 380
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "property:MTLCompileOptions:compileSymbolVisibility",
       "kind": "property",
@@ -91056,7 +91056,7 @@
       "macos_introduced": "13.3",
       "name": "compileSymbolVisibility",
       "owner": "MTLCompileOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "MTLCompileSymbolVisibility"
     },
     {
@@ -91073,7 +91073,7 @@
           "line": 405
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "property:MTLCompileOptions:enableLogging",
       "kind": "property",
@@ -91081,7 +91081,7 @@
       "macos_introduced": "15.0",
       "name": "enableLogging",
       "owner": "MTLCompileOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "BOOL"
     },
     {
@@ -91148,7 +91148,7 @@
           "line": 326
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "property:MTLCompileOptions:languageVersion",
       "kind": "property",
@@ -91156,7 +91156,7 @@
       "macos_introduced": "10.11",
       "name": "languageVersion",
       "owner": "MTLCompileOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "MTLLanguageVersion"
     },
     {
@@ -91223,7 +91223,7 @@
           "line": 320
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "property:MTLCompileOptions:mathFloatingPointFunctions",
       "kind": "property",
@@ -91231,7 +91231,7 @@
       "macos_introduced": "15.0",
       "name": "mathFloatingPointFunctions",
       "owner": "MTLCompileOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "MTLMathFloatingPointFunctions"
     },
     {
@@ -91248,7 +91248,7 @@
           "line": 314
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "property:MTLCompileOptions:mathMode",
       "kind": "property",
@@ -91256,7 +91256,7 @@
       "macos_introduced": "15.0",
       "name": "mathMode",
       "owner": "MTLCompileOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "MTLMathMode"
     },
     {
@@ -91273,7 +91273,7 @@
           "line": 392
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "property:MTLCompileOptions:maxTotalThreadsPerThreadgroup",
       "kind": "property",
@@ -91281,7 +91281,7 @@
       "macos_introduced": "13.3",
       "name": "maxTotalThreadsPerThreadgroup",
       "owner": "MTLCompileOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -91298,7 +91298,7 @@
           "line": 374
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "property:MTLCompileOptions:optimizationLevel",
       "kind": "property",
@@ -91306,7 +91306,7 @@
       "macos_introduced": "13.0",
       "name": "optimizationLevel",
       "owner": "MTLCompileOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "MTLLibraryOptimizationLevel"
     },
     {
@@ -91342,7 +91342,7 @@
           "line": 368
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "property:MTLCompileOptions:preserveInvariance",
       "kind": "property",
@@ -91350,7 +91350,7 @@
       "macos_introduced": "11.0",
       "name": "preserveInvariance",
       "owner": "MTLCompileOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "BOOL"
     },
     {
@@ -91650,7 +91650,7 @@
           "line": 135
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "property:MTLComputePipelineDescriptor:maxCallStackDepth",
       "kind": "property",
@@ -91658,7 +91658,7 @@
       "macos_introduced": "11.0",
       "name": "maxCallStackDepth",
       "owner": "MTLComputePipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -91675,7 +91675,7 @@
           "line": 55
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "property:MTLComputePipelineDescriptor:maxTotalThreadsPerThreadgroup",
       "kind": "property",
@@ -91683,7 +91683,7 @@
       "macos_introduced": "10.14",
       "name": "maxTotalThreadsPerThreadgroup",
       "owner": "MTLComputePipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -91750,7 +91750,7 @@
           "line": 144
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "property:MTLComputePipelineDescriptor:shaderValidation",
       "kind": "property",
@@ -91758,7 +91758,7 @@
       "macos_introduced": "15.0",
       "name": "shaderValidation",
       "owner": "MTLComputePipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "MTLShaderValidation"
     },
     {
@@ -91800,7 +91800,7 @@
           "line": 127
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "property:MTLComputePipelineDescriptor:supportAddingBinaryFunctions",
       "kind": "property",
@@ -91808,7 +91808,7 @@
       "macos_introduced": "11.0",
       "name": "supportAddingBinaryFunctions",
       "owner": "MTLComputePipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "BOOL"
     },
     {
@@ -91825,7 +91825,7 @@
           "line": 73
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "property:MTLComputePipelineDescriptor:supportIndirectCommandBuffers",
       "kind": "property",
@@ -91833,7 +91833,7 @@
       "macos_introduced": "11.0",
       "name": "supportIndirectCommandBuffers",
       "owner": "MTLComputePipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "BOOL"
     },
     {
@@ -91844,7 +91844,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "property:MTLComputePipelineDescriptor:threadGroupSizeIsMultipleOfThreadExecutionWidth",
       "kind": "property",
@@ -91852,7 +91852,7 @@
       "macos_introduced": "10.11",
       "name": "threadGroupSizeIsMultipleOfThreadExecutionWidth",
       "owner": "MTLComputePipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "BOOL"
     },
     {
@@ -94927,7 +94927,7 @@
           "line": 93
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLHeap.h",
       "id": "property:MTLHeapDescriptor:resourceOptions",
       "kind": "property",
@@ -94935,7 +94935,7 @@
       "macos_introduced": "10.15",
       "name": "resourceOptions",
       "owner": "MTLHeapDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "MTLResourceOptions"
     },
     {
@@ -97897,7 +97897,7 @@
           "line": 69
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "property:MTLRenderPassAttachmentDescriptor:depthPlane",
       "kind": "property",
@@ -97905,7 +97905,7 @@
       "macos_introduced": "10.11",
       "name": "depthPlane",
       "owner": "MTLRenderPassAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -97916,7 +97916,7 @@
           "line": 69
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "property:MTLRenderPassAttachmentDescriptor:level",
       "kind": "property",
@@ -97924,7 +97924,7 @@
       "macos_introduced": "10.11",
       "name": "level",
       "owner": "MTLRenderPassAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -97954,7 +97954,7 @@
           "line": 69
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "property:MTLRenderPassAttachmentDescriptor:resolveDepthPlane",
       "kind": "property",
@@ -97962,7 +97962,7 @@
       "macos_introduced": "10.11",
       "name": "resolveDepthPlane",
       "owner": "MTLRenderPassAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -97973,7 +97973,7 @@
           "line": 69
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "property:MTLRenderPassAttachmentDescriptor:resolveLevel",
       "kind": "property",
@@ -97981,7 +97981,7 @@
       "macos_introduced": "10.11",
       "name": "resolveLevel",
       "owner": "MTLRenderPassAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -97992,7 +97992,7 @@
           "line": 69
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "property:MTLRenderPassAttachmentDescriptor:resolveSlice",
       "kind": "property",
@@ -98000,7 +98000,7 @@
       "macos_introduced": "10.11",
       "name": "resolveSlice",
       "owner": "MTLRenderPassAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -98030,7 +98030,7 @@
           "line": 69
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "property:MTLRenderPassAttachmentDescriptor:slice",
       "kind": "property",
@@ -98038,7 +98038,7 @@
       "macos_introduced": "10.11",
       "name": "slice",
       "owner": "MTLRenderPassAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -98074,7 +98074,7 @@
           "line": 140
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "property:MTLRenderPassAttachmentDescriptor:storeActionOptions",
       "kind": "property",
@@ -98082,7 +98082,7 @@
       "macos_introduced": "10.13",
       "name": "storeActionOptions",
       "owner": "MTLRenderPassAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "MTLStoreActionOptions"
     },
     {
@@ -98156,7 +98156,7 @@
           "line": 179
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "property:MTLRenderPassDepthAttachmentDescriptor:depthResolveFilter",
       "kind": "property",
@@ -98164,7 +98164,7 @@
       "macos_introduced": "10.14",
       "name": "depthResolveFilter",
       "owner": "MTLRenderPassDepthAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "MTLMultisampleDepthResolveFilter"
     },
     {
@@ -98701,7 +98701,7 @@
           "line": 219
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "property:MTLRenderPassStencilAttachmentDescriptor:stencilResolveFilter",
       "kind": "property",
@@ -98709,7 +98709,7 @@
       "macos_introduced": "10.14",
       "name": "stencilResolveFilter",
       "owner": "MTLRenderPassStencilAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "MTLMultisampleStencilResolveFilter"
     },
     {
@@ -103175,7 +103175,7 @@
           "line": 113
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "property:MTLTextureDescriptor:resourceOptions",
       "kind": "property",
@@ -103183,7 +103183,7 @@
       "macos_introduced": "10.11",
       "name": "resourceOptions",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by generated immutable descriptor records with checked native materialization and exact property round-trip conformance.",
       "signature": "MTLResourceOptions"
     },
     {

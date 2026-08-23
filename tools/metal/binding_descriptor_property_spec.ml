@@ -2,6 +2,12 @@ type representation =
   | Bool
   | Nsuint
   | Enum of string
+  | Flags of string
+  | Resource_options
+
+type default =
+  | Default_bool of bool
+  | Default_int64 of int64
 
 type entry =
   { owner : string
@@ -11,19 +17,31 @@ type entry =
   ; macos_introduced : string
   ; attributes : string list
   ; representation : representation
+  ; default : default
   }
 
 let representation signature =
   match signature with
   | "BOOL" -> Bool
   | "NSUInteger" -> Nsuint
+  | "MTLIndirectCommandType" -> Flags "MTLIndirectCommandType"
+  | "MTLResourceOptions" -> Resource_options
   | value when String.length value > 3 && String.sub value 0 3 = "MTL" ->
       Enum value
   | value -> invalid_arg ("unsupported descriptor property type: " ^ value)
 
-let entry ?(attributes = []) ~owner ~name ~header ~signature ~introduced () =
+let entry ?(attributes = []) ?(default_int64 = 0L) ~owner ~name ~header
+    ~signature ~introduced () =
+  let representation = representation signature in
+  let default =
+    match representation with
+    | Bool -> Default_bool (default_int64 <> 0L)
+    | Nsuint | Enum _ | Flags _ | Resource_options ->
+        Default_int64 default_int64
+  in
   { owner; name; header; signature; macos_introduced = introduced; attributes
-  ; representation = representation signature
+  ; representation
+  ; default
   }
 
 let property_sdk_id entry = "property:" ^ entry.owner ^ ":" ^ entry.name
@@ -63,18 +81,37 @@ let snake_case value =
 let field_name entry = snake_case entry.name
 
 let enum_module value =
-  let value =
-    if String.length value >= 3 && String.sub value 0 3 = "MTL" then
-      String.sub value 3 (String.length value - 3)
-    else value
-  in
   snake_case value
 
 let ocaml_type entry =
   match entry.representation with
   | Bool -> "bool"
   | Nsuint -> "int64"
-  | Enum value -> "Metal.Enum." ^ enum_module value ^ ".t"
+  | Enum value ->
+      "Metal_enum_generated." ^ String.capitalize_ascii (enum_module value)
+      ^ ".t"
+  | Flags value ->
+      "Metal_enum_generated." ^ String.capitalize_ascii (enum_module value)
+      ^ ".t list"
+  | Resource_options -> "Resource_options.t"
+
+let default_expression entry =
+  match (entry.representation, entry.default) with
+  | Bool, Default_bool value -> string_of_bool value
+  | Nsuint, Default_int64 value -> Int64.to_string value ^ "L"
+  | Enum name, Default_int64 value ->
+      Printf.sprintf
+        "(match Metal_enum_generated.%s.of_int64 %LdL with Some value -> value | None -> invalid_arg %S)"
+        (String.capitalize_ascii (enum_module name)) value
+        ("Metal SDK default is absent from generated enum " ^ name)
+  | Flags _, Default_int64 0L -> "[]"
+  | Flags name, Default_int64 value ->
+      invalid_arg
+        (Printf.sprintf "nonzero flags default %Ld is unsupported for %s" value
+           name)
+  | Resource_options, Default_int64 value ->
+      Printf.sprintf "Resource_options.of_bits_exn %LdL" value
+  | _ -> failwith "descriptor property default/representation mismatch"
 
 let fail format =
   Printf.ksprintf (fun message -> invalid_arg ("Metal descriptor property plan: " ^ message)) format
@@ -98,5 +135,7 @@ let validate entries =
       | Bool when entry.signature = "BOOL" -> ()
       | Nsuint when entry.signature = "NSUInteger" -> ()
       | Enum value when value = entry.signature -> ()
+      | Flags value when value = entry.signature -> ()
+      | Resource_options when entry.signature = "MTLResourceOptions" -> ()
       | _ -> fail "representation/signature mismatch for %s" (property_sdk_id entry))
     entries
