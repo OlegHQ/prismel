@@ -24,6 +24,9 @@ let () =
   let encoder = get (Render_encoder.create commands ~target:texture ()) in
   get (Render_encoder.end_encoding encoder);
   get (Command_buffer.present commands drawable ());
+  let scheduled = Atomic.make 0 and completed = Atomic.make 0 in
+  get (Command_buffer.add_scheduled_handler commands (fun () -> Atomic.incr scheduled));
+  get (Command_buffer.add_completed_handler commands (fun () -> Atomic.incr completed));
   let before = get (Release_queue.stats ()) in
   expect Invalid_state (Command_buffer.present commands drawable ());
   let after = get (Release_queue.stats ()) in
@@ -32,6 +35,8 @@ let () =
   expect Parent_has_dependents (Drawable.destroy drawable);
   get (Command_buffer.commit commands);
   get (Command_buffer.wait_until_completed commands);
+  if Atomic.get scheduled <> 1 || Atomic.get completed <> 1 then
+    fail "command callback cardinality drift";
   get (Texture.destroy texture);
   get (Drawable.destroy drawable);
   get (Command_buffer.destroy commands);

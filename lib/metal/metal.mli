@@ -2393,6 +2393,8 @@ module Command_buffer : sig
   val status : t -> (status, error) result
   val present :
     t -> Drawable.t -> ?at:present_time -> unit -> (unit, error) result
+  val add_scheduled_handler : t -> (unit -> unit) -> (unit, error) result
+  val add_completed_handler : t -> (unit -> unit) -> (unit, error) result
   val commit : t -> (unit, error) result
   val wait_until_completed : t -> (unit, error) result
   val destroyed : t -> bool

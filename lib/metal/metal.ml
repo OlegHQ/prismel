@@ -13911,6 +13911,23 @@ module Command_buffer = struct
       if not(Float.is_finite time)||time<0. then error operation Invalid_argument "presentation time must be finite and nonnegative" else
       match Metal_raw.command_buffer_present_drawable value.raw drawable.raw mode time with Error m->native_error operation m|Ok()->drawable.presentation_scheduled<-true;retain_command_buffer_drawable value drawable;Ok()))
 
+  let add_handler operation scheduled (value:t) callback =
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when value.phase <> Recording ->
+          error operation Invalid_state "handlers must be registered before commit"
+      | Ok () ->
+          match Metal_raw.command_buffer_add_handler value.raw callback scheduled with
+          | Error message -> native_error operation message
+          | Ok () -> Ok ())
+
+  let add_scheduled_handler value callback =
+    add_handler "Metal.Command_buffer.add_scheduled_handler" true value callback
+
+  let add_completed_handler value callback =
+    add_handler "Metal.Command_buffer.add_completed_handler" false value callback
+
   let commit (value : t) =
     on_main "Metal.Command_buffer.commit" (fun () ->
       match ensure_live "Metal.Command_buffer.commit" value.lifetime with

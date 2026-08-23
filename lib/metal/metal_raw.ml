@@ -1380,6 +1380,7 @@ external layer_configure : handle -> int -> int -> int -> (bool*int*bool*bool*bo
 external layer_next_drawable : handle -> (handle option,string) result = "caml_prismel_metal_layer_next_drawable"
 external drawable_texture : handle -> (handle,string) result = "caml_prismel_metal_drawable_texture"
 external command_buffer_present_drawable : handle -> handle -> int -> float -> (unit,string) result = "caml_prismel_metal_command_buffer_present_drawable"
+external command_buffer_add_handler : handle -> (unit -> unit) -> bool -> (unit,string) result = "caml_prismel_metal_command_buffer_add_handler"
 external render_pass_descriptor_create : unit -> (handle,string) result = "caml_prismel_metal_render_pass_descriptor_create"
 external render_pass_descriptor_set_sizes : handle -> int -> int -> int -> int -> (unit,string) result = "caml_prismel_metal_render_pass_descriptor_set_sizes"
 external render_encoder_memory_barrier_scope : handle -> int -> int -> int -> (unit,string) result = "caml_prismel_metal_render_encoder_memory_barrier_scope"
