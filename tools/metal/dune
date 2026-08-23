@@ -35,6 +35,7 @@
   binding_presentation_evidence
   binding_presentation_adapter
   binding_presentation_manifest
+  binding_presentation_public_audit
   binding_presentation_coverage
   binding_presentation_integration
   binding_presentation_native_codegen
@@ -414,6 +415,11 @@
 (test
  (name test_binding_presentation_complete)
  (modules test_binding_presentation_complete)
+ (libraries metal_inventory_classification))
+
+(test
+ (name test_binding_presentation_public_audit)
+ (modules test_binding_presentation_public_audit)
  (libraries metal_inventory_classification))
 
 (test

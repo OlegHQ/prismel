@@ -1614,4 +1614,7 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if Binding_render_encoder_promotion.is_bound_identifier identifier then
     Bound,
       "Implemented by the owned classic render encoder, direct typed native calls, checked state/resource validation, completion retention, and real M1 conformance."
+  else if List.mem identifier Binding_presentation_public_audit.safe_reachable then
+    Bound,
+      "Implemented by owned layer/drawable/render-pass values, checked presentation state and callback lifetimes, and real M1 drawable/readback conformance."
   else Unreviewed, "Binding classification pending during Phase 2."

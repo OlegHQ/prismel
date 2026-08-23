@@ -2122,6 +2122,7 @@ let generator_source_paths =
   ; "tools/metal/binding_render_encoder_resource_plan.mli"
   ; "tools/metal/render_encoder_resource_adapter.ml"
   ; "tools/metal/render_encoder_resource_adapter.mli"
+  ; "tools/metal/binding_presentation_public_audit.ml"
   ; "tools/metal/binding_descriptor_default_evidence.ml"
   ; "tools/metal/binding_descriptor_default_evidence.mli"
   ; "tools/metal/binding_argument_reflection_plan.ml"

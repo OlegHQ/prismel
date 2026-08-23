@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 3538,
+    "bound": 3572,
     "scope-excluded": 37,
-    "unreviewed": 1710
+    "unreviewed": 1676
   },
-  "classification_source_sha256": "164a36c5e8c62d7f7264a8b777e22460cfd18a086fc97260190b628743054d6b",
+  "classification_source_sha256": "e5b3c5eeebf4227deb2efb29a3d0de1cef34c4f62234d8d7d0eca8e837e9453d",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -29788,7 +29788,7 @@
           "line": 299
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:+[MTLRenderPassDescriptor renderPassDescriptor]",
       "kind": "method",
@@ -29796,7 +29796,7 @@
       "macos_introduced": "10.11",
       "name": "renderPassDescriptor",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned layer/drawable/render-pass values, checked presentation state and callback lifetimes, and real M1 drawable/readback conformance.",
       "signature": "class () -> MTLRenderPassDescriptor * _Nonnull"
     },
     {
@@ -29980,7 +29980,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "method:-[CAMetalDrawable texture]",
       "kind": "method",
@@ -29988,7 +29988,7 @@
       "macos_introduced": null,
       "name": "texture",
       "owner": "CAMetalDrawable",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned layer/drawable/render-pass values, checked presentation state and callback lifetimes, and real M1 drawable/readback conformance.",
       "signature": "instance () -> id<MTLTexture> _Nonnull"
     },
     {
@@ -30204,7 +30204,7 @@
           "line": 52
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "method:-[CAMetalLayer nextDrawable]",
       "kind": "method",
@@ -30212,7 +30212,7 @@
       "macos_introduced": "10.11",
       "name": "nextDrawable",
       "owner": "CAMetalLayer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned layer/drawable/render-pass values, checked presentation state and callback lifetimes, and real M1 drawable/readback conformance.",
       "signature": "instance () -> id<CAMetalDrawable> _Nullable"
     },
     {
@@ -30321,7 +30321,7 @@
           "line": 153
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "method:-[CAMetalLayer setAllowsNextDrawableTimeout:]",
       "kind": "method",
@@ -30329,7 +30329,7 @@
       "macos_introduced": "10.13",
       "name": "setAllowsNextDrawableTimeout:",
       "owner": "CAMetalLayer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned layer/drawable/render-pass values, checked presentation state and callback lifetimes, and real M1 drawable/readback conformance.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -30384,7 +30384,7 @@
           "line": 52
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "method:-[CAMetalLayer setDevice:]",
       "kind": "method",
@@ -30392,7 +30392,7 @@
       "macos_introduced": "10.11",
       "name": "setDevice:",
       "owner": "CAMetalLayer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned layer/drawable/render-pass values, checked presentation state and callback lifetimes, and real M1 drawable/readback conformance.",
       "signature": "instance (id<MTLDevice> _Nullable) -> void"
     },
     {
@@ -30413,7 +30413,7 @@
           "line": 145
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "method:-[CAMetalLayer setDisplaySyncEnabled:]",
       "kind": "method",
@@ -30421,7 +30421,7 @@
       "macos_introduced": "10.13",
       "name": "setDisplaySyncEnabled:",
       "owner": "CAMetalLayer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned layer/drawable/render-pass values, checked presentation state and callback lifetimes, and real M1 drawable/readback conformance.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -30432,7 +30432,7 @@
           "line": 52
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "method:-[CAMetalLayer setDrawableSize:]",
       "kind": "method",
@@ -30440,7 +30440,7 @@
       "macos_introduced": "10.11",
       "name": "setDrawableSize:",
       "owner": "CAMetalLayer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned layer/drawable/render-pass values, checked presentation state and callback lifetimes, and real M1 drawable/readback conformance.",
       "signature": "instance (CGSize) -> void"
     },
     {
@@ -30476,7 +30476,7 @@
           "line": 52
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "method:-[CAMetalLayer setFramebufferOnly:]",
       "kind": "method",
@@ -30484,7 +30484,7 @@
       "macos_introduced": "10.11",
       "name": "setFramebufferOnly:",
       "owner": "CAMetalLayer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned layer/drawable/render-pass values, checked presentation state and callback lifetimes, and real M1 drawable/readback conformance.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -30501,7 +30501,7 @@
           "line": 109
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "method:-[CAMetalLayer setMaximumDrawableCount:]",
       "kind": "method",
@@ -30509,7 +30509,7 @@
       "macos_introduced": "10.13.2",
       "name": "setMaximumDrawableCount:",
       "owner": "CAMetalLayer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned layer/drawable/render-pass values, checked presentation state and callback lifetimes, and real M1 drawable/readback conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -30520,7 +30520,7 @@
           "line": 52
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "method:-[CAMetalLayer setPixelFormat:]",
       "kind": "method",
@@ -30528,7 +30528,7 @@
       "macos_introduced": "10.11",
       "name": "setPixelFormat:",
       "owner": "CAMetalLayer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned layer/drawable/render-pass values, checked presentation state and callback lifetimes, and real M1 drawable/readback conformance.",
       "signature": "instance (MTLPixelFormat) -> void"
     },
     {
@@ -30539,7 +30539,7 @@
           "line": 52
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "method:-[CAMetalLayer setPresentsWithTransaction:]",
       "kind": "method",
@@ -30547,7 +30547,7 @@
       "macos_introduced": "10.11",
       "name": "setPresentsWithTransaction:",
       "owner": "CAMetalLayer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned layer/drawable/render-pass values, checked presentation state and callback lifetimes, and real M1 drawable/readback conformance.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -49756,7 +49756,7 @@
           "line": 244
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "method:-[MTLCommandBuffer addCompletedHandler:]",
       "kind": "method",
@@ -49764,7 +49764,7 @@
       "macos_introduced": "10.11",
       "name": "addCompletedHandler:",
       "owner": "MTLCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned layer/drawable/render-pass values, checked presentation state and callback lifetimes, and real M1 drawable/readback conformance.",
       "signature": "instance (MTLCommandBufferHandler  _Nonnull __strong) -> void"
     },
     {
@@ -49775,7 +49775,7 @@
           "line": 244
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "method:-[MTLCommandBuffer addScheduledHandler:]",
       "kind": "method",
@@ -49783,7 +49783,7 @@
       "macos_introduced": "10.11",
       "name": "addScheduledHandler:",
       "owner": "MTLCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned layer/drawable/render-pass values, checked presentation state and callback lifetimes, and real M1 drawable/readback conformance.",
       "signature": "instance (MTLCommandBufferHandler  _Nonnull __strong) -> void"
     },
     {
@@ -50215,7 +50215,7 @@
           "line": 244
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "method:-[MTLCommandBuffer presentDrawable:]",
       "kind": "method",
@@ -50223,7 +50223,7 @@
       "macos_introduced": "10.11",
       "name": "presentDrawable:",
       "owner": "MTLCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned layer/drawable/render-pass values, checked presentation state and callback lifetimes, and real M1 drawable/readback conformance.",
       "signature": "instance (id<MTLDrawable>  _Nonnull __strong) -> void"
     },
     {
@@ -50240,7 +50240,7 @@
           "line": 336
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "method:-[MTLCommandBuffer presentDrawable:afterMinimumDuration:]",
       "kind": "method",
@@ -50248,7 +50248,7 @@
       "macos_introduced": "10.15.4",
       "name": "presentDrawable:afterMinimumDuration:",
       "owner": "MTLCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned layer/drawable/render-pass values, checked presentation state and callback lifetimes, and real M1 drawable/readback conformance.",
       "signature": "instance (id<MTLDrawable>  _Nonnull __strong, CFTimeInterval) -> void"
     },
     {
@@ -50259,7 +50259,7 @@
           "line": 244
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "method:-[MTLCommandBuffer presentDrawable:atTime:]",
       "kind": "method",
@@ -50267,7 +50267,7 @@
       "macos_introduced": "10.11",
       "name": "presentDrawable:atTime:",
       "owner": "MTLCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned layer/drawable/render-pass values, checked presentation state and callback lifetimes, and real M1 drawable/readback conformance.",
       "signature": "instance (id<MTLDrawable>  _Nonnull __strong, CFTimeInterval) -> void"
     },
     {
@@ -50303,7 +50303,7 @@
           "line": 244
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "method:-[MTLCommandBuffer renderCommandEncoderWithDescriptor:]",
       "kind": "method",
@@ -50311,7 +50311,7 @@
       "macos_introduced": "10.11",
       "name": "renderCommandEncoderWithDescriptor:",
       "owner": "MTLCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned layer/drawable/render-pass values, checked presentation state and callback lifetimes, and real M1 drawable/readback conformance.",
       "signature": "instance (MTLRenderPassDescriptor * _Nonnull __strong) -> id<MTLRenderCommandEncoder> _Nullable"
     },
     {
@@ -71787,7 +71787,7 @@
           "line": 357
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassDescriptor setDefaultRasterSampleCount:]",
       "kind": "method",
@@ -71795,7 +71795,7 @@
       "macos_introduced": "10.15",
       "name": "setDefaultRasterSampleCount:",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned layer/drawable/render-pass values, checked presentation state and callback lifetimes, and real M1 drawable/readback conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -71881,7 +71881,7 @@
           "line": 324
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassDescriptor setRenderTargetArrayLength:]",
       "kind": "method",
@@ -71889,7 +71889,7 @@
       "macos_introduced": "10.11",
       "name": "setRenderTargetArrayLength:",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned layer/drawable/render-pass values, checked presentation state and callback lifetimes, and real M1 drawable/readback conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -71906,7 +71906,7 @@
           "line": 371
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassDescriptor setRenderTargetHeight:]",
       "kind": "method",
@@ -71914,7 +71914,7 @@
       "macos_introduced": "10.15",
       "name": "setRenderTargetHeight:",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned layer/drawable/render-pass values, checked presentation state and callback lifetimes, and real M1 drawable/readback conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -71931,7 +71931,7 @@
           "line": 364
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassDescriptor setRenderTargetWidth:]",
       "kind": "method",
@@ -71939,7 +71939,7 @@
       "macos_introduced": "10.15",
       "name": "setRenderTargetWidth:",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned layer/drawable/render-pass values, checked presentation state and callback lifetimes, and real M1 drawable/readback conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -82521,7 +82521,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "property:CAMetalDrawable:texture",
       "kind": "property",
@@ -82529,7 +82529,7 @@
       "macos_introduced": null,
       "name": "texture",
       "owner": "CAMetalDrawable",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned layer/drawable/render-pass values, checked presentation state and callback lifetimes, and real M1 drawable/readback conformance.",
       "signature": "id<MTLTexture> _Nonnull"
     },
     {
@@ -82571,7 +82571,7 @@
           "line": 153
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "property:CAMetalLayer:allowsNextDrawableTimeout",
       "kind": "property",
@@ -82579,7 +82579,7 @@
       "macos_introduced": "10.13",
       "name": "allowsNextDrawableTimeout",
       "owner": "CAMetalLayer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned layer/drawable/render-pass values, checked presentation state and callback lifetimes, and real M1 drawable/readback conformance.",
       "signature": "BOOL"
     },
     {
@@ -82634,7 +82634,7 @@
           "line": 52
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "property:CAMetalLayer:device",
       "kind": "property",
@@ -82642,7 +82642,7 @@
       "macos_introduced": "10.11",
       "name": "device",
       "owner": "CAMetalLayer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned layer/drawable/render-pass values, checked presentation state and callback lifetimes, and real M1 drawable/readback conformance.",
       "signature": "id<MTLDevice> _Nullable"
     },
     {
@@ -82663,7 +82663,7 @@
           "line": 145
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "property:CAMetalLayer:displaySyncEnabled",
       "kind": "property",
@@ -82671,7 +82671,7 @@
       "macos_introduced": "10.13",
       "name": "displaySyncEnabled",
       "owner": "CAMetalLayer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned layer/drawable/render-pass values, checked presentation state and callback lifetimes, and real M1 drawable/readback conformance.",
       "signature": "BOOL"
     },
     {
@@ -82682,7 +82682,7 @@
           "line": 52
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "property:CAMetalLayer:drawableSize",
       "kind": "property",
@@ -82690,7 +82690,7 @@
       "macos_introduced": "10.11",
       "name": "drawableSize",
       "owner": "CAMetalLayer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned layer/drawable/render-pass values, checked presentation state and callback lifetimes, and real M1 drawable/readback conformance.",
       "signature": "CGSize"
     },
     {
@@ -82701,7 +82701,7 @@
           "line": 52
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "property:CAMetalLayer:framebufferOnly",
       "kind": "property",
@@ -82709,7 +82709,7 @@
       "macos_introduced": "10.11",
       "name": "framebufferOnly",
       "owner": "CAMetalLayer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned layer/drawable/render-pass values, checked presentation state and callback lifetimes, and real M1 drawable/readback conformance.",
       "signature": "BOOL"
     },
     {
@@ -82726,7 +82726,7 @@
           "line": 109
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "property:CAMetalLayer:maximumDrawableCount",
       "kind": "property",
@@ -82734,7 +82734,7 @@
       "macos_introduced": "10.13.2",
       "name": "maximumDrawableCount",
       "owner": "CAMetalLayer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned layer/drawable/render-pass values, checked presentation state and callback lifetimes, and real M1 drawable/readback conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -82745,7 +82745,7 @@
           "line": 52
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "property:CAMetalLayer:pixelFormat",
       "kind": "property",
@@ -82753,7 +82753,7 @@
       "macos_introduced": "10.11",
       "name": "pixelFormat",
       "owner": "CAMetalLayer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned layer/drawable/render-pass values, checked presentation state and callback lifetimes, and real M1 drawable/readback conformance.",
       "signature": "MTLPixelFormat"
     },
     {
@@ -82789,7 +82789,7 @@
           "line": 52
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "property:CAMetalLayer:presentsWithTransaction",
       "kind": "property",
@@ -82797,7 +82797,7 @@
       "macos_introduced": "10.11",
       "name": "presentsWithTransaction",
       "owner": "CAMetalLayer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned layer/drawable/render-pass values, checked presentation state and callback lifetimes, and real M1 drawable/readback conformance.",
       "signature": "BOOL"
     },
     {
@@ -98200,7 +98200,7 @@
           "line": 357
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "property:MTLRenderPassDescriptor:defaultRasterSampleCount",
       "kind": "property",
@@ -98208,7 +98208,7 @@
       "macos_introduced": "10.15",
       "name": "defaultRasterSampleCount",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned layer/drawable/render-pass values, checked presentation state and callback lifetimes, and real M1 drawable/readback conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -98294,7 +98294,7 @@
           "line": 324
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "property:MTLRenderPassDescriptor:renderTargetArrayLength",
       "kind": "property",
@@ -98302,7 +98302,7 @@
       "macos_introduced": "10.11",
       "name": "renderTargetArrayLength",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned layer/drawable/render-pass values, checked presentation state and callback lifetimes, and real M1 drawable/readback conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -98319,7 +98319,7 @@
           "line": 371
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "property:MTLRenderPassDescriptor:renderTargetHeight",
       "kind": "property",
@@ -98327,7 +98327,7 @@
       "macos_introduced": "10.15",
       "name": "renderTargetHeight",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned layer/drawable/render-pass values, checked presentation state and callback lifetimes, and real M1 drawable/readback conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -98344,7 +98344,7 @@
           "line": 364
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "property:MTLRenderPassDescriptor:renderTargetWidth",
       "kind": "property",
@@ -98352,7 +98352,7 @@
       "macos_introduced": "10.15",
       "name": "renderTargetWidth",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned layer/drawable/render-pass values, checked presentation state and callback lifetimes, and real M1 drawable/readback conformance.",
       "signature": "NSUInteger"
     },
     {

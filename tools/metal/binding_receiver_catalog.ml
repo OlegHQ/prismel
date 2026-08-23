@@ -146,6 +146,11 @@ let receivers =
   ; direct "MTLIntersectionFunctionTable" "id<MTLIntersectionFunctionTable>"
       "Intersection_function_table" "intersection_function_table"
   ; direct "MTLFence" "id<MTLFence>" "Fence" "fence"
+  ; direct "CAMetalLayer" "CAMetalLayer *" "Metal_layer" "metal_layer"
+  ; direct "CAMetalDrawable" "id<CAMetalDrawable>" "Metal_drawable"
+      "metal_drawable"
+  ; direct "MTLRenderPassDescriptor" "MTLRenderPassDescriptor *"
+      "Render_pass_descriptor" "render_pass_descriptor"
   ]
 
 let polymorphic_receivers =
@@ -200,10 +205,10 @@ let exclusions =
     }
   ]
 
-let expected_receiver_count = 41
+let expected_receiver_count = 44
 let expected_polymorphic_receiver_count = 3
-let expected_catalog_count = 44
-let expected_handle_kind_count = 47
+let expected_catalog_count = 47
+let expected_handle_kind_count = 50
 let expected_exclusion_count = 6
 
 let source_paths =
