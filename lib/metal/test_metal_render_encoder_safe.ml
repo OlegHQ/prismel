@@ -32,6 +32,13 @@ let () =
   in
   let sampler = get (Sampler.create ~device (Sampler.default ())) in
   let fence = get (Fence.create device) in
+  let table_library = get (Library.compile_source ~device
+    "#include <metal_stdlib>\nusing namespace metal;\nkernel void render_table_kernel(device uint *out [[buffer(0)]], uint i [[thread_position_in_grid]]) { out[i] = i; }\n") in
+  let table_function = get (Function.find ~library:table_library "render_table_kernel") in
+  let table_pipeline = get (Compute_pipeline.create table_function) in
+  let visible_table = get (Visible_function_table.create ~pipeline:table_pipeline ~capacity:2) in
+  let intersection_table = get (Intersection_function_table.create ~pipeline:table_pipeline ~capacity:2) in
+  let acceleration = get (Acceleration_structure.create ~device ~size:256L) in
   let before = get (Release_queue.stats ()) in
   let tile_width = get (Render_encoder.tile_width encoder) in
   let tile_height = get (Render_encoder.tile_height encoder) in
@@ -100,6 +107,12 @@ let () =
   expect Unsupported (Render_encoder.set_stage_texture encoder ~stage:Render_encoder.Fragment ~index:1 (Some sampled));
   get (Render_encoder.set_stage_textures encoder ~stage:Render_encoder.Fragment ~start:1 [Some sampled]);
   get (Render_encoder.set_stage_sampler encoder ~stage:Render_encoder.Tile ~index:1 (Some sampler));
+  get (Render_encoder.set_stage_samplers encoder ~stage:Render_encoder.Vertex ~start:4 [Some sampler;None]);
+  get (Render_encoder.set_stage_acceleration_structure encoder ~stage:Render_encoder.Vertex ~index:5 (Some acceleration));
+  get (Render_encoder.set_stage_visible_function_table encoder ~stage:Render_encoder.Fragment ~index:6 (Some visible_table));
+  get (Render_encoder.set_stage_intersection_function_table encoder ~stage:Render_encoder.Tile ~index:7 (Some intersection_table));
+  get (Render_encoder.set_stage_visible_function_tables encoder ~stage:Render_encoder.Vertex ~start:8 [Some visible_table;None]);
+  get (Render_encoder.set_stage_intersection_function_tables encoder ~stage:Render_encoder.Fragment ~start:10 [Some intersection_table;None]);
   get (Render_encoder.set_depth_clip_mode encoder ~clamp:false);
   get (Render_encoder.set_depth_bounds encoder ~minimum:0. ~maximum:1.);
   get (Render_encoder.set_depth_stencil_state encoder None);
@@ -122,6 +135,9 @@ let () =
   expect Parent_has_dependents (Texture.destroy sampled);
   expect Parent_has_dependents (Sampler.destroy sampler);
   expect Parent_has_dependents (Fence.destroy fence);
+  expect Parent_has_dependents (Acceleration_structure.destroy acceleration);
+  expect Parent_has_dependents (Visible_function_table.destroy visible_table);
+  expect Parent_has_dependents (Intersection_function_table.destroy intersection_table);
   get (Render_encoder.end_encoding encoder);
   expect Destroyed (Render_encoder.tile_width encoder);
   expect Destroyed (Render_encoder.set_cull_mode encoder Render_encoder.Cull_back);
@@ -130,6 +146,12 @@ let () =
   get (Texture.destroy sampled);
   get (Sampler.destroy sampler);
   get (Fence.destroy fence);
+  get (Acceleration_structure.destroy acceleration);
+  get (Intersection_function_table.destroy intersection_table);
+  get (Visible_function_table.destroy visible_table);
+  get (Compute_pipeline.destroy table_pipeline);
+  get (Function.destroy table_function);
+  get (Library.destroy table_library);
   get (Command_buffer.destroy commands);
   let depth = get (Texture.create ~device
     (Texture.descriptor_2d ~storage:Buffer.Private ~usage:[Texture.Render_target]
