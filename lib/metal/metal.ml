@@ -1385,6 +1385,9 @@ type command_resource =
   | Command_buffer_acceleration_structure of acceleration_structure
   | Command_buffer_texture of texture
   | Command_buffer_sampler of sampler
+  | Command_buffer_depth_stencil of depth_stencil
+  | Command_buffer_visible_table of visible_function_table
+  | Command_buffer_intersection_table of intersection_function_table
   | Command_buffer_render_pipeline of render_pipeline
   | Command_residency_set of residency_set
   | Command_buffer_indirect of indirect_command_buffer
@@ -1468,6 +1471,9 @@ let command_resource_lifetime = function
   | Command_buffer_acceleration_structure value -> value.lifetime
   | Command_buffer_texture texture -> texture.lifetime
   | Command_buffer_sampler sampler -> sampler.lifetime
+  | Command_buffer_depth_stencil value -> value.lifetime
+  | Command_buffer_visible_table value -> value.lifetime
+  | Command_buffer_intersection_table value -> value.lifetime
   | Command_buffer_render_pipeline pipeline -> pipeline.lifetime
   | Command_residency_set residency_set -> residency_set.lifetime
   | Command_buffer_indirect value -> value.lifetime
@@ -1494,6 +1500,8 @@ let command_resource_heap = function
   | Command_buffer_acceleration_structure _ -> None
   | Command_buffer_texture texture -> command_texture_heap texture
   | Command_buffer_sampler _ -> None
+  | Command_buffer_depth_stencil _ | Command_buffer_visible_table _
+  | Command_buffer_intersection_table _ -> None
   | Command_buffer_render_pipeline _ | Command_residency_set _
   | Command_buffer_indirect _ | Command_buffer_fence _ -> None
   | Command_buffer_heap heap -> Some heap
@@ -1697,7 +1705,8 @@ let retain_command_buffer_buffer (command_buffer : command_buffer) (buffer : buf
         | Command_buffer_acceleration_structure _ | Command_buffer_texture _ | Command_buffer_sampler _ | Command_buffer_render_pipeline _
         | Command_buffer_indirect _ -> false
         | Command_residency_set _ | Command_buffer_fence _ | Command_buffer_heap _
-        | Command_buffer_drawable _ -> false)
+        | Command_buffer_drawable _ | Command_buffer_depth_stencil _
+        | Command_buffer_visible_table _ | Command_buffer_intersection_table _ -> false)
       !(command_buffer.resources)
   in
   if not already_retained then begin
@@ -1720,7 +1729,8 @@ let retain_command_buffer_acceleration_structure
         | Command_buffer_buffer _ | Command_buffer_texture _ | Command_buffer_sampler _
         | Command_buffer_render_pipeline _ | Command_residency_set _
         | Command_buffer_indirect _ | Command_buffer_fence _ | Command_buffer_heap _
-        | Command_buffer_drawable _ -> false)
+        | Command_buffer_drawable _ | Command_buffer_depth_stencil _
+        | Command_buffer_visible_table _ | Command_buffer_intersection_table _ -> false)
       !(command_buffer.resources)
   in
   if not already_retained then begin
@@ -1739,7 +1749,8 @@ let retain_command_buffer_texture (command_buffer : command_buffer)
         | Command_buffer_buffer _ | Command_buffer_acceleration_structure _ | Command_buffer_sampler _ | Command_buffer_render_pipeline _
         | Command_residency_set _
         | Command_buffer_indirect _ | Command_buffer_fence _ | Command_buffer_heap _
-        | Command_buffer_drawable _ -> false)
+        | Command_buffer_drawable _ | Command_buffer_depth_stencil _
+        | Command_buffer_visible_table _ | Command_buffer_intersection_table _ -> false)
       !(command_buffer.resources)
   in
   if not already_retained then begin
@@ -1760,6 +1771,19 @@ let retain_command_buffer_sampler (command_buffer : command_buffer)
       Command_buffer_sampler sampler :: !(command_buffer.resources)
   end
 
+let retain_command_buffer_depth_stencil command_buffer (value:depth_stencil) =
+  if not(List.exists(function Command_buffer_depth_stencil x->x.lifetime==value.lifetime|_->false)!(command_buffer.resources))then begin
+    attach value.lifetime; command_buffer.resources:=Command_buffer_depth_stencil value::!(command_buffer.resources)
+  end
+let retain_command_buffer_visible_table command_buffer (value:visible_function_table) =
+  if not(List.exists(function Command_buffer_visible_table x->x.lifetime==value.lifetime|_->false)!(command_buffer.resources))then begin
+    attach value.lifetime; command_buffer.resources:=Command_buffer_visible_table value::!(command_buffer.resources)
+  end
+let retain_command_buffer_intersection_table command_buffer (value:intersection_function_table) =
+  if not(List.exists(function Command_buffer_intersection_table x->x.lifetime==value.lifetime|_->false)!(command_buffer.resources))then begin
+    attach value.lifetime; command_buffer.resources:=Command_buffer_intersection_table value::!(command_buffer.resources)
+  end
+
 let retain_command_buffer_residency_set (command_buffer : command_buffer)
     (residency_set : residency_set) =
   let already_retained =
@@ -1771,7 +1795,8 @@ let retain_command_buffer_residency_set (command_buffer : command_buffer)
         | Command_buffer_sampler _
         | Command_buffer_render_pipeline _
         | Command_buffer_indirect _ | Command_buffer_fence _ | Command_buffer_heap _
-        | Command_buffer_drawable _ -> false)
+        | Command_buffer_drawable _ | Command_buffer_depth_stencil _
+        | Command_buffer_visible_table _ | Command_buffer_intersection_table _ -> false)
       !(command_buffer.resources)
   in
   if not already_retained then begin
@@ -1790,7 +1815,8 @@ let retain_command_buffer_indirect (command_buffer : command_buffer)
         | Command_buffer_sampler _
         | Command_buffer_render_pipeline _
         | Command_residency_set _ | Command_buffer_fence _ | Command_buffer_heap _
-        | Command_buffer_drawable _ -> false)
+        | Command_buffer_drawable _ | Command_buffer_depth_stencil _
+        | Command_buffer_visible_table _ | Command_buffer_intersection_table _ -> false)
       !(command_buffer.resources)
   in
   if not already_retained then begin
@@ -1811,7 +1837,8 @@ let retain_command_buffer_render_pipeline (command_buffer : command_buffer)
            | Command_buffer_sampler _
            | Command_residency_set _ | Command_buffer_indirect _
            | Command_buffer_fence _ | Command_buffer_heap _
-           | Command_buffer_drawable _ -> false)
+           | Command_buffer_drawable _ | Command_buffer_depth_stencil _
+           | Command_buffer_visible_table _ | Command_buffer_intersection_table _ -> false)
          !(command_buffer.resources))
   then begin
     attach pipeline.lifetime;
@@ -13994,7 +14021,8 @@ module Command_buffer = struct
         | Command_buffer_texture _ | Command_buffer_sampler _
         | Command_buffer_render_pipeline _ | Command_buffer_indirect _
         | Command_buffer_fence _ | Command_buffer_heap _
-        | Command_buffer_drawable _ -> false)
+        | Command_buffer_drawable _ | Command_buffer_depth_stencil _
+        | Command_buffer_visible_table _ | Command_buffer_intersection_table _ -> false)
       !(value.resources)
 
   let use operation ~bulk (value : t) residency_sets =
@@ -14951,6 +14979,38 @@ module Render_encoder = struct
           | Error m->native_error operation m|Ok()->retain_command_buffer_sampler value.command_buffer s;Ok()))
       | None->if has_lod then error operation Invalid_argument "nil sampler cannot have LOD clamps" else
           match Metal_raw.render_stage_sampler value.raw(binding_stage_code stage)None false clamps(Int64.of_int index)with Error m->native_error operation m|Ok()->Ok()))
+
+  let validate_table_stage operation stage index =
+    if stage=Object||stage=Mesh then error operation Unsupported "binding is supported only for vertex, fragment, and tile stages"
+    else if index<0||index>=31 then error operation Invalid_argument "binding index must be in [0,31)" else Ok()
+  let set_stage_acceleration_structure (value:t) ~stage ~index (item:Acceleration_structure.t option) =
+    let operation="Metal.Render_encoder.set_stage_acceleration_structure" in on_main operation(fun()->
+    match ensure_live operation value.lifetime with Error _ as e->e|Ok()->Result.bind(validate_table_stage operation stage index)(fun()->
+    match item with
+    | Some x->Result.bind(ensure_live operation x.lifetime)(fun()->Result.bind(ensure_same_device operation value.command_buffer.queue.device x.device)(fun()->
+        match Metal_raw.render_stage_acceleration value.raw(binding_stage_code stage)(Some x.raw)(Int64.of_int index)with Error m->native_error operation m|Ok()->retain_command_buffer_acceleration_structure value.command_buffer x;Ok()))
+    | None->match Metal_raw.render_stage_acceleration value.raw(binding_stage_code stage)None(Int64.of_int index)with Error m->native_error operation m|Ok()->Ok()))
+  let set_stage_visible_function_table (value:t) ~stage ~index (item:Visible_function_table.t option) =
+    let operation="Metal.Render_encoder.set_stage_visible_function_table" in on_main operation(fun()->
+    match ensure_live operation value.lifetime with Error _ as e->e|Ok()->Result.bind(validate_table_stage operation stage index)(fun()->
+    match item with
+    | Some x->Result.bind(ensure_live operation x.lifetime)(fun()->Result.bind(ensure_same_device operation value.command_buffer.queue.device x.pipeline.device)(fun()->
+        match Metal_raw.render_stage_visible value.raw(binding_stage_code stage)(Some x.raw)(Int64.of_int index)with Error m->native_error operation m|Ok()->retain_command_buffer_visible_table value.command_buffer x;Ok()))
+    | None->match Metal_raw.render_stage_visible value.raw(binding_stage_code stage)None(Int64.of_int index)with Error m->native_error operation m|Ok()->Ok()))
+  let set_stage_intersection_function_table (value:t) ~stage ~index (item:Intersection_function_table.t option) =
+    let operation="Metal.Render_encoder.set_stage_intersection_function_table" in on_main operation(fun()->
+    match ensure_live operation value.lifetime with Error _ as e->e|Ok()->Result.bind(validate_table_stage operation stage index)(fun()->
+    match item with
+    | Some x->Result.bind(ensure_live operation x.lifetime)(fun()->Result.bind(ensure_same_device operation value.command_buffer.queue.device x.pipeline.device)(fun()->
+        match Metal_raw.render_stage_intersection value.raw(binding_stage_code stage)(Some x.raw)(Int64.of_int index)with Error m->native_error operation m|Ok()->retain_command_buffer_intersection_table value.command_buffer x;Ok()))
+    | None->match Metal_raw.render_stage_intersection value.raw(binding_stage_code stage)None(Int64.of_int index)with Error m->native_error operation m|Ok()->Ok()))
+
+  let set_depth_stencil_state (value:t) (state:Depth_stencil.t option) =
+    let operation="Metal.Render_encoder.set_depth_stencil_state" in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->
+    match state with
+    | Some x->Result.bind(ensure_live operation x.lifetime)(fun()->Result.bind(ensure_same_device operation value.command_buffer.queue.device x.device)(fun()->
+        match Metal_raw.render_depth_stencil value.raw(Some x.raw)with Error m->native_error operation m|Ok()->retain_command_buffer_depth_stencil value.command_buffer x;Ok()))
+    | None->match Metal_raw.render_depth_stencil value.raw None with Error m->native_error operation m|Ok()->Ok())
 
   let set_stage_bytes (value : t) ~stage ~index bytes =
     let operation="Metal.Render_encoder.set_stage_bytes" in

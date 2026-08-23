@@ -56,6 +56,7 @@ let () =
   expect Invalid_argument (Render_encoder.set_tessellation_factor_scale encoder nan);
   expect Invalid_argument (Render_encoder.set_tessellation_factor_buffer encoder ~offset:1L ~instance_stride:0L ());
   expect Invalid_argument (Render_encoder.set_stage_buffer encoder ~stage:Render_encoder.Mesh ~index:0 ~offset:1L None);
+  expect Unsupported (Render_encoder.set_stage_acceleration_structure encoder ~stage:Render_encoder.Mesh ~index:0 None);
   expect Invalid_argument
     (Render_encoder.set_fragment_sampler encoder ~index:0 ~lod_min:2. ~lod_max:1. sampler);
   expect Invalid_argument
@@ -99,6 +100,7 @@ let () =
   get (Render_encoder.set_stage_sampler encoder ~stage:Render_encoder.Tile ~index:1 (Some sampler));
   get (Render_encoder.set_depth_clip_mode encoder ~clamp:false);
   get (Render_encoder.set_depth_bounds encoder ~minimum:0. ~maximum:1.);
+  get (Render_encoder.set_depth_stencil_state encoder None);
   get (Render_encoder.set_viewports encoder [{x=0.;y=0.;width=8.;height=8.;znear=0.;zfar=1.}]);
   get (Render_encoder.set_scissors encoder [{x=0;y=0;width=8;height=8}]);
   get (Render_encoder.set_tessellation_factor_scale encoder 1.);
