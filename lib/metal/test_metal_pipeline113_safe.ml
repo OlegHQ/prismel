@@ -15,6 +15,7 @@ vertex Vertex_out pipeline113_vertex(uint id [[vertex_id]]) {
   float2 p[3] = { float2(-1.0), float2(3.0, -1.0), float2(-1.0, 3.0) };
   return { float4(p[id], 0.0, 1.0) };
 }
+fragment float4 pipeline113_fragment() { return float4(0.25, 0.5, 0.75, 1.0); }
 kernel void pipeline113_compute(device uint *out [[buffer(0)]]) { out[0] = 113; }
 |}
 
@@ -78,12 +79,15 @@ let () =
       in
       let compiler=get(Compiler.create device)in
       let specialization_source=get(Compiler.create_render_pipeline compiler
-        ~library~vertex:"pipeline113_vertex"~color_formats:[Texture.Bgra8_unorm])in
+        ~library~vertex:"pipeline113_vertex"~fragment:"pipeline113_fragment"
+        ~color_formats:[Texture.Bgra8_unorm])in
       let specialized=get(Compiler.specialize_render_pipeline compiler
         ~source:specialization_source~library~vertex:"pipeline113_vertex"
+        ~fragment:"pipeline113_fragment"
         ~color_format:Texture.Bgra8_unorm())in
       let specialized_task=get(Compiler.specialize_render_pipeline_async compiler
         ~source:specialization_source~library~vertex:"pipeline113_vertex"
+        ~fragment:"pipeline113_fragment"
         ~color_format:Texture.Bgra8_unorm())in
       get(Compiler_task.wait specialized_task);
       let specialized_async=match get(Compiler_task.poll specialized_task)with
@@ -95,7 +99,8 @@ let () =
       let archived_compute_source=get(Compiler.create_compute_pipeline archive_compiler
         ~library "pipeline113_compute")in
       let archived_render_source=get(Compiler.create_render_pipeline archive_compiler
-        ~library~vertex:"pipeline113_vertex"~color_formats:[Texture.Bgra8_unorm])in
+        ~library~vertex:"pipeline113_vertex"~fragment:"pipeline113_fragment"
+        ~color_formats:[Texture.Bgra8_unorm])in
       let archive_path=Filename.temp_file"metal-pipeline113-"".metallib"in
       Sys.remove archive_path;
       get(Pipeline_dataset.serialize_archive dataset archive_path);
@@ -103,7 +108,8 @@ let () =
       let archived_compute=get(Pipeline_archive.compile_compute archive~library
         "pipeline113_compute")in
       let archived_render=get(Pipeline_archive.compile_render archive~library
-        ~vertex:"pipeline113_vertex"~color_format:Texture.Bgra8_unorm())in
+        ~vertex:"pipeline113_vertex"~fragment:"pipeline113_fragment"
+        ~color_format:Texture.Bgra8_unorm())in
       if Render_pipeline.kind render_pipeline <> Render_pipeline.Render then
         failwith "render pipeline kind changed";
       get (Pipeline_descriptor.Render.reset render);
