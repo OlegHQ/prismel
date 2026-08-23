@@ -1500,7 +1500,37 @@ let name = function
   | Scope_excluded -> "scope-excluded"
   | Unreviewed -> "unreviewed"
 
-let classify ~unavailable ~identifier =
+let acceleration_owners =
+  [ "MTL4AccelerationStructureBoundingBoxGeometryDescriptor"; "MTL4AccelerationStructureCurveGeometryDescriptor"
+  ; "MTL4AccelerationStructureGeometryDescriptor"; "MTL4AccelerationStructureMotionBoundingBoxGeometryDescriptor"
+  ; "MTL4AccelerationStructureMotionCurveGeometryDescriptor"; "MTL4AccelerationStructureMotionTriangleGeometryDescriptor"
+  ; "MTL4AccelerationStructureTriangleGeometryDescriptor"; "MTL4IndirectInstanceAccelerationStructureDescriptor"
+  ; "MTL4InstanceAccelerationStructureDescriptor"; "MTL4PrimitiveAccelerationStructureDescriptor"
+  ; "MTLAccelerationStructure"; "MTLAccelerationStructureBoundingBoxGeometryDescriptor"
+  ; "MTLAccelerationStructureCurveGeometryDescriptor"; "MTLAccelerationStructureDescriptor"
+  ; "MTLAccelerationStructureGeometryDescriptor"; "MTLAccelerationStructureMotionBoundingBoxGeometryDescriptor"
+  ; "MTLAccelerationStructureMotionCurveGeometryDescriptor"; "MTLAccelerationStructureMotionTriangleGeometryDescriptor"
+  ; "MTLAccelerationStructureTriangleGeometryDescriptor"; "MTLIndirectInstanceAccelerationStructureDescriptor"
+  ; "MTLInstanceAccelerationStructureDescriptor"; "MTLMotionKeyframeData"
+  ; "MTLPrimitiveAccelerationStructureDescriptor" ]
+
+let acceleration_scalar_signature signature =
+  List.exists (fun scalar ->
+    signature = scalar || signature = "instance () -> " ^ scalar
+    || signature = "instance (" ^ scalar ^ ") -> void")
+    ([ "BOOL"; "float"; "NSUInteger" ] @ Binding_acceleration_scalar_plan.enums)
+
+let acceleration_scalar_identifier ~header ~kind ~signature identifier =
+  (header = "Metal/MTLAccelerationStructure.h"
+   || header = "Metal/MTL4AccelerationStructure.h")
+  && (kind = "property" || kind = "method")
+  && acceleration_scalar_signature signature
+  && List.exists (fun owner ->
+       String.starts_with ~prefix:("property:" ^ owner ^ ":") identifier
+       || String.starts_with ~prefix:("method:-[" ^ owner ^ " ") identifier)
+       acceleration_owners
+
+let classify ~unavailable ~identifier ~header ~kind ~signature =
   if unavailable then
     Scope_excluded, "Clang marks this declaration unavailable for macOS."
   else if String_set.mem identifier scope_excluded_identifier_set then
@@ -1510,6 +1540,9 @@ let classify ~unavailable ~identifier =
     , "Implemented with an Apple9/M3+ capability gate; the Apple7/M1 Metal 4 driver crashes while serializing this asynchronous dynamic-link request." )
   else if String_set.mem identifier bound_identifier_set then
     Bound, "Implemented by the ownership-aware prismel.metal safe layer."
+  else if acceleration_scalar_identifier ~header ~kind ~signature identifier then
+    Bound,
+      "Implemented by generated immutable acceleration-structure descriptor values with native execute-or-capability-reject conformance."
   else if generated_public_enum_identifier identifier then
     Bound, "Implemented by the generated, typed prismel.metal pure-value enum surface."
   else if Binding_value_record_evidence.is_bound_identifier identifier then

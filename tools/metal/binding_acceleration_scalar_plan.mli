@@ -15,4 +15,5 @@ val expected_getter_count : int
 val expected_setter_count : int
 val expected_identifier_count : int
 val expected_owner_count : int
+val enums : string list
 val source_paths : string list

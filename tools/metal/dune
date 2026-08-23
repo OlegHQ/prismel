@@ -29,6 +29,9 @@
   binding_argument_reflection_plan
   binding_argument_reflection_codegen
   binding_argument_reflection_evidence
+  binding_acceleration_scalar_plan
+  binding_acceleration_scalar_codegen
+  binding_acceleration_scalar_evidence
   binding_availability
   binding_availability_ast
   binding_receiver_catalog
@@ -137,6 +140,12 @@
   binding_argument_reflection_codegen.mli
   binding_argument_reflection_evidence.ml
   binding_argument_reflection_evidence.mli
+  binding_acceleration_scalar_plan.ml
+  binding_acceleration_scalar_plan.mli
+  binding_acceleration_scalar_codegen.ml
+  binding_acceleration_scalar_codegen.mli
+  binding_acceleration_scalar_evidence.ml
+  binding_acceleration_scalar_evidence.mli
   binding_plan.ml
   binding_plan.mli
   binding_plan_render.ml
@@ -253,6 +262,13 @@
   (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (name test_binding_acceleration_scalar)
+ (modules test_binding_acceleration_scalar)
+ (libraries metal_inventory_classification yojson)
+ (deps ../../lib/metal/generated_api_inventory.json)
+ (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
+
+(test
  (name test_binding_direct_plan)
  (modules test_binding_direct_plan)
  (libraries
@@ -347,6 +363,8 @@
   binding_direct_plan.mli
   binding_argument_reflection_plan.ml
   binding_argument_reflection_plan.mli
+  binding_acceleration_scalar_plan.ml
+  binding_acceleration_scalar_plan.mli
   binding_plan.ml
   binding_plan.mli
   binding_plan_render.ml

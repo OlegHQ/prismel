@@ -28,8 +28,8 @@ macOS are `scope-excluded`; remaining declarations stay `unreviewed` until the
 corresponding Phase 2 slice lands. M1 is not green until the generated inventory
 contains no unreviewed in-scope declaration.
 
-The schema-2 pinned inventory contains 5,286 declarations: 2,792 `bound`, one
-`availability-gated`, 37 `scope-excluded`, and 2,456 `unreviewed`.
+The schema-2 pinned inventory contains 5,286 declarations: 3,322 `bound`, one
+`availability-gated`, 37 `scope-excluded`, and 1,926 `unreviewed`.
 
 Binding generation is a hybrid OCaml/Dune architecture. The declarative binding
 plan is keyed by identifiers from that pinned inventory and repeats the expected
@@ -52,6 +52,18 @@ and injected-failure tests require zero native-handle delta. A real M1 pipeline
 fixture validates buffer-pointer, structure, member lookup, and array ownership
 behavior. The plan rejects owner, selector, signature, availability,
 classification, or header-closure drift.
+
+Acceleration-structure scalar descriptor state is generated as one 419-ID M7
+batch across 23 legacy and Metal 4 owners: 140 immutable public record fields,
+140 typed getters, and 139 typed setters. Constructors reject negative
+`NSUInteger` representations before the native boundary. Generated direct
+Objective-C accessors retain exact SDK types and per-selector availability.
+The M1 conformance lane reaches real sizing for triangle, bounding-box, curve,
+all three motion geometries, primitive, direct-instance, and indirect-instance
+graphs, and executes triangle build, refit, and copy. Its ten Apple9-dependent
+Metal 4 owner lanes reject before descriptor/resource allocation; those execute
+on the M3+ lane. Buffer, array, label, and resource-ID properties are excluded
+from this scalar batch and remain separately ownership-reviewed.
 
 Clang's JSON availability attributes identify source expansions rather than
 carrying a directly reusable introduced-version payload. The OCaml inventory
@@ -221,7 +233,7 @@ only a successful native setter updates the ledger.
 
 The compute static getter closure and safe compute setter move exactly three
 declarations from `unreviewed` to `bound`. The current schema-2 inventory has
-2,792 `bound`, one `availability-gated`, 37 `scope-excluded`, and 2,456
+3,322 `bound`, one `availability-gated`, 37 `scope-excluded`, and 1,926
 `unreviewed`. The compute getter and setter allocate no native handles. The
 imageblock and render
 threadgroup-memory setters above remain raw-only and do not count as bound.

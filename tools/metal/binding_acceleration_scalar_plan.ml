@@ -37,7 +37,8 @@ let select declarations =
     |> List.filter_map (fun property ->
       match property.kind, property.owner, representation property.signature with
       | "property", Some owner, Some representation
-        when property.classification = "unreviewed" && List.mem property.header headers ->
+        when (property.classification = "unreviewed" || property.classification = "bound")
+             && List.mem property.header headers ->
           let getter_name = if property.name = "active" then "isActive" else property.name in
           let getter_id = "method:-[" ^ owner ^ " " ^ getter_name ^ "]" in
           let setter_id = "method:-[" ^ owner ^ " set" ^ capitalize property.name ^ ":]" in

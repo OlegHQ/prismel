@@ -2124,6 +2124,12 @@ let generator_source_paths =
   ; "tools/metal/binding_argument_reflection_codegen.mli"
   ; "tools/metal/binding_argument_reflection_evidence.ml"
   ; "tools/metal/binding_argument_reflection_evidence.mli"
+  ; "tools/metal/binding_acceleration_scalar_plan.ml"
+  ; "tools/metal/binding_acceleration_scalar_plan.mli"
+  ; "tools/metal/binding_acceleration_scalar_codegen.ml"
+  ; "tools/metal/binding_acceleration_scalar_codegen.mli"
+  ; "tools/metal/binding_acceleration_scalar_evidence.ml"
+  ; "tools/metal/binding_acceleration_scalar_evidence.mli"
   ; "tools/metal/binding_struct_spec.ml"
   ; "tools/metal/binding_struct_spec.mli"
   ; "tools/metal/binding_struct_plan.ml"
@@ -2412,6 +2418,19 @@ let main () =
       })
   in
   Binding_argument_reflection_evidence.validate_inventory reflection_symbols;
+  let acceleration_declarations =
+    String_map.bindings inventory
+    |> List.map (fun (_, declaration) ->
+      { Binding_acceleration_scalar_plan.id = declaration.identifier
+      ; kind = declaration.kind; owner = declaration.owner; name = declaration.name
+      ; header = declaration.header; signature = declaration.signature
+      ; macos_introduced = Option.map Binding_availability.canonical declaration.macos_introduced
+      ; classification = declaration.classification })
+  in
+  let acceleration_selection =
+    Binding_acceleration_scalar_plan.select acceleration_declarations
+  in
+  Binding_acceleration_scalar_evidence.validate acceleration_selection;
   let manual_native = read_file options.manual_native in
   let manual_raw_ml = read_file options.manual_raw_ml in
   let manual_raw_mli = read_file options.manual_raw_mli in
@@ -2441,6 +2460,8 @@ let main () =
         descriptor_property_entries
     ^ "\n"
     ^ Binding_argument_reflection_codegen.render_snapshot_ownership_helpers ()
+    ^ "\n"
+    ^ Binding_acceleration_scalar_codegen.render_native acceleration_selection
   in
   let manifest_contents =
     manifest ~sdk_version ~plan_sha256 ~generator_sha256 ~inventory_sha256
@@ -2480,15 +2501,24 @@ let main () =
   write_file options.output_public_descriptor_ml
     (Printf.sprintf "(* %s *)\n\n%s" header
        (Binding_descriptor_property_codegen.render_public_ml
-          descriptor_property_entries));
+          descriptor_property_entries
+        ^ "\n"
+        ^ Binding_acceleration_scalar_codegen.render_safe_ml
+            acceleration_selection));
   write_file options.output_public_descriptor_mli
     (Printf.sprintf "(* %s *)\n\n%s" header
        (Binding_descriptor_property_codegen.render_public_mli
-          descriptor_property_entries));
+          descriptor_property_entries
+        ^ "\n"
+        ^ Binding_acceleration_scalar_codegen.render_safe_mli
+            acceleration_selection));
   write_file options.output_public_descriptor_test
     (Printf.sprintf "(* %s *)\n\n%s" header
        (Binding_descriptor_property_codegen.render_public_tests
-          descriptor_property_entries));
+          descriptor_property_entries
+        ^ "\n"
+        ^ Binding_acceleration_scalar_codegen.render_unsupported_test
+            acceleration_selection));
   write_file options.output_native_descriptor_test
     (Printf.sprintf "/* %s */\n\n%s" header
        (Binding_descriptor_property_codegen.render_native_conformance_executable

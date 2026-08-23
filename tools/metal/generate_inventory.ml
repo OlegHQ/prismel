@@ -399,6 +399,8 @@ let classify_declaration declaration =
   in
   let classification, reason =
     Classification.classify ~unavailable ~identifier:declaration.identifier
+      ~header:declaration.header ~kind:declaration.kind
+      ~signature:declaration.signature
   in
   { declaration with classification; reason }
 
@@ -676,7 +678,8 @@ let rec collect headers declarations alias_families ?owner ?header
          in
          let identifier = Option.get declaration_identifier in
          let classification, reason =
-           Classification.classify ~unavailable ~identifier
+           Classification.classify ~unavailable ~identifier ~header
+             ~kind:(Option.get (declaration_kind ast_kind)) ~signature
          in
          add_declaration declarations
            { identifier

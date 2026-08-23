@@ -5,5 +5,6 @@ type t =
   | Unreviewed
 
 val bound_identifiers : string list
-val classify : unavailable:bool -> identifier:string -> t * string
+val classify : unavailable:bool -> identifier:string -> header:string ->
+  kind:string -> signature:string -> t * string
 val name : t -> string
