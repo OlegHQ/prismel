@@ -1066,6 +1066,80 @@ module Compute_pipeline : sig
   val destroy : t -> (unit, error) result
 end
 
+module Pipeline_dataset : sig
+  type t
+
+  type capture =
+    | Descriptors
+    | Binaries
+
+  (** Creates a Metal 4 dataset serializer. At least one unique capture mode
+      is required. *)
+  val create : device:Device.t -> capture list -> (t, error) result
+  val captures : t -> capture list
+
+  (** Returns the captured pipeline script as opaque bytes. Descriptor capture
+      must have been enabled. *)
+  val serialize_script : t -> (bytes, error) result
+
+  (** Serializes captured binaries to an absolute archive path and flushes the
+      serializer's current binary dataset. *)
+  val serialize_archive : t -> string -> (unit, error) result
+
+  val device : t -> Device.t
+  val generation : t -> int64
+  val destroyed : t -> bool
+  val destroy : t -> (unit, error) result
+end
+
+module Pipeline_archive : sig
+  type t
+
+  (** Loads a read-only Metal 4 archive from an absolute path. *)
+  val load_file :
+    ?label:string -> device:Device.t -> string -> (t, error) result
+
+  val device : t -> Device.t
+  val generation : t -> int64
+  val destroyed : t -> bool
+  val label : t -> (string option, error) result
+  val destroy : t -> (unit, error) result
+end
+
+module Compiler : sig
+  type t
+
+  (** Creates a synchronous Metal 4 compiler. A supplied pipeline dataset is
+      retained by the compiler until compiler destruction. *)
+  val create :
+    ?label:string -> ?dataset:Pipeline_dataset.t -> Device.t ->
+    (t, error) result
+
+  (** Compiles runtime MSL through [MTL4Compiler]. [name] is the Metal 4
+      library descriptor name and is included in compilation diagnostics. *)
+  val compile_source :
+    ?name:string -> t -> string -> (Library.t, error) result
+
+  val create_compute_pipeline :
+    ?label:string -> ?reflection:bool ->
+    ?threadgroup_size_multiple:bool ->
+    ?max_total_threads_per_threadgroup:int ->
+    ?required_threads_per_threadgroup:(int * int * int) ->
+    ?support_binary_linking:bool ->
+    ?support_indirect_command_buffers:bool ->
+    ?preloaded_libraries:Dynamic_library.t list ->
+    ?max_call_stack_depth:int ->
+    ?lookup_archives:Pipeline_archive.t list -> t -> library:Library.t ->
+    string -> (Compute_pipeline.t, error) result
+
+  val device : t -> Device.t
+  val generation : t -> int64
+  val dataset : t -> Pipeline_dataset.t option
+  val destroyed : t -> bool
+  val label : t -> (string option, error) result
+  val destroy : t -> (unit, error) result
+end
+
 module Command_queue : sig
   type t
 

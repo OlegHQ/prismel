@@ -69,6 +69,24 @@ type compute_pipeline_descriptor =
   ; fail_on_binary_archive_miss : bool
   }
 
+(** Positional native ABI record for synchronous Metal 4 compute compilation. *)
+type metal4_compute_descriptor =
+  { label : string option
+  ; library : handle
+  ; function_name : string
+  ; reflection : bool
+  ; threadgroup_size_multiple : bool
+  ; max_total_threads : int64
+  ; required_threads_width : int64
+  ; required_threads_height : int64
+  ; required_threads_depth : int64
+  ; support_binary_linking : bool
+  ; support_indirect_commands : bool
+  ; preloaded_libraries : handle array
+  ; max_call_stack_depth : int64
+  ; lookup_archives : handle array
+  }
+
 external is_main_thread : unit -> bool = "caml_prismel_metal_is_main_thread"
 external generation : handle -> int64 = "caml_prismel_metal_generation"
 external destroyed : handle -> bool = "caml_prismel_metal_destroyed"
@@ -514,6 +532,41 @@ external binary_archive_add_compute :
 external binary_archive_serialize :
   handle -> string -> (unit, string) result =
   "caml_prismel_metal_binary_archive_serialize"
+
+external pipeline_dataset_create :
+  handle -> int -> (handle, string) result =
+  "caml_prismel_metal_pipeline_dataset_create"
+
+external pipeline_dataset_serialize_script :
+  handle -> (bytes, string) result =
+  "caml_prismel_metal_pipeline_dataset_serialize_script"
+
+external pipeline_dataset_serialize_archive :
+  handle -> string -> (unit, string) result =
+  "caml_prismel_metal_pipeline_dataset_serialize_archive"
+
+external pipeline_archive_load_file :
+  handle -> string -> string option -> (handle, string) result =
+  "caml_prismel_metal_pipeline_archive_load_file"
+
+external pipeline_archive_label : handle -> string option =
+  "caml_prismel_metal_pipeline_archive_label"
+
+external compiler_create :
+  handle -> handle option -> string option -> (handle, string) result =
+  "caml_prismel_metal_compiler_create"
+
+external compiler_label : handle -> string option =
+  "caml_prismel_metal_compiler_label"
+
+external compiler_compile_library :
+  handle -> string -> string option -> (handle, string) result =
+  "caml_prismel_metal_compiler_compile_library"
+
+external compiler_create_compute_pipeline :
+  handle -> metal4_compute_descriptor ->
+  ((handle * pipeline_binding_info array), string) result =
+  "caml_prismel_metal_compiler_create_compute_pipeline"
 
 external compute_pipeline_create : handle -> handle -> (handle, string) result =
   "caml_prismel_metal_compute_pipeline_create"

@@ -543,6 +543,9 @@ enum class Handle_kind : std::uint32_t {
   Xpc_service,
   Xpc_request,
   Placement_mapping_queue,
+  Pipeline_dataset,
+  Pipeline_archive,
+  Compiler,
 };
 
 struct Handle {
@@ -784,6 +787,18 @@ std::vector<id<MTLBinaryArchive>> binary_archives_of_array(value raw_array) {
   return archives;
 }
 
+API_AVAILABLE(macos(26.0))
+std::vector<id<MTL4Archive>> pipeline_archives_of_array(value raw_array) {
+  const mlsize_t count = Wosize_val(raw_array);
+  std::vector<id<MTL4Archive>> archives;
+  archives.reserve(count);
+  for (mlsize_t index = 0; index < count; ++index) {
+    archives.push_back(object_of_handle(Field(raw_array, index),
+                                        Handle_kind::Pipeline_archive));
+  }
+  return archives;
+}
+
 value copy_function_constants(id<MTLFunction> function) {
   CAMLparam0();
   CAMLlocal4(array, tuple, name, index_value);
@@ -990,6 +1005,17 @@ bool valid_absolute_path(NSString *path) {
   return true;
 }
 
+bool nsuinteger_from_ocaml_int64(value raw, NSUInteger *result) {
+  const std::int64_t signed_value = Int64_val(raw);
+  if (signed_value < 0 ||
+      static_cast<std::uint64_t>(signed_value) >
+          static_cast<std::uint64_t>(NSUIntegerMax)) {
+    return false;
+  }
+  *result = static_cast<NSUInteger>(signed_value);
+  return true;
+}
+
 value copy_optional_string(NSString *text) {
   CAMLparam0();
   CAMLlocal2(option, contents);
@@ -1076,6 +1102,19 @@ bool device_supports_placement_sparse(id<MTLDevice> device) {
                @selector(newMTL4CommandQueueWithDescriptor:error:)] &&
            [device respondsToSelector:@selector(newCommandBuffer)] &&
            [device respondsToSelector:@selector(newSharedEvent)];
+  }
+  return false;
+}
+
+bool device_supports_metal4_compiler(id<MTLDevice> device) {
+  if (@available(macOS 26.0, *)) {
+    return [device supportsFamily:MTLGPUFamilyMetal4] &&
+           [device respondsToSelector:
+               @selector(newCompilerWithDescriptor:error:)] &&
+           [device respondsToSelector:
+               @selector(newArchiveWithURL:error:)] &&
+           [device respondsToSelector:
+               @selector(newPipelineDataSetSerializerWithDescriptor:)];
   }
   return false;
 }
@@ -5078,6 +5117,564 @@ extern "C" CAMLprim value caml_prismel_metal_binary_archive_serialize(
     }
   }
   CAMLreturn(result_ok(Val_unit));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_pipeline_dataset_create(
+    value raw_device, value raw_configuration) {
+  CAMLparam2(raw_device, raw_configuration);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTLDevice> device =
+            object_of_handle(raw_device, Handle_kind::Device);
+        if (!device_supports_metal4_compiler(device)) {
+          CAMLreturn(result_error_text(
+              "Metal 4 pipeline datasets are unsupported by the device"));
+        }
+        const intnat configuration_code = Long_val(raw_configuration);
+        if (configuration_code <= 0 || (configuration_code & ~3) != 0) {
+          CAMLreturn(result_error_text(
+              "Metal 4 pipeline-dataset configuration is invalid"));
+        }
+        const auto configuration =
+            static_cast<MTL4PipelineDataSetSerializerConfiguration>(
+                configuration_code);
+        MTL4PipelineDataSetSerializerDescriptor *descriptor =
+            [[MTL4PipelineDataSetSerializerDescriptor alloc] init];
+        descriptor.configuration = configuration;
+        if (descriptor.configuration != configuration) {
+          CAMLreturn(result_error_text(
+              "Metal changed checked pipeline-dataset descriptor properties"));
+        }
+        id<MTL4PipelineDataSetSerializer> serializer =
+            [device newPipelineDataSetSerializerWithDescriptor:descriptor];
+        if (serializer == nil) {
+          CAMLreturn(result_error_text(
+              "Metal failed to create a pipeline-dataset serializer"));
+        }
+        raw = allocate_handle(serializer, Handle_kind::Pipeline_dataset);
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    } else {
+      CAMLreturn(result_error_text(
+          "Metal 4 pipeline datasets require macOS 26 or newer"));
+    }
+  }
+  CAMLreturn(result_ok(raw));
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_pipeline_dataset_serialize_script(value raw) {
+  CAMLparam1(raw);
+  CAMLlocal1(bytes);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4PipelineDataSetSerializer> serializer =
+            object_of_handle(raw, Handle_kind::Pipeline_dataset);
+        NSError *error = nil;
+        NSData *data =
+            [serializer serializeAsPipelinesScriptWithError:&error];
+        if (data == nil) {
+          CAMLreturn(result_error(error_description(
+              error, @"Metal pipeline-script serialization failed without NSError")));
+        }
+        bytes = copy_data(data);
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    } else {
+      CAMLreturn(result_error_text(
+          "Metal 4 pipeline scripts require macOS 26 or newer"));
+    }
+  }
+  CAMLreturn(result_ok(bytes));
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_pipeline_dataset_serialize_archive(value raw,
+                                                       value raw_path) {
+  CAMLparam2(raw, raw_path);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4PipelineDataSetSerializer> serializer =
+            object_of_handle(raw, Handle_kind::Pipeline_dataset);
+        NSString *path = string_from_ocaml(raw_path);
+        if (!valid_absolute_path(path)) {
+          CAMLreturn(result_error_text(
+              "Metal pipeline-dataset archive path must be a nonempty absolute UTF-8 path"));
+        }
+        NSError *error = nil;
+        if (![serializer
+                serializeAsArchiveAndFlushToURL:[NSURL fileURLWithPath:path]
+                                          error:&error]) {
+          CAMLreturn(result_error(labeled_error_description(
+              path.lastPathComponent, error,
+              @"Metal pipeline-archive serialization failed without NSError")));
+        }
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    } else {
+      CAMLreturn(result_error_text(
+          "Metal 4 pipeline archives require macOS 26 or newer"));
+    }
+  }
+  CAMLreturn(result_ok(Val_unit));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_pipeline_archive_load_file(
+    value raw_device, value raw_path, value raw_label) {
+  CAMLparam3(raw_device, raw_path, raw_label);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTLDevice> device =
+            object_of_handle(raw_device, Handle_kind::Device);
+        if (!device_supports_metal4_compiler(device)) {
+          CAMLreturn(result_error_text(
+              "Metal 4 pipeline archives are unsupported by the device"));
+        }
+        NSString *path = string_from_ocaml(raw_path);
+        if (!valid_absolute_path(path)) {
+          CAMLreturn(result_error_text(
+              "Metal pipeline-archive path must be a nonempty absolute UTF-8 path"));
+        }
+        NSString *expected_label = nil;
+        if (Is_block(raw_label)) {
+          expected_label = string_from_ocaml(Field(raw_label, 0));
+          if (expected_label == nil) {
+            CAMLreturn(result_error_text(
+                "Metal pipeline-archive label is not valid UTF-8"));
+          }
+        }
+        NSError *error = nil;
+        id<MTL4Archive> archive =
+            [device newArchiveWithURL:[NSURL fileURLWithPath:path]
+                                error:&error];
+        if (archive == nil) {
+          CAMLreturn(result_error(labeled_error_description(
+              expected_label ?: path.lastPathComponent, error,
+              @"Metal pipeline-archive loading failed without NSError")));
+        }
+        if (expected_label != nil) {
+          archive.label = expected_label;
+        }
+        if (((expected_label == nil) != (archive.label == nil)) ||
+            (expected_label != nil &&
+             ![archive.label isEqualToString:expected_label])) {
+          CAMLreturn(result_error_text(
+              "Metal changed checked pipeline-archive properties"));
+        }
+        raw = allocate_handle(archive, Handle_kind::Pipeline_archive);
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    } else {
+      CAMLreturn(result_error_text(
+          "Metal 4 pipeline archives require macOS 26 or newer"));
+    }
+  }
+  CAMLreturn(result_ok(raw));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_pipeline_archive_label(
+    value raw) {
+  CAMLparam1(raw);
+  CAMLlocal1(result);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      id<MTL4Archive> archive =
+          object_of_handle(raw, Handle_kind::Pipeline_archive);
+      result = copy_optional_string(archive.label);
+    } else {
+      CAMLreturn(Val_none);
+    }
+  }
+  CAMLreturn(result);
+}
+
+extern "C" CAMLprim value caml_prismel_metal_compiler_create(
+    value raw_device, value raw_dataset, value raw_label) {
+  CAMLparam3(raw_device, raw_dataset, raw_label);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTLDevice> device =
+            object_of_handle(raw_device, Handle_kind::Device);
+        if (!device_supports_metal4_compiler(device)) {
+          CAMLreturn(result_error_text(
+              "Metal 4 compilers are unsupported by the device"));
+        }
+        id<MTL4PipelineDataSetSerializer> expected_dataset = nil;
+        if (Is_block(raw_dataset)) {
+          expected_dataset = object_of_handle(Field(raw_dataset, 0),
+                                              Handle_kind::Pipeline_dataset);
+        }
+        NSString *expected_label = nil;
+        if (Is_block(raw_label)) {
+          expected_label = string_from_ocaml(Field(raw_label, 0));
+          if (expected_label == nil) {
+            CAMLreturn(result_error_text(
+                "Metal compiler label is not valid UTF-8"));
+          }
+        }
+        MTL4CompilerDescriptor *descriptor =
+            [[MTL4CompilerDescriptor alloc] init];
+        if (expected_label != nil) {
+          descriptor.label = expected_label;
+        }
+        descriptor.pipelineDataSetSerializer = expected_dataset;
+        if (((expected_label == nil) != (descriptor.label == nil)) ||
+            (expected_label != nil &&
+             ![descriptor.label isEqualToString:expected_label]) ||
+            descriptor.pipelineDataSetSerializer != expected_dataset) {
+          CAMLreturn(result_error_text(
+              "Metal changed checked compiler descriptor properties"));
+        }
+        NSError *error = nil;
+        id<MTL4Compiler> compiler =
+            [device newCompilerWithDescriptor:descriptor error:&error];
+        if (compiler == nil) {
+          CAMLreturn(result_error(labeled_error_description(
+              expected_label, error,
+              @"Metal compiler creation failed without NSError")));
+        }
+        if (compiler.device.registryID != device.registryID) {
+          CAMLreturn(result_error_text(
+              "Metal changed the checked compiler device"));
+        }
+        if ((expected_label == nil && compiler.label != nil) ||
+            (expected_label != nil && compiler.label != nil &&
+             ![compiler.label isEqualToString:expected_label])) {
+          CAMLreturn(result_error_text(
+              "Metal changed the checked compiler label"));
+        }
+        if (compiler.pipelineDataSetSerializer != expected_dataset) {
+          CAMLreturn(result_error_text(
+              "Metal changed the checked compiler pipeline dataset"));
+        }
+        raw = allocate_handle(compiler, Handle_kind::Compiler);
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    } else {
+      CAMLreturn(result_error_text(
+          "Metal 4 compilers require macOS 26 or newer"));
+    }
+  }
+  CAMLreturn(result_ok(raw));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_compiler_label(value raw) {
+  CAMLparam1(raw);
+  CAMLlocal1(result);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      id<MTL4Compiler> compiler =
+          object_of_handle(raw, Handle_kind::Compiler);
+      result = copy_optional_string(compiler.label);
+    } else {
+      CAMLreturn(Val_none);
+    }
+  }
+  CAMLreturn(result);
+}
+
+extern "C" CAMLprim value caml_prismel_metal_compiler_compile_library(
+    value raw_compiler, value raw_source, value raw_name) {
+  CAMLparam3(raw_compiler, raw_source, raw_name);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4Compiler> compiler =
+            object_of_handle(raw_compiler, Handle_kind::Compiler);
+        NSString *source = string_from_ocaml(raw_source);
+        if (source == nil || source.length == 0) {
+          CAMLreturn(result_error_text(
+              "Metal compiler source is not valid nonempty UTF-8"));
+        }
+        NSString *expected_name = nil;
+        if (Is_block(raw_name)) {
+          expected_name = string_from_ocaml(Field(raw_name, 0));
+          if (expected_name == nil || expected_name.length == 0) {
+            CAMLreturn(result_error_text(
+                "Metal compiler library name is not valid nonempty UTF-8"));
+          }
+        }
+        MTLCompileOptions *options = [[MTLCompileOptions alloc] init];
+        options.fastMathEnabled = NO;
+        MTL4LibraryDescriptor *descriptor =
+            [[MTL4LibraryDescriptor alloc] init];
+        descriptor.source = source;
+        descriptor.options = options;
+        if (expected_name != nil) {
+          descriptor.name = expected_name;
+        }
+        if (![descriptor.source isEqualToString:source] ||
+            descriptor.options.fastMathEnabled ||
+            ((expected_name == nil) != (descriptor.name == nil)) ||
+            (expected_name != nil &&
+             ![descriptor.name isEqualToString:expected_name])) {
+          CAMLreturn(result_error_text(
+              "Metal changed checked compiler library descriptor properties"));
+        }
+        NSError *error = nil;
+        id<MTLLibrary> library =
+            [compiler newLibraryWithDescriptor:descriptor error:&error];
+        if (library == nil) {
+          CAMLreturn(result_error(labeled_error_description(
+              expected_name, error,
+              @"Metal 4 library compilation failed without NSError")));
+        }
+        if (expected_name != nil) {
+          library.label = expected_name;
+        }
+        if (library.device.registryID != compiler.device.registryID ||
+            ((expected_name == nil) != (library.label == nil)) ||
+            (expected_name != nil &&
+             ![library.label isEqualToString:expected_name])) {
+          CAMLreturn(result_error_text(
+              "Metal changed checked compiler library properties"));
+        }
+        raw = allocate_handle(library, Handle_kind::Library);
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    } else {
+      CAMLreturn(result_error_text(
+          "Metal 4 library compilation requires macOS 26 or newer"));
+    }
+  }
+  CAMLreturn(result_ok(raw));
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_compiler_create_compute_pipeline(value raw_compiler,
+                                                      value raw_descriptor) {
+  CAMLparam2(raw_compiler, raw_descriptor);
+  CAMLlocal3(raw, bindings, pair);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4Compiler> compiler =
+            object_of_handle(raw_compiler, Handle_kind::Compiler);
+        id<MTLLibrary> library =
+            object_of_handle(Field(raw_descriptor, 1), Handle_kind::Library);
+        if (library.device.registryID != compiler.device.registryID) {
+          CAMLreturn(result_error_text(
+              "Metal 4 compute library is incompatible with the compiler"));
+        }
+        NSString *expected_label = nil;
+        value raw_label = Field(raw_descriptor, 0);
+        if (Is_block(raw_label)) {
+          expected_label = string_from_ocaml(Field(raw_label, 0));
+          if (expected_label == nil) {
+            CAMLreturn(result_error_text(
+                "Metal 4 compute-pipeline label is not valid UTF-8"));
+          }
+        }
+        NSString *function_name =
+            string_from_ocaml(Field(raw_descriptor, 2));
+        if (function_name == nil || function_name.length == 0) {
+          CAMLreturn(result_error_text(
+              "Metal 4 compute function name is not valid nonempty UTF-8"));
+        }
+        NSUInteger max_total_threads = 0;
+        NSUInteger required_width = 0;
+        NSUInteger required_height = 0;
+        NSUInteger required_depth = 0;
+        NSUInteger max_call_stack_depth = 0;
+        if (!nsuinteger_from_ocaml_int64(Field(raw_descriptor, 5),
+                                         &max_total_threads) ||
+            !nsuinteger_from_ocaml_int64(Field(raw_descriptor, 6),
+                                         &required_width) ||
+            !nsuinteger_from_ocaml_int64(Field(raw_descriptor, 7),
+                                         &required_height) ||
+            !nsuinteger_from_ocaml_int64(Field(raw_descriptor, 8),
+                                         &required_depth) ||
+            !nsuinteger_from_ocaml_int64(Field(raw_descriptor, 12),
+                                         &max_call_stack_depth)) {
+          CAMLreturn(result_error_text(
+              "Metal 4 compute descriptor contains an invalid cardinality"));
+        }
+        const bool no_required_threads = required_width == 0 &&
+                                         required_height == 0 &&
+                                         required_depth == 0;
+        if (!no_required_threads &&
+            (required_width == 0 || required_height == 0 ||
+             required_depth == 0 ||
+             required_width > NSUIntegerMax / required_height ||
+             required_width * required_height >
+                 NSUIntegerMax / required_depth ||
+             (max_total_threads != 0 &&
+              required_width * required_height * required_depth !=
+                  max_total_threads))) {
+          CAMLreturn(result_error_text(
+              "Metal 4 required threadgroup dimensions are invalid"));
+        }
+        std::vector<id<MTLDynamicLibrary>> preloaded_libraries =
+            dynamic_libraries_of_array(Field(raw_descriptor, 11));
+        NSMutableArray<id<MTLDynamicLibrary>> *preloaded_array =
+            [NSMutableArray arrayWithCapacity:preloaded_libraries.size()];
+        NSMutableSet<NSString *> *install_names = [NSMutableSet set];
+        for (id<MTLDynamicLibrary> dynamic_library : preloaded_libraries) {
+          if (!compiler.device.supportsDynamicLibraries ||
+              dynamic_library.device.registryID != compiler.device.registryID ||
+              dynamic_library.installName == nil ||
+              [install_names containsObject:dynamic_library.installName]) {
+            CAMLreturn(result_error_text(
+                "Metal 4 preloaded dynamic library is incompatible or duplicated"));
+          }
+          [install_names addObject:dynamic_library.installName];
+          [preloaded_array addObject:dynamic_library];
+        }
+        if (preloaded_array.count != 0 && max_call_stack_depth == 0) {
+          CAMLreturn(result_error_text(
+              "Metal 4 dynamic linking requires a positive call-stack depth"));
+        }
+        std::vector<id<MTL4Archive>> lookup_archives =
+            pipeline_archives_of_array(Field(raw_descriptor, 13));
+        NSMutableArray<id<MTL4Archive>> *archive_array =
+            [NSMutableArray arrayWithCapacity:lookup_archives.size()];
+        NSMutableSet<id<MTL4Archive>> *archive_set = [NSMutableSet set];
+        for (id<MTL4Archive> archive : lookup_archives) {
+          if ([archive_set containsObject:archive]) {
+            CAMLreturn(result_error_text(
+                "Metal 4 lookup archive is duplicated"));
+          }
+          [archive_set addObject:archive];
+          [archive_array addObject:archive];
+        }
+        MTL4LibraryFunctionDescriptor *function_descriptor =
+            [[MTL4LibraryFunctionDescriptor alloc] init];
+        function_descriptor.name = function_name;
+        function_descriptor.library = library;
+        MTL4ComputePipelineDescriptor *descriptor =
+            [[MTL4ComputePipelineDescriptor alloc] init];
+        if (expected_label != nil) {
+          descriptor.label = expected_label;
+        }
+        descriptor.computeFunctionDescriptor = function_descriptor;
+        const bool threadgroup_size_multiple =
+            Bool_val(Field(raw_descriptor, 4));
+        const bool support_binary_linking =
+            Bool_val(Field(raw_descriptor, 9));
+        const auto indirect_command_support =
+            Bool_val(Field(raw_descriptor, 10))
+                ? MTL4IndirectCommandBufferSupportStateEnabled
+                : MTL4IndirectCommandBufferSupportStateDisabled;
+        descriptor.threadGroupSizeIsMultipleOfThreadExecutionWidth =
+            threadgroup_size_multiple;
+        descriptor.maxTotalThreadsPerThreadgroup = max_total_threads;
+        descriptor.requiredThreadsPerThreadgroup =
+            MTLSizeMake(required_width, required_height, required_depth);
+        descriptor.supportBinaryLinking = support_binary_linking;
+        descriptor.supportIndirectCommandBuffers = indirect_command_support;
+        const bool reflection_requested = Bool_val(Field(raw_descriptor, 3));
+        const MTL4ShaderReflection expected_reflection =
+            MTL4ShaderReflectionBindingInfo |
+            MTL4ShaderReflectionBufferTypeInfo;
+        if (reflection_requested) {
+          MTL4PipelineOptions *options = [[MTL4PipelineOptions alloc] init];
+          options.shaderReflection = expected_reflection;
+          descriptor.options = options;
+        }
+        MTL4PipelineStageDynamicLinkingDescriptor *dynamic_linking = nil;
+        if (preloaded_array.count != 0 || max_call_stack_depth != 0) {
+          dynamic_linking =
+              [[MTL4PipelineStageDynamicLinkingDescriptor alloc] init];
+          dynamic_linking.maxCallStackDepth = max_call_stack_depth;
+          dynamic_linking.preloadedLibraries = preloaded_array;
+        }
+        MTL4CompilerTaskOptions *task_options = nil;
+        if (archive_array.count != 0) {
+          task_options = [[MTL4CompilerTaskOptions alloc] init];
+          task_options.lookupArchives = archive_array;
+        }
+        MTL4FunctionDescriptor *stored_function =
+            descriptor.computeFunctionDescriptor;
+        if (![stored_function
+                isKindOfClass:[MTL4LibraryFunctionDescriptor class]]) {
+          CAMLreturn(result_error_text(
+              "Metal changed the Metal 4 compute function descriptor type"));
+        }
+        MTL4LibraryFunctionDescriptor *stored_library_function =
+            static_cast<MTL4LibraryFunctionDescriptor *>(stored_function);
+        if (stored_library_function.library != library ||
+            ![stored_library_function.name isEqualToString:function_name] ||
+            ((expected_label == nil) != (descriptor.label == nil)) ||
+            (expected_label != nil &&
+             ![descriptor.label isEqualToString:expected_label]) ||
+            descriptor.threadGroupSizeIsMultipleOfThreadExecutionWidth !=
+                threadgroup_size_multiple ||
+            descriptor.maxTotalThreadsPerThreadgroup != max_total_threads ||
+            descriptor.requiredThreadsPerThreadgroup.width != required_width ||
+            descriptor.requiredThreadsPerThreadgroup.height != required_height ||
+            descriptor.requiredThreadsPerThreadgroup.depth != required_depth ||
+            descriptor.supportBinaryLinking != support_binary_linking ||
+            descriptor.supportIndirectCommandBuffers !=
+                indirect_command_support ||
+            (reflection_requested &&
+             (descriptor.options == nil ||
+              descriptor.options.shaderReflection != expected_reflection)) ||
+            (!reflection_requested && descriptor.options != nil) ||
+            (dynamic_linking != nil &&
+             (dynamic_linking.maxCallStackDepth != max_call_stack_depth ||
+              dynamic_linking.preloadedLibraries.count !=
+                  preloaded_array.count)) ||
+            (task_options != nil &&
+             task_options.lookupArchives.count != archive_array.count)) {
+          CAMLreturn(result_error_text(
+              "Metal changed checked Metal 4 compute descriptor properties"));
+        }
+        NSError *error = nil;
+        id<MTLComputePipelineState> pipeline = dynamic_linking == nil
+            ? [compiler newComputePipelineStateWithDescriptor:descriptor
+                                          compilerTaskOptions:task_options
+                                                        error:&error]
+            : [compiler newComputePipelineStateWithDescriptor:descriptor
+                                     dynamicLinkingDescriptor:dynamic_linking
+                                          compilerTaskOptions:task_options
+                                                        error:&error];
+        if (pipeline == nil) {
+          CAMLreturn(result_error(labeled_error_description(
+              expected_label, error,
+              @"Metal 4 compute-pipeline compilation failed without NSError")));
+        }
+        MTLComputePipelineReflection *reflection = pipeline.reflection;
+        if (reflection_requested && reflection == nil) {
+          CAMLreturn(result_error_text(
+              "Metal 4 omitted requested compute-pipeline reflection"));
+        }
+        if (pipeline.device.registryID != compiler.device.registryID ||
+            ((expected_label == nil) != (pipeline.label == nil)) ||
+            (expected_label != nil &&
+             ![pipeline.label isEqualToString:expected_label])) {
+          CAMLreturn(result_error_text(
+              "Metal changed checked Metal 4 compute-pipeline properties"));
+        }
+        raw = allocate_handle(pipeline, Handle_kind::Compute_pipeline);
+        bindings = reflection_requested ? copy_pipeline_bindings(reflection)
+                                        : caml_alloc(0, 0);
+        pair = caml_alloc_tuple(2);
+        Store_field(pair, 0, raw);
+        Store_field(pair, 1, bindings);
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    } else {
+      CAMLreturn(result_error_text(
+          "Metal 4 compute compilation requires macOS 26 or newer"));
+    }
+  }
+  CAMLreturn(result_ok(pair));
 }
 
 extern "C" CAMLprim value caml_prismel_metal_compute_pipeline_create(

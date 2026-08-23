@@ -411,7 +411,7 @@ and M5 rather than being implied by that narrower gate.
 
 The M4 shader and pipeline-asset slices keep runtime MSL compilation explicit and
 deterministic (`fastMathEnabled = NO`), preserve the complete `NSError`
-description, domain, code, and `userInfo`, and prefixes compile,
+description, domain, code, and `userInfo`, and prefix compile,
 specialization, and link failures with the caller's label. Libraries,
 specialized functions, and compute pipelines expose their observed native
 labels. Libraries also expose their Metal kind, install name, and sorted entry
@@ -443,15 +443,41 @@ the same linked/preloaded inputs used for pipeline construction, serializes the
 archive, and supports strict archive-hit pipeline creation. Duplicate,
 cross-device, stale, unsupported, malformed-path, and wrong-function-kind
 arguments are rejected at the typed boundary before native handle allocation.
-Pipeline datasets, render/mesh/object pipelines, the Metal 4 compiler, and
-positive offline `.metallib` provenance remain open M4 work.
+
+`Pipeline_dataset`, `Pipeline_archive`, and `Compiler` provide the first
+synchronous Metal 4 compilation path. Dataset serializers have explicit,
+nonempty descriptor or binary capture modes and retain no hidden global state.
+A compiler retains its optional same-device dataset until compiler destruction;
+pipeline and library results remain independently usable after their compiler,
+dataset, archive, and source handles are destroyed. The compiler builds runtime
+MSL through `MTL4LibraryDescriptor`, creates checked compute descriptors with
+required/max threadgroup cardinality, binary-linking and indirect-command
+support, dynamic-library preloads, call-stack depth, archive lookup, and
+pipeline-owned reflection, and preserves full labeled diagnostics.
+
+The M1/macOS 26.4 qualification uses separate descriptor-only and binary-only
+serializers. Descriptor capture produces a nonempty pipeline script; binary
+capture flushes a loadable Metal 4 archive, which a second compiler consumes
+through `MTL4CompilerTaskOptions.lookupArchives`. Although Apple's API permits
+combining both capture flags, this driver returns `false` without an `NSError`
+when the combined serializer exports an archive, so the safe API reports the
+native failure and the documented portable workflow keeps those captures
+separate. The same driver accepts a compiler descriptor label but may return a
+`nil` compiler label; the binding exposes that observed value and still uses
+the requested label for creation diagnostics. Asynchronous compiler tasks,
+binary-function/static-link descriptors, direct strict Metal 4 archive lookup,
+render/mesh/object pipelines, and positive offline `.metallib` provenance
+remain open M4 work.
 
 `test_metal.exe` runs a real M1 compute kernel, wrong-domain and invalid-state
 cases, full labeled shader diagnostics, function-constant introspection and
 specialization, linked visible functions, reflected binding-layout validation,
 dynamic-library source/client linking and serialize/reload retention, binary
 archive population and serialize/reload strict-hit creation, compiled-library
-metadata, and `.metallib` path/error handling,
+metadata, `.metallib` path/error handling, Metal 4 compiler library and
+reflected compute creation, descriptor and binary dataset capture, serialized
+Metal 4 archive reload/lookup, compiler/dataset parent ownership, and complete
+Metal 4 compile diagnostics,
 copied/no-copy external buffer ownership,
 shareable texture/handle/import lifetimes, single- and multi-plane IOSurface
 ownership and byte visibility, buffer-backed 2D/texture-buffer creation across

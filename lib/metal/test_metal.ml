@@ -2075,6 +2075,264 @@ let test_pipeline_assets device =
       get (Function.destroy function_);
       get (Library.destroy library))
 
+let test_metal4_compiler device =
+  if not (get (Device.supports_family device Device.Metal4)) then begin
+    ignore
+      (expect_error Unsupported
+         (Pipeline_dataset.create ~device [ Pipeline_dataset.Descriptors ]));
+    false
+  end
+  else begin
+    let archive_path = Filename.temp_file "prismel-metal4-" ".metallib" in
+    Sys.remove archive_path;
+    Fun.protect
+      ~finally:(fun () ->
+        if Sys.file_exists archive_path then Sys.remove archive_path)
+      (fun () ->
+        let before_invalid_dataset = get (Release_queue.stats ()) in
+        ignore
+          (expect_error Invalid_argument
+             (Pipeline_dataset.create ~device []));
+        ignore
+          (expect_error Invalid_argument
+             (Pipeline_dataset.create ~device
+                [ Pipeline_dataset.Descriptors
+                ; Pipeline_dataset.Descriptors
+                ]));
+        ignore
+          (expect_error Invalid_argument
+             (Pipeline_archive.load_file ~device "relative.mtl4archive"));
+        let after_invalid_dataset = get (Release_queue.stats ()) in
+        if after_invalid_dataset.total_created
+           <> before_invalid_dataset.total_created
+        then fail "invalid Metal 4 dataset inputs allocated native handles";
+        let before_compiler_finalizers = get (Release_queue.stats ()) in
+        let allocate_unreleased_compiler () =
+          let finalizer_dataset =
+            get
+              (Pipeline_dataset.create ~device
+                 [ Pipeline_dataset.Descriptors ])
+          in
+          ignore (get (Compiler.create ~dataset:finalizer_dataset device))
+        in
+        allocate_unreleased_compiler ();
+        let after_compiler_finalizers =
+          settle_finalizers
+            ~expected_live:before_compiler_finalizers.live_handles
+        in
+        if
+          Int64.sub after_compiler_finalizers.total_created
+            before_compiler_finalizers.total_created
+          <> 2L
+          || Int64.sub after_compiler_finalizers.total_released
+               before_compiler_finalizers.total_released
+             <> 2L
+        then
+          fail
+            "Metal 4 compiler/dataset finalization did not release two handles";
+        let descriptors_only =
+          get
+            (Pipeline_dataset.create ~device
+               [ Pipeline_dataset.Descriptors ])
+        in
+        ignore
+          (expect_error Invalid_state
+             (Pipeline_dataset.serialize_archive descriptors_only
+                archive_path));
+        get (Pipeline_dataset.destroy descriptors_only);
+        let dataset =
+          get
+            (Pipeline_dataset.create ~device
+               [ Pipeline_dataset.Descriptors ])
+        in
+        if
+          Pipeline_dataset.captures dataset
+          <> [ Pipeline_dataset.Descriptors ]
+          || not (Device.same device (Pipeline_dataset.device dataset))
+          || Pipeline_dataset.generation dataset <= 0L
+        then fail "Metal 4 pipeline-dataset metadata is wrong";
+        let compiler =
+          get
+            (Compiler.create ~label:"Metal 4 dataset compiler" ~dataset device)
+        in
+        let compiler_label = get (Compiler.label compiler) in
+        if
+          (compiler_label <> None
+           && compiler_label <> Some "Metal 4 dataset compiler")
+           || not (Device.same device (Compiler.device compiler))
+           || Compiler.generation compiler <= 0L
+           || Option.is_none (Compiler.dataset compiler)
+        then fail "Metal 4 compiler metadata is wrong";
+        ignore
+          (expect_error Parent_has_dependents
+             (Pipeline_dataset.destroy dataset));
+        ignore
+          (expect_error Wrong_domain
+             (Domain.spawn (fun () -> Compiler.label compiler)
+              |> Domain.join));
+        let before_invalid_compilation = get (Release_queue.stats ()) in
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.compile_source compiler ""));
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.compile_source ~name:"invalid\000name" compiler
+                shader_source));
+        let compiler_diagnostic =
+          expect_error Native_error
+            (Compiler.compile_source ~name:"Metal 4 compiler diagnostic"
+               compiler "kernel this is not valid MSL")
+        in
+        if
+          not
+            (contains_substring compiler_diagnostic.message
+               "Metal 4 compiler diagnostic")
+          || not (contains_substring compiler_diagnostic.message "domain=")
+          || not (contains_substring compiler_diagnostic.message "userInfo=")
+        then fail "Metal 4 compiler lost its full labeled diagnostic";
+        let library =
+          get
+            (Compiler.compile_source ~name:"metal4_increment_library" compiler
+               shader_source)
+        in
+        if get (Library.label library) <> Some "metal4_increment_library"
+           || not (List.mem "increment" (get (Library.function_names library)))
+        then fail "Metal 4 compiler library metadata is wrong";
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.create_compute_pipeline compiler ~library ""));
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.create_compute_pipeline ~label:"invalid\000label"
+                compiler ~library "increment"));
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.create_compute_pipeline
+                ~max_total_threads_per_threadgroup:0 compiler ~library
+                "increment"));
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.create_compute_pipeline
+                ~required_threads_per_threadgroup:(1, 0, 1) compiler ~library
+                "increment"));
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.create_compute_pipeline
+                ~max_total_threads_per_threadgroup:4
+                ~required_threads_per_threadgroup:(8, 1, 1) compiler ~library
+                "increment"));
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.create_compute_pipeline ~max_call_stack_depth:0 compiler
+                ~library "increment"));
+        let after_invalid_compilation = get (Release_queue.stats ()) in
+        if after_invalid_compilation.total_created
+           <> Int64.add before_invalid_compilation.total_created 1L
+        then
+          fail
+            "invalid Metal 4 compiler inputs allocated native handles beyond the valid library";
+        let pipeline =
+          get
+            (Compiler.create_compute_pipeline
+               ~label:"metal4 reflected increment" ~reflection:true
+               ~max_total_threads_per_threadgroup:1
+               ~required_threads_per_threadgroup:(1, 1, 1)
+               ~support_binary_linking:true
+               ~support_indirect_command_buffers:true compiler ~library
+               "increment")
+        in
+        if get (Compute_pipeline.label pipeline)
+           <> Some "metal4 reflected increment"
+        then fail "Metal 4 compute-pipeline label did not round-trip";
+        let reflected_bindings =
+          match Compute_pipeline.bindings pipeline with
+          | Some bindings -> bindings
+          | None -> fail "Metal 4 compute reflection is missing"
+        in
+        get
+          (Binding.validate_layout reflected_bindings
+             ~expected:
+               [ { name = "values"
+                 ; index = 0L
+                 ; access = Binding.Read_write
+                 ; kind = Binding.Buffer_layout
+                 ; data_type = Some (Shader_type.Scalar Shader_type.Uint)
+                 }
+               ]);
+        let script = get (Pipeline_dataset.serialize_script dataset) in
+        if Bytes.length script = 0 then
+          fail "Metal 4 pipeline script serialization returned no data";
+        let binary_dataset =
+          get
+            (Pipeline_dataset.create ~device [ Pipeline_dataset.Binaries ])
+        in
+        let binary_compiler =
+          get (Compiler.create ~dataset:binary_dataset device)
+        in
+        let archive_seed_pipeline =
+          get
+            (Compiler.create_compute_pipeline
+               ~label:"metal4 archived increment"
+               ~max_total_threads_per_threadgroup:1
+               ~required_threads_per_threadgroup:(1, 1, 1)
+               ~support_binary_linking:true
+               ~support_indirect_command_buffers:true binary_compiler ~library
+               "increment")
+        in
+        get (Pipeline_dataset.serialize_archive binary_dataset archive_path);
+        if not (Sys.file_exists archive_path) then
+          fail "Metal 4 pipeline archive was not serialized";
+        let archive =
+          get
+            (Pipeline_archive.load_file ~device
+               ~label:"reloaded Metal 4 archive" archive_path)
+        in
+        if get (Pipeline_archive.label archive)
+           <> Some "reloaded Metal 4 archive"
+           || not (Device.same device (Pipeline_archive.device archive))
+        then fail "reloaded Metal 4 pipeline-archive metadata is wrong";
+        let lookup_compiler = get (Compiler.create device) in
+        let before_duplicate_archive = get (Release_queue.stats ()) in
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.create_compute_pipeline
+                ~lookup_archives:[ archive; archive ] lookup_compiler ~library
+                "increment"));
+        let after_duplicate_archive = get (Release_queue.stats ()) in
+        if after_duplicate_archive.total_created
+           <> before_duplicate_archive.total_created
+        then fail "duplicate Metal 4 archives allocated a native handle";
+        let archived_pipeline =
+          get
+            (Compiler.create_compute_pipeline
+               ~label:"metal4 archived increment"
+               ~max_total_threads_per_threadgroup:1
+               ~required_threads_per_threadgroup:(1, 1, 1)
+               ~support_binary_linking:true
+               ~support_indirect_command_buffers:true
+               ~lookup_archives:[ archive ] lookup_compiler ~library
+               "increment")
+        in
+        get (Pipeline_archive.destroy archive);
+        get (Compiler.destroy lookup_compiler);
+        get (Library.destroy library);
+        get (Compiler.destroy binary_compiler);
+        get (Pipeline_dataset.destroy binary_dataset);
+        get (Compiler.destroy compiler);
+        get (Pipeline_dataset.destroy dataset);
+        ignore (expect_error Destroyed (Compiler.label compiler));
+        ignore
+          (expect_error Destroyed
+             (Pipeline_dataset.serialize_script dataset));
+        run_pipeline_once device pipeline ~initial:4l ~expected:5l;
+        run_pipeline_once device archive_seed_pipeline ~initial:6l ~expected:7l;
+        run_pipeline_once device archived_pipeline ~initial:8l ~expected:9l;
+        get (Compute_pipeline.destroy archived_pipeline);
+        get (Compute_pipeline.destroy archive_seed_pipeline);
+        get (Compute_pipeline.destroy pipeline));
+    true
+  end
+
 let () =
   if Sys.os_type <> "Unix"
      || not (Sys.file_exists "/System/Library/Frameworks/Metal.framework")
@@ -2090,6 +2348,7 @@ let () =
       fail "default device identity is incomplete";
     if info.max_buffer_length < 16L then fail "device buffer limit is invalid";
     test_pipeline_assets device;
+    ignore (test_metal4_compiler device);
     test_format_matrix device;
     test_texture_swizzle_and_compression device;
     let residency_sets_supported = test_residency_set device in
@@ -3896,6 +4155,6 @@ let () =
         stats.external_deallocations
         stats.external_deallocation_mismatches;
     Printf.printf
-      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/reflection/compute conformance passed on %s\n%!"
+      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/pipeline-dataset/reflection/compute conformance passed on %s\n%!"
       info.name
   end

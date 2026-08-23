@@ -24,6 +24,16 @@ let enum_cases owner names =
 
 let bound_identifiers =
   [ "class:MTL4CommandQueueDescriptor"
+  ; "class:MTL4CompilerDescriptor"
+  ; "class:MTL4CompilerTaskOptions"
+  ; "class:MTL4ComputePipelineDescriptor"
+  ; "class:MTL4FunctionDescriptor"
+  ; "class:MTL4LibraryDescriptor"
+  ; "class:MTL4LibraryFunctionDescriptor"
+  ; "class:MTL4PipelineDataSetSerializerDescriptor"
+  ; "class:MTL4PipelineDescriptor"
+  ; "class:MTL4PipelineOptions"
+  ; "class:MTL4PipelineStageDynamicLinkingDescriptor"
   ; "class:MTLBinaryArchiveDescriptor"
   ; "class:MTLCompileOptions"
   ; "class:MTLComputePipelineDescriptor"
@@ -39,6 +49,9 @@ let bound_identifiers =
   ; "class:MTLTextureViewDescriptor"
   ; "enum:MTLCommandBufferStatus"
   ; "enum:MTL4VisibilityOptions"
+  ; "enum:MTL4IndirectCommandBufferSupportState"
+  ; "enum:MTL4PipelineDataSetSerializerConfiguration"
+  ; "enum:MTL4ShaderReflection"
   ; "enum:MTLBindingAccess"
   ; "enum:MTLBindingType"
   ; "enum:MTLDataType"
@@ -109,6 +122,9 @@ let bound_identifiers =
   ; "protocol:MTL4CommandEncoder"
   ; "protocol:MTL4CommandQueue"
   ; "protocol:MTL4ComputeCommandEncoder"
+  ; "protocol:MTL4Archive"
+  ; "protocol:MTL4Compiler"
+  ; "protocol:MTL4PipelineDataSetSerializer"
   ; "protocol:MTLBinaryArchive"
   ; "protocol:MTLBuffer"
   ; "protocol:MTLAllocation"
@@ -136,6 +152,9 @@ let bound_identifiers =
   ; "protocol:MTLTextureBinding"
   ; "protocol:MTLThreadgroupBinding"
   ; "typedef:MTLCommandBufferStatus"
+  ; "typedef:MTL4IndirectCommandBufferSupportState"
+  ; "typedef:MTL4PipelineDataSetSerializerConfiguration"
+  ; "typedef:MTL4ShaderReflection"
   ; "typedef:MTL4UpdateSparseBufferMappingOperation"
   ; "typedef:MTL4UpdateSparseTextureMappingOperation"
   ; "typedef:MTL4VisibilityOptions"
@@ -176,7 +195,8 @@ let bound_identifiers =
   ; "variable:swizzle"
   ]
   @ methods
-      [ "MTL4CommandAllocator", [ "reset" ]
+      [ "MTL4Archive", [ "label"; "setLabel:" ]
+      ; "MTL4CommandAllocator", [ "reset" ]
       ; ( "MTL4CommandBuffer"
         , [ "beginCommandBufferWithAllocator:"; "computeCommandEncoder"
           ; "endCommandBuffer"
@@ -192,6 +212,48 @@ let bound_identifiers =
           ] )
       ; ( "MTL4CommandQueueDescriptor"
         , [ "label"; "setLabel:" ] )
+      ; ( "MTL4Compiler"
+        , [ "device"; "label"
+          ; "newComputePipelineStateWithDescriptor:compilerTaskOptions:error:"
+          ; "newComputePipelineStateWithDescriptor:dynamicLinkingDescriptor:compilerTaskOptions:error:"
+          ; "newLibraryWithDescriptor:error:"; "pipelineDataSetSerializer"
+          ] )
+      ; ( "MTL4CompilerDescriptor"
+        , [ "label"; "pipelineDataSetSerializer"; "setLabel:"
+          ; "setPipelineDataSetSerializer:"
+          ] )
+      ; ( "MTL4CompilerTaskOptions"
+        , [ "lookupArchives"; "setLookupArchives:" ] )
+      ; ( "MTL4ComputePipelineDescriptor"
+        , [ "computeFunctionDescriptor"; "maxTotalThreadsPerThreadgroup"
+          ; "requiredThreadsPerThreadgroup"; "setComputeFunctionDescriptor:"
+          ; "setMaxTotalThreadsPerThreadgroup:"
+          ; "setRequiredThreadsPerThreadgroup:"; "setSupportBinaryLinking:"
+          ; "setSupportIndirectCommandBuffers:"
+          ; "setThreadGroupSizeIsMultipleOfThreadExecutionWidth:"
+          ; "supportBinaryLinking"; "supportIndirectCommandBuffers"
+          ; "threadGroupSizeIsMultipleOfThreadExecutionWidth"
+          ] )
+      ; ( "MTL4LibraryDescriptor"
+        , [ "name"; "options"; "setName:"; "setOptions:"; "setSource:"
+          ; "source"
+          ] )
+      ; ( "MTL4LibraryFunctionDescriptor"
+        , [ "library"; "name"; "setLibrary:"; "setName:" ] )
+      ; ( "MTL4PipelineDataSetSerializer"
+        , [ "serializeAsArchiveAndFlushToURL:error:"
+          ; "serializeAsPipelinesScriptWithError:"
+          ] )
+      ; ( "MTL4PipelineDataSetSerializerDescriptor"
+        , [ "configuration"; "setConfiguration:" ] )
+      ; ( "MTL4PipelineDescriptor"
+        , [ "label"; "options"; "setLabel:"; "setOptions:" ] )
+      ; ( "MTL4PipelineOptions"
+        , [ "setShaderReflection:"; "shaderReflection" ] )
+      ; ( "MTL4PipelineStageDynamicLinkingDescriptor"
+        , [ "maxCallStackDepth"; "preloadedLibraries"
+          ; "setMaxCallStackDepth:"; "setPreloadedLibraries:"
+          ] )
       ; ( "MTLBuffer"
         , [ "contents"; "didModifyRange:"; "length"; "sparseBufferTier"
           ; "newTextureWithDescriptor:offset:bytesPerRow:"
@@ -230,7 +292,7 @@ let bound_identifiers =
           ] )
       ; "MTLComputePipelineReflection", [ "bindings" ]
       ; ( "MTLComputePipelineState"
-        , [ "device"; "label"; "maxTotalThreadsPerThreadgroup"
+        , [ "device"; "label"; "maxTotalThreadsPerThreadgroup"; "reflection"
           ; "threadExecutionWidth"
           ] )
       ; ( "MTLDevice"
@@ -247,6 +309,8 @@ let bound_identifiers =
           ; "newCommandAllocator"; "newCommandBuffer"
           ; "newCommandQueue"
           ; "newBinaryArchiveWithDescriptor:error:"
+          ; "newArchiveWithURL:error:"
+          ; "newCompilerWithDescriptor:error:"
           ; "newComputePipelineStateWithDescriptor:options:reflection:error:"
           ; "newComputePipelineStateWithFunction:error:"
           ; "newDynamicLibrary:error:"; "newDynamicLibraryWithURL:error:"
@@ -255,6 +319,7 @@ let bound_identifiers =
           ; "newHeapWithDescriptor:"
           ; "newResidencySetWithDescriptor:error:"
           ; "newMTL4CommandQueueWithDescriptor:error:"
+          ; "newPipelineDataSetSerializerWithDescriptor:"
           ; "newSamplerStateWithDescriptor:"
           ; "newSharedTextureWithDescriptor:"
           ; "newSharedTextureWithHandle:"
@@ -397,7 +462,26 @@ let bound_identifiers =
           ] )
       ]
   @ properties
-      [ "MTL4CommandQueue", [ "device"; "label" ]
+      [ "MTL4Archive", [ "label" ]
+      ; ( "MTL4Compiler"
+        , [ "device"; "label"; "pipelineDataSetSerializer" ] )
+      ; ( "MTL4CompilerDescriptor"
+        , [ "label"; "pipelineDataSetSerializer" ] )
+      ; "MTL4CompilerTaskOptions", [ "lookupArchives" ]
+      ; ( "MTL4ComputePipelineDescriptor"
+        , [ "computeFunctionDescriptor"; "maxTotalThreadsPerThreadgroup"
+          ; "requiredThreadsPerThreadgroup"; "supportBinaryLinking"
+          ; "supportIndirectCommandBuffers"
+          ; "threadGroupSizeIsMultipleOfThreadExecutionWidth"
+          ] )
+      ; "MTL4LibraryDescriptor", [ "name"; "options"; "source" ]
+      ; "MTL4LibraryFunctionDescriptor", [ "library"; "name" ]
+      ; "MTL4PipelineDataSetSerializerDescriptor", [ "configuration" ]
+      ; "MTL4PipelineDescriptor", [ "label"; "options" ]
+      ; "MTL4PipelineOptions", [ "shaderReflection" ]
+      ; ( "MTL4PipelineStageDynamicLinkingDescriptor"
+        , [ "maxCallStackDepth"; "preloadedLibraries" ] )
+      ; "MTL4CommandQueue", [ "device"; "label" ]
       ; "MTL4CommandQueueDescriptor", [ "label" ]
       ; "MTLAllocation", [ "allocatedSize" ]
       ; "MTLBinaryArchive", [ "device"; "label" ]
@@ -411,7 +495,7 @@ let bound_identifiers =
           ] )
       ; "MTLComputePipelineReflection", [ "bindings" ]
       ; ( "MTLComputePipelineState"
-        , [ "device"; "label"; "maxTotalThreadsPerThreadgroup"
+        , [ "device"; "label"; "maxTotalThreadsPerThreadgroup"; "reflection"
           ; "threadExecutionWidth"
           ] )
       ; ( "MTLDevice"
@@ -495,6 +579,18 @@ let bound_identifiers =
       ]
   @ enum_cases "MTL4VisibilityOptions"
       [ "MTL4VisibilityOptionResourceAlias" ]
+  @ enum_cases "MTL4IndirectCommandBufferSupportState"
+      [ "MTL4IndirectCommandBufferSupportStateDisabled"
+      ; "MTL4IndirectCommandBufferSupportStateEnabled"
+      ]
+  @ enum_cases "MTL4PipelineDataSetSerializerConfiguration"
+      [ "MTL4PipelineDataSetSerializerConfigurationCaptureBinaries"
+      ; "MTL4PipelineDataSetSerializerConfigurationCaptureDescriptors"
+      ]
+  @ enum_cases "MTL4ShaderReflection"
+      [ "MTL4ShaderReflectionBindingInfo"
+      ; "MTL4ShaderReflectionBufferTypeInfo"
+      ]
   @ enum_cases "MTLBindingAccess"
       [ "MTLArgumentAccessReadOnly"; "MTLArgumentAccessReadWrite"
       ; "MTLArgumentAccessWriteOnly"; "MTLBindingAccessReadOnly"

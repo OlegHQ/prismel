@@ -629,6 +629,26 @@ type binary_archive =
   ; device : device
   }
 
+type pipeline_dataset =
+  { raw : Metal_raw.handle
+  ; lifetime : lifetime
+  ; device : device
+  ; configuration : int
+  }
+
+type pipeline_archive =
+  { raw : Metal_raw.handle
+  ; lifetime : lifetime
+  ; device : device
+  }
+
+type compiler =
+  { raw : Metal_raw.handle
+  ; lifetime : lifetime
+  ; device : device
+  ; dataset : pipeline_dataset option
+  }
+
 type compute_pipeline =
   { raw : Metal_raw.handle
   ; lifetime : lifetime
@@ -6628,6 +6648,24 @@ end
 module Compute_pipeline = struct
   type t = compute_pipeline
 
+  let make device ~reflection raw raw_bindings =
+    let bindings =
+      if reflection then Some (Array.map Binding.of_raw raw_bindings) else None
+    in
+    let value : t =
+      { raw
+      ; lifetime = lifetime ()
+      ; device
+      ; bindings
+      ; thread_execution_width =
+          Metal_raw.compute_pipeline_thread_execution_width raw
+      ; max_total_threads = Metal_raw.compute_pipeline_max_total_threads raw
+      }
+    in
+    attach device.lifetime;
+    attach_finalizer value value.lifetime device.lifetime;
+    value
+
   let create ?label ?(linked_functions = []) ?(preloaded_libraries = [])
       ?(binary_archives = []) ?(fail_on_binary_archive_miss = false)
       ?(reflection = false) (function_value : Function.t) =
@@ -6712,25 +6750,7 @@ module Compute_pipeline = struct
                 match creation with
                 | Error message -> native_error operation message
                 | Ok (raw, raw_bindings) ->
-                    let bindings =
-                      if reflection then
-                        Some (Array.map Binding.of_raw raw_bindings)
-                      else None
-                    in
-                    let value : t =
-                      { raw
-                      ; lifetime = lifetime ()
-                      ; device
-                      ; bindings
-                      ; thread_execution_width =
-                          Metal_raw.compute_pipeline_thread_execution_width raw
-                      ; max_total_threads =
-                          Metal_raw.compute_pipeline_max_total_threads raw
-                      }
-                    in
-                    attach device.lifetime;
-                    attach_finalizer value value.lifetime device.lifetime;
-                    Ok value)
+                    Ok (make device ~reflection raw raw_bindings))
 
   let device (value : t) = value.device
   let generation (value : t) = Metal_raw.generation value.raw
@@ -6748,6 +6768,361 @@ module Compute_pipeline = struct
   let destroy (value : t) =
     destroy_leaf "Metal.Compute_pipeline.destroy" value.lifetime value.raw
       (fun () -> detach value.device.lifetime)
+end
+
+let ensure_metal4 operation (device : Device.t) =
+  match ensure_live operation device.lifetime with
+  | Error _ as failure -> failure
+  | Ok ()
+    when not
+           (Metal_raw.device_supports_family device.raw
+              (Device.family_code Device.Metal4)) ->
+      error operation Unsupported "the Metal device does not support Metal 4"
+  | Ok () -> Ok ()
+
+module Pipeline_dataset = struct
+  type t = pipeline_dataset
+
+  type capture =
+    | Descriptors
+    | Binaries
+
+  let capture_bit = function Descriptors -> 1 | Binaries -> 2
+
+  let validate_captures operation captures =
+    match captures with
+    | [] ->
+        error operation Invalid_argument
+          "at least one pipeline-dataset capture mode is required"
+    | _ when List.length captures <> List.length (List.sort_uniq compare captures)
+      ->
+        error operation Invalid_argument
+          "pipeline-dataset capture modes contain a duplicate"
+    | _ ->
+        Ok
+          (List.fold_left
+             (fun bits capture -> bits lor capture_bit capture)
+             0 captures)
+
+  let create ~device captures =
+    let operation = "Metal.Pipeline_dataset.create" in
+    on_main operation (fun () ->
+      let ( let* ) value callback = Result.bind value callback in
+      let* () = ensure_metal4 operation device in
+      let* configuration = validate_captures operation captures in
+      match Metal_raw.pipeline_dataset_create device.raw configuration with
+      | Error message -> native_error operation message
+      | Ok raw ->
+          let value : t =
+            { raw; lifetime = lifetime (); device; configuration }
+          in
+          attach device.lifetime;
+          attach_finalizer value value.lifetime device.lifetime;
+          Ok value)
+
+  let captures (value : t) =
+    let captured bit capture reversed =
+      if value.configuration land bit <> 0 then capture :: reversed
+      else reversed
+    in
+    [] |> captured 1 Descriptors |> captured 2 Binaries |> List.rev
+
+  let serialize_script (value : t) =
+    let operation = "Metal.Pipeline_dataset.serialize_script" in
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when value.configuration land 1 = 0 ->
+          error operation Invalid_state
+            "pipeline descriptor capture was not enabled"
+      | Ok () ->
+          (match Metal_raw.pipeline_dataset_serialize_script value.raw with
+           | Error message -> native_error operation message
+           | Ok script -> Ok script))
+
+  let serialize_archive (value : t) path =
+    let operation = "Metal.Pipeline_dataset.serialize_archive" in
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when value.configuration land 2 = 0 ->
+          error operation Invalid_state "pipeline binary capture was not enabled"
+      | Ok () ->
+          (match validate_absolute_path operation path with
+           | Error _ as failure -> failure
+           | Ok () ->
+               match
+                 Metal_raw.pipeline_dataset_serialize_archive value.raw path
+               with
+               | Error message -> native_error operation message
+               | Ok () -> Ok ()))
+
+  let device (value : t) = value.device
+  let generation (value : t) = Metal_raw.generation value.raw
+  let destroyed (value : t) = is_destroyed value.lifetime
+
+  let destroy (value : t) =
+    destroy_parent "Metal.Pipeline_dataset.destroy" value.lifetime value.raw
+      (fun () -> detach value.device.lifetime)
+end
+
+module Pipeline_archive = struct
+  type t = pipeline_archive
+
+  let load_file ?label ~device path =
+    let operation = "Metal.Pipeline_archive.load_file" in
+    on_main operation (fun () ->
+      let ( let* ) value callback = Result.bind value callback in
+      let* () = ensure_metal4 operation device in
+      let* () = validate_absolute_path operation path in
+      if option_exists contains_nul label then
+        error operation Invalid_argument
+          "pipeline-archive label contains a NUL byte"
+      else
+        match Metal_raw.pipeline_archive_load_file device.raw path label with
+        | Error message -> native_error operation message
+        | Ok raw ->
+            let value : t = { raw; lifetime = lifetime (); device } in
+            attach device.lifetime;
+            attach_finalizer value value.lifetime device.lifetime;
+            Ok value)
+
+  let device (value : t) = value.device
+  let generation (value : t) = Metal_raw.generation value.raw
+  let destroyed (value : t) = is_destroyed value.lifetime
+
+  let label (value : t) =
+    on_main "Metal.Pipeline_archive.label" (fun () ->
+      match ensure_live "Metal.Pipeline_archive.label" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () -> Ok (Metal_raw.pipeline_archive_label value.raw))
+
+  let destroy (value : t) =
+    destroy_leaf "Metal.Pipeline_archive.destroy" value.lifetime value.raw
+      (fun () -> detach value.device.lifetime)
+end
+
+let validate_pipeline_archives operation device archives =
+  let rec loop seen = function
+    | [] -> Ok ()
+    | (archive : pipeline_archive) :: rest ->
+        if
+          List.exists
+            (fun (value : pipeline_archive) ->
+              value.lifetime == archive.lifetime)
+            seen
+        then
+          error operation Invalid_argument
+            "pipeline-archive list contains a duplicate handle"
+        else
+          (match ensure_live operation archive.lifetime with
+           | Error _ as failure -> failure
+           | Ok () ->
+               (match ensure_same_device operation device archive.device with
+                | Error _ as failure -> failure
+                | Ok () -> loop (archive :: seen) rest))
+  in
+  loop [] archives
+
+module Compiler = struct
+  type t = compiler
+
+  let make device dataset raw =
+    let value : t = { raw; lifetime = lifetime (); device; dataset } in
+    attach device.lifetime;
+    Option.iter (fun (dataset : pipeline_dataset) -> attach dataset.lifetime)
+      dataset;
+    attach_finalizer
+      ~on_finalize:(fun () ->
+        Option.iter
+          (fun (dataset : pipeline_dataset) -> detach dataset.lifetime)
+          dataset)
+      value value.lifetime device.lifetime;
+    value
+
+  let create ?label ?dataset device =
+    let operation = "Metal.Compiler.create" in
+    on_main operation (fun () ->
+      let ( let* ) value callback = Result.bind value callback in
+      let* () = ensure_metal4 operation device in
+      if option_exists contains_nul label then
+        error operation Invalid_argument "compiler label contains a NUL byte"
+      else
+        let* () =
+          match dataset with
+          | None -> Ok ()
+          | Some (dataset : Pipeline_dataset.t) ->
+              let* () = ensure_live operation dataset.lifetime in
+              ensure_same_device operation device dataset.device
+        in
+        match
+          Metal_raw.compiler_create device.raw
+            (Option.map (fun (value : Pipeline_dataset.t) -> value.raw) dataset)
+            label
+        with
+        | Error message -> native_error operation message
+        | Ok raw -> Ok (make device dataset raw))
+
+  let compile_source ?name (value : t) source =
+    let operation = "Metal.Compiler.compile_source" in
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when source = "" ->
+          error operation Invalid_argument "shader source is empty"
+      | Ok () when contains_nul source ->
+          error operation Invalid_argument "shader source contains a NUL byte"
+      | Ok ()
+        when option_exists
+               (fun name -> name = "" || contains_nul name)
+               name ->
+          error operation Invalid_argument
+            "library name must be nonempty and contain no NUL byte"
+      | Ok () ->
+          (match Metal_raw.compiler_compile_library value.raw source name with
+           | Error message -> native_error operation message
+           | Ok raw -> Ok (Library.make value.device raw)))
+
+  let product3 x y z =
+    if x > max_int / y then None
+    else
+      let xy = x * y in
+      if xy > max_int / z then None else Some (xy * z)
+
+  let create_compute_pipeline ?label ?(reflection = false)
+      ?(threadgroup_size_multiple = false)
+      ?max_total_threads_per_threadgroup ?required_threads_per_threadgroup
+      ?(support_binary_linking = false)
+      ?(support_indirect_command_buffers = false)
+      ?(preloaded_libraries = []) ?max_call_stack_depth
+      ?(lookup_archives = []) (value : t) ~(library : Library.t)
+      function_name =
+    let operation = "Metal.Compiler.create_compute_pipeline" in
+    on_main operation (fun () ->
+      let ( let* ) result callback = Result.bind result callback in
+      let* () = ensure_live operation value.lifetime in
+      let* () = ensure_live operation library.lifetime in
+      let* () = ensure_same_device operation value.device library.device in
+      if function_name = "" || contains_nul function_name then
+        error operation Invalid_argument
+          "compute function name must be nonempty and contain no NUL byte"
+      else if option_exists contains_nul label then
+        error operation Invalid_argument
+          "compute-pipeline label contains a NUL byte"
+      else
+        let* max_total_threads =
+          match max_total_threads_per_threadgroup with
+          | None -> Ok 0L
+          | Some count when count <= 0 ->
+              error operation Invalid_argument
+                "maximum total threads must be positive"
+          | Some count -> Ok (Int64.of_int count)
+        in
+        let* required_width, required_height, required_depth =
+          match required_threads_per_threadgroup with
+          | None -> Ok (0L, 0L, 0L)
+          | Some (width, height, depth)
+            when width <= 0 || height <= 0 || depth <= 0 ->
+              error operation Invalid_argument
+                "required threadgroup dimensions must be positive"
+          | Some (width, height, depth) ->
+              (match product3 width height depth with
+               | None ->
+                   error operation Invalid_argument
+                     "required threadgroup cardinality overflows an OCaml integer"
+               | Some product
+                 when max_total_threads <> 0L
+                      && Int64.of_int product <> max_total_threads ->
+                   error operation Invalid_argument
+                     "configured maximum threads must equal the required threadgroup cardinality"
+               | Some _ ->
+                   Ok
+                     ( Int64.of_int width
+                     , Int64.of_int height
+                     , Int64.of_int depth ))
+        in
+        if
+          support_binary_linking
+          && not
+               (Metal_raw.device_supports_function_pointers value.device.raw)
+        then
+          error operation Unsupported
+            "binary linking requires Metal function-pointer support"
+        else
+          let* () =
+            validate_dynamic_libraries operation value.device
+              preloaded_libraries
+          in
+          if
+            preloaded_libraries <> []
+            && not
+                 (Metal_raw.device_supports_dynamic_libraries value.device.raw)
+          then
+            error operation Unsupported
+              "preloaded libraries require Metal dynamic-library support"
+          else
+            let* max_call_stack_depth =
+              match max_call_stack_depth with
+              | None -> Ok (if preloaded_libraries = [] then 0L else 1L)
+              | Some depth when depth <= 0 ->
+                  error operation Invalid_argument
+                    "maximum call-stack depth must be positive"
+              | Some depth -> Ok (Int64.of_int depth)
+            in
+            let* () =
+              validate_pipeline_archives operation value.device lookup_archives
+            in
+            let descriptor : Metal_raw.metal4_compute_descriptor =
+              { label
+              ; library = library.raw
+              ; function_name
+              ; reflection
+              ; threadgroup_size_multiple
+              ; max_total_threads
+              ; required_threads_width = required_width
+              ; required_threads_height = required_height
+              ; required_threads_depth = required_depth
+              ; support_binary_linking
+              ; support_indirect_commands = support_indirect_command_buffers
+              ; preloaded_libraries =
+                  Array.of_list
+                    (List.map
+                       (fun (library : Dynamic_library.t) -> library.raw)
+                       preloaded_libraries)
+              ; max_call_stack_depth
+              ; lookup_archives =
+                  Array.of_list
+                    (List.map
+                       (fun (archive : Pipeline_archive.t) -> archive.raw)
+                       lookup_archives)
+              }
+            in
+            match
+              Metal_raw.compiler_create_compute_pipeline value.raw descriptor
+            with
+            | Error message -> native_error operation message
+            | Ok (raw, raw_bindings) ->
+                Ok
+                  (Compute_pipeline.make value.device ~reflection raw
+                     raw_bindings))
+
+  let device (value : t) = value.device
+  let generation (value : t) = Metal_raw.generation value.raw
+  let dataset (value : t) = value.dataset
+  let destroyed (value : t) = is_destroyed value.lifetime
+
+  let label (value : t) =
+    on_main "Metal.Compiler.label" (fun () ->
+      match ensure_live "Metal.Compiler.label" value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () -> Ok (Metal_raw.compiler_label value.raw))
+
+  let destroy (value : t) =
+    destroy_leaf "Metal.Compiler.destroy" value.lifetime value.raw (fun () ->
+      detach value.device.lifetime;
+      Option.iter
+        (fun (dataset : pipeline_dataset) -> detach dataset.lifetime)
+        value.dataset)
 end
 
 module Command_queue = struct
