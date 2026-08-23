@@ -26,9 +26,10 @@ let promotion_ids =
   ; "method:-[MTLRenderCommandEncoder tileWidth]"
   ; "property:MTLRenderCommandEncoder:tileHeight"
   ; "property:MTLRenderCommandEncoder:tileWidth"
-  ]
+  ] @ List.map (fun (entry : Binding_render_encoder_resource_plan.entry) -> entry.id)
+      Binding_render_encoder_resource_plan.entries
 
-let expected_count = 27
+let expected_count = 46
 
 let () =
   if List.length promotion_ids <> expected_count

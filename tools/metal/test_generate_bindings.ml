@@ -967,6 +967,10 @@ let generator_source_sha256 entry_source =
   ; "tools/metal/binding_render_pipeline_scalar_evidence.mli"
   ; "tools/metal/binding_render_encoder_promotion.ml"
   ; "tools/metal/binding_render_encoder_promotion.mli"
+  ; "tools/metal/binding_render_encoder_resource_plan.ml"
+  ; "tools/metal/binding_render_encoder_resource_plan.mli"
+  ; "tools/metal/render_encoder_resource_adapter.ml"
+  ; "tools/metal/render_encoder_resource_adapter.mli"
   ; "tools/metal/binding_descriptor_default_evidence.ml"
   ; "tools/metal/binding_descriptor_default_evidence.mli"
   ; "tools/metal/binding_argument_reflection_plan.ml"
@@ -1121,13 +1125,13 @@ let check_struct_native_batch raw_ml raw_mli native value =
 
 let check_string_batch raw_ml raw_mli native value =
   let batch = member_exn "mechanical_string_batch" value in
-  if member_int "property_count" batch <> Some 4
-     || member_int "declaration_count" batch <> Some 10
+  if member_int "property_count" batch <> Some 5
+     || member_int "declaration_count" batch <> Some 13
      || member_int "safe_bound_count" batch <> Some 0
   then fail "generated Metal NSString cardinality drift";
   let identifiers = json_string_list "identifiers" batch in
-  if List.length identifiers <> 10
-     || List.length (List.sort_uniq String.compare identifiers) <> 10
+  if List.length identifiers <> 13
+     || List.length (List.sort_uniq String.compare identifiers) <> 13
   then fail "generated Metal NSString identifier closure drift";
   [ raw_ml, "generated_mtl4_binary_function_name_get"
   ; raw_mli, "generated_mtl_command_queue_label_set"

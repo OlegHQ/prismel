@@ -359,8 +359,8 @@ let validate_string_entries inventory entries =
         entry.setter_sdk_id)
     entries;
   let identifiers = List.concat_map Binding_string_spec.inventory_ids entries in
-  if List.length entries <> 4 || List.length identifiers <> 10
-     || List.length (List.sort_uniq String.compare identifiers) <> 10
+  if List.length entries <> 5 || List.length identifiers <> 13
+     || List.length (List.sort_uniq String.compare identifiers) <> 13
   then fail "generated Metal NSString qualified cardinality drift"
 
 let validate_global_string_entries inventory entries =
@@ -2118,6 +2118,10 @@ let generator_source_paths =
   ; "tools/metal/binding_render_pipeline_scalar_evidence.mli"
   ; "tools/metal/binding_render_encoder_promotion.ml"
   ; "tools/metal/binding_render_encoder_promotion.mli"
+  ; "tools/metal/binding_render_encoder_resource_plan.ml"
+  ; "tools/metal/binding_render_encoder_resource_plan.mli"
+  ; "tools/metal/render_encoder_resource_adapter.ml"
+  ; "tools/metal/render_encoder_resource_adapter.mli"
   ; "tools/metal/binding_descriptor_default_evidence.ml"
   ; "tools/metal/binding_descriptor_default_evidence.mli"
   ; "tools/metal/binding_argument_reflection_plan.ml"

@@ -145,6 +145,7 @@ let receivers =
       "Visible_function_table" "visible_function_table"
   ; direct "MTLIntersectionFunctionTable" "id<MTLIntersectionFunctionTable>"
       "Intersection_function_table" "intersection_function_table"
+  ; direct "MTLFence" "id<MTLFence>" "Fence" "fence"
   ]
 
 let polymorphic_receivers =
@@ -199,10 +200,10 @@ let exclusions =
     }
   ]
 
-let expected_receiver_count = 40
+let expected_receiver_count = 41
 let expected_polymorphic_receiver_count = 3
-let expected_catalog_count = 43
-let expected_handle_kind_count = 46
+let expected_catalog_count = 44
+let expected_handle_kind_count = 47
 let expected_exclusion_count = 6
 
 let source_paths =

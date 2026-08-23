@@ -27,6 +27,8 @@
   binding_render_pipeline_scalar_codegen
   binding_render_pipeline_scalar_evidence
   binding_render_encoder_promotion
+  binding_render_encoder_resource_plan
+  render_encoder_resource_adapter
   binding_argument_reflection_plan
   binding_argument_reflection_codegen
   binding_argument_reflection_evidence
@@ -83,6 +85,8 @@
   generate_bindings.exe
   binding_spec.ml
   binding_spec.mli
+  binding_render_encoder_resource_plan.ml
+  binding_render_encoder_resource_plan.mli
   binding_enum_stage_device.ml
   binding_enum_stage_device.mli
   binding_enum_acceleration_pipeline.ml
@@ -375,6 +379,16 @@
  (name test_binding_availability)
  (modules test_binding_availability)
  (libraries metal_inventory_classification yojson))
+
+(test
+ (name test_binding_render_encoder_resource_plan)
+ (modules test_binding_render_encoder_resource_plan)
+ (libraries metal_inventory_classification))
+
+(test
+ (name test_render_encoder_resource_adapter)
+ (modules test_render_encoder_resource_adapter)
+ (libraries metal_inventory_classification))
 
 (executable
  (name generate_inventory)
