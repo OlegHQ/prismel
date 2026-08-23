@@ -61,7 +61,7 @@ let profile_compile_flags = function
 
 let framework_link_flags =
   [ "-framework"; "Foundation"; "-framework"; "Metal"; "-framework"
-  ; "QuartzCore"; "-framework"; "IOSurface"; "-lc++"
+  ; "QuartzCore"; "-framework"; "CoreGraphics"; "-framework"; "IOSurface"; "-lc++"
   ]
 
 let write_sexp path flags =

@@ -80,7 +80,7 @@ let main () =
     ([ "-dynamiclib"; "-undefined"; "dynamic_lookup"
      ; "-mmacosx-version-min=14.0"; arguments.object_file; "-framework"
      ; "Foundation"; "-framework"; "Metal"; "-framework"; "QuartzCore"
-     ; "-framework"; "IOSurface"
+     ; "-framework"; "CoreGraphics"; "-framework"; "IOSurface"
      ]
      @ link_flags @ [ "-o"; arguments.shared ])
 
