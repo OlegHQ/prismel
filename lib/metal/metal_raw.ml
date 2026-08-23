@@ -1978,3 +1978,13 @@ external command_event_create :
 external command_shared_event_create :
   handle -> ((handle * int64),string) result =
   "caml_prismel_metal_command_shared_event_create"
+
+(* Exact synchronous Mesh/tile105 descriptor compilation selectors. *)
+external mesh_pipeline_compile :
+  handle -> handle -> int64 ->
+  ((handle * render_pipeline_reflection),string) result =
+  "caml_prismel_metal_mesh_pipeline_compile"
+external tile_pipeline_compile :
+  handle -> handle -> int64 ->
+  ((handle * render_pipeline_reflection),string) result =
+  "caml_prismel_metal_tile_pipeline_compile"
