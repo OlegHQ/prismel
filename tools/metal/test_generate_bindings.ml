@@ -870,6 +870,78 @@ let native_getter_core expected result =
     receiver raw_receiver expected.receiver_handle_kind (native_call expected)
     result.overflow_error
 
+let generator_source_sha256 entry_source =
+  let metal_directory =
+    if Filename.dirname entry_source = "." then Sys.getcwd ()
+    else Filename.dirname entry_source
+  in
+  let tools_directory = Filename.dirname metal_directory in
+  let root = Filename.dirname tools_directory in
+  [ "tools/metal/generate_bindings.ml"
+  ; "tools/metal/binding_enum_codegen.ml"
+  ; "tools/metal/binding_enum_codegen.mli"
+  ]
+  |> List.map (fun relative ->
+    relative, read_file (Filename.concat root relative))
+  |> Binding_spec.aggregate_source_sha256
+
+let check_mechanical_enum_batch raw_ml raw_mli value =
+  let batch = member_exn "mechanical_enum_batch" value in
+  if member_int "enum_family_count" batch <> Some 61
+     || member_int "enum_case_count" batch <> Some 326
+     || member_int "enum_declaration_count" batch <> Some 448
+  then fail "generated Metal mechanical enum cardinality drift";
+  let identifiers = json_string_list "enum_identifiers" batch in
+  if List.length identifiers <> 448
+     || List.length (List.sort_uniq String.compare identifiers) <> 448
+  then fail "generated Metal mechanical enum identifier closure drift";
+  let families = json_list "enum_families" batch in
+  if List.length families <> 61 then
+    fail "generated Metal mechanical enum family list drift";
+  let family_identifiers, case_count =
+    List.fold_left
+      (fun (identifiers, case_count) family ->
+        let cases = json_list "cases" family in
+        let identifiers =
+          json_string "enum_id" family :: json_string "typedef_id" family
+          :: List.map (json_string "id") cases
+          @ identifiers
+        in
+        identifiers, case_count + List.length cases)
+      ([], 0) families
+  in
+  if case_count <> 326
+     || List.sort String.compare family_identifiers <> identifiers
+  then fail "generated Metal mechanical enum manifest closure drift";
+  let device_location =
+    List.find_opt
+      (fun family ->
+        member_string "name" family = Some "MTLDeviceLocation")
+      families
+    |> Option.value ~default:(`Assoc [])
+  in
+  if member_string "module_name" device_location
+     <> Some "Mtl_device_location"
+  then fail "generated Metal device-location module name drift";
+  let unspecified =
+    json_list "cases" device_location
+    |> List.find_opt (fun case ->
+      member_string "name" case = Some "MTLDeviceLocationUnspecified")
+    |> Option.value ~default:(`Assoc [])
+  in
+  if member_string "uint64_decimal" unspecified
+     <> Some "18446744073709551615"
+     || member_string "uint64_bits" unspecified
+        <> Some "0xffffffffffffffff"
+  then fail "generated Metal UINT64_MAX enum manifest drift";
+  [ ( raw_ml
+    , "let mtl_device_location_unspecified : int64 = 0xffffffffffffffffL" )
+  ; raw_mli, "val mtl_device_location_unspecified : int64"
+  ]
+  |> List.iter (fun (contents, needle) ->
+    if count_occurrences ~needle contents <> 1 then
+      fail "generated Metal UINT64_MAX raw enum constant drift")
+
 let check_manifest inputs outputs =
   let value = read_file outputs.manifest |> Yojson.Safe.from_string in
   let plan_sha256 = Binding_plan.source_sha256 ~root:inputs.plan_root in
@@ -889,11 +961,13 @@ let check_manifest inputs outputs =
   if member_int "entry_count" value <> Some (List.length expected_bindings) then
     fail "generated Metal manifest must record %d golden bindings"
       (List.length expected_bindings);
+  if member_int "schema" value <> Some 2 then
+    fail "generated Metal manifest schema drift";
   if member_string "binding_plan_source_sha256" value
      <> Some plan_sha256
   then fail "generated Metal manifest has stale plan provenance";
   if member_string "generator_source_sha256" value
-     <> Some (sha256 (read_file inputs.generator_source))
+     <> Some (generator_source_sha256 inputs.generator_source)
   then fail "generated Metal manifest has stale generator provenance";
   [ "inventory_sha256", inputs.inventory
   ; "raw_ml_sha256", outputs.raw_ml
@@ -910,6 +984,7 @@ let check_manifest inputs outputs =
   let raw_ml = read_file outputs.raw_ml in
   let raw_mli = read_file outputs.raw_mli in
   let native = read_file outputs.native in
+  check_mechanical_enum_batch raw_ml raw_mli value;
   List.iter
     (fun expected ->
       let native_body = native_binding_body expected.c_symbol native in
@@ -1110,6 +1185,33 @@ let main () =
     require_failure "SDK enum-value drift test" "Metal enum-case value drift"
       (run inputs ~inventory:enum_drift_inventory
          ~manual_native:inputs.manual_native (outputs directory "enum-drift"));
+    let mechanical_enum_classification_drift =
+      Filename.concat directory "mechanical-enum-classification-drift.json"
+    in
+    read_file inputs.inventory |> Yojson.Safe.from_string
+    |> replace_symbol_field
+         ~target:
+           "enum-case:MTLDeviceLocation:MTLDeviceLocationUnspecified"
+         ~field:"classification" (`String "bound")
+    |> pretty_json |> write_file mechanical_enum_classification_drift;
+    require_failure "mechanical enum classification drift test"
+      "expected unreviewed"
+      (run inputs ~inventory:mechanical_enum_classification_drift
+         ~manual_native:inputs.manual_native
+         (outputs directory "mechanical-enum-classification-drift"));
+    let mechanical_enum_value_drift =
+      Filename.concat directory "mechanical-enum-value-drift.json"
+    in
+    read_file inputs.inventory |> Yojson.Safe.from_string
+    |> replace_symbol_field
+         ~target:
+           "enum-case:MTLDeviceLocation:MTLDeviceLocationUnspecified"
+         ~field:"constant_value" (`String "18446744073709551616")
+    |> pretty_json |> write_file mechanical_enum_value_drift;
+    require_failure "mechanical enum uint64 overflow test" "out of range"
+      (run inputs ~inventory:mechanical_enum_value_drift
+         ~manual_native:inputs.manual_native
+         (outputs directory "mechanical-enum-value-drift"));
     let empty_safe_source = Filename.concat directory "empty-safe.ml" in
     write_file empty_safe_source "";
     require_failure "missing safe-API evidence test" "safe Metal module is absent"

@@ -2,13 +2,18 @@
  (name metal_inventory_classification)
  (wrapped false)
  (modules
+  binding_enum_stage_device
+  binding_enum_acceleration_pipeline
+  binding_enum_misc
+  binding_enum_plan
+  binding_enum_codegen
   binding_spec
   binding_plan_render
   binding_plan_compute
   binding_plan_resource
   binding_plan
   classification)
- (libraries gpu_migration_support))
+ (libraries gpu_migration_support yojson))
 
 (executable
  (name generate_bindings)
@@ -31,6 +36,16 @@
   generate_bindings.exe
   binding_spec.ml
   binding_spec.mli
+  binding_enum_stage_device.ml
+  binding_enum_stage_device.mli
+  binding_enum_acceleration_pipeline.ml
+  binding_enum_acceleration_pipeline.mli
+  binding_enum_misc.ml
+  binding_enum_misc.mli
+  binding_enum_plan.ml
+  binding_enum_plan.mli
+  binding_enum_codegen.ml
+  binding_enum_codegen.mli
   binding_plan.ml
   binding_plan.mli
   binding_plan_render.ml
@@ -56,6 +71,18 @@
    --safe-source %{dep:../../lib/metal/metal.ml}
    --safe-tests %{dep:../../lib/metal/test_metal.ml})))
 
+(test
+ (name test_binding_enum_plan)
+ (modules test_binding_enum_plan)
+ (libraries
+  gpu_migration_support
+  metal_inventory_classification
+  yojson)
+ (deps ../../lib/metal/generated_api_inventory.json)
+ (action
+  (run %{test}
+   --inventory %{dep:../../lib/metal/generated_api_inventory.json})))
+
 (executable
  (name generate_inventory)
  (modules generate_inventory)
@@ -77,6 +104,14 @@
   generate_inventory.exe
   binding_spec.ml
   binding_spec.mli
+  binding_enum_stage_device.ml
+  binding_enum_stage_device.mli
+  binding_enum_acceleration_pipeline.ml
+  binding_enum_acceleration_pipeline.mli
+  binding_enum_misc.ml
+  binding_enum_misc.mli
+  binding_enum_plan.ml
+  binding_enum_plan.mli
   binding_plan.ml
   binding_plan.mli
   binding_plan_render.ml

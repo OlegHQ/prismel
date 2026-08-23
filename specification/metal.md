@@ -42,21 +42,38 @@ introduced-version payload. Stable ordering, pinned inputs, content hashes, and
 emitted provenance keep generation deterministic and make Dune's
 generated-output regression checks fail on drift.
 
-The first generator template owns only one-argument enum-setter raw OCaml
-declarations and native adapter stubs; later mechanical templates must preserve
-the same closed typed model. Native adapters use direct, statically typed
-Objective-C selectors; neither generated nor handwritten code dispatches
-through `objc_msgSend`. Public types, domain and lifetime checks, ownership and
-retention, validation, capability policy, asynchronous completion, complex
-records, and multi-object operations remain handwritten in the safe layer. A
-generated raw declaration alone never makes an inventory declaration `bound`:
-the plan requires an independent safe-operation/test-evidence record, and the
-generator parses both OCaml syntax trees, locates the exact safe module/value and
-conformance function, and requires direct applications of the planned raw and
-public paths before composing the bound identifier set. The conformance
-function must also be reachable through the parsed call graph from an executable
-top-level initializer, so a defined but uninvoked test does not qualify.
-Comments, strings, prefix names, and unrelated calls do not qualify as evidence.
+The plan schema and direct-call entries are split into independent OCaml modules
+for render, compute, and resource work. Their provenance is one sorted,
+length-framed digest over every schema, shard, and aggregator source, so moving
+an entry out of the aggregator cannot make an untracked plan input. Native
+adapters use direct, statically typed Objective-C selectors; neither generated
+nor handwritten code dispatches through `objc_msgSend`.
+
+The first production-scale mechanical batch selects 61 wholly unreviewed enum
+families whose pinned closure is complete: 61 enum declarations, 61 typedef
+companions, and 326 cases, or 448 inventory declarations in total. Three
+non-overlapping OCaml family shards feed one fail-closed selector. It requires
+canonical identifiers, supported enum/typedef signature forms, unreviewed
+classification, a recorded unsigned value for every case, exact aggregate
+cardinality, and collision-free OCaml names. The generated private
+`Metal_raw.Enum_constants` modules preserve each unsigned 64-bit bit pattern as
+`int64`; this includes `18446744073709551615` as `0xffffffffffffffffL` rather
+than overflowing or narrowing through an OCaml `int`. The manifest records all
+448 identifiers, families, decimal values, bit patterns, and generated names.
+These declarations remain `unreviewed`: mechanical generation is reported
+separately and does not imply a safe public operation.
+
+Public types, domain and lifetime checks, ownership and retention, validation,
+capability policy, asynchronous completion, complex records, and multi-object
+operations remain handwritten in the safe layer. A generated raw declaration
+alone never makes an inventory declaration `bound`: the plan requires an
+independent safe-operation/test-evidence record, and the generator parses both
+OCaml syntax trees, locates the exact safe module/value and conformance function,
+and requires direct applications of the planned raw and public paths before
+composing the bound identifier set. The conformance function must also be
+reachable through the parsed call graph from an executable top-level
+initializer, so a defined but uninvoked test does not qualify. Comments,
+strings, prefix names, and unrelated calls do not qualify as evidence.
 
 The direct-void scalar template also supports multiple `NSUInteger` arguments.
 It emits the raw OCaml externals and statically typed native adapters, including

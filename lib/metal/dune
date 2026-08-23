@@ -39,6 +39,16 @@
   test_metal.ml
   ../../tools/metal/binding_spec.ml
   ../../tools/metal/binding_spec.mli
+  ../../tools/metal/binding_enum_stage_device.ml
+  ../../tools/metal/binding_enum_stage_device.mli
+  ../../tools/metal/binding_enum_acceleration_pipeline.ml
+  ../../tools/metal/binding_enum_acceleration_pipeline.mli
+  ../../tools/metal/binding_enum_misc.ml
+  ../../tools/metal/binding_enum_misc.mli
+  ../../tools/metal/binding_enum_plan.ml
+  ../../tools/metal/binding_enum_plan.mli
+  ../../tools/metal/binding_enum_codegen.ml
+  ../../tools/metal/binding_enum_codegen.mli
   ../../tools/metal/binding_plan.ml
   ../../tools/metal/binding_plan.mli
   ../../tools/metal/binding_plan_render.ml

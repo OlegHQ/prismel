@@ -11,6 +11,7 @@ let source_paths =
   ; "tools/metal/binding_spec.ml"
   ; "tools/metal/binding_spec.mli"
   ]
+  @ Binding_enum_plan.source_paths
 
 let source_sha256 ~root =
   source_paths

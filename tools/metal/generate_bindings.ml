@@ -111,6 +111,42 @@ let load_inventory path =
   in
   sdk_version, inventory_plan_sha256, declarations
 
+let select_mechanical_enums inventory =
+  let declarations =
+    inventory
+    |> String_map.to_seq
+    |> Seq.map (fun (_, declaration) ->
+      ({ id = declaration.identifier
+       ; kind = declaration.kind
+       ; name = declaration.name
+       ; owner = declaration.owner
+       ; signature = declaration.signature
+       ; classification = declaration.classification
+       ; constant_value = declaration.constant_value
+       }
+        : Binding_enum_codegen.declaration))
+    |> List.of_seq
+  in
+  let selection =
+    try
+      Binding_enum_codegen.select
+        ~family_names:Binding_enum_plan.family_names declarations
+    with Binding_enum_codegen.Error message ->
+      fail "invalid mechanical Metal enum batch: %s" message
+  in
+  if selection.family_count <> Binding_enum_plan.expected_family_count
+     || selection.case_count <> Binding_enum_plan.expected_case_count
+     || selection.declaration_count
+        <> Binding_enum_plan.expected_declaration_count
+  then
+    fail
+      "mechanical Metal enum batch cardinality drift: expected %d/%d/%d, found %d/%d/%d"
+      Binding_enum_plan.expected_family_count
+      Binding_enum_plan.expected_case_count
+      Binding_enum_plan.expected_declaration_count selection.family_count
+      selection.case_count selection.declaration_count;
+  selection
+
 let valid_identifier ~initial value =
   let valid_initial character =
     match initial with
@@ -813,19 +849,25 @@ let add_raw_external output entry =
   Buffer.add_string output " =\n    ";
   Buffer.add_string output (Printf.sprintf "%S\n\n" c_symbol)
 
-let raw_ml ~header entries =
+let raw_ml ~header ~enum_selection entries =
   let output = Buffer.create 4096 in
   Printf.bprintf output "(* %s *)\n\n" header;
   Buffer.add_string output "module Make (Types : sig\n  type handle\nend) = struct\n";
+  Buffer.add_string output
+    (Binding_enum_codegen.render_raw_ml enum_selection);
+  Buffer.add_char output '\n';
   List.iter (add_raw_external output) entries;
   Buffer.add_string output "end\n";
   Buffer.contents output
 
-let raw_mli ~header entries =
+let raw_mli ~header ~enum_selection entries =
   let output = Buffer.create 4096 in
   Printf.bprintf output "(* %s *)\n\n" header;
   Buffer.add_string output
     "module Make (Types : sig\n  type handle\nend) : sig\n";
+  Buffer.add_string output
+    (Binding_enum_codegen.render_raw_mli enum_selection);
+  Buffer.add_char output '\n';
   List.iter (add_raw_external output) entries;
   Buffer.add_string output "end\n";
   Buffer.contents output
@@ -1113,10 +1155,10 @@ let entry_json entry =
        ])
 
 let manifest ~sdk_version ~plan_sha256 ~generator_sha256 ~inventory_sha256
-    ~raw_ml_contents ~raw_mli_contents ~native_contents entries =
+    ~raw_ml_contents ~raw_mli_contents ~native_contents ~enum_selection entries =
   pretty_json
     (`Assoc
-       [ "schema", `Int 1
+       [ "schema", `Int 2
        ; "kind", `String "metal_generated_bindings"
        ; "generator", `String "tools/metal/generate_bindings.exe"
        ; "sdk_version", `String sdk_version
@@ -1128,7 +1170,38 @@ let manifest ~sdk_version ~plan_sha256 ~generator_sha256 ~inventory_sha256
        ; "native_include_sha256", `String (sha256 native_contents)
        ; "entry_count", `Int (List.length entries)
        ; "entries", `List (List.map entry_json entries)
+       ; ( "mechanical_enum_batch"
+         , Binding_enum_codegen.manifest_json enum_selection )
        ])
+
+let generator_source_paths =
+  [ "tools/metal/generate_bindings.ml"
+  ; "tools/metal/binding_enum_codegen.ml"
+  ; "tools/metal/binding_enum_codegen.mli"
+  ]
+
+let generator_source_root entry_source =
+  let metal_directory =
+    if Filename.dirname entry_source = "." then Sys.getcwd ()
+    else Filename.dirname entry_source
+  in
+  let tools_directory = Filename.dirname metal_directory in
+  if
+    Filename.basename entry_source <> "generate_bindings.ml"
+    || Filename.basename metal_directory <> "metal"
+    || Filename.basename tools_directory <> "tools"
+  then
+    fail
+      "--generator-source must name tools/metal/generate_bindings.ml, found %s"
+      entry_source;
+  Filename.dirname tools_directory
+
+let generator_source_sha256 ~entry_source =
+  let root = generator_source_root entry_source in
+  generator_source_paths
+  |> List.map (fun relative ->
+    relative, read_file (Filename.concat root relative))
+  |> Binding_spec.aggregate_source_sha256
 
 type options =
   { inventory : string
@@ -1235,25 +1308,30 @@ let main () =
   if inventory_plan_sha256 <> plan_sha256 then
     fail
       "Metal inventory binding-plan provenance drift: regenerate the pinned inventory";
-  let generator_sha256 = read_file options.generator_source |> sha256 in
+  let generator_sha256 =
+    generator_source_sha256 ~entry_source:options.generator_source
+  in
   let inventory_sha256 = sha256 inventory_contents in
+  let enum_selection = select_mechanical_enums inventory in
   let entries =
     validate_plan inventory (read_file options.manual_native)
       (read_file options.manual_raw_ml) (read_file options.manual_raw_mli)
       (read_file options.safe_source) (read_file options.safe_tests)
   in
   let header = generated_header ~plan_sha256 ~inventory_sha256 in
-  let raw_ml_contents = raw_ml ~header entries in
-  let raw_mli_contents = raw_mli ~header entries in
+  let raw_ml_contents = raw_ml ~header ~enum_selection entries in
+  let raw_mli_contents = raw_mli ~header ~enum_selection entries in
   let native_contents = native_include ~header entries in
   let manifest_contents =
     manifest ~sdk_version ~plan_sha256 ~generator_sha256 ~inventory_sha256
-      ~raw_ml_contents ~raw_mli_contents ~native_contents entries
+      ~raw_ml_contents ~raw_mli_contents ~native_contents ~enum_selection entries
   in
   write_file options.output_raw_ml raw_ml_contents;
   write_file options.output_raw_mli raw_mli_contents;
   write_file options.output_native native_contents;
   write_file options.output_manifest manifest_contents;
-  Printf.printf "generated %d typed Metal bindings\n%!" (List.length entries)
+  Printf.printf
+    "generated %d typed Metal bindings and %d mechanical enum declarations\n%!"
+    (List.length entries) enum_selection.declaration_count
 
 let () = protect_main main
