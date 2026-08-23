@@ -65,6 +65,7 @@
   binding_resource_integration_partition
   binding_resource_safe_reachability
   binding_rasterization_rate_reachability
+  binding_tensor_safe_handoff
   binding_argument_reflection_plan
   binding_argument_reflection_codegen
   binding_argument_reflection_evidence
@@ -470,6 +471,11 @@
   (run %{test} %{dep:metal_layout_header_mechanical_generated.mm}
        %{dep:metal_tensor_mechanical_callable_bridge.inc}
        %{dep:../../lib/metal/metal_raw.ml} %{dep:../../lib/metal/metal_raw.mli})))
+
+(test
+ (name test_binding_tensor_safe_handoff)
+ (modules test_binding_tensor_safe_handoff)
+ (libraries metal_inventory_classification))
 
 (test
  (name test_binding_render_command_safe_reachability)
