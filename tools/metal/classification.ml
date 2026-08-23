@@ -23,7 +23,8 @@ let enum_cases owner names =
   List.map (fun name -> "enum-case:" ^ owner ^ ":" ^ name) names
 
 let bound_identifiers =
-  [ "class:MTL4CommandQueueDescriptor"
+  [ "class:MTL4BinaryFunctionDescriptor"
+  ; "class:MTL4CommandQueueDescriptor"
   ; "class:MTL4CompilerDescriptor"
   ; "class:MTL4CompilerTaskOptions"
   ; "class:MTL4ComputePipelineDescriptor"
@@ -47,6 +48,7 @@ let bound_identifiers =
   ; "class:MTLSharedTextureHandle"
   ; "class:MTLTextureDescriptor"
   ; "class:MTLTextureViewDescriptor"
+  ; "enum:MTL4BinaryFunctionOptions"
   ; "enum:MTLCommandBufferStatus"
   ; "enum:MTL4VisibilityOptions"
   ; "enum:MTL4IndirectCommandBufferSupportState"
@@ -117,6 +119,7 @@ let bound_identifiers =
   ; "field:MTL4UpdateSparseTextureMappingOperation:textureLevel"
   ; "field:MTL4UpdateSparseTextureMappingOperation:textureRegion"
   ; "field:MTL4UpdateSparseTextureMappingOperation:textureSlice"
+  ; "protocol:MTL4BinaryFunction"
   ; "protocol:MTL4CommandAllocator"
   ; "protocol:MTL4CommandBuffer"
   ; "protocol:MTL4CommandEncoder"
@@ -151,6 +154,7 @@ let bound_identifiers =
   ; "protocol:MTLTexture"
   ; "protocol:MTLTextureBinding"
   ; "protocol:MTLThreadgroupBinding"
+  ; "typedef:MTL4BinaryFunctionOptions"
   ; "typedef:MTLCommandBufferStatus"
   ; "typedef:MTL4IndirectCommandBufferSupportState"
   ; "typedef:MTL4PipelineDataSetSerializerConfiguration"
@@ -195,7 +199,14 @@ let bound_identifiers =
   ; "variable:swizzle"
   ]
   @ methods
-      [ "MTL4Archive", [ "label"; "setLabel:" ]
+      [ ( "MTL4Archive"
+        , [ "label"; "newBinaryFunctionWithDescriptor:error:"
+          ; "setLabel:"
+          ] )
+      ; ( "MTL4BinaryFunctionDescriptor"
+        , [ "functionDescriptor"; "name"; "options"
+          ; "setFunctionDescriptor:"; "setName:"; "setOptions:"
+          ] )
       ; "MTL4CommandAllocator", [ "reset" ]
       ; ( "MTL4CommandBuffer"
         , [ "beginCommandBufferWithAllocator:"; "computeCommandEncoder"
@@ -214,6 +225,7 @@ let bound_identifiers =
         , [ "label"; "setLabel:" ] )
       ; ( "MTL4Compiler"
         , [ "device"; "label"
+          ; "newBinaryFunctionWithDescriptor:compilerTaskOptions:error:"
           ; "newComputePipelineStateWithDescriptor:compilerTaskOptions:error:"
           ; "newComputePipelineStateWithDescriptor:dynamicLinkingDescriptor:compilerTaskOptions:error:"
           ; "newLibraryWithDescriptor:error:"; "pipelineDataSetSerializer"
@@ -251,7 +263,8 @@ let bound_identifiers =
       ; ( "MTL4PipelineOptions"
         , [ "setShaderReflection:"; "shaderReflection" ] )
       ; ( "MTL4PipelineStageDynamicLinkingDescriptor"
-        , [ "maxCallStackDepth"; "preloadedLibraries"
+        , [ "binaryLinkedFunctions"; "maxCallStackDepth"
+          ; "preloadedLibraries"; "setBinaryLinkedFunctions:"
           ; "setMaxCallStackDepth:"; "setPreloadedLibraries:"
           ] )
       ; ( "MTLBuffer"
@@ -463,6 +476,8 @@ let bound_identifiers =
       ]
   @ properties
       [ "MTL4Archive", [ "label" ]
+      ; ( "MTL4BinaryFunctionDescriptor"
+        , [ "functionDescriptor"; "name"; "options" ] )
       ; ( "MTL4Compiler"
         , [ "device"; "label"; "pipelineDataSetSerializer" ] )
       ; ( "MTL4CompilerDescriptor"
@@ -480,7 +495,9 @@ let bound_identifiers =
       ; "MTL4PipelineDescriptor", [ "label"; "options" ]
       ; "MTL4PipelineOptions", [ "shaderReflection" ]
       ; ( "MTL4PipelineStageDynamicLinkingDescriptor"
-        , [ "maxCallStackDepth"; "preloadedLibraries" ] )
+        , [ "binaryLinkedFunctions"; "maxCallStackDepth"
+          ; "preloadedLibraries"
+          ] )
       ; "MTL4CommandQueue", [ "device"; "label" ]
       ; "MTL4CommandQueueDescriptor", [ "label" ]
       ; "MTLAllocation", [ "allocatedSize" ]
@@ -579,6 +596,10 @@ let bound_identifiers =
       ]
   @ enum_cases "MTL4VisibilityOptions"
       [ "MTL4VisibilityOptionResourceAlias" ]
+  @ enum_cases "MTL4BinaryFunctionOptions"
+      [ "MTL4BinaryFunctionOptionNone"
+      ; "MTL4BinaryFunctionOptionPipelineIndependent"
+      ]
   @ enum_cases "MTL4IndirectCommandBufferSupportState"
       [ "MTL4IndirectCommandBufferSupportStateDisabled"
       ; "MTL4IndirectCommandBufferSupportStateEnabled"

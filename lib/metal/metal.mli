@@ -1092,6 +1092,21 @@ module Pipeline_dataset : sig
   val destroy : t -> (unit, error) result
 end
 
+module Binary_function : sig
+  type t
+
+  val device : t -> Device.t
+  val generation : t -> int64
+  val destroyed : t -> bool
+  val pipeline_independent : t -> bool
+
+  (** Returns the checked descriptor identity used for compilation and archive
+      lookup. *)
+  val name : t -> string
+  val kind : t -> Function.kind
+  val destroy : t -> (unit, error) result
+end
+
 module Pipeline_archive : sig
   type t
 
@@ -1103,6 +1118,14 @@ module Pipeline_archive : sig
   val generation : t -> int64
   val destroyed : t -> bool
   val label : t -> (string option, error) result
+
+  (** Performs a strict synchronous binary-function lookup in this archive.
+      The source descriptor supplies the visible or intersection function
+      identity used when the binary was captured. *)
+  val load_binary_function :
+    ?pipeline_independent:bool -> t -> source:Function.t -> name:string ->
+    (Binary_function.t, error) result
+
   val destroy : t -> (unit, error) result
 end
 
@@ -1120,6 +1143,13 @@ module Compiler : sig
   val compile_source :
     ?name:string -> t -> string -> (Library.t, error) result
 
+  (** Compiles a visible or intersection function to device machine code.
+      Lookup archives are searched by Metal before compiling a miss. *)
+  val create_binary_function :
+    ?pipeline_independent:bool -> ?lookup_archives:Pipeline_archive.t list ->
+    t -> source:Function.t -> name:string ->
+    (Binary_function.t, error) result
+
   val create_compute_pipeline :
     ?label:string -> ?reflection:bool ->
     ?threadgroup_size_multiple:bool ->
@@ -1127,6 +1157,7 @@ module Compiler : sig
     ?required_threads_per_threadgroup:(int * int * int) ->
     ?support_binary_linking:bool ->
     ?support_indirect_command_buffers:bool ->
+    ?binary_linked_functions:Binary_function.t list ->
     ?preloaded_libraries:Dynamic_library.t list ->
     ?max_call_stack_depth:int ->
     ?lookup_archives:Pipeline_archive.t list -> t -> library:Library.t ->

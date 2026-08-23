@@ -642,6 +642,15 @@ type pipeline_archive =
   ; device : device
   }
 
+type binary_function =
+  { raw : Metal_raw.handle
+  ; lifetime : lifetime
+  ; device : device
+  ; pipeline_independent : bool
+  ; name : string
+  ; kind : function_kind
+  }
+
 type compiler =
   { raw : Metal_raw.handle
   ; lifetime : lifetime
@@ -6866,6 +6875,67 @@ module Pipeline_dataset = struct
       (fun () -> detach value.device.lifetime)
 end
 
+module Binary_function = struct
+  type t = binary_function
+
+  let make device ~pipeline_independent ~name ~kind raw =
+    let value : t =
+      { raw
+      ; lifetime = lifetime ()
+      ; device
+      ; pipeline_independent
+      ; name
+      ; kind
+      }
+    in
+    attach device.lifetime;
+    attach_finalizer value value.lifetime device.lifetime;
+    value
+
+  let device (value : t) = value.device
+  let generation (value : t) = Metal_raw.generation value.raw
+  let destroyed (value : t) = is_destroyed value.lifetime
+  let pipeline_independent (value : t) = value.pipeline_independent
+  let name (value : t) = value.name
+  let kind (value : t) = value.kind
+
+  let destroy (value : t) =
+    destroy_leaf "Metal.Binary_function.destroy" value.lifetime value.raw
+      (fun () -> detach value.device.lifetime)
+end
+
+let validate_binary_function_source operation device
+    (source : Function.t) ~name ~pipeline_independent =
+  let ( let* ) value callback = Result.bind value callback in
+  let* () = ensure_live operation source.lifetime in
+  let* () = ensure_same_device operation device source.library.device in
+  if name = "" || contains_nul name then
+    error operation Invalid_argument
+      "binary-function name must be nonempty and contain no NUL byte"
+  else
+    match Function.kind_of_code (Metal_raw.function_kind source.raw) with
+    | (Function.Visible | Function.Intersection) as kind ->
+        if
+          pipeline_independent
+          && not (Metal_raw.device_supports_function_pointers device.raw)
+        then
+          error operation Unsupported
+            "pipeline-independent binary functions require Metal function-pointer support"
+        else Ok kind
+    | _ ->
+        error operation Invalid_argument
+          "binary-function source must be a visible or intersection function"
+
+let binary_function_descriptor (source : Function.t) ~name
+    ~pipeline_independent ~lookup_archives =
+  ({ library = source.library.raw
+   ; source_function = source.raw
+   ; binary_name = name
+   ; pipeline_independent
+   ; lookup_archives
+   }
+    : Metal_raw.metal4_binary_function_descriptor)
+
 module Pipeline_archive = struct
   type t = pipeline_archive
 
@@ -6897,10 +6967,60 @@ module Pipeline_archive = struct
       | Error _ as failure -> failure
       | Ok () -> Ok (Metal_raw.pipeline_archive_label value.raw))
 
+  let load_binary_function ?(pipeline_independent = false) (value : t)
+      ~(source : Function.t) ~name =
+    let operation = "Metal.Pipeline_archive.load_binary_function" in
+    on_main operation (fun () ->
+      let ( let* ) result callback = Result.bind result callback in
+      let* () = ensure_live operation value.lifetime in
+      let* kind =
+        validate_binary_function_source operation value.device source ~name
+          ~pipeline_independent
+      in
+      let descriptor =
+        binary_function_descriptor source ~name ~pipeline_independent
+          ~lookup_archives:[||]
+      in
+      match
+        Metal_raw.pipeline_archive_load_binary_function value.raw descriptor
+      with
+      | Error message -> native_error operation message
+      | Ok raw ->
+          Ok
+            (Binary_function.make value.device ~pipeline_independent ~name
+               ~kind raw))
+
   let destroy (value : t) =
     destroy_leaf "Metal.Pipeline_archive.destroy" value.lifetime value.raw
       (fun () -> detach value.device.lifetime)
 end
+
+let validate_binary_functions operation device functions =
+  let rec loop names seen = function
+    | [] -> Ok ()
+    | (function_ : binary_function) :: rest ->
+        if
+          List.exists
+            (fun (value : binary_function) ->
+              value.lifetime == function_.lifetime)
+            seen
+        then
+          error operation Invalid_argument
+            "binary-function list contains a duplicate handle"
+        else
+          (match ensure_live operation function_.lifetime with
+           | Error _ as failure -> failure
+           | Ok () ->
+               (match ensure_same_device operation device function_.device with
+                | Error _ as failure -> failure
+                | Ok () ->
+                    if List.mem function_.name names then
+                      error operation Invalid_argument
+                        "binary-function list contains a duplicate name"
+                    else
+                      loop (function_.name :: names) (function_ :: seen) rest))
+  in
+  loop [] [] functions
 
 let validate_pipeline_archives operation device archives =
   let rec loop seen = function
@@ -6983,6 +7103,34 @@ module Compiler = struct
            | Error message -> native_error operation message
            | Ok raw -> Ok (Library.make value.device raw)))
 
+  let create_binary_function ?(pipeline_independent = false)
+      ?(lookup_archives = []) (value : t) ~(source : Function.t) ~name =
+    let operation = "Metal.Compiler.create_binary_function" in
+    on_main operation (fun () ->
+      let ( let* ) result callback = Result.bind result callback in
+      let* () = ensure_live operation value.lifetime in
+      let* kind =
+        validate_binary_function_source operation value.device source ~name
+          ~pipeline_independent
+      in
+      let* () =
+        validate_pipeline_archives operation value.device lookup_archives
+      in
+      let descriptor =
+        binary_function_descriptor source ~name ~pipeline_independent
+          ~lookup_archives:
+            (Array.of_list
+               (List.map
+                  (fun (archive : Pipeline_archive.t) -> archive.raw)
+                  lookup_archives))
+      in
+      match Metal_raw.compiler_create_binary_function value.raw descriptor with
+      | Error message -> native_error operation message
+      | Ok raw ->
+          Ok
+            (Binary_function.make value.device ~pipeline_independent ~name
+               ~kind raw))
+
   let product3 x y z =
     if x > max_int / y then None
     else
@@ -6994,7 +7142,8 @@ module Compiler = struct
       ?max_total_threads_per_threadgroup ?required_threads_per_threadgroup
       ?(support_binary_linking = false)
       ?(support_indirect_command_buffers = false)
-      ?(preloaded_libraries = []) ?max_call_stack_depth
+      ?(binary_linked_functions = []) ?(preloaded_libraries = [])
+      ?max_call_stack_depth
       ?(lookup_archives = []) (value : t) ~(library : Library.t)
       function_name =
     let operation = "Metal.Compiler.create_compute_pipeline" in
@@ -7053,7 +7202,14 @@ module Compiler = struct
             validate_dynamic_libraries operation value.device
               preloaded_libraries
           in
-          if
+          let* () =
+            validate_binary_functions operation value.device
+              binary_linked_functions
+          in
+          if binary_linked_functions <> [] && not support_binary_linking then
+            error operation Invalid_argument
+              "binary linked functions require binary-linking support"
+          else if
             preloaded_libraries <> []
             && not
                  (Metal_raw.device_supports_dynamic_libraries value.device.raw)
@@ -7063,7 +7219,13 @@ module Compiler = struct
           else
             let* max_call_stack_depth =
               match max_call_stack_depth with
-              | None -> Ok (if preloaded_libraries = [] then 0L else 1L)
+              | None ->
+                  Ok
+                    (if
+                       preloaded_libraries = []
+                       && binary_linked_functions = []
+                     then 0L
+                     else 1L)
               | Some depth when depth <= 0 ->
                   error operation Invalid_argument
                     "maximum call-stack depth must be positive"
@@ -7095,6 +7257,11 @@ module Compiler = struct
                     (List.map
                        (fun (archive : Pipeline_archive.t) -> archive.raw)
                        lookup_archives)
+              ; binary_linked_functions =
+                  Array.of_list
+                    (List.map
+                       (fun (function_ : Binary_function.t) -> function_.raw)
+                       binary_linked_functions)
               }
             in
             match

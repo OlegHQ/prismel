@@ -85,6 +85,17 @@ type metal4_compute_descriptor =
   ; preloaded_libraries : handle array
   ; max_call_stack_depth : int64
   ; lookup_archives : handle array
+  ; binary_linked_functions : handle array
+  }
+
+(** Positional native ABI record for a Metal 4 binary-function lookup or
+    compilation. *)
+type metal4_binary_function_descriptor =
+  { library : handle
+  ; source_function : handle
+  ; binary_name : string
+  ; pipeline_independent : bool
+  ; lookup_archives : handle array
   }
 
 external is_main_thread : unit -> bool = "caml_prismel_metal_is_main_thread"
@@ -552,6 +563,10 @@ external pipeline_archive_load_file :
 external pipeline_archive_label : handle -> string option =
   "caml_prismel_metal_pipeline_archive_label"
 
+external pipeline_archive_load_binary_function :
+  handle -> metal4_binary_function_descriptor -> (handle, string) result =
+  "caml_prismel_metal_pipeline_archive_load_binary_function"
+
 external compiler_create :
   handle -> handle option -> string option -> (handle, string) result =
   "caml_prismel_metal_compiler_create"
@@ -562,6 +577,10 @@ external compiler_label : handle -> string option =
 external compiler_compile_library :
   handle -> string -> string option -> (handle, string) result =
   "caml_prismel_metal_compiler_compile_library"
+
+external compiler_create_binary_function :
+  handle -> metal4_binary_function_descriptor -> (handle, string) result =
+  "caml_prismel_metal_compiler_create_binary_function"
 
 external compiler_create_compute_pipeline :
   handle -> metal4_compute_descriptor ->

@@ -452,8 +452,14 @@ pipeline and library results remain independently usable after their compiler,
 dataset, archive, and source handles are destroyed. The compiler builds runtime
 MSL through `MTL4LibraryDescriptor`, creates checked compute descriptors with
 required/max threadgroup cardinality, binary-linking and indirect-command
-support, dynamic-library preloads, call-stack depth, archive lookup, and
-pipeline-owned reflection, and preserves full labeled diagnostics.
+support, archive-resident binary visible/intersection functions,
+dynamic-library preloads, call-stack depth, archive lookup, and pipeline-owned
+reflection, and preserves full labeled diagnostics. `Binary_function` retains
+the validated descriptor identity and source kind, has an independent native
+lifetime, and can be linked into a compute pipeline after its compiler,
+serializer, archive, and source function are destroyed. Direct
+`Pipeline_archive.load_binary_function` is the strict archive-provenance path;
+compiler lookup archives remain a cache-assisted compilation path.
 
 The M1/macOS 26.4 qualification uses separate descriptor-only and binary-only
 serializers. Descriptor capture produces a nonempty pipeline script; binary
@@ -464,8 +470,12 @@ when the combined serializer exports an archive, so the safe API reports the
 native failure and the documented portable workflow keeps those captures
 separate. The same driver accepts a compiler descriptor label but may return a
 `nil` compiler label; the binding exposes that observed value and still uses
-the requested label for creation diagnostics. Asynchronous compiler tasks,
-binary-function/static-link descriptors, direct strict Metal 4 archive lookup,
+the requested label for creation diagnostics. It also returns `nil` and vertex
+metadata from the name and function-type properties of successfully compiled
+visible binary functions. Those unreliable readbacks are not exposed as
+authoritative metadata: the safe value records the checked descriptor identity
+and source kind, while archive reload and actual pipeline linking validate the
+native result. Asynchronous compiler tasks, static-link descriptors,
 render/mesh/object pipelines, and positive offline `.metallib` provenance
 remain open M4 work.
 
@@ -476,7 +486,8 @@ dynamic-library source/client linking and serialize/reload retention, binary
 archive population and serialize/reload strict-hit creation, compiled-library
 metadata, `.metallib` path/error handling, Metal 4 compiler library and
 reflected compute creation, descriptor and binary dataset capture, serialized
-Metal 4 archive reload/lookup, compiler/dataset parent ownership, and complete
+Metal 4 archive reload/strict binary lookup, binary-function compilation and
+dynamic pipeline linking, compiler/dataset parent ownership, and complete
 Metal 4 compile diagnostics,
 copied/no-copy external buffer ownership,
 shareable texture/handle/import lifetimes, single- and multi-plane IOSurface

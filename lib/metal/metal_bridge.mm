@@ -546,6 +546,7 @@ enum class Handle_kind : std::uint32_t {
   Pipeline_dataset,
   Pipeline_archive,
   Compiler,
+  Binary_function,
 };
 
 struct Handle {
@@ -797,6 +798,19 @@ std::vector<id<MTL4Archive>> pipeline_archives_of_array(value raw_array) {
                                         Handle_kind::Pipeline_archive));
   }
   return archives;
+}
+
+API_AVAILABLE(macos(26.0))
+std::vector<id<MTL4BinaryFunction>> binary_functions_of_array(
+    value raw_array) {
+  const mlsize_t count = Wosize_val(raw_array);
+  std::vector<id<MTL4BinaryFunction>> functions;
+  functions.reserve(count);
+  for (mlsize_t index = 0; index < count; ++index) {
+    functions.push_back(object_of_handle(Field(raw_array, index),
+                                         Handle_kind::Binary_function));
+  }
+  return functions;
 }
 
 value copy_function_constants(id<MTLFunction> function) {
@@ -1117,6 +1131,79 @@ bool device_supports_metal4_compiler(id<MTLDevice> device) {
                @selector(newPipelineDataSetSerializerWithDescriptor:)];
   }
   return false;
+}
+
+API_AVAILABLE(macos(26.0))
+MTL4BinaryFunctionDescriptor *checked_binary_function_descriptor(
+    value raw_descriptor, id<MTLDevice> device,
+    NSArray<id<MTL4Archive>> *__autoreleasing *lookup_archives,
+    NSString *__autoreleasing *failure) {
+  id<MTLLibrary> library =
+      object_of_handle(Field(raw_descriptor, 0), Handle_kind::Library);
+  id<MTLFunction> source_function =
+      object_of_handle(Field(raw_descriptor, 1), Handle_kind::Function);
+  if (library.device.registryID != device.registryID ||
+      source_function.device.registryID != device.registryID) {
+    *failure = @"Metal 4 binary-function source is incompatible with the device";
+    return nil;
+  }
+  if (source_function.functionType != MTLFunctionTypeVisible &&
+      source_function.functionType != MTLFunctionTypeIntersection) {
+    *failure = @"Metal 4 binary-function source is not visible or intersection";
+    return nil;
+  }
+  NSString *binary_name = string_from_ocaml(Field(raw_descriptor, 2));
+  if (binary_name == nil || binary_name.length == 0) {
+    *failure = @"Metal 4 binary-function name is not valid nonempty UTF-8";
+    return nil;
+  }
+  const bool pipeline_independent = Bool_val(Field(raw_descriptor, 3));
+  if (pipeline_independent && !device.supportsFunctionPointers) {
+    *failure = @"Metal 4 pipeline-independent binary functions require function pointers";
+    return nil;
+  }
+  std::vector<id<MTL4Archive>> raw_archives =
+      pipeline_archives_of_array(Field(raw_descriptor, 4));
+  NSMutableArray<id<MTL4Archive>> *archive_array =
+      [NSMutableArray arrayWithCapacity:raw_archives.size()];
+  NSMutableSet<id<MTL4Archive>> *archive_set = [NSMutableSet set];
+  for (id<MTL4Archive> archive : raw_archives) {
+    if ([archive_set containsObject:archive]) {
+      *failure = @"Metal 4 binary-function lookup archive is duplicated";
+      return nil;
+    }
+    [archive_set addObject:archive];
+    [archive_array addObject:archive];
+  }
+  MTL4LibraryFunctionDescriptor *function_descriptor =
+      [[MTL4LibraryFunctionDescriptor alloc] init];
+  function_descriptor.library = library;
+  function_descriptor.name = source_function.name;
+  MTL4BinaryFunctionDescriptor *descriptor =
+      [[MTL4BinaryFunctionDescriptor alloc] init];
+  descriptor.name = binary_name;
+  descriptor.functionDescriptor = function_descriptor;
+  const MTL4BinaryFunctionOptions options = pipeline_independent
+      ? MTL4BinaryFunctionOptionPipelineIndependent
+      : MTL4BinaryFunctionOptionNone;
+  descriptor.options = options;
+  MTL4FunctionDescriptor *stored_function = descriptor.functionDescriptor;
+  if (![stored_function
+          isKindOfClass:[MTL4LibraryFunctionDescriptor class]]) {
+    *failure = @"Metal changed the Metal 4 binary function descriptor type";
+    return nil;
+  }
+  MTL4LibraryFunctionDescriptor *stored_library_function =
+      static_cast<MTL4LibraryFunctionDescriptor *>(stored_function);
+  if (![descriptor.name isEqualToString:binary_name] ||
+      descriptor.options != options ||
+      stored_library_function.library != library ||
+      ![stored_library_function.name isEqualToString:source_function.name]) {
+    *failure = @"Metal changed checked binary-function descriptor properties";
+    return nil;
+  }
+  *lookup_archives = [archive_array copy];
+  return descriptor;
 }
 
 API_AVAILABLE(macos(26.0))
@@ -5298,6 +5385,51 @@ extern "C" CAMLprim value caml_prismel_metal_pipeline_archive_label(
   CAMLreturn(result);
 }
 
+extern "C" CAMLprim value
+caml_prismel_metal_pipeline_archive_load_binary_function(
+    value raw_archive, value raw_descriptor) {
+  CAMLparam2(raw_archive, raw_descriptor);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4Archive> archive =
+            object_of_handle(raw_archive, Handle_kind::Pipeline_archive);
+        id<MTLLibrary> library = object_of_handle(
+            Field(raw_descriptor, 0), Handle_kind::Library);
+        NSArray<id<MTL4Archive>> *lookup_archives = nil;
+        NSString *validation_failure = nil;
+        MTL4BinaryFunctionDescriptor *descriptor =
+            checked_binary_function_descriptor(
+                raw_descriptor, library.device, &lookup_archives,
+                &validation_failure);
+        if (descriptor == nil) {
+          CAMLreturn(result_error(validation_failure));
+        }
+        if (lookup_archives.count != 0) {
+          CAMLreturn(result_error_text(
+              "direct Metal 4 archive lookup cannot contain nested lookup archives"));
+        }
+        NSError *error = nil;
+        id<MTL4BinaryFunction> function =
+            [archive newBinaryFunctionWithDescriptor:descriptor error:&error];
+        if (function == nil) {
+          CAMLreturn(result_error(labeled_error_description(
+              descriptor.name, error,
+              @"Metal pipeline-archive binary-function lookup failed without NSError")));
+        }
+        raw = allocate_handle(function, Handle_kind::Binary_function);
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    } else {
+      CAMLreturn(result_error_text(
+          "Metal 4 binary functions require macOS 26 or newer"));
+    }
+  }
+  CAMLreturn(result_ok(raw));
+}
+
 extern "C" CAMLprim value caml_prismel_metal_compiler_create(
     value raw_device, value raw_dataset, value raw_label) {
   CAMLparam3(raw_device, raw_dataset, raw_label);
@@ -5455,6 +5587,55 @@ extern "C" CAMLprim value caml_prismel_metal_compiler_compile_library(
   CAMLreturn(result_ok(raw));
 }
 
+extern "C" CAMLprim value caml_prismel_metal_compiler_create_binary_function(
+    value raw_compiler, value raw_descriptor) {
+  CAMLparam2(raw_compiler, raw_descriptor);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4Compiler> compiler =
+            object_of_handle(raw_compiler, Handle_kind::Compiler);
+        NSArray<id<MTL4Archive>> *lookup_archives = nil;
+        NSString *validation_failure = nil;
+        MTL4BinaryFunctionDescriptor *descriptor =
+            checked_binary_function_descriptor(
+                raw_descriptor, compiler.device, &lookup_archives,
+                &validation_failure);
+        if (descriptor == nil) {
+          CAMLreturn(result_error(validation_failure));
+        }
+        MTL4CompilerTaskOptions *task_options = nil;
+        if (lookup_archives.count != 0) {
+          task_options = [[MTL4CompilerTaskOptions alloc] init];
+          task_options.lookupArchives = lookup_archives;
+          if (task_options.lookupArchives.count != lookup_archives.count) {
+            CAMLreturn(result_error_text(
+                "Metal changed checked binary-function lookup archives"));
+          }
+        }
+        NSError *error = nil;
+        id<MTL4BinaryFunction> function =
+            [compiler newBinaryFunctionWithDescriptor:descriptor
+                                  compilerTaskOptions:task_options
+                                                error:&error];
+        if (function == nil) {
+          CAMLreturn(result_error(labeled_error_description(
+              descriptor.name, error,
+              @"Metal 4 binary-function compilation failed without NSError")));
+        }
+        raw = allocate_handle(function, Handle_kind::Binary_function);
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    } else {
+      CAMLreturn(result_error_text(
+          "Metal 4 binary functions require macOS 26 or newer"));
+    }
+  }
+  CAMLreturn(result_ok(raw));
+}
+
 extern "C" CAMLprim value
 caml_prismel_metal_compiler_create_compute_pipeline(value raw_compiler,
                                                       value raw_descriptor) {
@@ -5535,7 +5716,23 @@ caml_prismel_metal_compiler_create_compute_pipeline(value raw_compiler,
           [install_names addObject:dynamic_library.installName];
           [preloaded_array addObject:dynamic_library];
         }
-        if (preloaded_array.count != 0 && max_call_stack_depth == 0) {
+        std::vector<id<MTL4BinaryFunction>> binary_functions =
+            binary_functions_of_array(Field(raw_descriptor, 14));
+        NSMutableArray<id<MTL4BinaryFunction>> *binary_function_array =
+            [NSMutableArray arrayWithCapacity:binary_functions.size()];
+        NSMutableSet<id<MTL4BinaryFunction>> *binary_function_set =
+            [NSMutableSet set];
+        for (id<MTL4BinaryFunction> function : binary_functions) {
+          if (!compiler.device.supportsFunctionPointers ||
+              [binary_function_set containsObject:function]) {
+            CAMLreturn(result_error_text(
+                "Metal 4 binary linked function is incompatible or duplicated"));
+          }
+          [binary_function_set addObject:function];
+          [binary_function_array addObject:function];
+        }
+        if ((preloaded_array.count != 0 || binary_function_array.count != 0) &&
+            max_call_stack_depth == 0) {
           CAMLreturn(result_error_text(
               "Metal 4 dynamic linking requires a positive call-stack depth"));
         }
@@ -5587,10 +5784,12 @@ caml_prismel_metal_compiler_create_compute_pipeline(value raw_compiler,
           descriptor.options = options;
         }
         MTL4PipelineStageDynamicLinkingDescriptor *dynamic_linking = nil;
-        if (preloaded_array.count != 0 || max_call_stack_depth != 0) {
+        if (preloaded_array.count != 0 || binary_function_array.count != 0 ||
+            max_call_stack_depth != 0) {
           dynamic_linking =
               [[MTL4PipelineStageDynamicLinkingDescriptor alloc] init];
           dynamic_linking.maxCallStackDepth = max_call_stack_depth;
+          dynamic_linking.binaryLinkedFunctions = binary_function_array;
           dynamic_linking.preloadedLibraries = preloaded_array;
         }
         MTL4CompilerTaskOptions *task_options = nil;
@@ -5627,6 +5826,8 @@ caml_prismel_metal_compiler_create_compute_pipeline(value raw_compiler,
             (!reflection_requested && descriptor.options != nil) ||
             (dynamic_linking != nil &&
              (dynamic_linking.maxCallStackDepth != max_call_stack_depth ||
+              dynamic_linking.binaryLinkedFunctions.count !=
+                  binary_function_array.count ||
               dynamic_linking.preloadedLibraries.count !=
                   preloaded_array.count)) ||
             (task_options != nil &&

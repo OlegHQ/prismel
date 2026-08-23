@@ -2,11 +2,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 0,
-    "bound": 1096,
+    "bound": 1116,
     "scope-excluded": 7,
-    "unreviewed": 4183
+    "unreviewed": 4163
   },
-  "classification_source_sha256": "8c85f3c1b5e567247100e15e9b2515b40e2678fe3aa51b2ab5aa08e3bb7a0cbc",
+  "classification_source_sha256": "df3948088c063183f9b5284a4b6404a157e832c41060ed699577216eaabf2b6a",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "header_aggregate_sha256": "c2ee1e44c76606cf05fa81d1a8314dadfa49efe900342e8bcb3670363c16f0d1",
@@ -674,14 +674,14 @@
         "AvailabilityAttr",
         "VisibilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4BinaryFunctionDescriptor.h",
       "id": "class:MTL4BinaryFunctionDescriptor",
       "kind": "class",
       "line": 31,
       "name": "MTL4BinaryFunctionDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -2837,26 +2837,26 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4BinaryFunctionDescriptor.h",
       "id": "enum-case:MTL4BinaryFunctionOptions:MTL4BinaryFunctionOptionNone",
       "kind": "enum-case",
       "line": 22,
       "name": "MTL4BinaryFunctionOptionNone",
       "owner": "MTL4BinaryFunctionOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "(unnamed enum at /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Metal.framework/Headers/MTL4BinaryFunctionDescriptor.h:20:9)"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4BinaryFunctionDescriptor.h",
       "id": "enum-case:MTL4BinaryFunctionOptions:MTL4BinaryFunctionOptionPipelineIndependent",
       "kind": "enum-case",
       "line": 25,
       "name": "MTL4BinaryFunctionOptionPipelineIndependent",
       "owner": "MTL4BinaryFunctionOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "(unnamed enum at /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Metal.framework/Headers/MTL4BinaryFunctionDescriptor.h:20:9)"
     },
     {
@@ -14257,14 +14257,14 @@
         "EnumExtensibilityAttr",
         "FlagEnumAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4BinaryFunctionDescriptor.h",
       "id": "enum:MTL4BinaryFunctionOptions",
       "kind": "enum",
       "line": 20,
       "name": "MTL4BinaryFunctionOptions",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -20454,14 +20454,14 @@
       "attributes": [
         "NSReturnsRetainedAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4Archive.h",
       "id": "method:-[MTL4Archive newBinaryFunctionWithDescriptor:error:]",
       "kind": "method",
       "line": 121,
       "name": "newBinaryFunctionWithDescriptor:error:",
       "owner": "MTL4Archive",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTL4BinaryFunctionDescriptor * _Nonnull __strong, NSError *__autoreleasing  _Nullable * _Nullable) -> id<MTL4BinaryFunction> _Nullable"
     },
     {
@@ -20786,74 +20786,74 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4BinaryFunctionDescriptor.h",
       "id": "method:-[MTL4BinaryFunctionDescriptor functionDescriptor]",
       "kind": "method",
       "line": 39,
       "name": "functionDescriptor",
       "owner": "MTL4BinaryFunctionDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTL4FunctionDescriptor * _Nonnull"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4BinaryFunctionDescriptor.h",
       "id": "method:-[MTL4BinaryFunctionDescriptor name]",
       "kind": "method",
       "line": 36,
       "name": "name",
       "owner": "MTL4BinaryFunctionDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSString * _Nonnull"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4BinaryFunctionDescriptor.h",
       "id": "method:-[MTL4BinaryFunctionDescriptor options]",
       "kind": "method",
       "line": 42,
       "name": "options",
       "owner": "MTL4BinaryFunctionDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTL4BinaryFunctionOptions"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4BinaryFunctionDescriptor.h",
       "id": "method:-[MTL4BinaryFunctionDescriptor setFunctionDescriptor:]",
       "kind": "method",
       "line": null,
       "name": "setFunctionDescriptor:",
       "owner": "MTL4BinaryFunctionDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTL4FunctionDescriptor * _Nonnull) -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4BinaryFunctionDescriptor.h",
       "id": "method:-[MTL4BinaryFunctionDescriptor setName:]",
       "kind": "method",
       "line": null,
       "name": "setName:",
       "owner": "MTL4BinaryFunctionDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (NSString * _Nonnull) -> void"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4BinaryFunctionDescriptor.h",
       "id": "method:-[MTL4BinaryFunctionDescriptor setOptions:]",
       "kind": "method",
       "line": null,
       "name": "setOptions:",
       "owner": "MTL4BinaryFunctionDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTL4BinaryFunctionOptions) -> void"
     },
     {
@@ -21622,14 +21622,14 @@
       "attributes": [
         "NSReturnsRetainedAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4Compiler.h",
       "id": "method:-[MTL4Compiler newBinaryFunctionWithDescriptor:compilerTaskOptions:error:]",
       "kind": "method",
       "line": 227,
       "name": "newBinaryFunctionWithDescriptor:compilerTaskOptions:error:",
       "owner": "MTL4Compiler",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTL4BinaryFunctionDescriptor * _Nonnull __strong, MTL4CompilerTaskOptions * _Nullable __strong, NSError *__autoreleasing  _Nullable * _Nullable) -> id<MTL4BinaryFunction> _Nullable"
     },
     {
@@ -24276,14 +24276,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4LinkingDescriptor.h",
       "id": "method:-[MTL4PipelineStageDynamicLinkingDescriptor binaryLinkedFunctions]",
       "kind": "method",
       "line": 62,
       "name": "binaryLinkedFunctions",
       "owner": "MTL4PipelineStageDynamicLinkingDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSArray<id<MTL4BinaryFunction>> * _Nullable"
     },
     {
@@ -24312,14 +24312,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4LinkingDescriptor.h",
       "id": "method:-[MTL4PipelineStageDynamicLinkingDescriptor setBinaryLinkedFunctions:]",
       "kind": "method",
       "line": null,
       "name": "setBinaryLinkedFunctions:",
       "owner": "MTL4PipelineStageDynamicLinkingDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (NSArray<id<MTL4BinaryFunction>> * _Nullable) -> void"
     },
     {
@@ -51457,38 +51457,38 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4BinaryFunctionDescriptor.h",
       "id": "property:MTL4BinaryFunctionDescriptor:functionDescriptor",
       "kind": "property",
       "line": 39,
       "name": "functionDescriptor",
       "owner": "MTL4BinaryFunctionDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTL4FunctionDescriptor * _Nonnull"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4BinaryFunctionDescriptor.h",
       "id": "property:MTL4BinaryFunctionDescriptor:name",
       "kind": "property",
       "line": 36,
       "name": "name",
       "owner": "MTL4BinaryFunctionDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSString * _Nonnull"
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4BinaryFunctionDescriptor.h",
       "id": "property:MTL4BinaryFunctionDescriptor:options",
       "kind": "property",
       "line": 42,
       "name": "options",
       "owner": "MTL4BinaryFunctionDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTL4BinaryFunctionOptions"
     },
     {
@@ -52657,14 +52657,14 @@
     },
     {
       "attributes": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4LinkingDescriptor.h",
       "id": "property:MTL4PipelineStageDynamicLinkingDescriptor:binaryLinkedFunctions",
       "kind": "property",
       "line": 62,
       "name": "binaryLinkedFunctions",
       "owner": "MTL4PipelineStageDynamicLinkingDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSArray<id<MTL4BinaryFunction>> * _Nullable"
     },
     {
@@ -63607,14 +63607,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4BinaryFunction.h",
       "id": "protocol:MTL4BinaryFunction",
       "kind": "protocol",
       "line": 24,
       "name": "MTL4BinaryFunction",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -65267,14 +65267,14 @@
       "attributes": [
         "AvailabilityAttr"
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4BinaryFunctionDescriptor.h",
       "id": "typedef:MTL4BinaryFunctionOptions",
       "kind": "typedef",
       "line": 20,
       "name": "MTL4BinaryFunctionOptions",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {

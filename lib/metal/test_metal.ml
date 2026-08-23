@@ -132,6 +132,16 @@ kernel void call_dynamic_library(device uint *values [[buffer(0)]],
 }
 |}
 
+let uncaptured_visible_source =
+  {|
+#include <metal_stdlib>
+using namespace metal;
+
+[[visible]] uint never_captured(uint value) {
+  return value + 37u;
+}
+|}
+
 let input_values () =
   let bytes = Bytes.create 16 in
   [| 1l; 41l; 99l; -2l |]
@@ -2231,6 +2241,47 @@ let test_metal4_compiler device =
         then
           fail
             "invalid Metal 4 compiler inputs allocated native handles beyond the valid library";
+        let visible_source =
+          get (Function.find ~library "linked_identity")
+        in
+        let kernel_source = get (Function.find ~library "increment") in
+        if get (Function.kind visible_source) <> Function.Visible then
+          fail "Metal 4 binary-function source is not visible";
+        let before_invalid_binary = get (Release_queue.stats ()) in
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.create_binary_function compiler ~source:visible_source
+                ~name:""));
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.create_binary_function compiler ~source:kernel_source
+                ~name:"invalid-kernel-binary"));
+        let after_invalid_binary = get (Release_queue.stats ()) in
+        if after_invalid_binary.total_created
+           <> before_invalid_binary.total_created
+        then fail "invalid Metal 4 binary functions allocated native handles";
+        let before_binary_finalizer = get (Release_queue.stats ()) in
+        let allocate_unreleased_binary_function () =
+          ignore
+            (get
+               (Compiler.create_binary_function compiler
+                  ~source:visible_source ~name:"finalized-visible"))
+        in
+        allocate_unreleased_binary_function ();
+        let after_binary_finalizer =
+          settle_finalizers
+            ~expected_live:before_binary_finalizer.live_handles
+        in
+        if
+          Int64.sub after_binary_finalizer.total_created
+            before_binary_finalizer.total_created
+          <> 1L
+          || Int64.sub after_binary_finalizer.total_released
+               before_binary_finalizer.total_released
+             <> 1L
+        then
+          fail
+            "Metal 4 binary-function finalization did not release one handle";
         let pipeline =
           get
             (Compiler.create_compute_pipeline
@@ -2269,6 +2320,18 @@ let test_metal4_compiler device =
         let binary_compiler =
           get (Compiler.create ~dataset:binary_dataset device)
         in
+        let captured_binary =
+          get
+            (Compiler.create_binary_function ~pipeline_independent:true
+               binary_compiler ~source:visible_source
+               ~name:"metal4-linked-identity")
+        in
+        if Binary_function.name captured_binary <> "metal4-linked-identity"
+           || Binary_function.kind captured_binary <> Function.Visible
+           || not (Binary_function.pipeline_independent captured_binary)
+           || not
+                (Device.same device (Binary_function.device captured_binary))
+        then fail "Metal 4 binary-function metadata is wrong";
         let archive_seed_pipeline =
           get
             (Compiler.create_compute_pipeline
@@ -2277,6 +2340,7 @@ let test_metal4_compiler device =
                ~required_threads_per_threadgroup:(1, 1, 1)
                ~support_binary_linking:true
                ~support_indirect_command_buffers:true binary_compiler ~library
+               ~binary_linked_functions:[ captured_binary ]
                "increment")
         in
         get (Pipeline_dataset.serialize_archive binary_dataset archive_path);
@@ -2292,6 +2356,33 @@ let test_metal4_compiler device =
            || not (Device.same device (Pipeline_archive.device archive))
         then fail "reloaded Metal 4 pipeline-archive metadata is wrong";
         let lookup_compiler = get (Compiler.create device) in
+        let uncaptured_library =
+          get
+            (Compiler.compile_source ~name:"uncaptured-visible-library"
+               lookup_compiler uncaptured_visible_source)
+        in
+        let uncaptured_source =
+          get (Function.find ~library:uncaptured_library "never_captured")
+        in
+        let missing_binary =
+          expect_error Native_error
+            (Pipeline_archive.load_binary_function archive
+               ~pipeline_independent:true ~source:uncaptured_source
+               ~name:"missing-metal4-binary")
+        in
+        if
+          not
+            (contains_substring missing_binary.message
+               "missing-metal4-binary")
+        then fail "Metal 4 archive lookup lost its binary-function identity";
+        get (Function.destroy uncaptured_source);
+        get (Library.destroy uncaptured_library);
+        let archived_binary =
+          get
+            (Pipeline_archive.load_binary_function archive
+               ~pipeline_independent:true ~source:visible_source
+               ~name:"metal4-linked-identity")
+        in
         let before_duplicate_archive = get (Release_queue.stats ()) in
         ignore
           (expect_error Invalid_argument
@@ -2302,6 +2393,27 @@ let test_metal4_compiler device =
         if after_duplicate_archive.total_created
            <> before_duplicate_archive.total_created
         then fail "duplicate Metal 4 archives allocated a native handle";
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.create_binary_function
+                ~lookup_archives:[ archive; archive ] lookup_compiler
+                ~source:visible_source ~name:"metal4-linked-identity"));
+        let looked_up_binary =
+          get
+            (Compiler.create_binary_function ~pipeline_independent:true
+               ~lookup_archives:[ archive ] lookup_compiler
+               ~source:visible_source ~name:"metal4-linked-identity")
+        in
+        let before_duplicate_binary = get (Release_queue.stats ()) in
+        ignore
+          (expect_error Invalid_argument
+             (Compiler.create_compute_pipeline
+                ~binary_linked_functions:[ archived_binary; archived_binary ]
+                lookup_compiler ~library "increment"));
+        let after_duplicate_binary = get (Release_queue.stats ()) in
+        if after_duplicate_binary.total_created
+           <> before_duplicate_binary.total_created
+        then fail "duplicate Metal 4 binary functions allocated a native handle";
         let archived_pipeline =
           get
             (Compiler.create_compute_pipeline
@@ -2310,11 +2422,26 @@ let test_metal4_compiler device =
                ~required_threads_per_threadgroup:(1, 1, 1)
                ~support_binary_linking:true
                ~support_indirect_command_buffers:true
+               ~binary_linked_functions:[ archived_binary ]
                ~lookup_archives:[ archive ] lookup_compiler ~library
                "increment")
         in
         get (Pipeline_archive.destroy archive);
         get (Compiler.destroy lookup_compiler);
+        ignore
+          (expect_error Destroyed
+             (Pipeline_archive.load_binary_function archive
+                ~pipeline_independent:true ~source:visible_source
+                ~name:"metal4-linked-identity"));
+        ignore
+          (expect_error Destroyed
+             (Compiler.create_binary_function lookup_compiler
+                ~source:visible_source ~name:"metal4-linked-identity"));
+        get (Binary_function.destroy looked_up_binary);
+        get (Binary_function.destroy archived_binary);
+        get (Binary_function.destroy captured_binary);
+        get (Function.destroy kernel_source);
+        get (Function.destroy visible_source);
         get (Library.destroy library);
         get (Compiler.destroy binary_compiler);
         get (Pipeline_dataset.destroy binary_dataset);
@@ -2324,6 +2451,8 @@ let test_metal4_compiler device =
         ignore
           (expect_error Destroyed
              (Pipeline_dataset.serialize_script dataset));
+        if not (Binary_function.destroyed captured_binary) then
+          fail "destroyed Metal 4 binary function remained live";
         run_pipeline_once device pipeline ~initial:4l ~expected:5l;
         run_pipeline_once device archive_seed_pipeline ~initial:6l ~expected:7l;
         run_pipeline_once device archived_pipeline ~initial:8l ~expected:9l;
@@ -4155,6 +4284,6 @@ let () =
         stats.external_deallocations
         stats.external_deallocation_mismatches;
     Printf.printf
-      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/pipeline-dataset/reflection/compute conformance passed on %s\n%!"
+      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/pipeline-dataset/binary-function/reflection/compute conformance passed on %s\n%!"
       info.name
   end
