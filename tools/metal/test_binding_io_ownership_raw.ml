@@ -1,0 +1,3 @@
+module M=struct type handle=int let retained=ref[]and released=ref[] let retain x=retained:=x::!retained let release x=released:=x::!released let load~commands:_~destination:_~destination_offset:_~size:_~source:_~source_offset:_=Error"x" let add_completed _ _=Error"x"end
+module S=Binding_io_ownership_raw.Make(M)
+let ()=(match S.load~commands:1~destination:2~destination_offset:0~size:4~source:3~source_offset:0 with Error _->()|Ok _->failwith"accepted");if List.sort compare!(M.released)<>[1;2;3]then failwith"IO unwind";M.released:=[];let n=ref 0 in(match S.completed 4(fun()->incr n)with Error _->()|Ok _->failwith"accepted");if !n<>1 || !(M.released)<>[4]then failwith"callback unwind"
