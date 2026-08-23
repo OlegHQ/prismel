@@ -250,6 +250,24 @@ fragment float4 prismel_mesh_fragment(
 }
 |}
 
+let tile_shader_source =
+  {|
+#include <metal_stdlib>
+using namespace metal;
+
+kernel void prismel_tile(
+    device uint *tile_output [[buffer(4)]],
+    ushort2 local_position [[thread_position_in_threadgroup]]) {
+  if (local_position.x == 0 && local_position.y == 0) {
+    tile_output[0] = 23u;
+  }
+}
+
+vertex float4 prismel_not_tile(uint vertex_id [[vertex_id]]) {
+  return float4(float(vertex_id), 0.0f, 0.0f, 1.0f);
+}
+|}
+
 let uncaptured_visible_source =
   {|
 #include <metal_stdlib>
@@ -2975,6 +2993,193 @@ let test_metal4_compiler device =
         get (Compiler_task.destroy async_mesh_task);
         get (Render_pipeline.destroy mesh_pipeline);
         get (Library.destroy mesh_library);
+        let tile_library =
+          get
+            (Compiler.compile_source ~name:"metal4-tile-library" compiler
+               tile_shader_source)
+        in
+        if not (get (Device.supports_family device Device.Apple4)) then begin
+          ignore
+            (expect_error Unsupported
+               (Compiler.create_tile_pipeline compiler ~library:tile_library
+                  ~tile:"prismel_tile"));
+          get (Library.destroy tile_library)
+        end
+        else begin
+          let empty_tile_static : Compiler.static_linking =
+            { functions = []; private_functions = []; groups = [] }
+          in
+          let before_invalid_tile = get (Release_queue.stats ()) in
+          ignore
+            (expect_error Invalid_argument
+               (Compiler.create_tile_pipeline compiler ~library:tile_library
+                  ~tile:"missing_tile"));
+          ignore
+            (expect_error Invalid_argument
+               (Compiler.create_tile_pipeline_async compiler
+                  ~library:tile_library ~tile:"missing_tile"));
+          ignore
+            (expect_error Invalid_argument
+               (Compiler.create_tile_pipeline ~label:"invalid\000tile" compiler
+                  ~library:tile_library ~tile:"prismel_tile"));
+          ignore
+            (expect_error Invalid_argument
+               (Compiler.create_tile_pipeline
+                  ~max_total_threads_per_threadgroup:0 compiler
+                  ~library:tile_library ~tile:"prismel_tile"));
+          ignore
+            (expect_error Invalid_argument
+               (Compiler.create_tile_pipeline
+                  ~required_threads_per_threadgroup:(1, 0, 1) compiler
+                  ~library:tile_library ~tile:"prismel_tile"));
+          ignore
+            (expect_error Invalid_argument
+               (Compiler.create_tile_pipeline
+                  ~max_total_threads_per_threadgroup:2
+                  ~required_threads_per_threadgroup:(1, 1, 1) compiler
+                  ~library:tile_library ~tile:"prismel_tile"));
+          ignore
+            (expect_error Invalid_argument
+               (Compiler.create_tile_pipeline ~raster_sample_count:0 compiler
+                  ~library:tile_library ~tile:"prismel_tile"));
+          ignore
+            (expect_error Invalid_argument
+               (Compiler.create_tile_pipeline
+                  ~color_formats:
+                    [ Texture.Bgra8_unorm; Texture.Bgra8_unorm
+                    ; Texture.Bgra8_unorm; Texture.Bgra8_unorm
+                    ; Texture.Bgra8_unorm; Texture.Bgra8_unorm
+                    ; Texture.Bgra8_unorm; Texture.Bgra8_unorm
+                    ; Texture.Bgra8_unorm
+                    ]
+                  compiler ~library:tile_library ~tile:"prismel_tile"));
+          ignore
+            (expect_error Invalid_argument
+               (Compiler.create_tile_pipeline
+                  ~static_linking:empty_tile_static compiler
+                  ~library:tile_library ~tile:"prismel_tile"));
+          ignore
+            (expect_error Native_error
+               (Compiler.create_tile_pipeline compiler ~library:tile_library
+                  ~tile:"prismel_not_tile"));
+          let after_invalid_tile = get (Release_queue.stats ()) in
+          if after_invalid_tile.total_created
+             <> before_invalid_tile.total_created
+          then fail "invalid Metal 4 tile inputs allocated native handles";
+          let tile_static_provider =
+            get
+              (Compiler.compile_source ~name:"tile-static-provider" compiler
+                 static_provider_source)
+          in
+          let tile_static_linking : Compiler.static_linking =
+            { functions = []
+            ; private_functions =
+                [ { library = tile_static_provider
+                  ; name = "private_static_identity"
+                  }
+                ]
+            ; groups = []
+            }
+          in
+          let tile_pipeline =
+            get
+              (Compiler.create_tile_pipeline ~label:"metal4 reflected tile"
+                 ~reflection:true ~max_total_threads_per_threadgroup:1
+                 ~required_threads_per_threadgroup:(1, 1, 1)
+                 ~support_binary_linking:true
+                 ~static_linking:tile_static_linking compiler
+                 ~library:tile_library ~tile:"prismel_tile")
+          in
+          if get (Render_pipeline.label tile_pipeline)
+             <> Some "metal4 reflected tile"
+             || Render_pipeline.kind tile_pipeline <> Render_pipeline.Tile
+          then fail "Metal 4 tile-pipeline metadata is wrong";
+          (match Render_pipeline.reflection tile_pipeline with
+           | Some reflection ->
+               get
+                 (Binding.validate_layout reflection.tile
+                    ~expected:
+                      [ { name = "tile_output"
+                        ; index = 4L
+                        ; access = Binding.Read_write
+                        ; kind = Binding.Buffer_layout
+                        ; data_type =
+                            Some (Shader_type.Scalar Shader_type.Uint)
+                        }
+                      ]);
+               if reflection.vertex <> [] || reflection.fragment <> []
+                  || reflection.object_ <> [] || reflection.mesh <> []
+               then
+                 fail
+                   "Metal 4 tile reflection populated an unrelated stage"
+           | None -> fail "Metal 4 tile reflection is missing");
+          get (Library.destroy tile_static_provider);
+          let attachmentless_tile =
+            get
+              (Compiler.create_tile_pipeline ~color_formats:[]
+                 ~threadgroup_size_matches_tile_size:true compiler
+                 ~library:tile_library ~tile:"prismel_tile")
+          in
+          get (Render_pipeline.destroy attachmentless_tile);
+          let async_tile_library =
+            get
+              (Compiler.compile_source ~name:"async-tile-source" compiler
+                 tile_shader_source)
+          in
+          let async_tile_static_provider =
+            get
+              (Compiler.compile_source ~name:"async-tile-static-provider"
+                 compiler static_provider_source)
+          in
+          let async_tile_static_linking : Compiler.static_linking =
+            { functions = []
+            ; private_functions =
+                [ { library = async_tile_static_provider
+                  ; name = "private_static_identity"
+                  }
+                ]
+            ; groups = []
+            }
+          in
+          let async_tile_task =
+            get
+              (Compiler.create_tile_pipeline_async
+                 ~label:"async reflected tile" ~reflection:true
+                 ~max_total_threads_per_threadgroup:1
+                 ~required_threads_per_threadgroup:(1, 1, 1)
+                 ~static_linking:async_tile_static_linking compiler
+                 ~library:async_tile_library ~tile:"prismel_tile")
+          in
+          let async_tile_id = Compiler_task.id async_tile_task in
+          get (Library.destroy async_tile_library);
+          get (Library.destroy async_tile_static_provider);
+          get (Compiler_task.wait async_tile_task);
+          if
+            not
+              (List.mem async_tile_id
+                 (get (Compiler_task.drain_completions ())))
+          then fail "async tile-pipeline completion ID was not drained";
+          let async_tile_pipeline =
+            match get (Compiler_task.poll async_tile_task) with
+            | Compiler_task.Complete (Ok pipeline) -> pipeline
+            | Compiler_task.Complete (Error error) ->
+                fail "async tile-pipeline compilation failed: %s"
+                  (Format.asprintf "%a" pp_error error)
+            | Compiler_task.Pending ->
+                fail "waited async tile-pipeline compilation remained pending"
+          in
+          if get (Render_pipeline.label async_tile_pipeline)
+             <> Some "async reflected tile"
+             || Render_pipeline.kind async_tile_pipeline
+                <> Render_pipeline.Tile
+             || Option.is_none
+                  (Render_pipeline.reflection async_tile_pipeline)
+          then fail "async Metal 4 tile-pipeline metadata is wrong";
+          get (Render_pipeline.destroy async_tile_pipeline);
+          get (Compiler_task.destroy async_tile_task);
+          get (Render_pipeline.destroy tile_pipeline);
+          get (Library.destroy tile_library)
+        end;
         let before_invalid_dynamic = get (Release_queue.stats ()) in
         ignore
           (expect_error Invalid_argument
@@ -5437,6 +5642,6 @@ let () =
         stats.external_deallocations
         stats.external_deallocation_mismatches;
     Printf.printf
-      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/compiler-task/pipeline-dataset/binary-function/static-link/reflection/compute/render/mesh/object conformance passed on %s\n%!"
+      "Metal ARC/device/heap/buffer/texture/sampler/sparse/resource-state/blit/residency/runtime-shader/function-constant/linked/dynamic-library/binary-archive/metal4-compiler/compiler-task/pipeline-dataset/binary-function/static-link/reflection/compute/render/mesh/object/tile conformance passed on %s\n%!"
       info.name
   end

@@ -40,6 +40,7 @@ let bound_identifiers =
   ; "class:MTL4RenderPipelineColorAttachmentDescriptorArray"
   ; "class:MTL4RenderPipelineDescriptor"
   ; "class:MTL4StaticLinkingDescriptor"
+  ; "class:MTL4TileRenderPipelineDescriptor"
   ; "class:MTLBinaryArchiveDescriptor"
   ; "class:MTLCompileOptions"
   ; "class:MTLComputePipelineDescriptor"
@@ -54,6 +55,8 @@ let bound_identifiers =
   ; "class:MTLSharedTextureHandle"
   ; "class:MTLTextureDescriptor"
   ; "class:MTLTextureViewDescriptor"
+  ; "class:MTLTileRenderPipelineColorAttachmentDescriptor"
+  ; "class:MTLTileRenderPipelineColorAttachmentDescriptorArray"
   ; "enum:MTL4BinaryFunctionOptions"
   ; "enum:MTL4CompilerTaskStatus"
   ; "enum:MTLCommandBufferStatus"
@@ -319,6 +322,17 @@ let bound_identifiers =
           ; "setSupportIndirectCommandBuffers:"
           ; "supportIndirectCommandBuffers"
           ] )
+      ; ( "MTL4TileRenderPipelineDescriptor"
+        , [ "colorAttachments"; "maxTotalThreadsPerThreadgroup"
+          ; "rasterSampleCount"; "requiredThreadsPerThreadgroup"
+          ; "setMaxTotalThreadsPerThreadgroup:"; "setRasterSampleCount:"
+          ; "setRequiredThreadsPerThreadgroup:"
+          ; "setStaticLinkingDescriptor:"; "setSupportBinaryLinking:"
+          ; "setThreadgroupSizeMatchesTileSize:"
+          ; "setTileFunctionDescriptor:"; "staticLinkingDescriptor"
+          ; "supportBinaryLinking"; "threadgroupSizeMatchesTileSize"
+          ; "tileFunctionDescriptor"
+          ] )
       ; ( "MTL4LibraryDescriptor"
         , [ "name"; "options"; "setName:"; "setOptions:"; "setSource:"
           ; "source"
@@ -552,6 +566,12 @@ let bound_identifiers =
           ; "setPixelFormat:"; "setSliceRange:"; "setSwizzle:"
           ; "setTextureType:"; "sliceRange"; "swizzle"; "textureType"
           ] )
+      ; ( "MTLTileRenderPipelineColorAttachmentDescriptor"
+        , [ "pixelFormat"; "setPixelFormat:" ] )
+      ; ( "MTLTileRenderPipelineColorAttachmentDescriptorArray"
+        , [ "objectAtIndexedSubscript:"
+          ; "setObject:atIndexedSubscript:"
+          ] )
       ; ( "MTLCommandQueue"
         , [ "addResidencySet:"; "addResidencySets:count:"; "commandBuffer"
           ; "removeResidencySet:"; "removeResidencySets:count:"
@@ -594,6 +614,12 @@ let bound_identifiers =
           ; "rasterizationEnabled"; "requiredThreadsPerMeshThreadgroup"
           ; "requiredThreadsPerObjectThreadgroup"
           ; "supportIndirectCommandBuffers"
+          ] )
+      ; ( "MTL4TileRenderPipelineDescriptor"
+        , [ "colorAttachments"; "maxTotalThreadsPerThreadgroup"
+          ; "rasterSampleCount"; "requiredThreadsPerThreadgroup"
+          ; "staticLinkingDescriptor"; "supportBinaryLinking"
+          ; "threadgroupSizeMatchesTileSize"; "tileFunctionDescriptor"
           ] )
       ; "MTL4LibraryDescriptor", [ "name"; "options"; "source" ]
       ; "MTL4LibraryFunctionDescriptor", [ "library"; "name" ]
@@ -705,6 +731,7 @@ let bound_identifiers =
         , [ "levelRange"; "pixelFormat"; "sliceRange"; "swizzle"
           ; "textureType"
           ] )
+      ; "MTLTileRenderPipelineColorAttachmentDescriptor", [ "pixelFormat" ]
       ; "MTLBuffer", [ "length"; "sparseBufferTier" ]
       ]
   @ enum_cases "MTL4VisibilityOptions"

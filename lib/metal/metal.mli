@@ -1348,6 +1348,31 @@ module Compiler : sig
     ?lookup_archives:Pipeline_archive.t list -> t -> library:Library.t ->
     mesh:string -> (Render_pipeline.t Compiler_task.t, error) result
 
+  (** Compiles a Metal 4 tile pipeline for an Apple4-or-newer GPU. Tile entry
+      points may be kernel- or fragment-based. Empty [color_formats] are
+      permitted for tile work that does not access an imageblock attachment. *)
+  val create_tile_pipeline :
+    ?label:string -> ?reflection:bool -> ?raster_sample_count:int ->
+    ?color_formats:Texture.format list ->
+    ?threadgroup_size_matches_tile_size:bool ->
+    ?max_total_threads_per_threadgroup:int ->
+    ?required_threads_per_threadgroup:(int * int * int) ->
+    ?support_binary_linking:bool -> ?static_linking:static_linking ->
+    ?lookup_archives:Pipeline_archive.t list -> t -> library:Library.t ->
+    tile:string -> (Render_pipeline.t, error) result
+
+  (** The native compiler task owns the tile descriptor, source libraries,
+      static-link inputs, and lookup archives through completion. *)
+  val create_tile_pipeline_async :
+    ?label:string -> ?reflection:bool -> ?raster_sample_count:int ->
+    ?color_formats:Texture.format list ->
+    ?threadgroup_size_matches_tile_size:bool ->
+    ?max_total_threads_per_threadgroup:int ->
+    ?required_threads_per_threadgroup:(int * int * int) ->
+    ?support_binary_linking:bool -> ?static_linking:static_linking ->
+    ?lookup_archives:Pipeline_archive.t list -> t -> library:Library.t ->
+    tile:string -> (Render_pipeline.t Compiler_task.t, error) result
+
   val device : t -> Device.t
   val generation : t -> int64
   val dataset : t -> Pipeline_dataset.t option

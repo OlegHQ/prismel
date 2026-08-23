@@ -146,6 +146,23 @@ type metal4_mesh_descriptor =
   ; lookup_archives : handle array
   }
 
+type metal4_tile_descriptor =
+  { label : string option
+  ; library : handle
+  ; tile_function : string
+  ; reflection : bool
+  ; raster_sample_count : int64
+  ; color_formats : int array
+  ; threadgroup_size_matches_tile_size : bool
+  ; max_total_threads : int64
+  ; required_threads_width : int64
+  ; required_threads_height : int64
+  ; required_threads_depth : int64
+  ; support_binary_linking : bool
+  ; static_linking : metal4_static_linking_descriptor option
+  ; lookup_archives : handle array
+  }
+
 (** Positional native ABI record for a Metal 4 binary-function lookup or
     compilation. *)
 type metal4_binary_function_descriptor =
@@ -729,6 +746,15 @@ external compiler_create_mesh_pipeline :
 external compiler_create_mesh_pipeline_async :
   handle -> metal4_mesh_descriptor -> (handle, string) result =
   "caml_prismel_metal_compiler_create_mesh_pipeline_async"
+
+external compiler_create_tile_pipeline :
+  handle -> metal4_tile_descriptor ->
+  ((handle * render_pipeline_reflection), string) result =
+  "caml_prismel_metal_compiler_create_tile_pipeline"
+
+external compiler_create_tile_pipeline_async :
+  handle -> metal4_tile_descriptor -> (handle, string) result =
+  "caml_prismel_metal_compiler_create_tile_pipeline_async"
 
 external compiler_task_take_render_pipeline :
   handle ->

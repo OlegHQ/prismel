@@ -8167,6 +8167,144 @@ module Compiler = struct
       ~raster_sample_count ~color_formats ~rasterization_enabled
       ~support_indirect_command_buffers ~lookup_archives value ~library ~mesh
 
+  let validate_tile_target operation (device : Device.t) ~raster_sample_count
+      ~color_formats =
+    if List.length color_formats > 8 then
+      error operation Invalid_argument
+        "tile color attachments must not exceed eight"
+    else if raster_sample_count <= 0 then
+      error operation Invalid_argument
+        "tile raster sample count must be positive"
+    else if
+      not
+        (Metal_raw.device_supports_texture_sample_count device.raw
+           raster_sample_count)
+    then
+      error operation Unsupported
+        "the Metal device does not support the tile sample count"
+    else
+      Ok
+        ( Int64.of_int raster_sample_count
+        , Array.of_list (List.map Metal_format.code color_formats) )
+
+  let with_tile_descriptor operation callback ?label ?(reflection = false)
+      ?(raster_sample_count = 1)
+      ?(color_formats = [ Texture.Bgra8_unorm ])
+      ?(threadgroup_size_matches_tile_size = false)
+      ?max_total_threads_per_threadgroup ?required_threads_per_threadgroup
+      ?(support_binary_linking = false) ?static_linking
+      ?(lookup_archives = []) (value : t) ~(library : Library.t) ~tile =
+    on_main operation (fun () ->
+      let ( let* ) result callback = Result.bind result callback in
+      let* () = ensure_live operation value.lifetime in
+      let* () = ensure_live operation library.lifetime in
+      let* () = ensure_same_device operation value.device library.device in
+      let* () = validate_pipeline_entry operation library ~stage:"tile" tile in
+      if option_exists contains_nul label then
+        error operation Invalid_argument
+          "tile-pipeline label contains a NUL byte"
+      else if
+        not
+          (Metal_raw.device_supports_family value.device.raw
+             (Device.family_code Device.Apple4))
+      then
+        error operation Unsupported "tile shaders require an Apple4-or-newer GPU"
+      else if
+        support_binary_linking
+        && not
+             (Metal_raw.device_supports_function_pointers value.device.raw)
+      then
+        error operation Unsupported
+          "tile binary linking requires Metal function-pointer support"
+      else
+        let* max_total_threads, required_width, required_height, required_depth =
+          validate_threadgroup_constraint operation ~stage:"tile"
+            ~maximum:max_total_threads_per_threadgroup
+            ~required:required_threads_per_threadgroup
+        in
+        let* raster_sample_count, color_formats =
+          validate_tile_target operation value.device ~raster_sample_count
+            ~color_formats
+        in
+        let* static_linking =
+          validate_static_linking operation value.device static_linking
+        in
+        let* () =
+          validate_pipeline_archives operation value.device lookup_archives
+        in
+        let descriptor : Metal_raw.metal4_tile_descriptor =
+          { label
+          ; library = library.raw
+          ; tile_function = tile
+          ; reflection
+          ; raster_sample_count
+          ; color_formats
+          ; threadgroup_size_matches_tile_size
+          ; max_total_threads
+          ; required_threads_width = required_width
+          ; required_threads_height = required_height
+          ; required_threads_depth = required_depth
+          ; support_binary_linking
+          ; static_linking
+          ; lookup_archives =
+              Array.of_list
+                (List.map
+                   (fun (archive : Pipeline_archive.t) -> archive.raw)
+                   lookup_archives)
+          }
+        in
+        callback reflection descriptor)
+
+  let create_tile_pipeline ?label ?(reflection = false)
+      ?(raster_sample_count = 1)
+      ?(color_formats = [ Texture.Bgra8_unorm ])
+      ?(threadgroup_size_matches_tile_size = false)
+      ?max_total_threads_per_threadgroup ?required_threads_per_threadgroup
+      ?(support_binary_linking = false) ?static_linking
+      ?(lookup_archives = []) (value : t) ~(library : Library.t) ~tile =
+    let operation = "Metal.Compiler.create_tile_pipeline" in
+    with_tile_descriptor operation
+      (fun reflection descriptor ->
+        match Metal_raw.compiler_create_tile_pipeline value.raw descriptor with
+        | Error message -> native_error operation message
+        | Ok (raw, raw_reflection) ->
+            Ok
+              (Render_pipeline.make value.device ~kind:Render_pipeline.Tile
+                 ~reflection raw raw_reflection))
+      ?label ~reflection ~raster_sample_count ~color_formats
+      ~threadgroup_size_matches_tile_size
+      ?max_total_threads_per_threadgroup ?required_threads_per_threadgroup
+      ~support_binary_linking ?static_linking ~lookup_archives value ~library
+      ~tile
+
+  let create_tile_pipeline_async ?label ?(reflection = false)
+      ?(raster_sample_count = 1)
+      ?(color_formats = [ Texture.Bgra8_unorm ])
+      ?(threadgroup_size_matches_tile_size = false)
+      ?max_total_threads_per_threadgroup ?required_threads_per_threadgroup
+      ?(support_binary_linking = false) ?static_linking
+      ?(lookup_archives = []) (value : t) ~(library : Library.t) ~tile =
+    let operation = "Metal.Compiler.create_tile_pipeline_async" in
+    with_tile_descriptor operation
+      (fun reflection descriptor ->
+        match
+          Metal_raw.compiler_create_tile_pipeline_async value.raw descriptor
+        with
+        | Error message -> native_error operation message
+        | Ok raw ->
+            Ok
+              (Compiler_task.make value
+                 Metal_raw.compiler_task_take_render_pipeline
+                 (fun (raw, raw_reflection) ->
+                   Render_pipeline.make value.device ~kind:Render_pipeline.Tile
+                     ~reflection raw raw_reflection)
+                 raw))
+      ?label ~reflection ~raster_sample_count ~color_formats
+      ~threadgroup_size_matches_tile_size
+      ?max_total_threads_per_threadgroup ?required_threads_per_threadgroup
+      ~support_binary_linking ?static_linking ~lookup_archives value ~library
+      ~tile
+
   let device (value : t) = value.device
   let generation (value : t) = Metal_raw.generation value.raw
   let dataset (value : t) = value.dataset

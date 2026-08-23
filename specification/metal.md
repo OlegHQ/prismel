@@ -486,8 +486,9 @@ pipeline executes.
 
 `Compiler.compile_source_async`, compiler dynamic-library create/load,
 `create_binary_function_async`, `create_compute_pipeline_async`, and
-`create_render_pipeline_async`/`create_mesh_pipeline_async` return typed
-`Compiler_task.t` values where applicable.
+`create_render_pipeline_async`, `create_mesh_pipeline_async`, and
+`create_tile_pipeline_async` return typed `Compiler_task.t` values where
+applicable.
 Metal worker completion blocks never enter the OCaml runtime or retain OCaml
 roots: they store the native result in task-local completion state and enqueue
 only a monotonically increasing ID into a process-wide 1,024-entry ring.
@@ -542,10 +543,20 @@ Reflection preserves distinct object, mesh, and fragment binding lists,
 including exact read/write object-payload alignment and size metadata. The
 async task remains valid after destruction of its source library.
 
-This slice compiles and inspects conventional and mesh/object pipelines only:
+Metal 4 tile compilation is likewise synchronous or asynchronous and shares
+the render-pipeline result type. It is gated to Apple4-or-newer GPUs, accepts
+kernel- or fragment-based tile entry points, supports zero to eight typed color
+attachments, validates optional exact threadgroup constraints, and exposes the
+tile-size-match promise, binary-linking preparation, static linking, lookup
+archives, and owned reflection. The M1 conformance path compiles a reflected
+buffer-writing tile function, verifies stage isolation, accepts a deliberately
+attachmentless pipeline, privately static-links a provider library, and proves
+that async descriptor inputs survive source-library destruction.
+
+This slice compiles and inspects conventional, mesh/object, and tile pipelines:
 render command encoding and draw execution, blend/depth/stencil policy, vertex
-descriptors, dynamic render linking, and tile descriptors remain open. Positive
-offline `.metallib` provenance is also still open.
+descriptors, and dynamic render linking remain open. Positive offline
+`.metallib` provenance is also still open.
 
 `test_metal.exe` runs a real M1 compute kernel, wrong-domain and invalid-state
 cases, full labeled shader diagnostics, function-constant introspection and
@@ -563,7 +574,10 @@ render compilation, asynchronous reflected render completion after source
 library destruction, synchronous reflected mesh and object/mesh compilation,
 exact object-payload reflection, non-rasterizing mesh compilation, invalid
 stage/threadgroup/payload rejection without handle allocation, and asynchronous
-reflected mesh completion after source-library destruction,
+reflected mesh completion after source-library destruction, reflected and
+attachmentless Metal 4 tile compilation, private tile static linking, invalid
+tile stage/threadgroup rejection, and asynchronous tile completion after
+source-library destruction,
 compiler/task/dataset parent ownership, and complete Metal 4 compile diagnostics,
 copied/no-copy external buffer ownership,
 shareable texture/handle/import lifetimes, single- and multi-plane IOSurface

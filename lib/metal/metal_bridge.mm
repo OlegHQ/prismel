@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <initializer_list>
 #include <limits>
 #include <mutex>
 #include <vector>
@@ -1396,6 +1397,35 @@ MTL4CompilerTaskOptions *checked_compiler_task_options(
   if (options.lookupArchives.count != lookup_archives.count) {
     *failure = @"Metal changed checked compiler-task lookup archives";
     return nil;
+  }
+  return options;
+}
+
+API_AVAILABLE(macos(26.0))
+MTL4CompilerTaskOptions *checked_pipeline_task_options(
+    value raw_archives, NSString *pipeline_kind,
+    NSString *__autoreleasing *failure) {
+  std::vector<id<MTL4Archive>> lookup_archives =
+      pipeline_archives_of_array(raw_archives);
+  NSMutableArray<id<MTL4Archive>> *archive_array =
+      [NSMutableArray arrayWithCapacity:lookup_archives.size()];
+  NSMutableSet<id<MTL4Archive>> *archive_set = [NSMutableSet set];
+  for (id<MTL4Archive> archive : lookup_archives) {
+    if ([archive_set containsObject:archive]) {
+      *failure = [NSString
+          stringWithFormat:@"Metal 4 %@ lookup archive is duplicated",
+                           pipeline_kind];
+      return nil;
+    }
+    [archive_set addObject:archive];
+    [archive_array addObject:archive];
+  }
+  MTL4CompilerTaskOptions *options =
+      checked_compiler_task_options(archive_array, failure);
+  if (archive_array.count != 0 && options == nil && *failure == nil) {
+    *failure = [NSString
+        stringWithFormat:@"Metal 4 %@ lookup archives produced no task options",
+                         pipeline_kind];
   }
   return options;
 }
@@ -6761,19 +6791,6 @@ PrismelMetalCheckedComputeRequest *checked_compute_request(
     *failure = @"Metal 4 dynamic linking requires a positive call-stack depth";
     return nil;
   }
-  std::vector<id<MTL4Archive>> lookup_archives =
-      pipeline_archives_of_array(Field(raw_descriptor, 13));
-  NSMutableArray<id<MTL4Archive>> *archive_array =
-      [NSMutableArray arrayWithCapacity:lookup_archives.size()];
-  NSMutableSet<id<MTL4Archive>> *archive_set = [NSMutableSet set];
-  for (id<MTL4Archive> archive : lookup_archives) {
-    if ([archive_set containsObject:archive]) {
-      *failure = @"Metal 4 lookup archive is duplicated";
-      return nil;
-    }
-    [archive_set addObject:archive];
-    [archive_array addObject:archive];
-  }
   MTL4LibraryFunctionDescriptor *function_descriptor =
       [[MTL4LibraryFunctionDescriptor alloc] init];
   function_descriptor.name = function_name;
@@ -6826,8 +6843,9 @@ PrismelMetalCheckedComputeRequest *checked_compute_request(
   }
   NSString *task_options_failure = nil;
   MTL4CompilerTaskOptions *task_options =
-      checked_compiler_task_options(archive_array, &task_options_failure);
-  if (archive_array.count != 0 && task_options == nil) {
+      checked_pipeline_task_options(Field(raw_descriptor, 13), @"compute",
+                                    &task_options_failure);
+  if (task_options_failure != nil) {
     *failure = task_options_failure;
     return nil;
   }
@@ -6872,9 +6890,7 @@ PrismelMetalCheckedComputeRequest *checked_compute_request(
        (dynamic_linking.maxCallStackDepth != max_call_stack_depth ||
         dynamic_linking.binaryLinkedFunctions.count !=
             binary_function_array.count ||
-        dynamic_linking.preloadedLibraries.count != preloaded_array.count)) ||
-      (task_options != nil &&
-       task_options.lookupArchives.count != archive_array.count)) {
+        dynamic_linking.preloadedLibraries.count != preloaded_array.count))) {
     *failure = @"Metal changed checked Metal 4 compute descriptor properties";
     return nil;
   }
@@ -6889,9 +6905,10 @@ PrismelMetalCheckedComputeRequest *checked_compute_request(
 }
 
 API_AVAILABLE(macos(26.0))
-MTL4LibraryFunctionDescriptor *checked_render_function_descriptor(
-    id<MTLLibrary> library, NSString *name, MTLFunctionType expected_type,
-    NSString *stage, NSString *__autoreleasing *failure) {
+MTL4LibraryFunctionDescriptor *checked_pipeline_function_descriptor(
+    id<MTLLibrary> library, NSString *name,
+    std::initializer_list<MTLFunctionType> expected_types, NSString *stage,
+    NSString *__autoreleasing *failure) {
   if (name == nil || name.length == 0 ||
       ![library.functionNames containsObject:name]) {
     *failure = [NSString
@@ -6900,7 +6917,14 @@ MTL4LibraryFunctionDescriptor *checked_render_function_descriptor(
     return nil;
   }
   id<MTLFunction> function = [library newFunctionWithName:name];
-  if (function == nil || function.functionType != expected_type) {
+  bool function_type_matches = false;
+  if (function != nil) {
+    for (MTLFunctionType expected_type : expected_types) {
+      function_type_matches =
+          function_type_matches || function.functionType == expected_type;
+    }
+  }
+  if (!function_type_matches) {
     *failure =
         [NSString stringWithFormat:@"Metal 4 %@ function has the wrong stage",
                                    stage];
@@ -6987,6 +7011,38 @@ bool configure_render_color_attachments(
   return true;
 }
 
+API_AVAILABLE(macos(26.0))
+bool configure_tile_color_attachments(
+    MTLTileRenderPipelineColorAttachmentDescriptorArray *attachments,
+    value raw_formats, NSString *__autoreleasing *failure) {
+  const mlsize_t format_count = Wosize_val(raw_formats);
+  if (format_count > 8) {
+    *failure = @"Metal 4 tile color-attachment count is invalid";
+    return false;
+  }
+  for (mlsize_t index = 0; index < format_count; ++index) {
+    const intnat code = Long_val(Field(raw_formats, index));
+    if (code <= static_cast<intnat>(MTLPixelFormatInvalid)) {
+      *failure = @"Metal 4 tile color format is invalid";
+      return false;
+    }
+    MTLTileRenderPipelineColorAttachmentDescriptor *attachment =
+        [[MTLTileRenderPipelineColorAttachmentDescriptor alloc] init];
+    attachment.pixelFormat = static_cast<MTLPixelFormat>(code);
+    [attachments setObject:attachment atIndexedSubscript:index];
+  }
+  for (mlsize_t index = 0; index < format_count; ++index) {
+    const MTLTileRenderPipelineColorAttachmentDescriptor *attachment =
+        [attachments objectAtIndexedSubscript:index];
+    if (attachment.pixelFormat !=
+        static_cast<MTLPixelFormat>(Long_val(Field(raw_formats, index)))) {
+      *failure = @"Metal changed checked tile color-attachment properties";
+      return false;
+    }
+  }
+  return true;
+}
+
 bool checked_threadgroup_size(value raw_width, value raw_height,
                               value raw_depth, NSUInteger maximum,
                               NSString *stage, MTLSize *result,
@@ -7047,9 +7103,8 @@ PrismelMetalCheckedRenderRequest *checked_render_request(
   }
   NSString *vertex_name = string_from_ocaml(Field(raw_descriptor, 2));
   MTL4LibraryFunctionDescriptor *vertex =
-      checked_render_function_descriptor(library, vertex_name,
-                                         MTLFunctionTypeVertex, @"vertex",
-                                         failure);
+      checked_pipeline_function_descriptor(
+          library, vertex_name, {MTLFunctionTypeVertex}, @"vertex", failure);
   if (vertex == nil) {
     return nil;
   }
@@ -7058,8 +7113,8 @@ PrismelMetalCheckedRenderRequest *checked_render_request(
   value raw_fragment = Field(raw_descriptor, 3);
   if (Is_block(raw_fragment)) {
     fragment_name = string_from_ocaml(Field(raw_fragment, 0));
-    fragment = checked_render_function_descriptor(
-        library, fragment_name, MTLFunctionTypeFragment, @"fragment",
+    fragment = checked_pipeline_function_descriptor(
+        library, fragment_name, {MTLFunctionTypeFragment}, @"fragment",
         failure);
     if (fragment == nil) {
       return nil;
@@ -7114,23 +7169,11 @@ PrismelMetalCheckedRenderRequest *checked_render_request(
     options.shaderReflection = expected_reflection;
     descriptor.options = options;
   }
-  std::vector<id<MTL4Archive>> lookup_archives =
-      pipeline_archives_of_array(Field(raw_descriptor, 10));
-  NSMutableArray<id<MTL4Archive>> *archive_array =
-      [NSMutableArray arrayWithCapacity:lookup_archives.size()];
-  NSMutableSet<id<MTL4Archive>> *archive_set = [NSMutableSet set];
-  for (id<MTL4Archive> archive : lookup_archives) {
-    if ([archive_set containsObject:archive]) {
-      *failure = @"Metal 4 render lookup archive is duplicated";
-      return nil;
-    }
-    [archive_set addObject:archive];
-    [archive_array addObject:archive];
-  }
   NSString *task_options_failure = nil;
   MTL4CompilerTaskOptions *task_options =
-      checked_compiler_task_options(archive_array, &task_options_failure);
-  if (archive_array.count != 0 && task_options == nil) {
+      checked_pipeline_task_options(Field(raw_descriptor, 10), @"render",
+                                    &task_options_failure);
+  if (task_options_failure != nil) {
     *failure = task_options_failure;
     return nil;
   }
@@ -7145,9 +7188,7 @@ PrismelMetalCheckedRenderRequest *checked_render_request(
       (reflection_requested &&
        (descriptor.options == nil ||
         descriptor.options.shaderReflection != expected_reflection)) ||
-      (!reflection_requested && descriptor.options != nil) ||
-      (task_options != nil &&
-       task_options.lookupArchives.count != archive_array.count)) {
+      (!reflection_requested && descriptor.options != nil)) {
     *failure = @"Metal changed checked Metal 4 render descriptor properties";
     return nil;
   }
@@ -7192,15 +7233,15 @@ PrismelMetalCheckedRenderRequest *checked_mesh_request(
   value raw_object = Field(raw_descriptor, 2);
   if (Is_block(raw_object)) {
     object_name = string_from_ocaml(Field(raw_object, 0));
-    object = checked_render_function_descriptor(
-        library, object_name, MTLFunctionTypeObject, @"object", failure);
+    object = checked_pipeline_function_descriptor(
+        library, object_name, {MTLFunctionTypeObject}, @"object", failure);
     if (object == nil) {
       return nil;
     }
   }
   NSString *mesh_name = string_from_ocaml(Field(raw_descriptor, 3));
-  MTL4LibraryFunctionDescriptor *mesh = checked_render_function_descriptor(
-      library, mesh_name, MTLFunctionTypeMesh, @"mesh", failure);
+  MTL4LibraryFunctionDescriptor *mesh = checked_pipeline_function_descriptor(
+      library, mesh_name, {MTLFunctionTypeMesh}, @"mesh", failure);
   if (mesh == nil) {
     return nil;
   }
@@ -7209,8 +7250,8 @@ PrismelMetalCheckedRenderRequest *checked_mesh_request(
   value raw_fragment = Field(raw_descriptor, 4);
   if (Is_block(raw_fragment)) {
     fragment_name = string_from_ocaml(Field(raw_fragment, 0));
-    fragment = checked_render_function_descriptor(
-        library, fragment_name, MTLFunctionTypeFragment, @"fragment",
+    fragment = checked_pipeline_function_descriptor(
+        library, fragment_name, {MTLFunctionTypeFragment}, @"fragment",
         failure);
     if (fragment == nil) {
       return nil;
@@ -7302,23 +7343,11 @@ PrismelMetalCheckedRenderRequest *checked_mesh_request(
     options.shaderReflection = expected_reflection;
     descriptor.options = options;
   }
-  std::vector<id<MTL4Archive>> lookup_archives =
-      pipeline_archives_of_array(Field(raw_descriptor, 22));
-  NSMutableArray<id<MTL4Archive>> *archive_array =
-      [NSMutableArray arrayWithCapacity:lookup_archives.size()];
-  NSMutableSet<id<MTL4Archive>> *archive_set = [NSMutableSet set];
-  for (id<MTL4Archive> archive : lookup_archives) {
-    if ([archive_set containsObject:archive]) {
-      *failure = @"Metal 4 mesh lookup archive is duplicated";
-      return nil;
-    }
-    [archive_set addObject:archive];
-    [archive_array addObject:archive];
-  }
   NSString *task_options_failure = nil;
   MTL4CompilerTaskOptions *task_options =
-      checked_compiler_task_options(archive_array, &task_options_failure);
-  if (archive_array.count != 0 && task_options == nil) {
+      checked_pipeline_task_options(Field(raw_descriptor, 22), @"mesh",
+                                    &task_options_failure);
+  if (task_options_failure != nil) {
     *failure = task_options_failure;
     return nil;
   }
@@ -7351,9 +7380,7 @@ PrismelMetalCheckedRenderRequest *checked_mesh_request(
       (reflection_requested &&
        (descriptor.options == nil ||
         descriptor.options.shaderReflection != expected_reflection)) ||
-      (!reflection_requested && descriptor.options != nil) ||
-      (task_options != nil &&
-       task_options.lookupArchives.count != archive_array.count)) {
+      (!reflection_requested && descriptor.options != nil)) {
     *failure = @"Metal changed checked Metal 4 mesh descriptor properties";
     return nil;
   }
@@ -7366,6 +7393,144 @@ PrismelMetalCheckedRenderRequest *checked_mesh_request(
       !checked_stored_render_function(
           descriptor.fragmentFunctionDescriptor, fragment, library,
           fragment_name, @"fragment", failure)) {
+    return nil;
+  }
+  PrismelMetalCheckedRenderRequest *request =
+      [[PrismelMetalCheckedRenderRequest alloc] init];
+  request.descriptor = descriptor;
+  request.taskOptions = task_options;
+  request.label = expected_label;
+  request.reflectionRequested = reflection_requested;
+  return request;
+}
+
+API_AVAILABLE(macos(26.0))
+PrismelMetalCheckedRenderRequest *checked_tile_request(
+    value raw_descriptor, id<MTL4Compiler> compiler,
+    NSString *__autoreleasing *failure) {
+  id<MTLLibrary> library =
+      object_of_handle(Field(raw_descriptor, 1), Handle_kind::Library);
+  if (library.device.registryID != compiler.device.registryID) {
+    *failure = @"Metal 4 tile library is incompatible with the compiler";
+    return nil;
+  }
+  if (![compiler.device supportsFamily:MTLGPUFamilyApple4]) {
+    *failure = @"Metal 4 tile shaders require Apple4 or newer";
+    return nil;
+  }
+  NSString *expected_label = nil;
+  value raw_label = Field(raw_descriptor, 0);
+  if (Is_block(raw_label)) {
+    expected_label = string_from_ocaml(Field(raw_label, 0));
+    if (expected_label == nil) {
+      *failure = @"Metal 4 tile-pipeline label is not valid UTF-8";
+      return nil;
+    }
+  }
+  NSString *tile_name = string_from_ocaml(Field(raw_descriptor, 2));
+  MTL4LibraryFunctionDescriptor *tile =
+      checked_pipeline_function_descriptor(
+          library, tile_name,
+          {MTLFunctionTypeKernel, MTLFunctionTypeFragment}, @"tile", failure);
+  if (tile == nil) {
+    return nil;
+  }
+  NSUInteger sample_count = 0;
+  NSUInteger max_total_threads = 0;
+  if (!nsuinteger_from_ocaml_int64(Field(raw_descriptor, 4), &sample_count) ||
+      !nsuinteger_from_ocaml_int64(Field(raw_descriptor, 7),
+                                   &max_total_threads) ||
+      sample_count == 0 ||
+      ![compiler.device supportsTextureSampleCount:sample_count]) {
+    *failure = @"Metal 4 tile numeric descriptor property is invalid";
+    return nil;
+  }
+  MTLSize required_threads = {};
+  if (!checked_threadgroup_size(
+          Field(raw_descriptor, 8), Field(raw_descriptor, 9),
+          Field(raw_descriptor, 10), max_total_threads, @"tile",
+          &required_threads, failure)) {
+    return nil;
+  }
+  const bool support_binary_linking = Bool_val(Field(raw_descriptor, 11));
+  if (support_binary_linking && !compiler.device.supportsFunctionPointers) {
+    *failure = @"Metal 4 tile binary linking requires function pointers";
+    return nil;
+  }
+  value raw_static_linking = Field(raw_descriptor, 12);
+  NSString *static_linking_failure = nil;
+  MTL4StaticLinkingDescriptor *static_linking =
+      checked_static_linking_descriptor(
+          raw_static_linking, compiler.device, &static_linking_failure);
+  if (Is_block(raw_static_linking) && static_linking == nil) {
+    *failure = static_linking_failure;
+    return nil;
+  }
+  MTL4TileRenderPipelineDescriptor *descriptor =
+      [[MTL4TileRenderPipelineDescriptor alloc] init];
+  descriptor.label = expected_label;
+  descriptor.tileFunctionDescriptor = tile;
+  descriptor.rasterSampleCount = sample_count;
+  const bool matches_tile_size = Bool_val(Field(raw_descriptor, 6));
+  descriptor.threadgroupSizeMatchesTileSize = matches_tile_size;
+  descriptor.maxTotalThreadsPerThreadgroup = max_total_threads;
+  descriptor.requiredThreadsPerThreadgroup = required_threads;
+  descriptor.supportBinaryLinking = support_binary_linking;
+  descriptor.staticLinkingDescriptor = static_linking;
+  if (!configure_tile_color_attachments(
+          descriptor.colorAttachments, Field(raw_descriptor, 5), failure)) {
+    return nil;
+  }
+  const bool reflection_requested = Bool_val(Field(raw_descriptor, 3));
+  const MTL4ShaderReflection expected_reflection =
+      MTL4ShaderReflectionBindingInfo | MTL4ShaderReflectionBufferTypeInfo;
+  if (reflection_requested) {
+    MTL4PipelineOptions *options = [[MTL4PipelineOptions alloc] init];
+    options.shaderReflection = expected_reflection;
+    descriptor.options = options;
+  }
+  NSString *task_options_failure = nil;
+  MTL4CompilerTaskOptions *task_options =
+      checked_pipeline_task_options(Field(raw_descriptor, 13), @"tile",
+                                    &task_options_failure);
+  if (task_options_failure != nil) {
+    *failure = task_options_failure;
+    return nil;
+  }
+  if (((expected_label == nil) != (descriptor.label == nil)) ||
+      (expected_label != nil &&
+       ![descriptor.label isEqualToString:expected_label]) ||
+      descriptor.rasterSampleCount != sample_count ||
+      descriptor.threadgroupSizeMatchesTileSize != matches_tile_size ||
+      descriptor.maxTotalThreadsPerThreadgroup != max_total_threads ||
+      descriptor.requiredThreadsPerThreadgroup.width != required_threads.width ||
+      descriptor.requiredThreadsPerThreadgroup.height !=
+          required_threads.height ||
+      descriptor.requiredThreadsPerThreadgroup.depth != required_threads.depth ||
+      descriptor.supportBinaryLinking != support_binary_linking ||
+      (static_linking == nil && descriptor.staticLinkingDescriptor != nil &&
+       (descriptor.staticLinkingDescriptor.functionDescriptors.count != 0 ||
+        descriptor.staticLinkingDescriptor.privateFunctionDescriptors.count !=
+            0 ||
+        descriptor.staticLinkingDescriptor.groups.count != 0)) ||
+      (static_linking != nil &&
+       (descriptor.staticLinkingDescriptor == nil ||
+        descriptor.staticLinkingDescriptor.functionDescriptors.count !=
+            static_linking.functionDescriptors.count ||
+        descriptor.staticLinkingDescriptor.privateFunctionDescriptors.count !=
+            static_linking.privateFunctionDescriptors.count ||
+        descriptor.staticLinkingDescriptor.groups.count !=
+            static_linking.groups.count)) ||
+      (reflection_requested &&
+       (descriptor.options == nil ||
+        descriptor.options.shaderReflection != expected_reflection)) ||
+      (!reflection_requested && descriptor.options != nil)) {
+    *failure = @"Metal changed checked Metal 4 tile descriptor properties";
+    return nil;
+  }
+  if (!checked_stored_render_function(
+          descriptor.tileFunctionDescriptor, tile, library, tile_name, @"tile",
+          failure)) {
     return nil;
   }
   PrismelMetalCheckedRenderRequest *request =
@@ -7799,6 +7964,79 @@ caml_prismel_metal_compiler_create_mesh_pipeline_async(
     } else {
       CAMLreturn(result_error_text(
           "asynchronous Metal 4 mesh pipelines require macOS 26 or newer"));
+    }
+  }
+  CAMLreturn(result_ok(raw));
+}
+
+extern "C" CAMLprim value caml_prismel_metal_compiler_create_tile_pipeline(
+    value raw_compiler, value raw_descriptor) {
+  CAMLparam2(raw_compiler, raw_descriptor);
+  CAMLlocal3(raw, reflection, pair);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4Compiler> compiler =
+            object_of_handle(raw_compiler, Handle_kind::Compiler);
+        NSString *validation_failure = nil;
+        PrismelMetalCheckedRenderRequest *request =
+            checked_tile_request(raw_descriptor, compiler,
+                                 &validation_failure);
+        if (request == nil) {
+          CAMLreturn(result_error(validation_failure));
+        }
+        id<MTLRenderPipelineState> pipeline =
+            compile_checked_render_pipeline(compiler, request,
+                                            &validation_failure);
+        if (pipeline == nil) {
+          CAMLreturn(result_error(validation_failure));
+        }
+        raw = allocate_handle(pipeline, Handle_kind::Render_pipeline);
+        reflection = copy_render_reflection(pipeline.reflection);
+        pair = caml_alloc_tuple(2);
+        Store_field(pair, 0, raw);
+        Store_field(pair, 1, reflection);
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    } else {
+      CAMLreturn(result_error_text(
+          "Metal 4 tile pipelines require macOS 26 or newer"));
+    }
+  }
+  CAMLreturn(result_ok(pair));
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_compiler_create_tile_pipeline_async(
+    value raw_compiler, value raw_descriptor) {
+  CAMLparam2(raw_compiler, raw_descriptor);
+  CAMLlocal1(raw);
+  @autoreleasepool {
+    if (@available(macOS 26.0, *)) {
+      @try {
+        id<MTL4Compiler> compiler =
+            object_of_handle(raw_compiler, Handle_kind::Compiler);
+        NSString *validation_failure = nil;
+        PrismelMetalCheckedRenderRequest *request =
+            checked_tile_request(raw_descriptor, compiler,
+                                 &validation_failure);
+        if (request == nil) {
+          CAMLreturn(result_error(validation_failure));
+        }
+        PrismelMetalCompilerTaskState *state =
+            start_checked_render_pipeline_task(compiler, request,
+                                               &validation_failure);
+        if (state == nil) {
+          CAMLreturn(result_error(validation_failure));
+        }
+        raw = allocate_handle(state, Handle_kind::Compiler_task);
+      } @catch (NSException *exception) {
+        CAMLreturn(result_error(exception.reason));
+      }
+    } else {
+      CAMLreturn(result_error_text(
+          "asynchronous Metal 4 tile pipelines require macOS 26 or newer"));
     }
   }
   CAMLreturn(result_ok(raw));
