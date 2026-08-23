@@ -1,3 +1,5 @@
+module Enum = Metal_enum_generated
+
 type error_kind =
   | Native_error
   | Wrong_domain

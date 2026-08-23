@@ -1,7 +1,7 @@
 let declaration ?owner ?constant_value ~id ~kind ~name ~header ~line ~signature () =
   Binding_enum_implicit_codegen.
     { id; kind; name; owner; header; line = Some line; signature
-    ; classification = "unreviewed"; constant_value }
+    ; classification = "unreviewed"; constant_value; macos_introduced = None }
 
 let inventory () =
   List.concat_map
@@ -60,6 +60,7 @@ let inventory_file path =
         ; signature = required_string "signature" value
         ; classification = required_string "classification" value
         ; constant_value = optional_string "constant_value" value
+        ; macos_introduced = None
         })
     symbols
 

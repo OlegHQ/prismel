@@ -9,6 +9,8 @@
   binding_enum_codegen
   binding_enum_implicit_plan
   binding_enum_implicit_codegen
+  binding_enum_bound_evidence
+  binding_enum_public_codegen
   binding_availability
   binding_availability_ast
   binding_receiver_catalog
@@ -65,6 +67,8 @@
   binding_enum_implicit_plan.mli
   binding_enum_implicit_codegen.ml
   binding_enum_implicit_codegen.mli
+  binding_enum_public_codegen.ml
+  binding_enum_public_codegen.mli
   binding_struct_native_codegen.ml
   binding_struct_native_codegen.mli
   binding_struct_spec.ml
@@ -133,6 +137,22 @@
  (deps ../../lib/metal/generated_api_inventory.json)
  (action
   (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
+
+(test
+ (name test_binding_enum_bound_evidence)
+ (modules test_binding_enum_bound_evidence)
+ (libraries gpu_migration_support metal_inventory_classification yojson)
+ (deps
+  ../../lib/metal/generated_api_inventory.json
+  ../../lib/metal/metal_enum_generated.ml
+  ../../lib/metal/metal_enum_generated.mli
+  ../../lib/metal/test_metal_enum_generated.ml)
+ (action
+  (run %{test}
+   --inventory %{dep:../../lib/metal/generated_api_inventory.json}
+   --public-ml %{dep:../../lib/metal/metal_enum_generated.ml}
+   --public-mli %{dep:../../lib/metal/metal_enum_generated.mli}
+   --exhaustive-test %{dep:../../lib/metal/test_metal_enum_generated.ml})))
 
 (test
  (name test_binding_struct_native_codegen)

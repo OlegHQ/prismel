@@ -9,12 +9,12 @@ let selected_case_count = 349
 
 (* SHA-256 of the sorted, newline-terminated selected in-scope identifiers. *)
 let identifier_sha256 =
-  "fe0e1f61460aedb3bde9fa43932512c0274f9098a8a3d78dd9a9e94f80bcfa43"
+  "8e94e05b9747ca40719359210b23d727c9e446654dbf4a8227c5bbcf00b62bed"
 
 (* SHA-256 of sorted TSV rows:
    id, header, line, signature, macOS introduction, availability sources. *)
 let availability_sha256 =
-  "793de3d6aaa12fc2f684f3081e29a3a667866e3bb5652c3a439a8e66272aead9"
+  "700c0cd008db68679adfc2eb6ba37d8384f5f6f6ef0e793587deafa6c55eb3d1"
 
 let explicit_family_names = Binding_enum_plan.family_names
 

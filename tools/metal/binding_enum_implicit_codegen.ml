@@ -12,6 +12,7 @@ type declaration =
   ; signature : string
   ; classification : string
   ; constant_value : string option
+  ; macos_introduced : Binding_availability.version option
   }
 
 type selected_case =
@@ -74,8 +75,10 @@ let require_shape ~id ~kind ~name ~owner ~header ~line ~signature declaration =
      || declaration.owner <> owner || declaration.header <> header
      || declaration.line <> Some line || declaration.signature <> signature
   then fail "implicit Metal enum inventory shape drift for %s" id;
-  if declaration.classification <> "unreviewed" then
-    fail "implicit Metal enum %s is %s, expected unreviewed" id declaration.classification
+  if declaration.classification <> "unreviewed"
+     && declaration.classification <> "bound"
+  then
+    fail "implicit Metal enum %s is %s, expected unreviewed or bound" id declaration.classification
 
 let select declarations =
   let by_id =

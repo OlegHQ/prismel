@@ -1444,6 +1444,31 @@ let bound_identifiers =
 
 let bound_identifier_set = String_set.of_list bound_identifiers
 
+let generated_public_enum_family_set =
+  String_set.of_list
+    (Binding_enum_plan.family_names
+     @ List.map
+         (fun (family : Binding_enum_implicit_plan.family) -> family.sdk_name)
+         Binding_enum_implicit_plan.families)
+
+let generated_public_enum_identifier identifier =
+  let family_after prefix =
+    if String.starts_with ~prefix identifier then
+      let suffix =
+        String.sub identifier (String.length prefix)
+          (String.length identifier - String.length prefix)
+      in
+      let family =
+        match String.index_opt suffix ':' with
+        | None -> suffix
+        | Some separator -> String.sub suffix 0 separator
+      in
+      String_set.mem family generated_public_enum_family_set
+    else false
+  in
+  family_after "enum:" || family_after "typedef:"
+  || family_after "enum-case:"
+
 let availability_gated_identifier_set =
   String_set.of_list
     [ "method:-[MTL4Compiler newComputePipelineStateWithDescriptor:dynamicLinkingDescriptor:compilerTaskOptions:completionHandler:]"
@@ -1463,4 +1488,6 @@ let classify ~unavailable ~identifier =
     , "Implemented with an Apple9/M3+ capability gate; the Apple7/M1 Metal 4 driver crashes while serializing this asynchronous dynamic-link request." )
   else if String_set.mem identifier bound_identifier_set then
     Bound, "Implemented by the ownership-aware prismel.metal safe layer."
+  else if generated_public_enum_identifier identifier then
+    Bound, "Implemented by the generated, typed prismel.metal pure-value enum surface."
   else Unreviewed, "Binding classification pending during Phase 2."

@@ -223,6 +223,7 @@ let select_mechanical_enums inventory =
        ; signature = declaration.signature
        ; classification = declaration.classification
        ; constant_value = declaration.constant_value
+       ; macos_introduced = declaration.macos_introduced
        }
         : Binding_enum_codegen.declaration))
     |> List.of_seq
@@ -260,6 +261,7 @@ let select_implicit_mechanical_enums inventory =
        ; signature = declaration.signature
        ; classification = declaration.classification
        ; constant_value = declaration.constant_value
+       ; macos_introduced = declaration.macos_introduced
        }
         : Binding_enum_implicit_codegen.declaration))
     |> List.of_seq
@@ -2007,6 +2009,10 @@ let generator_source_paths =
   ; "tools/metal/binding_enum_implicit_plan.mli"
   ; "tools/metal/binding_enum_implicit_codegen.ml"
   ; "tools/metal/binding_enum_implicit_codegen.mli"
+  ; "tools/metal/binding_enum_bound_evidence.ml"
+  ; "tools/metal/binding_enum_bound_evidence.mli"
+  ; "tools/metal/binding_enum_public_codegen.ml"
+  ; "tools/metal/binding_enum_public_codegen.mli"
   ; "tools/metal/binding_struct_spec.ml"
   ; "tools/metal/binding_struct_spec.mli"
   ; "tools/metal/binding_struct_plan.ml"
@@ -2059,6 +2065,9 @@ type options =
   ; output_raw_mli : string
   ; output_native : string
   ; output_manifest : string
+  ; output_public_enum_ml : string
+  ; output_public_enum_mli : string
+  ; output_public_enum_test : string
   }
 
 let options () =
@@ -2075,6 +2084,9 @@ let options () =
   let output_raw_mli = ref "" in
   let output_native = ref "" in
   let output_manifest = ref "" in
+  let output_public_enum_ml = ref "" in
+  let output_public_enum_mli = ref "" in
+  let output_public_enum_test = ref "" in
   let set target value = target := value in
   let arguments =
     [ "--inventory", Arg.String (set inventory), "Pinned inventory JSON"
@@ -2098,6 +2110,9 @@ let options () =
     ; ( "--output-manifest"
       , Arg.String (set output_manifest)
       , "Generated provenance manifest" )
+    ; "--output-public-enum-ml", Arg.String (set output_public_enum_ml), "Generated public enum ML"
+    ; "--output-public-enum-mli", Arg.String (set output_public_enum_mli), "Generated public enum MLI"
+    ; "--output-public-enum-test", Arg.String (set output_public_enum_test), "Generated public enum test"
     ]
   in
   Arg.parse arguments
@@ -2139,6 +2154,9 @@ let options () =
   ; output_raw_mli = require "--output-raw-mli" output_raw_mli
   ; output_native = require "--output-native" output_native
   ; output_manifest = require "--output-manifest" output_manifest
+  ; output_public_enum_ml = require "--output-public-enum-ml" output_public_enum_ml
+  ; output_public_enum_mli = require "--output-public-enum-mli" output_public_enum_mli
+  ; output_public_enum_test = require "--output-public-enum-test" output_public_enum_test
   }
 
 let main () =
@@ -2159,6 +2177,17 @@ let main () =
   let implicit_enum_selection =
     select_implicit_mechanical_enums inventory
   in
+  let public_enums =
+    Binding_enum_public_codegen.generate ~explicit:enum_selection
+      ~implicit:implicit_enum_selection
+  in
+  if public_enums.family_count <> 68 || public_enums.case_count <> 324
+     || List.length public_enums.identifiers <> 460
+  then
+    fail
+      "public Metal enum cardinality drift: %d families, %d cases, %d declarations"
+      public_enums.family_count public_enums.case_count
+      (List.length public_enums.identifiers);
   let struct_output = Binding_struct_native_codegen.generate () in
   validate_struct_native_output inventory struct_output;
   let string_entries = Binding_string_codegen.qualified_entries () in
@@ -2197,6 +2226,12 @@ let main () =
   write_file options.output_raw_mli raw_mli_contents;
   write_file options.output_native native_contents;
   write_file options.output_manifest manifest_contents;
+  write_file options.output_public_enum_ml
+    (Printf.sprintf "(* %s *)\n\n%s" header public_enums.ml);
+  write_file options.output_public_enum_mli
+    (Printf.sprintf "(* %s *)\n\n%s" header public_enums.mli);
+  write_file options.output_public_enum_test
+    (Printf.sprintf "(* %s *)\n\n%s" header public_enums.test_ml);
   Printf.printf
     "generated %d checked-plan calls, %d direct calls (%d safe Device IDs), %d direct properties, %d explicit-value enum declarations, and %d implicit-value enum declarations\n%!"
     (List.length entries) (List.length direct_methods)

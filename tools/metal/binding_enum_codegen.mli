@@ -8,6 +8,7 @@ type declaration =
   ; signature : string
   ; classification : string
   ; constant_value : string option
+  ; macos_introduced : Binding_availability.version option
   }
 
 type selected_case =
@@ -47,8 +48,8 @@ val ocaml_module_identifier : string -> string
 val uint64_bits : string -> int64
 
 (** Select complete enum families from an inventory. Family enum declarations
-    and typedef companions must remain [unreviewed]. Individual enum cases may
-    be [unreviewed] or [scope-excluded]; every other classification fails
+    and typedef companions must remain [unreviewed] or [bound]. Individual enum cases may
+    be [unreviewed], [bound], or [scope-excluded]; every other classification fails
     closed. The result is canonicalized by family and case name and includes
     all enum, typedef, and case declaration identifiers. *)
 val select : family_names:string list -> declaration list -> selection

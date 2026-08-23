@@ -1,5 +1,10 @@
 (** Ownership-aware bindings to Metal.framework on macOS. *)
 
+(** Generated, handle-free SDK enum values. Every family is a distinct
+    private type; mappings preserve aliases and carry pinned macOS
+    availability metadata. *)
+module Enum : module type of Metal_enum_generated
+
 type error_kind =
   | Native_error
   | Wrong_domain

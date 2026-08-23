@@ -10,6 +10,7 @@ type declaration =
   ; signature : string
   ; classification : string
   ; constant_value : string option
+  ; macos_introduced : Binding_availability.version option
   }
 
 type selected_case =
@@ -179,18 +180,21 @@ let require_shape ~family ~expected_kind ~expected_id ~expected_signatures
   if not (List.exists (String.equal declaration.signature) expected_signatures) then
     fail "Metal inventory %s has unsupported signature %S" declaration.id
       declaration.signature;
-  if not (String.equal declaration.classification "unreviewed") then
-    fail "Metal inventory %s is %s, expected unreviewed" declaration.id
+  if
+    declaration.classification <> "unreviewed"
+    && declaration.classification <> "bound"
+  then
+    fail "Metal inventory %s is %s, expected unreviewed or bound" declaration.id
       declaration.classification;
   if Option.is_some declaration.constant_value then
     fail "Metal inventory %s unexpectedly has a constant value" declaration.id
 
 let require_case_classification declaration =
   match declaration.classification with
-  | "unreviewed" | "scope-excluded" -> ()
+  | "unreviewed" | "bound" | "scope-excluded" -> ()
   | classification ->
       fail
-        "Metal inventory %s is %s, expected unreviewed or scope-excluded enum case"
+        "Metal inventory %s is %s, expected unreviewed, bound, or scope-excluded enum case"
         declaration.id classification
 
 let id_family = function

@@ -8,9 +8,25 @@ type declaration =
   ; signature : string
   ; classification : string
   ; constant_value : string option
+  ; macos_introduced : Binding_availability.version option
   }
 
-type selection
+type selected_case =
+  { declaration : declaration
+  ; spec : Binding_enum_implicit_plan.case
+  ; ocaml_name : string
+  ; bits : int64
+  }
+
+type selected_family =
+  { spec : Binding_enum_implicit_plan.family
+  ; enum_declaration : declaration
+  ; typedef_declaration : declaration
+  ; module_name : string
+  ; cases : selected_case list
+  }
+
+type selection = selected_family list
 
 exception Error of string
 

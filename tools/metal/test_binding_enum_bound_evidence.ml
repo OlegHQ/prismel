@@ -4,9 +4,6 @@ module String_set = Set.Make (String)
 
 type declaration =
   { id : string
-  ; kind : string
-  ; name : string
-  ; owner : string option
   ; header : string
   ; line : int
   ; signature : string
@@ -29,7 +26,9 @@ let optional_string name value =
 let required_int name value =
   match member_int name value with
   | Some value -> value
-  | None -> fail "Metal enum evidence field %s must be an integer" name
+  | None ->
+      fail "Metal enum evidence field %s must be an integer in %s" name
+        (Yojson.Safe.to_string value)
 
 let availability_source value =
   Printf.sprintf "%s:%d" (required_string "header" value)
@@ -37,13 +36,6 @@ let availability_source value =
 
 let declaration value =
   { id = required_string "id" value
-  ; kind = required_string "kind" value
-  ; name = required_string "name" value
-  ; owner =
-      (match member "owner" value with
-       | None | Some `Null -> None
-       | Some (`String owner) -> Some owner
-       | Some _ -> fail "Metal enum evidence owner must be string or null")
   ; header = required_string "header" value
   ; line = required_int "line" value
   ; signature = required_string "signature" value
@@ -87,12 +79,12 @@ let selected_declarations inventory =
   let seen = Hashtbl.create (List.length symbols) in
   List.filter_map
     (fun value ->
-      let declaration = declaration value in
-      if Hashtbl.mem seen declaration.id then
-        fail "duplicate Metal inventory identifier %s" declaration.id;
-      Hashtbl.add seen declaration.id ();
-      if Binding_enum_bound_evidence.is_selected_identifier declaration.id then
-        Some declaration
+      let identifier = required_string "id" value in
+      if Hashtbl.mem seen identifier then
+        fail "duplicate Metal inventory identifier %s" identifier;
+      Hashtbl.add seen identifier ();
+      if Binding_enum_bound_evidence.is_selected_identifier identifier then
+        Some (declaration value)
       else None)
     symbols
 

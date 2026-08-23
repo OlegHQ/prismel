@@ -10,6 +10,7 @@ type declaration =
   ; signature : string
   ; classification : string
   ; constant_value : string option
+  ; macos_introduced : Binding_availability.version option
   }
 
 type family_entries =
@@ -38,6 +39,7 @@ let declaration value =
   ; signature = require_string "signature" value
   ; classification = require_string "classification" value
   ; constant_value = nullable_string "constant_value" value
+  ; macos_introduced = None
   }
 
 let parse_options () =
@@ -92,17 +94,19 @@ let add_case family bucket declaration =
     fail "duplicate Metal enum case %s in family %s" declaration.name family;
   String_table.add bucket.cases declaration.name declaration
 
-let require_unreviewed description declaration =
-  if not (String.equal declaration.classification "unreviewed") then
-    fail "%s %s must be unreviewed, found %s" description
+let require_selected description declaration =
+  if declaration.classification <> "unreviewed"
+     && declaration.classification <> "bound"
+  then
+    fail "%s %s must be unreviewed or bound, found %s" description
       declaration.identifier declaration.classification
 
 let require_case_classification declaration =
   match declaration.classification with
-  | "unreviewed" | "scope-excluded" -> ()
+  | "unreviewed" | "bound" | "scope-excluded" -> ()
   | classification ->
       fail
-        "Metal enum case %s must be unreviewed or scope-excluded, found %s"
+        "Metal enum case %s must be unreviewed, bound, or scope-excluded, found %s"
         declaration.identifier classification
 
 let index_inventory families path =
@@ -249,7 +253,7 @@ let index_inventory families path =
 
 let require_singleton description family = function
   | [ declaration ] ->
-      require_unreviewed description declaration;
+      require_selected description declaration;
       declaration
   | [] -> fail "Metal enum family %s is missing its %s" family description
   | declarations ->
@@ -340,6 +344,7 @@ let codegen_declaration (declaration : declaration) :
   ; signature = declaration.signature
   ; classification = declaration.classification
   ; constant_value = declaration.constant_value
+  ; macos_introduced = declaration.macos_introduced
   }
 
 let check_codegen_manifest identifiers declarations =
@@ -413,7 +418,7 @@ let check_codegen_manifest identifiers declarations =
       if not (contains ~needle:expected_raw raw_ml) then
         fail "Metal enum raw constant drift for %s" identifier;
       match classification with
-      | "unreviewed" -> ()
+      | "unreviewed" | "bound" -> ()
       | "scope-excluded" -> incr scope_excluded_count
       | other ->
           fail "Metal enum manifest contains disallowed classification %s for %s"
@@ -466,17 +471,17 @@ let expect_codegen_rejection label needle declarations =
 
 let check_codegen_rejections declarations =
   replace_classification
-    "enum-case:MTLLanguageVersion:MTLLanguageVersion1_0" "bound"
+    "enum-case:MTLLanguageVersion:MTLLanguageVersion1_0" "availability-gated"
     declarations
-  |> expect_codegen_rejection "bound Metal enum case"
-       "expected unreviewed or scope-excluded enum case";
+  |> expect_codegen_rejection "availability-gated Metal enum case"
+       "expected unreviewed, bound, or scope-excluded enum case";
   replace_classification "enum:MTLFeatureSet" "scope-excluded" declarations
   |> expect_codegen_rejection "scope-excluded Metal enum declaration"
-       "expected unreviewed";
+       "expected unreviewed or bound";
   replace_classification "typedef:MTLFeatureSet" "scope-excluded"
     declarations
   |> expect_codegen_rejection "scope-excluded Metal enum typedef"
-       "expected unreviewed"
+       "expected unreviewed or bound"
 
 let main () =
   let inventory = parse_options () in

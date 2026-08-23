@@ -17,6 +17,9 @@ type outputs =
   ; raw_mli : string
   ; native : string
   ; manifest : string
+  ; public_enum_ml : string
+  ; public_enum_mli : string
+  ; public_enum_test : string
   }
 
 let parse_options () =
@@ -71,6 +74,9 @@ let outputs directory prefix =
   ; raw_mli = path ".mli"
   ; native = path ".inc"
   ; manifest = path ".json"
+  ; public_enum_ml = path "_enum.ml"
+  ; public_enum_mli = path "_enum.mli"
+  ; public_enum_test = path "_enum_test.ml"
   }
 
 let run inputs ?(plan_root = inputs.plan_root)
@@ -91,6 +97,9 @@ let run inputs ?(plan_root = inputs.plan_root)
     ; "--output-raw-mli"; outputs.raw_mli
     ; "--output-native"; outputs.native
     ; "--output-manifest"; outputs.manifest
+    ; "--output-public-enum-ml"; outputs.public_enum_ml
+    ; "--output-public-enum-mli"; outputs.public_enum_mli
+    ; "--output-public-enum-test"; outputs.public_enum_test
     ]
 
 let require_success description result =
@@ -888,6 +897,10 @@ let generator_source_sha256 entry_source =
   ; "tools/metal/binding_enum_implicit_plan.mli"
   ; "tools/metal/binding_enum_implicit_codegen.ml"
   ; "tools/metal/binding_enum_implicit_codegen.mli"
+  ; "tools/metal/binding_enum_bound_evidence.ml"
+  ; "tools/metal/binding_enum_bound_evidence.mli"
+  ; "tools/metal/binding_enum_public_codegen.ml"
+  ; "tools/metal/binding_enum_public_codegen.mli"
   ; "tools/metal/binding_struct_spec.ml"
   ; "tools/metal/binding_struct_spec.mli"
   ; "tools/metal/binding_struct_plan.ml"
@@ -1548,6 +1561,9 @@ let check_manifest inputs outputs =
   [ "raw ML", "(* " ^ header ^ " *)\n\n", outputs.raw_ml
   ; "raw MLI", "(* " ^ header ^ " *)\n\n", outputs.raw_mli
   ; "native include", "/* " ^ header ^ " */\n\n", outputs.native
+  ; "public enum ML", "(* " ^ header ^ " *)\n\n", outputs.public_enum_ml
+  ; "public enum MLI", "(* " ^ header ^ " *)\n\n", outputs.public_enum_mli
+  ; "public enum test", "(* " ^ header ^ " *)\n\n", outputs.public_enum_test
   ]
   |> List.iter (fun (description, prefix, path) ->
     if not (String.starts_with ~prefix (read_file path)) then
@@ -1648,6 +1664,9 @@ let main () =
     ; first.raw_mli, second.raw_mli
     ; first.native, second.native
     ; first.manifest, second.manifest
+    ; first.public_enum_ml, second.public_enum_ml
+    ; first.public_enum_mli, second.public_enum_mli
+    ; first.public_enum_test, second.public_enum_test
     ]
     |> List.iter (fun (left, right) ->
       if read_file left <> read_file right then
@@ -1726,7 +1745,7 @@ let main () =
     read_file inputs.inventory |> Yojson.Safe.from_string
     |> replace_symbol_field
          ~target:"method:-[MTLTexture isFramebufferOnly]"
-         ~field:"classification" (`String "bound")
+         ~field:"classification" (`String "availability-gated")
     |> pretty_json |> write_file direct_classification_drift_inventory;
     require_failure "direct-call classification drift test"
       "generated Metal direct-call classification must be unreviewed"
@@ -1815,10 +1834,10 @@ let main () =
     |> replace_symbol_field
          ~target:
            "enum-case:MTLDeviceLocation:MTLDeviceLocationUnspecified"
-         ~field:"classification" (`String "bound")
+         ~field:"classification" (`String "availability-gated")
     |> pretty_json |> write_file mechanical_enum_classification_drift;
     require_failure "mechanical enum classification drift test"
-      "expected unreviewed"
+      "expected unreviewed, bound, or scope-excluded enum case"
       (run inputs ~inventory:mechanical_enum_classification_drift
          ~manual_native:inputs.manual_native
          (outputs directory "mechanical-enum-classification-drift"));
