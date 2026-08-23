@@ -15,6 +15,7 @@ let ()=
  for i=1 to 10000 do let x=get(Resource100.View_pool_descriptor.create~label:(string_of_int i)~count:4L())in if Resource100.View_pool_descriptor.count x<>4L then failwith"descriptor count";get(Resource100.View_pool_descriptor.destroy x)done;
  let device=get(Device.system_default())in let desc=get(Resource100.View_pool_descriptor.create~count:4L())in
  let heap=get(Heap.create~device(Heap.make_descriptor~size:1048576L()))in
+ if get(Resource100.Heap_ops.checked_device heap)!=device then failwith"heap device";
  reject(Resource100.Heap_ops.create_acceleration_structure heap~size:0L);
  (match Resource100.Heap_ops.create_acceleration_structure heap~size:4096L with
   |Ok acceleration->get(Acceleration_structure.destroy acceleration)

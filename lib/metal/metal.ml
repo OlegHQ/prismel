@@ -17399,6 +17399,7 @@ end
 module Resource100 = struct
   module Heap_ops = struct
     let create_acceleration_structure = Heap.create_acceleration_structure
+    let checked_device (value:Heap.t)=let operation="Metal.Resource100.Heap.checked_device"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.resource_heap_device value.raw with Error m->native_error operation m|Ok registry_id when registry_id<>value.device.registry_id->error operation Device_mismatch "heap device disagrees with its safe owner"|Ok _->Ok value.device)
   end
 
   module Resource_ops = struct
