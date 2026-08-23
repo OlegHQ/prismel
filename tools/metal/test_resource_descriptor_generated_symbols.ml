@@ -2,7 +2,8 @@ let read path = let channel=open_in_bin path in let length=in_channel_length cha
 let contains text needle =
   let n=String.length needle in let rec loop i=i+n<=String.length text&&(String.sub text i n=needle||loop(i+1)) in loop 0
 let () =
-  let source=read "tools/metal/metal_resource_descriptor_owned_generated.inc" in
+  if Array.length Sys.argv <> 2 then failwith "expected generated descriptor include";
+  let source=read Sys.argv.(1) in
   let symbols=
     [ "buffer_layout_create"; "buffer_layout_stride"; "buffer_layout_set_stride"
     ; "buffer_layout_step_rate"; "buffer_layout_set_step_rate"; "buffer_layout_step_function"

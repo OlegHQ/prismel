@@ -464,12 +464,14 @@
 (test
  (name test_resource_descriptor_generated_symbols)
  (modules test_resource_descriptor_generated_symbols)
- (deps metal_resource_descriptor_owned_generated.inc))
+ (deps metal_resource_descriptor_owned_generated.inc)
+ (action (run %{test} %{dep:metal_resource_descriptor_owned_generated.inc})))
 
 (test
  (name test_resource_ownership_generated_symbols)
  (modules test_resource_ownership_generated_symbols)
- (deps metal_resource_ownership_generated.inc))
+ (deps metal_resource_ownership_generated.inc)
+ (action (run %{test} %{dep:metal_resource_ownership_generated.inc})))
 
 (test
  (name test_resource_scalar_generated_symbols)

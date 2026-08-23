@@ -181,6 +181,23 @@ let polymorphic_receivers =
     }
   ]
 
+let handwritten_only_handle_kinds =
+  [ "Buffer_layout_descriptor"; "Buffer_layout_descriptor_array"
+  ; "Resource_state_pass_descriptor"; "Resource_state_sample_attachment_descriptor"
+  ; "Resource_state_sample_attachment_array"; "Resource_view_pool_descriptor"
+  ; "Texture_view_pool"; "Tensor_descriptor"; "Tensor"; "Acceleration_descriptor"
+  ; "Counter_sample_buffer"; "Texture_view_descriptor"; "Texture_descriptor"
+  ; "Render_sample_attachment_descriptor"; "Render_sample_attachment_array"
+  ; "Logical_to_physical_color_attachment_map"; "Shader_attribute"
+  ; "Shader_vertex_attribute"; "Shader_attribute_descriptor"
+  ; "Shader_attribute_descriptor_array"; "Shader_stage_descriptor"
+  ; "Shader_argument_encoder"; "Shader_stitching_input_node"
+  ; "Mesh_pipeline_descriptor"; "Tile_pipeline_descriptor"; "Linked_functions"
+  ; "Counter_set"; "Counter_descriptor"; "Event"; "Capture_descriptor"
+  ; "Capture_manager"; "Function_log"; "Function_log_location"; "Shared_event"
+  ; "Pipeline_buffer_descriptor"; "Color_attachment_descriptor"
+  ; "Io_command_buffer"; "Io_command_queue"; "Io_file_handle" ]
+
 let exclusions =
   [ { handle_kind = "External_memory"
     ; reason =
@@ -203,13 +220,16 @@ let exclusions =
     ; reason =
         "PrismelMetal4SubmissionState owns completion state and has no SDK receiver represented by the handle"
     }
-  ]
+  ] @ List.map (fun handle_kind ->
+    { handle_kind
+    ; reason = "Handwritten ownership receiver; not qualified for mechanical receiver generation"
+    }) handwritten_only_handle_kinds
 
 let expected_receiver_count = 44
 let expected_polymorphic_receiver_count = 3
 let expected_catalog_count = 47
-let expected_handle_kind_count = 50
-let expected_exclusion_count = 6
+let expected_handle_kind_count = 89
+let expected_exclusion_count = 45
 
 let source_paths =
   [ "tools/metal/binding_receiver_catalog.ml"

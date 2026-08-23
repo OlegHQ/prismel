@@ -89,7 +89,6 @@ let require_bridge_evidence bridge
       fail "Metal receiver %s lacks %s evidence %S" receiver.sdk_owner
         description needle
   in
-  require ("Handle_kind::" ^ receiver.handle_kind) "Handle_kind";
   match receiver.bridge_access with
   | Object_of_handle -> require "object_of_handle(" "direct object recovery"
   | Object_of_helper helper -> require (helper ^ "(") "helper recovery"
@@ -113,8 +112,11 @@ let check_catalog inventory bridge =
         Binding_receiver_catalog.exclusions
     |> String_set.of_list
   in
-  if not (String_set.equal actual_handle_kinds catalog_handle_kinds) then
-    fail "Metal receiver catalog does not exactly partition Handle_kind";
+  (if String_set.equal actual_handle_kinds catalog_handle_kinds then () else
+     let names values = String.concat ", " (String_set.elements values) in
+     fail "Metal receiver catalog does not exactly partition Handle_kind (missing: %s; stale: %s)"
+       (names (String_set.diff actual_handle_kinds catalog_handle_kinds))
+       (names (String_set.diff catalog_handle_kinds actual_handle_kinds)));
   List.iter
     (fun (receiver : Binding_receiver_catalog.receiver) ->
       if not (String_set.mem receiver.sdk_owner owners) then
