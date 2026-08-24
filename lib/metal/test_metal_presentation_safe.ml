@@ -54,6 +54,14 @@ let () =
     | Ok drawable -> drawable
     | Error Drawable.Timeout_or_unavailable -> fail "unexpected drawable loss"
   in
+  let drawable_id=get(Drawable.drawable_id drawable)in
+  if drawable_id<0L then fail"drawable identifier is negative";
+  ignore(get(Drawable.presented_time drawable));
+  let presented=Atomic.make 0 in
+  let presented_handler=get(Drawable.add_presented_handler drawable(fun~drawable_id:observed~presented_time->
+    if observed<>drawable_id||not(Float.is_finite presented_time)||presented_time<0. then
+      fail"invalid drawable callback snapshot";
+    Atomic.incr presented))in
   let texture = get (Drawable.texture drawable) in
   if get(Drawable.checked_layer drawable)!=layer then fail"drawable parent identity drift";
   let texture_descriptor = Texture.descriptor texture in
@@ -163,6 +171,11 @@ let () =
   get (Command_buffer.wait_until_completed commands);
   if Atomic.get scheduled <> 1 || Atomic.get completed <> 1 then
     fail "command callback cardinality drift";
+  let deadline=Sys.time()+.5.0 in
+  while Atomic.get presented=0&&Sys.time()<deadline do Unix.sleepf 0.001 done;
+  if Atomic.get presented<>1 then fail"drawable presented callback cardinality drift";
+  ignore(get(Drawable.presented_time drawable));
+  get(Drawable.Handler.cancel presented_handler);
   get (Texture.destroy texture);
   get (Texture.destroy depth_stencil);
   get (Buffer.destroy visibility);
