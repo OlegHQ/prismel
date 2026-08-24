@@ -8206,7 +8206,11 @@ module Compile_options = struct
     let operation = "Metal.Compile_options.create" in
     on_main operation (fun () ->
       let macros = Array.copy macros in
-      if Array.exists (fun (name, value) ->
+      if Option.is_some required_threads
+         && not (Metal_raw.compile_options_required_threads_available ())
+      then error operation Unsupported
+          "requiredThreadsPerThreadgroup requires macOS 26"
+      else if Array.exists (fun (name, value) ->
            name = "" || contains_nul name || contains_nul value) macros
       then error operation Invalid_argument "invalid preprocessor macro"
       else
@@ -8377,6 +8381,22 @@ module Library = struct
           Ok
             (Metal_raw.library_function_names value.raw
              |> Array.to_list |> List.sort String.compare))
+
+  let reflection (value : t) name =
+    let operation = "Metal.Library.reflection" in
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when name = "" || contains_nul name ->
+          error operation Invalid_argument
+            "function name must be nonempty and contain no NUL byte"
+      | Ok () ->
+          match Metal_raw.library_function_reflection value.raw name with
+          | Error message -> native_error operation message
+          | Ok reflected ->
+              Ok (Option.map (fun (bindings, annotation) ->
+                Array.to_list (Array.map Binding.of_raw bindings), annotation)
+                reflected))
 
   let destroy (value : t) =
     destroy_parent "Metal.Library.destroy" value.lifetime value.raw
@@ -8631,6 +8651,55 @@ module Function = struct
     if buffer_index<0L then error operation Invalid_argument "buffer index must be nonnegative" else
     Result.bind(query operation(fun raw->Metal_raw.shader_function_argument_encoder raw buffer_index)value)(fun raw->
       match Metal_raw.argument_encoder_snapshot raw with Error m->ignore(Metal_raw.destroy raw);native_error operation m|Ok(_,_,_,registry)when registry<>value.library.device.registry_id->ignore(Metal_raw.destroy raw);error operation Device_mismatch "argument encoder device disagrees with function"|Ok(argument_label,encoded_length,alignment,_)->let x:shader_argument_encoder={raw;lifetime=lifetime();function_=value;buffer_index;device=value.library.device;argument_label;encoded_length;alignment;retained=Hashtbl.create 17;parent_encoder=None}in attach value.lifetime;attach_finalizer~on_finalize:(fun()->Hashtbl.iter(fun _ lifetime->detach lifetime)x.retained;Hashtbl.clear x.retained)x x.lifetime value.lifetime;Ok x)
+
+  let argument_encoder_with_reflection (value:t) ~buffer_index =
+    let operation = "Metal.Function.argument_encoder_with_reflection" in
+    if buffer_index < 0L then
+      error operation Invalid_argument "buffer index must be nonnegative"
+    else
+      Result.bind
+        (query operation
+           (fun raw -> Metal_raw.function_argument_encoder_reflection raw buffer_index)
+           value)
+        (fun (raw, reflected) ->
+          match Metal_raw.argument_encoder_snapshot raw with
+          | Error message ->
+              ignore (Metal_raw.destroy raw); native_error operation message
+          | Ok (_, _, _, registry)
+            when registry <> value.library.device.registry_id ->
+              ignore (Metal_raw.destroy raw);
+              error operation Device_mismatch
+                "argument encoder device disagrees with function"
+          | Ok (argument_label, encoded_length, alignment, _) ->
+              let encoder : shader_argument_encoder =
+                { raw; lifetime=lifetime (); function_=value; buffer_index
+                ; device=value.library.device; argument_label; encoded_length
+                ; alignment; retained=Hashtbl.create 17; parent_encoder=None }
+              in
+              attach value.lifetime;
+              attach_finalizer
+                ~on_finalize:(fun () ->
+                  Hashtbl.iter (fun _ lifetime -> detach lifetime) encoder.retained;
+                  Hashtbl.clear encoder.retained)
+                encoder encoder.lifetime value.lifetime;
+              Ok (encoder, reflected))
+
+  let create_intersection ~(library : Library.t) name =
+    let operation = "Metal.Function.create_intersection" in
+    on_main operation (fun () ->
+      match ensure_live operation library.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when name = "" || contains_nul name ->
+          error operation Invalid_argument
+            "function name must be nonempty and contain no NUL byte"
+      | Ok () ->
+          match Metal_raw.library_intersection_function library.raw name with
+          | Error message -> native_error operation message
+          | Ok raw ->
+              let value : t = { raw; lifetime=lifetime (); library } in
+              attach library.lifetime;
+              attach_finalizer value value.lifetime library.lifetime;
+              Ok value)
 
   let destroy (value : t) =
     destroy_parent "Metal.Function.destroy" value.lifetime value.raw

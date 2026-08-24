@@ -1283,6 +1283,7 @@ module Library : sig
   val kind : t -> (kind, error) result
   val install_name : t -> (string option, error) result
   val function_names : t -> (string list, error) result
+  val reflection : t -> string -> ((Binding.t list * string option) option,error) result
   val destroy : t -> (unit, error) result
 end
 
@@ -1357,6 +1358,9 @@ module rec Function : sig
   val patch_type : t -> (patch_type,error) result
   val attributes : t -> vertex:bool -> (Shader_attribute.t list,error) result
   val argument_encoder : t -> buffer_index:int64 -> (Shader_argument_encoder.t,error) result
+  val argument_encoder_with_reflection :
+    t -> buffer_index:int64 -> ((Shader_argument_encoder.t * bool),error) result
+  val create_intersection : library:Library.t -> string -> (t,error) result
   val destroy : t -> (unit, error) result
 end
 

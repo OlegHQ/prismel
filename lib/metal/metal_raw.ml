@@ -1843,6 +1843,7 @@ external stitched_descriptor_snapshot : handle -> ((handle array * handle array 
 (** MTLLibrary42 remaining callable ABI. *)
 external compile_options_create : (string * string) array -> (int64 * int64 * int64) -> (handle,string) result = "caml_prismel_metal_compile_options_create"
 external compile_options_snapshot : handle -> (((string * string) array * (int64 * int64 * int64)),string) result = "caml_prismel_metal_compile_options_snapshot"
+external compile_options_required_threads_available : unit -> bool = "caml_prismel_metal_compile_options_required_threads_available"
 external function_argument_encoder_reflection : handle -> int64 -> ((handle * bool),string) result = "caml_prismel_metal_function_argument_encoder_reflection"
 external library_function_reflection : handle -> string -> (((pipeline_binding_info array * string option) option),string) result = "caml_prismel_metal_library_function_reflection"
 external library_function_async : handle -> string -> int -> ((handle,string) result -> unit) -> (nativeint,string) result = "caml_prismel_metal_library_function_async"
