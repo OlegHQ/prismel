@@ -77,6 +77,9 @@ let public_operation id =
     "Metal.Resource100.Texture_ops.replace_region"
   else if contains id "MTLResourceStatePassDescriptor" then
     "Metal.Resource100.Resource_state_pass.create"
+  else if contains id "texture2DDescriptor" then "Metal.Texture.descriptor_2d"
+  else if contains id "textureBufferDescriptor" then "Metal.Texture.descriptor_buffer"
+  else if contains id "textureCubeDescriptor" then "Metal.Texture.descriptor_cube"
   else if contains id "resourceStateCommandEncoderWithDescriptor" then
     "Metal.Resource100.Resource_state_pass.create_encoder"
   else if contains id "updateFence" then

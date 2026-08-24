@@ -3,9 +3,9 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4068,
+    "bound": 4071,
     "scope-excluded": 37,
-    "unreviewed": 1180
+    "unreviewed": 1177
   },
   "classification_source_sha256": "7ff476e493a9cf58288fd9b8dc6f1030a7f8e92df2f93ece481d6e8dc6d4ddc0",
   "deployment_target": "14.0",
@@ -29870,7 +29870,7 @@
           "line": 113
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:+[MTLTextureDescriptor texture2DDescriptorWithPixelFormat:width:height:mipmapped:]",
       "kind": "method",
@@ -29878,7 +29878,7 @@
       "macos_introduced": "10.11",
       "name": "texture2DDescriptorWithPixelFormat:width:height:mipmapped:",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "class (MTLPixelFormat, NSUInteger, NSUInteger, BOOL) -> MTLTextureDescriptor * _Nonnull"
     },
     {
@@ -29895,7 +29895,7 @@
           "line": 135
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:+[MTLTextureDescriptor textureBufferDescriptorWithPixelFormat:width:resourceOptions:usage:]",
       "kind": "method",
@@ -29903,7 +29903,7 @@
       "macos_introduced": "10.14",
       "name": "textureBufferDescriptorWithPixelFormat:width:resourceOptions:usage:",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "class (MTLPixelFormat, NSUInteger, MTLResourceOptions, MTLTextureUsage) -> MTLTextureDescriptor * _Nonnull"
     },
     {
@@ -29914,7 +29914,7 @@
           "line": 113
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:+[MTLTextureDescriptor textureCubeDescriptorWithPixelFormat:size:mipmapped:]",
       "kind": "method",
@@ -29922,7 +29922,7 @@
       "macos_introduced": "10.11",
       "name": "textureCubeDescriptorWithPixelFormat:size:mipmapped:",
       "owner": "MTLTextureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "class (MTLPixelFormat, NSUInteger, BOOL) -> MTLTextureDescriptor * _Nonnull"
     },
     {
