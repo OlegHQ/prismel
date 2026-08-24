@@ -41,6 +41,12 @@ let expected_promoted_rasterization_rate_struct_ids =
   ; "property:MTLRasterizationRateMapDescriptor:screenSize"
   ]
 
+let expected_promoted_library_struct_ids =
+  [ "method:-[MTLCompileOptions requiredThreadsPerThreadgroup]"
+  ; "method:-[MTLCompileOptions setRequiredThreadsPerThreadgroup:]"
+  ; "property:MTLCompileOptions:requiredThreadsPerThreadgroup"
+  ]
+
 let fail format =
   Printf.ksprintf (fun message -> invalid_arg ("Metal struct plan: " ^ message)) format
 
@@ -78,7 +84,9 @@ let relevant declaration =
           || String.equal declaration.classification "bound"
              && List.mem declaration.id Binding_tensor_safe_handoff.safe41_ids
           || String.equal declaration.classification "bound"
-             && List.mem declaration.id Binding_rasterization_rate_safe_handoff.callable_ids))
+             && List.mem declaration.id Binding_rasterization_rate_safe_handoff.callable_ids
+          || String.equal declaration.classification "bound"
+             && List.mem declaration.id Binding_library_header_handoff.callable_ids))
   && (String.equal declaration.kind "method"
       || String.equal declaration.kind "property")
   && Binding_struct_spec.mechanically_safe_signature declaration.signature
@@ -128,6 +136,26 @@ let select declarations =
     fail "promoted RasterizationRate struct intersection drift: expected [%s], found [%s]"
       (String.concat "; " expected_promoted_rasterization_rate_struct_ids)
       (String.concat "; " promoted_rasterization_rate_struct_ids);
+  let promoted_library_struct_ids =
+    declarations
+    |> List.filter (fun declaration ->
+         String.equal declaration.classification "bound"
+         && List.mem declaration.id Binding_library_header_handoff.callable_ids
+         && (String.equal declaration.kind "method" || String.equal declaration.kind "property")
+         && Binding_struct_spec.mechanically_safe_signature declaration.signature
+         && List.exists
+              (Binding_struct_spec.contains_type declaration.signature)
+              Binding_struct_spec.objc_types)
+    |> List.map (fun declaration -> declaration.id)
+    |> List.sort_uniq String.compare
+  in
+  let expected_promoted_library_struct_ids =
+    List.sort String.compare expected_promoted_library_struct_ids
+  in
+  if promoted_library_struct_ids <> expected_promoted_library_struct_ids then
+    fail "promoted MTLLibrary struct intersection drift: expected [%s], found [%s]"
+      (String.concat "; " expected_promoted_library_struct_ids)
+      (String.concat "; " promoted_library_struct_ids);
   let declarations = List.filter relevant declarations in
   let ids = List.map (fun declaration -> declaration.id) declarations in
   let sorted_ids = List.sort String.compare ids in
