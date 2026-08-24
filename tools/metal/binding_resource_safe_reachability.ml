@@ -83,6 +83,12 @@ let public_operation id =
     "Metal.Resource100.Texture_view_pool.set_view"
   else if contains id "addDebugMarker" then
     "Metal.Resource100.Buffer_ops.add_debug_marker"
+  else if contains id "setOwnerWithIdentity" then
+    "Metal.Resource100.Resource_ops.set_current_owner"
+  else if contains id "SampleBufferAttachmentDescriptor sampleBuffer"
+       || contains id "SampleBufferAttachmentDescriptor setSampleBuffer"
+       || contains id "SampleBufferAttachmentDescriptor:sampleBuffer" then
+    "Metal.Resource100.Sample_attachment.sample_buffer/set_sample_buffer"
   else if contains id "newTensorWithDescriptor" then
     "Metal.Resource100.Buffer_ops.new_tensor"
   else if contains id "newTextureViewWithPixelFormat" then

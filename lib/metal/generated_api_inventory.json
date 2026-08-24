@@ -3,9 +3,9 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4145,
+    "bound": 4149,
     "scope-excluded": 37,
-    "unreviewed": 1103
+    "unreviewed": 1099
   },
   "classification_source_sha256": "89cbed4ca7151fe6c6e8a6313241a23445cbc484cf91061e69c2216c92d2ad82",
   "deployment_target": "14.0",
@@ -76131,7 +76131,7 @@
           "line": 353
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResource.h",
       "id": "method:-[MTLResource setOwnerWithIdentity:]",
       "kind": "method",
@@ -76139,7 +76139,7 @@
       "macos_introduced": "14.4",
       "name": "setOwnerWithIdentity:",
       "owner": "MTLResource",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "instance (task_id_token_t) -> kern_return_t"
     },
     {
@@ -76388,7 +76388,7 @@
           "line": 19
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResourceStatePass.h",
       "id": "method:-[MTLResourceStatePassSampleBufferAttachmentDescriptor sampleBuffer]",
       "kind": "method",
@@ -76396,7 +76396,7 @@
       "macos_introduced": "11.0",
       "name": "sampleBuffer",
       "owner": "MTLResourceStatePassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "instance () -> id<MTLCounterSampleBuffer> _Nullable"
     },
     {
@@ -76426,7 +76426,7 @@
           "line": 19
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResourceStatePass.h",
       "id": "method:-[MTLResourceStatePassSampleBufferAttachmentDescriptor setSampleBuffer:]",
       "kind": "method",
@@ -76434,7 +76434,7 @@
       "macos_introduced": "11.0",
       "name": "setSampleBuffer:",
       "owner": "MTLResourceStatePassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "instance (id<MTLCounterSampleBuffer> _Nullable) -> void"
     },
     {
@@ -100729,7 +100729,7 @@
           "line": 19
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResourceStatePass.h",
       "id": "property:MTLResourceStatePassSampleBufferAttachmentDescriptor:sampleBuffer",
       "kind": "property",
@@ -100737,7 +100737,7 @@
       "macos_introduced": "11.0",
       "name": "sampleBuffer",
       "owner": "MTLResourceStatePassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "id<MTLCounterSampleBuffer> _Nullable"
     },
     {

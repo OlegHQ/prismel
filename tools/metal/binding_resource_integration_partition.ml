@@ -89,6 +89,10 @@ let safe_ownership_tail =
   ; "method:-[MTLHeap newAccelerationStructureWithDescriptor:offset:]"
   ; "method:-[MTLHeap newAccelerationStructureWithSize:offset:]"
   ; "method:-[MTLBuffer newTensorWithDescriptor:offset:error:]"
+  ; "method:-[MTLResource setOwnerWithIdentity:]"
+  ; "method:-[MTLResourceStatePassSampleBufferAttachmentDescriptor sampleBuffer]"
+  ; "method:-[MTLResourceStatePassSampleBufferAttachmentDescriptor setSampleBuffer:]"
+  ; "property:MTLResourceStatePassSampleBufferAttachmentDescriptor:sampleBuffer"
   ]
 
 let handwritten_ownership =
@@ -98,5 +102,5 @@ let handwritten_ownership =
 
 let () =
   validate ();
-  if List.length safe_ownership_tail <> 45 then failwith "resource safe ownership45 drift";
-  if List.length handwritten_ownership <> 11 then failwith "resource handwritten11 drift"
+  if List.length safe_ownership_tail <> 49 then failwith "resource safe ownership49 drift";
+  if List.length handwritten_ownership <> 7 then failwith "resource handwritten7 drift"
