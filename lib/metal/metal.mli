@@ -3007,6 +3007,12 @@ module Blit_encoder : sig
 end
 
 module Resource100 : sig
+  module Options : sig
+    type cpu_cache_mode = Default | Write_combined
+    type storage_mode = Memoryless
+    val cpu_cache_code : cpu_cache_mode -> int64
+    val storage_code : storage_mode -> int64
+  end
   module Heap_ops : sig
     val create_acceleration_structure :
       Heap.t -> size:int64 -> (Acceleration_structure.t,error) result
@@ -3042,6 +3048,15 @@ module Resource100 : sig
     val set_stride : t -> int64 -> (unit,error) result
     val set_step_rate : t -> int64 -> (unit,error) result
     val set_step_function : t -> step_function -> (unit,error) result
+    val destroyed : t -> bool
+    val destroy : t -> (unit,error) result
+  end
+  module Buffer_layout_array : sig
+    type t
+    val capacity : int
+    val create : unit -> (t,error) result
+    val get : t -> index:int -> (Buffer_layout.t option,error) result
+    val set : t -> index:int -> Buffer_layout.t option -> (unit,error) result
     val destroyed : t -> bool
     val destroy : t -> (unit,error) result
   end

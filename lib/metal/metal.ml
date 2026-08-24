@@ -1523,6 +1523,10 @@ type resource100_buffer_layout =
   ; mutable stride : int64; mutable step_rate : int64
   ; mutable step_function : int }
 
+type resource100_buffer_layout_array =
+  { raw : Metal_raw.handle; lifetime : lifetime
+  ; slots : resource100_buffer_layout option array }
+
 type resource100_sample_attachment =
   { raw : Metal_raw.handle; lifetime : lifetime
   ; mutable start_index : int64; mutable end_index : int64 }
@@ -17417,6 +17421,13 @@ module Blit_encoder = struct
 end
 
 module Resource100 = struct
+  module Options = struct
+    type cpu_cache_mode = Default | Write_combined
+    type storage_mode = Memoryless
+    let cpu_cache_code = function Default->0L|Write_combined->1L
+    let storage_code Memoryless = 48L
+  end
+
   module Heap_ops = struct
     let create_acceleration_structure = Heap.create_acceleration_structure
     let checked_device (value:Heap.t)=let operation="Metal.Resource100.Heap.checked_device"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.resource_heap_device value.raw with Error m->native_error operation m|Ok registry_id when registry_id<>value.device.registry_id->error operation Device_mismatch "heap device disagrees with its safe owner"|Ok _->Ok value.device)
@@ -17655,6 +17666,17 @@ module Resource100 = struct
     let set_step_function (t:t) value=let op="Metal.Resource100.Buffer_layout.set_step_function"in on_main op(fun()->match ensure_live op t.lifetime with Error _ as e->e|Ok()->let code=step_code value in match Metal_raw.resource_buffer_layout_set_step_function t.raw(Int64.of_int code)with Error m->native_error op m|Ok()->t.step_function<-code;Ok())
     let destroyed (t:t)=is_destroyed t.lifetime
     let destroy (t:t)=destroy_leaf "Metal.Resource100.Buffer_layout.destroy" t.lifetime t.raw(fun()->())
+  end
+
+  module Buffer_layout_array = struct
+    type t=resource100_buffer_layout_array
+    let capacity=31
+    let create()=let operation="Metal.Resource100.Buffer_layout_array.create"in on_main operation(fun()->match Metal_raw.resource_layout_array_create()with Error m->native_error operation m|Ok raw->let value:t={raw;lifetime=lifetime();slots=Array.make capacity None}in Gc.finalise(fun(value:t)->if Atomic.compare_and_set value.lifetime.destroyed false true then(ignore(Metal_raw.destroy value.raw);Array.iter(Option.iter(fun(x:resource100_buffer_layout)->detach x.lifetime))value.slots))value;Ok value)
+    let valid op index=if index<0||index>=capacity then error op Invalid_argument "buffer-layout index must be between zero and 30"else Ok()
+    let get (value:t) ~index=let op="Metal.Resource100.Buffer_layout_array.get"in on_main op(fun()->match ensure_live op value.lifetime with Error _ as e->e|Ok()->match valid op index with Error _ as e->e|Ok()->match Metal_raw.resource_layout_array_get value.raw(Int64.of_int index)with Error m->native_error op m|Ok None->Ok None|Ok(Some raw)->match Metal_raw.resource_buffer_layout_stride raw,Metal_raw.resource_buffer_layout_step_rate raw,Metal_raw.resource_buffer_layout_step_function raw with Ok stride,Ok step_rate,Ok step_function->let item:resource100_buffer_layout={raw;lifetime=lifetime();stride;step_rate;step_function=Int64.to_int step_function}in Gc.finalise(fun(item:resource100_buffer_layout)->if Atomic.compare_and_set item.lifetime.destroyed false true then ignore(Metal_raw.destroy item.raw))item;Ok(Some item)|Error m,_,_->ignore(Metal_raw.destroy raw);native_error op m|_,Error m,_->ignore(Metal_raw.destroy raw);native_error op m|_,_,Error m->ignore(Metal_raw.destroy raw);native_error op m)
+    let set (value:t) ~index (item:Buffer_layout.t option)=let op="Metal.Resource100.Buffer_layout_array.set"in on_main op(fun()->match ensure_live op value.lifetime with Error _ as e->e|Ok()->match valid op index with Error _ as e->e|Ok()->match item with Some x->(match ensure_live op x.lifetime with Error _ as e->e|Ok()->match Metal_raw.resource_layout_array_set value.raw(Int64.of_int index)(Some x.raw)with Error m->native_error op m|Ok()->Option.iter(fun(old:resource100_buffer_layout)->detach old.lifetime)value.slots.(index);attach x.lifetime;value.slots.(index)<-Some x;Ok())|None->match Metal_raw.resource_layout_array_set value.raw(Int64.of_int index)None with Error m->native_error op m|Ok()->Option.iter(fun(old:resource100_buffer_layout)->detach old.lifetime)value.slots.(index);value.slots.(index)<-None;Ok())
+    let destroyed(value:t)=is_destroyed value.lifetime
+    let destroy(value:t)=destroy_parent "Metal.Resource100.Buffer_layout_array.destroy" value.lifetime value.raw(fun()->Array.iter(Option.iter(fun(x:resource100_buffer_layout)->detach x.lifetime))value.slots)
   end
 
   module Sample_attachment = struct

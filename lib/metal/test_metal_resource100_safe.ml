@@ -3,10 +3,17 @@ let fail f=Printf.ksprintf failwith f
 let get=function Ok x->x|Error e->fail "%s"(Format.asprintf"%a"pp_error e)
 let reject=function Error _->()|Ok _->failwith"expected rejection"
 let ()=
+ if Resource100.Options.cpu_cache_code Resource100.Options.Default<>0L||Resource100.Options.cpu_cache_code Resource100.Options.Write_combined<>1L||Resource100.Options.storage_code Resource100.Options.Memoryless<>48L then failwith"resource option aliases";
  reject(Resource100.View_pool_descriptor.create~count:0L());
  let d=get(Resource100.Buffer_layout.create~stride:16L~step_rate:1L())in
  if Resource100.Buffer_layout.stride d<>16L||Resource100.Buffer_layout.step_rate d<>1L then failwith"layout snapshot";
  get(Resource100.Buffer_layout.set_stride d 32L);if Resource100.Buffer_layout.stride d<>32L then failwith"layout mutation";
+ let layouts=get(Resource100.Buffer_layout_array.create())in
+ reject(Resource100.Buffer_layout_array.get layouts~index:31);
+ get(Resource100.Buffer_layout_array.set layouts~index:0(Some d));
+ (match get(Resource100.Buffer_layout_array.get layouts~index:0)with Some copy when Resource100.Buffer_layout.stride copy=32L->get(Resource100.Buffer_layout.destroy copy)|_->failwith"layout array roundtrip");
+ get(Resource100.Buffer_layout_array.set layouts~index:0 None);
+ get(Resource100.Buffer_layout_array.destroy layouts);
  get(Resource100.Buffer_layout.destroy d);reject(Resource100.Buffer_layout.set_stride d 8L);
  let a=get(Resource100.Sample_attachment.create())in
  get(Resource100.Sample_attachment.set_range a ~start:(Index 2L) ~finish:(Index 5L));
