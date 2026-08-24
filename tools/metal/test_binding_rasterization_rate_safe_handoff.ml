@@ -1,0 +1,1 @@
+let ()=Binding_rasterization_rate_safe_handoff.validate();Printf.printf"RasterizationRate safe handoff: constructors5 layer/sample17 descriptor12 map16 = callable50; metadata5 excluded; M1 capability4; no promotion\n"
