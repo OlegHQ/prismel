@@ -998,6 +998,11 @@
  (modules test_metal_indirect_command_buffer4_safe)
  (libraries metal))
 
+(test
+ (name test_metal_argument8_safe)
+ (modules test_metal_argument8_safe)
+ (libraries metal))
+
 (rule
  (targets test_metal_compute_pass20_native.exe)
  (deps ../../tools/metal/test_compute_pass20_native.mm)
