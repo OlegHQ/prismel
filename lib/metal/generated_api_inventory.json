@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4581,
+    "bound": 4601,
     "scope-excluded": 37,
-    "unreviewed": 667
+    "unreviewed": 647
   },
-  "classification_source_sha256": "60078cdcd154e84ccf5d89f04d25db9d019ae8a40e11454255b5bb4f8713bf65",
+  "classification_source_sha256": "d70b3bfd132f4cf9ddf8be36c434a6c73c6fc945b97ce6d869206d2734571c50",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -34126,7 +34126,7 @@
           "line": 211
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "method:-[MTL4CommandQueue addResidencySet:]",
       "kind": "method",
@@ -34134,7 +34134,7 @@
       "macos_introduced": "26.0",
       "name": "addResidencySet:",
       "owner": "MTL4CommandQueue",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (id<MTLResidencySet>  _Nonnull __strong) -> void"
     },
     {
@@ -34202,7 +34202,7 @@
           "line": 211
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "method:-[MTL4CommandQueue copyBufferMappingsFromBuffer:toBuffer:operations:count:]",
       "kind": "method",
@@ -34210,7 +34210,7 @@
       "macos_introduced": "26.0",
       "name": "copyBufferMappingsFromBuffer:toBuffer:operations:count:",
       "owner": "MTL4CommandQueue",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (id<MTLBuffer>  _Nonnull __strong, id<MTLBuffer>  _Nonnull __strong, const MTL4CopySparseBufferMappingOperation * _Nonnull, NSUInteger) -> void"
     },
     {
@@ -34221,7 +34221,7 @@
           "line": 211
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "method:-[MTL4CommandQueue copyTextureMappingsFromTexture:toTexture:operations:count:]",
       "kind": "method",
@@ -34229,7 +34229,7 @@
       "macos_introduced": "26.0",
       "name": "copyTextureMappingsFromTexture:toTexture:operations:count:",
       "owner": "MTL4CommandQueue",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (id<MTLTexture>  _Nonnull __strong, id<MTLTexture>  _Nonnull __strong, const MTL4CopySparseTextureMappingOperation * _Nonnull, NSUInteger) -> void"
     },
     {
@@ -34316,7 +34316,7 @@
           "line": 211
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "method:-[MTL4CommandQueue signalDrawable:]",
       "kind": "method",
@@ -34324,7 +34324,7 @@
       "macos_introduced": "26.0",
       "name": "signalDrawable:",
       "owner": "MTL4CommandQueue",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (id<MTLDrawable>  _Nonnull __strong) -> void"
     },
     {
@@ -34392,7 +34392,7 @@
           "line": 211
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "method:-[MTL4CommandQueue waitForDrawable:]",
       "kind": "method",
@@ -34400,7 +34400,7 @@
       "macos_introduced": "26.0",
       "name": "waitForDrawable:",
       "owner": "MTL4CommandQueue",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (id<MTLDrawable>  _Nonnull __strong) -> void"
     },
     {
@@ -34411,7 +34411,7 @@
           "line": 211
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "method:-[MTL4CommandQueue waitForEvent:value:]",
       "kind": "method",
@@ -34419,7 +34419,7 @@
       "macos_introduced": "26.0",
       "name": "waitForEvent:value:",
       "owner": "MTL4CommandQueue",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (id<MTLEvent>  _Nonnull __strong, uint64_t) -> void"
     },
     {
@@ -50918,7 +50918,7 @@
           "line": 41
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandQueue.h",
       "id": "method:-[MTLCommandQueue commandBufferWithDescriptor:]",
       "kind": "method",
@@ -50926,7 +50926,7 @@
       "macos_introduced": "11.0",
       "name": "commandBufferWithDescriptor:",
       "owner": "MTLCommandQueue",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CommandQueue14 safe closure with checked descriptor limits and log-state ownership, copied queue identity, capture-state validation, and retained classic command buffers.",
       "signature": "instance (MTLCommandBufferDescriptor * _Nonnull __strong) -> id<MTLCommandBuffer> _Nullable"
     },
     {
@@ -50937,7 +50937,7 @@
           "line": 20
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandQueue.h",
       "id": "method:-[MTLCommandQueue commandBufferWithUnretainedReferences]",
       "kind": "method",
@@ -50945,7 +50945,7 @@
       "macos_introduced": "10.11",
       "name": "commandBufferWithUnretainedReferences",
       "owner": "MTLCommandQueue",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CommandQueue14 safe closure with checked descriptor limits and log-state ownership, copied queue identity, capture-state validation, and retained classic command buffers.",
       "signature": "instance () -> id<MTLCommandBuffer> _Nullable"
     },
     {
@@ -50975,7 +50975,7 @@
           "line": 20
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandQueue.h",
       "id": "method:-[MTLCommandQueue device]",
       "kind": "method",
@@ -50983,7 +50983,7 @@
       "macos_introduced": "10.11",
       "name": "device",
       "owner": "MTLCommandQueue",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CommandQueue14 safe closure with checked descriptor limits and log-state ownership, copied queue identity, capture-state validation, and retained classic command buffers.",
       "signature": "instance () -> id<MTLDevice> _Nonnull"
     },
     {
@@ -51000,7 +51000,7 @@
           "line": 55
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandQueue.h",
       "id": "method:-[MTLCommandQueue insertDebugCaptureBoundary]",
       "kind": "method",
@@ -51008,7 +51008,7 @@
       "macos_introduced": "10.11",
       "name": "insertDebugCaptureBoundary",
       "owner": "MTLCommandQueue",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CommandQueue14 safe closure with checked descriptor limits and log-state ownership, copied queue identity, capture-state validation, and retained classic command buffers.",
       "signature": "instance () -> void"
     },
     {
@@ -51019,7 +51019,7 @@
           "line": 20
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandQueue.h",
       "id": "method:-[MTLCommandQueue label]",
       "kind": "method",
@@ -51027,7 +51027,7 @@
       "macos_introduced": "10.11",
       "name": "label",
       "owner": "MTLCommandQueue",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CommandQueue14 safe closure with checked descriptor limits and log-state ownership, copied queue identity, capture-state validation, and retained classic command buffers.",
       "signature": "instance () -> NSString * _Nullable"
     },
     {
@@ -51088,7 +51088,7 @@
           "line": 20
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandQueue.h",
       "id": "method:-[MTLCommandQueue setLabel:]",
       "kind": "method",
@@ -51096,7 +51096,7 @@
       "macos_introduced": "10.11",
       "name": "setLabel:",
       "owner": "MTLCommandQueue",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CommandQueue14 safe closure with checked descriptor limits and log-state ownership, copied queue identity, capture-state validation, and retained classic command buffers.",
       "signature": "instance (NSString * _Nullable) -> void"
     },
     {
@@ -51107,7 +51107,7 @@
           "line": 88
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandQueue.h",
       "id": "method:-[MTLCommandQueueDescriptor logState]",
       "kind": "method",
@@ -51115,7 +51115,7 @@
       "macos_introduced": "15.0",
       "name": "logState",
       "owner": "MTLCommandQueueDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CommandQueue14 safe closure with checked descriptor limits and log-state ownership, copied queue identity, capture-state validation, and retained classic command buffers.",
       "signature": "instance () -> id<MTLLogState> _Nullable"
     },
     {
@@ -51126,7 +51126,7 @@
           "line": 88
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandQueue.h",
       "id": "method:-[MTLCommandQueueDescriptor maxCommandBufferCount]",
       "kind": "method",
@@ -51134,7 +51134,7 @@
       "macos_introduced": "15.0",
       "name": "maxCommandBufferCount",
       "owner": "MTLCommandQueueDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CommandQueue14 safe closure with checked descriptor limits and log-state ownership, copied queue identity, capture-state validation, and retained classic command buffers.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -51145,7 +51145,7 @@
           "line": 88
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandQueue.h",
       "id": "method:-[MTLCommandQueueDescriptor setLogState:]",
       "kind": "method",
@@ -51153,7 +51153,7 @@
       "macos_introduced": "15.0",
       "name": "setLogState:",
       "owner": "MTLCommandQueueDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CommandQueue14 safe closure with checked descriptor limits and log-state ownership, copied queue identity, capture-state validation, and retained classic command buffers.",
       "signature": "instance (id<MTLLogState> _Nullable) -> void"
     },
     {
@@ -51164,7 +51164,7 @@
           "line": 88
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandQueue.h",
       "id": "method:-[MTLCommandQueueDescriptor setMaxCommandBufferCount:]",
       "kind": "method",
@@ -51172,7 +51172,7 @@
       "macos_introduced": "15.0",
       "name": "setMaxCommandBufferCount:",
       "owner": "MTLCommandQueueDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CommandQueue14 safe closure with checked descriptor limits and log-state ownership, copied queue identity, capture-state validation, and retained classic command buffers.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -90941,7 +90941,7 @@
           "line": 20
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandQueue.h",
       "id": "property:MTLCommandQueue:device",
       "kind": "property",
@@ -90949,7 +90949,7 @@
       "macos_introduced": "10.11",
       "name": "device",
       "owner": "MTLCommandQueue",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CommandQueue14 safe closure with checked descriptor limits and log-state ownership, copied queue identity, capture-state validation, and retained classic command buffers.",
       "signature": "id<MTLDevice> _Nonnull"
     },
     {
@@ -90960,7 +90960,7 @@
           "line": 20
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandQueue.h",
       "id": "property:MTLCommandQueue:label",
       "kind": "property",
@@ -90968,7 +90968,7 @@
       "macos_introduced": "10.11",
       "name": "label",
       "owner": "MTLCommandQueue",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CommandQueue14 safe closure with checked descriptor limits and log-state ownership, copied queue identity, capture-state validation, and retained classic command buffers.",
       "signature": "NSString * _Nullable"
     },
     {
@@ -90979,7 +90979,7 @@
           "line": 88
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandQueue.h",
       "id": "property:MTLCommandQueueDescriptor:logState",
       "kind": "property",
@@ -90987,7 +90987,7 @@
       "macos_introduced": "15.0",
       "name": "logState",
       "owner": "MTLCommandQueueDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CommandQueue14 safe closure with checked descriptor limits and log-state ownership, copied queue identity, capture-state validation, and retained classic command buffers.",
       "signature": "id<MTLLogState> _Nullable"
     },
     {
@@ -90998,7 +90998,7 @@
           "line": 88
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandQueue.h",
       "id": "property:MTLCommandQueueDescriptor:maxCommandBufferCount",
       "kind": "property",
@@ -91006,7 +91006,7 @@
       "macos_introduced": "15.0",
       "name": "maxCommandBufferCount",
       "owner": "MTLCommandQueueDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CommandQueue14 safe closure with checked descriptor limits and log-state ownership, copied queue identity, capture-state validation, and retained classic command buffers.",
       "signature": "NSUInteger"
     },
     {
