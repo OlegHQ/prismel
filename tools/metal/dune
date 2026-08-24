@@ -958,6 +958,18 @@
   (bash
    "status=0; ./test_resource100_conformance_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
 
+(rule
+ (targets test_library42_callback_race_native.exe)
+ (deps test_library42_callback_race_native.cc)
+ (action
+  (run clang++ -std=c++17 %{dep:test_library42_callback_race_native.cc}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_library42_callback_race_native.exe)
+ (action (run ./test_library42_callback_race_native.exe)))
+
 (executable
  (name generate_inventory)
  (modules generate_inventory)
