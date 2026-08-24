@@ -1939,6 +1939,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier counters_safe22 then
     Bound,
       "Implemented by the Counters22 safe metadata/descriptor/sample graph with copied names, checked labels/devices/ranges, explicit sampling-point capability, and execute-or-Unsupported conformance."
+  else if List.mem identifier Binding_command_buffer19_safe_closure.promotable_ids then
+    Bound,
+      "Implemented by the CommandBuffer19 safe descriptor/callback closure with retained log-state and resources, exact-once completion, queue ownership, and error-only EncoderInfo snapshots."
   else if List.mem identifier io_compressor_safe5 then
     Bound,
       "Implemented by the owned IO.Compressor lifecycle with copied configuration, checked byte ranges, synchronous consumption, exact finalization state, and real compressed-output conformance."
@@ -1978,6 +1981,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier Binding_io_command_queue17_safe_reachability.promotable_ids then
     Bound,
       "Implemented by safe IO queue/file/command controls with copied labels, state/range/device validation, retained resources, and real native IO conformance."
+  else if List.mem identifier Binding_io_command_queue7_safe_reachability.promotable_ids then
+    Bound,
+      "Implemented by safe copied IO command properties and a rooted completion callback proven by synchronous real IO completion."
   else if List.mem identifier Binding_io_counter_type_reachability.promotable_ids then
     Bound,
       "Represented exactly by a public contained descriptor or retained abstract Metal IO handle with safe ownership."
