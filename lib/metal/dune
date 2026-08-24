@@ -254,6 +254,12 @@
   ../../tools/metal/metal_linked_functions9_constructor_bridge.inc
   ../../tools/metal/metal4_command_queue8_callable_bridge.inc
   ../../tools/metal/metal_render_pipeline93_descriptor_bridge.inc
+  ../../tools/metal/metal_render_pipeline93_linked_graph_bridge.inc
+  ../../tools/metal/metal_render_pipeline93_function_handle_bridge.inc
+  ../../tools/metal/metal_render_pipeline93_function_tables_bridge.inc
+  ../../tools/metal/metal_render_pipeline93_functions_descriptor_bridge.inc
+  ../../tools/metal/metal_render_pipeline93_state_factories_bridge.inc
+  ../../tools/metal/metal_render_pipeline93_vertex_reflection_bridge.inc
   ../../tools/metal/metal_intersection_table8_callable_bridge.inc
   ../../tools/metal/metal_stage_input_output10_callable_bridge.inc
   ../../tools/metal/metal_blit_pass10_callable_bridge.inc

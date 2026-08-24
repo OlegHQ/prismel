@@ -1046,6 +1046,10 @@ enum class Handle_kind : std::uint32_t {
   Stitched_library_descriptor,
   Compile_options,
   Function_reflection,
+  Render_pipeline_reflection,
+  Render_pipeline_functions_descriptor,
+  Vertex_descriptor,
+  Pipeline_descriptor4,
   Mesh_pipeline_descriptor,
   Tile_pipeline_descriptor,
   Linked_functions,
@@ -14799,6 +14803,15 @@ extern "C" CAMLprim value caml_prismel_metal_pipeline_render_imageblock_length(v
 #include "../../tools/metal/metal_linked_functions9_constructor_bridge.inc"
 #include "../../tools/metal/metal4_command_queue8_callable_bridge.inc"
 #include "../../tools/metal/metal_render_pipeline93_descriptor_bridge.inc"
+#include "../../tools/metal/metal_render_pipeline93_linked_graph_bridge.inc"
+#include "../../tools/metal/metal_render_pipeline93_function_handle_bridge.inc"
+#include "../../tools/metal/metal_render_pipeline93_function_tables_bridge.inc"
+#include "../../tools/metal/metal_render_pipeline93_functions_descriptor_bridge.inc"
+#include "../../tools/metal/metal_render_pipeline93_state_factories_bridge.inc"
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#include "../../tools/metal/metal_render_pipeline93_vertex_reflection_bridge.inc"
+#pragma clang diagnostic pop
 #include "../../tools/metal/metal_intersection_table8_callable_bridge.inc"
 #include "../../tools/metal/metal_stage_input_output10_callable_bridge.inc"
 #include "../../tools/metal/metal_blit_pass10_callable_bridge.inc"
