@@ -1614,6 +1614,7 @@ val compute35_execute_indirect : handle -> handle -> handle -> int64 -> (unit,st
 val compute35_barrier_resources : handle -> handle array -> bool array -> (unit,string) result
 val compute35_barrier_scope : handle -> int64 -> (unit,string) result
 val compute35_sample_counters : handle -> handle -> int64 -> bool -> (unit,string) result
+val compute35_supports_stage_counters : handle -> (bool,string) result
 val compute35_bytes_plain : handle -> bytes -> int64 -> (unit,string) result
 val compute35_imageblock : handle -> int64 -> int64 -> (unit,string) result
 val compute35_stage_region : handle -> int64*int64*int64*int64*int64*int64 -> (unit,string) result
@@ -2664,6 +2665,8 @@ external render93_mesh_graph : handle -> int -> bool -> handle array -> (unit,st
   "caml_prismel_metal_render93_mesh_graph"
 external render93_tile_graph : handle -> int -> bool -> handle array -> (unit,string) result =
   "caml_prismel_metal_render93_tile_graph"
+external render93_array_snapshot : handle -> int -> int -> (int64 array,string) result =
+  "caml_prismel_metal_render93_array_snapshot"
 
 external intersection_table_array :
   handle -> int -> handle option array -> int64 array -> int64 array ->

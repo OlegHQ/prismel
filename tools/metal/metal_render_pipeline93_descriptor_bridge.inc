@@ -107,3 +107,27 @@ extern "C" CAMLprim value caml_prismel_metal_render93_tile_graph(value descripto
     CAMLreturn(result_unit());
   } @catch(NSException *exception) { CAMLreturn(result_error(exception.reason)); }
 }
+
+/* Descriptor-array immutable snapshots: descriptor kind 0 render, 1 mesh,
+   2 tile; array kind 0 colors, then stage buffer arrays in header order. */
+extern "C" CAMLprim value caml_prismel_metal_render93_array_snapshot(value descriptor_raw,value descriptor_kind_raw,value array_kind_raw) {
+  CAMLparam3(descriptor_raw,descriptor_kind_raw,array_kind_raw); CAMLlocal2(values,result);
+  @try {
+    int descriptor_kind=Long_val(descriptor_kind_raw),array_kind=Long_val(array_kind_raw);
+    if(array_kind==0){
+      values=caml_alloc(8,0);
+      if(descriptor_kind==0){MTLRenderPipelineDescriptor*d=object_of_handle(descriptor_raw,Handle_kind::Render_pipeline_descriptor);for(NSUInteger i=0;i<8;i++)Store_field(values,i,caml_copy_int64((int64_t)d.colorAttachments[i].pixelFormat));}
+      else if(descriptor_kind==1){MTLMeshRenderPipelineDescriptor*d=object_of_handle(descriptor_raw,Handle_kind::Mesh_pipeline_descriptor);for(NSUInteger i=0;i<8;i++)Store_field(values,i,caml_copy_int64((int64_t)d.colorAttachments[i].pixelFormat));}
+      else if(descriptor_kind==2){MTLTileRenderPipelineDescriptor*d=object_of_handle(descriptor_raw,Handle_kind::Tile_pipeline_descriptor);for(NSUInteger i=0;i<8;i++)Store_field(values,i,caml_copy_int64((int64_t)d.colorAttachments[i].pixelFormat));}
+      else CAMLreturn(result_error_text("unknown render pipeline descriptor kind"));
+    }else{
+      MTLPipelineBufferDescriptorArray*array=nil;
+      if(descriptor_kind==0){MTLRenderPipelineDescriptor*d=object_of_handle(descriptor_raw,Handle_kind::Render_pipeline_descriptor);if(array_kind==1)array=d.fragmentBuffers;else if(array_kind==2)array=d.vertexBuffers;}
+      else if(descriptor_kind==1){MTLMeshRenderPipelineDescriptor*d=object_of_handle(descriptor_raw,Handle_kind::Mesh_pipeline_descriptor);if(array_kind==1)array=d.fragmentBuffers;else if(array_kind==2)array=d.meshBuffers;else if(array_kind==3)array=d.objectBuffers;}
+      else if(descriptor_kind==2){MTLTileRenderPipelineDescriptor*d=object_of_handle(descriptor_raw,Handle_kind::Tile_pipeline_descriptor);if(array_kind==1)array=d.tileBuffers;}
+      if(array==nil)CAMLreturn(result_error_text("buffer array does not belong to this render pipeline descriptor"));
+      values=caml_alloc(31,0);for(NSUInteger i=0;i<31;i++)Store_field(values,i,caml_copy_int64((int64_t)array[i].mutability));
+    }
+    result=result_ok(values);CAMLreturn(result);
+  } @catch(NSException *exception) { CAMLreturn(result_error(exception.reason)); }
+}
