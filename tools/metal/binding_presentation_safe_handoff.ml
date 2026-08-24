@@ -82,6 +82,9 @@ let promotable_ids =
   pending_items |> List.filter_map (fun item ->
     if final_graph_blocked item.id then None else Some item.id)
 
+let prebound_overlap_ids =
+  [ "method:-[MTLCommandBuffer resourceStateCommandEncoderWithDescriptor:]" ]
+
 let validate () =
   let ids = List.map (fun item -> item.id) pending_items in
   let category_counts =
@@ -97,6 +100,8 @@ let validate () =
           pending_items
      || category_counts <> [ 31; 17; 2; 31 ]
      || List.length promotable_ids <> 76
+     || prebound_overlap_ids
+        <> [ "method:-[MTLCommandBuffer resourceStateCommandEncoderWithDescriptor:]" ]
      || private_metadata_ids <> [ "record:_CAMetalLayerPrivate" ]
   then failwith "Presentation81 public-module safe handoff drift"
 
