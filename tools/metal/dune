@@ -84,6 +84,7 @@
   binding_function_descriptor4_safe_package
   binding_fence6_safe_package
   binding_indirect_command_buffer4_safe_package
+  binding_argument8_safe_package
   binding_metal4_argument_table_safe_package
   binding_render_encoder33_native_closure
   binding_render_pipeline93_native_closure
@@ -973,6 +974,11 @@
 (test
  (name test_binding_indirect_command_buffer4_safe_package)
  (modules test_binding_indirect_command_buffer4_safe_package)
+ (libraries metal_inventory_classification))
+
+(test
+ (name test_binding_argument8_safe_package)
+ (modules test_binding_argument8_safe_package)
  (libraries metal_inventory_classification))
 
 (test

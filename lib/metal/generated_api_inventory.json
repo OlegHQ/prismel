@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4973,
+    "bound": 4981,
     "scope-excluded": 37,
-    "unreviewed": 275
+    "unreviewed": 267
   },
-  "classification_source_sha256": "de3ab5ed17389343c4409837191ff5d9dcb0f89e35236881355853f5c31a47df",
+  "classification_source_sha256": "3b5d741d8876dad2687d54c3c0127d1e572b869b7ae7f3b6ff35050d0958213e",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -1720,7 +1720,7 @@
           "line": 236
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgument.h",
       "id": "class:MTLArgument",
       "kind": "class",
@@ -1728,7 +1728,7 @@
       "macos_introduced": "10.11",
       "name": "MTLArgument",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the immutable Argument8 reflection tree with copied argument, struct/member, pointer and array metadata, nullable nested variants, bounded traversal/unwind, and macOS-26-gated tensor reflection provenance.",
       "signature": ""
     },
     {
@@ -1764,7 +1764,7 @@
           "line": 167
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgument.h",
       "id": "class:MTLArrayType",
       "kind": "class",
@@ -1772,7 +1772,7 @@
       "macos_introduced": "10.11",
       "name": "MTLArrayType",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the immutable Argument8 reflection tree with copied argument, struct/member, pointer and array metadata, nullable nested variants, bounded traversal/unwind, and macOS-26-gated tensor reflection provenance.",
       "signature": ""
     },
     {
@@ -2746,7 +2746,7 @@
           "line": 187
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgument.h",
       "id": "class:MTLPointerType",
       "kind": "class",
@@ -2754,7 +2754,7 @@
       "macos_introduced": "10.13",
       "name": "MTLPointerType",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the immutable Argument8 reflection tree with copied argument, struct/member, pointer and array metadata, nullable nested variants, bounded traversal/unwind, and macOS-26-gated tensor reflection provenance.",
       "signature": ""
     },
     {
@@ -3427,7 +3427,7 @@
           "line": 135
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgument.h",
       "id": "class:MTLStructMember",
       "kind": "class",
@@ -3435,7 +3435,7 @@
       "macos_introduced": "10.11",
       "name": "MTLStructMember",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the immutable Argument8 reflection tree with copied argument, struct/member, pointer and array metadata, nullable nested variants, bounded traversal/unwind, and macOS-26-gated tensor reflection provenance.",
       "signature": ""
     },
     {
@@ -3449,7 +3449,7 @@
           "line": 158
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgument.h",
       "id": "class:MTLStructType",
       "kind": "class",
@@ -3457,7 +3457,7 @@
       "macos_introduced": "10.11",
       "name": "MTLStructType",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the immutable Argument8 reflection tree with copied argument, struct/member, pointer and array metadata, nullable nested variants, bounded traversal/unwind, and macOS-26-gated tensor reflection provenance.",
       "signature": ""
     },
     {
@@ -3515,7 +3515,7 @@
           "line": 213
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgument.h",
       "id": "class:MTLTensorReferenceType",
       "kind": "class",
@@ -3523,7 +3523,7 @@
       "macos_introduced": "26.0",
       "name": "MTLTensorReferenceType",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the immutable Argument8 reflection tree with copied argument, struct/member, pointer and array metadata, nullable nested variants, bounded traversal/unwind, and macOS-26-gated tensor reflection provenance.",
       "signature": ""
     },
     {
@@ -3683,7 +3683,7 @@
           "line": 130
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgument.h",
       "id": "class:MTLType",
       "kind": "class",
@@ -3691,7 +3691,7 @@
       "macos_introduced": "10.13",
       "name": "MTLType",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the immutable Argument8 reflection tree with copied argument, struct/member, pointer and array metadata, nullable nested variants, bounded traversal/unwind, and macOS-26-gated tensor reflection provenance.",
       "signature": ""
     },
     {
@@ -105789,7 +105789,7 @@
           "line": 306
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgument.h",
       "id": "protocol:MTLTensorBinding",
       "kind": "protocol",
@@ -105797,7 +105797,7 @@
       "macos_introduced": "26.0",
       "name": "MTLTensorBinding",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the immutable Argument8 reflection tree with copied argument, struct/member, pointer and array metadata, nullable nested variants, bounded traversal/unwind, and macOS-26-gated tensor reflection provenance.",
       "signature": ""
     },
     {
