@@ -956,6 +956,11 @@
  (modules test_metal_parallel_render7_safe)
  (libraries metal))
 
+(test
+ (name test_metal_binary_archive5_safe)
+ (modules test_metal_binary_archive5_safe)
+ (libraries metal unix))
+
 (rule
  (targets test_metal_compute_pass20_native.exe)
  (deps ../../tools/metal/test_compute_pass20_native.mm)

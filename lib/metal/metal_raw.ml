@@ -2791,6 +2791,9 @@ external metal4_render_pipeline3_reset :
 
 external binary_archive5_descriptor_create : int -> (handle, string) result =
   "caml_prismel_metal_binary_archive5_descriptor_create"
+external binary_archive5_configured_descriptor :
+  int -> handle -> handle option -> int64 -> (handle,string) result =
+  "caml_prismel_metal_binary_archive5_configured_descriptor"
 external binary_archive5_add :
   handle -> int -> handle -> handle option -> int64 -> int64 -> int64 option ->
   (unit, string) result =

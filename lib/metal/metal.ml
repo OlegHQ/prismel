@@ -1149,6 +1149,7 @@ type binary_archive =
   { raw : Metal_raw.handle
   ; lifetime : lifetime
   ; device : device
+  ; archive_edges : lifetime list ref
   }
 type stitched_library_descriptor={mutable raw:Metal_raw.handle;lifetime:lifetime;mutable descriptor_functions:function_handle list;mutable descriptor_graphs:stitching_graph list;mutable descriptor_archives:binary_archive list;mutable descriptor_options:int64}
 
@@ -9466,7 +9467,9 @@ module Binary_archive = struct
   type t = binary_archive
 
   let make device raw =
-    let value : t = { raw; lifetime = lifetime (); device } in
+    let value : binary_archive =
+      { raw; lifetime = lifetime (); device; archive_edges=ref[] }
+    in
     attach device.lifetime;
     attach_finalizer value value.lifetime device.lifetime;
     value
@@ -9577,6 +9580,44 @@ module Binary_archive = struct
   let generation (value : t) = Metal_raw.generation value.raw
   let destroyed (value : t) = is_destroyed value.lifetime
 
+  let add_configured operation kind (value:binary_archive) first second format=
+    on_main operation(fun()->match ensure_live operation value.lifetime with
+    | Error _ as failure->failure
+    | Ok()->let functions=first::Option.to_list second in
+      let rec validate=function []->Ok()|(fn:function_handle)::rest->
+        Result.bind(ensure_live operation fn.lifetime)(fun()->
+        Result.bind(ensure_same_device operation value.device fn.library.device)(fun()->validate rest))in
+      Result.bind(validate functions)(fun()->
+      match Metal_raw.binary_archive5_configured_descriptor kind first.raw
+        (Option.map(fun(fn:function_handle)->fn.raw)second)format with
+      | Error message->native_error operation message
+      | Ok descriptor->
+        let library=first.library in
+        let added=Metal_raw.binary_archive5_add value.raw kind descriptor
+          (if kind=0 then Some library.raw else None)value.device.registry_id
+          value.device.registry_id(if kind=0 then Some value.device.registry_id else None)in
+        ignore(Metal_raw.destroy descriptor);
+        match added with Error message->native_error operation message|Ok()->
+          List.iter(fun(fn:function_handle)->attach fn.lifetime;value.archive_edges:=fn.lifetime::!(value.archive_edges))functions;
+          attach library.lifetime;value.archive_edges:=library.lifetime::!(value.archive_edges);Ok()))
+
+  let add_function_descriptor value (function_value:Function.t)=
+    match Function.kind function_value with
+    | Error _ as failure -> failure
+    | Ok kind when kind<>Function.Kernel ->
+      error "Metal.Binary_archive.add_function_descriptor" Invalid_argument
+      "archive function descriptor requires a kernel"
+    | Ok _ -> add_configured "Metal.Binary_archive.add_function_descriptor" 0 value function_value None 0L
+
+  let add_render_pipeline value ~(vertex:Function.t) ~(fragment:Function.t) ~color_format=
+    match Function.kind vertex,Function.kind fragment with
+    | (Error _ as failure),_ | _,(Error _ as failure) -> failure
+    | Ok vertex_kind,Ok fragment_kind when
+        vertex_kind<>Function.Vertex||fragment_kind<>Function.Fragment ->
+      error "Metal.Binary_archive.add_render_pipeline" Invalid_argument
+      "archive render descriptor requires vertex and fragment functions"
+    | Ok _,Ok _ -> add_configured "Metal.Binary_archive.add_render_pipeline" 3 value vertex(Some fragment)(Int64.of_int(Metal_format.code color_format))
+
   let label (value : t) =
     on_main "Metal.Binary_archive.label" (fun () ->
       match ensure_live "Metal.Binary_archive.label" value.lifetime with
@@ -9585,7 +9626,7 @@ module Binary_archive = struct
 
   let destroy (value : t) =
     destroy_leaf "Metal.Binary_archive.destroy" value.lifetime value.raw
-      (fun () -> detach value.device.lifetime)
+      (fun () -> List.iter detach !(value.archive_edges);value.archive_edges:=[];detach value.device.lifetime)
 end
 
 module Compute_pipeline = struct
@@ -12903,7 +12944,7 @@ module Command4 = struct
       let destroy(value:t)=destroy_leaf "Metal.Command4.Log_state.Descriptor.destroy" value.lifetime value.raw ignore
     end
     let create_with_descriptor (device:Device.t)(descriptor:Descriptor.t)=let operation="Metal.Command4.Log_state.create_with_descriptor"in on_main operation(fun()->match ensure_live operation device.lifetime with Error _ as failure->failure|Ok()->match ensure_live operation descriptor.lifetime with Error _ as failure->failure|Ok()->match Metal_raw.log_state_create device.raw descriptor.raw with Error message->native_error operation message|Ok(raw,registry)when registry<>device.registry_id->ignore(Metal_raw.destroy raw);error operation Device_mismatch "log state device identity changed"|Ok(raw,_)->let value={raw;lifetime=lifetime();device;log_handlers=[]}in attach device.lifetime;attach_finalizer value value.lifetime device.lifetime;Ok value)
-    let create (device:Device.t)=let operation="Metal.Command4.Log_state.create"in match Descriptor.create()with Error _ as failure->failure|Ok descriptor->let result=create_with_descriptor device descriptor in ignore(Descriptor.destroy descriptor);result
+    let create (device:Device.t)=match Descriptor.create()with Error _ as failure->failure|Ok descriptor->let result=create_with_descriptor device descriptor in ignore(Descriptor.destroy descriptor);result
     type message={subsystem:string option;category:string option;level:level;text:string}
     module Handler=struct
       type t=command4_log_handler

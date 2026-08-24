@@ -1659,6 +1659,10 @@ module Binary_archive : sig
     ?preloaded_libraries:Dynamic_library.t list -> Function.t ->
     (unit, error) result
 
+  val add_function_descriptor : t -> Function.t -> (unit,error) result
+  val add_render_pipeline : t -> vertex:Function.t -> fragment:Function.t ->
+    color_format:Texture.format -> (unit,error) result
+
   val serialize : t -> string -> (unit, error) result
   val device : t -> Device.t
   val generation : t -> int64

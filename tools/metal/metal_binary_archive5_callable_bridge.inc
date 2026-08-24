@@ -23,6 +23,28 @@ extern "C" CAMLprim value caml_prismel_metal_binary_archive5_descriptor_create(
   } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
 }
 
+extern "C" CAMLprim value caml_prismel_metal_binary_archive5_configured_descriptor(
+    value kind_raw, value first_raw, value second_raw, value format_raw) {
+  CAMLparam4(kind_raw, first_raw, second_raw, format_raw); CAMLlocal2(handle, result);
+  @try {
+    int kind = Long_val(kind_raw); id descriptor = nil; Handle_kind handle_kind;
+    id<MTLFunction> first = object_of_handle(first_raw, Handle_kind::Function);
+    if (kind == 0) {
+      MTLFunctionDescriptor *function = [MTLFunctionDescriptor functionDescriptor];
+      function.name = first.name; descriptor = function;
+      handle_kind = Handle_kind::Function_descriptor;
+    } else if (kind == 3) {
+      if (Is_none(second_raw)) CAMLreturn(result_error_text("render archive descriptor requires a fragment function"));
+      id<MTLFunction> second = object_of_handle(Field(second_raw, 0), Handle_kind::Function);
+      MTLRenderPipelineDescriptor *render = [MTLRenderPipelineDescriptor new];
+      render.vertexFunction = first; render.fragmentFunction = second;
+      render.colorAttachments[0].pixelFormat = (MTLPixelFormat)Int64_val(format_raw);
+      descriptor = render; handle_kind = Handle_kind::Render_pipeline_descriptor;
+    } else CAMLreturn(result_error_text("binary archive descriptor kind is not configured by this safe path"));
+    handle = allocate_handle(descriptor, handle_kind); result = result_ok(handle); CAMLreturn(result);
+  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
+}
+
 extern "C" CAMLprim value caml_prismel_metal_binary_archive5_add(
     value archive_raw, value kind_raw, value descriptor_raw, value library_raw,
     value archive_device_raw, value descriptor_device_raw, value library_device_raw) {
