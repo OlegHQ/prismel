@@ -110,6 +110,7 @@ can change the denominator explicitly rather than being hidden.
 | `1796450` | 2026-08-24 07:14:44 +02:00 | 4,959 | 5,249 | 94.4751% | 6 | 0.091 | 65.6 | 1.25 |
 | `bb6d5c6` | 2026-08-24 07:15:30 +02:00 | 4,969 | 5,249 | 94.6657% | 10 | 0.013 | 782.6 | 14.91 |
 | `0f05773` | 2026-08-24 07:18:24 +02:00 | 4,973 | 5,249 | 94.7419% | 4 | 0.048 | 82.8 | 1.58 |
+| `203d6ef` | 2026-08-24 07:21:30 +02:00 | 4,981 | 5,249 | 94.8943% | 8 | 0.052 | 154.8 | 2.95 |
 
 ## Current measured rate
 
@@ -163,6 +164,12 @@ The `0f05773` interval moves the exact IndirectCommandBuffer4 closure. It proves
 the opaque GPU resource identity and indexed render-command acquisition through
 the public owned parent/child graph, with checked bounds, retained resources,
 indirect-capable pipeline validation, and a real native framebuffer result.
+
+The `203d6ef` interval moves the exact Argument8 immutable reflection closure.
+The safe representation copies recursive struct/member, pointer, and array
+metadata before native owners die, bounds traversal and unwind, preserves
+nullable children, and only materializes tensor reflection behind the native
+macOS 26 availability check.
 
 Rates describe completed commits, not forecasts. Hardware-only gates and
 complex ownership features will vary materially from pure-value batches.
