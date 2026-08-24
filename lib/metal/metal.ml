@@ -18019,6 +18019,42 @@ module Blit_encoder = struct
                                                     destination;
                                                   Ok ())))))))
 
+  let fill_buffer (value:t) (buffer:Buffer.t) ~offset ~length ~byte =
+    let operation = "Metal.Blit_encoder.fill_buffer" in
+    on_main operation (fun () -> match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () -> Result.bind (ensure_buffer_usable operation buffer) (fun () ->
+          if offset < 0L || length < 0L || offset > buffer.length
+             || length > Int64.sub buffer.length offset || byte < 0 || byte > 255
+          then error operation Invalid_argument "invalid fill range/value"
+          else Result.bind (ensure_same_device operation value.command_buffer.queue.device buffer.device)
+            (fun () -> match Metal_raw.blit_fill_mipmap value.raw buffer.raw false (offset,length,Int64.of_int byte) with
+             | Error message -> native_error operation message
+             | Ok () -> retain_command_buffer_buffer value.command_buffer buffer; Ok ())))
+
+  let generate_mipmaps (value:t) (texture:Texture.t) =
+    let operation = "Metal.Blit_encoder.generate_mipmaps" in
+    on_main operation (fun () -> match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () -> Result.bind (ensure_texture_usable operation texture) (fun () ->
+          if texture.descriptor.mip_levels < 2 then
+            error operation Invalid_argument "texture has no mip levels"
+          else Result.bind (ensure_same_device operation value.command_buffer.queue.device texture.device)
+            (fun () -> match Metal_raw.blit_fill_mipmap value.raw texture.raw true (0L,0L,0L) with
+             | Error message -> native_error operation message
+             | Ok () -> retain_command_buffer_texture value.command_buffer texture; Ok ())))
+
+  let fence_call operation update (value:t) (fence:Fence.t) =
+    on_main operation (fun () -> match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () -> Result.bind (ensure_live operation fence.lifetime) (fun () ->
+          Result.bind (ensure_same_device operation value.command_buffer.queue.device fence.device)
+            (fun () -> match Metal_raw.blit_fence value.raw fence.raw update with
+             | Error message -> native_error operation message
+             | Ok () -> retain_command_buffer_fence value.command_buffer fence; Ok ())))
+  let update_fence value fence = fence_call "Metal.Blit_encoder.update_fence" true value fence
+  let wait_for_fence value fence = fence_call "Metal.Blit_encoder.wait_for_fence" false value fence
+
   let end_encoding (value : t) =
     on_main "Metal.Blit_encoder.end_encoding" (fun () ->
       match ensure_live "Metal.Blit_encoder.end_encoding" value.lifetime with

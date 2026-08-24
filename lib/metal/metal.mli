@@ -3195,6 +3195,10 @@ module Blit_encoder : sig
     source_bytes_per_image:int -> destination:Texture.t ->
     destination_slice:int -> destination_level:int ->
     destination_region:Texture.region -> (unit, error) result
+  val fill_buffer : t -> Buffer.t -> offset:int64 -> length:int64 -> byte:int -> (unit,error) result
+  val generate_mipmaps : t -> Texture.t -> (unit,error) result
+  val update_fence : t -> Fence.t -> (unit,error) result
+  val wait_for_fence : t -> Fence.t -> (unit,error) result
   val end_encoding : t -> (unit, error) result
   val destroyed : t -> bool
 end
