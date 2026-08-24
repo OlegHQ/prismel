@@ -2296,3 +2296,18 @@ external tensor_get_bytes : handle -> bytes -> handle -> handle -> handle -> (un
   "caml_prismel_metal_tensor_get_bytes_bytecode" "caml_prismel_metal_tensor_get_bytes"
 external tensor_replace_bytes : handle -> bytes -> handle -> handle -> handle -> (unit,string) result =
   "caml_prismel_metal_tensor_replace_bytes_bytecode" "caml_prismel_metal_tensor_replace_bytes"
+external resource_layout_array_create : unit -> (handle,string) result =
+  "caml_prismel_metal_resource_layout_array_create"
+external resource_texture_view_descriptor_create :
+  int64 -> int64 -> int64 -> int64 -> int64 -> int64 -> (handle,string) result =
+  "caml_prismel_metal_resource_texture_view_descriptor_create_bytecode"
+  "caml_prismel_metal_resource_texture_view_descriptor_create"
+external resource_heap_acceleration_triangle :
+  handle -> acceleration_triangle_descriptor -> int64 option -> (handle,string) result =
+  "caml_prismel_metal_resource_heap_acceleration_triangle"
+external resource_heap_acceleration_size_align :
+  handle -> int64 -> ((int64*int64),string) result =
+  "caml_prismel_metal_resource_heap_acceleration_size_align"
+external resource_heap_acceleration_triangle_size_align :
+  handle -> acceleration_triangle_descriptor -> ((int64*int64),string) result =
+  "caml_prismel_metal_resource_heap_acceleration_triangle_size_align"
