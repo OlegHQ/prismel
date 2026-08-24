@@ -107,6 +107,7 @@ can change the denominator explicitly rather than being hidden.
 | `c91a76c` | 2026-08-24 07:06:29 +02:00 | 4,939 | 5,249 | 94.0941% | 3 | 0.153 | 19.6 | 0.37 |
 | `6e8a215` | 2026-08-24 07:07:45 +02:00 | 4,949 | 5,249 | 94.2846% | 10 | 0.021 | 473.7 | 9.02 |
 | `f9642fa` | 2026-08-24 07:09:15 +02:00 | 4,953 | 5,249 | 94.3608% | 4 | 0.025 | 160.0 | 3.05 |
+| `1796450` | 2026-08-24 07:14:44 +02:00 | 4,959 | 5,249 | 94.4751% | 6 | 0.091 | 65.6 | 1.25 |
 
 ## Current measured rate
 
@@ -150,6 +151,11 @@ intersection descriptor class plus the binary-archive getter, setter, and
 property companion. Public provenance is backed by copied archive-list
 ownership, same-device/live validation, parent retention, nil-list semantics,
 and real descriptor-based function creation.
+
+The `1796450` interval moves the exact Fence6 protocol/type closure. Its owned
+device constructor, copied nullable label, checked device identity, encoder
+state validation, and completion retention are exercised by 256 real producer
+and consumer blit command-buffer ordering iterations.
 
 Rates describe completed commits, not forecasts. Hardware-only gates and
 complex ownership features will vary materially from pure-value batches.
