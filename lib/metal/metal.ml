@@ -1046,7 +1046,9 @@ type shader_attribute =
 
 type shader_argument_encoder =
   { raw : Metal_raw.handle; lifetime : lifetime; function_ : function_handle
-  ; buffer_index : int64 }
+  ; buffer_index : int64; device:device; mutable argument_label:string option
+  ; encoded_length:int64; alignment:int64
+  ; retained:(int64,lifetime)Hashtbl.t; parent_encoder:shader_argument_encoder option }
 type shader_stage_descriptor = { raw:Metal_raw.handle; lifetime:lifetime }
 type shader_attribute_descriptor_array = { raw:Metal_raw.handle; lifetime:lifetime; parent:shader_stage_descriptor }
 type shader_attribute_descriptor = { raw:Metal_raw.handle; lifetime:lifetime; parent:shader_attribute_descriptor_array }
@@ -8512,7 +8514,7 @@ module Function = struct
     let operation="Metal.Function.argument_encoder" in
     if buffer_index<0L then error operation Invalid_argument "buffer index must be nonnegative" else
     Result.bind(query operation(fun raw->Metal_raw.shader_function_argument_encoder raw buffer_index)value)(fun raw->
-      let x:shader_argument_encoder={raw;lifetime=lifetime();function_=value;buffer_index}in attach value.lifetime;attach_finalizer x x.lifetime value.lifetime;Ok x)
+      match Metal_raw.argument_encoder_snapshot raw with Error m->ignore(Metal_raw.destroy raw);native_error operation m|Ok(_,_,_,registry)when registry<>value.library.device.registry_id->ignore(Metal_raw.destroy raw);error operation Device_mismatch "argument encoder device disagrees with function"|Ok(argument_label,encoded_length,alignment,_)->let x:shader_argument_encoder={raw;lifetime=lifetime();function_=value;buffer_index;device=value.library.device;argument_label;encoded_length;alignment;retained=Hashtbl.create 17;parent_encoder=None}in attach value.lifetime;attach_finalizer~on_finalize:(fun()->Hashtbl.iter(fun _ lifetime->detach lifetime)x.retained;Hashtbl.clear x.retained)x x.lifetime value.lifetime;Ok x)
 
   let destroy (value : t) =
     destroy_parent "Metal.Function.destroy" value.lifetime value.raw
@@ -8534,9 +8536,30 @@ end
 
 module Shader_argument_encoder = struct
   type t = shader_argument_encoder
+  type resource =
+    | Buffer of buffer | Texture of texture | Sampler of sampler
+    | Acceleration_structure of acceleration_structure
+    | Indirect_command_buffer of indirect_command_buffer
+    | Visible_function_table of visible_function_table
+    | Intersection_function_table of intersection_function_table
+    | Render_pipeline of render_pipeline | Compute_pipeline of compute_pipeline
+    | Depth_stencil of depth_stencil
+  let snapshot(value:t)=value.argument_label,value.encoded_length,value.alignment,value.device
+  let label(value:t)=value.argument_label
+  let set_label(value:t)label=let op="Metal.Shader_argument_encoder.set_label"in on_main op(fun()->match ensure_live op value.lifetime with Error _ as e->e|Ok()when option_exists contains_nul label->error op Invalid_argument "argument encoder label contains a NUL byte"|Ok()->match Metal_raw.argument_encoder_set_label value.raw label with Error m->native_error op m|Ok()->value.argument_label<-label;Ok())
+  let encoded_length(value:t)=value.encoded_length
+  let alignment(value:t)=value.alignment
+  let device(value:t)=value.device
+  let parts=function Buffer x->0,x.raw,x.lifetime,x.device|Texture x->1,x.raw,x.lifetime,x.device|Sampler x->2,x.raw,x.lifetime,x.device|Acceleration_structure x->3,x.raw,x.lifetime,x.device|Indirect_command_buffer x->4,x.raw,x.lifetime,x.device|Visible_function_table x->5,x.raw,x.lifetime,x.pipeline.device|Intersection_function_table x->6,x.raw,x.lifetime,x.pipeline.device|Render_pipeline x->7,x.raw,x.lifetime,x.device|Compute_pipeline x->8,x.raw,x.lifetime,x.device|Depth_stencil x->9,x.raw,x.lifetime,x.device
+  let retain_at (value:t) index (lifetime:lifetime)=match Hashtbl.find_opt value.retained index with Some old when old==lifetime->()|old->Option.iter detach old;attach lifetime;Hashtbl.replace value.retained index lifetime
+  let set (value:t) ~index ?(offset=0L) resource=let op="Metal.Shader_argument_encoder.set"in on_main op(fun()->match ensure_live op value.lifetime with Error _ as e->e|Ok()when index<0L||offset<0L->error op Invalid_argument "argument index or offset is negative"|Ok()->let tag,raw,lifetime,device=parts resource in match ensure_live op lifetime with Error _ as e->e|Ok()when not(same_device value.device device)->error op Device_mismatch "argument resource belongs to another device"|Ok()->match Metal_raw.argument_encoder_single value.raw tag raw offset index with Error m->native_error op m|Ok()->retain_at value index lifetime;Ok())
+  let set_array (value:t) ~location ?offsets resources=let op="Metal.Shader_argument_encoder.set_array"in on_main op(fun()->match ensure_live op value.lifetime with Error _ as e->e|Ok()when location<0L->error op Invalid_argument "argument range location is negative"|Ok()when Array.length resources=0->Ok()|Ok()->let parts=Array.map parts resources in let tag,_,_,_=parts.(0)in if Array.exists(fun(tag',_,_,_)->tag'<>tag)parts then error op Invalid_argument "argument array resource kinds differ"else let offsets=match offsets with None->[||]|Some x->Array.copy x in if(tag=0&&Array.length offsets<>Array.length resources)||(tag<>0&&Array.length offsets<>0)||Array.exists(fun x->x<0L)offsets then error op Invalid_argument "argument offsets disagree with array"else match Array.find_opt(fun(_,_,lifetime,device)->is_destroyed lifetime||not(same_device value.device device))parts with Some(_,_,lifetime,_)when is_destroyed lifetime->error op Destroyed "argument array contains a destroyed resource"|Some _->error op Device_mismatch "argument array contains another device"|None->let raws=Array.map(fun(_,raw,_,_)->raw)parts in match Metal_raw.argument_encoder_array value.raw tag raws offsets(location,Int64.of_int(Array.length resources))with Error m->native_error op m|Ok()->Array.iteri(fun i(_,_,lifetime,_)->retain_at value(Int64.add location(Int64.of_int i))lifetime)parts;Ok())
+  let set_argument_buffer (value:t) (buffer:buffer) ~offset ?(start_offset=0L)?(array_element=0L)()=let op="Metal.Shader_argument_encoder.set_argument_buffer"in on_main op(fun()->match ensure_live op value.lifetime with Error _ as e->e|Ok()->match ensure_buffer_usable op buffer with Error _ as e->e|Ok()when not(same_device value.device buffer.device)->error op Device_mismatch "argument buffer belongs to another device"|Ok()when offset<0L||offset>buffer.length||start_offset<0L||array_element<0L->error op Invalid_argument "argument buffer range is invalid"|Ok()->match Metal_raw.argument_encoder_set_buffer value.raw buffer.raw offset start_offset array_element with Error m->native_error op m|Ok()->retain_at value(-1L)buffer.lifetime;Ok())
+  let nested (value:t) ~buffer_index=let op="Metal.Shader_argument_encoder.nested"in on_main op(fun()->match ensure_live op value.lifetime with Error _ as e->e|Ok()when buffer_index<0L->error op Invalid_argument "nested buffer index is negative"|Ok()->match Metal_raw.argument_encoder_nested value.raw buffer_index with Error m->native_error op m|Ok raw->match Metal_raw.argument_encoder_snapshot raw with Error m->ignore(Metal_raw.destroy raw);native_error op m|Ok(_,_,_,registry)when registry<>value.device.registry_id->ignore(Metal_raw.destroy raw);error op Device_mismatch "nested encoder device changed"|Ok(argument_label,encoded_length,alignment,_)->let child:t={raw;lifetime=lifetime();function_=value.function_;buffer_index;device=value.device;argument_label;encoded_length;alignment;retained=Hashtbl.create 7;parent_encoder=Some value}in attach value.lifetime;attach_finalizer~on_finalize:(fun()->Hashtbl.iter(fun _ lifetime->detach lifetime)child.retained;Hashtbl.clear child.retained)child child.lifetime value.lifetime;Ok child)
+  let constant_available (value:t) ~index=let op="Metal.Shader_argument_encoder.constant_available"in on_main op(fun()->match ensure_live op value.lifetime with Error _ as e->e|Ok()when index<0L->error op Invalid_argument "constant index is negative"|Ok()->match Metal_raw.argument_encoder_constant_available value.raw index with Error m->native_error op m|Ok x->Ok x)
   let buffer_index (value:t)=value.buffer_index
   let destroyed (value:t)=is_destroyed value.lifetime
-  let destroy (value:t)=destroy_leaf "Metal.Shader_argument_encoder.destroy" value.lifetime value.raw(fun()->detach value.function_.lifetime)
+  let destroy (value:t)=destroy_parent "Metal.Shader_argument_encoder.destroy" value.lifetime value.raw(fun()->Hashtbl.iter(fun _ lifetime->detach lifetime)value.retained;Hashtbl.clear value.retained;match value.parent_encoder with Some parent->detach parent.lifetime|None->detach value.function_.lifetime)
 end
 
 module Shader_stage_descriptor = struct

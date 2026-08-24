@@ -31,6 +31,14 @@ type error = private
   ; message : string
   }
 
+type acceleration_structure
+type indirect_command_buffer
+type visible_function_table
+type intersection_function_table
+type render_pipeline
+type compute_pipeline
+type depth_stencil
+
 (** Copied values of immutable, typed NSString globals exported by the Metal
     SDK. Each call returns an independently owned OCaml string. *)
 module Global : module type of Metal_global_generated.Make (struct
@@ -1321,6 +1329,25 @@ end
 
 and Shader_argument_encoder : sig
   type t
+  type resource =
+    | Buffer of Buffer.t | Texture of Texture.t | Sampler of Sampler.t
+    | Acceleration_structure of acceleration_structure
+    | Indirect_command_buffer of indirect_command_buffer
+    | Visible_function_table of visible_function_table
+    | Intersection_function_table of intersection_function_table
+    | Render_pipeline of render_pipeline
+    | Compute_pipeline of compute_pipeline | Depth_stencil of depth_stencil
+  val snapshot : t -> string option * int64 * int64 * Device.t
+  val label : t -> string option
+  val set_label : t -> string option -> (unit,error) result
+  val encoded_length : t -> int64
+  val alignment : t -> int64
+  val device : t -> Device.t
+  val set : t -> index:int64 -> ?offset:int64 -> resource -> (unit,error) result
+  val set_array : t -> location:int64 -> ?offsets:int64 array -> resource array -> (unit,error) result
+  val set_argument_buffer : t -> Buffer.t -> offset:int64 -> ?start_offset:int64 -> ?array_element:int64 -> unit -> (unit,error) result
+  val nested : t -> buffer_index:int64 -> (t,error) result
+  val constant_available : t -> index:int64 -> (bool,error) result
   val buffer_index : t -> int64
   val destroyed : t -> bool
   val destroy : t -> (unit,error) result

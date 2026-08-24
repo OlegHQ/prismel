@@ -7,7 +7,7 @@ let expect kind = function Error e when e.kind=kind->()|Error e->fail "%s" (Form
 let () =
   let device=get(Device.system_default()) in
   let library=get(Library.compile_source ~device
-    "#include <metal_stdlib>\nusing namespace metal; struct Args { uint value; }; kernel void shader157(constant Args& args [[buffer(0)]], device uint *out [[buffer(1)]]) { out[0]=args.value; }\n")in
+    "#include <metal_stdlib>\nusing namespace metal; struct Args { device uint *data [[id(0)]]; uint value [[id(1)]]; }; kernel void shader157(constant Args& args [[buffer(0)]], device uint *out [[buffer(1)]]) { out[0]=args.value; }\n")in
   let function_=get(Function.find ~library "shader157")in
   ignore(get(Function.options function_));
   ignore(get(Function.patch_control_point_count function_));
@@ -17,8 +17,26 @@ let () =
   expect Invalid_argument(Function.argument_encoder function_ ~buffer_index:(-1L));
   let encoder=get(Function.argument_encoder function_ ~buffer_index:0L)in
   if Shader_argument_encoder.buffer_index encoder<>0L then fail "argument encoder index drift";
+  let _,encoded_length,alignment,encoder_device=Shader_argument_encoder.snapshot encoder in
+  if encoded_length<=0L||alignment<=0L||encoder_device!=device then fail "argument encoder snapshot drift";
+  get(Shader_argument_encoder.set_label encoder(Some "args"));
+  if Shader_argument_encoder.label encoder<>Some "args" then fail "argument encoder label drift";
+  let argument_buffer=get(Buffer.create~device~length:encoded_length~storage:Buffer.Shared())in
+  let data=get(Buffer.create~device~length:64L~storage:Buffer.Shared())in
+  get(Shader_argument_encoder.set_argument_buffer encoder argument_buffer~offset:0L());
+  get(Shader_argument_encoder.set encoder~index:0L(Shader_argument_encoder.Buffer data));
+  get(Shader_argument_encoder.set_array encoder~location:0L~offsets:[|0L|]
+    [|Shader_argument_encoder.Buffer data|]);
+  let wrong_kind=get(Texture.create~device(Texture.descriptor_2d~format:Texture.Rgba8_unorm~width:1~height:1()))in
+  expect Invalid_argument(Shader_argument_encoder.set_array encoder~location:0L
+    [|Shader_argument_encoder.Buffer data;Shader_argument_encoder.Texture
+      wrong_kind|]);
+  ignore(get(Shader_argument_encoder.constant_available encoder~index:1L));
+  expect Parent_has_dependents(Buffer.destroy data);
   expect Parent_has_dependents(Function.destroy function_);
   get(Shader_argument_encoder.destroy encoder);
+  get(Texture.destroy wrong_kind);
+  get(Buffer.destroy data);get(Buffer.destroy argument_buffer);
   List.iter(fun x->get(Shader_attribute.destroy x))attributes;
   get(Function.destroy function_);
   expect Destroyed(Function.options function_);
