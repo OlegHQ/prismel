@@ -2546,3 +2546,20 @@ external capture_scope_transition :
 external capture_scope_queue_identity :
   handle -> bool -> (handle option, string) result =
   "caml_prismel_metal_capture_scope_queue_identity"
+
+external event_listener_create :
+  int -> string option -> (handle, string) result =
+  "caml_prismel_metal_event_listener_create"
+external event_listener_queue :
+  handle -> ((handle * string), string) result =
+  "caml_prismel_metal_event_listener_queue"
+external shared_event_export_handle : handle -> (handle, string) result =
+  "caml_prismel_metal_shared_event_export_handle"
+external shared_event_handle_label :
+  handle -> (string option, string) result =
+  "caml_prismel_metal_shared_event_handle_label"
+external shared_event_notify :
+  handle -> handle -> int64 -> (int64 -> unit) -> (nativeint, string) result =
+  "caml_prismel_metal_shared_event_notify"
+external shared_event_notify_cancel : nativeint -> unit =
+  "caml_prismel_metal_shared_event_notify_cancel"

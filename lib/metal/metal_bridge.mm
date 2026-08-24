@@ -1039,6 +1039,9 @@ enum class Handle_kind : std::uint32_t {
   Function_log,
   Function_log_location,
   Shared_event,
+  Shared_event_listener,
+  Shared_event_handle,
+  Dispatch_queue,
   Pipeline_buffer_descriptor,
   Color_attachment_descriptor,
   Io_command_buffer,
@@ -14740,6 +14743,7 @@ extern "C" CAMLprim value caml_prismel_metal_pipeline_render_imageblock_length(v
 #include "../../tools/metal/metal_command_queue15_callable_bridge.inc"
 #include "../../tools/metal/metal_indirect_command14_callable_bridge.inc"
 #include "../../tools/metal/metal_capture_scope12_callable_bridge.inc"
+#include "../../tools/metal/metal_event14_callable_bridge.inc"
 #include "../../tools/metal/metal_tensor_ownership_callable_bridge.inc"
 #include "../../tools/metal/metal_resource_remaining16_bridge.inc"
 #pragma clang diagnostic pop
