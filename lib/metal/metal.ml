@@ -874,7 +874,15 @@ and buffer =
   }
 
 and io_queue =
+  { raw : Metal_raw.handle; lifetime : lifetime; device : device
+  ; io_queue_allocator : lifetime option }
+
+and io_scratch_allocator =
   { raw : Metal_raw.handle; lifetime : lifetime; device : device }
+
+and io_scratch_buffer =
+  { raw : Metal_raw.handle; lifetime : lifetime
+  ; allocator : io_scratch_allocator; buffer : buffer }
 
 and io_file =
   { raw : Metal_raw.handle; lifetime : lifetime; device : device }
@@ -2466,7 +2474,8 @@ module Device = struct
                 "IO queue constructor returned another device identity"
           | Ok (raw, _registry_id) ->
               let queue : io_queue =
-                { raw; lifetime = lifetime (); device = value }
+                { raw; lifetime = lifetime (); device = value
+                ; io_queue_allocator = None }
               in
               attach value.lifetime;
               attach_finalizer queue queue.lifetime value.lifetime;
@@ -20068,7 +20077,94 @@ module IO = struct
     let create_unretained_command_buffer(value:t)=let operation="Metal.IO.Queue.create_unretained_command_buffer"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.io_queue_unretained value.raw with Error m->native_error operation m|Ok raw->let commands:io_command_buffer={raw;lifetime=lifetime();queue=value;io_phase=`Recording;io_retained=[]}in attach value.lifetime;attach_finalizer~on_finalize:(fun()->List.iter detach commands.io_retained;commands.io_retained<-[])commands commands.lifetime value.lifetime;Ok commands)
     let destroy (value : t) =
       destroy_parent "Metal.IO.Queue.destroy" value.lifetime value.raw
+        (fun () ->
+          Option.iter detach value.io_queue_allocator;
+          detach value.device.lifetime)
+  end
+
+  module Scratch_allocator = struct
+    type t = io_scratch_allocator
+    let create (device : Device.t) =
+      let operation = "Metal.IO.Scratch_allocator.create" in
+      on_main operation (fun () ->
+        Result.bind (ensure_live operation device.lifetime) (fun () ->
+          match Metal_raw.io_scratch_allocator_create device.raw with
+          | Error message -> native_error operation message
+          | Ok raw ->
+              let value : io_scratch_allocator =
+                { raw; lifetime = lifetime (); device }
+              in
+              attach device.lifetime;
+              attach_finalizer value value.lifetime device.lifetime;
+              Ok value))
+    let device (value : t) = value.device
+    let destroyed (value : t) = is_destroyed value.lifetime
+    let create_queue (value : t) =
+      let operation = "Metal.IO.Scratch_allocator.create_queue" in
+      on_main operation (fun () ->
+        Result.bind (ensure_live operation value.lifetime) (fun () ->
+          match Metal_raw.io_queue_create_scratch value.device.raw value.raw with
+          | Error message -> native_error operation message
+          | Ok raw ->
+              let queue : io_queue =
+                { raw; lifetime = lifetime (); device = value.device
+                ; io_queue_allocator = Some value.lifetime }
+              in
+              attach value.device.lifetime;
+              attach value.lifetime;
+              attach_finalizer
+                ~on_finalize:(fun () -> detach value.lifetime)
+                queue queue.lifetime value.device.lifetime;
+              Ok queue))
+    let allocate (value : t) ~minimum_size =
+      let operation = "Metal.IO.Scratch_allocator.allocate" in
+      on_main operation (fun () ->
+        Result.bind (ensure_live operation value.lifetime) (fun () ->
+          if minimum_size <= 0L then
+            error operation Invalid_argument "scratch size must be positive"
+          else match Metal_raw.io_scratch_allocate value.raw minimum_size with
+            | Error message -> native_error operation message
+            | Ok (raw, buffer_raw) ->
+                let length, storage_code, cache_code, hazard_code, _ =
+                  Metal_raw.buffer_info buffer_raw
+                in
+                let storage = match storage_code with
+                  | 0 -> Shared | 1 -> Managed | _ -> Private in
+                let cpu_cache = match cache_code with
+                  | 1 -> Write_combined | _ -> Default_cache in
+                let hazard_tracking = match hazard_code with
+                  | 1 -> Untracked | 2 -> Tracked | _ -> Default_hazard_tracking in
+                let buffer : buffer =
+                  { raw = buffer_raw; lifetime = lifetime (); device = value.device
+                  ; length; storage; cpu_cache; hazard_tracking
+                  ; parent = Device_resource value.device; heap_offset = None
+                  ; placement_sparse_page_size = None; allocation = None
+                  ; state = resource_state (); placement_mappings = ref [] }
+                in
+                attach value.device.lifetime;
+                attach_finalizer buffer buffer.lifetime value.device.lifetime;
+                let scratch =
+                  { raw; lifetime = lifetime (); allocator = value; buffer }
+                in
+                attach value.lifetime; attach buffer.lifetime;
+                attach_finalizer
+                  ~on_finalize:(fun () -> detach buffer.lifetime)
+                  scratch scratch.lifetime value.lifetime;
+                Ok scratch))
+    let destroy (value : t) =
+      destroy_parent "Metal.IO.Scratch_allocator.destroy" value.lifetime value.raw
         (fun () -> detach value.device.lifetime)
+  end
+
+  module Scratch_buffer = struct
+    type t = io_scratch_buffer
+    let buffer (value : t) = value.buffer
+    let destroyed (value : t) = is_destroyed value.lifetime
+    let destroy (value : t) =
+      destroy_leaf "Metal.IO.Scratch_buffer.destroy" value.lifetime value.raw
+        (fun () ->
+          detach value.buffer.lifetime;
+          detach value.allocator.lifetime)
   end
 
   module File = struct
@@ -20125,6 +20221,87 @@ module IO = struct
           match Metal_raw.io_command_handler value.raw callback with
           | Error message -> native_error operation message
           | Ok _token -> Ok ()))
+    let load_bytes (value : t) ~size ~(source : io_file) ~source_offset
+        ~on_complete =
+      let operation = "Metal.IO.Command_buffer.load_bytes" in
+      on_main operation (fun () ->
+        Result.bind (recording operation value) (fun () ->
+          Result.bind (ensure_live operation source.lifetime) (fun () ->
+            Result.bind
+              (ensure_same_device operation value.queue.device source.device)
+              (fun () ->
+                if size <= 0L || source_offset < 0L then
+                  error operation Invalid_argument
+                    "IO byte-load size and source offset are invalid"
+                else
+                  let token = ref Nativeint.zero in
+                  attach source.lifetime;
+                  let complete result =
+                    let current = !token in
+                    if current <> Nativeint.zero then begin
+                      token := Nativeint.zero;
+                      Metal_raw.io_load_bytes_cancel current
+                    end;
+                    detach source.lifetime;
+                    on_complete result
+                  in
+                  match Metal_raw.io_command_load_bytes value.raw size source.raw
+                          source_offset complete with
+                  | Error message ->
+                      detach source.lifetime;
+                      native_error operation message
+                  | Ok native_token ->
+                      token := native_token;
+                      retain value source.lifetime;
+                      Ok ()))))
+    let load_texture (value : t) ~(destination : texture) ~slice ~level
+        ~(region : Texture.region) ~source_bytes_per_row ~source_bytes_per_image
+        ~(source : io_file) ~source_offset =
+      let operation = "Metal.IO.Command_buffer.load_texture" in
+      on_main operation (fun () ->
+        Result.bind (recording operation value) (fun () ->
+          Result.bind (ensure_texture_usable operation destination) (fun () ->
+            Result.bind (ensure_live operation source.lifetime) (fun () ->
+              Result.bind
+                (ensure_same_device operation value.queue.device destination.device)
+                (fun () -> Result.bind
+                  (ensure_same_device operation value.queue.device source.device)
+                  (fun () ->
+                    let descriptor = destination.descriptor in
+                    let mip_width = max 1 (descriptor.width lsr level)
+                    and mip_height = max 1 (descriptor.height lsr level)
+                    and mip_depth = max 1 (descriptor.depth lsr level) in
+                    if slice < 0L || level < 0 || level >= descriptor.mip_levels
+                       || slice >= Int64.of_int descriptor.array_length
+                       || region.width <= 0 || region.height <= 0 || region.depth <= 0
+                       || region.x < 0 || region.y < 0 || region.z < 0
+                       || region.x > mip_width || region.width > mip_width - region.x
+                       || region.y > mip_height || region.height > mip_height - region.y
+                       || region.z > mip_depth || region.depth > mip_depth - region.z
+                       || source_bytes_per_row <= 0L
+                       || source_bytes_per_image <= 0L || source_offset < 0L then
+                      error operation Invalid_argument
+                        "IO texture load layout, range, or source offset is invalid"
+                    else if source_bytes_per_image <
+                            Int64.mul source_bytes_per_row
+                              (Int64.of_int region.height) then
+                      error operation Invalid_argument
+                        "IO texture bytes-per-image is smaller than its rows"
+                    else match Metal_raw.io_command_load_texture value.raw
+                                 destination.raw
+                                 (slice, Int64.of_int level,
+                                  Int64.of_int region.width,
+                                  Int64.of_int region.height,
+                                  Int64.of_int region.depth,
+                                  source_bytes_per_row, source_bytes_per_image,
+                                  Int64.of_int region.x, Int64.of_int region.y,
+                                  Int64.of_int region.z, source.raw, source_offset)
+                      with
+                      | Error message -> native_error operation message
+                      | Ok () ->
+                          retain value destination.lifetime;
+                          retain value source.lifetime;
+                          Ok ()))))))
     let load_buffer (value : t) ~(destination : Buffer.t)
         ~destination_offset ~size ~(source : File.t) ~source_offset =
       let operation = "Metal.IO.Command_buffer.load_buffer" in
