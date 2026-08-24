@@ -69,11 +69,13 @@
   binding_tensor_safe_handoff
   binding_function_stitching_handoff
   binding_library_header_handoff
+  binding_library42_native_closure
   binding_argument_encoder_handoff
   binding_acceleration_command_handoff
   binding_acceleration_structure_header_handoff
   binding_data_type_tail_handoff
   binding_blit_command_tail_handoff
+  binding_capture_manager_tail_handoff
   binding_argument_reflection_plan
   binding_argument_reflection_codegen
   binding_argument_reflection_evidence
@@ -505,6 +507,13 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (name test_binding_library42_native_closure)
+ (modules test_binding_library42_native_closure)
+ (libraries metal_inventory_classification yojson)
+ (deps ../../lib/metal/generated_api_inventory.json)
+ (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
+
+(test
  (name test_binding_argument_encoder_handoff)
  (modules test_binding_argument_encoder_handoff)
  (libraries metal_inventory_classification yojson)
@@ -535,6 +544,13 @@
 (test
  (name test_binding_blit_command_tail_handoff)
  (modules test_binding_blit_command_tail_handoff)
+ (libraries metal_inventory_classification yojson)
+ (deps ../../lib/metal/generated_api_inventory.json)
+ (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
+
+(test
+ (name test_binding_capture_manager_tail_handoff)
+ (modules test_binding_capture_manager_tail_handoff)
  (libraries metal_inventory_classification yojson)
  (deps ../../lib/metal/generated_api_inventory.json)
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
