@@ -1936,6 +1936,12 @@ module Render_pipeline : sig
     val set_mesh_object_function : mesh_descriptor -> Function.t option -> (unit,error) result
     val set_mesh_mesh_function : mesh_descriptor -> Function.t -> (unit,error) result
     val set_mesh_fragment_function : mesh_descriptor -> Function.t option -> (unit,error) result
+    val mesh_object_linked_functions : mesh_descriptor -> (Linked_functions.t option,error) result
+    val mesh_mesh_linked_functions : mesh_descriptor -> (Linked_functions.t option,error) result
+    val mesh_fragment_linked_functions : mesh_descriptor -> (Linked_functions.t option,error) result
+    val set_mesh_object_linked_functions : mesh_descriptor -> Linked_functions.t option -> (unit,error) result
+    val set_mesh_mesh_linked_functions : mesh_descriptor -> Linked_functions.t option -> (unit,error) result
+    val set_mesh_fragment_linked_functions : mesh_descriptor -> Linked_functions.t option -> (unit,error) result
     val tile_descriptor : ?label:string -> ?binary_archives:Binary_archive.t list -> ?preloaded_libraries:Dynamic_library.t list -> tile_function:Function.t -> required_threads:size3 -> unit -> (tile_descriptor,error) result
     val tile_binary_archives : tile_descriptor -> (Binary_archive.t list,error) result
     val tile_color_formats : tile_descriptor -> (Texture.format option array,error) result
@@ -1945,6 +1951,8 @@ module Render_pipeline : sig
     val set_tile_binary_archives : tile_descriptor -> Binary_archive.t list -> (unit,error) result
     val set_tile_preloaded_libraries : tile_descriptor -> Dynamic_library.t list -> (unit,error) result
     val set_tile_function : tile_descriptor -> Function.t -> (unit,error) result
+    val tile_linked_functions : tile_descriptor -> (Linked_functions.t option,error) result
+    val set_tile_linked_functions : tile_descriptor -> Linked_functions.t option -> (unit,error) result
     val compile_mesh : ?reflection:bool -> mesh_descriptor -> (t,error) result
     val compile_tile : ?reflection:bool -> tile_descriptor -> (t,error) result
     val destroy_buffer : buffer_descriptor -> (unit,error) result
@@ -3569,6 +3577,32 @@ module Resource100 : sig
     val destroyed : t -> bool
     val destroy : t -> (unit,error) result
   end
+end
+
+module rec Blit_pass_descriptor : sig
+  type t
+  val create : Device.t -> (t,error) result
+  val attachments : t -> (Blit_pass_attachments.t,error) result
+  val destroyed : t -> bool
+  val destroy : t -> (unit,error) result
+end
+and Blit_pass_attachments : sig
+  type t
+  val capacity : int
+  val get : t -> index:int -> (Blit_pass_attachment.t option,error) result
+  val set : t -> index:int -> Blit_pass_attachment.t option -> (unit,error) result
+  val destroyed : t -> bool
+  val destroy : t -> (unit,error) result
+end
+and Blit_pass_attachment : sig
+  type t
+  type sample_index = Dont_sample | Index of int64
+  val configure : t -> sample_buffer:Resource100.Sample_buffer.t option ->
+    start:sample_index -> finish:sample_index -> (unit,error) result
+  val sample_buffer : t -> (Resource100.Sample_buffer.t option,error) result
+  val range : t -> sample_index * sample_index
+  val destroyed : t -> bool
+  val destroy : t -> (unit,error) result
 end
 
 module Tensor : sig

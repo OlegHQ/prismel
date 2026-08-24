@@ -8,10 +8,11 @@ struct V { float4 position [[position]]; };
 using M = mesh<V, void, 3, 1, topology::triangle>;
 [[mesh]] void mesh93(M out,uint tid [[thread_index_in_threadgroup]]) { if(tid==0)out.set_primitive_count(0); }
 fragment float4 fragment93(){return float4(1);}
+kernel void tile93(ushort2 p [[thread_position_in_threadgroup]]) { (void)p; }
 |}
 let ()=match Device.system_default()with Error _->print_endline"RenderPipeline93 mesh graph: skipped"|Ok device->
   let library=get(Library.compile_source~device source)in
-  let mesh=get(Function.find~library "mesh93")and fragment=get(Function.find~library "fragment93")in
+  let mesh=get(Function.find~library "mesh93")and fragment=get(Function.find~library "fragment93")and tile=get(Function.find~library "tile93")in
   let open Render_pipeline.Mesh_tile in let three={width=3L;height=1L;depth=1L}and zero={width=0L;height=0L;depth=0L}in
   let descriptor=get(mesh_descriptor~fragment_function:fragment~mesh_function:mesh~depth_format:Texture.Depth32_float~stencil_format:Texture.Stencil8~required_mesh_threads:three~required_object_threads:zero())in
   if get(mesh_mesh_function descriptor)!=mesh then failwith"mesh function identity";
@@ -19,6 +20,20 @@ let ()=match Device.system_default()with Error _->print_endline"RenderPipeline93
   (match get(mesh_object_function descriptor)with None->()|Some _->failwith"object function default");
   (match get(mesh_binary_archives descriptor)with []->()|_->failwith"archive graph default");
   get(set_mesh_binary_archives descriptor[]);get(set_mesh_mesh_function descriptor mesh);get(set_mesh_fragment_function descriptor None);get(set_mesh_object_function descriptor None);
+  let linked=get(Linked_functions.create device)in
+  get(set_mesh_object_linked_functions descriptor(Some linked));
+  get(set_mesh_mesh_linked_functions descriptor(Some linked));
+  get(set_mesh_fragment_linked_functions descriptor(Some linked));
+  let same_linked=function Some value when value==linked->true|_->false in
+  if not(same_linked(get(mesh_object_linked_functions descriptor)))||not(same_linked(get(mesh_mesh_linked_functions descriptor)))||not(same_linked(get(mesh_fragment_linked_functions descriptor)))then failwith"mesh linked graph identity";
+  expect Parent_has_dependents(Linked_functions.destroy linked);
+  get(set_mesh_object_linked_functions descriptor None);get(set_mesh_mesh_linked_functions descriptor None);get(set_mesh_fragment_linked_functions descriptor None);
+  let one={width=1L;height=1L;depth=1L}in
+  let tile_descriptor=get(tile_descriptor~tile_function:tile~required_threads:one())in
+  get(set_tile_linked_functions tile_descriptor(Some linked));
+  if not(same_linked(get(tile_linked_functions tile_descriptor)))then failwith"tile linked graph identity";
+  expect Parent_has_dependents(Linked_functions.destroy linked);
+  get(set_tile_linked_functions tile_descriptor None);get(destroy_tile tile_descriptor);get(Linked_functions.destroy linked);
   expect Parent_has_dependents(Function.destroy mesh);
-  get(destroy_mesh descriptor);get(Function.destroy mesh);get(Function.destroy fragment);get(Library.destroy library);get(Device.destroy device);
-  print_endline"RenderPipeline93 mesh graph: exact12 ownership/identity passed"
+  get(destroy_mesh descriptor);get(Function.destroy mesh);get(Function.destroy fragment);get(Function.destroy tile);get(Library.destroy library);get(Device.destroy device);
+  print_endline"RenderPipeline93 mesh graph: function12 + linked12 ownership/identity passed"
