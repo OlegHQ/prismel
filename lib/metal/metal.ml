@@ -18170,6 +18170,74 @@ module Resource100 = struct
   end
 end
 
+module Tensor = struct
+  module Extents = struct
+    type t={raw:Metal_raw.handle;lifetime:lifetime;values:int64 array}
+    let create values=let op="Metal.Tensor.Extents.create"in on_main op(fun()->if Array.length values=0||Array.exists(fun x->x<=0L)values then error op Invalid_argument "tensor extents must be nonempty and positive"else match Metal_raw.tensor_extents_create(Array.copy values)with Error m->native_error op m|Ok raw->let value={raw;lifetime=lifetime();values=Array.copy values}in Gc.finalise(fun value->if Atomic.compare_and_set value.lifetime.destroyed false true then ignore(Metal_raw.destroy value.raw))value;Ok value)
+    let values t=Array.copy t.values
+    let rank t=Array.length t.values
+    let extent t index=let op="Metal.Tensor.Extents.extent"in on_main op(fun()->match ensure_live op t.lifetime with Error _ as e->e|Ok()when index<0||index>=Array.length t.values->error op Invalid_argument "tensor extent index is out of range"|Ok()->match Metal_raw.tensor_extents_extent t.raw(Int64.of_int index)with Error m->native_error op m|Ok x when x=t.values.(index)->Ok x|Ok _->native_error op "native tensor extent disagrees")
+    let destroyed t=is_destroyed t.lifetime
+    let destroy t=destroy_leaf "Metal.Tensor.Extents.destroy" t.lifetime t.raw(fun()->())
+  end
+  module Descriptor = struct
+    type t={raw:Metal_raw.handle;lifetime:lifetime;dimensions:Extents.t;strides:Extents.t;data_type:Data_type.t;mutable storage:Buffer.storage_mode;mutable cpu_cache:resource_cpu_cache_mode;mutable hazard:resource_hazard_tracking_mode;mutable usage:int64}
+    let create ~data_type ~(dimensions:Extents.t) ~(strides:Extents.t) =let op="Metal.Tensor.Descriptor.create"in on_main op(fun()->match ensure_live op dimensions.lifetime with Error _ as e->e|Ok()->match ensure_live op strides.lifetime with Error _ as e->e|Ok()when Extents.rank dimensions<>Extents.rank strides->error op Invalid_argument "tensor dimension/stride rank mismatch"|Ok()->match Metal_raw.tensor_descriptor_create()with Error m->native_error op m|Ok raw->let unwind m=ignore(Metal_raw.destroy raw);native_error op m in match Metal_raw.tensor_descriptor_set_data_type raw(Data_type.to_int64 data_type)with Error m->unwind m|Ok()->match Metal_raw.tensor_descriptor_set_dimensions raw dimensions.raw with Error m->unwind m|Ok()->match Metal_raw.tensor_descriptor_set_strides raw strides.raw with Error m->unwind m|Ok()->let value:t={raw;lifetime=lifetime();dimensions;strides;data_type;storage=Shared;cpu_cache=Default_cache;hazard=Default_hazard_tracking;usage=0L}in attach dimensions.lifetime;attach strides.lifetime;attach_finalizer~on_finalize:(fun()->detach strides.lifetime)value value.lifetime dimensions.lifetime;Ok value)
+    let dimensions t=t.dimensions and strides t=t.strides and data_type t=t.data_type
+    let options t=t.storage,t.cpu_cache,t.hazard,t.usage
+    let set_options t ~storage ~cpu_cache ~hazard_tracking ~usage=let op="Metal.Tensor.Descriptor.set_options"in on_main op(fun()->match ensure_live op t.lifetime with Error _ as e->e|Ok()when usage<0L->error op Invalid_argument "tensor usage must be nonnegative"|Ok()->let calls=[Metal_raw.tensor_descriptor_set_storage_mode t.raw(Int64.of_int(storage_code storage));Metal_raw.tensor_descriptor_set_cpu_cache_mode t.raw(Int64.of_int(cache_code cpu_cache));Metal_raw.tensor_descriptor_set_hazard_tracking_mode t.raw(Int64.of_int(hazard_code hazard_tracking));Metal_raw.tensor_descriptor_set_usage t.raw usage]in match List.find_opt Result.is_error calls with Some(Error m)->native_error op m|_->t.storage<-storage;t.cpu_cache<-cpu_cache;t.hazard<-hazard_tracking;t.usage<-usage;Ok())
+    let checked_options t=let op="Metal.Tensor.Descriptor.checked_options"in on_main op(fun()->match ensure_live op t.lifetime with Error _ as e->e|Ok()->match Metal_raw.tensor_descriptor_storage_mode t.raw,Metal_raw.tensor_descriptor_cpu_cache_mode t.raw,Metal_raw.tensor_descriptor_hazard_tracking_mode t.raw,Metal_raw.tensor_descriptor_usage t.raw,Metal_raw.tensor_descriptor_data_type t.raw with Ok storage,Ok cache,Ok hazard,Ok usage,Ok data when storage=Int64.of_int(storage_code t.storage)&&cache=Int64.of_int(cache_code t.cpu_cache)&&hazard=Int64.of_int(hazard_code t.hazard)&&usage=t.usage&&data=Data_type.to_int64 t.data_type->Ok(t.storage,t.cpu_cache,t.hazard,t.usage)|Error m,_,_,_,_|_,Error m,_,_,_|_,_,Error m,_,_|_,_,_,Error m,_|_,_,_,_,Error m->native_error op m|_->native_error op "native tensor descriptor disagrees with safe metadata")
+    let destroyed t=is_destroyed t.lifetime
+    let destroy t=destroy_parent "Metal.Tensor.Descriptor.destroy" t.lifetime t.raw(fun()->detach t.dimensions.lifetime;detach t.strides.lifetime)
+  end
+  type t=Resource100.tensor
+  let of_buffer=Resource100.Buffer_ops.new_tensor
+  let buffer=Resource100.Tensor.buffer
+  let dimensions=Resource100.Tensor.dimensions
+  let strides=Resource100.Tensor.strides
+  let data_type=Resource100.Tensor.data_type
+  let offset=Resource100.Tensor.offset
+  let gpu_resource_id(value:t)=let op="Metal.Tensor.gpu_resource_id"in on_main op(fun()->match ensure_live op value.lifetime with Error _ as e->e|Ok()->match Metal_raw.tensor_gpu_resource_id value.raw with Error m->native_error op m|Ok id->Ok id)
+  let usage(value:t)=let op="Metal.Tensor.usage"in on_main op(fun()->match ensure_live op value.lifetime with Error _ as e->e|Ok()->match Metal_raw.tensor_usage value.raw with Error m->native_error op m|Ok x->Ok x)
+  let checked_snapshot(value:t)=let op="Metal.Tensor.checked_snapshot"in on_main op(fun()->match ensure_live op value.lifetime with Error _ as e->e|Ok()->match Metal_raw.tensor_buffer_offset value.raw,Metal_raw.tensor_data_type value.raw,Metal_raw.tensor_buffer value.raw,Metal_raw.tensor_dimensions value.raw,Metal_raw.tensor_strides value.raw with Ok offset,Ok data,Ok buffer,Ok dimensions,Ok strides->let close=Option.iter(fun raw->ignore(Metal_raw.destroy raw))in close buffer;close dimensions;close strides;if offset<>value.offset||data<>Data_type.to_int64 value.data_type||Option.is_none buffer||Option.is_none dimensions||Option.is_none strides then native_error op "native tensor graph disagrees with safe metadata"else Ok()|Error m,_,_,_,_|_,Error m,_,_,_|_,_,Error m,_,_|_,_,_,Error m,_|_,_,_,_,Error m->native_error op m)
+  let with_slice_handles op ~origin ~slice_dimensions ~byte_strides callback=
+    if Array.length origin=0||Array.length origin<>Array.length slice_dimensions||Array.length origin<>Array.length byte_strides||Array.exists(fun x->x<0L)origin||Array.exists(fun x->x<=0L)slice_dimensions||Array.exists(fun x->x<=0L)byte_strides then error op Invalid_argument "tensor slice shape is invalid" else
+    match Metal_raw.tensor_extents_create byte_strides with Error m->native_error op m|Ok strides_raw->match Metal_raw.tensor_extents_create origin with Error m->ignore(Metal_raw.destroy strides_raw);native_error op m|Ok origin_raw->match Metal_raw.tensor_extents_create slice_dimensions with Error m->ignore(Metal_raw.destroy origin_raw);ignore(Metal_raw.destroy strides_raw);native_error op m|Ok dimensions_raw->let result=callback strides_raw origin_raw dimensions_raw in ignore(Metal_raw.destroy dimensions_raw);ignore(Metal_raw.destroy origin_raw);ignore(Metal_raw.destroy strides_raw);result
+  let transfer replace (value:t) bytes ~origin ~slice_dimensions ~byte_strides =
+    let op=if replace then "Metal.Tensor.replace_bytes" else "Metal.Tensor.get_bytes" in
+    on_main op(fun()->match ensure_live op value.lifetime with
+    | Error _ as e->e
+    | Ok() when Array.length origin<>Array.length value.dimensions
+                 || Array.length slice_dimensions<>Array.length origin
+                 || Array.length byte_strides<>Array.length origin ->
+        error op Invalid_argument "tensor slice rank mismatch"
+    | Ok()->
+        let in_bounds=ref true and maximum=ref 0L and overflow=ref false in
+        Array.iteri(fun i start->
+          if start<0L||slice_dimensions.(i)<=0L||start>value.dimensions.(i)
+             ||slice_dimensions.(i)>Int64.sub value.dimensions.(i)start
+             ||byte_strides.(i)<=0L then in_bounds:=false
+          else let count=Int64.pred slice_dimensions.(i) in
+            if count>Int64.div Int64.max_int byte_strides.(i) then overflow:=true
+            else let term=Int64.mul count byte_strides.(i) in
+              if !maximum>Int64.sub Int64.max_int term then overflow:=true
+              else maximum:=Int64.add !maximum term) origin;
+        match Resource100.Buffer_ops.tensor_element_size value.data_type with
+        | None->error op Unsupported "tensor byte transfer requires a scalar numeric type"
+        | Some element_size when not !in_bounds || !overflow
+             || !maximum>Int64.sub Int64.max_int element_size
+             || Int64.add !maximum element_size>Int64.of_int(Bytes.length bytes)->
+            error op Invalid_argument "tensor slice or byte range is invalid"
+        | Some _->with_slice_handles op~origin~slice_dimensions~byte_strides
+            (fun strides origin dimensions->
+              match (if replace then Metal_raw.tensor_replace_bytes value.raw bytes strides origin dimensions else Metal_raw.tensor_get_bytes value.raw bytes strides origin dimensions) with
+              | Error m->native_error op m | Ok()->Ok()))
+  let get_bytes value bytes ~origin ~slice_dimensions ~byte_strides=transfer false value bytes~origin~slice_dimensions~byte_strides
+  let replace_bytes value bytes ~origin ~slice_dimensions ~byte_strides=transfer true value bytes~origin~slice_dimensions~byte_strides
+  let destroyed=Resource100.Tensor.destroyed
+  let destroy=Resource100.Tensor.destroy
+end
+
 module IO = struct
   module Queue = struct
     type t = io_queue

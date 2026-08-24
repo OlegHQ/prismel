@@ -3214,6 +3214,44 @@ module Resource100 : sig
   end
 end
 
+module Tensor : sig
+  module Extents : sig
+    type t
+    val create : int64 array -> (t,error) result
+    val values : t -> int64 array
+    val rank : t -> int
+    val extent : t -> int -> (int64,error) result
+    val destroyed : t -> bool
+    val destroy : t -> (unit,error) result
+  end
+  module Descriptor : sig
+    type t
+    val create : data_type:Data_type.t -> dimensions:Extents.t -> strides:Extents.t -> (t,error) result
+    val dimensions : t -> Extents.t
+    val strides : t -> Extents.t
+    val data_type : t -> Data_type.t
+    val options : t -> Buffer.storage_mode * Heap.cpu_cache_mode * Heap.hazard_tracking_mode * int64
+    val checked_options : t -> (Buffer.storage_mode * Heap.cpu_cache_mode * Heap.hazard_tracking_mode * int64,error) result
+    val set_options : t -> storage:Buffer.storage_mode -> cpu_cache:Heap.cpu_cache_mode -> hazard_tracking:Heap.hazard_tracking_mode -> usage:int64 -> (unit,error) result
+    val destroyed : t -> bool
+    val destroy : t -> (unit,error) result
+  end
+  type t = Resource100.tensor
+  val of_buffer : Buffer.t -> data_type:Data_type.t -> dimensions:int64 array -> strides:int64 array -> offset:int64 -> (t,error) result
+  val buffer : t -> Buffer.t
+  val dimensions : t -> int64 array
+  val strides : t -> int64 array
+  val data_type : t -> Data_type.t
+  val offset : t -> int64
+  val gpu_resource_id : t -> (int64,error) result
+  val usage : t -> (int64,error) result
+  val checked_snapshot : t -> (unit,error) result
+  val get_bytes : t -> bytes -> origin:int64 array -> slice_dimensions:int64 array -> byte_strides:int64 array -> (unit,error) result
+  val replace_bytes : t -> bytes -> origin:int64 array -> slice_dimensions:int64 array -> byte_strides:int64 array -> (unit,error) result
+  val destroyed : t -> bool
+  val destroy : t -> (unit,error) result
+end
+
 
 module IO : sig
   module Queue : sig
