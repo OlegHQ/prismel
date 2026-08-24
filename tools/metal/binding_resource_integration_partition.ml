@@ -77,6 +77,11 @@ let safe_ownership_tail =
   ; "method:+[MTLTextureDescriptor textureBufferDescriptorWithPixelFormat:width:resourceOptions:usage:]"
   ; "method:+[MTLTextureDescriptor textureCubeDescriptorWithPixelFormat:size:mipmapped:]"
   ; "method:-[MTLResourceStateCommandEncoder moveTextureMappingsFromTexture:sourceSlice:sourceLevel:sourceOrigin:sourceSize:toTexture:destinationSlice:destinationLevel:destinationOrigin:]"
+  ; "method:-[MTLBuffer addDebugMarker:range:]"
+  ; "method:-[MTLCommandBuffer resourceStateCommandEncoderWithDescriptor:]"
+  ; "method:-[MTLTexture getBytes:bytesPerRow:fromRegion:mipmapLevel:]"
+  ; "method:-[MTLTexture newTextureViewWithPixelFormat:]"
+  ; "method:-[MTLTexture replaceRegion:mipmapLevel:withBytes:bytesPerRow:]"
   ]
 
 let handwritten_ownership =
@@ -86,5 +91,5 @@ let handwritten_ownership =
 
 let () =
   validate ();
-  if List.length safe_ownership_tail <> 33 then failwith "resource safe ownership33 drift";
-  if List.length handwritten_ownership <> 23 then failwith "resource handwritten23 drift"
+  if List.length safe_ownership_tail <> 38 then failwith "resource safe ownership38 drift";
+  if List.length handwritten_ownership <> 18 then failwith "resource handwritten18 drift"

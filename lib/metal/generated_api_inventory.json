@@ -3,9 +3,9 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4073,
+    "bound": 4078,
     "scope-excluded": 37,
-    "unreviewed": 1175
+    "unreviewed": 1170
   },
   "classification_source_sha256": "7ff476e493a9cf58288fd9b8dc6f1030a7f8e92df2f93ece481d6e8dc6d4ddc0",
   "deployment_target": "14.0",
@@ -48609,7 +48609,7 @@
           "line": 94
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBuffer.h",
       "id": "method:-[MTLBuffer addDebugMarker:range:]",
       "kind": "method",
@@ -48617,7 +48617,7 @@
       "macos_introduced": "10.12",
       "name": "addDebugMarker:range:",
       "owner": "MTLBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "instance (NSString * _Nonnull __strong, NSRange) -> void"
     },
     {
@@ -50328,7 +50328,7 @@
           "line": 425
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "method:-[MTLCommandBuffer resourceStateCommandEncoderWithDescriptor:]",
       "kind": "method",
@@ -50336,7 +50336,7 @@
       "macos_introduced": "11.0",
       "name": "resourceStateCommandEncoderWithDescriptor:",
       "owner": "MTLCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "instance (MTLResourceStatePassDescriptor * _Nonnull __strong) -> id<MTLResourceStateCommandEncoder> _Nullable"
     },
     {
@@ -79344,7 +79344,7 @@
           "line": 312
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTexture getBytes:bytesPerRow:fromRegion:mipmapLevel:]",
       "kind": "method",
@@ -79352,7 +79352,7 @@
       "macos_introduced": "10.11",
       "name": "getBytes:bytesPerRow:fromRegion:mipmapLevel:",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "instance (void * _Nonnull, NSUInteger, MTLRegion, NSUInteger) -> void"
     },
     {
@@ -79625,7 +79625,7 @@
           "line": 312
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTexture newTextureViewWithPixelFormat:]",
       "kind": "method",
@@ -79633,7 +79633,7 @@
       "macos_introduced": "10.11",
       "name": "newTextureViewWithPixelFormat:",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "instance (MTLPixelFormat) -> id<MTLTexture> _Nullable"
     },
     {
@@ -79834,7 +79834,7 @@
           "line": 312
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "method:-[MTLTexture replaceRegion:mipmapLevel:withBytes:bytesPerRow:]",
       "kind": "method",
@@ -79842,7 +79842,7 @@
       "macos_introduced": "10.11",
       "name": "replaceRegion:mipmapLevel:withBytes:bytesPerRow:",
       "owner": "MTLTexture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "instance (MTLRegion, NSUInteger, const void * _Nonnull, NSUInteger) -> void"
     },
     {
