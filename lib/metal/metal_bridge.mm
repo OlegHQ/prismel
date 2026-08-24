@@ -10692,6 +10692,20 @@ caml_prismel_metal_compute_pipeline_create_descriptor(
 #pragma clang diagnostic pop
       descriptor.binaryArchives = archive_array;
       descriptor.supportIndirectCommandBuffers = Bool_val(Field(raw_descriptor, 6));
+      value raw_buffer_mutabilities = Field(raw_descriptor, 7);
+      if (Wosize_val(raw_buffer_mutabilities) != static_cast<mlsize_t>(31)) {
+        CAMLreturn(result_error_text(
+            "Metal compute pipeline buffer mutability snapshot must have 31 slots"));
+      }
+      for (NSUInteger index = 0; index < 31; ++index) {
+        const intnat code = Long_val(Field(raw_buffer_mutabilities, index));
+        if (code < static_cast<intnat>(MTLMutabilityDefault) ||
+            code > static_cast<intnat>(MTLMutabilityImmutable)) {
+          CAMLreturn(result_error_text(
+              "Metal compute pipeline buffer mutability is invalid"));
+        }
+        descriptor.buffers[index].mutability = static_cast<MTLMutability>(code);
+      }
       if (descriptor.computeFunction != function ||
           ((expected_label == nil) != (descriptor.label == nil)) ||
           (expected_label != nil &&

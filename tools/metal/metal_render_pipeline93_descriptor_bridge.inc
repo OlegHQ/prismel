@@ -131,3 +131,26 @@ extern "C" CAMLprim value caml_prismel_metal_render93_array_snapshot(value descr
     result=result_ok(values);CAMLreturn(result);
   } @catch(NSException *exception) { CAMLreturn(result_error(exception.reason)); }
 }
+
+extern "C" CAMLprim value caml_prismel_metal_render93_buffer_at(
+    value descriptor_raw,value descriptor_kind_raw,value array_kind_raw,
+    value index_raw,value replacement) {
+  CAMLparam5(descriptor_raw,descriptor_kind_raw,array_kind_raw,index_raw,replacement);
+  int64_t index=Int64_val(index_raw);
+  if(index<0||index>=31)CAMLreturn(result_error_text("pipeline buffer index is out of range"));
+  @try {
+    int descriptor_kind=Long_val(descriptor_kind_raw),array_kind=Long_val(array_kind_raw);
+    MTLPipelineBufferDescriptorArray*array=nil;
+    if(descriptor_kind==0){MTLRenderPipelineDescriptor*d=object_of_handle(descriptor_raw,Handle_kind::Render_pipeline_descriptor);if(array_kind==1)array=d.fragmentBuffers;else if(array_kind==2)array=d.vertexBuffers;}
+    else if(descriptor_kind==1){MTLMeshRenderPipelineDescriptor*d=object_of_handle(descriptor_raw,Handle_kind::Mesh_pipeline_descriptor);if(array_kind==1)array=d.fragmentBuffers;else if(array_kind==2)array=d.meshBuffers;else if(array_kind==3)array=d.objectBuffers;}
+    else if(descriptor_kind==2){MTLTileRenderPipelineDescriptor*d=object_of_handle(descriptor_raw,Handle_kind::Tile_pipeline_descriptor);if(array_kind==1)array=d.tileBuffers;}
+    if(array==nil)CAMLreturn(result_error_text("buffer array does not belong to this pipeline descriptor"));
+    MTLPipelineBufferDescriptor*source=Is_none(replacement)?nil:object_of_handle(Field(replacement,0),Handle_kind::Pipeline_buffer_descriptor);
+    [array setObject:source atIndexedSubscript:(NSUInteger)index];
+    MTLPipelineBufferDescriptor*stored=[array objectAtIndexedSubscript:(NSUInteger)index];
+    const MTLMutability expected=source==nil?MTLMutabilityDefault:source.mutability;
+    if(stored==nil||stored==source||stored.mutability!=expected)
+      CAMLreturn(result_error_text("Metal changed pipeline buffer descriptor copy/reset semantics"));
+    CAMLreturn(result_unit());
+  } @catch(NSException*exception){CAMLreturn(result_error(exception.reason));}
+}

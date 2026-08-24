@@ -84,6 +84,7 @@ type compute_pipeline_descriptor =
   ; binary_archives : handle array
   ; fail_on_binary_archive_miss : bool
   ; support_indirect_command_buffers : bool
+  ; buffer_mutabilities : int array
   }
 
 (** Library handle and function name used by Metal 4 static linking. *)
@@ -1259,6 +1260,10 @@ external compute_pipeline_create_descriptor :
   handle -> handle -> compute_pipeline_descriptor ->
   ((handle * pipeline_binding_info array), string) result
   = "caml_prismel_metal_compute_pipeline_create_descriptor"
+
+external render93_buffer_at :
+  handle -> int -> int -> int64 -> handle option -> (unit, string) result =
+  "caml_prismel_metal_render93_buffer_at"
 
 external compute_pipeline_label : handle -> string option =
   "caml_prismel_metal_compute_pipeline_label"
