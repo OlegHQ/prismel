@@ -1869,6 +1869,7 @@ let function_constant_values_safe3 =
 
 let function_descriptor_safe4 = Binding_function_descriptor4_safe_package.ids
 let fence_safe6 = Binding_fence6_safe_package.ids
+let indirect_command_buffer_safe4 = Binding_indirect_command_buffer4_safe_package.ids
 let metal4_argument_table_safe1 =
   Binding_metal4_argument_table_safe_package.callable_ids
 
@@ -2019,6 +2020,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier fence_safe6 then
     Bound,
       "Implemented by the Fence safe6 owned Device constructor and copied nullable-label/device API with live/same-device encoder validation, command-completion retention, and 256-iteration byte-ordering conformance."
+  else if List.mem identifier indirect_command_buffer_safe4 then
+    Bound,
+      "Implemented by the IndirectCommandBuffer safe4 owned indexed-command graph with exact bounds/type validation, opaque GPU resource identity, parent retention, indirect-capable pipelines, and real framebuffer conformance."
   else if List.mem identifier Binding_command_buffer19_safe_closure.promotable_ids then
     Bound,
       "Implemented by the CommandBuffer19 safe descriptor/callback closure with retained log-state and resources, exact-once completion, queue ownership, and error-only EncoderInfo snapshots."

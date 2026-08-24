@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4969,
+    "bound": 4973,
     "scope-excluded": 37,
-    "unreviewed": 279
+    "unreviewed": 275
   },
-  "classification_source_sha256": "8699565752cfab5bb42ed4eb92fdcb988ca312b69f27f871b48e4787a38f84d3",
+  "classification_source_sha256": "de3ab5ed17389343c4409837191ff5d9dcb0f89e35236881355853f5c31a47df",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -61482,7 +61482,7 @@
           "line": 180
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "method:-[MTLIndirectCommandBuffer gpuResourceID]",
       "kind": "method",
@@ -61490,7 +61490,7 @@
       "macos_introduced": "13.0",
       "name": "gpuResourceID",
       "owner": "MTLIndirectCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the IndirectCommandBuffer safe4 owned indexed-command graph with exact bounds/type validation, opaque GPU resource identity, parent retention, indirect-capable pipelines, and real framebuffer conformance.",
       "signature": "instance () -> MTLResourceID"
     },
     {
@@ -61526,7 +61526,7 @@
           "line": 171
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "method:-[MTLIndirectCommandBuffer indirectRenderCommandAtIndex:]",
       "kind": "method",
@@ -61534,7 +61534,7 @@
       "macos_introduced": "10.14",
       "name": "indirectRenderCommandAtIndex:",
       "owner": "MTLIndirectCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the IndirectCommandBuffer safe4 owned indexed-command graph with exact bounds/type validation, opaque GPU resource identity, parent retention, indirect-capable pipelines, and real framebuffer conformance.",
       "signature": "instance (NSUInteger) -> id<MTLIndirectRenderCommand> _Nonnull"
     },
     {
@@ -95249,7 +95249,7 @@
           "line": 180
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "property:MTLIndirectCommandBuffer:gpuResourceID",
       "kind": "property",
@@ -95257,7 +95257,7 @@
       "macos_introduced": "13.0",
       "name": "gpuResourceID",
       "owner": "MTLIndirectCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the IndirectCommandBuffer safe4 owned indexed-command graph with exact bounds/type validation, opaque GPU resource identity, parent retention, indirect-capable pipelines, and real framebuffer conformance.",
       "signature": "MTLResourceID"
     },
     {
@@ -105359,7 +105359,7 @@
           "line": 171
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "protocol:MTLIndirectCommandBuffer",
       "kind": "protocol",
@@ -105367,7 +105367,7 @@
       "macos_introduced": "10.14",
       "name": "MTLIndirectCommandBuffer",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the IndirectCommandBuffer safe4 owned indexed-command graph with exact bounds/type validation, opaque GPU resource identity, parent retention, indirect-capable pipelines, and real framebuffer conformance.",
       "signature": ""
     },
     {
