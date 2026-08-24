@@ -106,6 +106,7 @@ can change the denominator explicitly rather than being hidden.
 | `881a8f8` | 2026-08-24 06:57:17 +02:00 | 4,936 | 5,249 | 94.0370% | 17 | 0.168 | 101.5 | 1.93 |
 | `c91a76c` | 2026-08-24 07:06:29 +02:00 | 4,939 | 5,249 | 94.0941% | 3 | 0.153 | 19.6 | 0.37 |
 | `6e8a215` | 2026-08-24 07:07:45 +02:00 | 4,949 | 5,249 | 94.2846% | 10 | 0.021 | 473.7 | 9.02 |
+| `f9642fa` | 2026-08-24 07:09:15 +02:00 | 4,953 | 5,249 | 94.3608% | 4 | 0.025 | 160.0 | 3.05 |
 
 ## Current measured rate
 
@@ -143,6 +144,12 @@ The safe layer validates scalar byte widths and index/range cardinality before
 one native mutation, copies caller-owned bytes, and proves both the copied
 `7,11` values (`711` GPU output) and reset state (`0` output) through real Metal
 function specialization and compute dispatch.
+
+The `f9642fa` interval moves the exact FunctionDescriptor4 closure: the
+intersection descriptor class plus the binary-archive getter, setter, and
+property companion. Public provenance is backed by copied archive-list
+ownership, same-device/live validation, parent retention, nil-list semantics,
+and real descriptor-based function creation.
 
 Rates describe completed commits, not forecasts. Hardware-only gates and
 complex ownership features will vary materially from pure-value batches.
