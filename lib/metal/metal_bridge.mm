@@ -12335,11 +12335,18 @@ caml_prismel_metal_command4_render_encoder_set_color_attachment_map(
           CAMLreturn(result_error_text(
               "Metal 4 color-attachment map belongs to another command buffer"));
         }
+        if (!Is_block(raw_map)) {
+          /* The API's reset operation is the nullable selector argument.  An
+             explicit identity map is not equivalent on current Metal 4
+             drivers after a nonidentity map has already been installed. */
+          [encoder setColorAttachmentMap:nil];
+          CAMLreturn(result_unit());
+        }
         std::array<NSUInteger, 8> expected_mapping{};
         for (NSUInteger index = 0; index < expected_mapping.size(); ++index) {
           expected_mapping[index] = index;
         }
-        if (Is_block(raw_map)) {
+        {
           value raw_indices = Field(raw_map, 0);
           const mlsize_t count = Wosize_val(raw_indices);
           if (count == 0 || count > 8) {
