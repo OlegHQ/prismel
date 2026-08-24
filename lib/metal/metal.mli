@@ -817,9 +817,24 @@ module Drawable : sig
   val destroy : t -> (unit,error) result
 end
 
+module Rasterization_rate_map : sig
+  type t
+  val create_uniform : Device.t -> width:int64 -> height:int64 -> (t,error) result
+  val device : t -> Device.t
+  val screen_size : t -> int64 * int64
+  val destroyed : t -> bool
+  val destroy : t -> (unit,error) result
+end
+
 module Render_pass_descriptor : sig
   type t
   type visibility_result_type = Disabled | Boolean
+  type sample_attachment =
+    { start_vertex : int64
+    ; end_vertex : int64
+    ; start_fragment : int64
+    ; end_fragment : int64
+    ; has_sample_buffer : bool }
   type advanced =
     { imageblock_sample_length : int64
     ; threadgroup_memory_length : int64
@@ -835,6 +850,10 @@ module Render_pass_descriptor : sig
   val checked_sizes : t -> (int * int * int * int,error) result
   val advanced : t -> (advanced,error) result
   val set_advanced : t -> advanced -> (unit,error) result
+  val sample_attachments : t -> (sample_attachment option array,error) result
+  val rasterization_rate_map : t -> Rasterization_rate_map.t option
+  val set_rasterization_rate_map :
+    t -> Rasterization_rate_map.t option -> (unit,error) result
   val set_attachments :
     t -> color:Texture.t -> ?clear:float * float * float * float ->
     ?depth:Texture.t -> ?stencil:Texture.t -> ?visibility_result:Buffer.t ->
@@ -2751,6 +2770,12 @@ module Command_queue : sig
   val destroy : t -> (unit, error) result
 end
 
+module Parallel_render_encoder : sig
+  type t
+  val destroyed : t -> bool
+  val end_encoding : t -> (unit,error) result
+end
+
 module Command_buffer : sig
   type t
   type present_time = Immediate | At_time of float | After_minimum_duration of float
@@ -2787,6 +2812,8 @@ module Command_buffer : sig
   val create_acceleration_encoder_with_descriptor : t -> (acceleration_encoder,error) result
   val create_blit_encoder_with_descriptor : t -> (blit_encoder,error) result
   val create_compute_encoder_with_descriptor : t -> (compute_encoder,error) result
+  val create_parallel_render_encoder_with_descriptor :
+    t -> (Parallel_render_encoder.t,error) result
   val create_resource_state_encoder_with_descriptor : t -> (resource_state_encoder,error) result
   val present :
     t -> Drawable.t -> ?at:present_time -> unit -> (unit, error) result

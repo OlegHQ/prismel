@@ -100,6 +100,20 @@ let () =
   get(Render_pass_descriptor.set_advanced encoded_pass advanced);
   if get(Render_pass_descriptor.advanced encoded_pass)<>advanced then
     fail "advanced render-pass round trip drift";
+  let sample_attachments=get(Render_pass_descriptor.sample_attachments encoded_pass) in
+  if Array.length sample_attachments<>4
+     || Array.exists
+          (function None->false|Some (attachment:Render_pass_descriptor.sample_attachment)->attachment.has_sample_buffer)
+          sample_attachments
+  then fail "default sample-buffer attachment graph drift";
+  let rate_map=get(Rasterization_rate_map.create_uniform device ~width:16L ~height:8L) in
+  get(Render_pass_descriptor.set_rasterization_rate_map encoded_pass(Some rate_map));
+  (match Render_pass_descriptor.rasterization_rate_map encoded_pass with
+   | Some retained when retained==rate_map->()
+   | _->fail "rasterization-rate map ownership graph drift");
+  expect Parent_has_dependents(Rasterization_rate_map.destroy rate_map);
+  get(Render_pass_descriptor.set_rasterization_rate_map encoded_pass None);
+  get(Rasterization_rate_map.destroy rate_map);
   expect Invalid_argument(Render_pass_descriptor.set_advanced encoded_pass
     {advanced with sample_positions=[|(nan,0.)|]});
   get(Render_pass_descriptor.reset_depth_stencil encoded_pass);
@@ -108,6 +122,8 @@ let () =
     fail "depth/stencil reset graph drift";
   let encoder = get (Render_encoder.create_from_pass commands encoded_pass) in
   get (Render_encoder.end_encoding encoder);
+  let parallel=get(Command_buffer.create_parallel_render_encoder_with_descriptor commands) in
+  get(Parallel_render_encoder.end_encoding parallel);
   get (Render_pass_descriptor.destroy encoded_pass);
   expect Invalid_argument
     (Command_buffer.present commands drawable ~at:(Command_buffer.At_time nan) ());

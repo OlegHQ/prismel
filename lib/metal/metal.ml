@@ -800,7 +800,15 @@ and render_pass_descriptor =
   ; mutable pass_color : texture option
   ; mutable pass_depth : texture option
   ; mutable pass_stencil : texture option
-  ; mutable pass_visibility : buffer option }
+  ; mutable pass_visibility : buffer option
+  ; mutable pass_rate_map : rasterization_rate_map option }
+
+and rasterization_rate_map =
+  { raw : Metal_raw.handle
+  ; lifetime : lifetime
+  ; device : device
+  ; screen_width : int64
+  ; screen_height : int64 }
 
 and external_memory =
   { raw : Metal_raw.handle
@@ -1509,6 +1517,11 @@ type command_buffer =
   ; mutable debug_depth : int
   ; mutable explicitly_enqueued : bool
   }
+
+type parallel_render_encoder =
+  { raw : Metal_raw.handle
+  ; lifetime : lifetime
+  ; command_buffer : command_buffer }
 
 type compute_encoder =
   { raw : Metal_raw.handle
@@ -6112,9 +6125,43 @@ module Drawable = struct
   let destroy (value:t)=destroy_parent "Metal.Drawable.destroy" value.lifetime value.raw(fun()->detach value.layer.lifetime)
 end
 
+module Rasterization_rate_map = struct
+  type t = rasterization_rate_map
+  let create_uniform (device:Device.t) ~width ~height =
+    let operation="Metal.Rasterization_rate_map.create_uniform" in
+    on_main operation(fun()->
+      match ensure_live operation device.lifetime with
+      | Error _ as failure->failure
+      | Ok() when width<=0L||height<=0L->
+          error operation Invalid_argument "screen size must be positive"
+      | Ok()->
+          match Metal_raw.raster_rate_descriptor_create (width,height,0L) [||] None with
+          | Error message->native_error operation message
+          | Ok descriptor_raw->
+              let created=Metal_raw.raster_rate_map_create device.raw descriptor_raw in
+              ignore(Metal_raw.destroy descriptor_raw);
+              match created with
+              | Error message->native_error operation message
+              | Ok raw->
+                  let value:t={raw;lifetime=lifetime();device;screen_width=width;screen_height=height} in
+                  attach device.lifetime;
+                  attach_finalizer value value.lifetime device.lifetime;
+                  Ok value)
+  let device(value:t)=value.device
+  let screen_size(value:t)=value.screen_width,value.screen_height
+  let destroyed(value:t)=is_destroyed value.lifetime
+  let destroy(value:t)=destroy_parent "Metal.Rasterization_rate_map.destroy" value.lifetime value.raw(fun()->detach value.device.lifetime)
+end
+
 module Render_pass_descriptor = struct
   type t = render_pass_descriptor
   type visibility_result_type = Disabled | Boolean
+  type sample_attachment =
+    { start_vertex : int64
+    ; end_vertex : int64
+    ; start_fragment : int64
+    ; end_fragment : int64
+    ; has_sample_buffer : bool }
   type advanced =
     { imageblock_sample_length : int64
     ; threadgroup_memory_length : int64
@@ -6144,7 +6191,7 @@ module Render_pass_descriptor = struct
                    ; pass_height = height; pass_array_length = array_length
                    ; pass_sample_count = sample_count; pass_color = None
                    ; pass_depth = None; pass_stencil = None
-                   ; pass_visibility = None }))
+                   ; pass_visibility = None; pass_rate_map=None }))
 
   let size (value : t) = value.pass_width, value.pass_height
   let array_length (value : t) = value.pass_array_length
@@ -6169,6 +6216,74 @@ module Render_pass_descriptor = struct
     let operation="Metal.Render_pass_descriptor.advanced"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.render_pass_advanced_get value.raw with Error m->native_error operation m|Ok(image,memory,tw,th,visibility,mapping,positions)->match visibility_of_code visibility with Error _ as e->e|Ok visibility_result_type->Ok{imageblock_sample_length=image;threadgroup_memory_length=memory;tile_width=tw;tile_height=th;visibility_result_type;support_color_attachment_mapping=mapping;sample_positions=Array.copy positions})
   let set_advanced(value:t)(next:advanced)=
     let operation="Metal.Render_pass_descriptor.set_advanced"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match validate_advanced operation next with Error _ as e->e|Ok()->let raw=(next.imageblock_sample_length,next.threadgroup_memory_length,next.tile_width,next.tile_height,visibility_code next.visibility_result_type,next.support_color_attachment_mapping,Array.copy next.sample_positions)in match Metal_raw.render_pass_advanced_set value.raw raw with Error m->native_error operation m|Ok()->match Metal_raw.render_pass_advanced_get value.raw with Error m->native_error operation m|Ok actual when actual=raw->Ok()|Ok _->error operation Native_error "advanced render-pass native round trip changed values")
+  let sample_attachments (value:t) =
+    let operation="Metal.Render_pass_descriptor.sample_attachments" in
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          match Metal_raw.render_pass_sample_attachments value.raw with
+          | Error message -> native_error operation message
+          | Ok array_raw ->
+              let close raw = ignore (Metal_raw.destroy raw) in
+              let read descriptor_raw =
+                let result =
+                  Result.bind (Metal_raw.render_sample_start_vertex descriptor_raw)
+                    (fun start_vertex ->
+                    Result.bind (Metal_raw.render_sample_end_vertex descriptor_raw)
+                      (fun end_vertex ->
+                      Result.bind (Metal_raw.render_sample_start_fragment descriptor_raw)
+                        (fun start_fragment ->
+                        Result.bind (Metal_raw.render_sample_end_fragment descriptor_raw)
+                          (fun end_fragment ->
+                          Result.bind (Metal_raw.render_sample_buffer descriptor_raw)
+                            (fun sample_buffer ->
+                            Option.iter close sample_buffer;
+                            Ok { start_vertex; end_vertex; start_fragment;
+                                 end_fragment;
+                                 has_sample_buffer=Option.is_some sample_buffer })))))
+                  |> Result.map_error (fun message->
+                       { operation; kind=Native_error; message })
+                in
+                close descriptor_raw;
+                result
+              in
+              let rec loop index result =
+                if index=4 then Ok result
+                else match Metal_raw.render_sample_array_get array_raw (Int64.of_int index) with
+                  | Error message -> native_error operation message
+                  | Ok None -> loop (index+1) (None::result)
+                  | Ok (Some raw) ->
+                      match read raw with
+                      | Error _ as failure -> failure
+                      | Ok attachment -> loop (index+1) (Some attachment::result)
+              in
+              let result=Result.map (fun items->Array.of_list(List.rev items)) (loop 0 []) in
+              close array_raw;
+              result)
+  let rasterization_rate_map(value:t)=value.pass_rate_map
+  let set_rasterization_rate_map(value:t)(next:Rasterization_rate_map.t option)=
+    let operation="Metal.Render_pass_descriptor.set_rasterization_rate_map" in
+    on_main operation(fun()->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure->failure
+      | Ok()->
+          match next with
+          | Some map when is_destroyed map.lifetime->error operation Destroyed "rasterization-rate map is destroyed"
+          | Some map when option_exists
+              (fun (texture:texture)->not(same_device texture.device map.device))
+              value.pass_color->
+              error operation Device_mismatch
+                "rasterization-rate map belongs to another device"
+          | _->
+              match Metal_raw.render_pass_set_rate_map value.raw
+                      (Option.map(fun (map:rasterization_rate_map)->map.raw)next) with
+              | Error message->native_error operation message
+              | Ok()->
+                  Option.iter(fun (map:rasterization_rate_map)->attach map.lifetime)next;
+                  Option.iter(fun (map:rasterization_rate_map)->detach map.lifetime)value.pass_rate_map;
+                  value.pass_rate_map<-next;
+                  Ok())
   let destroyed (value : t) = is_destroyed value.lifetime
   let detach_option get = Option.iter (fun value -> detach (get value))
 
@@ -6284,7 +6399,8 @@ module Render_pass_descriptor = struct
         detach_option (fun (texture : texture) -> texture.lifetime) value.pass_color;
         detach_option (fun (texture : texture) -> texture.lifetime) value.pass_depth;
         detach_option (fun (texture : texture) -> texture.lifetime) value.pass_stencil;
-        detach_option (fun (buffer : buffer) -> buffer.lifetime) value.pass_visibility)
+        detach_option (fun (buffer : buffer) -> buffer.lifetime) value.pass_visibility;
+        detach_option (fun (map:rasterization_rate_map)->map.lifetime) value.pass_rate_map)
 end
 
 module Fence = struct
@@ -15044,6 +15160,25 @@ module Command_queue = struct
         detach value.device.lifetime)
 end
 
+module Parallel_render_encoder = struct
+  type t = parallel_render_encoder
+  let destroyed (value:t)=is_destroyed value.lifetime
+  let end_encoding (value:t)=
+    let operation="Metal.Parallel_render_encoder.end_encoding" in
+    on_main operation(fun()->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure->failure
+      | Ok()->
+          match Metal_raw.presentation_parallel_encoder_end value.raw with
+          | Error message->native_error operation message
+          | Ok()->
+              if Atomic.compare_and_set value.lifetime.destroyed false true then begin
+                ignore(Metal_raw.destroy value.raw);
+                detach value.command_buffer.lifetime
+              end;
+              Ok())
+end
+
 module Command_buffer = struct
   type t = command_buffer
   type present_time = Immediate | At_time of float | After_minimum_duration of float
@@ -15134,6 +15269,7 @@ module Command_buffer = struct
   let create_blit_encoder_with_descriptor(value:t)=create_descriptor_encoder "Metal.Command_buffer.create_blit_encoder_with_descriptor" 1(fun raw->let encoder:blit_encoder={raw;lifetime=lifetime();command_buffer=value}in attach value.lifetime;attach_finalizer encoder encoder.lifetime value.lifetime;Ok encoder)value
   let create_compute_encoder_with_descriptor(value:t)=create_descriptor_encoder "Metal.Command_buffer.create_compute_encoder_with_descriptor" 2(fun raw->let encoder:compute_encoder={raw;lifetime=lifetime();command_buffer=value;pipeline=None}in attach value.lifetime;attach_finalizer encoder encoder.lifetime value.lifetime;Ok encoder)value
   let create_resource_state_encoder_with_descriptor(value:t)=create_descriptor_encoder "Metal.Command_buffer.create_resource_state_encoder_with_descriptor" 4(fun raw->let encoder:resource_state_encoder={raw;lifetime=lifetime();command_buffer=value}in attach value.lifetime;attach_finalizer encoder encoder.lifetime value.lifetime;Ok encoder)value
+  let create_parallel_render_encoder_with_descriptor(value:t)=create_descriptor_encoder "Metal.Command_buffer.create_parallel_render_encoder_with_descriptor" 3(fun raw->let encoder:parallel_render_encoder={raw;lifetime=lifetime();command_buffer=value}in attach value.lifetime;attach_finalizer encoder encoder.lifetime value.lifetime;Ok encoder)value
 
   let retains_residency_set (value : t) (residency_set : residency_set) =
     List.exists

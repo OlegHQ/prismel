@@ -1402,6 +1402,7 @@ external presentation_compute_encoder : handle -> int -> (handle,string) result 
 external presentation_acceleration_encoder : handle -> (handle,string) result = "caml_prismel_metal_presentation_acceleration_encoder"
 external presentation_command_logs : handle -> (string option,string) result = "caml_prismel_metal_presentation_command_logs"
 external presentation_descriptor_encoder : handle -> int -> (handle,string) result = "caml_prismel_metal_presentation_descriptor_encoder"
+external presentation_parallel_encoder_end : handle -> (unit,string) result = "caml_prismel_metal_presentation_parallel_encoder_end"
 external command_buffer_add_handler : handle -> (unit -> unit) -> bool -> (nativeint,string) result = "caml_prismel_metal_command_buffer_add_handler"
 external command_buffer_cancel_handler : nativeint -> unit = "caml_prismel_metal_command_buffer_cancel_handler"
 external render_pass_descriptor_create : unit -> (handle,string) result = "caml_prismel_metal_render_pass_descriptor_create"
@@ -1411,6 +1412,7 @@ external render_pass_advanced_set : handle -> presentation_render_pass_advanced 
 external render_pass_advanced_get : handle -> (presentation_render_pass_advanced,string) result = "caml_prismel_metal_render_pass_advanced_get"
 external render_pass_reset_depth_stencil : handle -> (unit,string) result = "caml_prismel_metal_render_pass_reset_depth_stencil"
 external render_pass_sample_attachments : handle -> (handle,string) result = "caml_prismel_metal_render_pass_sample_attachments"
+external render_pass_set_rate_map : handle -> handle option -> (unit,string) result = "caml_prismel_metal_render_pass_set_rate_map"
 external render_pass_sizes : handle -> ((int64 * int64 * int64 * int64),string) result = "caml_prismel_metal_render_pass_sizes"
 external render_pass_descriptor_set_attachments :
   handle -> handle -> handle option -> handle option -> handle option ->
