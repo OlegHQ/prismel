@@ -14796,6 +14796,7 @@ extern "C" CAMLprim value caml_prismel_metal_pipeline_render_imageblock_length(v
 #include "../../tools/metal/metal_parallel_render8_callable_bridge.inc"
 #include "../../tools/metal/metal_function_handle8_callable_bridge.inc"
 #include "../../tools/metal/metal_linked_functions9_callable_bridge.inc"
+#include "../../tools/metal/metal_linked_functions9_constructor_bridge.inc"
 #include "../../tools/metal/metal4_command_queue8_callable_bridge.inc"
 #include "../../tools/metal/metal_render_pipeline93_descriptor_bridge.inc"
 #include "../../tools/metal/metal_intersection_table8_callable_bridge.inc"

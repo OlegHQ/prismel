@@ -2629,6 +2629,8 @@ external function_handle_snapshot :
 external linked_functions_array :
   handle -> int -> (handle array option, string) result =
   "caml_prismel_metal_linked_functions_array"
+external linked_functions_create : unit -> (handle,string) result =
+  "caml_prismel_metal_linked_functions_create"
 external linked_functions_set_array :
   handle -> int -> handle array option -> int64 -> (unit, string) result =
   "caml_prismel_metal_linked_functions_set_array"

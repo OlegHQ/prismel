@@ -1751,6 +1751,19 @@ module Function_handle : sig
   val destroy : t -> (unit, error) result
 end
 
+module Linked_functions : sig
+  type t
+  val create : Device.t -> (t,error) result
+  val binary_functions : t -> (Function.t list option,error) result
+  val set_binary_functions : t -> Function.t list option -> (unit,error) result
+  val private_functions : t -> (Function.t list option,error) result
+  val set_private_functions : t -> Function.t list option -> (unit,error) result
+  val groups : t -> ((string * Function.t list) list option,error) result
+  val set_groups : t -> (string * Function.t list) list option -> (unit,error) result
+  val destroyed : t -> bool
+  val destroy : t -> (unit,error) result
+end
+
 module Visible_function_table : sig
   type t
   val create : pipeline:Compute_pipeline.t -> capacity:int -> (t, error) result

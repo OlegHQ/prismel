@@ -1065,6 +1065,11 @@ type function_handle =
   ; lifetime : lifetime
   ; library : library
   }
+type linked_functions =
+  { raw:Metal_raw.handle; lifetime:lifetime; device:device
+  ; mutable binary:function_handle list option
+  ; mutable private_:function_handle list option
+  ; mutable groups:(string * function_handle list) list option }
 
 type library_compile_options =
   { raw : Metal_raw.handle
@@ -9557,6 +9562,26 @@ module Function_handle = struct
   let destroy (value : t) =
     destroy_parent "Metal.Function_handle.destroy" value.lifetime value.raw
       (fun () -> detach value.function_.lifetime; detach value.pipeline.lifetime)
+end
+
+module Linked_functions = struct
+  type t=linked_functions
+  let rec duplicate_lifetimes=function []->false|x::xs->List.exists((==)x)xs||duplicate_lifetimes xs
+  let functions_of_graph value=Option.value~default:[]value.binary@Option.value~default:[]value.private_@(match value.groups with None->[]|Some groups->List.concat_map snd groups)
+  let validate_functions operation device functions =
+    if duplicate_lifetimes(List.map(fun(f:function_handle)->f.lifetime)functions)then error operation Invalid_argument "linked function array contains duplicate identities"else
+    let rec loop=function []->Ok()|(f:function_handle)::rest->Result.bind(ensure_live operation f.lifetime)(fun()->Result.bind(ensure_same_device operation device f.library.device)(fun()->loop rest))in loop functions
+  let create (device:Device.t) = let operation="Metal.Linked_functions.create" in on_main operation(fun()->match ensure_live operation device.lifetime with Error _ as e->e|Ok()->match Metal_raw.linked_functions_create()with Error m->native_error operation m|Ok raw->let value:t={raw;lifetime=lifetime();device;binary=None;private_=None;groups=None}in attach device.lifetime;attach_finalizer~on_finalize:(fun()->List.iter(fun(f:function_handle)->detach f.lifetime)(functions_of_graph value))value value.lifetime device.lifetime;Ok value)
+  let destroyed (value:t)=is_destroyed value.lifetime
+  let snapshot_array operation (value:t) lane retained = on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.linked_functions_array value.raw lane with Error m->native_error operation m|Ok raw->Option.iter(Array.iter(fun h->ignore(Metal_raw.destroy h)))raw;if Option.map Array.length raw<>Option.map List.length retained then native_error operation "linked function array identity drift"else Ok retained)
+  let binary_functions (value:t)=snapshot_array "Metal.Linked_functions.binary_functions" value 0 value.binary
+  let private_functions (value:t)=snapshot_array "Metal.Linked_functions.private_functions" value 1 value.private_
+  let replace_array operation lane (value:t) next set = on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->let functions=Option.value~default:[]next in Result.bind(validate_functions operation value.device functions)(fun()->match Metal_raw.linked_functions_set_array value.raw lane(Option.map(fun xs->Array.of_list(List.map(fun(f:function_handle)->f.raw)xs))next)value.device.registry_id with Error m->native_error operation m|Ok()->List.iter(fun(f:function_handle)->attach f.lifetime)functions;List.iter(fun(f:function_handle)->detach f.lifetime)(Option.value~default:[]set);Ok()))
+  let set_binary_functions (value:t) next=Result.bind(replace_array "Metal.Linked_functions.set_binary_functions" 0 value next value.binary)(fun()->value.binary<-next;Ok())
+  let set_private_functions (value:t) next=Result.bind(replace_array "Metal.Linked_functions.set_private_functions" 1 value next value.private_)(fun()->value.private_<-next;Ok())
+  let groups (value:t)=on_main "Metal.Linked_functions.groups"(fun()->match ensure_live "Metal.Linked_functions.groups" value.lifetime with Error _ as e->e|Ok()->match Metal_raw.linked_functions_groups value.raw with Error m->native_error "Metal.Linked_functions.groups" m|Ok raw->Option.iter(Array.iter(fun(_,hs)->Array.iter(fun h->ignore(Metal_raw.destroy h))hs))raw;Ok value.groups)
+  let set_groups (value:t) next=let operation="Metal.Linked_functions.set_groups"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->let entries=Option.value~default:[]next in let names=List.map fst entries in if List.exists contains_nul names||List.length(List.sort_uniq String.compare names)<>List.length names then error operation Invalid_argument "linked function group names are invalid or duplicated"else let functions=List.concat_map snd entries in Result.bind(validate_functions operation value.device functions)(fun()->let raw=Option.map(fun groups->Array.of_list(List.map(fun(name,fs)->name,Array.of_list(List.map(fun(f:function_handle)->f.raw)fs))groups))next in match Metal_raw.linked_functions_set_groups value.raw raw value.device.registry_id with Error m->native_error operation m|Ok()->List.iter(fun(f:function_handle)->attach f.lifetime)functions;List.iter(fun(f:function_handle)->detach f.lifetime)(match value.groups with None->[]|Some groups->List.concat_map snd groups);value.groups<-next;Ok()))
+  let destroy (value:t)=destroy_parent "Metal.Linked_functions.destroy" value.lifetime value.raw(fun()->List.iter(fun(f:function_handle)->detach f.lifetime)(functions_of_graph value))
 end
 
 module Visible_function_table = struct
