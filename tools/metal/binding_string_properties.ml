@@ -53,6 +53,9 @@ let expected_property_count = 40
 let expected_getter_count = 40
 let expected_setter_count = 22
 let expected_inventory_id_count = 102
+let expected_qualified_property_count = 16
+let expected_qualified_setter_count = 9
+let expected_qualified_inventory_id_count = 41
 
 (** These two declarations are already exposed by the checked MTLLibrary
     reflection snapshot. The native adapter copies the nullable NSString into

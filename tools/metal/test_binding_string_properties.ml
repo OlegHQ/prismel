@@ -41,6 +41,17 @@ let () =
   if List.length setters <> Binding_string_properties.expected_setter_count then
     fail "setter count: expected %d, got %d"
       Binding_string_properties.expected_setter_count (List.length setters);
+  let qualified = Binding_string_codegen.qualified_entries () in
+  let qualified_ids = List.concat_map inventory_ids qualified in
+  let qualified_setters = List.filter_map (fun entry -> entry.setter_sdk_id) qualified in
+  if List.length qualified <> Binding_string_properties.expected_qualified_property_count
+     || List.length qualified_setters <>
+          Binding_string_properties.expected_qualified_setter_count
+     || List.length qualified_ids <>
+          Binding_string_properties.expected_qualified_inventory_id_count
+     || List.length (List.sort_uniq String.compare qualified_ids) <>
+          Binding_string_properties.expected_qualified_inventory_id_count
+  then fail "qualified NSString exact set/cardinality drift";
   let reviewed = Binding_string_properties.reviewed_copied_ids in
   if reviewed <>
        [ "property:MTLFunctionReflection:userAnnotation"
@@ -103,7 +114,9 @@ let () =
             else "unreviewed"
           in
           let actual = string_field "classification" symbol in
-          if not (String.equal actual expected || (String.equal expected "unreviewed" && String.equal actual "bound")) then
+          if not (String.equal actual "unreviewed" || String.equal actual "bound") then
+            fail "invalid NSString inventory classification %s: %s" actual id;
+          if String.equal expected "bound" && not (String.equal actual "bound") then
             fail "expected %s or promoted-bound inventory ID: %s" expected id)
         (inventory_ids entry);
       let property = Hashtbl.find inventory entry.property_sdk_id in

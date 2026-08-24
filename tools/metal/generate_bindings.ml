@@ -354,22 +354,7 @@ let validate_string_entries inventory entries =
        || declaration.header <> entry.header || declaration.signature <> signature
        || declaration.attributes <> entry.attributes
        || (declaration.classification <> "unreviewed"
-           && not (List.mem identifier
-                     Binding_string_properties.reviewed_copied_ids)
-           && not (List.mem identifier
-                     Binding_resource_safe_reachability.promotable_ids)
-               && not (List.mem identifier
-                     Binding_pipeline_state_safe_reachability.promotable_ids)
-               && not (List.mem identifier Binding_shader_safe_reachability.promotable_ids)
-               && not (List.mem identifier Binding_mesh_tile_safe_reachability.promotable_ids)
-               && not (List.mem identifier Binding_command_support_safe_reachability.promotable_ids)
-               && not (List.mem identifier Binding_io_safe_reachability.promotable_ids)
-               && not (List.mem identifier Binding_pipeline_expanded_reachability.promotable_ids)
-               && not (List.mem identifier Binding_metal4_callable_safe_reachability.promotable_ids)
-               && not (List.mem identifier Binding_metal4_second_slice_reachability.promotable_ids)
-               && not (List.mem identifier Binding_metal4_native32_reachability.promotable_ids)
-               && not (List.mem identifier Binding_metal4_final9_reachability.promotable_ids)
-               && not (List.mem identifier Binding_metal4_pending41_reachability.remaining_promotable_ids))
+           && declaration.classification <> "bound")
        ||
        (match declaration.macos_introduced with
         | Some version ->
@@ -390,9 +375,20 @@ let validate_string_entries inventory entries =
         entry.setter_sdk_id)
     entries;
   let identifiers = List.concat_map Binding_string_spec.inventory_ids entries in
-  if List.length entries <> 5 || List.length identifiers <> 13
-     || List.length (List.sort_uniq String.compare identifiers) <> 13
-  then fail "generated Metal NSString qualified cardinality drift"
+  let unique_count = List.length (List.sort_uniq String.compare identifiers) in
+  let setter_count =
+    List.length (List.filter_map (fun entry -> entry.Binding_string_spec.setter_sdk_id) entries)
+  in
+  if List.length entries <>
+       Binding_string_properties.expected_qualified_property_count
+     || setter_count <> Binding_string_properties.expected_qualified_setter_count
+     || List.length identifiers <>
+          Binding_string_properties.expected_qualified_inventory_id_count
+     || unique_count <>
+          Binding_string_properties.expected_qualified_inventory_id_count
+  then
+    fail "generated Metal NSString qualified cardinality drift: %d entries, %d IDs, %d unique"
+      (List.length entries) (List.length identifiers) unique_count
 
 let validate_global_string_entries inventory entries =
   if List.length entries <> Binding_global_string_evidence.bound_count then
