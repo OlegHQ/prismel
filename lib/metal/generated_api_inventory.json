@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4404,
+    "bound": 4428,
     "scope-excluded": 37,
-    "unreviewed": 844
+    "unreviewed": 820
   },
-  "classification_source_sha256": "be558d6004809eb7834fa656503de967427c8d0c185273f92eb6b8c15efbc6a6",
+  "classification_source_sha256": "91a99ce7ede161b2411d2450a5e5adb0a56fcd2135af078d8d55435aef1f97a8",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -59568,7 +59568,7 @@
           "line": 80
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "method:-[MTLFunctionStitchingFunctionNode arguments]",
       "kind": "method",
@@ -59576,7 +59576,7 @@
       "macos_introduced": "12.0",
       "name": "arguments",
       "owner": "MTLFunctionStitchingFunctionNode",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
       "signature": "instance () -> NSArray<id<MTLFunctionStitchingNode>> * _Nonnull"
     },
     {
@@ -59587,7 +59587,7 @@
           "line": 80
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "method:-[MTLFunctionStitchingFunctionNode controlDependencies]",
       "kind": "method",
@@ -59595,7 +59595,7 @@
       "macos_introduced": "12.0",
       "name": "controlDependencies",
       "owner": "MTLFunctionStitchingFunctionNode",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
       "signature": "instance () -> NSArray<MTLFunctionStitchingFunctionNode *> * _Nonnull"
     },
     {
@@ -59609,7 +59609,7 @@
           "line": 80
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "method:-[MTLFunctionStitchingFunctionNode initWithName:arguments:controlDependencies:]",
       "kind": "method",
@@ -59617,7 +59617,7 @@
       "macos_introduced": "12.0",
       "name": "initWithName:arguments:controlDependencies:",
       "owner": "MTLFunctionStitchingFunctionNode",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
       "signature": "instance (NSString * _Nonnull __strong, NSArray<id<MTLFunctionStitchingNode>> * _Nonnull __strong, NSArray<MTLFunctionStitchingFunctionNode *> * _Nonnull __strong) -> instancetype _Nonnull"
     },
     {
@@ -59628,7 +59628,7 @@
           "line": 80
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "method:-[MTLFunctionStitchingFunctionNode name]",
       "kind": "method",
@@ -59636,7 +59636,7 @@
       "macos_introduced": "12.0",
       "name": "name",
       "owner": "MTLFunctionStitchingFunctionNode",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
       "signature": "instance () -> NSString * _Nonnull"
     },
     {
@@ -59647,7 +59647,7 @@
           "line": 80
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "method:-[MTLFunctionStitchingFunctionNode setArguments:]",
       "kind": "method",
@@ -59655,7 +59655,7 @@
       "macos_introduced": "12.0",
       "name": "setArguments:",
       "owner": "MTLFunctionStitchingFunctionNode",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
       "signature": "instance (NSArray<id<MTLFunctionStitchingNode>> * _Nonnull) -> void"
     },
     {
@@ -59666,7 +59666,7 @@
           "line": 80
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "method:-[MTLFunctionStitchingFunctionNode setControlDependencies:]",
       "kind": "method",
@@ -59674,7 +59674,7 @@
       "macos_introduced": "12.0",
       "name": "setControlDependencies:",
       "owner": "MTLFunctionStitchingFunctionNode",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
       "signature": "instance (NSArray<MTLFunctionStitchingFunctionNode *> * _Nonnull) -> void"
     },
     {
@@ -59685,7 +59685,7 @@
           "line": 80
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "method:-[MTLFunctionStitchingFunctionNode setName:]",
       "kind": "method",
@@ -59693,7 +59693,7 @@
       "macos_introduced": "12.0",
       "name": "setName:",
       "owner": "MTLFunctionStitchingFunctionNode",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
       "signature": "instance (NSString * _Nonnull) -> void"
     },
     {
@@ -59704,7 +59704,7 @@
           "line": 95
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "method:-[MTLFunctionStitchingGraph attributes]",
       "kind": "method",
@@ -59712,7 +59712,7 @@
       "macos_introduced": "12.0",
       "name": "attributes",
       "owner": "MTLFunctionStitchingGraph",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
       "signature": "instance () -> NSArray<id<MTLFunctionStitchingAttribute>> * _Nonnull"
     },
     {
@@ -59723,7 +59723,7 @@
           "line": 95
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "method:-[MTLFunctionStitchingGraph functionName]",
       "kind": "method",
@@ -59731,7 +59731,7 @@
       "macos_introduced": "12.0",
       "name": "functionName",
       "owner": "MTLFunctionStitchingGraph",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
       "signature": "instance () -> NSString * _Nonnull"
     },
     {
@@ -59745,7 +59745,7 @@
           "line": 95
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "method:-[MTLFunctionStitchingGraph initWithFunctionName:nodes:outputNode:attributes:]",
       "kind": "method",
@@ -59753,7 +59753,7 @@
       "macos_introduced": "12.0",
       "name": "initWithFunctionName:nodes:outputNode:attributes:",
       "owner": "MTLFunctionStitchingGraph",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
       "signature": "instance (NSString * _Nonnull __strong, NSArray<MTLFunctionStitchingFunctionNode *> * _Nonnull __strong, MTLFunctionStitchingFunctionNode * _Nullable __strong, NSArray<id<MTLFunctionStitchingAttribute>> * _Nonnull __strong) -> instancetype _Nonnull"
     },
     {
@@ -59764,7 +59764,7 @@
           "line": 95
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "method:-[MTLFunctionStitchingGraph nodes]",
       "kind": "method",
@@ -59772,7 +59772,7 @@
       "macos_introduced": "12.0",
       "name": "nodes",
       "owner": "MTLFunctionStitchingGraph",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
       "signature": "instance () -> NSArray<MTLFunctionStitchingFunctionNode *> * _Nonnull"
     },
     {
@@ -59783,7 +59783,7 @@
           "line": 95
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "method:-[MTLFunctionStitchingGraph outputNode]",
       "kind": "method",
@@ -59791,7 +59791,7 @@
       "macos_introduced": "12.0",
       "name": "outputNode",
       "owner": "MTLFunctionStitchingGraph",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
       "signature": "instance () -> MTLFunctionStitchingFunctionNode * _Nullable"
     },
     {
@@ -59802,7 +59802,7 @@
           "line": 95
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "method:-[MTLFunctionStitchingGraph setAttributes:]",
       "kind": "method",
@@ -59810,7 +59810,7 @@
       "macos_introduced": "12.0",
       "name": "setAttributes:",
       "owner": "MTLFunctionStitchingGraph",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
       "signature": "instance (NSArray<id<MTLFunctionStitchingAttribute>> * _Nonnull) -> void"
     },
     {
@@ -59821,7 +59821,7 @@
           "line": 95
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "method:-[MTLFunctionStitchingGraph setFunctionName:]",
       "kind": "method",
@@ -59829,7 +59829,7 @@
       "macos_introduced": "12.0",
       "name": "setFunctionName:",
       "owner": "MTLFunctionStitchingGraph",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
       "signature": "instance (NSString * _Nonnull) -> void"
     },
     {
@@ -59840,7 +59840,7 @@
           "line": 95
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "method:-[MTLFunctionStitchingGraph setNodes:]",
       "kind": "method",
@@ -59848,7 +59848,7 @@
       "macos_introduced": "12.0",
       "name": "setNodes:",
       "owner": "MTLFunctionStitchingGraph",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
       "signature": "instance (NSArray<MTLFunctionStitchingFunctionNode *> * _Nonnull) -> void"
     },
     {
@@ -59859,7 +59859,7 @@
           "line": 95
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "method:-[MTLFunctionStitchingGraph setOutputNode:]",
       "kind": "method",
@@ -59867,7 +59867,7 @@
       "macos_introduced": "12.0",
       "name": "setOutputNode:",
       "owner": "MTLFunctionStitchingGraph",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
       "signature": "instance (MTLFunctionStitchingFunctionNode * _Nullable) -> void"
     },
     {
@@ -59900,7 +59900,7 @@
           "line": 70
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "method:-[MTLFunctionStitchingInputNode initWithArgumentIndex:]",
       "kind": "method",
@@ -59908,7 +59908,7 @@
       "macos_introduced": "12.0",
       "name": "initWithArgumentIndex:",
       "owner": "MTLFunctionStitchingInputNode",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
       "signature": "instance (NSUInteger) -> instancetype _Nonnull"
     },
     {
@@ -94486,7 +94486,7 @@
           "line": 80
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "property:MTLFunctionStitchingFunctionNode:arguments",
       "kind": "property",
@@ -94494,7 +94494,7 @@
       "macos_introduced": "12.0",
       "name": "arguments",
       "owner": "MTLFunctionStitchingFunctionNode",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
       "signature": "NSArray<id<MTLFunctionStitchingNode>> * _Nonnull"
     },
     {
@@ -94505,7 +94505,7 @@
           "line": 80
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "property:MTLFunctionStitchingFunctionNode:controlDependencies",
       "kind": "property",
@@ -94513,7 +94513,7 @@
       "macos_introduced": "12.0",
       "name": "controlDependencies",
       "owner": "MTLFunctionStitchingFunctionNode",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
       "signature": "NSArray<MTLFunctionStitchingFunctionNode *> * _Nonnull"
     },
     {
@@ -94524,7 +94524,7 @@
           "line": 80
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "property:MTLFunctionStitchingFunctionNode:name",
       "kind": "property",
@@ -94532,7 +94532,7 @@
       "macos_introduced": "12.0",
       "name": "name",
       "owner": "MTLFunctionStitchingFunctionNode",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
       "signature": "NSString * _Nonnull"
     },
     {
@@ -94543,7 +94543,7 @@
           "line": 95
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "property:MTLFunctionStitchingGraph:attributes",
       "kind": "property",
@@ -94551,7 +94551,7 @@
       "macos_introduced": "12.0",
       "name": "attributes",
       "owner": "MTLFunctionStitchingGraph",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
       "signature": "NSArray<id<MTLFunctionStitchingAttribute>> * _Nonnull"
     },
     {
@@ -94562,7 +94562,7 @@
           "line": 95
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "property:MTLFunctionStitchingGraph:functionName",
       "kind": "property",
@@ -94570,7 +94570,7 @@
       "macos_introduced": "12.0",
       "name": "functionName",
       "owner": "MTLFunctionStitchingGraph",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
       "signature": "NSString * _Nonnull"
     },
     {
@@ -94581,7 +94581,7 @@
           "line": 95
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "property:MTLFunctionStitchingGraph:nodes",
       "kind": "property",
@@ -94589,7 +94589,7 @@
       "macos_introduced": "12.0",
       "name": "nodes",
       "owner": "MTLFunctionStitchingGraph",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
       "signature": "NSArray<MTLFunctionStitchingFunctionNode *> * _Nonnull"
     },
     {
@@ -94600,7 +94600,7 @@
           "line": 95
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "property:MTLFunctionStitchingGraph:outputNode",
       "kind": "property",
@@ -94608,7 +94608,7 @@
       "macos_introduced": "12.0",
       "name": "outputNode",
       "owner": "MTLFunctionStitchingGraph",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
       "signature": "MTLFunctionStitchingFunctionNode * _Nullable"
     },
     {

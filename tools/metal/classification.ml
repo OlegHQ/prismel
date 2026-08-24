@@ -1662,6 +1662,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier Binding_rasterization_rate_safe_handoff.callable_ids then
     Bound,
       "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance."
+  else if List.mem identifier Binding_function_stitching_handoff.safe24_ids then
+    Bound,
+      "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance."
   else if List.mem identifier Binding_resource_safe_reachability.promotable_ids then
     Bound,
       "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance."
