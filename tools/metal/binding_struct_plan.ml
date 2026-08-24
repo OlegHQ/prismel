@@ -18,6 +18,11 @@ let expected_property_count = 23
 let expected_declaration_count = 72
 let expected_owner_count = 22
 
+let expected_promoted_tensor_struct_ids =
+  [ "method:-[MTLTensor gpuResourceID]"
+  ; "property:MTLTensor:gpuResourceID"
+  ]
+
 let fail format =
   Printf.ksprintf (fun message -> invalid_arg ("Metal struct plan: " ^ message)) format
 
@@ -51,7 +56,9 @@ let relevant declaration =
           || String.equal declaration.classification "bound"
              && List.mem declaration.id Binding_command_support_safe_reachability.promotable_ids
           || String.equal declaration.classification "bound"
-             && List.mem declaration.id Binding_io_safe_reachability.promotable_ids))
+             && List.mem declaration.id Binding_io_safe_reachability.promotable_ids
+          || String.equal declaration.classification "bound"
+             && List.mem declaration.id Binding_tensor_safe_handoff.safe41_ids))
   && (String.equal declaration.kind "method"
       || String.equal declaration.kind "property")
   && Binding_struct_spec.mechanically_safe_signature declaration.signature
@@ -60,6 +67,27 @@ let relevant declaration =
        Binding_struct_spec.objc_types
 
 let select declarations =
+  let promoted_tensor_struct_ids =
+    declarations
+    |> List.filter (fun declaration ->
+         String.equal declaration.classification "bound"
+         && List.mem declaration.id Binding_tensor_safe_handoff.safe41_ids
+         && (String.equal declaration.kind "method"
+             || String.equal declaration.kind "property")
+         && Binding_struct_spec.mechanically_safe_signature declaration.signature
+         && List.exists
+              (Binding_struct_spec.contains_type declaration.signature)
+              Binding_struct_spec.objc_types)
+    |> List.map (fun declaration -> declaration.id)
+    |> List.sort_uniq String.compare
+  in
+  let expected_promoted_tensor_struct_ids =
+    List.sort String.compare expected_promoted_tensor_struct_ids
+  in
+  if promoted_tensor_struct_ids <> expected_promoted_tensor_struct_ids then
+    fail "promoted Tensor struct intersection drift: expected [%s], found [%s]"
+      (String.concat "; " expected_promoted_tensor_struct_ids)
+      (String.concat "; " promoted_tensor_struct_ids);
   let declarations = List.filter relevant declarations in
   let ids = List.map (fun declaration -> declaration.id) declarations in
   let sorted_ids = List.sort String.compare ids in
