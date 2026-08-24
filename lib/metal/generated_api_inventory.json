@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4511,
+    "bound": 4530,
     "scope-excluded": 37,
-    "unreviewed": 737
+    "unreviewed": 718
   },
-  "classification_source_sha256": "e0d3b687d5caa4a99586bc116525c5337bdd623ee92e095f63c78a712da93722",
+  "classification_source_sha256": "a4141a96377ddf92f9fc8c5673bead80b35ee0809db2a900b8b97f6404d2f868",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -49118,7 +49118,7 @@
           "line": 41
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCaptureManager.h",
       "id": "method:-[MTLCaptureDescriptor captureObject]",
       "kind": "method",
@@ -49126,7 +49126,7 @@
       "macos_introduced": "10.15",
       "name": "captureObject",
       "owner": "MTLCaptureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CaptureManager19 safe closure with atomic descriptor replacement, checked URL/destination and source kinds, retained scope/default/source graphs, and serialized capture lifecycle rollback.",
       "signature": "instance () -> id _Nullable"
     },
     {
@@ -49137,7 +49137,7 @@
           "line": 41
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCaptureManager.h",
       "id": "method:-[MTLCaptureDescriptor destination]",
       "kind": "method",
@@ -49145,7 +49145,7 @@
       "macos_introduced": "10.15",
       "name": "destination",
       "owner": "MTLCaptureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CaptureManager19 safe closure with atomic descriptor replacement, checked URL/destination and source kinds, retained scope/default/source graphs, and serialized capture lifecycle rollback.",
       "signature": "instance () -> MTLCaptureDestination"
     },
     {
@@ -49156,7 +49156,7 @@
           "line": 41
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCaptureManager.h",
       "id": "method:-[MTLCaptureDescriptor outputURL]",
       "kind": "method",
@@ -49164,7 +49164,7 @@
       "macos_introduced": "10.15",
       "name": "outputURL",
       "owner": "MTLCaptureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CaptureManager19 safe closure with atomic descriptor replacement, checked URL/destination and source kinds, retained scope/default/source graphs, and serialized capture lifecycle rollback.",
       "signature": "instance () -> NSURL * _Nullable"
     },
     {
@@ -49175,7 +49175,7 @@
           "line": 41
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCaptureManager.h",
       "id": "method:-[MTLCaptureDescriptor setCaptureObject:]",
       "kind": "method",
@@ -49183,7 +49183,7 @@
       "macos_introduced": "10.15",
       "name": "setCaptureObject:",
       "owner": "MTLCaptureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CaptureManager19 safe closure with atomic descriptor replacement, checked URL/destination and source kinds, retained scope/default/source graphs, and serialized capture lifecycle rollback.",
       "signature": "instance (id _Nullable) -> void"
     },
     {
@@ -49213,7 +49213,7 @@
           "line": 41
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCaptureManager.h",
       "id": "method:-[MTLCaptureDescriptor setOutputURL:]",
       "kind": "method",
@@ -49221,7 +49221,7 @@
       "macos_introduced": "10.15",
       "name": "setOutputURL:",
       "owner": "MTLCaptureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CaptureManager19 safe closure with atomic descriptor replacement, checked URL/destination and source kinds, retained scope/default/source graphs, and serialized capture lifecycle rollback.",
       "signature": "instance (NSURL * _Nullable) -> void"
     },
     {
@@ -49232,7 +49232,7 @@
           "line": 67
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCaptureManager.h",
       "id": "method:-[MTLCaptureManager defaultCaptureScope]",
       "kind": "method",
@@ -49240,7 +49240,7 @@
       "macos_introduced": "10.13",
       "name": "defaultCaptureScope",
       "owner": "MTLCaptureManager",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CaptureManager19 safe closure with atomic descriptor replacement, checked URL/destination and source kinds, retained scope/default/source graphs, and serialized capture lifecycle rollback.",
       "signature": "instance () -> id<MTLCaptureScope> _Nullable"
     },
     {
@@ -49299,7 +49299,7 @@
           "line": 67
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCaptureManager.h",
       "id": "method:-[MTLCaptureManager newCaptureScopeWithCommandQueue:]",
       "kind": "method",
@@ -49307,7 +49307,7 @@
       "macos_introduced": "10.13",
       "name": "newCaptureScopeWithCommandQueue:",
       "owner": "MTLCaptureManager",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CaptureManager19 safe closure with atomic descriptor replacement, checked URL/destination and source kinds, retained scope/default/source graphs, and serialized capture lifecycle rollback.",
       "signature": "instance (id<MTLCommandQueue>  _Nonnull __strong) -> id<MTLCaptureScope> _Nonnull"
     },
     {
@@ -49320,7 +49320,7 @@
           "line": 67
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCaptureManager.h",
       "id": "method:-[MTLCaptureManager newCaptureScopeWithDevice:]",
       "kind": "method",
@@ -49328,7 +49328,7 @@
       "macos_introduced": "10.13",
       "name": "newCaptureScopeWithDevice:",
       "owner": "MTLCaptureManager",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CaptureManager19 safe closure with atomic descriptor replacement, checked URL/destination and source kinds, retained scope/default/source graphs, and serialized capture lifecycle rollback.",
       "signature": "instance (id<MTLDevice>  _Nonnull __strong) -> id<MTLCaptureScope> _Nonnull"
     },
     {
@@ -49341,7 +49341,7 @@
           "line": 67
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCaptureManager.h",
       "id": "method:-[MTLCaptureManager newCaptureScopeWithMTL4CommandQueue:]",
       "kind": "method",
@@ -49349,7 +49349,7 @@
       "macos_introduced": "10.13",
       "name": "newCaptureScopeWithMTL4CommandQueue:",
       "owner": "MTLCaptureManager",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CaptureManager19 safe closure with atomic descriptor replacement, checked URL/destination and source kinds, retained scope/default/source graphs, and serialized capture lifecycle rollback.",
       "signature": "instance (id<MTL4CommandQueue>  _Nonnull __strong) -> id<MTLCaptureScope> _Nonnull"
     },
     {
@@ -49360,7 +49360,7 @@
           "line": 67
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCaptureManager.h",
       "id": "method:-[MTLCaptureManager setDefaultCaptureScope:]",
       "kind": "method",
@@ -49368,7 +49368,7 @@
       "macos_introduced": "10.13",
       "name": "setDefaultCaptureScope:",
       "owner": "MTLCaptureManager",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CaptureManager19 safe closure with atomic descriptor replacement, checked URL/destination and source kinds, retained scope/default/source graphs, and serialized capture lifecycle rollback.",
       "signature": "instance (id<MTLCaptureScope> _Nullable) -> void"
     },
     {
@@ -49385,7 +49385,7 @@
           "line": 100
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCaptureManager.h",
       "id": "method:-[MTLCaptureManager startCaptureWithCommandQueue:]",
       "kind": "method",
@@ -49393,7 +49393,7 @@
       "macos_introduced": "10.13",
       "name": "startCaptureWithCommandQueue:",
       "owner": "MTLCaptureManager",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CaptureManager19 safe closure with atomic descriptor replacement, checked URL/destination and source kinds, retained scope/default/source graphs, and serialized capture lifecycle rollback.",
       "signature": "instance (id<MTLCommandQueue>  _Nonnull __strong) -> void"
     },
     {
@@ -49410,7 +49410,7 @@
           "line": 95
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCaptureManager.h",
       "id": "method:-[MTLCaptureManager startCaptureWithDescriptor:error:]",
       "kind": "method",
@@ -49418,7 +49418,7 @@
       "macos_introduced": "10.15",
       "name": "startCaptureWithDescriptor:error:",
       "owner": "MTLCaptureManager",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CaptureManager19 safe closure with atomic descriptor replacement, checked URL/destination and source kinds, retained scope/default/source graphs, and serialized capture lifecycle rollback.",
       "signature": "instance (MTLCaptureDescriptor * _Nonnull __strong, NSError *__autoreleasing  _Nullable * _Nullable) -> BOOL"
     },
     {
@@ -49435,7 +49435,7 @@
           "line": 98
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCaptureManager.h",
       "id": "method:-[MTLCaptureManager startCaptureWithDevice:]",
       "kind": "method",
@@ -49443,7 +49443,7 @@
       "macos_introduced": "10.13",
       "name": "startCaptureWithDevice:",
       "owner": "MTLCaptureManager",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CaptureManager19 safe closure with atomic descriptor replacement, checked URL/destination and source kinds, retained scope/default/source graphs, and serialized capture lifecycle rollback.",
       "signature": "instance (id<MTLDevice>  _Nonnull __strong) -> void"
     },
     {
@@ -49460,7 +49460,7 @@
           "line": 102
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCaptureManager.h",
       "id": "method:-[MTLCaptureManager startCaptureWithScope:]",
       "kind": "method",
@@ -49468,7 +49468,7 @@
       "macos_introduced": "10.13",
       "name": "startCaptureWithScope:",
       "owner": "MTLCaptureManager",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CaptureManager19 safe closure with atomic descriptor replacement, checked URL/destination and source kinds, retained scope/default/source graphs, and serialized capture lifecycle rollback.",
       "signature": "instance (id<MTLCaptureScope>  _Nonnull __strong) -> void"
     },
     {
@@ -49479,7 +49479,7 @@
           "line": 67
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCaptureManager.h",
       "id": "method:-[MTLCaptureManager stopCapture]",
       "kind": "method",
@@ -49487,7 +49487,7 @@
       "macos_introduced": "10.13",
       "name": "stopCapture",
       "owner": "MTLCaptureManager",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CaptureManager19 safe closure with atomic descriptor replacement, checked URL/destination and source kinds, retained scope/default/source graphs, and serialized capture lifecycle rollback.",
       "signature": "instance () -> void"
     },
     {
@@ -90348,7 +90348,7 @@
           "line": 41
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCaptureManager.h",
       "id": "property:MTLCaptureDescriptor:captureObject",
       "kind": "property",
@@ -90356,7 +90356,7 @@
       "macos_introduced": "10.15",
       "name": "captureObject",
       "owner": "MTLCaptureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CaptureManager19 safe closure with atomic descriptor replacement, checked URL/destination and source kinds, retained scope/default/source graphs, and serialized capture lifecycle rollback.",
       "signature": "id _Nullable"
     },
     {
@@ -90367,7 +90367,7 @@
           "line": 41
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCaptureManager.h",
       "id": "property:MTLCaptureDescriptor:destination",
       "kind": "property",
@@ -90375,7 +90375,7 @@
       "macos_introduced": "10.15",
       "name": "destination",
       "owner": "MTLCaptureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CaptureManager19 safe closure with atomic descriptor replacement, checked URL/destination and source kinds, retained scope/default/source graphs, and serialized capture lifecycle rollback.",
       "signature": "MTLCaptureDestination"
     },
     {
@@ -90386,7 +90386,7 @@
           "line": 41
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCaptureManager.h",
       "id": "property:MTLCaptureDescriptor:outputURL",
       "kind": "property",
@@ -90394,7 +90394,7 @@
       "macos_introduced": "10.15",
       "name": "outputURL",
       "owner": "MTLCaptureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CaptureManager19 safe closure with atomic descriptor replacement, checked URL/destination and source kinds, retained scope/default/source graphs, and serialized capture lifecycle rollback.",
       "signature": "NSURL * _Nullable"
     },
     {
@@ -90405,7 +90405,7 @@
           "line": 67
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCaptureManager.h",
       "id": "property:MTLCaptureManager:defaultCaptureScope",
       "kind": "property",
@@ -90413,7 +90413,7 @@
       "macos_introduced": "10.13",
       "name": "defaultCaptureScope",
       "owner": "MTLCaptureManager",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CaptureManager19 safe closure with atomic descriptor replacement, checked URL/destination and source kinds, retained scope/default/source graphs, and serialized capture lifecycle rollback.",
       "signature": "id<MTLCaptureScope> _Nullable"
     },
     {
