@@ -18178,7 +18178,7 @@ module Tensor = struct
     let rank t=Array.length t.values
     let extent t index=let op="Metal.Tensor.Extents.extent"in on_main op(fun()->match ensure_live op t.lifetime with Error _ as e->e|Ok()when index<0||index>=Array.length t.values->error op Invalid_argument "tensor extent index is out of range"|Ok()->match Metal_raw.tensor_extents_extent t.raw(Int64.of_int index)with Error m->native_error op m|Ok x when x=t.values.(index)->Ok x|Ok _->native_error op "native tensor extent disagrees")
     let destroyed t=is_destroyed t.lifetime
-    let destroy t=destroy_leaf "Metal.Tensor.Extents.destroy" t.lifetime t.raw(fun()->())
+    let destroy t=destroy_parent "Metal.Tensor.Extents.destroy" t.lifetime t.raw(fun()->())
   end
   module Descriptor = struct
     type t={raw:Metal_raw.handle;lifetime:lifetime;dimensions:Extents.t;strides:Extents.t;data_type:Data_type.t;mutable storage:Buffer.storage_mode;mutable cpu_cache:resource_cpu_cache_mode;mutable hazard:resource_hazard_tracking_mode;mutable usage:int64}

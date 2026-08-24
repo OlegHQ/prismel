@@ -315,6 +315,11 @@
  (libraries metal))
 
 (test
+ (name test_metal_tensor47_safe)
+ (modules test_metal_tensor47_safe)
+ (libraries metal))
+
+(test
  (name test_metal_pipeline113_safe)
  (modules test_metal_pipeline113_safe)
  (libraries metal))
