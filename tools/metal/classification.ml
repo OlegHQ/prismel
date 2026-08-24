@@ -1987,6 +1987,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier Binding_io_command_queue7_safe_reachability.promotable_ids then
     Bound,
       "Implemented by safe copied IO command properties and a rooted completion callback proven by synchronous real IO completion."
+  else if List.mem identifier Binding_io_command_queue10_safe_reachability.promotable_ids then
+    Bound,
+      "Implemented by byte-exact safe IO byte/texture loads and an owned scratch allocator/buffer graph with checked ranges, device identity, and retention."
   else if List.mem identifier Binding_io_counter_type_reachability.promotable_ids then
     Bound,
       "Represented exactly by a public contained descriptor or retained abstract Metal IO handle with safe ownership."
