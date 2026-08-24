@@ -886,10 +886,21 @@ end
 module Drawable : sig
   type t
   type loss = Timeout_or_unavailable
+  type present_time = Immediate | At_time of float | After_minimum_duration of float
+  module Handler : sig
+    type t
+    val cancel:t->(unit,error)result
+    val destroyed:t->bool
+  end
   val acquire : Metal_layer.t -> ((t,loss) result,error) result
   val layer : t -> Metal_layer.t
   val checked_layer : t -> (Metal_layer.t,error) result
   val texture : t -> (Texture.t,error) result
+  val drawable_id:t->(int64,error)result
+  val presented_time:t->(float,error)result
+  val add_presented_handler:t->
+    (drawable_id:int64->presented_time:float->unit)->(Handler.t,error)result
+  val present : t -> ?at:present_time -> unit -> (unit,error) result
   val destroyed : t -> bool
   val destroy : t -> (unit,error) result
 end

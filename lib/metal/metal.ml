@@ -804,7 +804,14 @@ and metal_layer =
 and metal_drawable =
   { raw : Metal_raw.handle; lifetime : lifetime; layer : metal_layer
   ; mutable drawable_texture : texture option
+  ; drawable_id : int64
   ; mutable presentation_scheduled : bool }
+
+and drawable_handler_state=
+  { drawable_handler_finished:bool Atomic.t; drawable_lifetime:lifetime }
+
+and drawable_handler=
+  { token:nativeint; lifetime:lifetime; state:drawable_handler_state }
 
 and render_pass_descriptor =
   { raw : Metal_raw.handle; lifetime : lifetime
@@ -1422,7 +1429,17 @@ type command4_counter_heap =
   { raw : Metal_raw.handle; lifetime : lifetime; device : device
   ; count : int64; counter_type : int; mutable counter_label : string option }
 
-type command4_log_state = { raw:Metal_raw.handle; lifetime:lifetime; device:device }
+type log_state_level =
+  | Log_undefined | Log_debug | Log_info | Log_notice | Log_error | Log_fault
+type command4_log_descriptor =
+  { raw:Metal_raw.handle; lifetime:lifetime
+  ; mutable log_level:log_state_level; mutable log_buffer_size:int64 }
+type command4_log_state =
+  { raw:Metal_raw.handle; lifetime:lifetime; device:device
+  ; mutable log_handlers:command4_log_handler list }
+and command4_log_handler =
+  { token:nativeint; lifetime:lifetime; state:command4_log_state
+  ; mutable handler_active:bool }
 type command4_buffer_options =
   { raw:Metal_raw.handle; lifetime:lifetime; device:device
   ; mutable log_state:command4_log_state option }
@@ -6385,10 +6402,37 @@ end
 module Drawable = struct
   type t = metal_drawable
   type loss = Timeout_or_unavailable
-  let acquire (layer:metal_layer) = let operation="Metal.Drawable.acquire" in on_main operation(fun()->match ensure_live operation layer.lifetime with Error _ as e->e|Ok()->match Metal_raw.layer_next_drawable layer.raw with Error m->native_error operation m|Ok None->Ok(Error Timeout_or_unavailable)|Ok(Some raw)->let value:t={raw;lifetime=lifetime();layer;drawable_texture=None;presentation_scheduled=false}in attach layer.lifetime;attach_finalizer value value.lifetime layer.lifetime;Ok(Ok value))
+  type present_time=Immediate|At_time of float|After_minimum_duration of float
+  let finish_handler state=if Atomic.compare_and_set state.drawable_handler_finished false true then detach state.drawable_lifetime
+  module Handler = struct
+    type t=drawable_handler
+    let cancel(value:t)=let operation="Metal.Drawable.Handler.cancel"in on_main operation(fun()->if Atomic.compare_and_set value.lifetime.destroyed false true then(Metal_raw.drawable10_handler_cancel value.token;finish_handler value.state);Ok())
+    let destroyed(value:t)=is_destroyed value.lifetime
+  end
+  let acquire (layer:metal_layer) = let operation="Metal.Drawable.acquire" in on_main operation(fun()->match ensure_live operation layer.lifetime with Error _ as e->e|Ok()->match Metal_raw.layer_next_drawable layer.raw with Error m->native_error operation m|Ok None->Ok(Error Timeout_or_unavailable)|Ok(Some raw)->match Metal_raw.drawable10_snapshot raw with Error m->ignore(Metal_raw.destroy raw);native_error operation m|Ok(drawable_id,_)->let value:t={raw;lifetime=lifetime();layer;drawable_texture=None;drawable_id;presentation_scheduled=false}in attach layer.lifetime;attach_finalizer value value.lifetime layer.lifetime;Ok(Ok value))
   let layer (value:t)=value.layer
   let checked_layer(value:t)=let operation="Metal.Drawable.checked_layer"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.drawable_native_layer value.raw with Error m->native_error operation m|Ok raw->let native=Metal_raw.layer_native_snapshot raw and expected=Metal_raw.layer_native_snapshot value.layer.raw in ignore(Metal_raw.destroy raw);match native,expected with Ok left,Ok right when left=right->Ok value.layer|Error m,_->native_error operation m|_,Error m->native_error operation m|_->error operation Native_error "drawable parent layer metadata changed")
   let texture (value:t)=let operation="Metal.Drawable.texture" in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match value.drawable_texture with Some texture->Ok texture|None->match Metal_raw.drawable_texture value.raw with Error m->native_error operation m|Ok(raw,width,height,format_code)->match (match format_code with 80->Some Texture.Bgra8_unorm|81->Some Texture.Bgra8_unorm_srgb|115->Some Texture.Rgba16_float|_->None) with None->ignore(Metal_raw.destroy raw);error operation Unsupported "drawable returned an unsupported pixel format"|Some format->let descriptor=Texture.descriptor_2d ~storage:Buffer.Private ~usage:[Texture.Render_target] ~format ~width ~height()in let texture:texture={raw;lifetime=lifetime();device=value.layer.device;descriptor;parent=Texture_drawable_resource value;heap_offset=None;placement_sparse_page_size=None;allocation=None;state={relinquished=Atomic.make false;purgeable=Atomic.make Nonvolatile};placement_mappings=ref[]}in attach value.lifetime;attach_finalizer texture texture.lifetime value.lifetime;value.drawable_texture<-Some texture;Ok texture)
+  let snapshot operation(value:t)=on_main operation(fun()->Result.bind(ensure_live operation value.lifetime)(fun()->match Metal_raw.drawable10_snapshot value.raw with Error m->native_error operation m|Ok(identifier,presented)when identifier<>value.drawable_id->error operation Native_error "drawable identity changed"|Ok(_,presented)when not(Float.is_finite presented)||presented<0.->error operation Native_error "native presented time is invalid"|Ok pair->Ok pair))
+  let drawable_id(value:t)=Result.map fst(snapshot "Metal.Drawable.drawable_id" value)
+  let presented_time(value:t)=Result.map snd(snapshot "Metal.Drawable.presented_time" value)
+  let add_presented_handler(value:t) callback=
+    let operation="Metal.Drawable.add_presented_handler"in
+    on_main operation(fun()->Result.bind(ensure_live operation value.lifetime)(fun()->
+      let state={drawable_handler_finished=Atomic.make false;drawable_lifetime=value.lifetime}in
+      attach value.lifetime;
+      let invoke(identifier,presented)=finish_handler state;if identifier=value.drawable_id then try callback~drawable_id:identifier~presented_time:presented with _->()in
+      match Metal_raw.drawable10_add_handler value.raw invoke with
+      |Error m->finish_handler state;native_error operation m
+      |Ok token->let handler:drawable_handler={token;lifetime=lifetime();state}in Gc.finalise(fun(handler:drawable_handler)->if Atomic.compare_and_set handler.lifetime.destroyed false true then(Metal_raw.drawable10_handler_cancel handler.token;finish_handler handler.state))handler;Ok handler))
+  let present(value:t)?(at=Immediate)()=
+    let operation="Metal.Drawable.present"in
+    on_main operation(fun()->match ensure_live operation value.lifetime with
+      |Error _ as failure->failure
+      |Ok()when value.presentation_scheduled->error operation Invalid_state "drawable is already scheduled for presentation"
+      |Ok()->let mode,time=match at with Immediate->0,0.|At_time time->1,time|After_minimum_duration duration->2,duration in
+          if not(Float.is_finite time)||time<0. then error operation Invalid_argument "presentation time must be finite and nonnegative"
+          else match Metal_raw.drawable10_present value.raw mode time true with Error m->native_error operation m|Ok()->value.presentation_scheduled<-true;Ok())
   let destroyed (value:t)=is_destroyed value.lifetime
   let destroy (value:t)=destroy_parent "Metal.Drawable.destroy" value.lifetime value.raw(fun()->detach value.layer.lifetime)
 end
@@ -12844,10 +12888,56 @@ module Command4 = struct
 
   module Log_state = struct
     type t=command4_log_state
-    let create (device:Device.t)=let op="Metal.Command4.Log_state.create"in on_main op(fun()->match ensure_live op device.lifetime with Error _ as e->e|Ok()->match Metal_raw.log_state_descriptor_create 0 1024L with Error m->native_error op m|Ok descriptor->match Metal_raw.log_state_create device.raw descriptor with Error m->ignore(Metal_raw.destroy descriptor);native_error op m|Ok(raw,registry)->ignore(Metal_raw.destroy descriptor);if registry<>device.registry_id then begin ignore(Metal_raw.destroy raw);error op Device_mismatch "log state device identity changed" end else let value={raw;lifetime=lifetime();device}in attach device.lifetime;attach_finalizer value value.lifetime device.lifetime;Ok value)
+    type level=log_state_level=
+      | Log_undefined | Log_debug | Log_info | Log_notice | Log_error | Log_fault
+    let level_code=function Log_undefined->0|Log_debug->1|Log_info->2|Log_notice->3|Log_error->4|Log_fault->5
+    let level_of_code operation=function 0->Ok Log_undefined|1->Ok Log_debug|2->Ok Log_info|3->Ok Log_notice|4->Ok Log_error|5->Ok Log_fault|code->native_error operation(Printf.sprintf"unknown Metal log level %d"code)
+    module Descriptor=struct
+      type t=command4_log_descriptor
+      let create ?(level=Log_undefined)?(buffer_size=1024L)()=let operation="Metal.Command4.Log_state.Descriptor.create"in on_main operation(fun()->if buffer_size<1024L then error operation Invalid_argument "log-state buffer size must be at least 1024 bytes"else match Metal_raw.log_state_descriptor_create(level_code level)buffer_size with Error message->native_error operation message|Ok raw->let value={raw;lifetime=lifetime();log_level=level;log_buffer_size=buffer_size}in Gc.finalise(fun(value:t)->if Atomic.compare_and_set value.lifetime.destroyed false true then ignore(Metal_raw.destroy value.raw))value;Ok value)
+      let level(value:t)=value.log_level
+      let buffer_size(value:t)=value.log_buffer_size
+      let set(value:t)~level~buffer_size=let operation="Metal.Command4.Log_state.Descriptor.set"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as failure->failure|Ok()when buffer_size<1024L->error operation Invalid_argument "log-state buffer size must be at least 1024 bytes"|Ok()->match Metal_raw.log_state_descriptor_set value.raw(level_code level)buffer_size with Error message->native_error operation message|Ok()->value.log_level<-level;value.log_buffer_size<-buffer_size;Ok())
+      let snapshot(value:t)=let operation="Metal.Command4.Log_state.Descriptor.snapshot"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as failure->failure|Ok()->match Metal_raw.log_state_descriptor_snapshot value.raw with Error message->native_error operation message|Ok(code,size)->Result.map(fun level->level,size)(level_of_code operation code))
+      let destroyed(value:t)=is_destroyed value.lifetime
+      let destroy(value:t)=destroy_leaf "Metal.Command4.Log_state.Descriptor.destroy" value.lifetime value.raw ignore
+    end
+    let create_with_descriptor (device:Device.t)(descriptor:Descriptor.t)=let operation="Metal.Command4.Log_state.create_with_descriptor"in on_main operation(fun()->match ensure_live operation device.lifetime with Error _ as failure->failure|Ok()->match ensure_live operation descriptor.lifetime with Error _ as failure->failure|Ok()->match Metal_raw.log_state_create device.raw descriptor.raw with Error message->native_error operation message|Ok(raw,registry)when registry<>device.registry_id->ignore(Metal_raw.destroy raw);error operation Device_mismatch "log state device identity changed"|Ok(raw,_)->let value={raw;lifetime=lifetime();device;log_handlers=[]}in attach device.lifetime;attach_finalizer value value.lifetime device.lifetime;Ok value)
+    let create (device:Device.t)=let operation="Metal.Command4.Log_state.create"in match Descriptor.create()with Error _ as failure->failure|Ok descriptor->let result=create_with_descriptor device descriptor in ignore(Descriptor.destroy descriptor);result
+    type message={subsystem:string option;category:string option;level:level;text:string}
+    module Handler=struct
+      type t=command4_log_handler
+      let cancelled(value:t)=not value.handler_active
+      let cancel(value:t)=let operation="Metal.Command4.Log_state.Handler.cancel"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as failure->failure|Ok()when not value.handler_active->error operation Invalid_state "log handler is already cancelled"|Ok()->Metal_raw.log_state_handler_cancel value.token;value.handler_active<-false;detach value.state.lifetime;Ok())
+      let destroyed(value:t)=is_destroyed value.lifetime
+      let destroy (value:t) =
+        on_main "Metal.Command4.Log_state.Handler.destroy" (fun () ->
+          if Atomic.compare_and_set value.lifetime.destroyed false true then begin
+            if value.handler_active then begin
+              Metal_raw.log_state_handler_cancel value.token;
+              value.handler_active <- false;
+              detach value.state.lifetime
+            end;
+            Ok ()
+          end else Ok ())
+    end
+    let add_handler(value:t)callback=let operation="Metal.Command4.Log_state.add_handler"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as failure->failure|Ok()->let deliver(subsystem,category,code,text)=match level_of_code operation code with Error _->()|Ok level->(try callback{subsystem;category;level;text}with _->())in match Metal_raw.log_state_add_handler value.raw deliver with Error message->native_error operation message|Ok token->let handler={token;lifetime=lifetime();state=value;handler_active=true}in attach value.lifetime;value.log_handlers<-handler::value.log_handlers;Gc.finalise(fun(handler:command4_log_handler)->if Atomic.compare_and_set handler.lifetime.destroyed false true&&handler.handler_active then(begin Metal_raw.log_state_handler_cancel handler.token;handler.handler_active<-false;detach handler.state.lifetime end))handler;Ok handler)
     let device(value:t)=value.device
     let destroyed(value:t)=is_destroyed value.lifetime
-    let destroy(value:t)=destroy_parent "Metal.Command4.Log_state.destroy" value.lifetime value.raw(fun()->detach value.device.lifetime)
+    let destroy (value:t) =
+      on_main "Metal.Command4.Log_state.destroy" (fun () ->
+        if Atomic.compare_and_set value.lifetime.destroyed false true then begin
+          List.iter (fun (handler:command4_log_handler) ->
+            if handler.handler_active then begin
+              Metal_raw.log_state_handler_cancel handler.token;
+              handler.handler_active <- false;
+              detach value.lifetime
+            end) value.log_handlers;
+          value.log_handlers <- [];
+          ignore (Metal_raw.destroy value.raw);
+          detach value.device.lifetime;
+          Ok ()
+        end else Ok ())
   end
   module Command_buffer_options = struct
     type t=command4_buffer_options
