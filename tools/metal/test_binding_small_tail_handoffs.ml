@@ -8,12 +8,12 @@ let contains haystack needle =
 let () =
   if Array.length Sys.argv <> 2 then fail "usage: %s INVENTORY" Sys.argv.(0);
   let symbols = match member "symbols" (Yojson.Safe.from_file Sys.argv.(1)) with Some (`List xs) -> xs | _ -> fail "symbols" in
-  let ids header = symbols |> List.filter (fun symbol -> string "classification" symbol = "unreviewed" && string "header" symbol = header) |> List.map (string "id") in
+  let ids header = symbols |> List.filter (fun symbol -> let c=string "classification" symbol in (c="unreviewed"||c="bound") && string "header" symbol = header) |> List.map (string "id") in
   let count needle ids = List.length (List.filter (fun id -> contains id needle) ids) in
-  let queue = ids "Metal/MTL4CommandQueue.h"
-  and types = ids "Metal/MTLTypes.h"
-  and indirect = ids "Metal/MTLIndirectCommandBuffer.h"
-  and fence = ids "Metal/MTLFence.h" in
+  let queue = ids "Metal/MTL4CommandQueue.h" |> List.filter(fun id->contains id "copy"||contains id "Drawable:"||contains id "typedef:MTL4Copy"||id="method:-[MTL4CommandQueue addResidencySet:]"||contains id "waitForEvent:value:")
+  and types = ids "Metal/MTLTypes.h" |> List.filter(fun id->List.mem id ["function:MTLCoordinate2DMake";"function:MTLRegionMake1D";"function:MTLRegionMake2D";"function:MTLRegionMake3D";"typedef:MTLCoordinate2D";"typedef:MTLResourceID"])
+  and indirect = ids "Metal/MTLIndirectCommandBuffer.h" |> List.filter(fun id->contains id "function:"||contains id "gpuResourceID"||contains id "indirectRenderCommandAtIndex:"||contains id "protocol:"||id="typedef:MTLIndirectCommandBufferExecutionRange")
+  and fence = ids "Metal/MTLFence.h" |> List.filter(fun id->contains id "device"||contains id "label"||contains id "setLabel:"||contains id "protocol:") in
   if List.length queue <> 8 || count "copy" queue <> 2 || count "Drawable:" queue <> 2
      || count "typedef:" queue <> 2 || count "ResidencySet:" queue <> 1 || count "Event:value:" queue <> 1
   then fail "MTL4CommandQueue8 closure drift";

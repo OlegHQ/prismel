@@ -8,13 +8,13 @@ let contains haystack needle =
 let () =
   if Array.length Sys.argv <> 2 then fail "usage: %s INVENTORY" Sys.argv.(0);
   let symbols = match member "symbols" (Yojson.Safe.from_file Sys.argv.(1)) with Some (`List xs) -> xs | _ -> fail "symbols" in
-  let ids header = symbols |> List.filter (fun symbol -> string "classification" symbol = "unreviewed" && string "header" symbol = header) |> List.map (string "id") in
+  let ids header = symbols |> List.filter (fun symbol -> let c=string "classification" symbol in (c="unreviewed"||c="bound") && string "header" symbol = header) |> List.map (string "id") in
   let count needle ids = List.length (List.filter (fun id -> contains (String.lowercase_ascii id) needle) ids) in
-  let constants = ids "Metal/MTLFunctionConstantValues.h"
-  and stitching = ids "Metal/MTL4StitchedFunctionDescriptor.h"
-  and render = ids "Metal/MTL4RenderPipeline.h"
-  and counters = ids "Metal/MTL4Counters.h"
-  and encoder = ids "Metal/MTL4CommandEncoder.h" in
+  let constants = ids "Metal/MTLFunctionConstantValues.h"|>List.filter(fun id->List.mem id ["method:-[MTLFunctionConstantValues reset]";"method:-[MTLFunctionConstantValues setConstantValue:type:atIndex:]";"method:-[MTLFunctionConstantValues setConstantValues:type:withRange:]"])
+  and stitching = ids "Metal/MTL4StitchedFunctionDescriptor.h"|>List.filter(fun id->List.mem id ["class:MTL4StitchedFunctionDescriptor";"method:-[MTL4StitchedFunctionDescriptor setFunctionGraph:]";"property:MTL4StitchedFunctionDescriptor:functionGraph"])
+  and render = ids "Metal/MTL4RenderPipeline.h"|>List.filter(fun id->List.mem id ["class:MTL4RenderPipelineBinaryFunctionsDescriptor";"method:-[MTL4RenderPipelineColorAttachmentDescriptor reset]";"method:-[MTL4RenderPipelineColorAttachmentDescriptorArray reset]"])
+  and counters = ids "Metal/MTL4Counters.h"|>List.filter(fun id->List.mem id ["class:MTL4CounterHeapDescriptor";"protocol:MTL4CounterHeap";"typedef:MTL4TimestampHeapEntry"])
+  and encoder = ids "Metal/MTL4CommandEncoder.h"|>List.filter(fun id->List.mem id ["enum-case:MTL4VisibilityOptions:MTL4VisibilityOptionDevice";"enum-case:MTL4VisibilityOptions:MTL4VisibilityOptionResourceAlias";"method:-[MTL4CommandEncoder waitForFence:beforeEncoderStages:]"]) in
   if List.length constants <> 3 || count "setconstant" constants <> 2 || count " reset]" constants <> 1
   then fail "FunctionConstantValues3 drift";
   if List.length stitching <> 3 || count "class:" stitching <> 1 || count "functiongraph" stitching <> 2
