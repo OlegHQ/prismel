@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4936,
+    "bound": 4939,
     "scope-excluded": 37,
-    "unreviewed": 312
+    "unreviewed": 309
   },
-  "classification_source_sha256": "c9998709b7b046d163ee9c0d7e7dfd97ee6b5fcd81763543b7ea8d477a3684d7",
+  "classification_source_sha256": "b2fdbf54f42cb9b7ef5b990f326b3d3c14257fc777ce0053cc75421363f56508",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -59012,7 +59012,7 @@
           "line": 15
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionConstantValues.h",
       "id": "method:-[MTLFunctionConstantValues reset]",
       "kind": "method",
@@ -59020,7 +59020,7 @@
       "macos_introduced": "10.12",
       "name": "reset",
       "owner": "MTLFunctionConstantValues",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the FunctionConstantValues safe3 typed byte API with exact width/range/cardinality validation, immutable caller-byte snapshots, reset semantics, and real GPU specialization conformance.",
       "signature": "instance () -> void"
     },
     {
@@ -59031,7 +59031,7 @@
           "line": 15
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionConstantValues.h",
       "id": "method:-[MTLFunctionConstantValues setConstantValue:type:atIndex:]",
       "kind": "method",
@@ -59039,7 +59039,7 @@
       "macos_introduced": "10.12",
       "name": "setConstantValue:type:atIndex:",
       "owner": "MTLFunctionConstantValues",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the FunctionConstantValues safe3 typed byte API with exact width/range/cardinality validation, immutable caller-byte snapshots, reset semantics, and real GPU specialization conformance.",
       "signature": "instance (const void * _Nonnull, MTLDataType, NSUInteger) -> void"
     },
     {
@@ -59069,7 +59069,7 @@
           "line": 15
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionConstantValues.h",
       "id": "method:-[MTLFunctionConstantValues setConstantValues:type:withRange:]",
       "kind": "method",
@@ -59077,7 +59077,7 @@
       "macos_introduced": "10.12",
       "name": "setConstantValues:type:withRange:",
       "owner": "MTLFunctionConstantValues",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the FunctionConstantValues safe3 typed byte API with exact width/range/cardinality validation, immutable caller-byte snapshots, reset semantics, and real GPU specialization conformance.",
       "signature": "instance (const void * _Nonnull, MTLDataType, NSRange) -> void"
     },
     {

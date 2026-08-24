@@ -1862,6 +1862,11 @@ let log_state_safe7 =
   ; "property:MTLLogStateDescriptor:bufferSize"
   ; "property:MTLLogStateDescriptor:level" ]
 
+let function_constant_values_safe3 =
+  [ "method:-[MTLFunctionConstantValues reset]"
+  ; "method:-[MTLFunctionConstantValues setConstantValue:type:atIndex:]"
+  ; "method:-[MTLFunctionConstantValues setConstantValues:type:withRange:]" ]
+
 let classify ~unavailable ~identifier ~header ~kind ~signature =
   if unavailable then
     Scope_excluded, "Clang marks this declaration unavailable for macOS."
@@ -1970,6 +1975,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier Binding_compute_encoder35_safe_closure.callable_ids then
     Bound,
       "Implemented by the ComputeEncoder safe35 closure with checked indices, ranges, strides, cardinality, capabilities and device identity plus command-completion retention."
+  else if List.mem identifier Binding_compute_pipeline11_safe_closure.promotable_ids then
+    Bound,
+      "Implemented by the ComputePipeline11 safe descriptor/reflection/relink closure with owned library inputs, immutable snapshots, nullable named handles, capability-gated binary relink, and real dispatch/readback."
   else if List.mem identifier linked_functions_safe9 then
     Bound,
       "Implemented by the LinkedFunctions safe9 retained nullable arrays and deterministic named-group graph with atomic same-device validation."
@@ -1991,6 +1999,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier log_state_safe7 then
     Bound,
       "Implemented by the LogState safe7 descriptor and persistent handler API with checked snapshots, rooted multi-shot callbacks, draining cancellation, and owned cleanup."
+  else if List.mem identifier function_constant_values_safe3 then
+    Bound,
+      "Implemented by the FunctionConstantValues safe3 typed byte API with exact width/range/cardinality validation, immutable caller-byte snapshots, reset semantics, and real GPU specialization conformance."
   else if List.mem identifier Binding_command_buffer19_safe_closure.promotable_ids then
     Bound,
       "Implemented by the CommandBuffer19 safe descriptor/callback closure with retained log-state and resources, exact-once completion, queue ownership, and error-only EncoderInfo snapshots."
