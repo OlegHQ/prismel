@@ -903,6 +903,22 @@ using PrismelMetalXpcHandler = void (^)(PrismelMetalXpcRequest *);
 
 @end
 
+API_AVAILABLE(macos(15.0))
+@interface PrismelMetalLogStateState : NSObject
+@property(nonatomic, strong) id<MTLLogState> state;
+@property(nonatomic) uint64_t registryID;
+@end
+@implementation PrismelMetalLogStateState
+@end
+
+API_AVAILABLE(macos(15.0))
+@interface PrismelMetalCommandQueueDescriptorState : NSObject
+@property(nonatomic, strong) MTLCommandQueueDescriptor *descriptor;
+@property(nonatomic, strong, nullable) PrismelMetalLogStateState *logState;
+@end
+@implementation PrismelMetalCommandQueueDescriptorState
+@end
+
 namespace {
 
 enum class Handle_kind : std::uint32_t {
@@ -917,6 +933,8 @@ enum class Handle_kind : std::uint32_t {
   Binary_archive,
   Compute_pipeline,
   Command_queue,
+  Command_queue_descriptor,
+  Log_state,
   Command_buffer,
   Compute_encoder,
   Render_encoder,
@@ -14718,6 +14736,7 @@ extern "C" CAMLprim value caml_prismel_metal_pipeline_render_imageblock_length(v
 #include "../../tools/metal/metal_compute_pass20_callable_bridge.inc"
 #include "../../tools/metal/metal_function_log18_callable_bridge.inc"
 #include "../../tools/metal/metal_command_encoder9_callable_bridge.inc"
+#include "../../tools/metal/metal_command_queue15_callable_bridge.inc"
 #include "../../tools/metal/metal_tensor_ownership_callable_bridge.inc"
 #include "../../tools/metal/metal_resource_remaining16_bridge.inc"
 #pragma clang diagnostic pop

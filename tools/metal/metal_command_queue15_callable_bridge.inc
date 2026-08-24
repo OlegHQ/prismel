@@ -5,25 +5,33 @@
 extern "C" CAMLprim value caml_prismel_metal_command_queue_descriptor_create(
     value max_raw, value log_state) {
   CAMLparam2(max_raw, log_state); CAMLlocal2(handle, result);
+  if (@available(macOS 15.0, *)) {} else
+    CAMLreturn(result_error_text("command queue descriptors require macOS 15"));
   int64_t maximum = Int64_val(max_raw);
   if (maximum <= 0) CAMLreturn(result_error_text("command queue maximum must be positive"));
   @try {
+    PrismelMetalCommandQueueDescriptorState *wrapper = [PrismelMetalCommandQueueDescriptorState new];
     MTLCommandQueueDescriptor *descriptor = [MTLCommandQueueDescriptor new];
     descriptor.maxCommandBufferCount = (NSUInteger)maximum;
-    descriptor.logState = Is_none(log_state) ? nil :
+    PrismelMetalLogStateState *state = Is_none(log_state) ? nil :
       object_of_handle(Field(log_state, 0), Handle_kind::Log_state);
-    handle = allocate_handle(descriptor, Handle_kind::Command_queue_descriptor);
+    descriptor.logState = state.state;
+    wrapper.descriptor = descriptor; wrapper.logState = state;
+    handle = allocate_handle(wrapper, Handle_kind::Command_queue_descriptor);
     result = result_ok(handle); CAMLreturn(result);
   } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
 }
 
 extern "C" CAMLprim value caml_prismel_metal_command_queue_descriptor_snapshot(value raw) {
   CAMLparam1(raw); CAMLlocal5(tuple, maximum, log_state, handle, result); @try {
-    MTLCommandQueueDescriptor *descriptor =
+    if (@available(macOS 15.0, *)) {} else
+      CAMLreturn(result_error_text("command queue descriptors require macOS 15"));
+    PrismelMetalCommandQueueDescriptorState *wrapper =
       object_of_handle(raw, Handle_kind::Command_queue_descriptor);
+    MTLCommandQueueDescriptor *descriptor = wrapper.descriptor;
     maximum = caml_copy_int64(descriptor.maxCommandBufferCount);
-    if (descriptor.logState == nil) log_state = Val_none;
-    else { handle = allocate_handle(descriptor.logState, Handle_kind::Log_state);
+    if (wrapper.logState == nil) log_state = Val_none;
+    else { handle = allocate_handle(wrapper.logState, Handle_kind::Log_state);
       log_state = caml_alloc(1, 0); Store_field(log_state, 0, handle); }
     tuple = caml_alloc_tuple(2); Store_field(tuple, 0, maximum);
     Store_field(tuple, 1, log_state); result = result_ok(tuple); CAMLreturn(result);
@@ -33,13 +41,17 @@ extern "C" CAMLprim value caml_prismel_metal_command_queue_descriptor_snapshot(v
 extern "C" CAMLprim value caml_prismel_metal_command_queue_descriptor_set(
     value raw, value max_raw, value log_state) {
   CAMLparam3(raw, max_raw, log_state); int64_t maximum = Int64_val(max_raw);
+  if (@available(macOS 15.0, *)) {} else
+    CAMLreturn(result_error_text("command queue descriptors require macOS 15"));
   if (maximum <= 0) CAMLreturn(result_error_text("command queue maximum must be positive"));
-  @try { MTLCommandQueueDescriptor *descriptor =
+  @try { PrismelMetalCommandQueueDescriptorState *wrapper =
       object_of_handle(raw, Handle_kind::Command_queue_descriptor);
-    id<MTLLogState> state = Is_none(log_state) ? nil :
+    MTLCommandQueueDescriptor *descriptor = wrapper.descriptor;
+    PrismelMetalLogStateState *state = Is_none(log_state) ? nil :
       object_of_handle(Field(log_state, 0), Handle_kind::Log_state);
     /* Decode and validate every owned edge before mutating the descriptor. */
-    descriptor.maxCommandBufferCount = (NSUInteger)maximum; descriptor.logState = state;
+    descriptor.maxCommandBufferCount = (NSUInteger)maximum; descriptor.logState = state.state;
+    wrapper.logState = state;
     CAMLreturn(result_unit());
   } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
 }
@@ -55,11 +67,16 @@ extern "C" CAMLprim value caml_prismel_metal_command_queue_command_buffer(
     id<MTLCommandBuffer> command = nil;
     if (Long_val(mode_raw) == 0) command = [queue commandBufferWithUnretainedReferences];
     else if (Long_val(mode_raw) == 1) {
+      if (@available(macOS 15.0, *)) {} else
+        CAMLreturn(result_error_text("command-buffer descriptors require macOS 15"));
       MTLCommandBufferDescriptor *descriptor = [MTLCommandBufferDescriptor new];
       descriptor.retainedReferences = Bool_val(retained_raw);
       descriptor.errorOptions = (MTLCommandBufferErrorOption)Int64_val(error_options_raw);
-      descriptor.logState = Is_none(log_state) ? nil :
+      PrismelMetalLogStateState *state = Is_none(log_state) ? nil :
         object_of_handle(Field(log_state, 0), Handle_kind::Log_state);
+      if (state != nil && state.registryID != queue.device.registryID)
+        CAMLreturn(result_error_text("log state belongs to another Metal device"));
+      descriptor.logState = state.state;
       command = [queue commandBufferWithDescriptor:descriptor];
     } else CAMLreturn(result_error_text("unknown command-buffer constructor"));
     if (command == nil) CAMLreturn(result_error_text("Metal returned no command buffer"));

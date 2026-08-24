@@ -2491,3 +2491,24 @@ external command_encoder_set_label :
 external command_encoder_debug :
   handle -> int -> string option -> int64 -> (int64,string) result =
   "caml_prismel_metal_command_encoder_debug"
+
+external command_queue_descriptor_create :
+  int64 -> handle option -> (handle, string) result =
+  "caml_prismel_metal_command_queue_descriptor_create"
+external command_queue_descriptor_snapshot :
+  handle -> ((int64 * handle option), string) result =
+  "caml_prismel_metal_command_queue_descriptor_snapshot"
+external command_queue_descriptor_set :
+  handle -> int64 -> handle option -> (unit, string) result =
+  "caml_prismel_metal_command_queue_descriptor_set"
+external command_queue_command_buffer :
+  handle -> int -> bool -> int64 -> handle option -> (handle, string) result =
+  "caml_prismel_metal_command_queue_command_buffer"
+external command_queue_snapshot :
+  handle -> ((string option * int64), string) result =
+  "caml_prismel_metal_command_queue_snapshot"
+external command_queue_set_label :
+  handle -> string option -> (unit, string) result =
+  "caml_prismel_metal_command_queue_set_label"
+external command_queue_capture_boundary : handle -> (unit, string) result =
+  "caml_prismel_metal_command_queue_capture_boundary"
