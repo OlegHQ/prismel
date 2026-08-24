@@ -1667,6 +1667,7 @@ external resource_heap_acceleration_descriptor_offset : handle -> handle -> int6
 external resource_heap_acceleration_size : handle -> int64 -> (handle,string) result = "caml_prismel_metal_resource_heap_acceleration_size"
 external resource_heap_acceleration_size_offset : handle -> int64 -> int64 -> (handle,string) result = "caml_prismel_metal_resource_heap_acceleration_size_offset"
 external resource_set_owner : handle -> bytes -> (unit,string) result = "caml_prismel_metal_resource_set_owner"
+external resource_set_current_owner : handle -> (unit,string) result = "caml_prismel_metal_resource_set_current_owner"
 external resource_encoder_move_texture : handle -> handle -> int64 -> int64 -> (int64 * int64 * int64) -> (int64 * int64 * int64) -> handle -> int64 -> int64 -> (int64 * int64 * int64) -> (unit,string) result = "caml_prismel_metal_resource_encoder_move_texture_bytecode" "caml_prismel_metal_resource_encoder_move_texture"
 external resource_encoder_update_fence : handle -> handle -> (unit,string) result = "caml_prismel_metal_resource_encoder_update_fence"
 external resource_encoder_indirect_mapping : handle -> handle -> int64 -> handle -> int64 -> (unit,string) result = "caml_prismel_metal_resource_encoder_indirect_mapping"
@@ -1779,6 +1780,7 @@ external io_command_create :
 external io_command_commit_wait : handle -> (int,string) result =
   "caml_prismel_metal_io_command_commit_wait"
 external counter_sets : handle -> (((handle * string) array),string) result = "caml_prismel_metal_counter_sets"
+external counter_descriptor_create : unit -> (handle,string) result = "caml_prismel_metal_counter_descriptor_create"
 external counter_set_counters : handle -> (((handle * string) array),string) result = "caml_prismel_metal_counter_set_counters"
 external counter_descriptor_snapshot : handle -> ((handle * string option * int64 * int64),string) result = "caml_prismel_metal_counter_descriptor_snapshot"
 external counter_descriptor_set : handle -> handle -> string option -> int64 -> int64 -> (unit,string) result = "caml_prismel_metal_counter_descriptor_set"
