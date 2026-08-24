@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4636,
+    "bound": 4648,
     "scope-excluded": 37,
-    "unreviewed": 612
+    "unreviewed": 600
   },
-  "classification_source_sha256": "c3d384a2f642edf92f0ec9ccac2fb5955070ab2470bd955e40ff2692b9923e1a",
+  "classification_source_sha256": "a91dedf82c87bb791cd1b73820256ebafbd9378e766af3d07eeb3ec3383218b5",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -65290,7 +65290,7 @@
           "line": 857
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLMeshRenderPipelineDescriptor binaryArchives]",
       "kind": "method",
@@ -65298,7 +65298,7 @@
       "macos_introduced": "15.0",
       "name": "binaryArchives",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": "instance () -> NSArray<id<MTLBinaryArchive>> * _Nullable"
     },
     {
@@ -65366,7 +65366,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLMeshRenderPipelineDescriptor fragmentFunction]",
       "kind": "method",
@@ -65374,7 +65374,7 @@
       "macos_introduced": "13.0",
       "name": "fragmentFunction",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": "instance () -> id<MTLFunction> _Nullable"
     },
     {
@@ -65581,7 +65581,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLMeshRenderPipelineDescriptor meshFunction]",
       "kind": "method",
@@ -65589,7 +65589,7 @@
       "macos_introduced": "13.0",
       "name": "meshFunction",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": "instance () -> id<MTLFunction> _Nullable"
     },
     {
@@ -65663,7 +65663,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLMeshRenderPipelineDescriptor objectFunction]",
       "kind": "method",
@@ -65671,7 +65671,7 @@
       "macos_introduced": "13.0",
       "name": "objectFunction",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": "instance () -> id<MTLFunction> _Nullable"
     },
     {
@@ -65877,7 +65877,7 @@
           "line": 857
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLMeshRenderPipelineDescriptor setBinaryArchives:]",
       "kind": "method",
@@ -65885,7 +65885,7 @@
       "macos_introduced": "15.0",
       "name": "setBinaryArchives:",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": "instance (NSArray<id<MTLBinaryArchive>> * _Nullable) -> void"
     },
     {
@@ -65915,7 +65915,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLMeshRenderPipelineDescriptor setFragmentFunction:]",
       "kind": "method",
@@ -65923,7 +65923,7 @@
       "macos_introduced": "13.0",
       "name": "setFragmentFunction:",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": "instance (id<MTLFunction> _Nullable) -> void"
     },
     {
@@ -66054,7 +66054,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLMeshRenderPipelineDescriptor setMeshFunction:]",
       "kind": "method",
@@ -66062,7 +66062,7 @@
       "macos_introduced": "13.0",
       "name": "setMeshFunction:",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": "instance (id<MTLFunction> _Nullable) -> void"
     },
     {
@@ -66117,7 +66117,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLMeshRenderPipelineDescriptor setObjectFunction:]",
       "kind": "method",
@@ -66125,7 +66125,7 @@
       "macos_introduced": "13.0",
       "name": "setObjectFunction:",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": "instance (id<MTLFunction> _Nullable) -> void"
     },
     {
@@ -96632,7 +96632,7 @@
           "line": 857
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLMeshRenderPipelineDescriptor:binaryArchives",
       "kind": "property",
@@ -96640,7 +96640,7 @@
       "macos_introduced": "15.0",
       "name": "binaryArchives",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": "NSArray<id<MTLBinaryArchive>> * _Nullable"
     },
     {
@@ -96708,7 +96708,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLMeshRenderPipelineDescriptor:fragmentFunction",
       "kind": "property",
@@ -96716,7 +96716,7 @@
       "macos_introduced": "13.0",
       "name": "fragmentFunction",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": "id<MTLFunction> _Nullable"
     },
     {
@@ -96866,7 +96866,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLMeshRenderPipelineDescriptor:meshFunction",
       "kind": "property",
@@ -96874,7 +96874,7 @@
       "macos_introduced": "13.0",
       "name": "meshFunction",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": "id<MTLFunction> _Nullable"
     },
     {
@@ -96948,7 +96948,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLMeshRenderPipelineDescriptor:objectFunction",
       "kind": "property",
@@ -96956,7 +96956,7 @@
       "macos_introduced": "13.0",
       "name": "objectFunction",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": "id<MTLFunction> _Nullable"
     },
     {
