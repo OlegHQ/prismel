@@ -1,20 +1,20 @@
 module String_set = Set.Make (String)
 
-let explicit_bound_count = 423
+let explicit_bound_count = 522
 let implicit_bound_count = 37
-let bound_count = 460
+let bound_count = 559
 let excluded_count = 25
-let case_count = 324
-let selected_case_count = 349
+let case_count = 421
+let selected_case_count = 446
 
 (* SHA-256 of the sorted, newline-terminated selected in-scope identifiers. *)
 let identifier_sha256 =
-  "8e94e05b9747ca40719359210b23d727c9e446654dbf4a8227c5bbcf00b62bed"
+  "9dba9c127b24c36b0787937f00ef68ac8bcd3aebbe3e5b7be053926953073fb4"
 
 (* SHA-256 of sorted TSV rows:
    id, header, line, signature, macOS introduction, availability sources. *)
 let availability_sha256 =
-  "700c0cd008db68679adfc2eb6ba37d8384f5f6f6ef0e793587deafa6c55eb3d1"
+  "6a5836e6cb1585dd97e107f6c2edbf58e999a9336a425f5ea0292b755ed33d55"
 
 let explicit_family_names = Binding_enum_plan.family_names
 
@@ -98,7 +98,7 @@ let reject_duplicates description values =
     invalid_arg ("duplicate " ^ description)
 
 let () =
-  if List.length explicit_family_names <> 61 then
+  if List.length explicit_family_names <> 62 then
     invalid_arg "bound Metal explicit enum family count drift";
   if List.length implicit_family_names <> 7 then
     invalid_arg "bound Metal implicit enum family count drift";

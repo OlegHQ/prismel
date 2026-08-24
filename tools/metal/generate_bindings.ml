@@ -2457,8 +2457,8 @@ let main () =
     Binding_enum_public_codegen.generate ~explicit:enum_selection
       ~implicit:implicit_enum_selection
   in
-  if public_enums.family_count <> 68 || public_enums.case_count <> 324
-     || List.length public_enums.identifiers <> 460
+  if public_enums.family_count <> 69 || public_enums.case_count <> 421
+     || List.length public_enums.identifiers <> 559
   then
     fail
       "public Metal enum cardinality drift: %d families, %d cases, %d declarations"

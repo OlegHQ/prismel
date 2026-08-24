@@ -1,4 +1,5 @@
 module Enum = Metal_enum_generated
+module Data_type = Metal_enum_generated.Mtl_data_type
 module Value = Metal_value_record_generated
 module Descriptor = Metal_descriptor_generated
 

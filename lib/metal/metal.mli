@@ -5,6 +5,9 @@
     availability metadata. *)
 module Enum : module type of Metal_enum_generated
 
+(** Typed Metal data-type values, including packed formats and resource kinds. *)
+module Data_type : module type of Metal_enum_generated.Mtl_data_type
+
 (** Generated, handle-free, fixed-layout SDK value records. *)
 module Value : module type of Metal_value_record_generated
 

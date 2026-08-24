@@ -1,13 +1,13 @@
 {
-  "binding_plan_source_sha256": "034fb2ff3ac5685f71552d2375cd14945e96cada6d824689592a12f245cfe8d6",
+  "binding_plan_source_sha256": "adc2d3f3cfb77d70744f86a294f57d178c3cc9faa9d4186b1c2dedd9993df369",
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4078,
+    "bound": 4103,
     "scope-excluded": 37,
-    "unreviewed": 1170
+    "unreviewed": 1145
   },
-  "classification_source_sha256": "7ff476e493a9cf58288fd9b8dc6f1030a7f8e92df2f93ece481d6e8dc6d4ddc0",
+  "classification_source_sha256": "e1c46d0f5189546588376fb174acdc8d6b5ab2410aeffbaa7cb29426a9614f1e",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -9358,7 +9358,7 @@
           "line": 234
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "79",
       "header": "Metal/MTLDataType.h",
       "id": "enum-case:MTLDataType:MTLDataTypeComputePipeline",
@@ -9367,7 +9367,7 @@
       "macos_introduced": "11.0",
       "name": "MTLDataTypeComputePipeline",
       "owner": "MTLDataType",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLDataType"
     },
     {
@@ -9384,7 +9384,7 @@
           "line": 234
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "139",
       "header": "Metal/MTLDataType.h",
       "id": "enum-case:MTLDataType:MTLDataTypeDepthStencilState",
@@ -9393,7 +9393,7 @@
       "macos_introduced": "26.0",
       "name": "MTLDataTypeDepthStencilState",
       "owner": "MTLDataType",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLDataType"
     },
     {
@@ -9930,7 +9930,7 @@
           "line": 234
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "80",
       "header": "Metal/MTLDataType.h",
       "id": "enum-case:MTLDataType:MTLDataTypeIndirectCommandBuffer",
@@ -9939,7 +9939,7 @@
       "macos_introduced": "10.14",
       "name": "MTLDataTypeIndirectCommandBuffer",
       "owner": "MTLDataType",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLDataType"
     },
     {
@@ -9956,7 +9956,7 @@
           "line": 234
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "118",
       "header": "Metal/MTLDataType.h",
       "id": "enum-case:MTLDataType:MTLDataTypeInstanceAccelerationStructure",
@@ -9965,7 +9965,7 @@
       "macos_introduced": "11.0",
       "name": "MTLDataTypeInstanceAccelerationStructure",
       "owner": "MTLDataType",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLDataType"
     },
     {
@@ -10062,7 +10062,7 @@
           "line": 234
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "116",
       "header": "Metal/MTLDataType.h",
       "id": "enum-case:MTLDataType:MTLDataTypeIntersectionFunctionTable",
@@ -10071,7 +10071,7 @@
       "macos_introduced": "11.0",
       "name": "MTLDataTypeIntersectionFunctionTable",
       "owner": "MTLDataType",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLDataType"
     },
     {
@@ -10238,7 +10238,7 @@
           "line": 234
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "117",
       "header": "Metal/MTLDataType.h",
       "id": "enum-case:MTLDataType:MTLDataTypePrimitiveAccelerationStructure",
@@ -10247,7 +10247,7 @@
       "macos_introduced": "11.0",
       "name": "MTLDataTypePrimitiveAccelerationStructure",
       "owner": "MTLDataType",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLDataType"
     },
     {
@@ -10264,7 +10264,7 @@
           "line": 234
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "65",
       "header": "Metal/MTLDataType.h",
       "id": "enum-case:MTLDataType:MTLDataTypeR16Snorm",
@@ -10273,7 +10273,7 @@
       "macos_introduced": "11.0",
       "name": "MTLDataTypeR16Snorm",
       "owner": "MTLDataType",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLDataType"
     },
     {
@@ -10290,7 +10290,7 @@
           "line": 234
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "64",
       "header": "Metal/MTLDataType.h",
       "id": "enum-case:MTLDataType:MTLDataTypeR16Unorm",
@@ -10299,7 +10299,7 @@
       "macos_introduced": "11.0",
       "name": "MTLDataTypeR16Unorm",
       "owner": "MTLDataType",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLDataType"
     },
     {
@@ -10316,7 +10316,7 @@
           "line": 234
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "63",
       "header": "Metal/MTLDataType.h",
       "id": "enum-case:MTLDataType:MTLDataTypeR8Snorm",
@@ -10325,7 +10325,7 @@
       "macos_introduced": "11.0",
       "name": "MTLDataTypeR8Snorm",
       "owner": "MTLDataType",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLDataType"
     },
     {
@@ -10342,7 +10342,7 @@
           "line": 234
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "62",
       "header": "Metal/MTLDataType.h",
       "id": "enum-case:MTLDataType:MTLDataTypeR8Unorm",
@@ -10351,7 +10351,7 @@
       "macos_introduced": "11.0",
       "name": "MTLDataTypeR8Unorm",
       "owner": "MTLDataType",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLDataType"
     },
     {
@@ -10368,7 +10368,7 @@
           "line": 234
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "76",
       "header": "Metal/MTLDataType.h",
       "id": "enum-case:MTLDataType:MTLDataTypeRG11B10Float",
@@ -10377,7 +10377,7 @@
       "macos_introduced": "11.0",
       "name": "MTLDataTypeRG11B10Float",
       "owner": "MTLDataType",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLDataType"
     },
     {
@@ -10394,7 +10394,7 @@
           "line": 234
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "69",
       "header": "Metal/MTLDataType.h",
       "id": "enum-case:MTLDataType:MTLDataTypeRG16Snorm",
@@ -10403,7 +10403,7 @@
       "macos_introduced": "11.0",
       "name": "MTLDataTypeRG16Snorm",
       "owner": "MTLDataType",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLDataType"
     },
     {
@@ -10420,7 +10420,7 @@
           "line": 234
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "68",
       "header": "Metal/MTLDataType.h",
       "id": "enum-case:MTLDataType:MTLDataTypeRG16Unorm",
@@ -10429,7 +10429,7 @@
       "macos_introduced": "11.0",
       "name": "MTLDataTypeRG16Unorm",
       "owner": "MTLDataType",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLDataType"
     },
     {
@@ -10446,7 +10446,7 @@
           "line": 234
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "67",
       "header": "Metal/MTLDataType.h",
       "id": "enum-case:MTLDataType:MTLDataTypeRG8Snorm",
@@ -10455,7 +10455,7 @@
       "macos_introduced": "11.0",
       "name": "MTLDataTypeRG8Snorm",
       "owner": "MTLDataType",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLDataType"
     },
     {
@@ -10472,7 +10472,7 @@
           "line": 234
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "66",
       "header": "Metal/MTLDataType.h",
       "id": "enum-case:MTLDataType:MTLDataTypeRG8Unorm",
@@ -10481,7 +10481,7 @@
       "macos_introduced": "11.0",
       "name": "MTLDataTypeRG8Unorm",
       "owner": "MTLDataType",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLDataType"
     },
     {
@@ -10498,7 +10498,7 @@
           "line": 234
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "75",
       "header": "Metal/MTLDataType.h",
       "id": "enum-case:MTLDataType:MTLDataTypeRGB10A2Unorm",
@@ -10507,7 +10507,7 @@
       "macos_introduced": "11.0",
       "name": "MTLDataTypeRGB10A2Unorm",
       "owner": "MTLDataType",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLDataType"
     },
     {
@@ -10524,7 +10524,7 @@
           "line": 234
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "77",
       "header": "Metal/MTLDataType.h",
       "id": "enum-case:MTLDataType:MTLDataTypeRGB9E5Float",
@@ -10533,7 +10533,7 @@
       "macos_introduced": "11.0",
       "name": "MTLDataTypeRGB9E5Float",
       "owner": "MTLDataType",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLDataType"
     },
     {
@@ -10550,7 +10550,7 @@
           "line": 234
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "74",
       "header": "Metal/MTLDataType.h",
       "id": "enum-case:MTLDataType:MTLDataTypeRGBA16Snorm",
@@ -10559,7 +10559,7 @@
       "macos_introduced": "11.0",
       "name": "MTLDataTypeRGBA16Snorm",
       "owner": "MTLDataType",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLDataType"
     },
     {
@@ -10576,7 +10576,7 @@
           "line": 234
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "73",
       "header": "Metal/MTLDataType.h",
       "id": "enum-case:MTLDataType:MTLDataTypeRGBA16Unorm",
@@ -10585,7 +10585,7 @@
       "macos_introduced": "11.0",
       "name": "MTLDataTypeRGBA16Unorm",
       "owner": "MTLDataType",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLDataType"
     },
     {
@@ -10602,7 +10602,7 @@
           "line": 234
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "72",
       "header": "Metal/MTLDataType.h",
       "id": "enum-case:MTLDataType:MTLDataTypeRGBA8Snorm",
@@ -10611,7 +10611,7 @@
       "macos_introduced": "11.0",
       "name": "MTLDataTypeRGBA8Snorm",
       "owner": "MTLDataType",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLDataType"
     },
     {
@@ -10628,7 +10628,7 @@
           "line": 234
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "70",
       "header": "Metal/MTLDataType.h",
       "id": "enum-case:MTLDataType:MTLDataTypeRGBA8Unorm",
@@ -10637,7 +10637,7 @@
       "macos_introduced": "11.0",
       "name": "MTLDataTypeRGBA8Unorm",
       "owner": "MTLDataType",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLDataType"
     },
     {
@@ -10654,7 +10654,7 @@
           "line": 234
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "71",
       "header": "Metal/MTLDataType.h",
       "id": "enum-case:MTLDataType:MTLDataTypeRGBA8Unorm_sRGB",
@@ -10663,7 +10663,7 @@
       "macos_introduced": "11.0",
       "name": "MTLDataTypeRGBA8Unorm_sRGB",
       "owner": "MTLDataType",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLDataType"
     },
     {
@@ -10680,7 +10680,7 @@
           "line": 234
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "78",
       "header": "Metal/MTLDataType.h",
       "id": "enum-case:MTLDataType:MTLDataTypeRenderPipeline",
@@ -10689,7 +10689,7 @@
       "macos_introduced": "10.14",
       "name": "MTLDataTypeRenderPipeline",
       "owner": "MTLDataType",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLDataType"
     },
     {
@@ -10832,7 +10832,7 @@
           "line": 234
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "140",
       "header": "Metal/MTLDataType.h",
       "id": "enum-case:MTLDataType:MTLDataTypeTensor",
@@ -10841,7 +10841,7 @@
       "macos_introduced": "26.0",
       "name": "MTLDataTypeTensor",
       "owner": "MTLDataType",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLDataType"
     },
     {
@@ -11228,7 +11228,7 @@
           "line": 234
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "115",
       "header": "Metal/MTLDataType.h",
       "id": "enum-case:MTLDataType:MTLDataTypeVisibleFunctionTable",
@@ -11237,7 +11237,7 @@
       "macos_introduced": "11.0",
       "name": "MTLDataTypeVisibleFunctionTable",
       "owner": "MTLDataType",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLDataType"
     },
     {

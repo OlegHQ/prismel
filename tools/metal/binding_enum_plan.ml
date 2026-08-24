@@ -34,9 +34,9 @@ let shards =
   ]
 
 let family_names = List.concat_map (fun shard -> shard.family_names) shards
-let expected_family_count = 61
-let expected_case_count = 326
-let expected_declaration_count = 448
+let expected_family_count = 62
+let expected_case_count = 423
+let expected_declaration_count = 547
 
 let source_paths =
   [ "tools/metal/binding_enum_plan.ml"

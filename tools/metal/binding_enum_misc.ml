@@ -24,11 +24,12 @@ let family_names =
   ; "MTL4TimestampGranularity"
   ; "MTLLogStateError"
   ; "MTLFunctionLogType"
+  ; "MTLDataType"
   ]
 
-let expected_family_count = 25
-let expected_case_count = 100
-let expected_declaration_count = 150
+let expected_family_count = 26
+let expected_case_count = 197
+let expected_declaration_count = 249
 
 let rec validate_family_names seen = function
   | [] -> ()
