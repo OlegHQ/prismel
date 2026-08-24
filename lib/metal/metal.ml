@@ -803,6 +803,14 @@ and render_pass_descriptor =
   ; mutable pass_visibility : buffer option
   ; mutable pass_rate_map : rasterization_rate_map option }
 
+and command4_render_pass_descriptor =
+  { raw : Metal_raw.handle; lifetime : lifetime; device : device
+  ; width : int; height : int; sample_count : int
+  ; mutable sample_positions : (float * float) array
+  ; mutable rate_map : rasterization_rate_map option
+  ; mutable depth_texture : texture option
+  ; mutable stencil_texture : texture option }
+
 and rasterization_rate_map =
   { raw : Metal_raw.handle
   ; lifetime : lifetime
@@ -14691,6 +14699,43 @@ module Command4 = struct
                    detach value.command_buffer.lifetime
                  end;
                  Ok ()))
+  end
+
+  module Render_pass_descriptor = struct
+    type t = command4_render_pass_descriptor
+    let create (device:Device.t) ~width ~height ?(sample_count=1) () =
+      let op="Metal.Command4.Render_pass_descriptor.create" in on_main op(fun()->
+      match ensure_live op device.lifetime with Error _ as e->e
+      |Ok()when width<=0||height<=0||not(List.mem sample_count[1;2;4;8])->error op Invalid_argument "invalid render-pass dimensions or sample count"
+      |Ok()->match Metal_raw.metal4_render_pass_descriptor()with Error m->native_error op m|Ok raw->
+        let value={raw;lifetime=lifetime();device;width;height;sample_count;sample_positions=[||];rate_map=None;depth_texture=None;stencil_texture=None}in
+        attach device.lifetime;attach_finalizer value value.lifetime device.lifetime;Ok value)
+    let sample_positions (value:t)=Array.copy value.sample_positions
+    let set_sample_positions (value:t) positions=let op="Metal.Command4.Render_pass_descriptor.set_sample_positions"in on_main op(fun()->
+      match ensure_live op value.lifetime with Error _ as e->e
+      |Ok()when Array.length positions<>0&&Array.length positions<>value.sample_count->error op Invalid_argument "sample positions must be empty or match the pass sample count"
+      |Ok()when Array.exists(fun(x,y)->not(Float.is_finite x&&Float.is_finite y)||x<0.||x>1.||y<0.||y>1.)positions->error op Invalid_argument "sample positions must be finite normalized coordinates"
+      |Ok()->match Metal_raw.metal4_render_pass_sample_positions value.raw(Array.copy positions)with Error m->native_error op m|Ok actual->value.sample_positions<-Array.copy actual;Ok())
+    let rasterization_rate_map (value:t)=value.rate_map
+    let set_rasterization_rate_map (value:t) (next:Rasterization_rate_map.t option)=let op="Metal.Command4.Render_pass_descriptor.set_rasterization_rate_map"in on_main op(fun()->match ensure_live op value.lifetime with Error _ as e->e|Ok()->match next with
+      |Some map when is_destroyed map.lifetime->error op Destroyed "rasterization-rate map is destroyed"
+      |Some map when not(same_device value.device map.device)->error op Device_mismatch "rasterization-rate map belongs to another device"
+      |Some map when map.screen_width<>Int64.of_int value.width||map.screen_height<>Int64.of_int value.height->error op Invalid_argument "rasterization-rate map screen size differs from the pass"
+      |_->match Metal_raw.metal4_render_pass_rate_map value.raw(Option.map(fun(map:rasterization_rate_map)->map.raw)next)with Error m->native_error op m|Ok()->Option.iter(fun(map:rasterization_rate_map)->attach map.lifetime)next;Option.iter(fun(map:rasterization_rate_map)->detach map.lifetime)value.rate_map;value.rate_map<-next;Ok())
+    let compatible (value:t) (texture:Texture.t)=texture.descriptor.kind=Texture_2d&&texture.descriptor.width=value.width&&texture.descriptor.height=value.height&&texture.descriptor.sample_count=value.sample_count&&List.mem Render_target texture.descriptor.usage
+    let set_depth_attachment (value:t) (next:Render_encoder.depth_attachment option)=let op="Metal.Command4.Render_pass_descriptor.set_depth_attachment"in on_main op(fun()->match ensure_live op value.lifetime with Error _ as e->e|Ok()->match next with
+      |Some a when is_destroyed a.texture.lifetime->error op Destroyed "depth attachment is destroyed"
+      |Some a when not(same_device value.device a.texture.device)->error op Device_mismatch "depth attachment belongs to another device"
+      |Some a when not(compatible value a.texture&&Render_encoder.depth_capable_format a.texture.descriptor.format)->error op Invalid_argument "incompatible depth attachment"
+      |Some a when not(Float.is_finite a.clear_depth)||a.clear_depth<0.||a.clear_depth>1.->error op Invalid_argument "clear depth is outside [0,1]"
+      |_->let raw=Option.map(fun(a:Render_encoder.depth_attachment)->a.texture.raw)next and values=match next with None->0,0,1.|Some(a:Render_encoder.depth_attachment)->Render_encoder.depth_load_code a.load_action,Render_encoder.store_code a.store_action,a.clear_depth in match Metal_raw.metal4_render_pass_depth_attachment value.raw raw values with Error m->native_error op m|Ok()->Option.iter(fun(a:Render_encoder.depth_attachment)->attach a.texture.lifetime)next;Option.iter(fun(t:texture)->detach t.lifetime)value.depth_texture;value.depth_texture<-Option.map(fun(a:Render_encoder.depth_attachment)->a.texture)next;Ok())
+    let set_stencil_attachment (value:t) (next:Render_encoder.stencil_attachment option)=let op="Metal.Command4.Render_pass_descriptor.set_stencil_attachment"in on_main op(fun()->match ensure_live op value.lifetime with Error _ as e->e|Ok()->match next with
+      |Some a when is_destroyed a.texture.lifetime->error op Destroyed "stencil attachment is destroyed"
+      |Some a when not(same_device value.device a.texture.device)->error op Device_mismatch "stencil attachment belongs to another device"
+      |Some a when not(compatible value a.texture&&Render_encoder.stencil_capable_format a.texture.descriptor.format)->error op Invalid_argument "incompatible stencil attachment"
+      |_->let raw=Option.map(fun(a:Render_encoder.stencil_attachment)->a.texture.raw)next and values=match next with None->0,0,Int32.zero|Some(a:Render_encoder.stencil_attachment)->Render_encoder.stencil_load_code a.load_action,Render_encoder.store_code a.store_action,a.clear_stencil in match Metal_raw.metal4_render_pass_stencil_attachment value.raw raw values with Error m->native_error op m|Ok()->Option.iter(fun(a:Render_encoder.stencil_attachment)->attach a.texture.lifetime)next;Option.iter(fun(t:texture)->detach t.lifetime)value.stencil_texture;value.stencil_texture<-Option.map(fun(a:Render_encoder.stencil_attachment)->a.texture)next;Ok())
+    let destroyed (value:t)=is_destroyed value.lifetime
+    let destroy (value:t)=destroy_parent "Metal.Command4.Render_pass_descriptor.destroy" value.lifetime value.raw(fun()->Option.iter(fun(m:rasterization_rate_map)->detach m.lifetime)value.rate_map;Option.iter(fun(t:texture)->detach t.lifetime)value.depth_texture;Option.iter(fun(t:texture)->detach t.lifetime)value.stencil_texture;detach value.device.lifetime)
   end
 
   module Compute_encoder = struct

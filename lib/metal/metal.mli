@@ -2718,6 +2718,19 @@ module Command4 : sig
     val destroyed : t -> bool
   end
 
+  module Render_pass_descriptor : sig
+    type t
+    val create : Device.t -> width:int -> height:int -> ?sample_count:int -> unit -> (t,error) result
+    val sample_positions : t -> (float * float) array
+    val set_sample_positions : t -> (float * float) array -> (unit,error) result
+    val rasterization_rate_map : t -> Rasterization_rate_map.t option
+    val set_rasterization_rate_map : t -> Rasterization_rate_map.t option -> (unit,error) result
+    val set_depth_attachment : t -> Render_encoder.depth_attachment option -> (unit,error) result
+    val set_stencil_attachment : t -> Render_encoder.stencil_attachment option -> (unit,error) result
+    val destroyed : t -> bool
+    val destroy : t -> (unit,error) result
+  end
+
   module Compute_encoder : sig
     type t
     type stage = Vertex | Fragment | Tile | Object | Mesh | Compute | Blit
