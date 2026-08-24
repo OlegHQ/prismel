@@ -1319,3 +1319,34 @@
  (action
   (bash
    "status=0; ./test_metal_pipeline113_ownership_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_render_pipeline93_function_tables_native.exe)
+ (deps ../../tools/metal/test_render_pipeline93_function_tables_native.mm)
+ (action (run clang++ -std=c++17 -fobjc-arc -fblocks -Wall -Wextra -Werror
+  -framework Foundation -framework Metal %{deps} -o %{targets})))
+(rule
+ (alias runtest)
+ (deps test_render_pipeline93_function_tables_native.exe)
+ (action (run ./test_render_pipeline93_function_tables_native.exe)))
+
+(rule
+ (targets test_render_pipeline93_state_factories_native.exe)
+ (deps ../../tools/metal/test_render_pipeline93_state_factories_native.mm)
+ (action (run clang++ -std=c++17 -fobjc-arc -fblocks -Wall -Wextra -Werror
+  -framework Foundation -framework Metal %{deps} -o %{targets})))
+(rule
+ (alias runtest)
+ (deps test_render_pipeline93_state_factories_native.exe)
+ (action (run ./test_render_pipeline93_state_factories_native.exe)))
+
+(rule
+ (targets test_render_pipeline93_vertex_reflection_native.exe)
+ (deps ../../tools/metal/test_render_pipeline93_vertex_reflection_native.mm)
+ (action (run clang++ -std=c++17 -fobjc-arc -fblocks -Wall -Wextra -Werror
+  -Wno-deprecated-declarations -framework Foundation -framework Metal %{deps}
+  -o %{targets})))
+(rule
+ (alias runtest)
+ (deps test_render_pipeline93_vertex_reflection_native.exe)
+ (action (run ./test_render_pipeline93_vertex_reflection_native.exe)))
