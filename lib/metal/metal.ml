@@ -20501,9 +20501,9 @@ module Metal4_render_pipeline_reset = struct
   let attachment () =
     create "Metal.Metal4_render_pipeline_reset.attachment" 0
       (fun raw ->
-        let value = { raw; lifetime = lifetime (); snapshot = copy default } in
+        let value : attachment = { raw; lifetime = lifetime (); snapshot = copy default } in
         Gc.finalise
-          (fun value ->
+          (fun (value:attachment) ->
             if Atomic.compare_and_set value.lifetime.destroyed false true then
               ignore (Metal_raw.destroy value.raw))
           value;
@@ -20512,11 +20512,11 @@ module Metal4_render_pipeline_reset = struct
   let attachment_array () =
     create "Metal.Metal4_render_pipeline_reset.attachment_array" 1
       (fun raw ->
-        let value =
+        let value : attachment_array =
           { raw; lifetime = lifetime (); entries = Array.init 8 (fun _ -> copy default) }
         in
         Gc.finalise
-          (fun value ->
+          (fun (value:attachment_array) ->
             if Atomic.compare_and_set value.lifetime.destroyed false true then
               ignore (Metal_raw.destroy value.raw))
           value;
@@ -20572,12 +20572,12 @@ module Metal4_render_pipeline_reset = struct
                 array.entries;
               Ok ())
 
-  let attachment_destroyed value = is_destroyed value.lifetime
-  let array_destroyed value = is_destroyed value.lifetime
-  let destroy_attachment value =
+  let attachment_destroyed (value : attachment) = is_destroyed value.lifetime
+  let array_destroyed (value : attachment_array) = is_destroyed value.lifetime
+  let destroy_attachment (value : attachment) =
     destroy_leaf "Metal.Metal4_render_pipeline_reset.destroy_attachment"
       value.lifetime value.raw ignore
-  let destroy_array value =
+  let destroy_array (value : attachment_array) =
     destroy_leaf "Metal.Metal4_render_pipeline_reset.destroy_array"
       value.lifetime value.raw ignore
 end

@@ -984,6 +984,11 @@
  (libraries metal))
 
 (test
+ (name test_metal_pipeline4_buffer_descriptor_safe)
+ (modules test_metal_pipeline4_buffer_descriptor_safe)
+ (libraries metal))
+
+(test
  (name test_metal_binary_archive5_safe)
  (modules test_metal_binary_archive5_safe)
  (libraries metal unix))
@@ -1006,6 +1011,11 @@
 (test
  (name test_metal_argument8_safe)
  (modules test_metal_argument8_safe)
+ (libraries metal))
+
+(test
+ (name test_metal_library8_safe)
+ (modules test_metal_library8_safe)
  (libraries metal))
 
 (rule
