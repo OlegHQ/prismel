@@ -1402,6 +1402,7 @@ external presentation_compute_encoder : handle -> int -> (handle,string) result 
 external presentation_acceleration_encoder : handle -> (handle,string) result = "caml_prismel_metal_presentation_acceleration_encoder"
 external presentation_command_logs : handle -> (string option,string) result = "caml_prismel_metal_presentation_command_logs"
 external presentation_descriptor_encoder : handle -> int -> (handle,string) result = "caml_prismel_metal_presentation_descriptor_encoder"
+external presentation_parallel_encoder_from_pass : handle -> handle -> (handle,string) result = "caml_prismel_metal_presentation_parallel_encoder_from_pass"
 external presentation_parallel_encoder_end : handle -> (unit,string) result = "caml_prismel_metal_presentation_parallel_encoder_end"
 external command_buffer_add_handler : handle -> (unit -> unit) -> bool -> (nativeint,string) result = "caml_prismel_metal_command_buffer_add_handler"
 external command_buffer_cancel_handler : nativeint -> unit = "caml_prismel_metal_command_buffer_cancel_handler"

@@ -139,7 +139,7 @@ let () =
     fail "depth/stencil reset graph drift";
   let encoder = get (Render_encoder.create_from_pass commands encoded_pass) in
   get (Render_encoder.end_encoding encoder);
-  let parallel=get(Command_buffer.create_parallel_render_encoder_with_descriptor commands) in
+  let parallel=get(Command_buffer.create_parallel_render_encoder_with_descriptor commands encoded_pass) in
   get(Parallel_render_encoder.end_encoding parallel);
   get (Render_pass_descriptor.destroy encoded_pass);
   expect Invalid_argument
