@@ -1626,6 +1626,22 @@ external compute35_visible : handle -> handle option -> int64 -> (unit,string) r
 external compute35_visibles : handle -> handle option array -> int64 -> (unit,string) result = "caml_prismel_metal_compute35_visibles"
 external compute35_intersection : handle -> handle option -> int64 -> (unit,string) result = "caml_prismel_metal_compute35_intersection"
 external compute35_intersections : handle -> handle option array -> int64 -> (unit,string) result = "caml_prismel_metal_compute35_intersections"
+external compute35_dispatch_groups : handle -> int*int*int -> int*int*int -> (unit,string) result = "caml_prismel_metal_compute35_dispatch_groups"
+external compute35_dispatch_indirect : handle -> handle -> int64 -> int*int*int -> (unit,string) result = "caml_prismel_metal_compute35_dispatch_indirect"
+external compute35_dispatch_type : handle -> (int,string) result = "caml_prismel_metal_compute35_dispatch_type"
+external compute35_execute_indirect : handle -> handle -> handle -> int64 -> (unit,string) result = "caml_prismel_metal_compute35_execute_indirect"
+external compute35_barrier_resources : handle -> handle array -> bool array -> (unit,string) result = "caml_prismel_metal_compute35_barrier_resources"
+external compute35_barrier_scope : handle -> int64 -> (unit,string) result = "caml_prismel_metal_compute35_barrier_scope"
+external compute35_sample_counters : handle -> handle -> int64 -> bool -> (unit,string) result = "caml_prismel_metal_compute35_sample_counters"
+external compute35_bytes_plain : handle -> bytes -> int64 -> (unit,string) result = "caml_prismel_metal_compute35_bytes_plain"
+external compute35_imageblock : handle -> int64 -> int64 -> (unit,string) result = "caml_prismel_metal_compute35_imageblock"
+external compute35_stage_region : handle -> int64*int64*int64*int64*int64*int64 -> (unit,string) result = "caml_prismel_metal_compute35_stage_region"
+external compute35_stage_indirect : handle -> handle -> int64 -> (unit,string) result = "caml_prismel_metal_compute35_stage_indirect"
+external compute35_threadgroup_memory : handle -> int64 -> int64 -> (unit,string) result = "caml_prismel_metal_compute35_threadgroup_memory"
+external compute35_update_fence : handle -> handle -> (unit,string) result = "caml_prismel_metal_compute35_update_fence"
+external compute35_wait_fence : handle -> handle -> (unit,string) result = "caml_prismel_metal_compute35_wait_fence"
+external compute35_heaps : handle -> handle array -> (unit,string) result = "caml_prismel_metal_compute35_heaps"
+external compute35_resources : handle -> handle array -> bool array -> int64 -> (unit,string) result = "caml_prismel_metal_compute35_resources"
 
 external compute_encoder_end : handle -> (unit, string) result =
   "caml_prismel_metal_compute_encoder_end"
@@ -2667,6 +2683,8 @@ external render93_descriptor_reset : handle -> int -> (unit,string) result =
   "caml_prismel_metal_render93_descriptor_reset"
 external render93_color_at : handle -> int64 -> bool -> handle option -> (handle option,string) result =
   "caml_prismel_metal_render93_color_at"
+external render93_mesh_graph : handle -> int -> bool -> handle array -> (unit,string) result =
+  "caml_prismel_metal_render93_mesh_graph"
 
 external intersection_table_array :
   handle -> int -> handle option array -> int64 array -> int64 array ->
