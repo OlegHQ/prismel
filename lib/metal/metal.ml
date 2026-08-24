@@ -10024,8 +10024,10 @@ module Render_pipeline = struct
       match ensure_live "Metal.Render_pipeline.label" value.lifetime with
       | Error _ as failure -> failure
       | Ok () -> Ok (Metal_raw.render_pipeline_label value.raw))
+  let clone_relinked operation (pipeline:render_pipeline)=function Error m->native_error operation m|Ok raw->let reflected:Metal_raw.render_pipeline_reflection={vertex_bindings=[||];fragment_bindings=[||];tile_bindings=[||];object_bindings=[||];mesh_bindings=[||]}in Ok(make?mesh_constraints:pipeline.mesh_constraints?tile_constraints:pipeline.tile_constraints~color_attachments:pipeline.color_attachments~alpha_to_coverage:pipeline.alpha_to_coverage~alpha_to_one:pipeline.alpha_to_one~max_vertex_amplification_count:pipeline.max_vertex_amplification_count~color_attachment_mapping:pipeline.color_attachment_mapping?vertex_descriptor:pipeline.vertex_descriptor pipeline.device~kind:pipeline.kind~raster_sample_count:pipeline.raster_sample_count~color_formats:pipeline.color_formats~reflection:false raw reflected)
 
   module Functions_descriptor = struct
+    type pipeline=render_pipeline
     type t=render_pipeline_functions_descriptor
     type stage=Vertex|Fragment|Tile
     let stage_code=function Vertex->0|Fragment->1|Tile->2
@@ -10034,6 +10036,7 @@ module Render_pipeline = struct
     let create()=let operation="Metal.Render_pipeline.Functions_descriptor.create"in on_main operation(fun()->match Metal_raw.render93_functions_descriptor_create()with Error m->native_error operation m|Ok raw->let value:t={raw;lifetime=lifetime();vertex_functions=[];fragment_functions=[];tile_functions=[]}in Gc.finalise(fun(value:t)->if Atomic.compare_and_set value.lifetime.destroyed false true then(List.iter(fun(f:function_handle)->detach f.lifetime)(value.vertex_functions@value.fragment_functions@value.tile_functions);ignore(Metal_raw.destroy value.raw)))value;Ok value)
     let functions(value:t) stage=let operation="Metal.Render_pipeline.Functions_descriptor.functions"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.render93_functions_descriptor_array value.raw(stage_code stage)false[||]with Error m->native_error operation m|Ok snapshot->Array.iter(fun h->ignore(Metal_raw.destroy h))snapshot;Ok(retained value stage))
     let set_functions(value:t) stage functions=let operation="Metal.Render_pipeline.Functions_descriptor.set_functions"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->let rec validate=function []->Ok()|(f:function_handle)::rest->Result.bind(ensure_live operation f.lifetime)(fun()->validate rest)in Result.bind(validate functions)(fun()->match Metal_raw.render93_functions_descriptor_array value.raw(stage_code stage)true(Array.of_list(List.map(fun(f:function_handle)->f.raw)functions))with Error m->native_error operation m|Ok snapshot->Array.iter(fun h->ignore(Metal_raw.destroy h))snapshot;List.iter(fun(f:function_handle)->attach f.lifetime)functions;List.iter(fun(f:function_handle)->detach f.lifetime)(retained value stage);assign value stage functions;Ok()))
+    let relink(value:t) (pipeline:render_pipeline)=let operation="Metal.Render_pipeline.Functions_descriptor.relink"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match ensure_live operation pipeline.lifetime with Error _ as e->e|Ok()->let functions=value.vertex_functions@value.fragment_functions@value.tile_functions in let rec validate=function []->Ok()|(f:function_handle)::rest->Result.bind(ensure_same_device operation pipeline.device f.library.device)(fun()->validate rest)in Result.bind(validate functions)(fun()->clone_relinked operation pipeline(Metal_raw.render93_relink pipeline.raw 0 value.raw)))
     let destroy(value:t)=destroy_leaf "Metal.Render_pipeline.Functions_descriptor.destroy" value.lifetime value.raw(fun()->List.iter(fun(f:function_handle)->detach f.lifetime)(value.vertex_functions@value.fragment_functions@value.tile_functions))
   end
   module Function_lookup = struct
@@ -10286,6 +10289,10 @@ module Binary_function = struct
     destroy_leaf "Metal.Binary_function.destroy" value.lifetime value.raw
       (fun () -> detach value.device.lifetime)
 
+  let render_pipeline_handle (source:t) ~(pipeline:render_pipeline) ~stage=
+    let operation="Metal.Binary_function.render_pipeline_handle"in
+    on_main operation(fun()->match ensure_live operation source.lifetime with Error _ as e->e|Ok()->match ensure_live operation pipeline.lifetime with Error _ as e->e|Ok()->Result.bind(ensure_same_device operation pipeline.device source.device)(fun()->Render_pipeline.Function_lookup.make operation pipeline[source.lifetime](Metal_raw.render93_function_handle pipeline.raw 1 source.raw(Render_pipeline.Function_lookup.stage_code stage))))
+
   module Descriptor = struct
     type t = binary_functions_descriptor
     type stage = Vertex | Fragment | Tile | Object | Mesh
@@ -10347,6 +10354,7 @@ module Binary_function = struct
         match Metal_raw.metal4_binary_functions_reset value.raw with
         |Error message->native_error operation message
         |Ok()->Array.iteri(fun index functions->List.iter(fun(function_:binary_function)->detach function_.lifetime)functions;value.descriptor_stages.(index)<-[])value.descriptor_stages;value.descriptor_device<-None;Ok()))
+    let relink_render_pipeline(value:t) (pipeline:render_pipeline)=let operation="Metal.Binary_function.Descriptor.relink_render_pipeline"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match ensure_live operation pipeline.lifetime with Error _ as e->e|Ok()->(match value.descriptor_device with Some device->Result.bind(ensure_same_device operation pipeline.device device)(fun()->Render_pipeline.clone_relinked operation pipeline(Metal_raw.render93_relink pipeline.raw 1 value.raw))|None->Render_pipeline.clone_relinked operation pipeline(Metal_raw.render93_relink pipeline.raw 1 value.raw)))
     let destroy (value:t)=destroy_leaf "Metal.Binary_function.Descriptor.destroy" value.lifetime value.raw(fun()->Array.iter(List.iter(fun(function_:binary_function)->detach function_.lifetime))value.descriptor_stages)
   end
 end

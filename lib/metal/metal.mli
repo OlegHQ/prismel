@@ -1898,11 +1898,13 @@ module Render_pipeline : sig
   val reflection : t -> reflection option
   val label : t -> (string option, error) result
   module Functions_descriptor:sig
+    type pipeline = t
     type t
     type stage=Vertex|Fragment|Tile
     val create : unit -> (t,error) result
     val functions : t -> stage -> (Function.t list,error) result
     val set_functions : t -> stage -> Function.t list -> (unit,error) result
+    val relink : t -> pipeline -> (pipeline,error) result
     val destroy : t -> (unit,error) result
   end
   module Function_lookup:sig
@@ -2032,6 +2034,7 @@ module Binary_function : sig
   val name : t -> string
   val kind : t -> Function.kind
   val destroy : t -> (unit, error) result
+  val render_pipeline_handle : t -> pipeline:Render_pipeline.t -> stage:Render_pipeline.Function_lookup.stage -> (Render_pipeline.Function_lookup.t option,error) result
   module Descriptor : sig
     type t
     type stage = Vertex | Fragment | Tile | Object | Mesh
@@ -2040,6 +2043,7 @@ module Binary_function : sig
     val set : t -> stage -> function_t list -> (unit, error) result
     val get : t -> stage -> (function_t list, error) result
     val reset : t -> (unit, error) result
+    val relink_render_pipeline : t -> Render_pipeline.t -> (Render_pipeline.t,error) result
     val destroy : t -> (unit, error) result
   end
 end
