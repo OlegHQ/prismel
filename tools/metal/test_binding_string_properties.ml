@@ -41,6 +41,21 @@ let () =
   if List.length setters <> Binding_string_properties.expected_setter_count then
     fail "setter count: expected %d, got %d"
       Binding_string_properties.expected_setter_count (List.length setters);
+  let reviewed = Binding_string_properties.reviewed_copied_ids in
+  if reviewed <>
+       [ "property:MTLFunctionReflection:userAnnotation"
+       ; "method:-[MTLFunctionReflection userAnnotation]" ]
+  then fail "reviewed copied NSString ID drift";
+  let reflection =
+    List.find
+      (fun entry -> String.equal entry.owner "MTLFunctionReflection"
+                    && String.equal entry.name "userAnnotation") entries
+  in
+  if reflection.nullability <> Nullable
+     || getter_ocaml_type reflection <> "string option"
+     || reflection.getter_ownership <> Copy_to_ocaml
+     || reflection.setter_sdk_id <> None
+  then fail "MTLFunctionReflection.userAnnotation copied-string contract drift";
   let sorted = List.sort String.compare ids in
   List.iter2
     (fun left right -> if String.equal left right then fail "duplicate ID: %s" left)

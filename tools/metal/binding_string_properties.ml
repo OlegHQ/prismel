@@ -53,3 +53,13 @@ let expected_property_count = 40
 let expected_getter_count = 40
 let expected_setter_count = 22
 let expected_inventory_id_count = 102
+
+(** These two declarations are already exposed by the checked MTLLibrary
+    reflection snapshot. The native adapter copies the nullable NSString into
+    an OCaml [string option] before the autorelease scope ends. Keeping the
+    exact IDs here lets inventory validation distinguish that reviewed binding
+    from an accidentally pre-classified generated property. *)
+let reviewed_copied_ids =
+  [ "property:MTLFunctionReflection:userAnnotation"
+  ; "method:-[MTLFunctionReflection userAnnotation]"
+  ]

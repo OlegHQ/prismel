@@ -355,6 +355,8 @@ let validate_string_entries inventory entries =
        || declaration.attributes <> entry.attributes
        || (declaration.classification <> "unreviewed"
            && not (List.mem identifier
+                     Binding_string_properties.reviewed_copied_ids)
+           && not (List.mem identifier
                      Binding_resource_safe_reachability.promotable_ids)
                && not (List.mem identifier
                      Binding_pipeline_state_safe_reachability.promotable_ids)
