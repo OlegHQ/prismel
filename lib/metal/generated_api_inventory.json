@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4892,
+    "bound": 4912,
     "scope-excluded": 37,
-    "unreviewed": 356
+    "unreviewed": 336
   },
-  "classification_source_sha256": "6e4520afa97119940de1106874ada258693d51e72827710619fe8c28a1905fd6",
+  "classification_source_sha256": "3a963d8ea7bc115b1752eb410c354ef3c0d069fc4c1138d242149d155837809b",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -29832,7 +29832,7 @@
           "line": 43
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLEvent.h",
       "id": "method:+[MTLSharedEventListener sharedListener]",
       "kind": "method",
@@ -29840,7 +29840,7 @@
       "macos_introduced": "26.0",
       "name": "sharedListener",
       "owner": "MTLSharedEventListener",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "class () -> MTLSharedEventListener * _Nonnull"
     },
     {
@@ -60923,7 +60923,7 @@
           "line": 32
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandBuffer.h",
       "id": "method:-[MTLIOCommandBuffer loadBytes:size:sourceHandle:sourceHandleOffset:]",
       "kind": "method",
@@ -60931,7 +60931,7 @@
       "macos_introduced": "13.0",
       "name": "loadBytes:size:sourceHandle:sourceHandleOffset:",
       "owner": "MTLIOCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by byte-exact safe IO byte/texture loads and an owned scratch allocator/buffer graph with checked ranges, device identity, and retention.",
       "signature": "instance (void * _Nonnull, NSUInteger, id<MTLIOFileHandle>  _Nonnull __strong, NSUInteger) -> void"
     },
     {
@@ -60942,7 +60942,7 @@
           "line": 32
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandBuffer.h",
       "id": "method:-[MTLIOCommandBuffer loadTexture:slice:level:size:sourceBytesPerRow:sourceBytesPerImage:destinationOrigin:sourceHandle:sourceHandleOffset:]",
       "kind": "method",
@@ -60950,7 +60950,7 @@
       "macos_introduced": "13.0",
       "name": "loadTexture:slice:level:size:sourceBytesPerRow:sourceBytesPerImage:destinationOrigin:sourceHandle:sourceHandleOffset:",
       "owner": "MTLIOCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by byte-exact safe IO byte/texture loads and an owned scratch allocator/buffer graph with checked ranges, device identity, and retention.",
       "signature": "instance (id<MTLTexture>  _Nonnull __strong, NSUInteger, NSUInteger, MTLSize, NSUInteger, NSUInteger, MTLOrigin, id<MTLIOFileHandle>  _Nonnull __strong, NSUInteger) -> void"
     },
     {
@@ -61265,7 +61265,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandQueue.h",
       "id": "method:-[MTLIOCommandQueueDescriptor scratchBufferAllocator]",
       "kind": "method",
@@ -61273,7 +61273,7 @@
       "macos_introduced": "13.0",
       "name": "scratchBufferAllocator",
       "owner": "MTLIOCommandQueueDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by byte-exact safe IO byte/texture loads and an owned scratch allocator/buffer graph with checked ranges, device identity, and retention.",
       "signature": "instance () -> id<MTLIOScratchBufferAllocator> _Nullable"
     },
     {
@@ -61341,7 +61341,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandQueue.h",
       "id": "method:-[MTLIOCommandQueueDescriptor setScratchBufferAllocator:]",
       "kind": "method",
@@ -61349,7 +61349,7 @@
       "macos_introduced": "13.0",
       "name": "setScratchBufferAllocator:",
       "owner": "MTLIOCommandQueueDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by byte-exact safe IO byte/texture loads and an owned scratch allocator/buffer graph with checked ranges, device identity, and retention.",
       "signature": "instance (id<MTLIOScratchBufferAllocator> _Nullable) -> void"
     },
     {
@@ -61436,7 +61436,7 @@
           "line": 94
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandQueue.h",
       "id": "method:-[MTLIOScratchBuffer buffer]",
       "kind": "method",
@@ -61444,7 +61444,7 @@
       "macos_introduced": "13.0",
       "name": "buffer",
       "owner": "MTLIOScratchBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by byte-exact safe IO byte/texture loads and an owned scratch allocator/buffer graph with checked ranges, device identity, and retention.",
       "signature": "instance () -> id<MTLBuffer> _Nonnull"
     },
     {
@@ -61457,7 +61457,7 @@
           "line": 110
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandQueue.h",
       "id": "method:-[MTLIOScratchBufferAllocator newScratchBufferWithMinimumSize:]",
       "kind": "method",
@@ -61465,7 +61465,7 @@
       "macos_introduced": "13.0",
       "name": "newScratchBufferWithMinimumSize:",
       "owner": "MTLIOScratchBufferAllocator",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by byte-exact safe IO byte/texture loads and an owned scratch allocator/buffer graph with checked ranges, device identity, and retention.",
       "signature": "instance (NSUInteger) -> id<MTLIOScratchBuffer> _Nullable"
     },
     {
@@ -77475,7 +77475,7 @@
           "line": 51
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLEvent.h",
       "id": "method:-[MTLSharedEvent newSharedEventHandle]",
       "kind": "method",
@@ -77483,7 +77483,7 @@
       "macos_introduced": "10.14",
       "name": "newSharedEventHandle",
       "owner": "MTLSharedEvent",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> MTLSharedEventHandle * _Nonnull"
     },
     {
@@ -77494,7 +77494,7 @@
           "line": 51
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLEvent.h",
       "id": "method:-[MTLSharedEvent notifyListener:atValue:block:]",
       "kind": "method",
@@ -77502,7 +77502,7 @@
       "macos_introduced": "10.14",
       "name": "notifyListener:atValue:block:",
       "owner": "MTLSharedEvent",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLSharedEventListener * _Nonnull __strong, uint64_t, MTLSharedEventNotificationBlock  _Nonnull __strong) -> void"
     },
     {
@@ -77577,7 +77577,7 @@
           "line": 71
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLEvent.h",
       "id": "method:-[MTLSharedEventHandle label]",
       "kind": "method",
@@ -77585,7 +77585,7 @@
       "macos_introduced": "10.14",
       "name": "label",
       "owner": "MTLSharedEventHandle",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSString * _Nullable"
     },
     {
@@ -77596,7 +77596,7 @@
           "line": 35
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLEvent.h",
       "id": "method:-[MTLSharedEventListener dispatchQueue]",
       "kind": "method",
@@ -77604,7 +77604,7 @@
       "macos_introduced": "10.14",
       "name": "dispatchQueue",
       "owner": "MTLSharedEventListener",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> dispatch_queue_t _Nonnull"
     },
     {
@@ -77619,7 +77619,7 @@
           "line": 35
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLEvent.h",
       "id": "method:-[MTLSharedEventListener initWithDispatchQueue:]",
       "kind": "method",
@@ -77627,7 +77627,7 @@
       "macos_introduced": "10.14",
       "name": "initWithDispatchQueue:",
       "owner": "MTLSharedEventListener",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (dispatch_queue_t  _Nonnull __strong) -> instancetype _Nonnull"
     },
     {
@@ -77642,7 +77642,7 @@
           "line": 35
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLEvent.h",
       "id": "method:-[MTLSharedEventListener init]",
       "kind": "method",
@@ -77650,7 +77650,7 @@
       "macos_introduced": "10.14",
       "name": "init",
       "owner": "MTLSharedEventListener",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> instancetype _Nonnull"
     },
     {
@@ -93729,7 +93729,7 @@
           "line": 14
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLEvent.h",
       "id": "property:MTLEvent:device",
       "kind": "property",
@@ -93737,7 +93737,7 @@
       "macos_introduced": "10.14",
       "name": "device",
       "owner": "MTLEvent",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "id<MTLDevice> _Nullable"
     },
     {
@@ -95167,7 +95167,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandQueue.h",
       "id": "property:MTLIOCommandQueueDescriptor:scratchBufferAllocator",
       "kind": "property",
@@ -95175,7 +95175,7 @@
       "macos_introduced": "13.0",
       "name": "scratchBufferAllocator",
       "owner": "MTLIOCommandQueueDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by byte-exact safe IO byte/texture loads and an owned scratch allocator/buffer graph with checked ranges, device identity, and retention.",
       "signature": "id<MTLIOScratchBufferAllocator> _Nullable"
     },
     {
@@ -95224,7 +95224,7 @@
           "line": 94
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandQueue.h",
       "id": "property:MTLIOScratchBuffer:buffer",
       "kind": "property",
@@ -95232,7 +95232,7 @@
       "macos_introduced": "13.0",
       "name": "buffer",
       "owner": "MTLIOScratchBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by byte-exact safe IO byte/texture loads and an owned scratch allocator/buffer graph with checked ranges, device identity, and retention.",
       "signature": "id<MTLBuffer> _Nonnull"
     },
     {
@@ -101322,7 +101322,7 @@
           "line": 71
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLEvent.h",
       "id": "property:MTLSharedEventHandle:label",
       "kind": "property",
@@ -101330,7 +101330,7 @@
       "macos_introduced": "10.14",
       "name": "label",
       "owner": "MTLSharedEventHandle",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSString * _Nullable"
     },
     {
@@ -101341,7 +101341,7 @@
           "line": 35
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLEvent.h",
       "id": "property:MTLSharedEventListener:dispatchQueue",
       "kind": "property",
@@ -101349,7 +101349,7 @@
       "macos_introduced": "10.14",
       "name": "dispatchQueue",
       "owner": "MTLSharedEventListener",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "dispatch_queue_t _Nonnull"
     },
     {
@@ -105317,7 +105317,7 @@
           "line": 94
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandQueue.h",
       "id": "protocol:MTLIOScratchBuffer",
       "kind": "protocol",
@@ -105325,7 +105325,7 @@
       "macos_introduced": "13.0",
       "name": "MTLIOScratchBuffer",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by byte-exact safe IO byte/texture loads and an owned scratch allocator/buffer graph with checked ranges, device identity, and retention.",
       "signature": ""
     },
     {
@@ -105338,7 +105338,7 @@
           "line": 110
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandQueue.h",
       "id": "protocol:MTLIOScratchBufferAllocator",
       "kind": "protocol",
@@ -105346,7 +105346,7 @@
       "macos_introduced": "13.0",
       "name": "MTLIOScratchBufferAllocator",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by byte-exact safe IO byte/texture loads and an owned scratch allocator/buffer graph with checked ranges, device identity, and retention.",
       "signature": ""
     },
     {
