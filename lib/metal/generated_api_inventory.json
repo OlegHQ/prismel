@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4354,
+    "bound": 4404,
     "scope-excluded": 37,
-    "unreviewed": 894
+    "unreviewed": 844
   },
-  "classification_source_sha256": "6cd68eec5e6fd3c52c5897abaa65bd38c8b7e2c62635132089c4ce31956f56c5",
+  "classification_source_sha256": "be558d6004809eb7834fa656503de967427c8d0c185273f92eb6b8c15efbc6a6",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -29731,7 +29731,7 @@
           "line": 152
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "method:+[MTLRasterizationRateMapDescriptor rasterizationRateMapDescriptorWithScreenSize:]",
       "kind": "method",
@@ -29739,7 +29739,7 @@
       "macos_introduced": "10.15.4",
       "name": "rasterizationRateMapDescriptorWithScreenSize:",
       "owner": "MTLRasterizationRateMapDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "class (MTLSize) -> MTLRasterizationRateMapDescriptor * _Nonnull"
     },
     {
@@ -29750,7 +29750,7 @@
           "line": 152
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "method:+[MTLRasterizationRateMapDescriptor rasterizationRateMapDescriptorWithScreenSize:layer:]",
       "kind": "method",
@@ -29758,7 +29758,7 @@
       "macos_introduced": "10.15.4",
       "name": "rasterizationRateMapDescriptorWithScreenSize:layer:",
       "owner": "MTLRasterizationRateMapDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "class (MTLSize, MTLRasterizationRateLayerDescriptor * _Nonnull __strong) -> MTLRasterizationRateMapDescriptor * _Nonnull"
     },
     {
@@ -29769,7 +29769,7 @@
           "line": 152
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "method:+[MTLRasterizationRateMapDescriptor rasterizationRateMapDescriptorWithScreenSize:layerCount:layers:]",
       "kind": "method",
@@ -29777,7 +29777,7 @@
       "macos_introduced": "10.15.4",
       "name": "rasterizationRateMapDescriptorWithScreenSize:layerCount:layers:",
       "owner": "MTLRasterizationRateMapDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "class (MTLSize, NSUInteger, MTLRasterizationRateLayerDescriptor *const  _Nonnull __autoreleasing * _Nonnull) -> MTLRasterizationRateMapDescriptor * _Nonnull"
     },
     {
@@ -67223,7 +67223,7 @@
           "line": 128
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "method:-[MTLRasterizationRateLayerArray objectAtIndexedSubscript:]",
       "kind": "method",
@@ -67231,7 +67231,7 @@
       "macos_introduced": "10.15.4",
       "name": "objectAtIndexedSubscript:",
       "owner": "MTLRasterizationRateLayerArray",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "instance (NSUInteger) -> MTLRasterizationRateLayerDescriptor * _Nullable"
     },
     {
@@ -67242,7 +67242,7 @@
           "line": 128
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "method:-[MTLRasterizationRateLayerArray setObject:atIndexedSubscript:]",
       "kind": "method",
@@ -67250,7 +67250,7 @@
       "macos_introduced": "10.15.4",
       "name": "setObject:atIndexedSubscript:",
       "owner": "MTLRasterizationRateLayerArray",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "instance (MTLRasterizationRateLayerDescriptor * _Nullable __strong, NSUInteger) -> void"
     },
     {
@@ -67261,7 +67261,7 @@
           "line": 45
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "method:-[MTLRasterizationRateLayerDescriptor horizontalSampleStorage]",
       "kind": "method",
@@ -67269,7 +67269,7 @@
       "macos_introduced": "10.15.4",
       "name": "horizontalSampleStorage",
       "owner": "MTLRasterizationRateLayerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "instance () -> float * _Nonnull"
     },
     {
@@ -67280,7 +67280,7 @@
           "line": 45
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "method:-[MTLRasterizationRateLayerDescriptor horizontal]",
       "kind": "method",
@@ -67288,7 +67288,7 @@
       "macos_introduced": "10.15.4",
       "name": "horizontal",
       "owner": "MTLRasterizationRateLayerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "instance () -> MTLRasterizationRateSampleArray * _Nonnull"
     },
     {
@@ -67303,7 +67303,7 @@
           "line": 45
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "method:-[MTLRasterizationRateLayerDescriptor initWithSampleCount:]",
       "kind": "method",
@@ -67311,7 +67311,7 @@
       "macos_introduced": "10.15.4",
       "name": "initWithSampleCount:",
       "owner": "MTLRasterizationRateLayerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "instance (MTLSize) -> instancetype _Nonnull"
     },
     {
@@ -67325,7 +67325,7 @@
           "line": 45
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "method:-[MTLRasterizationRateLayerDescriptor initWithSampleCount:horizontal:vertical:]",
       "kind": "method",
@@ -67333,7 +67333,7 @@
       "macos_introduced": "10.15.4",
       "name": "initWithSampleCount:horizontal:vertical:",
       "owner": "MTLRasterizationRateLayerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "instance (MTLSize, const float * _Nonnull, const float * _Nonnull) -> instancetype _Nonnull"
     },
     {
@@ -67377,7 +67377,7 @@
           "line": 82
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "method:-[MTLRasterizationRateLayerDescriptor maxSampleCount]",
       "kind": "method",
@@ -67385,7 +67385,7 @@
       "macos_introduced": "12.0",
       "name": "maxSampleCount",
       "owner": "MTLRasterizationRateLayerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "instance () -> MTLSize"
     },
     {
@@ -67402,7 +67402,7 @@
           "line": 76
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "method:-[MTLRasterizationRateLayerDescriptor sampleCount]",
       "kind": "method",
@@ -67410,7 +67410,7 @@
       "macos_introduced": "10.15.4",
       "name": "sampleCount",
       "owner": "MTLRasterizationRateLayerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "instance () -> MTLSize"
     },
     {
@@ -67423,7 +67423,7 @@
           "line": 121
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "method:-[MTLRasterizationRateLayerDescriptor setSampleCount:]",
       "kind": "method",
@@ -67431,7 +67431,7 @@
       "macos_introduced": "12.0",
       "name": "setSampleCount:",
       "owner": "MTLRasterizationRateLayerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "instance (MTLSize) -> void"
     },
     {
@@ -67442,7 +67442,7 @@
           "line": 45
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "method:-[MTLRasterizationRateLayerDescriptor verticalSampleStorage]",
       "kind": "method",
@@ -67450,7 +67450,7 @@
       "macos_introduced": "10.15.4",
       "name": "verticalSampleStorage",
       "owner": "MTLRasterizationRateLayerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "instance () -> float * _Nonnull"
     },
     {
@@ -67461,7 +67461,7 @@
           "line": 45
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "method:-[MTLRasterizationRateLayerDescriptor vertical]",
       "kind": "method",
@@ -67469,7 +67469,7 @@
       "macos_introduced": "10.15.4",
       "name": "vertical",
       "owner": "MTLRasterizationRateLayerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "instance () -> MTLRasterizationRateSampleArray * _Nonnull"
     },
     {
@@ -67480,7 +67480,7 @@
           "line": 243
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "method:-[MTLRasterizationRateMap copyParameterDataToBuffer:offset:]",
       "kind": "method",
@@ -67488,7 +67488,7 @@
       "macos_introduced": "10.15.4",
       "name": "copyParameterDataToBuffer:offset:",
       "owner": "MTLRasterizationRateMap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "instance (id<MTLBuffer>  _Nonnull __strong, NSUInteger) -> void"
     },
     {
@@ -67499,7 +67499,7 @@
           "line": 243
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "method:-[MTLRasterizationRateMap device]",
       "kind": "method",
@@ -67507,7 +67507,7 @@
       "macos_introduced": "10.15.4",
       "name": "device",
       "owner": "MTLRasterizationRateMap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "instance () -> id<MTLDevice> _Nonnull"
     },
     {
@@ -67518,7 +67518,7 @@
           "line": 243
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "method:-[MTLRasterizationRateMap label]",
       "kind": "method",
@@ -67526,7 +67526,7 @@
       "macos_introduced": "10.15.4",
       "name": "label",
       "owner": "MTLRasterizationRateMap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "instance () -> NSString * _Nullable"
     },
     {
@@ -67537,7 +67537,7 @@
           "line": 243
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "method:-[MTLRasterizationRateMap layerCount]",
       "kind": "method",
@@ -67545,7 +67545,7 @@
       "macos_introduced": "10.15.4",
       "name": "layerCount",
       "owner": "MTLRasterizationRateMap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -67556,7 +67556,7 @@
           "line": 243
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "method:-[MTLRasterizationRateMap mapPhysicalToScreenCoordinates:forLayer:]",
       "kind": "method",
@@ -67564,7 +67564,7 @@
       "macos_introduced": "10.15.4",
       "name": "mapPhysicalToScreenCoordinates:forLayer:",
       "owner": "MTLRasterizationRateMap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "instance (MTLCoordinate2D, NSUInteger) -> MTLCoordinate2D"
     },
     {
@@ -67575,7 +67575,7 @@
           "line": 243
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "method:-[MTLRasterizationRateMap mapScreenToPhysicalCoordinates:forLayer:]",
       "kind": "method",
@@ -67583,7 +67583,7 @@
       "macos_introduced": "10.15.4",
       "name": "mapScreenToPhysicalCoordinates:forLayer:",
       "owner": "MTLRasterizationRateMap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "instance (MTLCoordinate2D, NSUInteger) -> MTLCoordinate2D"
     },
     {
@@ -67594,7 +67594,7 @@
           "line": 243
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "method:-[MTLRasterizationRateMap parameterBufferSizeAndAlign]",
       "kind": "method",
@@ -67602,7 +67602,7 @@
       "macos_introduced": "10.15.4",
       "name": "parameterBufferSizeAndAlign",
       "owner": "MTLRasterizationRateMap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "instance () -> MTLSizeAndAlign"
     },
     {
@@ -67613,7 +67613,7 @@
           "line": 243
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "method:-[MTLRasterizationRateMap physicalGranularity]",
       "kind": "method",
@@ -67621,7 +67621,7 @@
       "macos_introduced": "10.15.4",
       "name": "physicalGranularity",
       "owner": "MTLRasterizationRateMap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "instance () -> MTLSize"
     },
     {
@@ -67632,7 +67632,7 @@
           "line": 243
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "method:-[MTLRasterizationRateMap physicalSizeForLayer:]",
       "kind": "method",
@@ -67640,7 +67640,7 @@
       "macos_introduced": "10.15.4",
       "name": "physicalSizeForLayer:",
       "owner": "MTLRasterizationRateMap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "instance (NSUInteger) -> MTLSize"
     },
     {
@@ -67651,7 +67651,7 @@
           "line": 243
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "method:-[MTLRasterizationRateMap screenSize]",
       "kind": "method",
@@ -67659,7 +67659,7 @@
       "macos_introduced": "10.15.4",
       "name": "screenSize",
       "owner": "MTLRasterizationRateMap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "instance () -> MTLSize"
     },
     {
@@ -67670,7 +67670,7 @@
           "line": 152
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "method:-[MTLRasterizationRateMapDescriptor label]",
       "kind": "method",
@@ -67678,7 +67678,7 @@
       "macos_introduced": "10.15.4",
       "name": "label",
       "owner": "MTLRasterizationRateMapDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "instance () -> NSString * _Nullable"
     },
     {
@@ -67689,7 +67689,7 @@
           "line": 152
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "method:-[MTLRasterizationRateMapDescriptor layerAtIndex:]",
       "kind": "method",
@@ -67697,7 +67697,7 @@
       "macos_introduced": "10.15.4",
       "name": "layerAtIndex:",
       "owner": "MTLRasterizationRateMapDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "instance (NSUInteger) -> MTLRasterizationRateLayerDescriptor * _Nullable"
     },
     {
@@ -67708,7 +67708,7 @@
           "line": 152
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "method:-[MTLRasterizationRateMapDescriptor layerCount]",
       "kind": "method",
@@ -67716,7 +67716,7 @@
       "macos_introduced": "10.15.4",
       "name": "layerCount",
       "owner": "MTLRasterizationRateMapDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -67727,7 +67727,7 @@
           "line": 152
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "method:-[MTLRasterizationRateMapDescriptor layers]",
       "kind": "method",
@@ -67735,7 +67735,7 @@
       "macos_introduced": "10.15.4",
       "name": "layers",
       "owner": "MTLRasterizationRateMapDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "instance () -> MTLRasterizationRateLayerArray * _Nonnull"
     },
     {
@@ -67746,7 +67746,7 @@
           "line": 152
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "method:-[MTLRasterizationRateMapDescriptor screenSize]",
       "kind": "method",
@@ -67754,7 +67754,7 @@
       "macos_introduced": "10.15.4",
       "name": "screenSize",
       "owner": "MTLRasterizationRateMapDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "instance () -> MTLSize"
     },
     {
@@ -67765,7 +67765,7 @@
           "line": 152
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "method:-[MTLRasterizationRateMapDescriptor setLabel:]",
       "kind": "method",
@@ -67773,7 +67773,7 @@
       "macos_introduced": "10.15.4",
       "name": "setLabel:",
       "owner": "MTLRasterizationRateMapDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "instance (NSString * _Nullable) -> void"
     },
     {
@@ -67784,7 +67784,7 @@
           "line": 152
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "method:-[MTLRasterizationRateMapDescriptor setLayer:atIndex:]",
       "kind": "method",
@@ -67792,7 +67792,7 @@
       "macos_introduced": "10.15.4",
       "name": "setLayer:atIndex:",
       "owner": "MTLRasterizationRateMapDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "instance (MTLRasterizationRateLayerDescriptor * _Nullable __strong, NSUInteger) -> void"
     },
     {
@@ -67803,7 +67803,7 @@
           "line": 152
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "method:-[MTLRasterizationRateMapDescriptor setScreenSize:]",
       "kind": "method",
@@ -67811,7 +67811,7 @@
       "macos_introduced": "10.15.4",
       "name": "setScreenSize:",
       "owner": "MTLRasterizationRateMapDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "instance (MTLSize) -> void"
     },
     {
@@ -67822,7 +67822,7 @@
           "line": 16
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "method:-[MTLRasterizationRateSampleArray objectAtIndexedSubscript:]",
       "kind": "method",
@@ -67830,7 +67830,7 @@
       "macos_introduced": "10.15.4",
       "name": "objectAtIndexedSubscript:",
       "owner": "MTLRasterizationRateSampleArray",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "instance (NSUInteger) -> NSNumber * _Nonnull"
     },
     {
@@ -67841,7 +67841,7 @@
           "line": 16
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "method:-[MTLRasterizationRateSampleArray setObject:atIndexedSubscript:]",
       "kind": "method",
@@ -67849,7 +67849,7 @@
       "macos_introduced": "10.15.4",
       "name": "setObject:atIndexedSubscript:",
       "owner": "MTLRasterizationRateSampleArray",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "instance (NSNumber * _Nonnull __strong, NSUInteger) -> void"
     },
     {
@@ -97527,7 +97527,7 @@
           "line": 45
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "property:MTLRasterizationRateLayerDescriptor:horizontal",
       "kind": "property",
@@ -97535,7 +97535,7 @@
       "macos_introduced": "10.15.4",
       "name": "horizontal",
       "owner": "MTLRasterizationRateLayerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "MTLRasterizationRateSampleArray * _Nonnull"
     },
     {
@@ -97546,7 +97546,7 @@
           "line": 45
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "property:MTLRasterizationRateLayerDescriptor:horizontalSampleStorage",
       "kind": "property",
@@ -97554,7 +97554,7 @@
       "macos_introduced": "10.15.4",
       "name": "horizontalSampleStorage",
       "owner": "MTLRasterizationRateLayerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "float * _Nonnull"
     },
     {
@@ -97571,7 +97571,7 @@
           "line": 82
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "property:MTLRasterizationRateLayerDescriptor:maxSampleCount",
       "kind": "property",
@@ -97579,7 +97579,7 @@
       "macos_introduced": "12.0",
       "name": "maxSampleCount",
       "owner": "MTLRasterizationRateLayerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "MTLSize"
     },
     {
@@ -97600,7 +97600,7 @@
           "line": 121
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "property:MTLRasterizationRateLayerDescriptor:sampleCount",
       "kind": "property",
@@ -97608,7 +97608,7 @@
       "macos_introduced": "12.0",
       "name": "sampleCount",
       "owner": "MTLRasterizationRateLayerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "MTLSize"
     },
     {
@@ -97619,7 +97619,7 @@
           "line": 45
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "property:MTLRasterizationRateLayerDescriptor:vertical",
       "kind": "property",
@@ -97627,7 +97627,7 @@
       "macos_introduced": "10.15.4",
       "name": "vertical",
       "owner": "MTLRasterizationRateLayerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "MTLRasterizationRateSampleArray * _Nonnull"
     },
     {
@@ -97638,7 +97638,7 @@
           "line": 45
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "property:MTLRasterizationRateLayerDescriptor:verticalSampleStorage",
       "kind": "property",
@@ -97646,7 +97646,7 @@
       "macos_introduced": "10.15.4",
       "name": "verticalSampleStorage",
       "owner": "MTLRasterizationRateLayerDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "float * _Nonnull"
     },
     {
@@ -97657,7 +97657,7 @@
           "line": 243
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "property:MTLRasterizationRateMap:device",
       "kind": "property",
@@ -97665,7 +97665,7 @@
       "macos_introduced": "10.15.4",
       "name": "device",
       "owner": "MTLRasterizationRateMap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "id<MTLDevice> _Nonnull"
     },
     {
@@ -97676,7 +97676,7 @@
           "line": 243
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "property:MTLRasterizationRateMap:label",
       "kind": "property",
@@ -97684,7 +97684,7 @@
       "macos_introduced": "10.15.4",
       "name": "label",
       "owner": "MTLRasterizationRateMap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "NSString * _Nullable"
     },
     {
@@ -97695,7 +97695,7 @@
           "line": 243
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "property:MTLRasterizationRateMap:layerCount",
       "kind": "property",
@@ -97703,7 +97703,7 @@
       "macos_introduced": "10.15.4",
       "name": "layerCount",
       "owner": "MTLRasterizationRateMap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -97714,7 +97714,7 @@
           "line": 243
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "property:MTLRasterizationRateMap:parameterBufferSizeAndAlign",
       "kind": "property",
@@ -97722,7 +97722,7 @@
       "macos_introduced": "10.15.4",
       "name": "parameterBufferSizeAndAlign",
       "owner": "MTLRasterizationRateMap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "MTLSizeAndAlign"
     },
     {
@@ -97733,7 +97733,7 @@
           "line": 243
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "property:MTLRasterizationRateMap:physicalGranularity",
       "kind": "property",
@@ -97741,7 +97741,7 @@
       "macos_introduced": "10.15.4",
       "name": "physicalGranularity",
       "owner": "MTLRasterizationRateMap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "MTLSize"
     },
     {
@@ -97752,7 +97752,7 @@
           "line": 243
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "property:MTLRasterizationRateMap:screenSize",
       "kind": "property",
@@ -97760,7 +97760,7 @@
       "macos_introduced": "10.15.4",
       "name": "screenSize",
       "owner": "MTLRasterizationRateMap",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "MTLSize"
     },
     {
@@ -97771,7 +97771,7 @@
           "line": 152
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "property:MTLRasterizationRateMapDescriptor:label",
       "kind": "property",
@@ -97779,7 +97779,7 @@
       "macos_introduced": "10.15.4",
       "name": "label",
       "owner": "MTLRasterizationRateMapDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "NSString * _Nullable"
     },
     {
@@ -97790,7 +97790,7 @@
           "line": 152
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "property:MTLRasterizationRateMapDescriptor:layerCount",
       "kind": "property",
@@ -97798,7 +97798,7 @@
       "macos_introduced": "10.15.4",
       "name": "layerCount",
       "owner": "MTLRasterizationRateMapDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -97809,7 +97809,7 @@
           "line": 152
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "property:MTLRasterizationRateMapDescriptor:layers",
       "kind": "property",
@@ -97817,7 +97817,7 @@
       "macos_introduced": "10.15.4",
       "name": "layers",
       "owner": "MTLRasterizationRateMapDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "MTLRasterizationRateLayerArray * _Nonnull"
     },
     {
@@ -97828,7 +97828,7 @@
           "line": 152
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "property:MTLRasterizationRateMapDescriptor:screenSize",
       "kind": "property",
@@ -97836,7 +97836,7 @@
       "macos_introduced": "10.15.4",
       "name": "screenSize",
       "owner": "MTLRasterizationRateMapDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance.",
       "signature": "MTLSize"
     },
     {

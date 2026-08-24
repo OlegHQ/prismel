@@ -1659,6 +1659,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier Binding_argument_encoder_handoff.callable_ids then
     Bound,
       "Implemented by the ArgumentEncoder32 safe closure with exact device/kind/range validation, atomic array rejection, nested ownership, bounded replacement retention, and real M1 conformance."
+  else if List.mem identifier Binding_rasterization_rate_safe_handoff.callable_ids then
+    Bound,
+      "Implemented by the RasterizationRate50 safe closure with owned layer/descriptor/map graphs, capability and device checks, exact coordinate/range validation, and M1 conformance."
   else if List.mem identifier Binding_resource_safe_reachability.promotable_ids then
     Bound,
       "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance."
