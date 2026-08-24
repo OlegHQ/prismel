@@ -1918,6 +1918,12 @@ module Render_pipeline : sig
     val set_mesh_mesh_function : mesh_descriptor -> Function.t -> (unit,error) result
     val set_mesh_fragment_function : mesh_descriptor -> Function.t option -> (unit,error) result
     val tile_descriptor : ?label:string -> ?binary_archives:Binary_archive.t list -> ?preloaded_libraries:Dynamic_library.t list -> tile_function:Function.t -> required_threads:size3 -> unit -> (tile_descriptor,error) result
+    val tile_binary_archives : tile_descriptor -> (Binary_archive.t list,error) result
+    val tile_preloaded_libraries : tile_descriptor -> (Dynamic_library.t list,error) result
+    val tile_function : tile_descriptor -> (Function.t,error) result
+    val set_tile_binary_archives : tile_descriptor -> Binary_archive.t list -> (unit,error) result
+    val set_tile_preloaded_libraries : tile_descriptor -> Dynamic_library.t list -> (unit,error) result
+    val set_tile_function : tile_descriptor -> Function.t -> (unit,error) result
     val compile_mesh : ?reflection:bool -> mesh_descriptor -> (t,error) result
     val compile_tile : ?reflection:bool -> tile_descriptor -> (t,error) result
     val destroy_buffer : buffer_descriptor -> (unit,error) result
@@ -3128,6 +3134,11 @@ end
 
 module Compute_encoder : sig
   type t = compute_encoder
+  type dispatch_type = Serial | Concurrent
+  type barrier_scope = Barrier_buffers | Barrier_textures
+  type resource_usage = Resource_read | Resource_write | Resource_sample
+  type resource = Buffer_resource of Buffer.t | Texture_resource of Texture.t
+  type region = { x:int64; y:int64; z:int64; width:int64; height:int64; depth:int64 }
 
   val create : Command_buffer.t -> (t, error) result
   val set_pipeline : t -> Compute_pipeline.t -> (unit, error) result
@@ -3146,6 +3157,21 @@ module Compute_encoder : sig
   val set_visible_function_tables : t -> start:int -> Visible_function_table.t option list -> (unit,error) result
   val set_intersection_function_table : t -> index:int -> Intersection_function_table.t option -> (unit,error) result
   val set_intersection_function_tables : t -> start:int -> Intersection_function_table.t option list -> (unit,error) result
+  val set_bytes : t -> index:int -> bytes -> (unit,error) result
+  val dispatch_type : t -> (dispatch_type,error) result
+  val dispatch_threadgroups : t -> threadgroups:int*int*int -> threadgroup:int*int*int -> (unit,error) result
+  val dispatch_threadgroups_indirect : t -> Buffer.t -> offset:int64 -> threadgroup:int*int*int -> (unit,error) result
+  val execute_indirect_commands_from_buffer : t -> Indirect_command_buffer.t -> range_buffer:Buffer.t -> offset:int64 -> (unit,error) result
+  val memory_barrier_resources : t -> resource list -> (unit,error) result
+  val memory_barrier : t -> barrier_scope list -> (unit,error) result
+  val set_imageblock : t -> width:int64 -> height:int64 -> (unit,error) result
+  val set_stage_in_region : t -> region -> (unit,error) result
+  val set_stage_in_region_indirect : t -> Buffer.t -> offset:int64 -> (unit,error) result
+  val set_threadgroup_memory_length : t -> index:int -> length:int64 -> (unit,error) result
+  val update_fence : t -> Fence.t -> (unit,error) result
+  val wait_for_fence : t -> Fence.t -> (unit,error) result
+  val use_heaps : t -> Heap.t list -> (unit,error) result
+  val use_resources : t -> resource list -> usage:resource_usage list -> (unit,error) result
   val dispatch_threads :
     t -> threads:int * int * int -> threadgroup:int * int * int ->
     (unit, error) result

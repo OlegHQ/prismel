@@ -419,6 +419,11 @@
  (libraries metal))
 
 (test
+ (name test_render_pipeline93_tile_graph_safe)
+ (modules test_render_pipeline93_tile_graph_safe)
+ (libraries metal))
+
+(test
  (name test_metal4_acceleration_structure11_safe)
  (modules test_metal4_acceleration_structure11_safe)
  (libraries metal))

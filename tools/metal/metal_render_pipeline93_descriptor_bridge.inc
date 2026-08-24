@@ -79,3 +79,31 @@ extern "C" CAMLprim value caml_prismel_metal_render93_mesh_graph(value descripto
     CAMLreturn(result_unit());
   } @catch(NSException *exception) { CAMLreturn(result_error(exception.reason)); }
 }
+
+/* operation 0 binary archives, 1 preloaded libraries, 2 tile function. */
+extern "C" CAMLprim value caml_prismel_metal_render93_tile_graph(value descriptor_raw,value operation_raw,value set_raw,value expected) {
+  CAMLparam4(descriptor_raw,operation_raw,set_raw,expected);
+  @try {
+    MTLTileRenderPipelineDescriptor*d=object_of_handle(descriptor_raw,Handle_kind::Tile_pipeline_descriptor);
+    int operation=Long_val(operation_raw);
+    if(operation==0){
+      NSMutableArray<id<MTLBinaryArchive>>*items=[NSMutableArray arrayWithCapacity:Wosize_val(expected)];
+      for(mlsize_t i=0;i<Wosize_val(expected);i++)[items addObject:object_of_handle(Field(expected,i),Handle_kind::Binary_archive)];
+      if(Bool_val(set_raw))d.binaryArchives=items;
+      if(d.binaryArchives.count!=items.count)CAMLreturn(result_error_text("tile binary archive graph changed"));
+      for(NSUInteger i=0;i<items.count;i++)if(d.binaryArchives[i]!=items[i])CAMLreturn(result_error_text("tile binary archive identity changed"));
+    }else if(operation==1){
+      NSMutableArray<id<MTLDynamicLibrary>>*items=[NSMutableArray arrayWithCapacity:Wosize_val(expected)];
+      for(mlsize_t i=0;i<Wosize_val(expected);i++)[items addObject:object_of_handle(Field(expected,i),Handle_kind::Dynamic_library)];
+      if(Bool_val(set_raw))d.preloadedLibraries=items;
+      if(d.preloadedLibraries.count!=items.count)CAMLreturn(result_error_text("tile preloaded library graph changed"));
+      for(NSUInteger i=0;i<items.count;i++)if(d.preloadedLibraries[i]!=items[i])CAMLreturn(result_error_text("tile preloaded library identity changed"));
+    }else if(operation==2){
+      if(Wosize_val(expected)>1)CAMLreturn(result_error_text("tile function graph cardinality is invalid"));
+      id<MTLFunction>function=Wosize_val(expected)==0?nil:object_of_handle(Field(expected,0),Handle_kind::Function);
+      if(Bool_val(set_raw))d.tileFunction=function;
+      if(d.tileFunction!=function)CAMLreturn(result_error_text("tile function identity changed"));
+    }else CAMLreturn(result_error_text("unknown tile pipeline graph operation"));
+    CAMLreturn(result_unit());
+  } @catch(NSException *exception) { CAMLreturn(result_error(exception.reason)); }
+}

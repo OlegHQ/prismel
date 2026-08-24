@@ -2662,6 +2662,8 @@ external render93_color_at : handle -> int64 -> bool -> handle option -> (handle
   "caml_prismel_metal_render93_color_at"
 external render93_mesh_graph : handle -> int -> bool -> handle array -> (unit,string) result =
   "caml_prismel_metal_render93_mesh_graph"
+external render93_tile_graph : handle -> int -> bool -> handle array -> (unit,string) result =
+  "caml_prismel_metal_render93_tile_graph"
 
 external intersection_table_array :
   handle -> int -> handle option array -> int64 array -> int64 array ->
