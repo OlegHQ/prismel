@@ -3015,7 +3015,10 @@ module Resource100 : sig
   end
   module Heap_ops : sig
     val create_acceleration_structure :
-      Heap.t -> size:int64 -> (Acceleration_structure.t,error) result
+      Heap.t -> ?offset:int64 -> size:int64 -> unit -> (Acceleration_structure.t,error) result
+    val create_acceleration_structure_with_descriptor :
+      Heap.t -> ?offset:int64 -> Acceleration_structure.Triangle.t ->
+      (Acceleration_structure.t,error) result
     val checked_device : Heap.t -> (Device.t,error) result
   end
   module Resource_ops : sig

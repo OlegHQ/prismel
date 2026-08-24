@@ -26,10 +26,18 @@ let ()=
  let cube=get(Texture.create~device cube_descriptor)in get(Texture.destroy cube);
  let heap=get(Heap.create~device(Heap.make_descriptor~size:1048576L()))in
  if get(Resource100.Heap_ops.checked_device heap)!=device then failwith"heap device";
- reject(Resource100.Heap_ops.create_acceleration_structure heap~size:0L);
- (match Resource100.Heap_ops.create_acceleration_structure heap~size:4096L with
+ reject(Resource100.Heap_ops.create_acceleration_structure heap~size:0L());
+ (match Resource100.Heap_ops.create_acceleration_structure heap~size:4096L() with
   |Ok acceleration->get(Acceleration_structure.destroy acceleration)
   |Error _->());
+ reject(Resource100.Heap_ops.create_acceleration_structure heap~offset:0L~size:4096L());
+ let triangle_vertices=get(Buffer.create~device~length:36L~storage:Buffer.Shared())in
+ let triangle=get(Acceleration_structure.Triangle.create~vertex_buffer:triangle_vertices
+   ~vertex_stride:12L~triangle_count:1L())in
+ (match Resource100.Heap_ops.create_acceleration_structure_with_descriptor heap triangle with
+  |Ok acceleration->get(Acceleration_structure.destroy acceleration)
+  |Error _->());
+ get(Buffer.destroy triangle_vertices);
  let texture=get(Texture.create~device(Texture.descriptor_2d~storage:Buffer.Shared~usage:[Texture.Shader_read;Texture.Shader_write]~format:Texture.Rgba8_unorm~width:4~height:4()))in
  if get(Resource100.Resource_ops.device(Resource100.Resource_ops.Texture texture))!=device then failwith"resource device";
  (match get(Resource100.Resource_ops.heap(Resource100.Resource_ops.Texture texture))with None->()|Some _->failwith"device texture heap");
