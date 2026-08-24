@@ -3197,6 +3197,8 @@ module Blit_encoder : sig
     destination_region:Texture.region -> (unit, error) result
   val fill_buffer : t -> Buffer.t -> offset:int64 -> length:int64 -> byte:int -> (unit,error) result
   val generate_mipmaps : t -> Texture.t -> (unit,error) result
+  val copy_buffer : t -> source:Buffer.t -> source_offset:int64 -> destination:Buffer.t -> destination_offset:int64 -> length:int64 -> (unit,error) result
+  val copy_texture : t -> source:Texture.t -> destination:Texture.t -> (unit,error) result
   val update_fence : t -> Fence.t -> (unit,error) result
   val wait_for_fence : t -> Fence.t -> (unit,error) result
   val optimize_indirect : t -> Indirect_command_buffer.t -> location:int -> length:int -> (unit,error) result

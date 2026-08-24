@@ -18042,7 +18042,54 @@ module Blit_encoder = struct
           else Result.bind (ensure_same_device operation value.command_buffer.queue.device texture.device)
             (fun () -> match Metal_raw.blit_fill_mipmap value.raw texture.raw true (0L,0L,0L) with
              | Error message -> native_error operation message
-             | Ok () -> retain_command_buffer_texture value.command_buffer texture; Ok ())))
+           | Ok () -> retain_command_buffer_texture value.command_buffer texture; Ok ())))
+
+  let copy_buffer (value:t) ~(source:Buffer.t) ~source_offset
+      ~(destination:Buffer.t) ~destination_offset ~length =
+    let operation = "Metal.Blit_encoder.copy_buffer" in
+    on_main operation (fun () -> match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () -> Result.bind (ensure_buffer_usable operation source) (fun () ->
+          Result.bind (ensure_buffer_usable operation destination) (fun () ->
+            if source_offset < 0L || destination_offset < 0L || length < 0L
+               || source_offset > source.length
+               || length > Int64.sub source.length source_offset
+               || destination_offset > destination.length
+               || length > Int64.sub destination.length destination_offset
+            then error operation Invalid_argument "copy range exceeds a buffer"
+            else Result.bind
+              (ensure_same_device operation value.command_buffer.queue.device source.device)
+              (fun () -> Result.bind
+                (ensure_same_device operation source.device destination.device)
+                (fun () -> match Metal_raw.blit_copy value.raw 1 source.raw destination.raw
+                                  (Metal_raw.Blit_buffer_to_buffer
+                                     (source_offset,destination_offset,length)) with
+                 | Error message -> native_error operation message
+                 | Ok () ->
+                     retain_command_buffer_buffer value.command_buffer source;
+                     retain_command_buffer_buffer value.command_buffer destination;
+                     Ok ())))))
+
+  let copy_texture (value:t) ~(source:Texture.t) ~(destination:Texture.t) =
+    let operation = "Metal.Blit_encoder.copy_texture" in
+    on_main operation (fun () -> match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () -> Result.bind (ensure_texture_usable operation source) (fun () ->
+          Result.bind (ensure_texture_usable operation destination) (fun () ->
+            if source.descriptor.width <> destination.descriptor.width
+               || source.descriptor.height <> destination.descriptor.height
+               || source.descriptor.depth <> destination.descriptor.depth
+               || source.descriptor.format <> destination.descriptor.format
+            then error operation Invalid_argument "whole-texture copy descriptors differ"
+            else Result.bind
+              (ensure_same_device operation value.command_buffer.queue.device source.device)
+              (fun () -> Result.bind
+                (ensure_same_device operation source.device destination.device)
+                (fun () -> match Metal_raw.blit_copy value.raw 6 source.raw destination.raw
+                                  Metal_raw.Blit_texture_whole with
+                 | Error message -> native_error operation message
+                 | Ok () -> retain_command_buffer_texture value.command_buffer source;
+                     retain_command_buffer_texture value.command_buffer destination; Ok ())))))
 
   let fence_call operation update (value:t) (fence:Fence.t) =
     on_main operation (fun () -> match ensure_live operation value.lifetime with
