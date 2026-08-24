@@ -684,6 +684,13 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (name test_binding_four_id_tails)
+ (modules test_binding_four_id_tails)
+ (libraries yojson)
+ (deps ../../lib/metal/generated_api_inventory.json)
+ (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
+
+(test
  (name test_binding_render_command_safe_reachability)
  (modules test_binding_render_command_safe_reachability)
  (libraries metal_inventory_classification))
