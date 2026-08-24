@@ -1606,6 +1606,14 @@ let acceleration_ownership_identifier ~header ~kind ~signature identifier =
 let acceleration_operation_bound_identifiers =
   String_set.of_list
     [ "protocol:MTLFunctionHandle"
+    ; "method:-[MTLFunctionHandle device]"
+    ; "method:-[MTLFunctionHandle functionType]"
+    ; "method:-[MTLFunctionHandle gpuResourceID]"
+    ; "method:-[MTLFunctionHandle name]"
+    ; "property:MTLFunctionHandle:device"
+    ; "property:MTLFunctionHandle:functionType"
+    ; "property:MTLFunctionHandle:gpuResourceID"
+    ; "property:MTLFunctionHandle:name"
     ; "method:-[MTLComputePipelineState functionHandleWithFunction:]"
     ; "class:MTLVisibleFunctionTableDescriptor"
     ; "method:+[MTLVisibleFunctionTableDescriptor visibleFunctionTableDescriptor]"
@@ -1678,6 +1686,20 @@ let render_pipeline93_safe11 =
   ; "method:-[MTLRenderPipelineDescriptor setLabel:]"
   ; "method:-[MTLTileRenderPipelineDescriptor reset]"
   ; "property:MTLRenderPipelineDescriptor:label" ]
+
+let render_pipeline93_mesh_graph12 =
+  [ "method:-[MTLMeshRenderPipelineDescriptor binaryArchives]"
+  ; "method:-[MTLMeshRenderPipelineDescriptor setBinaryArchives:]"
+  ; "property:MTLMeshRenderPipelineDescriptor:binaryArchives"
+  ; "method:-[MTLMeshRenderPipelineDescriptor objectFunction]"
+  ; "method:-[MTLMeshRenderPipelineDescriptor setObjectFunction:]"
+  ; "property:MTLMeshRenderPipelineDescriptor:objectFunction"
+  ; "method:-[MTLMeshRenderPipelineDescriptor meshFunction]"
+  ; "method:-[MTLMeshRenderPipelineDescriptor setMeshFunction:]"
+  ; "property:MTLMeshRenderPipelineDescriptor:meshFunction"
+  ; "method:-[MTLMeshRenderPipelineDescriptor fragmentFunction]"
+  ; "method:-[MTLMeshRenderPipelineDescriptor setFragmentFunction:]"
+  ; "property:MTLMeshRenderPipelineDescriptor:fragmentFunction" ]
 
 let classify ~unavailable ~identifier ~header ~kind ~signature =
   if unavailable then
@@ -1760,7 +1782,8 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier Binding_command_queue_tail_handoff.callable_ids then
     Bound,
       "Implemented by the CommandQueue14 safe closure with checked descriptor limits and log-state ownership, copied queue identity, capture-state validation, and retained classic command buffers."
-  else if List.mem identifier render_pipeline93_safe11 then
+  else if List.mem identifier render_pipeline93_safe11
+          || List.mem identifier render_pipeline93_mesh_graph12 then
     Bound,
       "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership."
   else if List.mem identifier Binding_compute_encoder35_safe_closure.callable_ids then
