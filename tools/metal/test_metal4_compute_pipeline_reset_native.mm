@@ -7,7 +7,8 @@ static_assert(std::is_same_v<
     decltype(((MTL4ComputePipelineDescriptor *)nil).requiredThreadsPerThreadgroup),
     MTLSize>);
 
-static bool is_default(MTL4ComputePipelineDescriptor *descriptor)
+static bool has_reset_state(MTL4ComputePipelineDescriptor *descriptor,
+                            MTL4IndirectCommandBufferSupportState indirect)
 {
   MTLSize threads = descriptor.requiredThreadsPerThreadgroup;
   return descriptor.computeFunctionDescriptor == nil &&
@@ -16,8 +17,7 @@ static bool is_default(MTL4ComputePipelineDescriptor *descriptor)
          threads.width == 0 && threads.height == 0 && threads.depth == 0 &&
          descriptor.supportBinaryLinking == NO &&
          descriptor.staticLinkingDescriptor != nil &&
-         descriptor.supportIndirectCommandBuffers ==
-             MTL4IndirectCommandBufferSupportStateDisabled;
+         descriptor.supportIndirectCommandBuffers == indirect;
 }
 
 int main()
@@ -28,7 +28,10 @@ int main()
     @autoreleasepool {
       MTL4ComputePipelineDescriptor *descriptor =
           [MTL4ComputePipelineDescriptor new];
-      if (descriptor == nil || !is_default(descriptor)) return 1;
+      if (descriptor == nil ||
+          !has_reset_state(
+              descriptor, MTL4IndirectCommandBufferSupportStateDisabled))
+        return 1;
       @autoreleasepool {
         MTL4LibraryFunctionDescriptor *function =
             [MTL4LibraryFunctionDescriptor new];
@@ -45,16 +48,22 @@ int main()
         descriptor.supportIndirectCommandBuffers =
             MTL4IndirectCommandBufferSupportStateEnabled;
       }
-      if (weak_function == nil || weak_linking == nil ||
-          descriptor.computeFunctionDescriptor == nil ||
+      if (descriptor.computeFunctionDescriptor == nil ||
           descriptor.staticLinkingDescriptor == nil)
         return 2;
+      /* Both descriptor properties copy their source graphs. */
+      if (weak_function != nil || weak_linking != nil) return 6;
       [descriptor reset];
-      if (!is_default(descriptor)) return 3;
+      /* Reset preserves the independently configured indirect-command policy. */
+      if (!has_reset_state(
+              descriptor, MTL4IndirectCommandBufferSupportStateEnabled))
+        return 3;
       if (weak_function != nil || weak_linking != nil) return 4;
       /* Reset is safely idempotent and preserves exact defaults. */
       [descriptor reset];
-      if (!is_default(descriptor)) return 5;
+      if (!has_reset_state(
+              descriptor, MTL4IndirectCommandBufferSupportStateEnabled))
+        return 5;
     }
   }
   return 0;
