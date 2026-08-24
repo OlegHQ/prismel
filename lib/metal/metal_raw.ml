@@ -2368,3 +2368,32 @@ external argument_encoder_array :
   handle -> int -> handle array -> int64 array -> (int64 * int64) ->
   (unit,string) result =
   "caml_prismel_metal_argument_encoder_array"
+
+(* Exact callable tail for AccelerationCommand32. *)
+external acceleration_pass_create : unit -> (handle,string) result =
+  "caml_prismel_metal_acceleration_pass_create"
+external acceleration_pass_attachments : handle -> (handle,string) result =
+  "caml_prismel_metal_acceleration_pass_attachments"
+external acceleration_pass_attachment :
+  handle -> int64 -> handle option -> int64 -> int64 -> (handle,string) result =
+  "caml_prismel_metal_acceleration_pass_attachment"
+external acceleration_pass_attachment_snapshot :
+  handle -> ((handle option * int64 * int64),string) result =
+  "caml_prismel_metal_acceleration_pass_attachment_snapshot"
+external acceleration_encoder_fence :
+  handle -> handle -> bool -> (unit,string) result =
+  "caml_prismel_metal_acceleration_encoder_fence"
+external acceleration_encoder_sample :
+  handle -> handle -> int64 -> bool -> (unit,string) result =
+  "caml_prismel_metal_acceleration_encoder_sample"
+external acceleration_encoder_use :
+  handle -> handle array -> (int * handle) array -> int64 -> (unit,string) result =
+  "caml_prismel_metal_acceleration_encoder_use"
+external acceleration_encoder_refit_options :
+  handle -> handle -> handle -> acceleration_triangle_descriptor -> handle ->
+  int64 -> int64 -> (unit,string) result =
+  "caml_prismel_metal_acceleration_encoder_refit_options_bytecode"
+  "caml_prismel_metal_acceleration_encoder_refit_options"
+external acceleration_encoder_write_type :
+  handle -> handle -> handle -> int64 -> int -> (unit,string) result =
+  "caml_prismel_metal_acceleration_encoder_write_type"
