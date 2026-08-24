@@ -1687,6 +1687,18 @@ value copy_bindings(NSArray<id<MTLBinding>> *bindings) {
   CAMLreturn(array);
 }
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+static void prismel_validate_legacy_render_arguments(
+    NSArray<MTLArgument *> *arguments) {
+  for (MTLArgument *argument in arguments ?: @[]) {
+    if (argument.name == nil || argument.name.UTF8String == nullptr)
+      @throw [NSException exceptionWithName:@"PrismelMetalReflection"
+                                     reason:@"render reflection returned an invalid argument name"
+                                   userInfo:nil];
+  }
+}
+
 value copy_render_reflection(MTLRenderPipelineReflection *reflection) {
   CAMLparam0();
   CAMLlocal5(vertex, fragment, tile, object, mesh);
@@ -1696,6 +1708,12 @@ value copy_render_reflection(MTLRenderPipelineReflection *reflection) {
   tile = copy_bindings(reflection.tileBindings);
   object = copy_bindings(reflection.objectBindings);
   mesh = copy_bindings(reflection.meshBindings);
+  /* Preserve safe modern MTLBinding snapshots while also executing and
+     validating the three deprecated MTLArgument selector families represented
+     by RenderPipeline93. */
+  prismel_validate_legacy_render_arguments(reflection.vertexArguments);
+  prismel_validate_legacy_render_arguments(reflection.fragmentArguments);
+  prismel_validate_legacy_render_arguments(reflection.tileArguments);
   result = caml_alloc_tuple(5);
   Store_field(result, 0, vertex);
   Store_field(result, 1, fragment);
@@ -1704,6 +1722,7 @@ value copy_render_reflection(MTLRenderPipelineReflection *reflection) {
   Store_field(result, 4, mesh);
   CAMLreturn(result);
 }
+#pragma clang diagnostic pop
 
 void release_pointer(void *pointer) {
   if (pointer == nullptr) {
