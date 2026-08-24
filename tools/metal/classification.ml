@@ -1620,12 +1620,22 @@ let library_existing_safe18 =
   ; "property:MTLFunction:stageInputAttributes"; "property:MTLFunction:vertexAttributes"
   ; "method:-[MTLLibrary newFunctionWithDescriptor:error:]" ]
 
-let blit_safe5 =
+let blit_safe15 =
   [ "method:-[MTLBlitCommandEncoder copyFromBuffer:sourceOffset:sourceBytesPerRow:sourceBytesPerImage:sourceSize:toTexture:destinationSlice:destinationLevel:destinationOrigin:options:]"
   ; "method:-[MTLBlitCommandEncoder fillBuffer:range:value:]"
   ; "method:-[MTLBlitCommandEncoder generateMipmapsForTexture:]"
   ; "method:-[MTLBlitCommandEncoder updateFence:]"
   ; "method:-[MTLBlitCommandEncoder waitForFence:]" ]
+  @ [ "method:-[MTLBlitCommandEncoder copyFromBuffer:sourceOffset:toBuffer:destinationOffset:size:]"
+    ; "method:-[MTLBlitCommandEncoder copyFromTexture:toTexture:]"
+    ; "method:-[MTLBlitCommandEncoder optimizeContentsForCPUAccess:]"
+    ; "method:-[MTLBlitCommandEncoder optimizeContentsForCPUAccess:slice:level:]"
+    ; "method:-[MTLBlitCommandEncoder optimizeContentsForGPUAccess:]"
+    ; "method:-[MTLBlitCommandEncoder optimizeContentsForGPUAccess:slice:level:]"
+    ; "method:-[MTLBlitCommandEncoder optimizeIndirectCommandBuffer:withRange:]"
+    ; "method:-[MTLBlitCommandEncoder resetCommandsInBuffer:withRange:]"
+    ; "method:-[MTLBlitCommandEncoder synchronizeResource:]"
+    ; "method:-[MTLBlitCommandEncoder synchronizeTexture:slice:level:]" ]
 
 let classify ~unavailable ~identifier ~header ~kind ~signature =
   if unavailable then
@@ -1690,7 +1700,7 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier Binding_library_header_handoff.callable_ids then
     Bound,
       "Implemented by the MTLLibrary34 safe closure with immutable compile options, retained reflection and argument-encoder graphs, checked synchronous construction, and cancellable exactly-once asynchronous tasks."
-  else if List.mem identifier blit_safe5 then
+  else if List.mem identifier blit_safe15 then
     Bound,
       "Implemented by the owned Blit_encoder safe surface with checked ranges, device identity, resource retention, and native command execution."
   else if List.mem identifier Binding_resource_safe_reachability.promotable_ids then
