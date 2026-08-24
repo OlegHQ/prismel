@@ -1723,6 +1723,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier Binding_capture_manager_tail_handoff.callable_ids then
     Bound,
       "Implemented by the CaptureManager19 safe closure with atomic descriptor replacement, checked URL/destination and source kinds, retained scope/default/source graphs, and serialized capture lifecycle rollback."
+  else if List.mem identifier Binding_compute_pass_tail_handoff.callable_ids then
+    Bound,
+      "Implemented by the ComputePass17 safe closure with checked dispatch and sample ranges, exact native snapshots, same-device attachment validation, and retained counter-sample-buffer graphs."
   else if List.mem identifier io_compressor_safe5 then
     Bound,
       "Implemented by the owned IO.Compressor lifecycle with copied configuration, checked byte ranges, synchronous consumption, exact finalization state, and real compressed-output conformance."

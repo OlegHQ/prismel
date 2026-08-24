@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4537,
+    "bound": 4554,
     "scope-excluded": 37,
-    "unreviewed": 711
+    "unreviewed": 694
   },
-  "classification_source_sha256": "e5db30722be77f0119c8c8618ca63846fc8b69e4c00b4db8676147fc815a8600",
+  "classification_source_sha256": "6bc74fef989c937da96f2765b1c4e5a136888a23a82d523c5ed980b2ff611f73",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -29579,7 +29579,7 @@
           "line": 66
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePass.h",
       "id": "method:+[MTLComputePassDescriptor computePassDescriptor]",
       "kind": "method",
@@ -29587,7 +29587,7 @@
       "macos_introduced": "11.0",
       "name": "computePassDescriptor",
       "owner": "MTLComputePassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ComputePass17 safe closure with checked dispatch and sample ranges, exact native snapshots, same-device attachment validation, and retained counter-sample-buffer graphs.",
       "signature": "class () -> MTLComputePassDescriptor * _Nonnull"
     },
     {
@@ -52830,7 +52830,7 @@
           "line": 66
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePass.h",
       "id": "method:-[MTLComputePassDescriptor dispatchType]",
       "kind": "method",
@@ -52838,7 +52838,7 @@
       "macos_introduced": "11.0",
       "name": "dispatchType",
       "owner": "MTLComputePassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ComputePass17 safe closure with checked dispatch and sample ranges, exact native snapshots, same-device attachment validation, and retained counter-sample-buffer graphs.",
       "signature": "instance () -> MTLDispatchType"
     },
     {
@@ -52849,7 +52849,7 @@
           "line": 66
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePass.h",
       "id": "method:-[MTLComputePassDescriptor sampleBufferAttachments]",
       "kind": "method",
@@ -52857,7 +52857,7 @@
       "macos_introduced": "11.0",
       "name": "sampleBufferAttachments",
       "owner": "MTLComputePassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ComputePass17 safe closure with checked dispatch and sample ranges, exact native snapshots, same-device attachment validation, and retained counter-sample-buffer graphs.",
       "signature": "instance () -> MTLComputePassSampleBufferAttachmentDescriptorArray * _Nonnull"
     },
     {
@@ -52868,7 +52868,7 @@
           "line": 66
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePass.h",
       "id": "method:-[MTLComputePassDescriptor setDispatchType:]",
       "kind": "method",
@@ -52876,7 +52876,7 @@
       "macos_introduced": "11.0",
       "name": "setDispatchType:",
       "owner": "MTLComputePassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ComputePass17 safe closure with checked dispatch and sample ranges, exact native snapshots, same-device attachment validation, and retained counter-sample-buffer graphs.",
       "signature": "instance (MTLDispatchType) -> void"
     },
     {
@@ -52887,7 +52887,7 @@
           "line": 20
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePass.h",
       "id": "method:-[MTLComputePassSampleBufferAttachmentDescriptor endOfEncoderSampleIndex]",
       "kind": "method",
@@ -52895,7 +52895,7 @@
       "macos_introduced": "11.0",
       "name": "endOfEncoderSampleIndex",
       "owner": "MTLComputePassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ComputePass17 safe closure with checked dispatch and sample ranges, exact native snapshots, same-device attachment validation, and retained counter-sample-buffer graphs.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -52906,7 +52906,7 @@
           "line": 20
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePass.h",
       "id": "method:-[MTLComputePassSampleBufferAttachmentDescriptor sampleBuffer]",
       "kind": "method",
@@ -52914,7 +52914,7 @@
       "macos_introduced": "11.0",
       "name": "sampleBuffer",
       "owner": "MTLComputePassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ComputePass17 safe closure with checked dispatch and sample ranges, exact native snapshots, same-device attachment validation, and retained counter-sample-buffer graphs.",
       "signature": "instance () -> id<MTLCounterSampleBuffer> _Nullable"
     },
     {
@@ -52925,7 +52925,7 @@
           "line": 20
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePass.h",
       "id": "method:-[MTLComputePassSampleBufferAttachmentDescriptor setEndOfEncoderSampleIndex:]",
       "kind": "method",
@@ -52933,7 +52933,7 @@
       "macos_introduced": "11.0",
       "name": "setEndOfEncoderSampleIndex:",
       "owner": "MTLComputePassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ComputePass17 safe closure with checked dispatch and sample ranges, exact native snapshots, same-device attachment validation, and retained counter-sample-buffer graphs.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -52944,7 +52944,7 @@
           "line": 20
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePass.h",
       "id": "method:-[MTLComputePassSampleBufferAttachmentDescriptor setSampleBuffer:]",
       "kind": "method",
@@ -52952,7 +52952,7 @@
       "macos_introduced": "11.0",
       "name": "setSampleBuffer:",
       "owner": "MTLComputePassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ComputePass17 safe closure with checked dispatch and sample ranges, exact native snapshots, same-device attachment validation, and retained counter-sample-buffer graphs.",
       "signature": "instance (id<MTLCounterSampleBuffer> _Nullable) -> void"
     },
     {
@@ -52963,7 +52963,7 @@
           "line": 20
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePass.h",
       "id": "method:-[MTLComputePassSampleBufferAttachmentDescriptor setStartOfEncoderSampleIndex:]",
       "kind": "method",
@@ -52971,7 +52971,7 @@
       "macos_introduced": "11.0",
       "name": "setStartOfEncoderSampleIndex:",
       "owner": "MTLComputePassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ComputePass17 safe closure with checked dispatch and sample ranges, exact native snapshots, same-device attachment validation, and retained counter-sample-buffer graphs.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -52982,7 +52982,7 @@
           "line": 20
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePass.h",
       "id": "method:-[MTLComputePassSampleBufferAttachmentDescriptor startOfEncoderSampleIndex]",
       "kind": "method",
@@ -52990,7 +52990,7 @@
       "macos_introduced": "11.0",
       "name": "startOfEncoderSampleIndex",
       "owner": "MTLComputePassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ComputePass17 safe closure with checked dispatch and sample ranges, exact native snapshots, same-device attachment validation, and retained counter-sample-buffer graphs.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -53001,7 +53001,7 @@
           "line": 52
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePass.h",
       "id": "method:-[MTLComputePassSampleBufferAttachmentDescriptorArray objectAtIndexedSubscript:]",
       "kind": "method",
@@ -53009,7 +53009,7 @@
       "macos_introduced": "11.0",
       "name": "objectAtIndexedSubscript:",
       "owner": "MTLComputePassSampleBufferAttachmentDescriptorArray",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ComputePass17 safe closure with checked dispatch and sample ranges, exact native snapshots, same-device attachment validation, and retained counter-sample-buffer graphs.",
       "signature": "instance (NSUInteger) -> MTLComputePassSampleBufferAttachmentDescriptor * _Nonnull"
     },
     {
@@ -53020,7 +53020,7 @@
           "line": 52
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePass.h",
       "id": "method:-[MTLComputePassSampleBufferAttachmentDescriptorArray setObject:atIndexedSubscript:]",
       "kind": "method",
@@ -53028,7 +53028,7 @@
       "macos_introduced": "11.0",
       "name": "setObject:atIndexedSubscript:",
       "owner": "MTLComputePassSampleBufferAttachmentDescriptorArray",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ComputePass17 safe closure with checked dispatch and sample ranges, exact native snapshots, same-device attachment validation, and retained counter-sample-buffer graphs.",
       "signature": "instance (MTLComputePassSampleBufferAttachmentDescriptor * _Nullable __strong, NSUInteger) -> void"
     },
     {
@@ -91411,7 +91411,7 @@
           "line": 66
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePass.h",
       "id": "property:MTLComputePassDescriptor:dispatchType",
       "kind": "property",
@@ -91419,7 +91419,7 @@
       "macos_introduced": "11.0",
       "name": "dispatchType",
       "owner": "MTLComputePassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ComputePass17 safe closure with checked dispatch and sample ranges, exact native snapshots, same-device attachment validation, and retained counter-sample-buffer graphs.",
       "signature": "MTLDispatchType"
     },
     {
@@ -91430,7 +91430,7 @@
           "line": 66
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePass.h",
       "id": "property:MTLComputePassDescriptor:sampleBufferAttachments",
       "kind": "property",
@@ -91438,7 +91438,7 @@
       "macos_introduced": "11.0",
       "name": "sampleBufferAttachments",
       "owner": "MTLComputePassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ComputePass17 safe closure with checked dispatch and sample ranges, exact native snapshots, same-device attachment validation, and retained counter-sample-buffer graphs.",
       "signature": "MTLComputePassSampleBufferAttachmentDescriptorArray * _Nonnull"
     },
     {
@@ -91449,7 +91449,7 @@
           "line": 20
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePass.h",
       "id": "property:MTLComputePassSampleBufferAttachmentDescriptor:endOfEncoderSampleIndex",
       "kind": "property",
@@ -91457,7 +91457,7 @@
       "macos_introduced": "11.0",
       "name": "endOfEncoderSampleIndex",
       "owner": "MTLComputePassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ComputePass17 safe closure with checked dispatch and sample ranges, exact native snapshots, same-device attachment validation, and retained counter-sample-buffer graphs.",
       "signature": "NSUInteger"
     },
     {
@@ -91468,7 +91468,7 @@
           "line": 20
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePass.h",
       "id": "property:MTLComputePassSampleBufferAttachmentDescriptor:sampleBuffer",
       "kind": "property",
@@ -91476,7 +91476,7 @@
       "macos_introduced": "11.0",
       "name": "sampleBuffer",
       "owner": "MTLComputePassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ComputePass17 safe closure with checked dispatch and sample ranges, exact native snapshots, same-device attachment validation, and retained counter-sample-buffer graphs.",
       "signature": "id<MTLCounterSampleBuffer> _Nullable"
     },
     {
@@ -91487,7 +91487,7 @@
           "line": 20
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePass.h",
       "id": "property:MTLComputePassSampleBufferAttachmentDescriptor:startOfEncoderSampleIndex",
       "kind": "property",
@@ -91495,7 +91495,7 @@
       "macos_introduced": "11.0",
       "name": "startOfEncoderSampleIndex",
       "owner": "MTLComputePassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ComputePass17 safe closure with checked dispatch and sample ranges, exact native snapshots, same-device attachment validation, and retained counter-sample-buffer graphs.",
       "signature": "NSUInteger"
     },
     {
