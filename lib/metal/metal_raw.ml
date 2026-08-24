@@ -2670,3 +2670,14 @@ external drawable10_add_handler :
   "caml_prismel_metal_drawable10_add_handler"
 external drawable10_handler_cancel : nativeint -> unit =
   "caml_prismel_metal_drawable10_handler_cancel"
+
+external function_constants3_create : unit -> (handle, string) result =
+  "caml_prismel_metal_function_constants3_create"
+external function_constants3_reset : handle -> (unit, string) result =
+  "caml_prismel_metal_function_constants3_reset"
+external function_constants3_set_index :
+  handle -> int -> int64 -> string -> (unit, string) result =
+  "caml_prismel_metal_function_constants3_set_index"
+external function_constants3_set_range :
+  handle -> int -> (int64 * int64) -> string -> (unit, string) result =
+  "caml_prismel_metal_function_constants3_set_range"

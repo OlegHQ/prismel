@@ -31,6 +31,15 @@ static bool prismel_function_constant_width(MTLDataType type, size_t *width) {
   }
 }
 
+extern "C" CAMLprim value caml_prismel_metal_function_constants3_create(value unit) {
+  CAMLparam1(unit); CAMLlocal2(handle, result); (void)unit;
+  @try { MTLFunctionConstantValues *values = [MTLFunctionConstantValues new];
+    if (values == nil) CAMLreturn(result_error_text("Metal returned no function constants"));
+    handle = allocate_handle(values, Handle_kind::Function_constant_values);
+    result = result_ok(handle); CAMLreturn(result);
+  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
+}
+
 extern "C" CAMLprim value caml_prismel_metal_function_constants3_reset(value raw) {
   CAMLparam1(raw); @try { MTLFunctionConstantValues *values = object_of_handle(
       raw, Handle_kind::Function_constant_values);
