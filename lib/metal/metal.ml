@@ -1070,6 +1070,11 @@ type linked_functions =
   ; mutable binary:function_handle list option
   ; mutable private_:function_handle list option
   ; mutable groups:(string * function_handle list) list option }
+type render_pipeline_functions_descriptor =
+  { raw:Metal_raw.handle; lifetime:lifetime
+  ; mutable vertex_functions:function_handle list
+  ; mutable fragment_functions:function_handle list
+  ; mutable tile_functions:function_handle list }
 
 type library_compile_options =
   { raw : Metal_raw.handle
@@ -10001,6 +10006,18 @@ module Render_pipeline = struct
       match ensure_live "Metal.Render_pipeline.label" value.lifetime with
       | Error _ as failure -> failure
       | Ok () -> Ok (Metal_raw.render_pipeline_label value.raw))
+
+  module Functions_descriptor = struct
+    type t=render_pipeline_functions_descriptor
+    type stage=Vertex|Fragment|Tile
+    let stage_code=function Vertex->0|Fragment->1|Tile->2
+    let retained(value:t)=function Vertex->value.vertex_functions|Fragment->value.fragment_functions|Tile->value.tile_functions
+    let assign(value:t) stage functions=match stage with Vertex->value.vertex_functions<-functions|Fragment->value.fragment_functions<-functions|Tile->value.tile_functions<-functions
+    let create()=let operation="Metal.Render_pipeline.Functions_descriptor.create"in on_main operation(fun()->match Metal_raw.render93_functions_descriptor_create()with Error m->native_error operation m|Ok raw->let value:t={raw;lifetime=lifetime();vertex_functions=[];fragment_functions=[];tile_functions=[]}in Gc.finalise(fun(value:t)->if Atomic.compare_and_set value.lifetime.destroyed false true then(List.iter(fun(f:function_handle)->detach f.lifetime)(value.vertex_functions@value.fragment_functions@value.tile_functions);ignore(Metal_raw.destroy value.raw)))value;Ok value)
+    let functions(value:t) stage=let operation="Metal.Render_pipeline.Functions_descriptor.functions"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.render93_functions_descriptor_array value.raw(stage_code stage)false[||]with Error m->native_error operation m|Ok snapshot->Array.iter(fun h->ignore(Metal_raw.destroy h))snapshot;Ok(retained value stage))
+    let set_functions(value:t) stage functions=let operation="Metal.Render_pipeline.Functions_descriptor.set_functions"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->let rec validate=function []->Ok()|(f:function_handle)::rest->Result.bind(ensure_live operation f.lifetime)(fun()->validate rest)in Result.bind(validate functions)(fun()->match Metal_raw.render93_functions_descriptor_array value.raw(stage_code stage)true(Array.of_list(List.map(fun(f:function_handle)->f.raw)functions))with Error m->native_error operation m|Ok snapshot->Array.iter(fun h->ignore(Metal_raw.destroy h))snapshot;List.iter(fun(f:function_handle)->attach f.lifetime)functions;List.iter(fun(f:function_handle)->detach f.lifetime)(retained value stage);assign value stage functions;Ok()))
+    let destroy(value:t)=destroy_leaf "Metal.Render_pipeline.Functions_descriptor.destroy" value.lifetime value.raw(fun()->List.iter(fun(f:function_handle)->detach f.lifetime)(value.vertex_functions@value.fragment_functions@value.tile_functions))
+  end
 
   module Mesh_tile = struct
     module Option=struct include Stdlib.Option let exists predicate=function Some x->predicate x|None->false end

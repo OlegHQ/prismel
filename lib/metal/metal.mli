@@ -1897,6 +1897,14 @@ module Render_pipeline : sig
   val vertex_descriptor : t -> Vertex_descriptor.t option
   val reflection : t -> reflection option
   val label : t -> (string option, error) result
+  module Functions_descriptor:sig
+    type t
+    type stage=Vertex|Fragment|Tile
+    val create : unit -> (t,error) result
+    val functions : t -> stage -> (Function.t list,error) result
+    val set_functions : t -> stage -> Function.t list -> (unit,error) result
+    val destroy : t -> (unit,error) result
+  end
   module Mesh_tile:sig
     type size3={width:int64;height:int64;depth:int64}
     type mutability=Default|Mutable|Immutable

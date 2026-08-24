@@ -13,6 +13,16 @@ kernel void tile93(ushort2 p [[thread_position_in_threadgroup]]) { (void)p; }
 let ()=match Device.system_default()with Error _->print_endline"RenderPipeline93 mesh graph: skipped"|Ok device->
   let library=get(Library.compile_source~device source)in
   let mesh=get(Function.find~library "mesh93")and fragment=get(Function.find~library "fragment93")and tile=get(Function.find~library "tile93")in
+  let additional=get(Render_pipeline.Functions_descriptor.create())in
+  get(Render_pipeline.Functions_descriptor.set_functions additional Render_pipeline.Functions_descriptor.Vertex[mesh]);
+  get(Render_pipeline.Functions_descriptor.set_functions additional Render_pipeline.Functions_descriptor.Fragment[fragment]);
+  get(Render_pipeline.Functions_descriptor.set_functions additional Render_pipeline.Functions_descriptor.Tile[tile]);
+  (match get(Render_pipeline.Functions_descriptor.functions additional Render_pipeline.Functions_descriptor.Vertex)with[value]when value==mesh->()|_->failwith"additional vertex functions drift");
+  expect Parent_has_dependents(Function.destroy mesh);
+  get(Render_pipeline.Functions_descriptor.set_functions additional Render_pipeline.Functions_descriptor.Vertex[]);
+  get(Render_pipeline.Functions_descriptor.set_functions additional Render_pipeline.Functions_descriptor.Fragment[]);
+  get(Render_pipeline.Functions_descriptor.set_functions additional Render_pipeline.Functions_descriptor.Tile[]);
+  get(Render_pipeline.Functions_descriptor.destroy additional);
   let open Render_pipeline.Mesh_tile in let three={width=3L;height=1L;depth=1L}and zero={width=0L;height=0L;depth=0L}in
   let descriptor=get(mesh_descriptor~fragment_function:fragment~mesh_function:mesh~depth_format:Texture.Depth32_float~stencil_format:Texture.Stencil8~required_mesh_threads:three~required_object_threads:zero())in
   if get(mesh_mesh_function descriptor)!=mesh then failwith"mesh function identity";
