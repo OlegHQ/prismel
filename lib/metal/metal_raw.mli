@@ -2309,6 +2309,10 @@ external tensor_get_bytes : handle -> bytes -> handle -> handle -> handle -> (un
   "caml_prismel_metal_tensor_get_bytes_bytecode" "caml_prismel_metal_tensor_get_bytes"
 external tensor_replace_bytes : handle -> bytes -> handle -> handle -> handle -> (unit,string) result =
   "caml_prismel_metal_tensor_replace_bytes_bytecode" "caml_prismel_metal_tensor_replace_bytes"
+external tensor_device_create : handle -> handle -> (handle,string) result =
+  "caml_prismel_metal_tensor_device_create"
+external tensor_device_size_align : handle -> handle -> ((int64*int64),string) result =
+  "caml_prismel_metal_tensor_device_size_align"
 external resource_layout_array_create : unit -> (handle,string) result =
   "caml_prismel_metal_resource_layout_array_create"
 external resource_texture_view_descriptor_create :

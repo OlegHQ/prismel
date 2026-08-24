@@ -22,6 +22,19 @@ let () =
   get (Tensor.Descriptor.set_options descriptor ~storage:Buffer.Shared
     ~cpu_cache:Heap.Default_cache
     ~hazard_tracking:Heap.Default_hazard_tracking ~usage:0L);
+  ignore (get (Tensor.Descriptor.checked_options descriptor));
+  let descriptor_device=get(Device.system_default()) in
+  (match Tensor.Device_owned.size_and_align descriptor_device descriptor with
+   | Error {kind=Unsupported;_}->()
+   | Error error->failwith(Format.asprintf "%a" pp_error error)
+   | Ok(size,alignment)->
+       if size<=0L||alignment<=0L then failwith "tensor size/alignment changed";
+       (match Tensor.Device_owned.create descriptor_device descriptor with
+        | Error {kind=Unsupported;_}->()
+        | Error error->failwith(Format.asprintf "%a" pp_error error)
+        | Ok tensor->reject "owned descriptor" (Tensor.Descriptor.destroy descriptor);
+          get(Tensor.Device_owned.destroy tensor)));
+  get(Device.destroy descriptor_device);
   reject "owned dimensions" (Tensor.Extents.destroy dimensions);
   get (Tensor.Descriptor.destroy descriptor);
   get (Tensor.Extents.destroy dimensions);
