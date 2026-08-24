@@ -1097,9 +1097,6 @@ type shader_buffer_layout_descriptor_array = { raw:Metal_raw.handle; lifetime:li
 type shader_stitching_input = { raw:Metal_raw.handle; lifetime:lifetime }
 type stitching_function_node={raw:Metal_raw.handle;lifetime:lifetime;mutable stitch_name:string;mutable stitch_arguments:shader_stitching_input list;mutable stitch_dependencies:stitching_function_node list}
 type stitching_graph={raw:Metal_raw.handle;lifetime:lifetime;mutable graph_name:string;mutable graph_nodes:stitching_function_node list;mutable graph_output:stitching_function_node option;mutable graph_inline:bool}
-type capture_manager={raw:Metal_raw.handle;lifetime:lifetime}
-type capture_descriptor={raw:Metal_raw.handle;lifetime:lifetime;mutable destination:int}
-
 type dynamic_library =
   { raw : Metal_raw.handle
   ; lifetime : lifetime
@@ -1474,6 +1471,15 @@ type command_queue =
   ; device : device
   ; residency_sets : residency_set list ref
   }
+
+type capture_scope={raw:Metal_raw.handle;lifetime:lifetime;device:device;parent:lifetime}
+type capture_source=
+  | Capture_device of device
+  | Capture_command_queue of command_queue
+  | Capture_scope of capture_scope
+  | Capture_command4_queue of command4_queue
+type capture_manager={raw:Metal_raw.handle;lifetime:lifetime;mutable default_scope:capture_scope option;mutable active_source:capture_source option}
+type capture_descriptor={mutable raw:Metal_raw.handle;lifetime:lifetime;mutable capture_source:capture_source option;mutable destination:int;mutable output_url:string option}
 
 type command_phase =
   | Recording
@@ -8944,23 +8950,58 @@ end
 
 module Capture = struct
   type destination=Developer_tools|Gpu_trace_document
+  type manager=capture_manager
+  type scope=capture_scope
+  type source=capture_source=
+    | Capture_device of device
+    | Capture_command_queue of command_queue
+    | Capture_scope of capture_scope
+    | Capture_command4_queue of command4_queue
   let destination_code=function Developer_tools->1|Gpu_trace_document->2
+  let source_parts operation=function
+    | Capture_device value->Result.map(fun()->value.raw,0,value.lifetime,value)(ensure_live operation value.lifetime)
+    | Capture_command_queue value->Result.map(fun()->value.raw,1,value.lifetime,value.device)(ensure_live operation value.lifetime)
+    | Capture_scope value->Result.map(fun()->value.raw,2,value.lifetime,value.device)(ensure_live operation value.lifetime)
+    | Capture_command4_queue value->Result.map(fun()->value.raw,3,value.lifetime,value.device)(ensure_live operation value.lifetime)
+  let validate_url operation destination output_url=
+    if option_exists(fun value->value=""||contains_nul value)output_url then error operation Invalid_argument "capture output path is invalid"
+    else match destination,output_url with Developer_tools,None|Gpu_trace_document,Some _->Ok()|Developer_tools,Some _->error operation Invalid_argument "developer-tools capture cannot use an output path"|Gpu_trace_document,None->error operation Invalid_argument "GPU trace capture requires an output path"
+  let native_descriptor operation source destination output_url=
+    match Metal_raw.command_capture_descriptor_create()with Error message->native_error operation message|Ok raw->
+      let object_raw,kind=match source with None->None,0|Some source->let raw,kind,_,_=Result.get_ok(source_parts operation source)in Some raw,kind in
+      match Metal_raw.capture_descriptor_set raw object_raw kind(destination_code destination)output_url with Ok()->Ok raw|Error message->ignore(Metal_raw.destroy raw);native_error operation message
   module Descriptor=struct
     type t=capture_descriptor
-    let create ?(destination=Developer_tools)()=let operation="Metal.Capture.Descriptor.create"in on_main operation(fun()->match Metal_raw.command_capture_descriptor_create()with Error m->native_error operation m|Ok raw->let value:t={raw;lifetime=lifetime();destination=destination_code destination}in Gc.finalise(fun _->if Atomic.compare_and_set value.lifetime.destroyed false true then ignore(Metal_raw.destroy value.raw))value;match Metal_raw.command_capture_set_destination raw value.destination with Error m->ignore(Metal_raw.destroy raw);native_error operation m|Ok()->Ok value)
+    let create ?source ?(destination=Developer_tools)?output_url()=let operation="Metal.Capture.Descriptor.create"in on_main operation(fun()->match validate_url operation destination output_url with Error _ as failure->failure|Ok()->match Option.map(source_parts operation)source with Some(Error _ as failure)->failure|_->match native_descriptor operation source destination output_url with Error _ as failure->failure|Ok raw->Option.iter(fun source->let _,_,lifetime,_=Result.get_ok(source_parts operation source)in attach lifetime)source;let value:t={raw;lifetime=lifetime();capture_source=source;destination=destination_code destination;output_url}in Gc.finalise(fun(value:t)->if Atomic.compare_and_set value.lifetime.destroyed false true then(begin ignore(Metal_raw.destroy value.raw);Option.iter(fun source->let _,_,lifetime,_=Result.get_ok(source_parts operation source)in detach lifetime)value.capture_source end))value;Ok value)
     let destination(value:t)=if value.destination=1 then Developer_tools else Gpu_trace_document
-    let set_destination(value:t) destination=let operation="Metal.Capture.Descriptor.set_destination"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->let code=destination_code destination in match Metal_raw.command_capture_set_destination value.raw code with Error m->native_error operation m|Ok()->value.destination<-code;Ok())
+    let source(value:t)=value.capture_source and output_url(value:t)=value.output_url
+    let replace operation (value:t) source destination output_url=match validate_url operation destination output_url with Error _ as failure->failure|Ok()->match Option.map(source_parts operation)source with Some(Error _ as failure)->failure|_->match native_descriptor operation source destination output_url with Error _ as failure->failure|Ok raw->Option.iter(fun source->let _,_,lifetime,_=Result.get_ok(source_parts operation source)in attach lifetime)source;let old_raw=value.raw and old_source=value.capture_source in value.raw<-raw;value.capture_source<-source;value.destination<-destination_code destination;value.output_url<-Option.map(fun path->String.sub path 0(String.length path))output_url;ignore(Metal_raw.destroy old_raw);Option.iter(fun source->let _,_,lifetime,_=Result.get_ok(source_parts operation source)in detach lifetime)old_source;Ok()
+    let set_destination (value:t) destination=let operation="Metal.Capture.Descriptor.set_destination"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as failure->failure|Ok()->replace operation value value.capture_source destination value.output_url)
+    let set_source (value:t) source=let operation="Metal.Capture.Descriptor.set_source"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as failure->failure|Ok()->replace operation value source(destination value)value.output_url)
+    let set_output_url (value:t) output_url=let operation="Metal.Capture.Descriptor.set_output_url"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as failure->failure|Ok()->replace operation value value.capture_source(destination value)output_url)
     let destroyed(value:t)=is_destroyed value.lifetime
-    let destroy(value:t)=destroy_leaf "Metal.Capture.Descriptor.destroy" value.lifetime value.raw ignore
+    let destroy(value:t)=destroy_leaf "Metal.Capture.Descriptor.destroy" value.lifetime value.raw(fun()->Option.iter(fun source->let _,_,lifetime,_=Result.get_ok(source_parts "Metal.Capture.Descriptor.destroy" source)in detach lifetime)value.capture_source)
+  end
+  module Scope=struct
+    type t=capture_scope
+    let create (manager:capture_manager) source=let operation="Metal.Capture.Scope.create"in on_main operation(fun()->match ensure_live operation manager.lifetime with Error _ as failure->failure|Ok()->match source_parts operation source with Error _ as failure->failure|Ok(_,2,_,_)->error operation Invalid_argument "a capture scope cannot own another scope"|Ok(source_raw,kind,parent,device)->let native_kind=if kind=3 then 2 else kind in match Metal_raw.capture_scope_create manager.raw source_raw native_kind with Error message->native_error operation message|Ok raw->attach parent;let value:t={raw;lifetime=lifetime();device;parent}in attach_finalizer value value.lifetime parent;Ok value)
+    let device (value:t)=value.device
+    let destroyed (value:t)=is_destroyed value.lifetime
+    let destroy (value:t)=destroy_parent "Metal.Capture.Scope.destroy" value.lifetime value.raw(fun()->detach value.parent)
   end
   module Manager=struct
     type t=capture_manager
-    let shared()=let operation="Metal.Capture.Manager.shared"in on_main operation(fun()->match Metal_raw.command_capture_manager_shared()with Error m->native_error operation m|Ok raw->let value:t={raw;lifetime=lifetime()}in Gc.finalise(fun _->if Atomic.compare_and_set value.lifetime.destroyed false true then ignore(Metal_raw.destroy value.raw))value;Ok value)
+    let shared()=let operation="Metal.Capture.Manager.shared"in on_main operation(fun()->match Metal_raw.command_capture_manager_shared()with Error m->native_error operation m|Ok raw->let value:t={raw;lifetime=lifetime();default_scope=None;active_source=None}in Gc.finalise(fun(value:t)->if Atomic.compare_and_set value.lifetime.destroyed false true then(begin ignore(Metal_raw.destroy value.raw);Option.iter(fun(scope:capture_scope)->detach scope.lifetime)value.default_scope;Option.iter(fun source->let _,_,lifetime,_=Result.get_ok(source_parts operation source)in detach lifetime)value.active_source end))value;Ok value)
     let query operation raw(value:t)=on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match raw value.raw with Error m->native_error operation m|Ok x->Ok x)
     let supports_destination value destination=query "Metal.Capture.Manager.supports_destination"(fun raw->Metal_raw.command_capture_supports_destination raw(destination_code destination))value
     let is_capturing value=query "Metal.Capture.Manager.is_capturing" Metal_raw.command_capture_is_capturing value
+    let default_scope (value:t)=let operation="Metal.Capture.Manager.default_scope"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as failure->failure|Ok()->Ok value.default_scope)
+    let set_default_scope (value:t) (scope:capture_scope option)=let operation="Metal.Capture.Manager.set_default_scope"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as failure->failure|Ok()->match scope with Some scope when is_destroyed scope.lifetime->error operation Destroyed "capture scope is destroyed"|_->match Metal_raw.capture_default_scope value.raw(Option.map(fun(scope:capture_scope)->scope.raw)scope)true with Error message->native_error operation message|Ok returned->Option.iter(fun raw->ignore(Metal_raw.destroy raw))returned;Option.iter(fun(scope:capture_scope)->attach scope.lifetime)scope;Option.iter(fun(scope:capture_scope)->detach scope.lifetime)value.default_scope;value.default_scope<-scope;Ok())
+    let start (value:t) source=let operation="Metal.Capture.Manager.start"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as failure->failure|Ok()when Option.is_some value.active_source->error operation Invalid_state "a capture is already active"|Ok()->match source_parts operation source with Error _ as failure->failure|Ok(_,3,_,_)->error operation Unsupported "MTL4 queues require descriptor capture"|Ok(raw,kind,lifetime,_)->match Metal_raw.capture_lifecycle value.raw raw kind true with Error message->native_error operation message|Ok()->attach lifetime;value.active_source<-Some source;Ok())
+    let start_descriptor (value:t) (descriptor:capture_descriptor)=let operation="Metal.Capture.Manager.start_descriptor"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as failure->failure|Ok()->match ensure_live operation descriptor.lifetime with Error _ as failure->failure|Ok()when Option.is_some value.active_source->error operation Invalid_state "a capture is already active"|Ok()->match descriptor.capture_source with None->error operation Invalid_argument "capture descriptor has no source"|Some source->match source_parts operation source with Error _ as failure->failure|Ok(_,_,lifetime,_)->match Metal_raw.capture_start_descriptor_checked value.raw descriptor.raw with Error message->native_error operation message|Ok()->attach lifetime;value.active_source<-Some source;Ok())
+    let stop (value:t)=let operation="Metal.Capture.Manager.stop"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as failure->failure|Ok()->match value.active_source with None->error operation Invalid_state "no capture is active"|Some source->let raw,kind,lifetime,_=Result.get_ok(source_parts operation source)in match Metal_raw.capture_lifecycle value.raw raw kind false with Error message->native_error operation message|Ok()->detach lifetime;value.active_source<-None;Ok())
     let destroyed(value:t)=is_destroyed value.lifetime
-    let destroy(value:t)=destroy_leaf "Metal.Capture.Manager.destroy" value.lifetime value.raw ignore
+    let destroy(value:t)=destroy_leaf "Metal.Capture.Manager.destroy" value.lifetime value.raw(fun()->Option.iter(fun(scope:capture_scope)->detach scope.lifetime)value.default_scope;Option.iter(fun source->let _,_,lifetime,_=Result.get_ok(source_parts "Metal.Capture.Manager.destroy" source)in detach lifetime)value.active_source)
   end
 end
 

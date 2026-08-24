@@ -117,6 +117,8 @@ type compute_encoder
 type acceleration_encoder
 type blit_encoder
 type resource_state_encoder
+type command_queue
+type command4_queue
 
 module Device : sig
   type t
@@ -1493,19 +1495,43 @@ end
 
 module Capture : sig
   type destination=Developer_tools|Gpu_trace_document
+  type manager
+  type scope
+  type source=
+    | Capture_device of Device.t
+    | Capture_command_queue of command_queue
+    | Capture_scope of scope
+    | Capture_command4_queue of command4_queue
   module Descriptor:sig
     type t
-    val create:?destination:destination->unit->(t,error)result
+    val create : ?source:source -> ?destination:destination ->
+      ?output_url:string -> unit -> (t,error) result
     val destination:t->destination
+    val source:t->source option
+    val output_url:t->string option
     val set_destination:t->destination->(unit,error)result
+    val set_source:t->source option->(unit,error)result
+    val set_output_url:t->string option->(unit,error)result
+    val destroyed:t->bool
+    val destroy:t->(unit,error)result
+  end
+  module Scope:sig
+    type t=scope
+    val create:manager->source->(t,error)result
+    val device:t->Device.t
     val destroyed:t->bool
     val destroy:t->(unit,error)result
   end
   module Manager:sig
-    type t
+    type t=manager
     val shared:unit->(t,error)result
     val supports_destination:t->destination->(bool,error)result
     val is_capturing:t->(bool,error)result
+    val default_scope:t->(scope option,error)result
+    val set_default_scope:t->scope option->(unit,error)result
+    val start:t->source->(unit,error)result
+    val start_descriptor:t->Descriptor.t->(unit,error)result
+    val stop:t->(unit,error)result
     val destroyed:t->bool
     val destroy:t->(unit,error)result
   end
@@ -2416,7 +2442,7 @@ module Command4 : sig
   end
 
   module Queue : sig
-    type t
+    type t = command4_queue
 
     val create : ?label:string -> Device.t -> (t, error) result
     val device : t -> Device.t
@@ -2892,7 +2918,7 @@ module Indirect_command_buffer : sig
 end
 
 module Command_queue : sig
-  type t
+  type t = command_queue
 
   val create : Device.t -> (t, error) result
   val device : t -> Device.t
