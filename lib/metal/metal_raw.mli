@@ -2621,3 +2621,16 @@ external stage_io_children :
   "caml_prismel_metal_stage_io_children"
 external stage_io_reset : handle -> (unit, string) result =
   "caml_prismel_metal_stage_io_reset"
+
+external blit_pass10_attachment_at :
+  handle -> int64 -> (handle option, string) result =
+  "caml_prismel_metal_blit_pass10_attachment_at"
+external blit_pass10_attachment_set :
+  handle -> int64 -> handle option -> (unit, string) result =
+  "caml_prismel_metal_blit_pass10_attachment_set"
+external blit_pass10_sample_buffer :
+  handle -> (handle option, string) result =
+  "caml_prismel_metal_blit_pass10_sample_buffer"
+external blit_pass10_set_sample_buffer :
+  handle -> handle option -> int64 -> (unit, string) result =
+  "caml_prismel_metal_blit_pass10_set_sample_buffer"
