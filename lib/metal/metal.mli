@@ -104,6 +104,8 @@ end
 type io_queue
 type io_file
 type io_command_buffer
+type compute_encoder
+type acceleration_encoder
 
 module Device : sig
   type t
@@ -2750,6 +2752,10 @@ end
 module Command_buffer : sig
   type t
   type present_time = Immediate | At_time of float | After_minimum_duration of float
+  type diagnostics =
+    { error_options:int64; gpu_start_time:float; gpu_end_time:float
+    ; kernel_start_time:float; kernel_end_time:float; retained_references:bool }
+  type dispatch_type = Serial | Concurrent
 
   type status =
     | Not_enqueued
@@ -2766,6 +2772,16 @@ module Command_buffer : sig
   val use_residency_set : t -> Residency_set.t -> (unit, error) result
   val use_residency_sets : t -> Residency_set.t list -> (unit, error) result
   val status : t -> (status, error) result
+  val diagnostics : t -> (diagnostics,error) result
+  val enqueue : t -> (unit,error) result
+  val wait_until_scheduled : t -> (unit,error) result
+  val push_debug_group : t -> string -> (unit,error) result
+  val pop_debug_group : t -> (unit,error) result
+  val encode_signal_event : t -> Event.t -> value:int64 -> (unit,error) result
+  val encode_wait_for_event : t -> Event.t -> value:int64 -> (unit,error) result
+  val create_compute_encoder : t -> dispatch_type -> (compute_encoder,error) result
+  val create_acceleration_encoder : t -> (acceleration_encoder,error) result
+  val logs : t -> (string option,error) result
   val present :
     t -> Drawable.t -> ?at:present_time -> unit -> (unit, error) result
   val add_scheduled_handler : t -> (unit -> unit) -> (unit, error) result
@@ -2777,7 +2793,7 @@ module Command_buffer : sig
 end
 
 module Acceleration_encoder : sig
-  type t
+  type t = acceleration_encoder
 
   val create : Command_buffer.t -> (t, error) result
   val build :
@@ -2803,7 +2819,7 @@ module Acceleration_encoder : sig
 end
 
 module Compute_encoder : sig
-  type t
+  type t = compute_encoder
 
   val create : Command_buffer.t -> (t, error) result
   val set_pipeline : t -> Compute_pipeline.t -> (unit, error) result

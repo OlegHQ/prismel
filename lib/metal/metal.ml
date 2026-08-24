@@ -1505,6 +1505,9 @@ type command_buffer =
   ; mutable phase : command_phase
   ; resources : command_resource list ref
   ; callback_tokens : nativeint list ref
+  ; presentation_events : lifetime list ref
+  ; mutable debug_depth : int
+  ; mutable explicitly_enqueued : bool
   }
 
 type compute_encoder =
@@ -2203,7 +2206,7 @@ module Event = struct
   let label(value:t)=let operation="Metal.Event.label"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.command_event_label value.raw with Error m->native_error operation m|Ok x->Ok x)
   let set_label(value:t) label=let operation="Metal.Event.set_label"in if option_exists contains_nul label then error operation Invalid_argument "event label contains a NUL byte"else on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.command_event_set_label value.raw label with Error m->native_error operation m|Ok()->Ok())
   let destroyed(value:t)=is_destroyed value.lifetime
-  let destroy(value:t)=destroy_leaf "Metal.Event.destroy" value.lifetime value.raw(fun()->detach value.device.lifetime)
+  let destroy(value:t)=destroy_parent "Metal.Event.destroy" value.lifetime value.raw(fun()->detach value.device.lifetime)
 end
 module Shared_event = struct
   type t=command_shared_event
@@ -6103,7 +6106,7 @@ module Drawable = struct
   type loss = Timeout_or_unavailable
   let acquire (layer:metal_layer) = let operation="Metal.Drawable.acquire" in on_main operation(fun()->match ensure_live operation layer.lifetime with Error _ as e->e|Ok()->match Metal_raw.layer_next_drawable layer.raw with Error m->native_error operation m|Ok None->Ok(Error Timeout_or_unavailable)|Ok(Some raw)->let value:t={raw;lifetime=lifetime();layer;drawable_texture=None;presentation_scheduled=false}in attach layer.lifetime;attach_finalizer value value.lifetime layer.lifetime;Ok(Ok value))
   let layer (value:t)=value.layer
-  let checked_layer(value:t)=let operation="Metal.Drawable.checked_layer"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.drawable_native_layer value.raw with Error m->native_error operation m|Ok raw->let same=Metal_raw.generation raw=Metal_raw.generation value.layer.raw in ignore(Metal_raw.destroy raw);if same then Ok value.layer else error operation Native_error "drawable returned a different parent layer")
+  let checked_layer(value:t)=let operation="Metal.Drawable.checked_layer"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.drawable_native_layer value.raw with Error m->native_error operation m|Ok raw->let native=Metal_raw.layer_native_snapshot raw and expected=Metal_raw.layer_native_snapshot value.layer.raw in ignore(Metal_raw.destroy raw);match native,expected with Ok left,Ok right when left=right->Ok value.layer|Error m,_->native_error operation m|_,Error m->native_error operation m|_->error operation Native_error "drawable parent layer metadata changed")
   let texture (value:t)=let operation="Metal.Drawable.texture" in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match value.drawable_texture with Some texture->Ok texture|None->match Metal_raw.drawable_texture value.raw with Error m->native_error operation m|Ok(raw,width,height,format_code)->match (match format_code with 80->Some Texture.Bgra8_unorm|81->Some Texture.Bgra8_unorm_srgb|115->Some Texture.Rgba16_float|_->None) with None->ignore(Metal_raw.destroy raw);error operation Unsupported "drawable returned an unsupported pixel format"|Some format->let descriptor=Texture.descriptor_2d ~storage:Buffer.Private ~usage:[Texture.Render_target] ~format ~width ~height()in let texture:texture={raw;lifetime=lifetime();device=value.layer.device;descriptor;parent=Texture_drawable_resource value;heap_offset=None;placement_sparse_page_size=None;allocation=None;state={relinquished=Atomic.make false;purgeable=Atomic.make Nonvolatile};placement_mappings=ref[]}in attach value.lifetime;attach_finalizer texture texture.lifetime value.lifetime;value.drawable_texture<-Some texture;Ok texture)
   let destroyed (value:t)=is_destroyed value.lifetime
   let destroy (value:t)=destroy_parent "Metal.Drawable.destroy" value.lifetime value.raw(fun()->detach value.layer.lifetime)
@@ -15053,6 +15056,10 @@ module Command_buffer = struct
     | Completed
     | Error of string
     | Unknown of int
+  type diagnostics =
+    { error_options:int64; gpu_start_time:float; gpu_end_time:float
+    ; kernel_start_time:float; kernel_end_time:float; retained_references:bool }
+  type dispatch_type = Serial | Concurrent
 
   let release_callback_tokens tokens =
     let retained = !tokens in
@@ -15080,15 +15087,21 @@ module Command_buffer = struct
                      ; phase = Recording
                      ; resources = ref []
                      ; callback_tokens = ref []
+                     ; presentation_events = ref []
+                     ; debug_depth = 0
+                     ; explicitly_enqueued = false
                      }
                    in
                    attach queue.lifetime;
                    let resources = value.resources
-                   and callback_tokens = value.callback_tokens in
+                   and callback_tokens = value.callback_tokens
+                   and presentation_events=value.presentation_events in
                    attach_finalizer
                      ~on_finalize:(fun () ->
                        release_command_resources resources;
-                       release_callback_tokens callback_tokens)
+                       release_callback_tokens callback_tokens;
+                       List.iter detach !presentation_events;
+                       presentation_events:=[])
                      value value.lifetime queue.lifetime;
                    (match label with
                     | None -> Ok value
@@ -15104,6 +15117,18 @@ module Command_buffer = struct
   let device (value : t) = value.queue.device
   let generation (value : t) = Metal_raw.generation value.raw
   let destroyed (value : t) = is_destroyed value.lifetime
+  let release_presentation_events(value:t)=List.iter detach !(value.presentation_events);value.presentation_events:=[]
+  let diagnostics(value:t)=let operation="Metal.Command_buffer.diagnostics"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.presentation_command_snapshot value.raw with Error m->native_error operation m|Ok(queue_id,device_id,error_options,gpu_start_time,gpu_end_time,kernel_start_time,kernel_end_time,retained_references)->if queue_id<>value.queue.device.registry_id||device_id<>value.queue.device.registry_id then error operation Device_mismatch "native command-buffer device identity changed"else if not(List.for_all Float.is_finite[gpu_start_time;gpu_end_time;kernel_start_time;kernel_end_time])then error operation Native_error "native command-buffer timestamps are non-finite"else Ok{error_options;gpu_start_time;gpu_end_time;kernel_start_time;kernel_end_time;retained_references})
+  let enqueue(value:t)=let operation="Metal.Command_buffer.enqueue"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()when value.phase<>Recording||value.explicitly_enqueued->error operation Invalid_state "command buffer cannot be enqueued in its current state"|Ok()->match Metal_raw.presentation_command_schedule value.raw false with Error m->native_error operation m|Ok()->value.explicitly_enqueued<-true;Ok())
+  let wait_until_scheduled(value:t)=let operation="Metal.Command_buffer.wait_until_scheduled"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()when value.phase<>Submitted->error operation Invalid_state "command buffer must be committed before waiting for scheduling"|Ok()->match Metal_raw.presentation_command_schedule value.raw true with Error m->native_error operation m|Ok()->Ok())
+  let push_debug_group(value:t) label=let operation="Metal.Command_buffer.push_debug_group"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()when value.phase<>Recording->error operation Invalid_state "debug groups require a recording command buffer"|Ok()when label=""||contains_nul label->error operation Invalid_argument "debug group label is invalid"|Ok()->match Metal_raw.presentation_command_debug value.raw label true with Error m->native_error operation m|Ok()->value.debug_depth<-value.debug_depth+1;Ok())
+  let pop_debug_group(value:t)=let operation="Metal.Command_buffer.pop_debug_group"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()when value.phase<>Recording||value.debug_depth=0->error operation Invalid_state "debug group stack is empty or command buffer is not recording"|Ok()->match Metal_raw.presentation_command_debug value.raw "" false with Error m->native_error operation m|Ok()->value.debug_depth<-value.debug_depth-1;Ok())
+  let encode_event signal(value:t)(event:Event.t) number=let operation=if signal then"Metal.Command_buffer.encode_signal_event"else"Metal.Command_buffer.encode_wait_for_event"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()when value.phase<>Recording->error operation Invalid_state "event encoding requires a recording command buffer"|Ok()->match ensure_live operation event.lifetime with Error _ as e->e|Ok()when event.registry_id<>value.queue.device.registry_id->error operation Device_mismatch "event belongs to another device"|Ok()when number<0L->error operation Invalid_argument "event value must be nonnegative"|Ok()->match Metal_raw.presentation_command_event value.raw event.raw number signal with Error m->native_error operation m|Ok()->attach event.lifetime;value.presentation_events:=event.lifetime::!(value.presentation_events);Ok())
+  let encode_signal_event value event ~value:number=encode_event true value event number
+  let encode_wait_for_event value event ~value:number=encode_event false value event number
+  let create_compute_encoder(value:t) dispatch_type=let operation="Metal.Command_buffer.create_compute_encoder"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()when value.phase<>Recording||dependent_count value.lifetime<>0->error operation Invalid_state "command buffer cannot create another encoder"|Ok()->let code=match dispatch_type with Serial->0|Concurrent->1 in match Metal_raw.presentation_compute_encoder value.raw code with Error m->native_error operation m|Ok raw->let encoder:compute_encoder={raw;lifetime=lifetime();command_buffer=value;pipeline=None}in attach value.lifetime;attach_finalizer encoder encoder.lifetime value.lifetime;Ok encoder)
+  let create_acceleration_encoder(value:t)=let operation="Metal.Command_buffer.create_acceleration_encoder"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()when value.phase<>Recording||dependent_count value.lifetime<>0->error operation Invalid_state "command buffer cannot create another encoder"|Ok()->match Metal_raw.presentation_acceleration_encoder value.raw with Error m->native_error operation m|Ok raw->let encoder:acceleration_encoder={raw;lifetime=lifetime();command_buffer=value}in attach value.lifetime;attach_finalizer encoder encoder.lifetime value.lifetime;Ok encoder)
+  let logs(value:t)=let operation="Metal.Command_buffer.logs"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.presentation_command_logs value.raw with Error m->native_error operation m|Ok logs->Ok logs)
 
   let retains_residency_set (value : t) (residency_set : residency_set) =
     List.exists
@@ -15175,7 +15200,8 @@ module Command_buffer = struct
           let status = Metal_raw.command_buffer_status value.raw in
           if status = 4 || status = 5 then begin
             release_command_resources value.resources;
-            release_callback_tokens value.callback_tokens
+            release_callback_tokens value.callback_tokens;
+            release_presentation_events value
           end;
           Ok
             (match status with
@@ -15249,7 +15275,8 @@ module Command_buffer = struct
           let status = Metal_raw.command_buffer_status value.raw in
           if status = 4 || status = 5 then begin
             release_command_resources value.resources;
-            release_callback_tokens value.callback_tokens
+            release_callback_tokens value.callback_tokens;
+            release_presentation_events value
           end;
           if status = 4 then Ok () else
             native_error "Metal.Command_buffer.wait_until_completed"
@@ -15269,6 +15296,7 @@ module Command_buffer = struct
         (fun () ->
           release_command_resources value.resources;
           release_callback_tokens value.callback_tokens;
+          release_presentation_events value;
           detach value.queue.lifetime)
 end
 

@@ -148,6 +148,24 @@ let () =
   let after_cancel = get (Release_queue.stats ()) in
   if after_cancel.live_handles <> before_cancel.live_handles then
     fail "callback cancellation leaked native handles";
+  let diagnostic_commands=get(Command_buffer.create queue())in
+  ignore(get(Command_buffer.diagnostics diagnostic_commands));
+  expect Invalid_state(Command_buffer.pop_debug_group diagnostic_commands);
+  get(Command_buffer.push_debug_group diagnostic_commands "presentation");
+  get(Command_buffer.pop_debug_group diagnostic_commands);
+  let event=get(Device.new_event device)in
+  get(Command_buffer.encode_signal_event diagnostic_commands event~value:1L);
+  get(Command_buffer.encode_wait_for_event diagnostic_commands event~value:1L);
+  expect Parent_has_dependents(Event.destroy event);
+  let compute=get(Command_buffer.create_compute_encoder diagnostic_commands Command_buffer.Serial)in
+  get(Compute_encoder.end_encoding compute);
+  ignore(get(Command_buffer.logs diagnostic_commands));
+  get(Command_buffer.enqueue diagnostic_commands);
+  expect Invalid_state(Command_buffer.enqueue diagnostic_commands);
+  get(Command_buffer.commit diagnostic_commands);
+  get(Command_buffer.wait_until_scheduled diagnostic_commands);
+  get(Command_buffer.wait_until_completed diagnostic_commands);
+  get(Event.destroy event);get(Command_buffer.destroy diagnostic_commands);
   let pass = get (Render_pass_descriptor.create ~width:8 ~height:8 ()) in
   if Render_pass_descriptor.size pass <> (8,8)
      || Render_pass_descriptor.array_length pass <> 1
