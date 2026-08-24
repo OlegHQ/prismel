@@ -1053,16 +1053,16 @@ let generator_source_sha256 entry_source =
 
 let check_mechanical_enum_batch raw_ml raw_mli value =
   let batch = member_exn "mechanical_enum_batch" value in
-  if member_int "enum_family_count" batch <> Some 61
-     || member_int "enum_case_count" batch <> Some 326
-     || member_int "enum_declaration_count" batch <> Some 448
+  if member_int "enum_family_count" batch <> Some 62
+     || member_int "enum_case_count" batch <> Some 423
+     || member_int "enum_declaration_count" batch <> Some 547
   then fail "generated Metal mechanical enum cardinality drift";
   let identifiers = json_string_list "enum_identifiers" batch in
-  if List.length identifiers <> 448
-     || List.length (List.sort_uniq String.compare identifiers) <> 448
+  if List.length identifiers <> 547
+     || List.length (List.sort_uniq String.compare identifiers) <> 547
   then fail "generated Metal mechanical enum identifier closure drift";
   let families = json_list "enum_families" batch in
-  if List.length families <> 61 then
+  if List.length families <> 62 then
     fail "generated Metal mechanical enum family list drift";
   let family_identifiers, case_count =
     List.fold_left
@@ -1076,7 +1076,7 @@ let check_mechanical_enum_batch raw_ml raw_mli value =
         identifiers, case_count + List.length cases)
       ([], 0) families
   in
-  if case_count <> 326
+  if case_count <> 423
      || List.sort String.compare family_identifiers <> identifiers
   then fail "generated Metal mechanical enum manifest closure drift";
   let device_location =
@@ -1156,13 +1156,13 @@ let check_struct_native_batch raw_ml raw_mli native value =
 
 let check_string_batch raw_ml raw_mli native value =
   let batch = member_exn "mechanical_string_batch" value in
-  if member_int "property_count" batch <> Some 5
-     || member_int "declaration_count" batch <> Some 13
+  if member_int "property_count" batch <> Some 16
+     || member_int "declaration_count" batch <> Some 41
      || member_int "safe_bound_count" batch <> Some 0
   then fail "generated Metal NSString cardinality drift";
   let identifiers = json_string_list "identifiers" batch in
-  if List.length identifiers <> 13
-     || List.length (List.sort_uniq String.compare identifiers) <> 13
+  if List.length identifiers <> 41
+     || List.length (List.sort_uniq String.compare identifiers) <> 41
   then fail "generated Metal NSString identifier closure drift";
   [ raw_ml, "generated_mtl4_binary_function_name_get"
   ; raw_mli, "generated_mtl_command_queue_label_set"

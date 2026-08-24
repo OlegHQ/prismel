@@ -11,8 +11,8 @@ let contains haystack needle =
 let () =
   let entries = Binding_string_codegen.qualified_entries () in
   let ids = List.concat_map Binding_string_spec.inventory_ids entries in
-  if List.length entries <> 5 then fail "expected 5 qualified properties";
-  if List.length ids <> 13 then fail "expected 13 qualified inventory IDs";
+  if List.length entries <> 16 then fail "expected 16 qualified properties";
+  if List.length ids <> 41 then fail "expected 41 qualified inventory IDs, found %d" (List.length ids);
   let raw_ml = Binding_string_codegen.render_raw_ml entries in
   let raw_mli = Binding_string_codegen.render_raw_mli entries in
   let raw_body = Binding_string_codegen.render_raw_body entries in
