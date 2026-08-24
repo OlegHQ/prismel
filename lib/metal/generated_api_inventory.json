@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4504,
+    "bound": 4511,
     "scope-excluded": 37,
-    "unreviewed": 744
+    "unreviewed": 737
   },
-  "classification_source_sha256": "e45cdfb8ece80e73ff9ec476061fc02392d97fb46071e929f9784eca991cbdfa",
+  "classification_source_sha256": "e0d3b687d5caa4a99586bc116525c5337bdd623ee92e095f63c78a712da93722",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -40021,7 +40021,7 @@
           "line": 29
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPass.h",
       "id": "method:-[MTL4RenderPassDescriptor getSamplePositions:count:]",
       "kind": "method",
@@ -40029,7 +40029,7 @@
       "macos_introduced": "26.0",
       "name": "getSamplePositions:count:",
       "owner": "MTL4RenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLSamplePosition * _Nullable, NSUInteger) -> NSUInteger"
     },
     {
@@ -40059,7 +40059,7 @@
           "line": 29
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPass.h",
       "id": "method:-[MTL4RenderPassDescriptor rasterizationRateMap]",
       "kind": "method",
@@ -40067,7 +40067,7 @@
       "macos_introduced": "26.0",
       "name": "rasterizationRateMap",
       "owner": "MTL4RenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> id<MTLRasterizationRateMap> _Nullable"
     },
     {
@@ -40154,7 +40154,7 @@
           "line": 29
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPass.h",
       "id": "method:-[MTL4RenderPassDescriptor setDepthAttachment:]",
       "kind": "method",
@@ -40162,7 +40162,7 @@
       "macos_introduced": "26.0",
       "name": "setDepthAttachment:",
       "owner": "MTL4RenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLRenderPassDepthAttachmentDescriptor * _Nullable) -> void"
     },
     {
@@ -40192,7 +40192,7 @@
           "line": 29
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPass.h",
       "id": "method:-[MTL4RenderPassDescriptor setRasterizationRateMap:]",
       "kind": "method",
@@ -40200,7 +40200,7 @@
       "macos_introduced": "26.0",
       "name": "setRasterizationRateMap:",
       "owner": "MTL4RenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (id<MTLRasterizationRateMap> _Nullable) -> void"
     },
     {
@@ -40268,7 +40268,7 @@
           "line": 29
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPass.h",
       "id": "method:-[MTL4RenderPassDescriptor setSamplePositions:count:]",
       "kind": "method",
@@ -40276,7 +40276,7 @@
       "macos_introduced": "26.0",
       "name": "setSamplePositions:count:",
       "owner": "MTL4RenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (const MTLSamplePosition * _Nullable, NSUInteger) -> void"
     },
     {
@@ -40287,7 +40287,7 @@
           "line": 29
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPass.h",
       "id": "method:-[MTL4RenderPassDescriptor setStencilAttachment:]",
       "kind": "method",
@@ -40295,7 +40295,7 @@
       "macos_introduced": "26.0",
       "name": "setStencilAttachment:",
       "owner": "MTL4RenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLRenderPassStencilAttachmentDescriptor * _Nullable) -> void"
     },
     {
@@ -86347,7 +86347,7 @@
           "line": 29
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPass.h",
       "id": "property:MTL4RenderPassDescriptor:rasterizationRateMap",
       "kind": "property",
@@ -86355,7 +86355,7 @@
       "macos_introduced": "26.0",
       "name": "rasterizationRateMap",
       "owner": "MTL4RenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "id<MTLRasterizationRateMap> _Nullable"
     },
     {

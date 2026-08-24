@@ -87,7 +87,7 @@ extern "C" CAMLprim value caml_prismel_metal4_render_pass_rate_map(
           raw_descriptor, Handle_kind::Render_pass_descriptor4);
       id<MTLRasterizationRateMap> map = nil;
       if (Is_block(raw_map))
-        map = object_of_handle(Field(raw_map, 0), Handle_kind::Rasterization_rate_map);
+        map = object_of_handle(Field(raw_map, 0), Handle_kind::Raster_rate_map);
       descriptor.rasterizationRateMap = map;
       if (descriptor.rasterizationRateMap != map)
         CAMLreturn(result_error_text("Metal changed render-pass rasterization-rate map"));
@@ -112,7 +112,12 @@ extern "C" CAMLprim value caml_prismel_metal4_render_pass_depth_attachment(
         attachment.clearDepth = Double_val(Field(raw_values, 2));
       }
       descriptor.depthAttachment = attachment;
-      if (descriptor.depthAttachment != attachment)
+      MTLRenderPassDepthAttachmentDescriptor *actual = descriptor.depthAttachment;
+      if ((attachment == nil && actual != nil && actual.texture != nil) ||
+          (attachment != nil && (actual == nil || actual.texture != attachment.texture ||
+           actual.loadAction != attachment.loadAction ||
+           actual.storeAction != attachment.storeAction ||
+           actual.clearDepth != attachment.clearDepth)))
         CAMLreturn(result_error_text("Metal changed render-pass depth attachment"));
       CAMLreturn(result_unit());
     } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
@@ -135,7 +140,12 @@ extern "C" CAMLprim value caml_prismel_metal4_render_pass_stencil_attachment(
         attachment.clearStencil = (uint32_t)Int32_val(Field(raw_values, 2));
       }
       descriptor.stencilAttachment = attachment;
-      if (descriptor.stencilAttachment != attachment)
+      MTLRenderPassStencilAttachmentDescriptor *actual = descriptor.stencilAttachment;
+      if ((attachment == nil && actual != nil && actual.texture != nil) ||
+          (attachment != nil && (actual == nil || actual.texture != attachment.texture ||
+           actual.loadAction != attachment.loadAction ||
+           actual.storeAction != attachment.storeAction ||
+           actual.clearStencil != attachment.clearStencil)))
         CAMLreturn(result_error_text("Metal changed render-pass stencil attachment"));
       CAMLreturn(result_unit());
     } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }

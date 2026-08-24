@@ -14,7 +14,9 @@ let ()=match Device.system_default()with
   expect Invalid_argument(Command4.Render_pass_descriptor.set_sample_positions samples[|(0.,0.)|]);
   let map=get(Rasterization_rate_map.create_uniform device~width:4L~height:4L)in
   get(Command4.Render_pass_descriptor.set_rasterization_rate_map pass(Some map));
-  if Command4.Render_pass_descriptor.rasterization_rate_map pass<>Some map then failwith"rate-map identity";
+  (match Command4.Render_pass_descriptor.rasterization_rate_map pass with
+   | Some retained when retained == map -> ()
+   | _ -> failwith "rate-map identity");
   let texture format=Texture.create~device(Texture.descriptor_2d~storage:Buffer.Private~usage:[Texture.Render_target]~format~width:4~height:4())in
   let depth=get(texture Texture.Depth32_float)and stencil=get(texture Texture.Stencil8)in
   get(Command4.Render_pass_descriptor.set_depth_attachment pass(Some(Command4.Render_encoder.depth_attachment depth)));
