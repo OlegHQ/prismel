@@ -19395,8 +19395,8 @@ end = struct
                   value.blit_attachments <- Some attachments;
                   Ok attachments)
 
-  let destroyed value = is_destroyed value.lifetime
-  let destroy value =
+  let destroyed (value : t) = is_destroyed value.lifetime
+  let destroy (value : t) =
     destroy_parent "Metal.Blit_pass_descriptor.destroy" value.lifetime
       value.raw (fun () -> detach value.device.lifetime)
 end
@@ -19460,8 +19460,8 @@ end = struct
               | Error message -> native_error operation message
               | Ok () -> value.slots.(index) <- next; Ok ()))
 
-  let destroyed value = is_destroyed value.lifetime
-  let destroy value =
+  let destroyed (value : t) = is_destroyed value.lifetime
+  let destroy (value : t) =
     destroy_parent "Metal.Blit_pass_attachments.destroy" value.lifetime value.raw
       (fun () -> detach value.parent.lifetime)
 end
@@ -19492,7 +19492,7 @@ end = struct
             | None when first = -1L && last = -1L -> Ok ()
             | None -> error operation Invalid_argument
                 "sample indices require a counter sample buffer"
-            | Some buffer ->
+            | Some (buffer : counter_sample_buffer) ->
                 Result.bind (ensure_live operation buffer.lifetime) (fun () ->
                   Result.bind
                     (ensure_same_device operation value.parent.parent.device
@@ -19540,9 +19540,9 @@ end = struct
               then error operation Native_error "native sample-buffer graph drift"
               else Ok value.blit_sample_buffer)
 
-  let range value = decode value.blit_start_index, decode value.blit_end_index
-  let destroyed value = is_destroyed value.lifetime
-  let destroy value =
+  let range (value : t) = decode value.blit_start_index, decode value.blit_end_index
+  let destroyed (value : t) = is_destroyed value.lifetime
+  let destroy (value : t) =
     destroy_leaf "Metal.Blit_pass_attachment.destroy" value.lifetime value.raw
       (fun () ->
         Option.iter

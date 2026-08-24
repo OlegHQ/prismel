@@ -924,6 +924,11 @@
  (modules test_metal_stage_input_output_safe)
  (libraries metal))
 
+(test
+ (name test_metal_blit_pass_safe)
+ (modules test_metal_blit_pass_safe)
+ (libraries metal))
+
 (rule
  (targets test_metal_compute_pass20_native.exe)
  (deps ../../tools/metal/test_compute_pass20_native.mm)
