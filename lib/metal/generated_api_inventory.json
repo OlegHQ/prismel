@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4565,
+    "bound": 4581,
     "scope-excluded": 37,
-    "unreviewed": 683
+    "unreviewed": 667
   },
-  "classification_source_sha256": "cc77eba976fb5cb127cff7924dd835a01d87f42a3e0ed09d197a47ba93e9354b",
+  "classification_source_sha256": "60078cdcd154e84ccf5d89f04d25db9d019ae8a40e11454255b5bb4f8713bf65",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -59372,7 +59372,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionLog.h",
       "id": "method:-[MTLFunctionLog debugLocation]",
       "kind": "method",
@@ -59380,7 +59380,7 @@
       "macos_introduced": "11.0",
       "name": "debugLocation",
       "owner": "MTLFunctionLog",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by copied FunctionLog16 snapshots after command completion with exact nullable log/location/function graphs, typed validation logs, UTF-8 source identity, and checked source positions.",
       "signature": "instance () -> id<MTLFunctionLogDebugLocation> _Nullable"
     },
     {
@@ -59391,7 +59391,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionLog.h",
       "id": "method:-[MTLFunctionLog encoderLabel]",
       "kind": "method",
@@ -59399,7 +59399,7 @@
       "macos_introduced": "11.0",
       "name": "encoderLabel",
       "owner": "MTLFunctionLog",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by copied FunctionLog16 snapshots after command completion with exact nullable log/location/function graphs, typed validation logs, UTF-8 source identity, and checked source positions.",
       "signature": "instance () -> NSString * _Nullable"
     },
     {
@@ -59410,7 +59410,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionLog.h",
       "id": "method:-[MTLFunctionLog function]",
       "kind": "method",
@@ -59418,7 +59418,7 @@
       "macos_introduced": "11.0",
       "name": "function",
       "owner": "MTLFunctionLog",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by copied FunctionLog16 snapshots after command completion with exact nullable log/location/function graphs, typed validation logs, UTF-8 source identity, and checked source positions.",
       "signature": "instance () -> id<MTLFunction> _Nullable"
     },
     {
@@ -59429,7 +59429,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionLog.h",
       "id": "method:-[MTLFunctionLog type]",
       "kind": "method",
@@ -59437,7 +59437,7 @@
       "macos_introduced": "11.0",
       "name": "type",
       "owner": "MTLFunctionLog",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by copied FunctionLog16 snapshots after command completion with exact nullable log/location/function graphs, typed validation logs, UTF-8 source identity, and checked source positions.",
       "signature": "instance () -> MTLFunctionLogType"
     },
     {
@@ -59448,7 +59448,7 @@
           "line": 22
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionLog.h",
       "id": "method:-[MTLFunctionLogDebugLocation URL]",
       "kind": "method",
@@ -59456,7 +59456,7 @@
       "macos_introduced": "11.0",
       "name": "URL",
       "owner": "MTLFunctionLogDebugLocation",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by copied FunctionLog16 snapshots after command completion with exact nullable log/location/function graphs, typed validation logs, UTF-8 source identity, and checked source positions.",
       "signature": "instance () -> NSURL * _Nullable"
     },
     {
@@ -59467,7 +59467,7 @@
           "line": 22
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionLog.h",
       "id": "method:-[MTLFunctionLogDebugLocation column]",
       "kind": "method",
@@ -59475,7 +59475,7 @@
       "macos_introduced": "11.0",
       "name": "column",
       "owner": "MTLFunctionLogDebugLocation",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by copied FunctionLog16 snapshots after command completion with exact nullable log/location/function graphs, typed validation logs, UTF-8 source identity, and checked source positions.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -59486,7 +59486,7 @@
           "line": 22
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionLog.h",
       "id": "method:-[MTLFunctionLogDebugLocation functionName]",
       "kind": "method",
@@ -59494,7 +59494,7 @@
       "macos_introduced": "11.0",
       "name": "functionName",
       "owner": "MTLFunctionLogDebugLocation",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by copied FunctionLog16 snapshots after command completion with exact nullable log/location/function graphs, typed validation logs, UTF-8 source identity, and checked source positions.",
       "signature": "instance () -> NSString * _Nullable"
     },
     {
@@ -59505,7 +59505,7 @@
           "line": 22
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionLog.h",
       "id": "method:-[MTLFunctionLogDebugLocation line]",
       "kind": "method",
@@ -59513,7 +59513,7 @@
       "macos_introduced": "11.0",
       "name": "line",
       "owner": "MTLFunctionLogDebugLocation",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by copied FunctionLog16 snapshots after command completion with exact nullable log/location/function graphs, typed validation logs, UTF-8 source identity, and checked source positions.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -94290,7 +94290,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionLog.h",
       "id": "property:MTLFunctionLog:debugLocation",
       "kind": "property",
@@ -94298,7 +94298,7 @@
       "macos_introduced": "11.0",
       "name": "debugLocation",
       "owner": "MTLFunctionLog",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by copied FunctionLog16 snapshots after command completion with exact nullable log/location/function graphs, typed validation logs, UTF-8 source identity, and checked source positions.",
       "signature": "id<MTLFunctionLogDebugLocation> _Nullable"
     },
     {
@@ -94309,7 +94309,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionLog.h",
       "id": "property:MTLFunctionLog:encoderLabel",
       "kind": "property",
@@ -94317,7 +94317,7 @@
       "macos_introduced": "11.0",
       "name": "encoderLabel",
       "owner": "MTLFunctionLog",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by copied FunctionLog16 snapshots after command completion with exact nullable log/location/function graphs, typed validation logs, UTF-8 source identity, and checked source positions.",
       "signature": "NSString * _Nullable"
     },
     {
@@ -94328,7 +94328,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionLog.h",
       "id": "property:MTLFunctionLog:function",
       "kind": "property",
@@ -94336,7 +94336,7 @@
       "macos_introduced": "11.0",
       "name": "function",
       "owner": "MTLFunctionLog",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by copied FunctionLog16 snapshots after command completion with exact nullable log/location/function graphs, typed validation logs, UTF-8 source identity, and checked source positions.",
       "signature": "id<MTLFunction> _Nullable"
     },
     {
@@ -94347,7 +94347,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionLog.h",
       "id": "property:MTLFunctionLog:type",
       "kind": "property",
@@ -94355,7 +94355,7 @@
       "macos_introduced": "11.0",
       "name": "type",
       "owner": "MTLFunctionLog",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by copied FunctionLog16 snapshots after command completion with exact nullable log/location/function graphs, typed validation logs, UTF-8 source identity, and checked source positions.",
       "signature": "MTLFunctionLogType"
     },
     {
@@ -94366,7 +94366,7 @@
           "line": 22
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionLog.h",
       "id": "property:MTLFunctionLogDebugLocation:URL",
       "kind": "property",
@@ -94374,7 +94374,7 @@
       "macos_introduced": "11.0",
       "name": "URL",
       "owner": "MTLFunctionLogDebugLocation",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by copied FunctionLog16 snapshots after command completion with exact nullable log/location/function graphs, typed validation logs, UTF-8 source identity, and checked source positions.",
       "signature": "NSURL * _Nullable"
     },
     {
@@ -94385,7 +94385,7 @@
           "line": 22
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionLog.h",
       "id": "property:MTLFunctionLogDebugLocation:column",
       "kind": "property",
@@ -94393,7 +94393,7 @@
       "macos_introduced": "11.0",
       "name": "column",
       "owner": "MTLFunctionLogDebugLocation",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by copied FunctionLog16 snapshots after command completion with exact nullable log/location/function graphs, typed validation logs, UTF-8 source identity, and checked source positions.",
       "signature": "NSUInteger"
     },
     {
@@ -94404,7 +94404,7 @@
           "line": 22
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionLog.h",
       "id": "property:MTLFunctionLogDebugLocation:functionName",
       "kind": "property",
@@ -94412,7 +94412,7 @@
       "macos_introduced": "11.0",
       "name": "functionName",
       "owner": "MTLFunctionLogDebugLocation",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by copied FunctionLog16 snapshots after command completion with exact nullable log/location/function graphs, typed validation logs, UTF-8 source identity, and checked source positions.",
       "signature": "NSString * _Nullable"
     },
     {
@@ -94423,7 +94423,7 @@
           "line": 22
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionLog.h",
       "id": "property:MTLFunctionLogDebugLocation:line",
       "kind": "property",
@@ -94431,7 +94431,7 @@
       "macos_introduced": "11.0",
       "name": "line",
       "owner": "MTLFunctionLogDebugLocation",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by copied FunctionLog16 snapshots after command completion with exact nullable log/location/function graphs, typed validation logs, UTF-8 source identity, and checked source positions.",
       "signature": "NSUInteger"
     },
     {

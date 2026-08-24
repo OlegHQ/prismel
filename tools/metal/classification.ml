@@ -1737,6 +1737,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier Binding_compute_pass_tail_handoff.callable_ids then
     Bound,
       "Implemented by the ComputePass17 safe closure with checked dispatch and sample ranges, exact native snapshots, same-device attachment validation, and retained counter-sample-buffer graphs."
+  else if List.mem identifier Binding_function_log_tail_handoff.callable_ids then
+    Bound,
+      "Implemented by copied FunctionLog16 snapshots after command completion with exact nullable log/location/function graphs, typed validation logs, UTF-8 source identity, and checked source positions."
   else if List.mem identifier io_compressor_safe5 then
     Bound,
       "Implemented by the owned IO.Compressor lifecycle with copied configuration, checked byte ranges, synchronous consumption, exact finalization state, and real compressed-output conformance."
