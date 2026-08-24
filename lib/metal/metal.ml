@@ -18184,6 +18184,36 @@ module Blit_encoder = struct
                   |Ok()->retain_command_buffer_texture value.command_buffer source;
                       retain_command_buffer_buffer value.command_buffer destination;Ok())))))
 
+  let copy_texture_region (value:t) ~(source:Texture.t) ~source_slice ~source_level
+      ~(source_region:Texture.region) ~(destination:Texture.t) ~destination_slice
+      ~destination_level ~destination_origin =
+    let operation="Metal.Blit_encoder.copy_texture_region" in
+    let dx,dy,dz=destination_origin in
+    on_main operation(fun()->match ensure_live operation value.lifetime with
+      |Error _ as failure->failure
+      |Ok()->Result.bind(ensure_texture_usable operation source)(fun()->
+          Result.bind(ensure_texture_usable operation destination)(fun()->
+            if source_slice<0||destination_slice<0||source_level<0||destination_level<0
+               ||source_slice>=Texture.total_slices source.descriptor
+               ||destination_slice>=Texture.total_slices destination.descriptor
+               ||source_level>=source.descriptor.mip_levels
+               ||destination_level>=destination.descriptor.mip_levels
+               ||source_region.width<=0||source_region.height<=0||source_region.depth<=0
+               ||source_region.x<0||source_region.y<0||source_region.z<0||dx<0||dy<0||dz<0
+               ||source.descriptor.format<>destination.descriptor.format
+            then error operation Invalid_argument "texture copy region is invalid"
+            else Result.bind(ensure_same_device operation value.command_buffer.queue.device source.device)(fun()->
+              Result.bind(ensure_same_device operation source.device destination.device)(fun()->
+                match Metal_raw.blit_copy value.raw 4 source.raw destination.raw
+                  (Metal_raw.Blit_texture_region(Int64.of_int source_slice,Int64.of_int source_level,
+                    Int64.of_int source_region.x,Int64.of_int source_region.y,Int64.of_int source_region.z,
+                    Int64.of_int source_region.width,Int64.of_int source_region.height,Int64.of_int source_region.depth,
+                    Int64.of_int destination_slice,Int64.of_int destination_level,
+                    Int64.of_int dx,Int64.of_int dy,Int64.of_int dz))with
+                |Error message->native_error operation message
+                |Ok()->retain_command_buffer_texture value.command_buffer source;
+                    retain_command_buffer_texture value.command_buffer destination;Ok())))))
+
   let fence_call operation update (value:t) (fence:Fence.t) =
     on_main operation (fun () -> match ensure_live operation value.lifetime with
       | Error _ as failure -> failure
