@@ -2632,3 +2632,15 @@ external intersection_table_array :
 external intersection_table_signature :
   handle -> int -> int64 -> (int64 * int64) -> int64 -> (unit, string) result =
   "caml_prismel_metal_intersection_table_signature"
+
+external stage_io_attribute_at :
+  handle -> int64 -> (handle option, string) result =
+  "caml_prismel_metal_stage_io_attribute_at"
+external stage_io_attribute_set :
+  handle -> int64 -> handle option -> (unit, string) result =
+  "caml_prismel_metal_stage_io_attribute_set"
+external stage_io_children :
+  handle -> ((handle * handle), string) result =
+  "caml_prismel_metal_stage_io_children"
+external stage_io_reset : handle -> (unit, string) result =
+  "caml_prismel_metal_stage_io_reset"

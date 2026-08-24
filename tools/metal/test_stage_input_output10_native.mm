@@ -31,7 +31,10 @@ int main() { @autoreleasepool {
     weak = replacement;
     descriptor.attributes[2] = replacement;
   }
-  if (weak == nil || descriptor.attributes[2].format != MTLAttributeFormatFloat4)
+  /* The SDK may retain or copy the replacement. Either ownership strategy is
+     valid; the descriptor graph must preserve the value after source release. */
+  (void)weak;
+  if (descriptor.attributes[2].format != MTLAttributeFormatFloat4)
     return 4;
   [descriptor reset];
   if (descriptor.attributes[2].format != MTLAttributeFormatInvalid
