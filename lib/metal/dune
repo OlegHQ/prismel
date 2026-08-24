@@ -226,6 +226,8 @@
   ../../tools/metal/metal_io_constructors.inc
   ../../tools/metal/metal_io_counter_callable_tail.inc
   ../../tools/metal/metal_tensor_mechanical_callable_bridge.inc
+  ../../tools/metal/metal_tensor_ownership_callable_bridge.inc
+  ../../tools/metal/metal_rasterization_rate_callable_bridge.inc
   ../../tools/metal/metal_mesh_tile_pipeline_compile.inc
   ../../tools/metal/metal_pipeline_ownership_callable_bridge.inc
   ../../tools/metal/metal_pipeline_descriptor_mechanical_callable_bridge.inc
@@ -690,6 +692,21 @@
  (action
   (bash
    "status=0; ./test_metal_io_counter_ownership_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal_rasterization_rate55_native.exe)
+ (deps ../../tools/metal/test_rasterization_rate55_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -framework Foundation
+   -framework Metal %{dep:../../tools/metal/test_rasterization_rate55_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_rasterization_rate55_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal_rasterization_rate55_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
 
 (rule
  (targets test_metal_mesh_tile_pipeline_native.exe)
