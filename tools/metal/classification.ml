@@ -365,10 +365,12 @@ let bound_identifiers =
         , [ "allocatedSize"; "device"; "label"; "reset" ] )
       ; ( "MTL4CommandAllocatorDescriptor", [ "label"; "setLabel:" ] )
       ; ( "MTL4CommandBuffer"
-        , [ "beginCommandBufferWithAllocator:"; "computeCommandEncoder"
+        , [ "beginCommandBufferWithAllocator:"; "beginCommandBufferWithAllocator:options:"; "computeCommandEncoder"
           ; "device"; "endCommandBuffer"; "label"
-          ; "renderCommandEncoderWithDescriptor:"; "setLabel:"
+          ; "machineLearningCommandEncoder"; "renderCommandEncoderWithDescriptor:"
+          ; "renderCommandEncoderWithDescriptor:options:"; "setLabel:"
           ] )
+      ; ( "MTL4CommandBufferOptions", [ "logState"; "setLogState:" ] )
       ; ( "MTL4CommandEncoder"
         , [ "barrierAfterQueueStages:beforeStages:visibilityOptions:"
           ; "commandBuffer"; "endEncoding"; "label"; "setLabel:"
@@ -950,6 +952,7 @@ let bound_identifiers =
       ; "MTL4CommandAllocator", [ "device"; "label" ]
       ; "MTL4CommandAllocatorDescriptor", [ "label" ]
       ; "MTL4CommandBuffer", [ "device"; "label" ]
+      ; "MTL4CommandBufferOptions", [ "logState" ]
       ; "MTL4CommandEncoder", [ "commandBuffer"; "label" ]
       ; "MTL4CommandQueue", [ "device"; "label" ]
       ; "MTL4CommandQueueDescriptor", [ "label" ]

@@ -109,8 +109,8 @@ prismel_metal4_command_buffer_machine_learning_encoder(
 
 API_AVAILABLE(macos(26.0))
 @interface PrismelMetal4CommandBufferOptionsState : NSObject
-@property(nonatomic, strong) MTL4CommandBufferOptions *options;
-@property(nonatomic, strong) id<MTLDevice> device;
+@property(nonatomic, strong, nonnull) MTL4CommandBufferOptions *options;
+@property(nonatomic, strong, nonnull) id<MTLDevice> device;
 @property(nonatomic, strong, nullable) PrismelMetalLogStateState *logState;
 @end
 @implementation PrismelMetal4CommandBufferOptionsState @end
