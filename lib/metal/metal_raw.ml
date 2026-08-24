@@ -2645,6 +2645,15 @@ external metal4_queue_synchronize :
   "caml_prismel_metal4_queue_synchronize_bytecode"
   "caml_prismel_metal4_queue_synchronize"
 
+external render93_descriptor_create : int -> (handle,string) result =
+  "caml_prismel_metal_render93_descriptor_create"
+external render93_descriptor_label : handle -> int -> string option -> (string option,string) result =
+  "caml_prismel_metal_render93_descriptor_label"
+external render93_descriptor_reset : handle -> int -> (unit,string) result =
+  "caml_prismel_metal_render93_descriptor_reset"
+external render93_color_at : handle -> int64 -> handle option -> (handle option,string) result =
+  "caml_prismel_metal_render93_color_at"
+
 external intersection_table_array :
   handle -> int -> handle option array -> int64 array -> int64 array ->
   (int64 * int64) -> int64 -> int64 -> (unit, string) result =
