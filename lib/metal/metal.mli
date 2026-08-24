@@ -3153,6 +3153,9 @@ end
 
 module Acceleration_encoder : sig
   type t = acceleration_encoder
+  type resource_usage = Read | Write | Read_write
+  type resource = Buffer_resource of Buffer.t | Texture_resource of Texture.t
+  type compacted_size_type = Uint32 | Uint64
 
   val create : Command_buffer.t -> (t, error) result
   val build :
@@ -3173,6 +3176,13 @@ module Acceleration_encoder : sig
   val copy_and_compact :
     t -> source:Acceleration_structure.t ->
     destination:Acceleration_structure.t -> (unit, error) result
+  val refit_with_options : t -> source:Acceleration_structure.t -> destination:Acceleration_structure.t -> descriptor:Acceleration_structure.Triangle.t -> scratch:Buffer.t -> scratch_offset:int64 -> options:int64 -> (unit,error) result
+  val update_fence : t -> Fence.t -> (unit,error) result
+  val wait_for_fence : t -> Fence.t -> (unit,error) result
+  val sample_counters : t -> counter_sample_buffer -> index:int64 -> barrier:bool -> (unit,error) result
+  val use_resources : t -> usage:resource_usage -> resource list -> (unit,error) result
+  val use_heaps : t -> Heap.t list -> (unit,error) result
+  val write_compacted_size_typed : t -> source:Acceleration_structure.t -> destination:Buffer.t -> offset:int64 -> compacted_size_type -> (unit,error) result
   val end_encoding : t -> (unit, error) result
   val destroyed : t -> bool
 end

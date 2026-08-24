@@ -16266,6 +16266,9 @@ end
 
 module Acceleration_encoder = struct
   type t = acceleration_encoder
+  type resource_usage = Read | Write | Read_write
+  type resource = Buffer_resource of Buffer.t | Texture_resource of Texture.t
+  type compacted_size_type = Uint32 | Uint64
 
   let create (command_buffer : Command_buffer.t) =
     let operation = "Metal.Acceleration_encoder.create" in
@@ -16446,6 +16449,56 @@ module Acceleration_encoder = struct
   let copy_and_compact value ~source ~destination =
     copy_common "Metal.Acceleration_encoder.copy_and_compact"
       Metal_raw.acceleration_encoder_copy_and_compact value ~source ~destination
+
+  let refit_with_options (value:t) ~source ~destination ~descriptor ~scratch
+      ~scratch_offset ~options =
+    let operation="Metal.Acceleration_encoder.refit_with_options" in
+    on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->
+      let device=value.command_buffer.queue.device in
+      Result.bind(validate_acceleration operation device source)(fun()->
+      Result.bind(validate_acceleration operation device destination)(fun()->
+      Result.bind(ensure_buffer_usable operation scratch)(fun()->
+      Result.bind(ensure_same_device operation device scratch.device)(fun()->
+      if scratch_offset<0L||scratch_offset>scratch.length then error operation Invalid_argument "scratch offset exceeds its buffer"
+      else match Metal_raw.acceleration_encoder_refit_options value.raw source.raw destination.raw
+        (Acceleration_structure.Triangle.raw descriptor) scratch.raw scratch_offset options with
+      |Error message->native_error operation message|Ok()->
+        retain_command_buffer_acceleration_structure value.command_buffer source;
+        retain_command_buffer_acceleration_structure value.command_buffer destination;
+        retain_command_buffer_buffer value.command_buffer descriptor.vertex_buffer;
+        Option.iter(retain_command_buffer_buffer value.command_buffer)descriptor.index_buffer;
+        retain_command_buffer_buffer value.command_buffer scratch;Ok())))))
+
+  let fence_command operation update (value:t) (fence:fence)=on_main operation(fun()->
+    match ensure_live operation value.lifetime with Error _ as e->e|Ok()->
+    Result.bind(ensure_live operation fence.lifetime)(fun()->
+    Result.bind(ensure_same_device operation value.command_buffer.queue.device fence.device)(fun()->
+    match Metal_raw.acceleration_encoder_fence value.raw fence.raw update with Error m->native_error operation m|Ok()->retain_command_buffer_fence value.command_buffer fence;Ok())))
+  let update_fence value fence=fence_command "Metal.Acceleration_encoder.update_fence" true value fence
+  let wait_for_fence value fence=fence_command "Metal.Acceleration_encoder.wait_for_fence" false value fence
+
+  let sample_counters (value:t) (samples:counter_sample_buffer) ~index ~barrier=
+    let operation="Metal.Acceleration_encoder.sample_counters"in on_main operation(fun()->
+      match ensure_live operation value.lifetime with Error _ as e->e|Ok()->
+      Result.bind(ensure_live operation samples.lifetime)(fun()->
+      Result.bind(ensure_same_device operation value.command_buffer.queue.device samples.device)(fun()->
+      if index<0L||index>=samples.sample_count then error operation Invalid_argument "counter sample index is out of range"
+      else match Metal_raw.acceleration_supports_counters samples.device.raw with Error m->native_error operation m|Ok false->error operation Unsupported "device does not support acceleration stage-boundary counters"|Ok true->
+      match Metal_raw.acceleration_encoder_sample value.raw samples.raw index barrier with Error m->native_error operation m|Ok()->
+        if not(List.exists((==)samples.lifetime)!(value.command_buffer.presentation_events))then begin attach samples.lifetime;value.command_buffer.presentation_events:=samples.lifetime::!(value.command_buffer.presentation_events)end;Ok())))
+
+  let usage_code=function Read->1L|Write->2L|Read_write->3L
+  let use_resources (value:t) ~usage resources=
+    let operation="Metal.Acceleration_encoder.use_resources"in on_main operation(fun()->
+      match ensure_live operation value.lifetime with Error _ as e->e|Ok()->if resources=[]then error operation Invalid_argument "resources must not be empty"else
+      let device=value.command_buffer.queue.device in
+      let rec validate=function []->Ok()|Buffer_resource b::rest->Result.bind(ensure_buffer_usable operation b)(fun()->Result.bind(ensure_same_device operation device b.device)(fun()->validate rest))|Texture_resource t::rest->Result.bind(ensure_texture_usable operation t)(fun()->Result.bind(ensure_same_device operation device t.device)(fun()->validate rest))in
+      Result.bind(validate resources)(fun()->let raw=Array.of_list(List.map(function Buffer_resource b->0,b.raw|Texture_resource t->1,t.raw)resources)in match Metal_raw.acceleration_encoder_use value.raw[||]raw(usage_code usage)with Error m->native_error operation m|Ok()->List.iter(function Buffer_resource b->retain_command_buffer_buffer value.command_buffer b|Texture_resource t->retain_command_buffer_texture value.command_buffer t)resources;Ok()))
+  let use_heaps (value:t) heaps=
+    let operation="Metal.Acceleration_encoder.use_heaps"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->if heaps=[]then error operation Invalid_argument "heaps must not be empty"else let device=value.command_buffer.queue.device in let rec validate=function []->Ok()|(heap:heap)::rest->Result.bind(ensure_live operation heap.lifetime)(fun()->Result.bind(ensure_same_device operation device heap.device)(fun()->validate rest))in Result.bind(validate heaps)(fun()->match Metal_raw.acceleration_encoder_use value.raw(Array.of_list(List.map(fun(h:heap)->h.raw)heaps))[||]1L with Error m->native_error operation m|Ok()->List.iter(retain_command_buffer_heap value.command_buffer)heaps;Ok()))
+
+  let write_compacted_size_typed (value:t) ~source ~destination ~offset kind=
+    let operation="Metal.Acceleration_encoder.write_compacted_size_typed"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->let bytes,code=match kind with Uint32->4L,0|Uint64->8L,1 in Result.bind(validate_acceleration operation value.command_buffer.queue.device source)(fun()->Result.bind(ensure_buffer_usable operation destination)(fun()->Result.bind(ensure_same_device operation value.command_buffer.queue.device destination.device)(fun()->if offset<0L||Int64.rem offset bytes<>0L||offset>destination.length||bytes>Int64.sub destination.length offset then error operation Invalid_argument "compacted-size output range is invalid"else match Metal_raw.acceleration_encoder_write_type value.raw source.raw destination.raw offset code with Error m->native_error operation m|Ok()->retain_command_buffer_acceleration_structure value.command_buffer source;retain_command_buffer_buffer value.command_buffer destination;Ok()))))
 
   let destroyed value = is_destroyed value.lifetime
 
