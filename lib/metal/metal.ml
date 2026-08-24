@@ -18091,6 +18091,32 @@ module Blit_encoder = struct
                  | Ok () -> retain_command_buffer_texture value.command_buffer source;
                      retain_command_buffer_texture value.command_buffer destination; Ok ())))))
 
+  let copy_texture_levels (value:t) ~(source:Texture.t) ~source_slice ~source_level
+      ~(destination:Texture.t) ~destination_slice ~destination_level ~slice_count ~level_count =
+    let operation = "Metal.Blit_encoder.copy_texture_levels" in
+    on_main operation (fun () -> match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () -> Result.bind (ensure_texture_usable operation source) (fun () ->
+          Result.bind (ensure_texture_usable operation destination) (fun () ->
+            let source_slices=Texture.total_slices source.descriptor
+            and destination_slices=Texture.total_slices destination.descriptor in
+            if source_slice<0 || destination_slice<0 || source_level<0 || destination_level<0
+               || slice_count<=0 || level_count<=0
+               || source_slice>source_slices-slice_count
+               || destination_slice>destination_slices-slice_count
+               || source_level>source.descriptor.mip_levels-level_count
+               || destination_level>destination.descriptor.mip_levels-level_count
+            then error operation Invalid_argument "texture level range is invalid"
+            else Result.bind (ensure_same_device operation value.command_buffer.queue.device source.device)
+              (fun () -> Result.bind (ensure_same_device operation source.device destination.device)
+                (fun () -> match Metal_raw.blit_copy value.raw 5 source.raw destination.raw
+                  (Metal_raw.Blit_texture_levels(Int64.of_int source_slice,Int64.of_int source_level,
+                    Int64.of_int destination_slice,Int64.of_int destination_level,
+                    Int64.of_int slice_count,Int64.of_int level_count)) with
+                 | Error message->native_error operation message
+                 | Ok()->retain_command_buffer_texture value.command_buffer source;
+                    retain_command_buffer_texture value.command_buffer destination;Ok())))))
+
   let fence_call operation update (value:t) (fence:Fence.t) =
     on_main operation (fun () -> match ensure_live operation value.lifetime with
       | Error _ as failure -> failure
