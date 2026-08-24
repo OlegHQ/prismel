@@ -23,6 +23,24 @@ let expected_promoted_tensor_struct_ids =
   ; "property:MTLTensor:gpuResourceID"
   ]
 
+let expected_promoted_rasterization_rate_struct_ids =
+  [ "method:-[MTLRasterizationRateLayerDescriptor maxSampleCount]"
+  ; "method:-[MTLRasterizationRateLayerDescriptor sampleCount]"
+  ; "method:-[MTLRasterizationRateLayerDescriptor setSampleCount:]"
+  ; "method:-[MTLRasterizationRateMap parameterBufferSizeAndAlign]"
+  ; "method:-[MTLRasterizationRateMap physicalGranularity]"
+  ; "method:-[MTLRasterizationRateMap physicalSizeForLayer:]"
+  ; "method:-[MTLRasterizationRateMap screenSize]"
+  ; "method:-[MTLRasterizationRateMapDescriptor screenSize]"
+  ; "method:-[MTLRasterizationRateMapDescriptor setScreenSize:]"
+  ; "property:MTLRasterizationRateLayerDescriptor:maxSampleCount"
+  ; "property:MTLRasterizationRateLayerDescriptor:sampleCount"
+  ; "property:MTLRasterizationRateMap:parameterBufferSizeAndAlign"
+  ; "property:MTLRasterizationRateMap:physicalGranularity"
+  ; "property:MTLRasterizationRateMap:screenSize"
+  ; "property:MTLRasterizationRateMapDescriptor:screenSize"
+  ]
+
 let fail format =
   Printf.ksprintf (fun message -> invalid_arg ("Metal struct plan: " ^ message)) format
 
@@ -58,7 +76,9 @@ let relevant declaration =
           || String.equal declaration.classification "bound"
              && List.mem declaration.id Binding_io_safe_reachability.promotable_ids
           || String.equal declaration.classification "bound"
-             && List.mem declaration.id Binding_tensor_safe_handoff.safe41_ids))
+             && List.mem declaration.id Binding_tensor_safe_handoff.safe41_ids
+          || String.equal declaration.classification "bound"
+             && List.mem declaration.id Binding_rasterization_rate_safe_handoff.callable_ids))
   && (String.equal declaration.kind "method"
       || String.equal declaration.kind "property")
   && Binding_struct_spec.mechanically_safe_signature declaration.signature
@@ -88,6 +108,26 @@ let select declarations =
     fail "promoted Tensor struct intersection drift: expected [%s], found [%s]"
       (String.concat "; " expected_promoted_tensor_struct_ids)
       (String.concat "; " promoted_tensor_struct_ids);
+  let promoted_rasterization_rate_struct_ids =
+    declarations
+    |> List.filter (fun declaration ->
+         String.equal declaration.classification "bound"
+         && List.mem declaration.id Binding_rasterization_rate_safe_handoff.callable_ids
+         && (String.equal declaration.kind "method" || String.equal declaration.kind "property")
+         && Binding_struct_spec.mechanically_safe_signature declaration.signature
+         && List.exists
+              (Binding_struct_spec.contains_type declaration.signature)
+              Binding_struct_spec.objc_types)
+    |> List.map (fun declaration -> declaration.id)
+    |> List.sort_uniq String.compare
+  in
+  let expected_promoted_rasterization_rate_struct_ids =
+    List.sort String.compare expected_promoted_rasterization_rate_struct_ids
+  in
+  if promoted_rasterization_rate_struct_ids <> expected_promoted_rasterization_rate_struct_ids then
+    fail "promoted RasterizationRate struct intersection drift: expected [%s], found [%s]"
+      (String.concat "; " expected_promoted_rasterization_rate_struct_ids)
+      (String.concat "; " promoted_rasterization_rate_struct_ids);
   let declarations = List.filter relevant declarations in
   let ids = List.map (fun declaration -> declaration.id) declarations in
   let sorted_ids = List.sort String.compare ids in
