@@ -2436,3 +2436,15 @@ external compute_pass_attachment :
 external compute_pass_attachment_snapshot :
   handle -> ((handle option * int64 * int64),string) result =
   "caml_prismel_metal_compute_pass_attachment_snapshot"
+
+external function_log_location : handle -> (handle option,string) result =
+  "caml_prismel_metal_function_log_location"
+external function_log_encoder_label : handle -> (string option,string) result =
+  "caml_prismel_metal_function_log_encoder_label"
+external function_log_function : handle -> (handle option,string) result =
+  "caml_prismel_metal_function_log_function"
+external function_log_location_url : handle -> (string option,string) result =
+  "caml_prismel_metal_function_log_location_url"
+external function_log_location_function_name :
+  handle -> (string option,string) result =
+  "caml_prismel_metal_function_log_location_function_name"
