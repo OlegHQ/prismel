@@ -2,5 +2,6 @@ type lane=Mechanical|Ownership|Metadata
 type package=Descriptor_limit|Descriptor_log|Command_buffer|Queue_identity|Capture_boundary|Type_metadata
 type item={id:string;lane:lane;package:package;operation:string;tests:string list}
 val mechanical_ids:string list
+val callable_ids:string list
 val classify:kind:string->string->item
 val validate:item list->unit
