@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4530,
+    "bound": 4536,
     "scope-excluded": 37,
-    "unreviewed": 718
+    "unreviewed": 712
   },
-  "classification_source_sha256": "a4141a96377ddf92f9fc8c5673bead80b35ee0809db2a900b8b97f6404d2f868",
+  "classification_source_sha256": "ea5b1079c983fcdd68fa53a2aca6c06246bb91422052def1fe0ca3ad9688d838",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -33563,7 +33563,7 @@
           "line": 45
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandBuffer.h",
       "id": "method:-[MTL4CommandBuffer beginCommandBufferWithAllocator:options:]",
       "kind": "method",
@@ -33571,7 +33571,7 @@
       "macos_introduced": "26.0",
       "name": "beginCommandBufferWithAllocator:options:",
       "owner": "MTL4CommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (id<MTL4CommandAllocator>  _Nonnull __strong, MTL4CommandBufferOptions * _Nonnull __strong) -> void"
     },
     {
@@ -33658,7 +33658,7 @@
           "line": 45
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandBuffer.h",
       "id": "method:-[MTL4CommandBuffer machineLearningCommandEncoder]",
       "kind": "method",
@@ -33666,7 +33666,7 @@
       "macos_introduced": "26.0",
       "name": "machineLearningCommandEncoder",
       "owner": "MTL4CommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> id<MTL4MachineLearningCommandEncoder> _Nullable"
     },
     {
@@ -33734,7 +33734,7 @@
           "line": 45
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandBuffer.h",
       "id": "method:-[MTL4CommandBuffer renderCommandEncoderWithDescriptor:options:]",
       "kind": "method",
@@ -33742,7 +33742,7 @@
       "macos_introduced": "26.0",
       "name": "renderCommandEncoderWithDescriptor:options:",
       "owner": "MTL4CommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTL4RenderPassDescriptor * _Nonnull __strong, MTL4RenderEncoderOptions) -> id<MTL4RenderCommandEncoder> _Nullable"
     },
     {
@@ -33860,7 +33860,7 @@
           "line": 31
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandBuffer.h",
       "id": "method:-[MTL4CommandBufferOptions logState]",
       "kind": "method",
@@ -33868,7 +33868,7 @@
       "macos_introduced": "26.0",
       "name": "logState",
       "owner": "MTL4CommandBufferOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> id<MTLLogState> _Nullable"
     },
     {
@@ -33879,7 +33879,7 @@
           "line": 31
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandBuffer.h",
       "id": "method:-[MTL4CommandBufferOptions setLogState:]",
       "kind": "method",
@@ -33887,7 +33887,7 @@
       "macos_introduced": "26.0",
       "name": "setLogState:",
       "owner": "MTL4CommandBufferOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (id<MTLLogState> _Nullable) -> void"
     },
     {
@@ -84306,7 +84306,7 @@
           "line": 31
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandBuffer.h",
       "id": "property:MTL4CommandBufferOptions:logState",
       "kind": "property",
@@ -84314,7 +84314,7 @@
       "macos_introduced": "26.0",
       "name": "logState",
       "owner": "MTL4CommandBufferOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "id<MTLLogState> _Nullable"
     },
     {
