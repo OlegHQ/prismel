@@ -1806,6 +1806,7 @@ external counter_descriptor_set : handle -> handle -> string option -> int64 -> 
 external counter_sample_buffer_create : handle -> handle -> (handle,string) result = "caml_prismel_metal_counter_sample_buffer_create"
 external counter_sample_snapshot : handle -> ((int64 * string option * int64),string) result = "caml_prismel_metal_counter_sample_snapshot"
 external counter_sample_resolve : handle -> int64 -> int64 -> (bytes,string) result = "caml_prismel_metal_counter_sample_resolve"
+external counter_supports_sampling : handle -> int -> (bool,string) result = "caml_prismel_metal_counter_supports_sampling"
 external blit_pass_create : unit -> (handle,string) result = "caml_prismel_metal_blit_pass_create"
 external blit_pass_attachments : handle -> (handle,string) result = "caml_prismel_metal_blit_pass_attachments"
 external blit_attachment : handle -> int64 -> handle option -> int64 -> int64 -> (handle,string) result = "caml_prismel_metal_blit_attachment"
