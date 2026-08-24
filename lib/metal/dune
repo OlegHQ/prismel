@@ -963,6 +963,11 @@
  (libraries metal))
 
 (test
+ (name test_metal_compute_pipeline11_safe)
+ (modules test_metal_compute_pipeline11_safe)
+ (libraries metal))
+
+(test
  (name test_metal_binary_archive5_safe)
  (modules test_metal_binary_archive5_safe)
  (libraries metal unix))
