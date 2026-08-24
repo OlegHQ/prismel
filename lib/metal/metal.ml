@@ -6091,6 +6091,15 @@ end
 
 module Render_pass_descriptor = struct
   type t = render_pass_descriptor
+  type visibility_result_type = Disabled | Boolean
+  type advanced =
+    { imageblock_sample_length : int64
+    ; threadgroup_memory_length : int64
+    ; tile_width : int64
+    ; tile_height : int64
+    ; visibility_result_type : visibility_result_type
+    ; support_color_attachment_mapping : bool
+    ; sample_positions : (float * float) array }
 
   let create ~width ~height ?(array_length = 1) ?(sample_count = 1) () =
     let operation = "Metal.Render_pass_descriptor.create" in
@@ -6117,6 +6126,26 @@ module Render_pass_descriptor = struct
   let size (value : t) = value.pass_width, value.pass_height
   let array_length (value : t) = value.pass_array_length
   let sample_count (value : t) = value.pass_sample_count
+  let checked_sizes (value:t) =
+    let operation="Metal.Render_pass_descriptor.checked_sizes" in
+    on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->
+      match Metal_raw.render_pass_sizes value.raw with Error m->native_error operation m
+      |Ok(w,h,a,s) when w=Int64.of_int value.pass_width&&h=Int64.of_int value.pass_height&&a=Int64.of_int value.pass_array_length&&s=Int64.of_int value.pass_sample_count->Ok(value.pass_width,value.pass_height,value.pass_array_length,value.pass_sample_count)
+      |Ok _->error operation Native_error "native render-pass sizes disagree with safe metadata")
+
+  let visibility_code=function Disabled->0L|Boolean->1L
+  let visibility_of_code=function 0L->Ok Disabled|1L->Ok Boolean|_->error "Metal.Render_pass_descriptor.advanced" Native_error "unknown native visibility-result type"
+  let validate_advanced operation value =
+    let nonnegative x=x>=0L in
+    if not(List.for_all nonnegative[value.imageblock_sample_length;value.threadgroup_memory_length;value.tile_width;value.tile_height])then error operation Invalid_argument "advanced render-pass lengths must be nonnegative"
+    else let count=Array.length value.sample_positions in
+      if not(List.mem count[0;2;4;8])then error operation Invalid_argument "sample-position count must be 0, 2, 4, or 8"
+      else if Array.exists(fun(x,y)->not(Float.is_finite x&&Float.is_finite y)||x<0.||x>1.||y<0.||y>1.)value.sample_positions then error operation Invalid_argument "sample positions must be finite normalized coordinates"
+      else Ok()
+  let advanced(value:t)=
+    let operation="Metal.Render_pass_descriptor.advanced"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.render_pass_advanced_get value.raw with Error m->native_error operation m|Ok(image,memory,tw,th,visibility,mapping,positions)->match visibility_of_code visibility with Error _ as e->e|Ok visibility_result_type->Ok{imageblock_sample_length=image;threadgroup_memory_length=memory;tile_width=tw;tile_height=th;visibility_result_type;support_color_attachment_mapping=mapping;sample_positions=Array.copy positions})
+  let set_advanced(value:t)(next:advanced)=
+    let operation="Metal.Render_pass_descriptor.set_advanced"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match validate_advanced operation next with Error _ as e->e|Ok()->let raw=(next.imageblock_sample_length,next.threadgroup_memory_length,next.tile_width,next.tile_height,visibility_code next.visibility_result_type,next.support_color_attachment_mapping,Array.copy next.sample_positions)in match Metal_raw.render_pass_advanced_set value.raw raw with Error m->native_error operation m|Ok()->match Metal_raw.render_pass_advanced_get value.raw with Error m->native_error operation m|Ok actual when actual=raw->Ok()|Ok _->error operation Native_error "advanced render-pass native round trip changed values")
   let destroyed (value : t) = is_destroyed value.lifetime
   let detach_option get = Option.iter (fun value -> detach (get value))
 
@@ -6222,6 +6251,9 @@ module Render_pass_descriptor = struct
   let depth_attachment (value : t) = value.pass_depth
   let stencil_attachment (value : t) = value.pass_stencil
   let visibility_result_buffer (value : t) = value.pass_visibility
+
+  let reset_depth_stencil(value:t)=
+    let operation="Metal.Render_pass_descriptor.reset_depth_stencil"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.render_pass_reset_depth_stencil value.raw with Error m->native_error operation m|Ok()->detach_option(fun(x:texture)->x.lifetime)value.pass_depth;detach_option(fun(x:texture)->x.lifetime)value.pass_stencil;value.pass_depth<-None;value.pass_stencil<-None;Ok())
 
   let destroy (value : t) =
     destroy_parent "Metal.Render_pass_descriptor.destroy" value.lifetime value.raw

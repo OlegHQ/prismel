@@ -78,6 +78,23 @@ let () =
   if before_rejection.live_handles <> after_rejection.live_handles
      || before_rejection.total_created <> after_rejection.total_created then
     fail "rejected render-pass mutation changed native handle counts";
+  if get(Render_pass_descriptor.checked_sizes encoded_pass)<>(16,8,1,1)then
+    fail "native render-pass sizes disagree";
+  let advanced : Render_pass_descriptor.advanced =
+    {imageblock_sample_length=0L;threadgroup_memory_length=0L
+    ;tile_width=0L;tile_height=0L
+    ;visibility_result_type=Render_pass_descriptor.Disabled
+    ;support_color_attachment_mapping=false
+    ;sample_positions=[|(0.25,0.25);(0.75,0.75)|]} in
+  get(Render_pass_descriptor.set_advanced encoded_pass advanced);
+  if get(Render_pass_descriptor.advanced encoded_pass)<>advanced then
+    fail "advanced render-pass round trip drift";
+  expect Invalid_argument(Render_pass_descriptor.set_advanced encoded_pass
+    {advanced with sample_positions=[|(nan,0.)|]});
+  get(Render_pass_descriptor.reset_depth_stencil encoded_pass);
+  if Render_pass_descriptor.depth_attachment encoded_pass<>None
+     ||Render_pass_descriptor.stencil_attachment encoded_pass<>None then
+    fail "depth/stencil reset graph drift";
   let encoder = get (Render_encoder.create_from_pass commands encoded_pass) in
   get (Render_encoder.end_encoding encoder);
   get (Render_pass_descriptor.destroy encoded_pass);

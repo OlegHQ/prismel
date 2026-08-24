@@ -806,10 +806,22 @@ end
 
 module Render_pass_descriptor : sig
   type t
+  type visibility_result_type = Disabled | Boolean
+  type advanced =
+    { imageblock_sample_length : int64
+    ; threadgroup_memory_length : int64
+    ; tile_width : int64
+    ; tile_height : int64
+    ; visibility_result_type : visibility_result_type
+    ; support_color_attachment_mapping : bool
+    ; sample_positions : (float * float) array }
   val create : width:int -> height:int -> ?array_length:int -> ?sample_count:int -> unit -> (t,error) result
   val size : t -> int * int
   val array_length : t -> int
   val sample_count : t -> int
+  val checked_sizes : t -> (int * int * int * int,error) result
+  val advanced : t -> (advanced,error) result
+  val set_advanced : t -> advanced -> (unit,error) result
   val set_attachments :
     t -> color:Texture.t -> ?clear:float * float * float * float ->
     ?depth:Texture.t -> ?stencil:Texture.t -> ?visibility_result:Buffer.t ->
@@ -818,6 +830,7 @@ module Render_pass_descriptor : sig
   val depth_attachment : t -> Texture.t option
   val stencil_attachment : t -> Texture.t option
   val visibility_result_buffer : t -> Buffer.t option
+  val reset_depth_stencil : t -> (unit,error) result
   val destroyed : t -> bool
   val destroy : t -> (unit,error) result
 end
