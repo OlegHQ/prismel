@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4838,
+    "bound": 4855,
     "scope-excluded": 37,
-    "unreviewed": 410
+    "unreviewed": 393
   },
-  "classification_source_sha256": "c345e53049686024504dcf9ad3ae694a1957dda8dd76d4353209a23359a4cbfe",
+  "classification_source_sha256": "0de8eb9fce201514b472fc361d59ecabce36a872fe74b399d3edaf5a08601f01",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -60771,7 +60771,7 @@
           "line": 32
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandBuffer.h",
       "id": "method:-[MTLIOCommandBuffer addBarrier]",
       "kind": "method",
@@ -60779,7 +60779,7 @@
       "macos_introduced": "13.0",
       "name": "addBarrier",
       "owner": "MTLIOCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe IO queue/file/command controls with copied labels, state/range/device validation, retained resources, and real native IO conformance.",
       "signature": "instance () -> void"
     },
     {
@@ -60828,7 +60828,7 @@
           "line": 32
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandBuffer.h",
       "id": "method:-[MTLIOCommandBuffer copyStatusToBuffer:offset:]",
       "kind": "method",
@@ -60836,7 +60836,7 @@
       "macos_introduced": "13.0",
       "name": "copyStatusToBuffer:offset:",
       "owner": "MTLIOCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe IO queue/file/command controls with copied labels, state/range/device validation, retained resources, and real native IO conformance.",
       "signature": "instance (id<MTLBuffer>  _Nonnull __strong, NSUInteger) -> void"
     },
     {
@@ -60847,7 +60847,7 @@
           "line": 32
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandBuffer.h",
       "id": "method:-[MTLIOCommandBuffer enqueue]",
       "kind": "method",
@@ -60855,7 +60855,7 @@
       "macos_introduced": "13.0",
       "name": "enqueue",
       "owner": "MTLIOCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe IO queue/file/command controls with copied labels, state/range/device validation, retained resources, and real native IO conformance.",
       "signature": "instance () -> void"
     },
     {
@@ -60866,7 +60866,7 @@
           "line": 32
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandBuffer.h",
       "id": "method:-[MTLIOCommandBuffer error]",
       "kind": "method",
@@ -60874,7 +60874,7 @@
       "macos_introduced": "13.0",
       "name": "error",
       "owner": "MTLIOCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe IO queue/file/command controls with copied labels, state/range/device validation, retained resources, and real native IO conformance.",
       "signature": "instance () -> NSError * _Nullable"
     },
     {
@@ -60885,7 +60885,7 @@
           "line": 32
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandBuffer.h",
       "id": "method:-[MTLIOCommandBuffer label]",
       "kind": "method",
@@ -60893,7 +60893,7 @@
       "macos_introduced": "13.0",
       "name": "label",
       "owner": "MTLIOCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe IO queue/file/command controls with copied labels, state/range/device validation, retained resources, and real native IO conformance.",
       "signature": "instance () -> NSString * _Nullable"
     },
     {
@@ -60961,7 +60961,7 @@
           "line": 32
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandBuffer.h",
       "id": "method:-[MTLIOCommandBuffer popDebugGroup]",
       "kind": "method",
@@ -60969,7 +60969,7 @@
       "macos_introduced": "13.0",
       "name": "popDebugGroup",
       "owner": "MTLIOCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe IO queue/file/command controls with copied labels, state/range/device validation, retained resources, and real native IO conformance.",
       "signature": "instance () -> void"
     },
     {
@@ -60980,7 +60980,7 @@
           "line": 32
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandBuffer.h",
       "id": "method:-[MTLIOCommandBuffer pushDebugGroup:]",
       "kind": "method",
@@ -60988,7 +60988,7 @@
       "macos_introduced": "13.0",
       "name": "pushDebugGroup:",
       "owner": "MTLIOCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe IO queue/file/command controls with copied labels, state/range/device validation, retained resources, and real native IO conformance.",
       "signature": "instance (NSString * _Nonnull __strong) -> void"
     },
     {
@@ -60999,7 +60999,7 @@
           "line": 32
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandBuffer.h",
       "id": "method:-[MTLIOCommandBuffer setLabel:]",
       "kind": "method",
@@ -61007,7 +61007,7 @@
       "macos_introduced": "13.0",
       "name": "setLabel:",
       "owner": "MTLIOCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe IO queue/file/command controls with copied labels, state/range/device validation, retained resources, and real native IO conformance.",
       "signature": "instance (NSString * _Nullable) -> void"
     },
     {
@@ -61018,7 +61018,7 @@
           "line": 32
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandBuffer.h",
       "id": "method:-[MTLIOCommandBuffer signalEvent:value:]",
       "kind": "method",
@@ -61026,7 +61026,7 @@
       "macos_introduced": "13.0",
       "name": "signalEvent:value:",
       "owner": "MTLIOCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe IO queue/file/command controls with copied labels, state/range/device validation, retained resources, and real native IO conformance.",
       "signature": "instance (id<MTLSharedEvent>  _Nonnull __strong, uint64_t) -> void"
     },
     {
@@ -61056,7 +61056,7 @@
           "line": 32
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandBuffer.h",
       "id": "method:-[MTLIOCommandBuffer tryCancel]",
       "kind": "method",
@@ -61064,7 +61064,7 @@
       "macos_introduced": "13.0",
       "name": "tryCancel",
       "owner": "MTLIOCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe IO queue/file/command controls with copied labels, state/range/device validation, retained resources, and real native IO conformance.",
       "signature": "instance () -> void"
     },
     {
@@ -61075,7 +61075,7 @@
           "line": 32
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandBuffer.h",
       "id": "method:-[MTLIOCommandBuffer waitForEvent:value:]",
       "kind": "method",
@@ -61083,7 +61083,7 @@
       "macos_introduced": "13.0",
       "name": "waitForEvent:value:",
       "owner": "MTLIOCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe IO queue/file/command controls with copied labels, state/range/device validation, retained resources, and real native IO conformance.",
       "signature": "instance (id<MTLSharedEvent>  _Nonnull __strong, uint64_t) -> void"
     },
     {
@@ -61113,7 +61113,7 @@
           "line": 46
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandQueue.h",
       "id": "method:-[MTLIOCommandQueue commandBufferWithUnretainedReferences]",
       "kind": "method",
@@ -61121,7 +61121,7 @@
       "macos_introduced": "13.0",
       "name": "commandBufferWithUnretainedReferences",
       "owner": "MTLIOCommandQueue",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe IO queue/file/command controls with copied labels, state/range/device validation, retained resources, and real native IO conformance.",
       "signature": "instance () -> id<MTLIOCommandBuffer> _Nonnull"
     },
     {
@@ -61151,7 +61151,7 @@
           "line": 46
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandQueue.h",
       "id": "method:-[MTLIOCommandQueue enqueueBarrier]",
       "kind": "method",
@@ -61159,7 +61159,7 @@
       "macos_introduced": "13.0",
       "name": "enqueueBarrier",
       "owner": "MTLIOCommandQueue",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe IO queue/file/command controls with copied labels, state/range/device validation, retained resources, and real native IO conformance.",
       "signature": "instance () -> void"
     },
     {
@@ -61170,7 +61170,7 @@
           "line": 46
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandQueue.h",
       "id": "method:-[MTLIOCommandQueue label]",
       "kind": "method",
@@ -61178,7 +61178,7 @@
       "macos_introduced": "13.0",
       "name": "label",
       "owner": "MTLIOCommandQueue",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe IO queue/file/command controls with copied labels, state/range/device validation, retained resources, and real native IO conformance.",
       "signature": "instance () -> NSString * _Nullable"
     },
     {
@@ -61189,7 +61189,7 @@
           "line": 46
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandQueue.h",
       "id": "method:-[MTLIOCommandQueue setLabel:]",
       "kind": "method",
@@ -61197,7 +61197,7 @@
       "macos_introduced": "13.0",
       "name": "setLabel:",
       "owner": "MTLIOCommandQueue",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe IO queue/file/command controls with copied labels, state/range/device validation, retained resources, and real native IO conformance.",
       "signature": "instance (NSString * _Nullable) -> void"
     },
     {
@@ -61398,7 +61398,7 @@
           "line": 175
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandQueue.h",
       "id": "method:-[MTLIOFileHandle label]",
       "kind": "method",
@@ -61406,7 +61406,7 @@
       "macos_introduced": "13.0",
       "name": "label",
       "owner": "MTLIOFileHandle",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe IO queue/file/command controls with copied labels, state/range/device validation, retained resources, and real native IO conformance.",
       "signature": "instance () -> NSString * _Nullable"
     },
     {
@@ -61417,7 +61417,7 @@
           "line": 175
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandQueue.h",
       "id": "method:-[MTLIOFileHandle setLabel:]",
       "kind": "method",
@@ -61425,7 +61425,7 @@
       "macos_introduced": "13.0",
       "name": "setLabel:",
       "owner": "MTLIOFileHandle",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe IO queue/file/command controls with copied labels, state/range/device validation, retained resources, and real native IO conformance.",
       "signature": "instance (NSString * _Nullable) -> void"
     },
     {
