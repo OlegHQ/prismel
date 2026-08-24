@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4949,
+    "bound": 4953,
     "scope-excluded": 37,
-    "unreviewed": 299
+    "unreviewed": 295
   },
-  "classification_source_sha256": "777e0663b84a8f3c6e38e0335918c54be3256580147384861869d32311d98782",
+  "classification_source_sha256": "e6a7dcd6a6ca5491b349e95251a7e94029fd5c2fa6b859e75e0089c556cb4484",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -2548,7 +2548,7 @@
           "line": 91
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionDescriptor.h",
       "id": "class:MTLIntersectionFunctionDescriptor",
       "kind": "class",
@@ -2556,7 +2556,7 @@
       "macos_introduced": "11.0",
       "name": "MTLIntersectionFunctionDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the FunctionDescriptor safe4 owned archive-list and intersection-descriptor API with copied collection semantics, same-device/live checks, parent retention, nil reset, and real function creation conformance.",
       "signature": ""
     },
     {
@@ -59094,7 +59094,7 @@
           "line": 87
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionDescriptor.h",
       "id": "method:-[MTLFunctionDescriptor binaryArchives]",
       "kind": "method",
@@ -59102,7 +59102,7 @@
       "macos_introduced": "12.0",
       "name": "binaryArchives",
       "owner": "MTLFunctionDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the FunctionDescriptor safe4 owned archive-list and intersection-descriptor API with copied collection semantics, same-device/live checks, parent retention, nil reset, and real function creation conformance.",
       "signature": "instance () -> NSArray<id<MTLBinaryArchive>> * _Nullable"
     },
     {
@@ -59176,7 +59176,7 @@
           "line": 87
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionDescriptor.h",
       "id": "method:-[MTLFunctionDescriptor setBinaryArchives:]",
       "kind": "method",
@@ -59184,7 +59184,7 @@
       "macos_introduced": "12.0",
       "name": "setBinaryArchives:",
       "owner": "MTLFunctionDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the FunctionDescriptor safe4 owned archive-list and intersection-descriptor API with copied collection semantics, same-device/live checks, parent retention, nil reset, and real function creation conformance.",
       "signature": "instance (NSArray<id<MTLBinaryArchive>> * _Nullable) -> void"
     },
     {
@@ -94113,7 +94113,7 @@
           "line": 87
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionDescriptor.h",
       "id": "property:MTLFunctionDescriptor:binaryArchives",
       "kind": "property",
@@ -94121,7 +94121,7 @@
       "macos_introduced": "12.0",
       "name": "binaryArchives",
       "owner": "MTLFunctionDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the FunctionDescriptor safe4 owned archive-list and intersection-descriptor API with copied collection semantics, same-device/live checks, parent retention, nil reset, and real function creation conformance.",
       "signature": "NSArray<id<MTLBinaryArchive>> * _Nullable"
     },
     {

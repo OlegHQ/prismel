@@ -1867,6 +1867,8 @@ let function_constant_values_safe3 =
   ; "method:-[MTLFunctionConstantValues setConstantValue:type:atIndex:]"
   ; "method:-[MTLFunctionConstantValues setConstantValues:type:withRange:]" ]
 
+let function_descriptor_safe4 = Binding_function_descriptor4_safe_package.ids
+
 let classify ~unavailable ~identifier ~header ~kind ~signature =
   if unavailable then
     Scope_excluded, "Clang marks this declaration unavailable for macOS."
@@ -2002,6 +2004,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier function_constant_values_safe3 then
     Bound,
       "Implemented by the FunctionConstantValues safe3 typed byte API with exact width/range/cardinality validation, immutable caller-byte snapshots, reset semantics, and real GPU specialization conformance."
+  else if List.mem identifier function_descriptor_safe4 then
+    Bound,
+      "Implemented by the FunctionDescriptor safe4 owned archive-list and intersection-descriptor API with copied collection semantics, same-device/live checks, parent retention, nil reset, and real function creation conformance."
   else if List.mem identifier Binding_command_buffer19_safe_closure.promotable_ids then
     Bound,
       "Implemented by the CommandBuffer19 safe descriptor/callback closure with retained log-state and resources, exact-once completion, queue ownership, and error-only EncoderInfo snapshots."
