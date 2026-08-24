@@ -78,6 +78,7 @@
   binding_capture_manager_tail_handoff
   binding_compute_pass_tail_handoff
   binding_function_log_tail_handoff
+  binding_command_encoder_tail_handoff
   binding_argument_reflection_plan
   binding_argument_reflection_codegen
   binding_argument_reflection_evidence
@@ -567,6 +568,13 @@
 (test
  (name test_binding_function_log_tail_handoff)
  (modules test_binding_function_log_tail_handoff)
+ (libraries metal_inventory_classification yojson)
+ (deps ../../lib/metal/generated_api_inventory.json)
+ (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
+
+(test
+ (name test_binding_command_encoder_tail_handoff)
+ (modules test_binding_command_encoder_tail_handoff)
  (libraries metal_inventory_classification yojson)
  (deps ../../lib/metal/generated_api_inventory.json)
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
