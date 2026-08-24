@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4322,
+    "bound": 4354,
     "scope-excluded": 37,
-    "unreviewed": 926
+    "unreviewed": 894
   },
-  "classification_source_sha256": "778f6ebb0287b460d2d85d1a497f039fb156705ece420f02c5f1a3ad1a7dbe79",
+  "classification_source_sha256": "6cd68eec5e6fd3c52c5897abaa65bd38c8b7e2c62635132089c4ce31956f56c5",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -46362,7 +46362,7 @@
           "line": 39
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgumentEncoder.h",
       "id": "method:-[MTLArgumentEncoder alignment]",
       "kind": "method",
@@ -46370,7 +46370,7 @@
       "macos_introduced": "10.13",
       "name": "alignment",
       "owner": "MTLArgumentEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ArgumentEncoder32 safe closure with exact device/kind/range validation, atomic array rejection, nested ownership, bounded replacement retention, and real M1 conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -46381,7 +46381,7 @@
           "line": 39
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgumentEncoder.h",
       "id": "method:-[MTLArgumentEncoder constantDataAtIndex:]",
       "kind": "method",
@@ -46389,7 +46389,7 @@
       "macos_introduced": "10.13",
       "name": "constantDataAtIndex:",
       "owner": "MTLArgumentEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ArgumentEncoder32 safe closure with exact device/kind/range validation, atomic array rejection, nested ownership, bounded replacement retention, and real M1 conformance.",
       "signature": "instance (NSUInteger) -> void * _Nonnull"
     },
     {
@@ -46400,7 +46400,7 @@
           "line": 39
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgumentEncoder.h",
       "id": "method:-[MTLArgumentEncoder device]",
       "kind": "method",
@@ -46408,7 +46408,7 @@
       "macos_introduced": "10.13",
       "name": "device",
       "owner": "MTLArgumentEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ArgumentEncoder32 safe closure with exact device/kind/range validation, atomic array rejection, nested ownership, bounded replacement retention, and real M1 conformance.",
       "signature": "instance () -> id<MTLDevice> _Nonnull"
     },
     {
@@ -46419,7 +46419,7 @@
           "line": 39
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgumentEncoder.h",
       "id": "method:-[MTLArgumentEncoder encodedLength]",
       "kind": "method",
@@ -46427,7 +46427,7 @@
       "macos_introduced": "10.13",
       "name": "encodedLength",
       "owner": "MTLArgumentEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ArgumentEncoder32 safe closure with exact device/kind/range validation, atomic array rejection, nested ownership, bounded replacement retention, and real M1 conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -46438,7 +46438,7 @@
           "line": 39
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgumentEncoder.h",
       "id": "method:-[MTLArgumentEncoder label]",
       "kind": "method",
@@ -46446,7 +46446,7 @@
       "macos_introduced": "10.13",
       "name": "label",
       "owner": "MTLArgumentEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ArgumentEncoder32 safe closure with exact device/kind/range validation, atomic array rejection, nested ownership, bounded replacement retention, and real M1 conformance.",
       "signature": "instance () -> NSString * _Nullable"
     },
     {
@@ -46464,7 +46464,7 @@
           "line": 166
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgumentEncoder.h",
       "id": "method:-[MTLArgumentEncoder newArgumentEncoderForBufferAtIndex:]",
       "kind": "method",
@@ -46472,7 +46472,7 @@
       "macos_introduced": "10.13",
       "name": "newArgumentEncoderForBufferAtIndex:",
       "owner": "MTLArgumentEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ArgumentEncoder32 safe closure with exact device/kind/range validation, atomic array rejection, nested ownership, bounded replacement retention, and real M1 conformance.",
       "signature": "instance (NSUInteger) -> id<MTLArgumentEncoder> _Nullable"
     },
     {
@@ -46489,7 +46489,7 @@
           "line": 158
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgumentEncoder.h",
       "id": "method:-[MTLArgumentEncoder setAccelerationStructure:atIndex:]",
       "kind": "method",
@@ -46497,7 +46497,7 @@
       "macos_introduced": "11.0",
       "name": "setAccelerationStructure:atIndex:",
       "owner": "MTLArgumentEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ArgumentEncoder32 safe closure with exact device/kind/range validation, atomic array rejection, nested ownership, bounded replacement retention, and real M1 conformance.",
       "signature": "instance (id<MTLAccelerationStructure>  _Nullable __strong, NSUInteger) -> void"
     },
     {
@@ -46508,7 +46508,7 @@
           "line": 39
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgumentEncoder.h",
       "id": "method:-[MTLArgumentEncoder setArgumentBuffer:offset:]",
       "kind": "method",
@@ -46516,7 +46516,7 @@
       "macos_introduced": "10.13",
       "name": "setArgumentBuffer:offset:",
       "owner": "MTLArgumentEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ArgumentEncoder32 safe closure with exact device/kind/range validation, atomic array rejection, nested ownership, bounded replacement retention, and real M1 conformance.",
       "signature": "instance (id<MTLBuffer>  _Nullable __strong, NSUInteger) -> void"
     },
     {
@@ -46527,7 +46527,7 @@
           "line": 39
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgumentEncoder.h",
       "id": "method:-[MTLArgumentEncoder setArgumentBuffer:startOffset:arrayElement:]",
       "kind": "method",
@@ -46535,7 +46535,7 @@
       "macos_introduced": "10.13",
       "name": "setArgumentBuffer:startOffset:arrayElement:",
       "owner": "MTLArgumentEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ArgumentEncoder32 safe closure with exact device/kind/range validation, atomic array rejection, nested ownership, bounded replacement retention, and real M1 conformance.",
       "signature": "instance (id<MTLBuffer>  _Nullable __strong, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -46546,7 +46546,7 @@
           "line": 39
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgumentEncoder.h",
       "id": "method:-[MTLArgumentEncoder setBuffer:offset:atIndex:]",
       "kind": "method",
@@ -46554,7 +46554,7 @@
       "macos_introduced": "10.13",
       "name": "setBuffer:offset:atIndex:",
       "owner": "MTLArgumentEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ArgumentEncoder32 safe closure with exact device/kind/range validation, atomic array rejection, nested ownership, bounded replacement retention, and real M1 conformance.",
       "signature": "instance (id<MTLBuffer>  _Nullable __strong, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -46565,7 +46565,7 @@
           "line": 39
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgumentEncoder.h",
       "id": "method:-[MTLArgumentEncoder setBuffers:offsets:withRange:]",
       "kind": "method",
@@ -46573,7 +46573,7 @@
       "macos_introduced": "10.13",
       "name": "setBuffers:offsets:withRange:",
       "owner": "MTLArgumentEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ArgumentEncoder32 safe closure with exact device/kind/range validation, atomic array rejection, nested ownership, bounded replacement retention, and real M1 conformance.",
       "signature": "instance (id<MTLBuffer>  _Nullable const __unsafe_unretained * _Nonnull, const NSUInteger * _Nonnull, NSRange) -> void"
     },
     {
@@ -46590,7 +46590,7 @@
           "line": 138
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgumentEncoder.h",
       "id": "method:-[MTLArgumentEncoder setComputePipelineState:atIndex:]",
       "kind": "method",
@@ -46598,7 +46598,7 @@
       "macos_introduced": "11.0",
       "name": "setComputePipelineState:atIndex:",
       "owner": "MTLArgumentEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ArgumentEncoder32 safe closure with exact device/kind/range validation, atomic array rejection, nested ownership, bounded replacement retention, and real M1 conformance.",
       "signature": "instance (id<MTLComputePipelineState>  _Nullable __strong, NSUInteger) -> void"
     },
     {
@@ -46615,7 +46615,7 @@
           "line": 144
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgumentEncoder.h",
       "id": "method:-[MTLArgumentEncoder setComputePipelineStates:withRange:]",
       "kind": "method",
@@ -46623,7 +46623,7 @@
       "macos_introduced": "11.0",
       "name": "setComputePipelineStates:withRange:",
       "owner": "MTLArgumentEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ArgumentEncoder32 safe closure with exact device/kind/range validation, atomic array rejection, nested ownership, bounded replacement retention, and real M1 conformance.",
       "signature": "instance (id<MTLComputePipelineState>  _Nullable const __unsafe_unretained * _Nonnull, NSRange) -> void"
     },
     {
@@ -46640,7 +46640,7 @@
           "line": 200
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgumentEncoder.h",
       "id": "method:-[MTLArgumentEncoder setDepthStencilState:atIndex:]",
       "kind": "method",
@@ -46648,7 +46648,7 @@
       "macos_introduced": "26.0",
       "name": "setDepthStencilState:atIndex:",
       "owner": "MTLArgumentEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ArgumentEncoder32 safe closure with exact device/kind/range validation, atomic array rejection, nested ownership, bounded replacement retention, and real M1 conformance.",
       "signature": "instance (id<MTLDepthStencilState>  _Nullable __strong, NSUInteger) -> void"
     },
     {
@@ -46665,7 +46665,7 @@
           "line": 206
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgumentEncoder.h",
       "id": "method:-[MTLArgumentEncoder setDepthStencilStates:withRange:]",
       "kind": "method",
@@ -46673,7 +46673,7 @@
       "macos_introduced": "26.0",
       "name": "setDepthStencilStates:withRange:",
       "owner": "MTLArgumentEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ArgumentEncoder32 safe closure with exact device/kind/range validation, atomic array rejection, nested ownership, bounded replacement retention, and real M1 conformance.",
       "signature": "instance (id<MTLDepthStencilState>  _Nullable const __unsafe_unretained * _Nonnull, NSRange) -> void"
     },
     {
@@ -46690,7 +46690,7 @@
           "line": 150
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgumentEncoder.h",
       "id": "method:-[MTLArgumentEncoder setIndirectCommandBuffer:atIndex:]",
       "kind": "method",
@@ -46698,7 +46698,7 @@
       "macos_introduced": "10.14",
       "name": "setIndirectCommandBuffer:atIndex:",
       "owner": "MTLArgumentEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ArgumentEncoder32 safe closure with exact device/kind/range validation, atomic array rejection, nested ownership, bounded replacement retention, and real M1 conformance.",
       "signature": "instance (id<MTLIndirectCommandBuffer>  _Nullable __strong, NSUInteger) -> void"
     },
     {
@@ -46715,7 +46715,7 @@
           "line": 156
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgumentEncoder.h",
       "id": "method:-[MTLArgumentEncoder setIndirectCommandBuffers:withRange:]",
       "kind": "method",
@@ -46723,7 +46723,7 @@
       "macos_introduced": "10.14",
       "name": "setIndirectCommandBuffers:withRange:",
       "owner": "MTLArgumentEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ArgumentEncoder32 safe closure with exact device/kind/range validation, atomic array rejection, nested ownership, bounded replacement retention, and real M1 conformance.",
       "signature": "instance (id<MTLIndirectCommandBuffer>  _Nullable const __unsafe_unretained * _Nonnull, NSRange) -> void"
     },
     {
@@ -46740,7 +46740,7 @@
           "line": 187
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgumentEncoder.h",
       "id": "method:-[MTLArgumentEncoder setIntersectionFunctionTable:atIndex:]",
       "kind": "method",
@@ -46748,7 +46748,7 @@
       "macos_introduced": "11.0",
       "name": "setIntersectionFunctionTable:atIndex:",
       "owner": "MTLArgumentEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ArgumentEncoder32 safe closure with exact device/kind/range validation, atomic array rejection, nested ownership, bounded replacement retention, and real M1 conformance.",
       "signature": "instance (id<MTLIntersectionFunctionTable>  _Nullable __strong, NSUInteger) -> void"
     },
     {
@@ -46765,7 +46765,7 @@
           "line": 193
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgumentEncoder.h",
       "id": "method:-[MTLArgumentEncoder setIntersectionFunctionTables:withRange:]",
       "kind": "method",
@@ -46773,7 +46773,7 @@
       "macos_introduced": "11.0",
       "name": "setIntersectionFunctionTables:withRange:",
       "owner": "MTLArgumentEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ArgumentEncoder32 safe closure with exact device/kind/range validation, atomic array rejection, nested ownership, bounded replacement retention, and real M1 conformance.",
       "signature": "instance (id<MTLIntersectionFunctionTable>  _Nullable const __unsafe_unretained * _Nonnull, NSRange) -> void"
     },
     {
@@ -46784,7 +46784,7 @@
           "line": 39
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgumentEncoder.h",
       "id": "method:-[MTLArgumentEncoder setLabel:]",
       "kind": "method",
@@ -46792,7 +46792,7 @@
       "macos_introduced": "10.13",
       "name": "setLabel:",
       "owner": "MTLArgumentEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ArgumentEncoder32 safe closure with exact device/kind/range validation, atomic array rejection, nested ownership, bounded replacement retention, and real M1 conformance.",
       "signature": "instance (NSString * _Nullable) -> void"
     },
     {
@@ -46809,7 +46809,7 @@
           "line": 126
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgumentEncoder.h",
       "id": "method:-[MTLArgumentEncoder setRenderPipelineState:atIndex:]",
       "kind": "method",
@@ -46817,7 +46817,7 @@
       "macos_introduced": "10.14",
       "name": "setRenderPipelineState:atIndex:",
       "owner": "MTLArgumentEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ArgumentEncoder32 safe closure with exact device/kind/range validation, atomic array rejection, nested ownership, bounded replacement retention, and real M1 conformance.",
       "signature": "instance (id<MTLRenderPipelineState>  _Nullable __strong, NSUInteger) -> void"
     },
     {
@@ -46834,7 +46834,7 @@
           "line": 132
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgumentEncoder.h",
       "id": "method:-[MTLArgumentEncoder setRenderPipelineStates:withRange:]",
       "kind": "method",
@@ -46842,7 +46842,7 @@
       "macos_introduced": "10.14",
       "name": "setRenderPipelineStates:withRange:",
       "owner": "MTLArgumentEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ArgumentEncoder32 safe closure with exact device/kind/range validation, atomic array rejection, nested ownership, bounded replacement retention, and real M1 conformance.",
       "signature": "instance (id<MTLRenderPipelineState>  _Nullable const __unsafe_unretained * _Nonnull, NSRange) -> void"
     },
     {
@@ -46853,7 +46853,7 @@
           "line": 39
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgumentEncoder.h",
       "id": "method:-[MTLArgumentEncoder setSamplerState:atIndex:]",
       "kind": "method",
@@ -46861,7 +46861,7 @@
       "macos_introduced": "10.13",
       "name": "setSamplerState:atIndex:",
       "owner": "MTLArgumentEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ArgumentEncoder32 safe closure with exact device/kind/range validation, atomic array rejection, nested ownership, bounded replacement retention, and real M1 conformance.",
       "signature": "instance (id<MTLSamplerState>  _Nullable __strong, NSUInteger) -> void"
     },
     {
@@ -46872,7 +46872,7 @@
           "line": 39
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgumentEncoder.h",
       "id": "method:-[MTLArgumentEncoder setSamplerStates:withRange:]",
       "kind": "method",
@@ -46880,7 +46880,7 @@
       "macos_introduced": "10.13",
       "name": "setSamplerStates:withRange:",
       "owner": "MTLArgumentEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ArgumentEncoder32 safe closure with exact device/kind/range validation, atomic array rejection, nested ownership, bounded replacement retention, and real M1 conformance.",
       "signature": "instance (id<MTLSamplerState>  _Nullable const __unsafe_unretained * _Nonnull, NSRange) -> void"
     },
     {
@@ -46891,7 +46891,7 @@
           "line": 39
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgumentEncoder.h",
       "id": "method:-[MTLArgumentEncoder setTexture:atIndex:]",
       "kind": "method",
@@ -46899,7 +46899,7 @@
       "macos_introduced": "10.13",
       "name": "setTexture:atIndex:",
       "owner": "MTLArgumentEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ArgumentEncoder32 safe closure with exact device/kind/range validation, atomic array rejection, nested ownership, bounded replacement retention, and real M1 conformance.",
       "signature": "instance (id<MTLTexture>  _Nullable __strong, NSUInteger) -> void"
     },
     {
@@ -46910,7 +46910,7 @@
           "line": 39
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgumentEncoder.h",
       "id": "method:-[MTLArgumentEncoder setTextures:withRange:]",
       "kind": "method",
@@ -46918,7 +46918,7 @@
       "macos_introduced": "10.13",
       "name": "setTextures:withRange:",
       "owner": "MTLArgumentEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ArgumentEncoder32 safe closure with exact device/kind/range validation, atomic array rejection, nested ownership, bounded replacement retention, and real M1 conformance.",
       "signature": "instance (id<MTLTexture>  _Nullable const __unsafe_unretained * _Nonnull, NSRange) -> void"
     },
     {
@@ -46935,7 +46935,7 @@
           "line": 175
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgumentEncoder.h",
       "id": "method:-[MTLArgumentEncoder setVisibleFunctionTable:atIndex:]",
       "kind": "method",
@@ -46943,7 +46943,7 @@
       "macos_introduced": "11.0",
       "name": "setVisibleFunctionTable:atIndex:",
       "owner": "MTLArgumentEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ArgumentEncoder32 safe closure with exact device/kind/range validation, atomic array rejection, nested ownership, bounded replacement retention, and real M1 conformance.",
       "signature": "instance (id<MTLVisibleFunctionTable>  _Nullable __strong, NSUInteger) -> void"
     },
     {
@@ -46960,7 +46960,7 @@
           "line": 181
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgumentEncoder.h",
       "id": "method:-[MTLArgumentEncoder setVisibleFunctionTables:withRange:]",
       "kind": "method",
@@ -46968,7 +46968,7 @@
       "macos_introduced": "11.0",
       "name": "setVisibleFunctionTables:withRange:",
       "owner": "MTLArgumentEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ArgumentEncoder32 safe closure with exact device/kind/range validation, atomic array rejection, nested ownership, bounded replacement retention, and real M1 conformance.",
       "signature": "instance (id<MTLVisibleFunctionTable>  _Nullable const __unsafe_unretained * _Nonnull, NSRange) -> void"
     },
     {
@@ -89514,7 +89514,7 @@
           "line": 39
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgumentEncoder.h",
       "id": "property:MTLArgumentEncoder:alignment",
       "kind": "property",
@@ -89522,7 +89522,7 @@
       "macos_introduced": "10.13",
       "name": "alignment",
       "owner": "MTLArgumentEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ArgumentEncoder32 safe closure with exact device/kind/range validation, atomic array rejection, nested ownership, bounded replacement retention, and real M1 conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -89533,7 +89533,7 @@
           "line": 39
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgumentEncoder.h",
       "id": "property:MTLArgumentEncoder:device",
       "kind": "property",
@@ -89541,7 +89541,7 @@
       "macos_introduced": "10.13",
       "name": "device",
       "owner": "MTLArgumentEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ArgumentEncoder32 safe closure with exact device/kind/range validation, atomic array rejection, nested ownership, bounded replacement retention, and real M1 conformance.",
       "signature": "id<MTLDevice> _Nonnull"
     },
     {
@@ -89552,7 +89552,7 @@
           "line": 39
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgumentEncoder.h",
       "id": "property:MTLArgumentEncoder:encodedLength",
       "kind": "property",
@@ -89560,7 +89560,7 @@
       "macos_introduced": "10.13",
       "name": "encodedLength",
       "owner": "MTLArgumentEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ArgumentEncoder32 safe closure with exact device/kind/range validation, atomic array rejection, nested ownership, bounded replacement retention, and real M1 conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -89571,7 +89571,7 @@
           "line": 39
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgumentEncoder.h",
       "id": "property:MTLArgumentEncoder:label",
       "kind": "property",
@@ -89579,7 +89579,7 @@
       "macos_introduced": "10.13",
       "name": "label",
       "owner": "MTLArgumentEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ArgumentEncoder32 safe closure with exact device/kind/range validation, atomic array rejection, nested ownership, bounded replacement retention, and real M1 conformance.",
       "signature": "NSString * _Nullable"
     },
     {
