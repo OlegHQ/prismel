@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4499,
+    "bound": 4504,
     "scope-excluded": 37,
-    "unreviewed": 749
+    "unreviewed": 744
   },
-  "classification_source_sha256": "b1802b6cb9cd13f9311a27d88de115be5a7db021f9d4016a412f96f4620d605c",
+  "classification_source_sha256": "e45cdfb8ece80e73ff9ec476061fc02392d97fb46071e929f9784eca991cbdfa",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -29127,7 +29127,7 @@
           "line": 46
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCompressor.h",
       "id": "function:MTLIOCompressionContextAppendData",
       "kind": "function",
@@ -29135,7 +29135,7 @@
       "macos_introduced": "13.0",
       "name": "MTLIOCompressionContextAppendData",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned IO.Compressor lifecycle with copied configuration, checked byte ranges, synchronous consumption, exact finalization state, and real compressed-output conformance.",
       "signature": "void (MTLIOCompressionContext _Nonnull, const void * _Nonnull, size_t)"
     },
     {
@@ -29143,7 +29143,7 @@
         "VisibilityAttr"
       ],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCompressor.h",
       "id": "function:MTLIOCompressionContextDefaultChunkSize",
       "kind": "function",
@@ -29151,7 +29151,7 @@
       "macos_introduced": null,
       "name": "MTLIOCompressionContextDefaultChunkSize",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned IO.Compressor lifecycle with copied configuration, checked byte ranges, synchronous consumption, exact finalization state, and real compressed-output conformance.",
       "signature": "size_t ()"
     },
     {
@@ -29165,7 +29165,7 @@
           "line": 40
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCompressor.h",
       "id": "function:MTLIOCreateCompressionContext",
       "kind": "function",
@@ -29173,7 +29173,7 @@
       "macos_introduced": "13.0",
       "name": "MTLIOCreateCompressionContext",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned IO.Compressor lifecycle with copied configuration, checked byte ranges, synchronous consumption, exact finalization state, and real compressed-output conformance.",
       "signature": "MTLIOCompressionContext  _Nullable (const char * _Nonnull, MTLIOCompressionMethod, size_t)"
     },
     {
@@ -29187,7 +29187,7 @@
           "line": 52
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCompressor.h",
       "id": "function:MTLIOFlushAndDestroyCompressionContext",
       "kind": "function",
@@ -29195,7 +29195,7 @@
       "macos_introduced": "13.0",
       "name": "MTLIOFlushAndDestroyCompressionContext",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned IO.Compressor lifecycle with copied configuration, checked byte ranges, synchronous consumption, exact finalization state, and real compressed-output conformance.",
       "signature": "MTLIOCompressionStatus (MTLIOCompressionContext _Nonnull)"
     },
     {
@@ -108454,7 +108454,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCompressor.h",
       "id": "typedef:MTLIOCompressionContext",
       "kind": "typedef",
@@ -108462,7 +108462,7 @@
       "macos_introduced": null,
       "name": "MTLIOCompressionContext",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned IO.Compressor lifecycle with copied configuration, checked byte ranges, synchronous consumption, exact finalization state, and real compressed-output conformance.",
       "signature": "void *"
     },
     {

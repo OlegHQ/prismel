@@ -359,6 +359,11 @@
  (libraries metal))
 
 (test
+ (name test_metal_io_compressor_safe)
+ (modules test_metal_io_compressor_safe)
+ (libraries metal))
+
+(test
  (name test_metal_mesh_tile105_safe)
  (modules test_metal_mesh_tile105_safe)
  (libraries metal))

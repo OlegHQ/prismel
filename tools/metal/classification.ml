@@ -1637,6 +1637,13 @@ let blit_safe15 =
     ; "method:-[MTLBlitCommandEncoder synchronizeResource:]"
     ; "method:-[MTLBlitCommandEncoder synchronizeTexture:slice:level:]" ]
 
+let io_compressor_safe5 =
+  [ "function:MTLIOCompressionContextAppendData"
+  ; "function:MTLIOCompressionContextDefaultChunkSize"
+  ; "function:MTLIOCreateCompressionContext"
+  ; "function:MTLIOFlushAndDestroyCompressionContext"
+  ; "typedef:MTLIOCompressionContext" ]
+
 let classify ~unavailable ~identifier ~header ~kind ~signature =
   if unavailable then
     Scope_excluded, "Clang marks this declaration unavailable for macOS."
@@ -1706,6 +1713,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier Binding_blit_command_tail_handoff.callable_ids then
     Bound,
       "Implemented by the complete BlitCommand25 safe closure with checked copy layouts, tensor/indirect/counter ownership, access-counter capability handling, and completion retention."
+  else if List.mem identifier io_compressor_safe5 then
+    Bound,
+      "Implemented by the owned IO.Compressor lifecycle with copied configuration, checked byte ranges, synchronous consumption, exact finalization state, and real compressed-output conformance."
   else if List.mem identifier Binding_resource_safe_reachability.promotable_ids then
     Bound,
       "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance."

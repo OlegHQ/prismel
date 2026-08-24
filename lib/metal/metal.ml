@@ -15613,7 +15613,29 @@ module Command_buffer = struct
   let create_blit_encoder_with_descriptor(value:t)=create_descriptor_encoder "Metal.Command_buffer.create_blit_encoder_with_descriptor" 1(fun raw->let encoder:blit_encoder={raw;lifetime=lifetime();command_buffer=value}in attach value.lifetime;attach_finalizer encoder encoder.lifetime value.lifetime;Ok encoder)value
   let create_compute_encoder_with_descriptor(value:t)=create_descriptor_encoder "Metal.Command_buffer.create_compute_encoder_with_descriptor" 2(fun raw->let encoder:compute_encoder={raw;lifetime=lifetime();command_buffer=value;pipeline=None}in attach value.lifetime;attach_finalizer encoder encoder.lifetime value.lifetime;Ok encoder)value
   let create_resource_state_encoder_with_descriptor(value:t)=create_descriptor_encoder "Metal.Command_buffer.create_resource_state_encoder_with_descriptor" 4(fun raw->let encoder:resource_state_encoder={raw;lifetime=lifetime();command_buffer=value}in attach value.lifetime;attach_finalizer encoder encoder.lifetime value.lifetime;Ok encoder)value
-  let create_parallel_render_encoder_with_descriptor(value:t)=create_descriptor_encoder "Metal.Command_buffer.create_parallel_render_encoder_with_descriptor" 3(fun raw->let encoder:parallel_render_encoder={raw;lifetime=lifetime();command_buffer=value}in attach value.lifetime;attach_finalizer encoder encoder.lifetime value.lifetime;Ok encoder)value
+  let create_parallel_render_encoder_with_descriptor (value:t) (pass:render_pass_descriptor) =
+    let operation="Metal.Command_buffer.create_parallel_render_encoder_with_descriptor" in
+    on_main operation(fun()->match ensure_live operation value.lifetime with
+      | Error _ as failure->failure
+      | Ok()when value.phase<>Recording||dependent_count value.lifetime<>0->
+          error operation Invalid_state "command buffer cannot create another encoder"
+      | Ok()->match ensure_live operation pass.lifetime with
+        | Error _ as failure->failure
+        | Ok()->match pass.pass_color with
+          | None->error operation Invalid_state "render pass has no color attachment"
+          | Some target->match ensure_same_device operation value.queue.device target.device with
+            | Error _ as failure->failure
+            | Ok()->match Metal_raw.presentation_parallel_encoder_from_pass value.raw pass.raw with
+              | Error message->native_error operation message
+              | Ok raw->
+                  let encoder:parallel_render_encoder={raw;lifetime=lifetime();command_buffer=value}in
+                  attach value.lifetime;
+                  retain_command_buffer_texture value target;
+                  Option.iter(retain_command_buffer_texture value)pass.pass_depth;
+                  Option.iter(retain_command_buffer_texture value)pass.pass_stencil;
+                  Option.iter(retain_command_buffer_buffer value)pass.pass_visibility;
+                  attach_finalizer encoder encoder.lifetime value.lifetime;
+                  Ok encoder)
 
   let retains_residency_set (value : t) (residency_set : residency_set) =
     List.exists
@@ -18900,6 +18922,80 @@ module Tensor = struct
 end
 
 module IO = struct
+  module Compressor = struct
+    type method_ = Lz4 | Lz_bitmap | Lzfse | Lzma | Zlib
+    type state = Open | Finalized
+    type t =
+      { raw : Metal_raw.io_compression_context
+      ; path : string
+      ; method_ : method_
+      ; chunk_size : int64
+      ; mutable appended_bytes : int64
+      ; mutable state : state }
+
+    let method_code = function
+      | Zlib -> 0 | Lzfse -> 1 | Lz4 -> 2 | Lzma -> 3 | Lz_bitmap -> 4
+
+    let default_chunk_size () =
+      let operation = "Metal.IO.Compressor.default_chunk_size" in
+      on_main operation (fun () ->
+        match Metal_raw.io_compression_default_chunk () with
+        | Error message -> native_error operation message
+        | Ok value when value > 0L -> Ok value
+        | Ok _ -> native_error operation "native chunk size is not positive")
+
+    let create ~path ~method_ ~chunk_size =
+      let operation = "Metal.IO.Compressor.create" in
+      on_main operation (fun () ->
+        if path = "" || contains_nul path then
+          error operation Invalid_argument
+            "compression path must be nonempty and contain no NUL byte"
+        else if chunk_size <= 0L then
+          error operation Invalid_argument "compression chunk size must be positive"
+        else match Metal_raw.io_compression_create path (method_code method_) chunk_size with
+          | Error message -> native_error operation message
+          | Ok raw ->
+              Ok { raw; path = String.sub path 0 (String.length path); method_
+                 ; chunk_size; appended_bytes = 0L; state = Open })
+
+    let configuration value = value.path, value.method_, value.chunk_size
+    let appended_bytes value = value.appended_bytes
+    let finalized value = value.state = Finalized
+
+    let append value bytes ~offset ~length =
+      let operation = "Metal.IO.Compressor.append" in
+      on_main operation (fun () ->
+        match value.state with
+        | Finalized -> error operation Invalid_state "compression context is finalized"
+        | Open ->
+            let total = Int64.of_int (Bytes.length bytes) in
+            if offset < 0L || length < 0L || offset > total
+               || length > Int64.sub total offset then
+              error operation Invalid_argument "compression input range is out of bounds"
+            else if Int64.sub Int64.max_int value.appended_bytes < length then
+              error operation Invalid_argument "compression byte count overflows int64"
+            else if length = 0L then Ok ()
+            else match Metal_raw.io_compression_append value.raw bytes offset length with
+              | Error message -> native_error operation message
+              | Ok () ->
+                  value.appended_bytes <- Int64.add value.appended_bytes length;
+                  Ok ())
+
+    let finish value =
+      let operation = "Metal.IO.Compressor.finish" in
+      on_main operation (fun () ->
+        match value.state with
+        | Finalized -> error operation Invalid_state "compression context is finalized"
+        | Open ->
+            (* The native context is consumed even when flushing reports an error. *)
+            value.state <- Finalized;
+            match Metal_raw.io_compression_finish value.raw with
+            | Error message -> native_error operation message
+            | Ok 0 -> Ok ()
+            | Ok status -> native_error operation
+                (Printf.sprintf "compression flush failed with status %d" status))
+  end
+
   module Queue = struct
     type t = io_queue
     let device (value : t) = value.device

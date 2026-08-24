@@ -2935,7 +2935,7 @@ module Command_buffer : sig
   val create_blit_encoder_with_descriptor : t -> (blit_encoder,error) result
   val create_compute_encoder_with_descriptor : t -> (compute_encoder,error) result
   val create_parallel_render_encoder_with_descriptor :
-    t -> (Parallel_render_encoder.t,error) result
+    t -> Render_pass_descriptor.t -> (Parallel_render_encoder.t,error) result
   val create_resource_state_encoder_with_descriptor : t -> (resource_state_encoder,error) result
   val present :
     t -> Drawable.t -> ?at:present_time -> unit -> (unit, error) result
@@ -3408,6 +3408,19 @@ end
 
 
 module IO : sig
+  module Compressor : sig
+    type method_ = Lz4 | Lz_bitmap | Lzfse | Lzma | Zlib
+    type t
+    val default_chunk_size : unit -> (int64, error) result
+    val create :
+      path:string -> method_:method_ -> chunk_size:int64 -> (t, error) result
+    val configuration : t -> string * method_ * int64
+    val appended_bytes : t -> int64
+    val finalized : t -> bool
+    val append :
+      t -> bytes -> offset:int64 -> length:int64 -> (unit, error) result
+    val finish : t -> (unit, error) result
+  end
   module Queue : sig
     type t = io_queue
     val device : t -> Device.t
