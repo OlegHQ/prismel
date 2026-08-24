@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4489,
+    "bound": 4499,
     "scope-excluded": 37,
-    "unreviewed": 759
+    "unreviewed": 749
   },
-  "classification_source_sha256": "64ae3f1956e453094a2ddea5003b702c440907b48bf62091c32043a739babe57",
+  "classification_source_sha256": "b1802b6cb9cd13f9311a27d88de115be5a7db021f9d4016a412f96f4620d605c",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -47887,7 +47887,7 @@
           "line": 281
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBlitCommandEncoder.h",
       "id": "method:-[MTLBlitCommandEncoder copyFromTensor:sourceOrigin:sourceDimensions:toTensor:destinationOrigin:destinationDimensions:]",
       "kind": "method",
@@ -47895,7 +47895,7 @@
       "macos_introduced": "26.0",
       "name": "copyFromTensor:sourceOrigin:sourceDimensions:toTensor:destinationOrigin:destinationDimensions:",
       "owner": "MTLBlitCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the complete BlitCommand25 safe closure with checked copy layouts, tensor/indirect/counter ownership, access-counter capability handling, and completion retention.",
       "signature": "instance (id<MTLTensor>  _Nonnull __strong, MTLTensorExtents * _Nonnull __strong, MTLTensorExtents * _Nonnull __strong, id<MTLTensor>  _Nonnull __strong, MTLTensorExtents * _Nonnull __strong, MTLTensorExtents * _Nonnull __strong) -> void"
     },
     {
@@ -47906,7 +47906,7 @@
           "line": 39
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBlitCommandEncoder.h",
       "id": "method:-[MTLBlitCommandEncoder copyFromTexture:sourceSlice:sourceLevel:sourceOrigin:sourceSize:toBuffer:destinationOffset:destinationBytesPerRow:destinationBytesPerImage:]",
       "kind": "method",
@@ -47914,7 +47914,7 @@
       "macos_introduced": "10.11",
       "name": "copyFromTexture:sourceSlice:sourceLevel:sourceOrigin:sourceSize:toBuffer:destinationOffset:destinationBytesPerRow:destinationBytesPerImage:",
       "owner": "MTLBlitCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the complete BlitCommand25 safe closure with checked copy layouts, tensor/indirect/counter ownership, access-counter capability handling, and completion retention.",
       "signature": "instance (id<MTLTexture>  _Nonnull __strong, NSUInteger, NSUInteger, MTLOrigin, MTLSize, id<MTLBuffer>  _Nonnull __strong, NSUInteger, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -47931,7 +47931,7 @@
           "line": 91
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBlitCommandEncoder.h",
       "id": "method:-[MTLBlitCommandEncoder copyFromTexture:sourceSlice:sourceLevel:sourceOrigin:sourceSize:toBuffer:destinationOffset:destinationBytesPerRow:destinationBytesPerImage:options:]",
       "kind": "method",
@@ -47939,7 +47939,7 @@
       "macos_introduced": "10.11",
       "name": "copyFromTexture:sourceSlice:sourceLevel:sourceOrigin:sourceSize:toBuffer:destinationOffset:destinationBytesPerRow:destinationBytesPerImage:options:",
       "owner": "MTLBlitCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the complete BlitCommand25 safe closure with checked copy layouts, tensor/indirect/counter ownership, access-counter capability handling, and completion retention.",
       "signature": "instance (id<MTLTexture>  _Nonnull __strong, NSUInteger, NSUInteger, MTLOrigin, MTLSize, id<MTLBuffer>  _Nonnull __strong, NSUInteger, NSUInteger, NSUInteger, MTLBlitOption) -> void"
     },
     {
@@ -47950,7 +47950,7 @@
           "line": 39
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBlitCommandEncoder.h",
       "id": "method:-[MTLBlitCommandEncoder copyFromTexture:sourceSlice:sourceLevel:sourceOrigin:sourceSize:toTexture:destinationSlice:destinationLevel:destinationOrigin:]",
       "kind": "method",
@@ -47958,7 +47958,7 @@
       "macos_introduced": "10.11",
       "name": "copyFromTexture:sourceSlice:sourceLevel:sourceOrigin:sourceSize:toTexture:destinationSlice:destinationLevel:destinationOrigin:",
       "owner": "MTLBlitCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the complete BlitCommand25 safe closure with checked copy layouts, tensor/indirect/counter ownership, access-counter capability handling, and completion retention.",
       "signature": "instance (id<MTLTexture>  _Nonnull __strong, NSUInteger, NSUInteger, MTLOrigin, MTLSize, id<MTLTexture>  _Nonnull __strong, NSUInteger, NSUInteger, MTLOrigin) -> void"
     },
     {
@@ -47975,7 +47975,7 @@
           "line": 119
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBlitCommandEncoder.h",
       "id": "method:-[MTLBlitCommandEncoder copyFromTexture:sourceSlice:sourceLevel:toTexture:destinationSlice:destinationLevel:sliceCount:levelCount:]",
       "kind": "method",
@@ -47983,7 +47983,7 @@
       "macos_introduced": "10.15",
       "name": "copyFromTexture:sourceSlice:sourceLevel:toTexture:destinationSlice:destinationLevel:sliceCount:levelCount:",
       "owner": "MTLBlitCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the complete BlitCommand25 safe closure with checked copy layouts, tensor/indirect/counter ownership, access-counter capability handling, and completion retention.",
       "signature": "instance (id<MTLTexture>  _Nonnull __strong, NSUInteger, NSUInteger, id<MTLTexture>  _Nonnull __strong, NSUInteger, NSUInteger, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -48025,7 +48025,7 @@
           "line": 220
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBlitCommandEncoder.h",
       "id": "method:-[MTLBlitCommandEncoder copyIndirectCommandBuffer:sourceRange:destination:destinationIndex:]",
       "kind": "method",
@@ -48033,7 +48033,7 @@
       "macos_introduced": "10.14",
       "name": "copyIndirectCommandBuffer:sourceRange:destination:destinationIndex:",
       "owner": "MTLBlitCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the complete BlitCommand25 safe closure with checked copy layouts, tensor/indirect/counter ownership, access-counter capability handling, and completion retention.",
       "signature": "instance (id<MTLIndirectCommandBuffer>  _Nonnull __strong, NSRange, id<MTLIndirectCommandBuffer>  _Nonnull __strong, NSUInteger) -> void"
     },
     {
@@ -48088,7 +48088,7 @@
           "line": 170
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBlitCommandEncoder.h",
       "id": "method:-[MTLBlitCommandEncoder getTextureAccessCounters:region:mipLevel:slice:resetCounters:countersBuffer:countersBufferOffset:]",
       "kind": "method",
@@ -48096,7 +48096,7 @@
       "macos_introduced": "11.0",
       "name": "getTextureAccessCounters:region:mipLevel:slice:resetCounters:countersBuffer:countersBufferOffset:",
       "owner": "MTLBlitCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the complete BlitCommand25 safe closure with checked copy layouts, tensor/indirect/counter ownership, access-counter capability handling, and completion retention.",
       "signature": "instance (id<MTLTexture>  _Nonnull __strong, MTLRegion, NSUInteger, NSUInteger, BOOL, id<MTLBuffer>  _Nonnull __strong, NSUInteger) -> void"
     },
     {
@@ -48263,7 +48263,7 @@
           "line": 179
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBlitCommandEncoder.h",
       "id": "method:-[MTLBlitCommandEncoder resetTextureAccessCounters:region:mipLevel:slice:]",
       "kind": "method",
@@ -48271,7 +48271,7 @@
       "macos_introduced": "11.0",
       "name": "resetTextureAccessCounters:region:mipLevel:slice:",
       "owner": "MTLBlitCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the complete BlitCommand25 safe closure with checked copy layouts, tensor/indirect/counter ownership, access-counter capability handling, and completion retention.",
       "signature": "instance (id<MTLTexture>  _Nonnull __strong, MTLRegion, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -48288,7 +48288,7 @@
           "line": 264
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBlitCommandEncoder.h",
       "id": "method:-[MTLBlitCommandEncoder resolveCounters:inRange:destinationBuffer:destinationOffset:]",
       "kind": "method",
@@ -48296,7 +48296,7 @@
       "macos_introduced": "10.15",
       "name": "resolveCounters:inRange:destinationBuffer:destinationOffset:",
       "owner": "MTLBlitCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the complete BlitCommand25 safe closure with checked copy layouts, tensor/indirect/counter ownership, access-counter capability handling, and completion retention.",
       "signature": "instance (id<MTLCounterSampleBuffer>  _Nonnull __strong, NSRange, id<MTLBuffer>  _Nonnull __strong, NSUInteger) -> void"
     },
     {
@@ -48313,7 +48313,7 @@
           "line": 248
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBlitCommandEncoder.h",
       "id": "method:-[MTLBlitCommandEncoder sampleCountersInBuffer:atSampleIndex:withBarrier:]",
       "kind": "method",
@@ -48321,7 +48321,7 @@
       "macos_introduced": "10.15",
       "name": "sampleCountersInBuffer:atSampleIndex:withBarrier:",
       "owner": "MTLBlitCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the complete BlitCommand25 safe closure with checked copy layouts, tensor/indirect/counter ownership, access-counter capability handling, and completion retention.",
       "signature": "instance (id<MTLCounterSampleBuffer>  _Nonnull __strong, NSUInteger, BOOL) -> void"
     },
     {

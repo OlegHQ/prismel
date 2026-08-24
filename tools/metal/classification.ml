@@ -1703,6 +1703,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier blit_safe15 then
     Bound,
       "Implemented by the owned Blit_encoder safe surface with checked ranges, device identity, resource retention, and native command execution."
+  else if List.mem identifier Binding_blit_command_tail_handoff.callable_ids then
+    Bound,
+      "Implemented by the complete BlitCommand25 safe closure with checked copy layouts, tensor/indirect/counter ownership, access-counter capability handling, and completion retention."
   else if List.mem identifier Binding_resource_safe_reachability.promotable_ids then
     Bound,
       "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance."
