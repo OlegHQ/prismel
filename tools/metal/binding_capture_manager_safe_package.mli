@@ -4,10 +4,12 @@ type source={token:int;device:int;kind:source_kind;destroyed:bool;parent:source 
 type descriptor={source:source;destination:destination;output_url:string option}
 type capability={mtl4_capture:bool}
 type state=Idle|Starting of descriptor|Active of descriptor
-type start_outcome=Started of state|Rolled_back of state*string
+type start_outcome=Started of state|Rolled_back of state*string|Rejected of state*string
 val validate_source:capability->source->(source,string)result
 val validate_url:destination->string option->(unit,string)result
 val create_descriptor:capability:capability->source:source->destination:destination->output_url:string option->(descriptor,string)result
+val set_source:capability:capability->descriptor->source->(descriptor,string)result
+val set_output_url:descriptor->string option->(descriptor,string)result
 val create_scope:capability:capability->parent:source->token:int->(source,string)result
 val set_default_scope:manager_device:int->source->(source option,string)result
 val begin_start:state->descriptor->(state,string)result
