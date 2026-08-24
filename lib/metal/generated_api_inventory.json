@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4855,
+    "bound": 4881,
     "scope-excluded": 37,
-    "unreviewed": 393
+    "unreviewed": 367
   },
-  "classification_source_sha256": "0de8eb9fce201514b472fc361d59ecabce36a872fe74b399d3edaf5a08601f01",
+  "classification_source_sha256": "8b81613341bcff5b187277e11f51f3737d2f9141c180a77957e23941b3b501e0",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -2028,7 +2028,7 @@
           "line": 173
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "class:MTLCommandBufferDescriptor",
       "kind": "class",
@@ -2036,7 +2036,7 @@
       "macos_introduced": "11.0",
       "name": "MTLCommandBufferDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CommandBuffer19 safe descriptor/callback closure with retained log-state and resources, exact-once completion, queue ownership, and error-only EncoderInfo snapshots.",
       "signature": ""
     },
     {
@@ -50521,7 +50521,7 @@
           "line": 173
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "method:-[MTLCommandBufferDescriptor errorOptions]",
       "kind": "method",
@@ -50529,7 +50529,7 @@
       "macos_introduced": "11.0",
       "name": "errorOptions",
       "owner": "MTLCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CommandBuffer19 safe descriptor/callback closure with retained log-state and resources, exact-once completion, queue ownership, and error-only EncoderInfo snapshots.",
       "signature": "instance () -> MTLCommandBufferErrorOption"
     },
     {
@@ -50546,7 +50546,7 @@
           "line": 193
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "method:-[MTLCommandBufferDescriptor logState]",
       "kind": "method",
@@ -50554,7 +50554,7 @@
       "macos_introduced": "15.0",
       "name": "logState",
       "owner": "MTLCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CommandBuffer19 safe descriptor/callback closure with retained log-state and resources, exact-once completion, queue ownership, and error-only EncoderInfo snapshots.",
       "signature": "instance () -> id<MTLLogState> _Nullable"
     },
     {
@@ -50565,7 +50565,7 @@
           "line": 173
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "method:-[MTLCommandBufferDescriptor retainedReferences]",
       "kind": "method",
@@ -50573,7 +50573,7 @@
       "macos_introduced": "11.0",
       "name": "retainedReferences",
       "owner": "MTLCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CommandBuffer19 safe descriptor/callback closure with retained log-state and resources, exact-once completion, queue ownership, and error-only EncoderInfo snapshots.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -50584,7 +50584,7 @@
           "line": 173
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "method:-[MTLCommandBufferDescriptor setErrorOptions:]",
       "kind": "method",
@@ -50592,7 +50592,7 @@
       "macos_introduced": "11.0",
       "name": "setErrorOptions:",
       "owner": "MTLCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CommandBuffer19 safe descriptor/callback closure with retained log-state and resources, exact-once completion, queue ownership, and error-only EncoderInfo snapshots.",
       "signature": "instance (MTLCommandBufferErrorOption) -> void"
     },
     {
@@ -50609,7 +50609,7 @@
           "line": 193
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "method:-[MTLCommandBufferDescriptor setLogState:]",
       "kind": "method",
@@ -50617,7 +50617,7 @@
       "macos_introduced": "15.0",
       "name": "setLogState:",
       "owner": "MTLCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CommandBuffer19 safe descriptor/callback closure with retained log-state and resources, exact-once completion, queue ownership, and error-only EncoderInfo snapshots.",
       "signature": "instance (id<MTLLogState> _Nullable) -> void"
     },
     {
@@ -50628,7 +50628,7 @@
           "line": 173
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "method:-[MTLCommandBufferDescriptor setRetainedReferences:]",
       "kind": "method",
@@ -50636,7 +50636,7 @@
       "macos_introduced": "11.0",
       "name": "setRetainedReferences:",
       "owner": "MTLCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CommandBuffer19 safe descriptor/callback closure with retained log-state and resources, exact-once completion, queue ownership, and error-only EncoderInfo snapshots.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -50647,7 +50647,7 @@
           "line": 200
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "method:-[MTLCommandBufferEncoderInfo debugSignposts]",
       "kind": "method",
@@ -50655,7 +50655,7 @@
       "macos_introduced": "11.0",
       "name": "debugSignposts",
       "owner": "MTLCommandBufferEncoderInfo",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CommandBuffer19 safe descriptor/callback closure with retained log-state and resources, exact-once completion, queue ownership, and error-only EncoderInfo snapshots.",
       "signature": "instance () -> NSArray<NSString *> * _Nonnull"
     },
     {
@@ -50666,7 +50666,7 @@
           "line": 200
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "method:-[MTLCommandBufferEncoderInfo errorState]",
       "kind": "method",
@@ -50674,7 +50674,7 @@
       "macos_introduced": "11.0",
       "name": "errorState",
       "owner": "MTLCommandBufferEncoderInfo",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CommandBuffer19 safe descriptor/callback closure with retained log-state and resources, exact-once completion, queue ownership, and error-only EncoderInfo snapshots.",
       "signature": "instance () -> MTLCommandEncoderErrorState"
     },
     {
@@ -50685,7 +50685,7 @@
           "line": 200
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "method:-[MTLCommandBufferEncoderInfo label]",
       "kind": "method",
@@ -50693,7 +50693,7 @@
       "macos_introduced": "11.0",
       "name": "label",
       "owner": "MTLCommandBufferEncoderInfo",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CommandBuffer19 safe descriptor/callback closure with retained log-state and resources, exact-once completion, queue ownership, and error-only EncoderInfo snapshots.",
       "signature": "instance () -> NSString * _Nonnull"
     },
     {
@@ -60790,7 +60790,7 @@
           "line": 32
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandBuffer.h",
       "id": "method:-[MTLIOCommandBuffer addCompletedHandler:]",
       "kind": "method",
@@ -60798,7 +60798,7 @@
       "macos_introduced": "13.0",
       "name": "addCompletedHandler:",
       "owner": "MTLIOCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe copied IO command properties and a rooted completion callback proven by synchronous real IO completion.",
       "signature": "instance (MTLIOCommandBufferHandler  _Nonnull __strong) -> void"
     },
     {
@@ -90783,7 +90783,7 @@
           "line": 173
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "property:MTLCommandBufferDescriptor:errorOptions",
       "kind": "property",
@@ -90791,7 +90791,7 @@
       "macos_introduced": "11.0",
       "name": "errorOptions",
       "owner": "MTLCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CommandBuffer19 safe descriptor/callback closure with retained log-state and resources, exact-once completion, queue ownership, and error-only EncoderInfo snapshots.",
       "signature": "MTLCommandBufferErrorOption"
     },
     {
@@ -90808,7 +90808,7 @@
           "line": 193
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "property:MTLCommandBufferDescriptor:logState",
       "kind": "property",
@@ -90816,7 +90816,7 @@
       "macos_introduced": "15.0",
       "name": "logState",
       "owner": "MTLCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CommandBuffer19 safe descriptor/callback closure with retained log-state and resources, exact-once completion, queue ownership, and error-only EncoderInfo snapshots.",
       "signature": "id<MTLLogState> _Nullable"
     },
     {
@@ -90827,7 +90827,7 @@
           "line": 173
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "property:MTLCommandBufferDescriptor:retainedReferences",
       "kind": "property",
@@ -90835,7 +90835,7 @@
       "macos_introduced": "11.0",
       "name": "retainedReferences",
       "owner": "MTLCommandBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CommandBuffer19 safe descriptor/callback closure with retained log-state and resources, exact-once completion, queue ownership, and error-only EncoderInfo snapshots.",
       "signature": "BOOL"
     },
     {
@@ -90846,7 +90846,7 @@
           "line": 200
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "property:MTLCommandBufferEncoderInfo:debugSignposts",
       "kind": "property",
@@ -90854,7 +90854,7 @@
       "macos_introduced": "11.0",
       "name": "debugSignposts",
       "owner": "MTLCommandBufferEncoderInfo",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CommandBuffer19 safe descriptor/callback closure with retained log-state and resources, exact-once completion, queue ownership, and error-only EncoderInfo snapshots.",
       "signature": "NSArray<NSString *> * _Nonnull"
     },
     {
@@ -90865,7 +90865,7 @@
           "line": 200
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "property:MTLCommandBufferEncoderInfo:errorState",
       "kind": "property",
@@ -90873,7 +90873,7 @@
       "macos_introduced": "11.0",
       "name": "errorState",
       "owner": "MTLCommandBufferEncoderInfo",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CommandBuffer19 safe descriptor/callback closure with retained log-state and resources, exact-once completion, queue ownership, and error-only EncoderInfo snapshots.",
       "signature": "MTLCommandEncoderErrorState"
     },
     {
@@ -90884,7 +90884,7 @@
           "line": 200
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "property:MTLCommandBufferEncoderInfo:label",
       "kind": "property",
@@ -90892,7 +90892,7 @@
       "macos_introduced": "11.0",
       "name": "label",
       "owner": "MTLCommandBufferEncoderInfo",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CommandBuffer19 safe descriptor/callback closure with retained log-state and resources, exact-once completion, queue ownership, and error-only EncoderInfo snapshots.",
       "signature": "NSString * _Nonnull"
     },
     {
@@ -95034,7 +95034,7 @@
           "line": 32
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandBuffer.h",
       "id": "property:MTLIOCommandBuffer:error",
       "kind": "property",
@@ -95042,7 +95042,7 @@
       "macos_introduced": "13.0",
       "name": "error",
       "owner": "MTLIOCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe copied IO command properties and a rooted completion callback proven by synchronous real IO completion.",
       "signature": "NSError * _Nullable"
     },
     {
@@ -95053,7 +95053,7 @@
           "line": 32
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandBuffer.h",
       "id": "property:MTLIOCommandBuffer:label",
       "kind": "property",
@@ -95061,7 +95061,7 @@
       "macos_introduced": "13.0",
       "name": "label",
       "owner": "MTLIOCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe copied IO command properties and a rooted completion callback proven by synchronous real IO completion.",
       "signature": "NSString * _Nullable"
     },
     {
@@ -95072,7 +95072,7 @@
           "line": 32
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandBuffer.h",
       "id": "property:MTLIOCommandBuffer:status",
       "kind": "property",
@@ -95080,7 +95080,7 @@
       "macos_introduced": "13.0",
       "name": "status",
       "owner": "MTLIOCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe copied IO command properties and a rooted completion callback proven by synchronous real IO completion.",
       "signature": "MTLIOStatus"
     },
     {
@@ -95091,7 +95091,7 @@
           "line": 46
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandQueue.h",
       "id": "property:MTLIOCommandQueue:label",
       "kind": "property",
@@ -95099,7 +95099,7 @@
       "macos_introduced": "13.0",
       "name": "label",
       "owner": "MTLIOCommandQueue",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe copied IO command properties and a rooted completion callback proven by synchronous real IO completion.",
       "signature": "NSString * _Nullable"
     },
     {
@@ -95205,7 +95205,7 @@
           "line": 175
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandQueue.h",
       "id": "property:MTLIOFileHandle:label",
       "kind": "property",
@@ -95213,7 +95213,7 @@
       "macos_introduced": "13.0",
       "name": "label",
       "owner": "MTLIOFileHandle",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe copied IO command properties and a rooted completion callback proven by synchronous real IO completion.",
       "signature": "NSString * _Nullable"
     },
     {
@@ -104810,7 +104810,7 @@
           "line": 200
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "protocol:MTLCommandBufferEncoderInfo",
       "kind": "protocol",
@@ -104818,7 +104818,7 @@
       "macos_introduced": "11.0",
       "name": "MTLCommandBufferEncoderInfo",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CommandBuffer19 safe descriptor/callback closure with retained log-state and resources, exact-once completion, queue ownership, and error-only EncoderInfo snapshots.",
       "signature": ""
     },
     {
@@ -105492,7 +105492,7 @@
           "line": 18
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "protocol:MTLLogContainer",
       "kind": "protocol",
@@ -105500,7 +105500,7 @@
       "macos_introduced": "11.0",
       "name": "MTLLogContainer",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CommandBuffer19 safe descriptor/callback closure with retained log-state and resources, exact-once completion, queue ownership, and error-only EncoderInfo snapshots.",
       "signature": ""
     },
     {
@@ -107690,7 +107690,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "typedef:MTLCommandBufferHandler",
       "kind": "typedef",
@@ -107698,7 +107698,7 @@
       "macos_introduced": null,
       "name": "MTLCommandBufferHandler",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CommandBuffer19 safe descriptor/callback closure with retained log-state and resources, exact-once completion, queue ownership, and error-only EncoderInfo snapshots.",
       "signature": "void (^)(id<MTLCommandBuffer>  _Nonnull __strong)"
     },
     {
@@ -108421,7 +108421,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIOCommandBuffer.h",
       "id": "typedef:MTLIOCommandBufferHandler",
       "kind": "typedef",
@@ -108429,7 +108429,7 @@
       "macos_introduced": null,
       "name": "MTLIOCommandBufferHandler",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by safe copied IO command properties and a rooted completion callback proven by synchronous real IO completion.",
       "signature": "void (^)(id<MTLIOCommandBuffer>  _Nonnull __strong)"
     },
     {
