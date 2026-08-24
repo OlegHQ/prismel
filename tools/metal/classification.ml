@@ -1608,6 +1608,18 @@ let acceleration_operation_bound_identifiers =
     ; "method:-[MTLIntersectionFunctionTable setBuffer:offset:atIndex:]"
     ; "method:-[MTLIntersectionFunctionTable setVisibleFunctionTable:atBufferIndex:]" ]
 
+let library_existing_safe18 =
+  [ "method:-[MTLAttribute attributeIndex]"; "method:-[MTLAttribute attributeType]"
+  ; "method:-[MTLAttribute isActive]"; "method:-[MTLAttribute isPatchControlPointData]"
+  ; "method:-[MTLAttribute isPatchData]"; "method:-[MTLAttribute name]"
+  ; "property:MTLAttribute:active"; "property:MTLAttribute:attributeIndex"
+  ; "property:MTLAttribute:attributeType"; "property:MTLAttribute:name"
+  ; "property:MTLAttribute:patchControlPointData"; "property:MTLAttribute:patchData"
+  ; "method:-[MTLFunction newArgumentEncoderWithBufferIndex:]"
+  ; "method:-[MTLFunction stageInputAttributes]"; "method:-[MTLFunction vertexAttributes]"
+  ; "property:MTLFunction:stageInputAttributes"; "property:MTLFunction:vertexAttributes"
+  ; "method:-[MTLLibrary newFunctionWithDescriptor:error:]" ]
+
 let classify ~unavailable ~identifier ~header ~kind ~signature =
   if unavailable then
     Scope_excluded, "Clang marks this declaration unavailable for macOS."
@@ -1665,6 +1677,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier Binding_function_stitching_handoff.callable_ids then
     Bound,
       "Implemented by the FunctionStitching36 safe node/graph/descriptor closure with cycle and device validation, owned edges, atomic replacement, and real native conformance."
+  else if List.mem identifier library_existing_safe18 then
+    Bound,
+      "Implemented by retained Function/Shader_attribute handles with checked library ownership, typed attribute metadata, argument-encoder construction, and real shader conformance."
   else if List.mem identifier Binding_resource_safe_reachability.promotable_ids then
     Bound,
       "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance."

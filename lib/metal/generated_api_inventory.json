@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4440,
+    "bound": 4458,
     "scope-excluded": 37,
-    "unreviewed": 808
+    "unreviewed": 790
   },
-  "classification_source_sha256": "cd5222a34e6c4f0c891b3ec404468ed2f709cdf4302aec5f51e382b14c5a8b63",
+  "classification_source_sha256": "dc829ac27a7c3e1331ac68124ff7adc2fd226249fc67f93e4e8eed60e264d4a1",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -47174,7 +47174,7 @@
           "line": 72
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLAttribute attributeIndex]",
       "kind": "method",
@@ -47182,7 +47182,7 @@
       "macos_introduced": "10.12",
       "name": "attributeIndex",
       "owner": "MTLAttribute",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained Function/Shader_attribute handles with checked library ownership, typed attribute metadata, argument-encoder construction, and real shader conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -47193,7 +47193,7 @@
           "line": 72
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLAttribute attributeType]",
       "kind": "method",
@@ -47201,7 +47201,7 @@
       "macos_introduced": "10.12",
       "name": "attributeType",
       "owner": "MTLAttribute",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained Function/Shader_attribute handles with checked library ownership, typed attribute metadata, argument-encoder construction, and real shader conformance.",
       "signature": "instance () -> MTLDataType"
     },
     {
@@ -47212,7 +47212,7 @@
           "line": 72
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLAttribute isActive]",
       "kind": "method",
@@ -47220,7 +47220,7 @@
       "macos_introduced": "10.12",
       "name": "isActive",
       "owner": "MTLAttribute",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained Function/Shader_attribute handles with checked library ownership, typed attribute metadata, argument-encoder construction, and real shader conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -47237,7 +47237,7 @@
           "line": 80
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLAttribute isPatchControlPointData]",
       "kind": "method",
@@ -47245,7 +47245,7 @@
       "macos_introduced": "10.12",
       "name": "isPatchControlPointData",
       "owner": "MTLAttribute",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained Function/Shader_attribute handles with checked library ownership, typed attribute metadata, argument-encoder construction, and real shader conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -47262,7 +47262,7 @@
           "line": 79
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLAttribute isPatchData]",
       "kind": "method",
@@ -47270,7 +47270,7 @@
       "macos_introduced": "10.12",
       "name": "isPatchData",
       "owner": "MTLAttribute",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained Function/Shader_attribute handles with checked library ownership, typed attribute metadata, argument-encoder construction, and real shader conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -47281,7 +47281,7 @@
           "line": 72
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLAttribute name]",
       "kind": "method",
@@ -47289,7 +47289,7 @@
       "macos_introduced": "10.12",
       "name": "name",
       "owner": "MTLAttribute",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained Function/Shader_attribute handles with checked library ownership, typed attribute metadata, argument-encoder construction, and real shader conformance.",
       "signature": "instance () -> NSString * _Nonnull"
     },
     {
@@ -58747,7 +58747,7 @@
           "line": 187
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLFunction newArgumentEncoderWithBufferIndex:]",
       "kind": "method",
@@ -58755,7 +58755,7 @@
       "macos_introduced": "10.13",
       "name": "newArgumentEncoderWithBufferIndex:",
       "owner": "MTLFunction",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained Function/Shader_attribute handles with checked library ownership, typed attribute metadata, argument-encoder construction, and real shader conformance.",
       "signature": "instance (NSUInteger) -> id<MTLArgumentEncoder> _Nonnull"
     },
     {
@@ -58898,7 +58898,7 @@
           "line": 168
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLFunction stageInputAttributes]",
       "kind": "method",
@@ -58906,7 +58906,7 @@
       "macos_introduced": "10.12",
       "name": "stageInputAttributes",
       "owner": "MTLFunction",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained Function/Shader_attribute handles with checked library ownership, typed attribute metadata, argument-encoder construction, and real shader conformance.",
       "signature": "instance () -> NSArray<MTLAttribute *> * _Nullable"
     },
     {
@@ -58917,7 +58917,7 @@
           "line": 128
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLFunction vertexAttributes]",
       "kind": "method",
@@ -58925,7 +58925,7 @@
       "macos_introduced": "10.11",
       "name": "vertexAttributes",
       "owner": "MTLFunction",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained Function/Shader_attribute handles with checked library ownership, typed attribute metadata, argument-encoder construction, and real shader conformance.",
       "signature": "instance () -> NSArray<MTLVertexAttribute *> * _Nullable"
     },
     {
@@ -64745,7 +64745,7 @@
           "line": 517
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLLibrary newFunctionWithDescriptor:error:]",
       "kind": "method",
@@ -64753,7 +64753,7 @@
       "macos_introduced": "11.0",
       "name": "newFunctionWithDescriptor:error:",
       "owner": "MTLLibrary",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained Function/Shader_attribute handles with checked library ownership, typed attribute metadata, argument-encoder construction, and real shader conformance.",
       "signature": "instance (MTLFunctionDescriptor * _Nonnull __strong, NSError *__autoreleasing  _Nullable * _Nullable) -> id<MTLFunction> _Nullable"
     },
     {
@@ -89672,7 +89672,7 @@
           "line": 72
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "property:MTLAttribute:active",
       "kind": "property",
@@ -89680,7 +89680,7 @@
       "macos_introduced": "10.12",
       "name": "active",
       "owner": "MTLAttribute",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained Function/Shader_attribute handles with checked library ownership, typed attribute metadata, argument-encoder construction, and real shader conformance.",
       "signature": "BOOL"
     },
     {
@@ -89691,7 +89691,7 @@
           "line": 72
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "property:MTLAttribute:attributeIndex",
       "kind": "property",
@@ -89699,7 +89699,7 @@
       "macos_introduced": "10.12",
       "name": "attributeIndex",
       "owner": "MTLAttribute",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained Function/Shader_attribute handles with checked library ownership, typed attribute metadata, argument-encoder construction, and real shader conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -89710,7 +89710,7 @@
           "line": 72
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "property:MTLAttribute:attributeType",
       "kind": "property",
@@ -89718,7 +89718,7 @@
       "macos_introduced": "10.12",
       "name": "attributeType",
       "owner": "MTLAttribute",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained Function/Shader_attribute handles with checked library ownership, typed attribute metadata, argument-encoder construction, and real shader conformance.",
       "signature": "MTLDataType"
     },
     {
@@ -89729,7 +89729,7 @@
           "line": 72
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "property:MTLAttribute:name",
       "kind": "property",
@@ -89737,7 +89737,7 @@
       "macos_introduced": "10.12",
       "name": "name",
       "owner": "MTLAttribute",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained Function/Shader_attribute handles with checked library ownership, typed attribute metadata, argument-encoder construction, and real shader conformance.",
       "signature": "NSString * _Nonnull"
     },
     {
@@ -89754,7 +89754,7 @@
           "line": 80
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "property:MTLAttribute:patchControlPointData",
       "kind": "property",
@@ -89762,7 +89762,7 @@
       "macos_introduced": "10.12",
       "name": "patchControlPointData",
       "owner": "MTLAttribute",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained Function/Shader_attribute handles with checked library ownership, typed attribute metadata, argument-encoder construction, and real shader conformance.",
       "signature": "BOOL"
     },
     {
@@ -89779,7 +89779,7 @@
           "line": 79
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "property:MTLAttribute:patchData",
       "kind": "property",
@@ -89787,7 +89787,7 @@
       "macos_introduced": "10.12",
       "name": "patchData",
       "owner": "MTLAttribute",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained Function/Shader_attribute handles with checked library ownership, typed attribute metadata, argument-encoder construction, and real shader conformance.",
       "signature": "BOOL"
     },
     {
@@ -93993,7 +93993,7 @@
           "line": 168
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "property:MTLFunction:stageInputAttributes",
       "kind": "property",
@@ -94001,7 +94001,7 @@
       "macos_introduced": "10.12",
       "name": "stageInputAttributes",
       "owner": "MTLFunction",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained Function/Shader_attribute handles with checked library ownership, typed attribute metadata, argument-encoder construction, and real shader conformance.",
       "signature": "NSArray<MTLAttribute *> * _Nullable"
     },
     {
@@ -94012,7 +94012,7 @@
           "line": 128
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "property:MTLFunction:vertexAttributes",
       "kind": "property",
@@ -94020,7 +94020,7 @@
       "macos_introduced": "10.11",
       "name": "vertexAttributes",
       "owner": "MTLFunction",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by retained Function/Shader_attribute handles with checked library ownership, typed attribute metadata, argument-encoder construction, and real shader conformance.",
       "signature": "NSArray<MTLVertexAttribute *> * _Nullable"
     },
     {
