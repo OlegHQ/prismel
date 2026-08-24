@@ -1402,6 +1402,16 @@ and Shader_argument_encoder : sig
   val destroy : t -> (unit,error) result
 end
 
+module Library_function_task : sig
+  type t
+  type kind = Descriptor | Constants | Intersection
+  type poll = Pending | Complete of (Function.t,error) result | Cancelled
+  val start : library:Library.t -> kind -> string -> (t,error) result
+  val destroyed : t -> bool
+  val poll : t -> (poll,error) result
+  val cancel : t -> (unit,error) result
+end
+
 module rec Shader_stage_descriptor : sig
   type t
   type index_type=Uint16|Uint32

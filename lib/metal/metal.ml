@@ -1061,6 +1061,18 @@ type library_compile_options =
   ; required_threads : (int64 * int64 * int64) option
   }
 
+type library_function_task_state =
+  | Library_function_pending
+  | Library_function_complete of (Metal_raw.handle, string) result
+  | Library_function_cancelled
+
+type library_function_task =
+  { token : nativeint
+  ; lifetime : lifetime
+  ; library : library
+  ; state : library_function_task_state Atomic.t
+  }
+
 type shader_attribute =
   { raw : Metal_raw.handle; lifetime : lifetime; function_ : function_handle
   ; vertex : bool }
@@ -8704,6 +8716,91 @@ module Function = struct
   let destroy (value : t) =
     destroy_parent "Metal.Function.destroy" value.lifetime value.raw
       (fun () -> detach value.library.lifetime)
+end
+
+module Library_function_task = struct
+  type t = library_function_task
+  type kind = Descriptor | Constants | Intersection
+  type poll = Pending | Complete of (Function.t,error) result | Cancelled
+
+  let kind_code = function Descriptor -> 0 | Constants -> 1 | Intersection -> 2
+
+  let release (value:t) =
+    if Atomic.compare_and_set value.lifetime.destroyed false true then begin
+      Metal_raw.library_callback_cancel value.token;
+      detach value.library.lifetime
+    end
+
+  let start ~(library:Library.t) kind name =
+    let operation = "Metal.Library_function_task.start" in
+    on_main operation (fun () ->
+      match ensure_live operation library.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when name = "" || contains_nul name ->
+          error operation Invalid_argument
+            "function name must be nonempty and contain no NUL byte"
+      | Ok () ->
+          let state = Atomic.make Library_function_pending in
+          let callback result =
+            if not (Atomic.compare_and_set state Library_function_pending
+                      (Library_function_complete result))
+            then match result with Ok raw -> ignore (Metal_raw.destroy raw) | Error _ -> ()
+          in
+          match Metal_raw.library_function_async library.raw name
+                  (kind_code kind) callback with
+          | Error message -> native_error operation message
+          | Ok token ->
+              let value : t = { token; lifetime=lifetime (); library; state } in
+              attach library.lifetime;
+              Gc.finalise (fun (value:t) ->
+                if not (is_destroyed value.lifetime) then begin
+                  let previous = Atomic.exchange value.state Library_function_cancelled in
+                  (match previous with
+                   | Library_function_complete (Ok raw) -> ignore (Metal_raw.destroy raw)
+                   | _ -> ());
+                  release value
+                end) value;
+              Ok value)
+
+  let destroyed (value:t) = is_destroyed value.lifetime
+
+  let poll (value:t) =
+    let operation = "Metal.Library_function_task.poll" in
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          match Atomic.get value.state with
+          | Library_function_pending -> Ok Pending
+          | Library_function_cancelled -> Ok Cancelled
+          | Library_function_complete result ->
+              Atomic.set value.state Library_function_cancelled;
+              let completion =
+                match result with
+                | Error message -> native_error operation message
+                | Ok raw ->
+                    let function_value : Function.t =
+                      { raw; lifetime=lifetime (); library=value.library }
+                    in
+                    attach value.library.lifetime;
+                    attach_finalizer function_value function_value.lifetime
+                      value.library.lifetime;
+                    Ok function_value
+              in
+              release value;
+              Ok (Complete completion))
+
+  let cancel (value:t) =
+    let operation = "Metal.Library_function_task.cancel" in
+    on_main operation (fun () ->
+      if not (is_destroyed value.lifetime) then begin
+        let previous = Atomic.exchange value.state Library_function_cancelled in
+        (match previous with
+         | Library_function_complete (Ok raw) -> ignore (Metal_raw.destroy raw)
+         | _ -> ());
+        release value
+      end;
+      Ok ())
 end
 
 module Shader_attribute = struct

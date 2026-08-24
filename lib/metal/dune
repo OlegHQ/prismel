@@ -345,7 +345,7 @@
 (test
  (name test_metal_library42_safe)
  (modules test_metal_library42_safe)
- (libraries metal))
+ (libraries metal unix))
 
 (test
  (name test_metal_mesh_tile105_safe)
