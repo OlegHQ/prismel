@@ -109,6 +109,7 @@ can change the denominator explicitly rather than being hidden.
 | `f9642fa` | 2026-08-24 07:09:15 +02:00 | 4,953 | 5,249 | 94.3608% | 4 | 0.025 | 160.0 | 3.05 |
 | `1796450` | 2026-08-24 07:14:44 +02:00 | 4,959 | 5,249 | 94.4751% | 6 | 0.091 | 65.6 | 1.25 |
 | `bb6d5c6` | 2026-08-24 07:15:30 +02:00 | 4,969 | 5,249 | 94.6657% | 10 | 0.013 | 782.6 | 14.91 |
+| `0f05773` | 2026-08-24 07:18:24 +02:00 | 4,973 | 5,249 | 94.7419% | 4 | 0.048 | 82.8 | 1.58 |
 
 ## Current measured rate
 
@@ -157,6 +158,11 @@ The `1796450` interval moves the exact Fence6 protocol/type closure. Its owned
 device constructor, copied nullable label, checked device identity, encoder
 state validation, and completion retention are exercised by 256 real producer
 and consumer blit command-buffer ordering iterations.
+
+The `0f05773` interval moves the exact IndirectCommandBuffer4 closure. It proves
+the opaque GPU resource identity and indexed render-command acquisition through
+the public owned parent/child graph, with checked bounds, retained resources,
+indirect-capable pipeline validation, and a real native framebuffer result.
 
 Rates describe completed commits, not forecasts. Hardware-only gates and
 complex ownership features will vary materially from pure-value batches.
