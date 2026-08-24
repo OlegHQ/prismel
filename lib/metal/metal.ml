@@ -1622,6 +1622,11 @@ and resource100_sample_buffer =
   { raw : Metal_raw.handle; lifetime : lifetime; device : device
   ; sample_count : int64; label : string option }
 
+type compute_pass_descriptor =
+  { raw : Metal_raw.handle; lifetime : lifetime; device : device
+  ; mutable compute_dispatch : int
+  ; compute_attachments : (resource100_sample_buffer * int64 * int64) option array }
+
 type resource100_view_pool_descriptor =
   { raw : Metal_raw.handle; lifetime : lifetime
   ; view_count : int64; label : string option }
@@ -12470,7 +12475,7 @@ module Command4 = struct
 
   module Log_state = struct
     type t=command4_log_state
-    let create (device:Device.t)=let op="Metal.Command4.Log_state.create"in on_main op(fun()->match ensure_live op device.lifetime with Error _ as e->e|Ok()->match Metal_raw.log_state_descriptor_create 0 0L with Error m->native_error op m|Ok descriptor->match Metal_raw.log_state_create device.raw descriptor with Error m->ignore(Metal_raw.destroy descriptor);native_error op m|Ok(raw,registry)->ignore(Metal_raw.destroy descriptor);if registry<>device.registry_id then begin ignore(Metal_raw.destroy raw);error op Device_mismatch "log state device identity changed" end else let value={raw;lifetime=lifetime();device}in attach device.lifetime;attach_finalizer value value.lifetime device.lifetime;Ok value)
+    let create (device:Device.t)=let op="Metal.Command4.Log_state.create"in on_main op(fun()->match ensure_live op device.lifetime with Error _ as e->e|Ok()->match Metal_raw.log_state_descriptor_create 0 1024L with Error m->native_error op m|Ok descriptor->match Metal_raw.log_state_create device.raw descriptor with Error m->ignore(Metal_raw.destroy descriptor);native_error op m|Ok(raw,registry)->ignore(Metal_raw.destroy descriptor);if registry<>device.registry_id then begin ignore(Metal_raw.destroy raw);error op Device_mismatch "log state device identity changed" end else let value={raw;lifetime=lifetime();device}in attach device.lifetime;attach_finalizer value value.lifetime device.lifetime;Ok value)
     let device(value:t)=value.device
     let destroyed(value:t)=is_destroyed value.lifetime
     let destroy(value:t)=destroy_parent "Metal.Command4.Log_state.destroy" value.lifetime value.raw(fun()->detach value.device.lifetime)
@@ -19031,6 +19036,33 @@ module Tensor = struct
         source_origin.raw source_dimensions.raw destination_origin.raw destination_dimensions.raw
   let destroyed=Resource100.Tensor.destroyed
   let destroy=Resource100.Tensor.destroy
+end
+
+module Compute_pass = struct
+  type dispatch = Serial | Concurrent
+  type attachment = {sample_buffer:Resource100.Sample_buffer.t;start_index:int64;end_index:int64}
+  type t = compute_pass_descriptor
+  let capacity=4
+  let dispatch_code=function Serial->0|Concurrent->1
+  let validate operation (device:Device.t) (value:attachment option)=match value with None->Ok()|Some value->
+    match ensure_live operation value.sample_buffer.lifetime with Error _ as failure->failure|Ok()->
+    match ensure_same_device operation device value.sample_buffer.device with Error _ as failure->failure|Ok()when value.start_index<0L||value.end_index<value.start_index||value.end_index>=value.sample_buffer.sample_count->error operation Invalid_argument "compute sample indices are out of range"|Ok()->Ok()
+  let set_native operation array_raw index (attachment:attachment option)=
+    let buffer,start,finish=match attachment with None->None,-1L,-1L|Some value->Some value.sample_buffer.raw,value.start_index,value.end_index in
+    match Metal_raw.compute_pass_attachment array_raw(Int64.of_int index)buffer start finish with Error message->native_error operation message|Ok raw->
+      let snapshot=Metal_raw.compute_pass_attachment_snapshot raw in ignore(Metal_raw.destroy raw);match snapshot with Error message->native_error operation message|Ok(native_buffer,native_start,native_finish)->Option.iter(fun raw->ignore(Metal_raw.destroy raw))native_buffer;if Option.is_some native_buffer<>Option.is_some buffer||native_start<>start||native_finish<>finish then native_error operation "native compute attachment snapshot drift"else Ok()
+  let create (device:Device.t) ?(dispatch=Serial)?(attachments:attachment option array=[||])()=
+    let operation="Metal.Compute_pass.create"in on_main operation(fun()->match ensure_live operation device.lifetime with Error _ as failure->failure|Ok()when Array.length attachments>capacity->error operation Invalid_argument "too many compute attachments"|Ok()->
+      let slots=Array.make capacity None in Array.blit attachments 0 slots 0(Array.length attachments);let rec checked i=if i=capacity then Ok()else match validate operation device slots.(i)with Error _ as failure->failure|Ok()->checked(i+1)in match checked 0 with Error _ as failure->failure|Ok()->
+      match Metal_raw.compute_pass_create(dispatch_code dispatch)with Error message->native_error operation message|Ok raw->match Metal_raw.compute_pass_snapshot raw with Error message->ignore(Metal_raw.destroy raw);native_error operation message|Ok(native_dispatch,array_raw)->
+      let rec fill i=if i=capacity then Ok()else match set_native operation array_raw i slots.(i)with Error _ as failure->failure|Ok()->fill(i+1)in let outcome=if native_dispatch<>dispatch_code dispatch then native_error operation "native compute dispatch drift"else fill 0 in ignore(Metal_raw.destroy array_raw);match outcome with Error _ as failure->ignore(Metal_raw.destroy raw);failure|Ok()->Array.iter(Option.iter(fun(value:attachment)->attach value.sample_buffer.lifetime))slots;attach device.lifetime;let value:t={raw;lifetime=lifetime();device;compute_dispatch=dispatch_code dispatch;compute_attachments=Array.map(Option.map(fun(value:attachment)->value.sample_buffer,value.start_index,value.end_index))slots}in Gc.finalise(fun(value:t)->if Atomic.compare_and_set value.lifetime.destroyed false true then(begin ignore(Metal_raw.destroy value.raw);Array.iter(Option.iter(fun((buffer:resource100_sample_buffer),_,_)->detach buffer.lifetime))value.compute_attachments;detach value.device.lifetime end))value;Ok value)
+  let device(value:t)=value.device
+  let dispatch(value:t)=if value.compute_dispatch=0 then Serial else Concurrent
+  let attachments(value:t)=Array.map(Option.map(fun(buffer,start_index,end_index)->{sample_buffer=buffer;start_index;end_index}))value.compute_attachments
+  let set_dispatch(value:t) dispatch=let operation="Metal.Compute_pass.set_dispatch"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as failure->failure|Ok()->let code=dispatch_code dispatch in match Metal_raw.compute_pass_set_dispatch value.raw code with Error message->native_error operation message|Ok()->value.compute_dispatch<-code;Ok())
+  let set_attachment(value:t)~index (attachment:attachment option)=let operation="Metal.Compute_pass.set_attachment"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as failure->failure|Ok()when index<0||index>=capacity->error operation Invalid_argument "compute attachment index is out of range"|Ok()->match validate operation value.device attachment with Error _ as failure->failure|Ok()->match Metal_raw.compute_pass_snapshot value.raw with Error message->native_error operation message|Ok(_,array_raw)->let outcome=set_native operation array_raw index attachment in ignore(Metal_raw.destroy array_raw);match outcome with Error _ as failure->failure|Ok()->Option.iter(fun(value:attachment)->attach value.sample_buffer.lifetime)attachment;Option.iter(fun((buffer:resource100_sample_buffer),_,_)->detach buffer.lifetime)value.compute_attachments.(index);value.compute_attachments.(index)<-Option.map(fun(value:attachment)->value.sample_buffer,value.start_index,value.end_index)attachment;Ok())
+  let destroyed(value:t)=is_destroyed value.lifetime
+  let destroy(value:t)=destroy_parent "Metal.Compute_pass.destroy" value.lifetime value.raw(fun()->Array.iter(Option.iter(fun((buffer:resource100_sample_buffer),_,_)->detach buffer.lifetime))value.compute_attachments;detach value.device.lifetime)
 end
 
 module IO = struct

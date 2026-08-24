@@ -3461,6 +3461,24 @@ module Tensor : sig
 end
 
 
+module Compute_pass : sig
+  type dispatch = Serial | Concurrent
+  type attachment =
+    { sample_buffer : Resource100.Sample_buffer.t
+    ; start_index : int64
+    ; end_index : int64 }
+  type t
+  val create : Device.t -> ?dispatch:dispatch ->
+    ?attachments:attachment option array -> unit -> (t,error) result
+  val device : t -> Device.t
+  val dispatch : t -> dispatch
+  val attachments : t -> attachment option array
+  val set_dispatch : t -> dispatch -> (unit,error) result
+  val set_attachment : t -> index:int -> attachment option -> (unit,error) result
+  val destroyed : t -> bool
+  val destroy : t -> (unit,error) result
+end
+
 module IO : sig
   module Compressor : sig
     type method_ = Lz4 | Lz_bitmap | Lzfse | Lzma | Zlib
