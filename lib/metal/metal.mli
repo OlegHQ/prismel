@@ -3007,6 +3007,7 @@ module Blit_encoder : sig
 end
 
 module Resource100 : sig
+  type tensor
   module Options : sig
     type cpu_cache_mode = Default | Write_combined
     type storage_mode = Memoryless
@@ -3031,6 +3032,18 @@ module Resource100 : sig
     val remove_all_debug_markers : Buffer.t -> (unit,error) result
     val remote_view : Buffer.t -> device:Device.t -> (Buffer.t option,error) result
     val remote_storage : Buffer.t -> (Buffer.t option,error) result
+    val new_tensor : Buffer.t -> data_type:Data_type.t -> dimensions:int64 array ->
+      strides:int64 array -> offset:int64 -> (tensor,error) result
+  end
+  module Tensor : sig
+    type t = tensor
+    val buffer : t -> Buffer.t
+    val offset : t -> int64
+    val dimensions : t -> int64 array
+    val strides : t -> int64 array
+    val data_type : t -> Data_type.t
+    val destroyed : t -> bool
+    val destroy : t -> (unit,error) result
   end
   module Texture_ops : sig
     val remote_view : Texture.t -> device:Device.t -> (Texture.t option,error) result

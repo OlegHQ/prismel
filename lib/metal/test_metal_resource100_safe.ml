@@ -46,6 +46,16 @@ let ()=
  (match get(Resource100.Texture_ops.remote_view texture~device)with None->()|Some remote->get(Texture.destroy remote));
  (match get(Resource100.Texture_ops.remote_storage texture)with None->()|Some remote->get(Texture.destroy remote));
  let backing_buffer=get(Buffer.create~device~length:4096L~storage:Buffer.Shared())in
+ reject(Resource100.Buffer_ops.new_tensor backing_buffer
+   ~data_type:Data_type.mtl_data_type_float ~dimensions:[|1025L|]
+   ~strides:[|1L|] ~offset:0L);
+ (match Resource100.Buffer_ops.new_tensor backing_buffer
+   ~data_type:Data_type.mtl_data_type_float ~dimensions:[|4L|]
+   ~strides:[|1L|] ~offset:0L with
+  |Error _->()
+  |Ok tensor->if Resource100.Tensor.buffer tensor!=backing_buffer
+               ||Resource100.Tensor.dimensions tensor<>[|4L|]
+             then failwith"tensor parent metadata"else get(Resource100.Tensor.destroy tensor));
  if get(Resource100.Resource_ops.device(Resource100.Resource_ops.Buffer backing_buffer))!=device then failwith"buffer device";
  (match get(Resource100.Buffer_ops.remote_view backing_buffer~device)with
   |None->()|Some remote->if Buffer.length remote<>4096L then failwith"remote buffer length"else get(Buffer.destroy remote));

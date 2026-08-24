@@ -1544,6 +1544,11 @@ type resource100_texture_view_pool =
 type resource100_state_pass =
   { raw : Metal_raw.handle; lifetime : lifetime }
 
+type resource100_tensor =
+  { raw : Metal_raw.handle; lifetime : lifetime; buffer : buffer
+  ; offset : int64; dimensions : int64 array; strides : int64 array
+  ; data_type : Data_type.t }
+
 type blit_encoder =
   { raw : Metal_raw.handle
   ; lifetime : lifetime
@@ -17461,6 +17466,7 @@ module Blit_encoder = struct
 end
 
 module Resource100 = struct
+  type tensor = resource100_tensor
   module Options = struct
     type cpu_cache_mode = Default | Write_combined
     type storage_mode = Memoryless
@@ -17557,8 +17563,75 @@ module Resource100 = struct
         | Ok () -> match Metal_raw.resource_buffer_remote_storage source.raw with
           | Error message -> native_error operation message
           | Ok None -> Ok None
-          | Ok (Some snapshot) -> Result.map Option.some
+            | Ok (Some snapshot) -> Result.map Option.some
               (wrap_snapshot operation source.device snapshot))
+
+    let tensor_element_size data_type =
+      let code=Data_type.to_int64 data_type in
+      let same value=code=Data_type.to_int64 value in
+      if same Data_type.mtl_data_type_float || same Data_type.mtl_data_type_int
+         || same Data_type.mtl_data_type_u_int then Some 4L
+      else if same Data_type.mtl_data_type_half || same Data_type.mtl_data_type_short
+              || same Data_type.mtl_data_type_u_short then Some 2L
+      else if same Data_type.mtl_data_type_char || same Data_type.mtl_data_type_u_char
+              || same Data_type.mtl_data_type_bool then Some 1L
+      else if same Data_type.mtl_data_type_long || same Data_type.mtl_data_type_u_long
+      then Some 8L else None
+
+    let new_tensor (buffer:buffer) ~data_type ~dimensions ~strides ~offset =
+      let operation="Metal.Resource100.Buffer_ops.new_tensor" in
+      on_main operation (fun () ->
+        match ensure_buffer_usable operation buffer with Error _ as e->e | Ok () ->
+        match tensor_element_size data_type with
+        | None -> error operation Unsupported "tensor construction supports scalar numeric types"
+        | Some element_size ->
+          let rank=Array.length dimensions in
+          if rank=0 || rank<>Array.length strides || offset<0L
+             || Array.exists ((>=) 0L) dimensions || Array.exists ((>=) 0L) strides
+          then error operation Invalid_argument "tensor dimensions, strides, or offset are invalid"
+          else let maximum=ref 0L and overflow=ref false in
+            for i=0 to rank-1 do
+              let extent=Int64.pred dimensions.(i) in
+              if extent>Int64.div Int64.max_int strides.(i) then overflow:=true
+              else let term=Int64.mul extent strides.(i) in
+                if !maximum>Int64.sub Int64.max_int term then overflow:=true
+                else maximum:=Int64.add !maximum term
+            done;
+            if !overflow || !maximum>Int64.div (Int64.sub Int64.max_int element_size) element_size
+            then error operation Invalid_argument "tensor byte range overflows"
+            else let required=Int64.mul (Int64.succ !maximum) element_size in
+              if offset>buffer.length || required>Int64.sub buffer.length offset then
+                error operation Invalid_argument "tensor byte range exceeds its buffer"
+              else match Metal_raw.tensor_extents_create dimensions with
+              | Error message -> native_error operation message
+              | Ok dims -> match Metal_raw.tensor_extents_create strides with
+                | Error message -> ignore(Metal_raw.destroy dims);native_error operation message
+                | Ok stride_handle -> match Metal_raw.tensor_descriptor_create() with
+                  | Error message -> ignore(Metal_raw.destroy stride_handle);ignore(Metal_raw.destroy dims);native_error operation message
+                  | Ok descriptor ->
+                    let unwind message=ignore(Metal_raw.destroy descriptor);ignore(Metal_raw.destroy stride_handle);ignore(Metal_raw.destroy dims);native_error operation message in
+                    match Metal_raw.tensor_descriptor_set_data_type descriptor (Data_type.to_int64 data_type) with
+                    | Error message -> unwind message
+                    | Ok () -> match Metal_raw.tensor_descriptor_set_dimensions descriptor dims with
+                      | Error message -> unwind message
+                      | Ok () -> match Metal_raw.tensor_descriptor_set_strides descriptor stride_handle with
+                        | Error message -> unwind message
+                        | Ok () -> let created=Metal_raw.resource_buffer_new_tensor buffer.raw descriptor offset in
+                          ignore(Metal_raw.destroy descriptor);ignore(Metal_raw.destroy stride_handle);ignore(Metal_raw.destroy dims);
+                          match created with Error message->native_error operation message|Ok raw->
+                            let value:resource100_tensor={raw;lifetime=lifetime();buffer;offset;dimensions=Array.copy dimensions;strides=Array.copy strides;data_type}in
+                            attach buffer.lifetime;attach_finalizer value value.lifetime buffer.lifetime;Ok value)
+  end
+
+  module Tensor = struct
+    type t=tensor
+    let buffer(value:t)=value.buffer
+    let offset(value:t)=value.offset
+    let dimensions(value:t)=Array.copy value.dimensions
+    let strides(value:t)=Array.copy value.strides
+    let data_type(value:t)=value.data_type
+    let destroyed(value:t)=is_destroyed value.lifetime
+    let destroy(value:t)=destroy_leaf "Metal.Resource100.Tensor.destroy" value.lifetime value.raw(fun()->detach value.buffer.lifetime)
   end
 
   module Texture_ops = struct
