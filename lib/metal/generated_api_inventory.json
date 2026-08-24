@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4114,
+    "bound": 4136,
     "scope-excluded": 37,
-    "unreviewed": 1134
+    "unreviewed": 1112
   },
-  "classification_source_sha256": "e1c46d0f5189546588376fb174acdc8d6b5ab2410aeffbaa7cb29426a9614f1e",
+  "classification_source_sha256": "fca65b3cf66692a03916169e4ea4822a1f45cae51bcd228f89864a153b46908a",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -17500,7 +17500,7 @@
           "line": 227
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "0",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatInvalid",
@@ -17509,7 +17509,7 @@
       "macos_introduced": "10.11",
       "name": "MTLPixelFormatInvalid",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
@@ -17526,7 +17526,7 @@
           "line": 227
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "164",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatPVRTC_RGBA_2BPP",
@@ -17535,7 +17535,7 @@
       "macos_introduced": "11.0",
       "name": "MTLPixelFormatPVRTC_RGBA_2BPP",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
@@ -17552,7 +17552,7 @@
           "line": 227
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "165",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatPVRTC_RGBA_2BPP_sRGB",
@@ -17561,7 +17561,7 @@
       "macos_introduced": "11.0",
       "name": "MTLPixelFormatPVRTC_RGBA_2BPP_sRGB",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
@@ -17578,7 +17578,7 @@
           "line": 227
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "166",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatPVRTC_RGBA_4BPP",
@@ -17587,7 +17587,7 @@
       "macos_introduced": "11.0",
       "name": "MTLPixelFormatPVRTC_RGBA_4BPP",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
@@ -17604,7 +17604,7 @@
           "line": 227
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "167",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatPVRTC_RGBA_4BPP_sRGB",
@@ -17613,7 +17613,7 @@
       "macos_introduced": "11.0",
       "name": "MTLPixelFormatPVRTC_RGBA_4BPP_sRGB",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
@@ -17630,7 +17630,7 @@
           "line": 227
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "160",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatPVRTC_RGB_2BPP",
@@ -17639,7 +17639,7 @@
       "macos_introduced": "11.0",
       "name": "MTLPixelFormatPVRTC_RGB_2BPP",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
@@ -17656,7 +17656,7 @@
           "line": 227
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "161",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatPVRTC_RGB_2BPP_sRGB",
@@ -17665,7 +17665,7 @@
       "macos_introduced": "11.0",
       "name": "MTLPixelFormatPVRTC_RGB_2BPP_sRGB",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
@@ -17682,7 +17682,7 @@
           "line": 227
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "162",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatPVRTC_RGB_4BPP",
@@ -17691,7 +17691,7 @@
       "macos_introduced": "11.0",
       "name": "MTLPixelFormatPVRTC_RGB_4BPP",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
@@ -17708,7 +17708,7 @@
           "line": 227
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "163",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatPVRTC_RGB_4BPP_sRGB",
@@ -17717,7 +17717,7 @@
       "macos_introduced": "11.0",
       "name": "MTLPixelFormatPVRTC_RGB_4BPP_sRGB",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
@@ -18626,7 +18626,7 @@
           "line": 227
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "263",
       "header": "Metal/MTLPixelFormat.h",
       "id": "enum-case:MTLPixelFormat:MTLPixelFormatUnspecialized",
@@ -18635,7 +18635,7 @@
       "macos_introduced": "26.0",
       "name": "MTLPixelFormatUnspecialized",
       "owner": "MTLPixelFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "MTLPixelFormat"
     },
     {
@@ -28941,7 +28941,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureTypes.h",
       "id": "field:_MTLPackedFloat3:elements",
       "kind": "field",
@@ -28949,13 +28949,13 @@
       "macos_introduced": null,
       "name": "elements",
       "owner": "_MTLPackedFloat3",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "float[3]"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureTypes.h",
       "id": "field:_MTLPackedFloat3:x",
       "kind": "field",
@@ -28963,13 +28963,13 @@
       "macos_introduced": null,
       "name": "x",
       "owner": "_MTLPackedFloat3",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "float"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureTypes.h",
       "id": "field:_MTLPackedFloat3:y",
       "kind": "field",
@@ -28977,13 +28977,13 @@
       "macos_introduced": null,
       "name": "y",
       "owner": "_MTLPackedFloat3",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "float"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureTypes.h",
       "id": "field:_MTLPackedFloat3:z",
       "kind": "field",
@@ -28991,7 +28991,7 @@
       "macos_introduced": null,
       "name": "z",
       "owner": "_MTLPackedFloat3",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "float"
     },
     {
@@ -29236,7 +29236,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureTypes.h",
       "id": "function:MTLPackedFloat3Make",
       "kind": "function",
@@ -29244,13 +29244,13 @@
       "macos_introduced": null,
       "name": "MTLPackedFloat3Make",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "MTLPackedFloat3 (float, float, float)"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureTypes.h",
       "id": "function:MTLPackedFloatQuaternionMake",
       "kind": "function",
@@ -29258,7 +29258,7 @@
       "macos_introduced": null,
       "name": "MTLPackedFloatQuaternionMake",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "MTLPackedFloatQuaternion (float, float, float, float)"
     },
     {
@@ -106617,7 +106617,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureTypes.h",
       "id": "record:_MTLPackedFloat3",
       "kind": "record",
@@ -106625,7 +106625,7 @@
       "macos_introduced": null,
       "name": "_MTLPackedFloat3",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "struct"
     },
     {
@@ -107393,7 +107393,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureTypes.h",
       "id": "typedef:MTLAxisAlignedBoundingBox",
       "kind": "typedef",
@@ -107401,7 +107401,7 @@
       "macos_introduced": null,
       "name": "MTLAxisAlignedBoundingBox",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "struct _MTLAxisAlignedBoundingBox"
     },
     {
@@ -107824,7 +107824,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureTypes.h",
       "id": "typedef:MTLComponentTransform",
       "kind": "typedef",
@@ -107832,7 +107832,7 @@
       "macos_introduced": null,
       "name": "MTLComponentTransform",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "struct MTLComponentTransform"
     },
     {
@@ -109064,7 +109064,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureTypes.h",
       "id": "typedef:MTLPackedFloat3",
       "kind": "typedef",
@@ -109072,13 +109072,13 @@
       "macos_introduced": null,
       "name": "MTLPackedFloat3",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "struct _MTLPackedFloat3"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureTypes.h",
       "id": "typedef:MTLPackedFloat4x3",
       "kind": "typedef",
@@ -109086,13 +109086,13 @@
       "macos_introduced": null,
       "name": "MTLPackedFloat4x3",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "struct _MTLPackedFloat4x3"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureTypes.h",
       "id": "typedef:MTLPackedFloatQuaternion",
       "kind": "typedef",
@@ -109100,7 +109100,7 @@
       "macos_introduced": null,
       "name": "MTLPackedFloatQuaternion",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated, typed prismel.metal fixed-layout value-record surface.",
       "signature": "struct MTLPackedFloatQuaternion"
     },
     {

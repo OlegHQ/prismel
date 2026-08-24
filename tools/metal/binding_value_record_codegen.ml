@@ -29,6 +29,7 @@ let ocaml_type = function
   | "MTLGPUAddress" | "NSUInteger" | "uint64_t"
   | "MTLAccelerationStructureInstanceOptions" | "MTLMotionBorderMode" -> "int64"
   | "uint32_t[3]" -> "int32 * int32 * int32"
+  | "float[3]" -> "float * float * float"
   | "uint16_t[2]" -> "int * int"
   | "uint16_t[3]" -> "int * int * int"
   | "uint16_t[4]" -> "int * int * int * int"
@@ -62,6 +63,7 @@ let zero = function
   | "MTLAccelerationStructureInstanceOptions" | "MTLMotionBorderMode"
   | "MTLResourceID" -> "0L"
   | "uint32_t[3]" -> "0l, 0l, 0l"
+  | "float[3]" -> "0.0, 0.0, 0.0"
   | "uint16_t[2]" -> "0, 0"
   | "uint16_t[3]" -> "0, 0, 0"
   | "uint16_t[4]" -> "0, 0, 0, 0"
@@ -118,6 +120,10 @@ let generate (selection : Binding_value_record_plan.selection) =
     "// Generated fixed-layout Metal ABI checks. Do not edit.\n#include <Metal/Metal.h>\n#include <cstddef>\n#include <type_traits>\n#pragma clang diagnostic push\n#pragma clang diagnostic ignored \"-Wunguarded-availability-new\"\n\n";
   List.iter (emit_record ~interface:false ocaml) selection.records;
   List.iter (emit_record ~interface:true ocaml_mli) selection.records;
+  Buffer.add_string ocaml
+    "let packed_float3_make x y z : MTLPackedFloat3.t =\n  { elements = (x, y, z); x; y; z }\n\nlet packed_float_quaternion_make x y z w : MTLPackedFloatQuaternion.t =\n  { w; x; y; z }\n\n";
+  Buffer.add_string ocaml_mli
+    "val packed_float3_make : float -> float -> float -> MTLPackedFloat3.t\nval packed_float_quaternion_make : float -> float -> float -> float -> MTLPackedFloatQuaternion.t\n\n";
   List.iter (emit_test tests) selection.records;
   List.iter (emit_checks native) selection.records;
   Buffer.add_string native "#pragma clang diagnostic pop\n";
@@ -127,8 +133,10 @@ let generate (selection : Binding_value_record_plan.selection) =
       Printf.bprintf tests "  test_metal_value_record_%s ();\n"
         (snake (module_name record.name)))
     selection.records;
+  Buffer.add_string tests
+    "  let p = Metal.Value.packed_float3_make 1.0 2.0 3.0 in\n  if p.elements <> (1.0, 2.0, 3.0) || p.x <> 1.0 || p.y <> 2.0 || p.z <> 3.0 then failwith \"MTLPackedFloat3Make\";\n  let q = Metal.Value.packed_float_quaternion_make 1.0 2.0 3.0 4.0 in\n  if (q.x, q.y, q.z, q.w) <> (1.0, 2.0, 3.0, 4.0) then failwith \"MTLPackedFloatQuaternionMake\";\n";
   Printf.bprintf tests "  Printf.printf %S\n"
-    "Metal generated value records: 27 records + 108 fields = 135 IDs\n%!";
+    "Metal generated value records/types: 28 records + 112 fields + 7 aliases/functions = 147 IDs\n%!";
   { ocaml_ml = Buffer.contents ocaml
   ; ocaml_mli = Buffer.contents ocaml_mli
   ; test_ml = Buffer.contents tests

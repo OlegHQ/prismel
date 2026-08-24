@@ -10,15 +10,12 @@ let () =
   let inventory = Yojson.Safe.from_file Sys.argv.(1) in
   let selection = Binding_value_record_plan.select inventory in
   let generated = Binding_value_record_codegen.generate selection in
-  let tests =
-    String.concat "\n"
-      (List.map Binding_value_record_evidence.test_marker selection.records)
-  in
+  let tests = generated.test_ml in
   let ids =
     Binding_value_record_evidence.bound_ids ~inventory
       ~public_interface:generated.ocaml_mli ~test_source:tests
   in
-  if ids <> selection.ids || List.length ids <> 135 then
+  if ids <> selection.ids || List.length ids <> 147 then
     fail "value-record bound-evidence identifier closure drift";
   expect_rejection (fun () ->
       Binding_value_record_evidence.bound_ids ~inventory ~public_interface:""
@@ -26,4 +23,4 @@ let () =
   expect_rejection (fun () ->
       Binding_value_record_evidence.bound_ids ~inventory
         ~public_interface:generated.ocaml_mli ~test_source:"");
-  Printf.printf "Metal value-record bound evidence: exact digest + 27 public/test markers guard 135 IDs\n%!"
+  Printf.printf "Metal value-record bound evidence: exact digest + 28 records and acceleration aliases/functions guard 147 IDs\n%!"

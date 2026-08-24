@@ -18,9 +18,19 @@ type selection =
   ; ids : string list
   }
 
-let expected_record_count = 27
-let expected_field_count = 108
-let expected_id_count = 135
+let expected_record_count = 28
+let expected_field_count = 112
+let expected_id_count = 147
+
+let acceleration_type_ids =
+  [ "function:MTLPackedFloat3Make"
+  ; "function:MTLPackedFloatQuaternionMake"
+  ; "typedef:MTLAxisAlignedBoundingBox"
+  ; "typedef:MTLComponentTransform"
+  ; "typedef:MTLPackedFloat3"
+  ; "typedef:MTLPackedFloat4x3"
+  ; "typedef:MTLPackedFloatQuaternion"
+  ]
 
 let record_names =
   [ "MTL4BufferRange"; "MTL4CopySparseBufferMappingOperation"
@@ -37,7 +47,7 @@ let record_names =
   ; "MTLIndirectAccelerationStructureMotionInstanceDescriptor"
   ; "MTLIndirectCommandBufferExecutionRange"
   ; "MTLIntersectionFunctionBufferArguments"; "MTLMapIndirectArguments"
-  ; "MTLPackedFloatQuaternion"; "MTLQuadTessellationFactorsHalf"
+  ; "_MTLPackedFloat3"; "MTLPackedFloatQuaternion"; "MTLQuadTessellationFactorsHalf"
   ; "MTLSamplePosition"; "MTLStageInRegionIndirectArguments"
   ; "MTLTriangleTessellationFactorsHalf"; "_MTLAxisAlignedBoundingBox"
   ; "_MTLPackedFloat4x3"
@@ -67,7 +77,7 @@ let fixed_field_type = function
   | "MTLAccelerationStructureInstanceOptions" | "MTLMotionBorderMode"
   | "MTLPackedFloat3" | "MTLPackedFloatQuaternion" | "MTLPackedFloat4x3"
   | "MTLResourceID" | "MTLOrigin" | "MTLRegion" | "NSRange"
-  | "uint32_t[3]" | "uint16_t[2]" | "uint16_t[3]" | "uint16_t[4]"
+  | "float[3]" | "uint32_t[3]" | "uint16_t[2]" | "uint16_t[3]" | "uint16_t[4]"
   | "MTLPackedFloat3[4]" -> true
   | _ -> false
 
@@ -130,6 +140,7 @@ let select json =
       (fun (record : record) ->
         record.id :: List.map (fun (field : field) -> field.id) record.fields)
       records
+    @ acceleration_type_ids
   in
   if List.length records <> expected_record_count then
     fail "record cardinality drift: expected %d, got %d" expected_record_count (List.length records);

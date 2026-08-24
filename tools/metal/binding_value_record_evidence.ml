@@ -1,7 +1,8 @@
-let expected_layout_digest = "06b744b336313eaab9e3e47d2a407ab3"
+let expected_layout_digest = "c95fd400a567c22bd4dc920c8df5ccc9"
 
 let is_bound_identifier identifier =
-  List.exists
+  List.mem identifier Binding_value_record_plan.acceleration_type_ids
+  || List.exists
     (fun name ->
       String.equal identifier ("record:" ^ name)
       || String.starts_with ~prefix:("field:" ^ name ^ ":") identifier)
@@ -73,6 +74,14 @@ let bound_ids ~inventory ~public_interface ~test_source =
   require_markers ~kind:"public" (List.map public_marker selection.records)
     public_interface;
   require_markers ~kind:"test" (List.map test_marker selection.records) test_source;
+  require_markers ~kind:"public"
+    [ "module MTLPackedFloat3"; "module MTLPackedFloatQuaternion"
+    ; "module MTLPackedFloat4x3"; "module MTLAxisAlignedBoundingBox"
+    ; "module MTLComponentTransform"; "val packed_float3_make"
+    ; "val packed_float_quaternion_make" ]
+    public_interface;
+  require_markers ~kind:"test"
+    [ "MTLPackedFloat3Make"; "MTLPackedFloatQuaternionMake" ] test_source;
   selection.ids
 
 let () =
