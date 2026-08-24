@@ -136,5 +136,11 @@ backed by real safe construction/cancellation, a persistent 40,000-delivery
 native gate, and in-flight cancellation draining; no declaration is counted in
 more than one of the three closures.
 
+The `c91a76c` interval moves exactly three FunctionConstantValues declarations.
+The safe layer validates scalar byte widths and index/range cardinality before
+one native mutation, copies caller-owned bytes, and proves both the copied
+`7,11` values (`711` GPU output) and reset state (`0` output) through real Metal
+function specialization and compute dispatch.
+
 Rates describe completed commits, not forecasts. Hardware-only gates and
 complex ownership features will vary materially from pure-value batches.
