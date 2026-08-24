@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4136,
+    "bound": 4145,
     "scope-excluded": 37,
-    "unreviewed": 1112
+    "unreviewed": 1103
   },
-  "classification_source_sha256": "fca65b3cf66692a03916169e4ea4822a1f45cae51bcd228f89864a153b46908a",
+  "classification_source_sha256": "89cbed4ca7151fe6c6e8a6313241a23445cbc484cf91061e69c2216c92d2ad82",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -20028,7 +20028,7 @@
           "line": 76
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "536870912",
       "header": "Metal/MTLCommandEncoder.h",
       "id": "enum-case:MTLStages:MTLStageAccelerationStructure",
@@ -20037,7 +20037,7 @@
       "macos_introduced": "26.0",
       "name": "MTLStageAccelerationStructure",
       "owner": "MTLStages",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "(unnamed enum at /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Metal.framework/Headers/MTLCommandEncoder.h:42:9)"
     },
     {
@@ -20068,7 +20068,7 @@
           "line": 76
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "268435456",
       "header": "Metal/MTLCommandEncoder.h",
       "id": "enum-case:MTLStages:MTLStageBlit",
@@ -20077,7 +20077,7 @@
       "macos_introduced": "26.0",
       "name": "MTLStageBlit",
       "owner": "MTLStages",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "(unnamed enum at /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Metal.framework/Headers/MTLCommandEncoder.h:42:9)"
     },
     {
@@ -20088,7 +20088,7 @@
           "line": 76
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "134217728",
       "header": "Metal/MTLCommandEncoder.h",
       "id": "enum-case:MTLStages:MTLStageDispatch",
@@ -20097,7 +20097,7 @@
       "macos_introduced": "26.0",
       "name": "MTLStageDispatch",
       "owner": "MTLStages",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "(unnamed enum at /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Metal.framework/Headers/MTLCommandEncoder.h:42:9)"
     },
     {
@@ -20108,7 +20108,7 @@
           "line": 76
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "2",
       "header": "Metal/MTLCommandEncoder.h",
       "id": "enum-case:MTLStages:MTLStageFragment",
@@ -20117,7 +20117,7 @@
       "macos_introduced": "26.0",
       "name": "MTLStageFragment",
       "owner": "MTLStages",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "(unnamed enum at /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Metal.framework/Headers/MTLCommandEncoder.h:42:9)"
     },
     {
@@ -20128,7 +20128,7 @@
           "line": 76
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "1073741824",
       "header": "Metal/MTLCommandEncoder.h",
       "id": "enum-case:MTLStages:MTLStageMachineLearning",
@@ -20137,7 +20137,7 @@
       "macos_introduced": "26.0",
       "name": "MTLStageMachineLearning",
       "owner": "MTLStages",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "(unnamed enum at /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Metal.framework/Headers/MTLCommandEncoder.h:42:9)"
     },
     {
@@ -20148,7 +20148,7 @@
           "line": 76
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "16",
       "header": "Metal/MTLCommandEncoder.h",
       "id": "enum-case:MTLStages:MTLStageMesh",
@@ -20157,7 +20157,7 @@
       "macos_introduced": "26.0",
       "name": "MTLStageMesh",
       "owner": "MTLStages",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "(unnamed enum at /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Metal.framework/Headers/MTLCommandEncoder.h:42:9)"
     },
     {
@@ -20168,7 +20168,7 @@
           "line": 76
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "8",
       "header": "Metal/MTLCommandEncoder.h",
       "id": "enum-case:MTLStages:MTLStageObject",
@@ -20177,7 +20177,7 @@
       "macos_introduced": "26.0",
       "name": "MTLStageObject",
       "owner": "MTLStages",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "(unnamed enum at /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Metal.framework/Headers/MTLCommandEncoder.h:42:9)"
     },
     {
@@ -20208,7 +20208,7 @@
           "line": 76
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "4",
       "header": "Metal/MTLCommandEncoder.h",
       "id": "enum-case:MTLStages:MTLStageTile",
@@ -20217,7 +20217,7 @@
       "macos_introduced": "26.0",
       "name": "MTLStageTile",
       "owner": "MTLStages",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "(unnamed enum at /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Metal.framework/Headers/MTLCommandEncoder.h:42:9)"
     },
     {
@@ -20228,7 +20228,7 @@
           "line": 76
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "1",
       "header": "Metal/MTLCommandEncoder.h",
       "id": "enum-case:MTLStages:MTLStageVertex",
@@ -20237,7 +20237,7 @@
       "macos_introduced": "26.0",
       "name": "MTLStageVertex",
       "owner": "MTLStages",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "(unnamed enum at /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Metal.framework/Headers/MTLCommandEncoder.h:42:9)"
     },
     {

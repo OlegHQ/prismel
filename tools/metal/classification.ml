@@ -1250,7 +1250,12 @@ let bound_identifiers =
       ; "MTLDataTypeDepthStencilState"; "MTLDataTypeTensor"
       ]
   @ enum_cases "MTLStages"
-      [ "MTLStageAll"; "MTLStageResourceState" ]
+      [ "MTLStageAll"; "MTLStageResourceState"
+      ; "MTLStageAccelerationStructure"; "MTLStageBlit"
+      ; "MTLStageDispatch"; "MTLStageFragment"
+      ; "MTLStageMachineLearning"; "MTLStageMesh"
+      ; "MTLStageObject"; "MTLStageTile"; "MTLStageVertex"
+      ]
   @ enum_cases "MTLGPUFamily"
       [ "MTLGPUFamilyApple1"; "MTLGPUFamilyApple2"; "MTLGPUFamilyApple3"
       ; "MTLGPUFamilyApple4"; "MTLGPUFamilyApple5"; "MTLGPUFamilyApple6"

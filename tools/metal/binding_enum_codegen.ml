@@ -447,6 +447,31 @@ let render_raw_mli ?(outer_module = "Enum_constants") selection =
   Buffer.add_string output "end\n";
   Buffer.contents output
 
+let render_static_asserts selection =
+  let output = Buffer.create (selection.case_count * 96) in
+  List.iter
+    (fun (family : family) ->
+      List.iter
+        (fun (case : selected_case) ->
+          if String.equal case.declaration.classification "bound" then begin
+            Option.iter
+              (fun (version : Binding_availability.version) ->
+                Printf.bprintf output "#if __MAC_OS_X_VERSION_MAX_ALLOWED >= %d\n"
+                  ((version.major * 10000) + (version.minor * 100) + version.patch))
+              case.declaration.macos_introduced;
+            Buffer.add_string output
+              "#pragma clang diagnostic push\n#pragma clang diagnostic ignored \"-Wunguarded-availability-new\"\n#pragma clang diagnostic ignored \"-Wdeprecated-declarations\"\n";
+            Printf.bprintf output
+              "static_assert(static_cast<unsigned long long>(%s) == %sULL);\n"
+              case.declaration.name case.unsigned_decimal;
+            Buffer.add_string output "#pragma clang diagnostic pop\n";
+            Option.iter (fun _ -> Buffer.add_string output "#endif\n")
+              case.declaration.macos_introduced
+          end)
+        family.cases)
+    selection.families;
+  Buffer.contents output
+
 let manifest_json selection =
   let family_json (family : family) =
     `Assoc

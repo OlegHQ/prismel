@@ -61,6 +61,9 @@ val render_raw_ml : ?outer_module:string -> selection -> string
 (** Render the matching private raw interface fragment. *)
 val render_raw_mli : ?outer_module:string -> selection -> string
 
+(** Emit exact SDK numeric checks for every bound explicit enum case. *)
+val render_static_asserts : selection -> string
+
 (** Deterministic generator-manifest metadata for the selected enum batch,
     including every case classification and the aggregate selected
     [scope-excluded] case count. *)

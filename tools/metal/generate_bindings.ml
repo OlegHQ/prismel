@@ -1810,10 +1810,12 @@ let add_native_binding output entry =
   | Binding_plan.Manual | Binding_plan.Exclude _ | Binding_plan.Pending ->
       fail "internal error: non-generated Metal binding %s" entry.sdk_id
 
-let native_include ~header ~implicit_enum_selection ~struct_output
+let native_include ~header ~enum_selection ~implicit_enum_selection ~struct_output
     ~value_record_checks ~string_entries ~global_string_entries ~direct_methods entries =
   let output = Buffer.create 8192 in
   Printf.bprintf output "/* %s */\n\n" header;
+  Buffer.add_string output (Binding_enum_codegen.render_static_asserts enum_selection);
+  Buffer.add_char output '\n';
   Buffer.add_string output
     (Binding_enum_implicit_codegen.render_static_asserts
        implicit_enum_selection);
@@ -2596,7 +2598,7 @@ let main () =
       ~string_entries ~global_string_entries ~direct_methods entries
   in
   let native_contents =
-    native_include ~header ~implicit_enum_selection ~struct_output
+    native_include ~header ~enum_selection ~implicit_enum_selection ~struct_output
       ~value_record_checks:value_records.native_checks
       ~string_entries ~global_string_entries ~direct_methods entries
     ^ "\n"
