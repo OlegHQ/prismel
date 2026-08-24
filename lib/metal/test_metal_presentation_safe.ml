@@ -166,6 +166,16 @@ let () =
   get(Command_buffer.wait_until_scheduled diagnostic_commands);
   get(Command_buffer.wait_until_completed diagnostic_commands);
   get(Event.destroy event);get(Command_buffer.destroy diagnostic_commands);
+  let descriptor_commands=get(Command_buffer.create queue())in
+  let descriptor_compute=get(Command_buffer.create_compute_encoder_with_descriptor descriptor_commands)in
+  get(Compute_encoder.end_encoding descriptor_compute);
+  let descriptor_blit=get(Command_buffer.create_blit_encoder_with_descriptor descriptor_commands)in
+  get(Blit_encoder.end_encoding descriptor_blit);
+  let descriptor_state=get(Command_buffer.create_resource_state_encoder_with_descriptor descriptor_commands)in
+  get(Resource_state_encoder.end_encoding descriptor_state);
+  let descriptor_acceleration=get(Command_buffer.create_acceleration_encoder_with_descriptor descriptor_commands)in
+  get(Acceleration_encoder.end_encoding descriptor_acceleration);
+  get(Command_buffer.commit descriptor_commands);get(Command_buffer.wait_until_completed descriptor_commands);get(Command_buffer.destroy descriptor_commands);
   let pass = get (Render_pass_descriptor.create ~width:8 ~height:8 ()) in
   if Render_pass_descriptor.size pass <> (8,8)
      || Render_pass_descriptor.array_length pass <> 1

@@ -106,6 +106,8 @@ type io_file
 type io_command_buffer
 type compute_encoder
 type acceleration_encoder
+type blit_encoder
+type resource_state_encoder
 
 module Device : sig
   type t
@@ -2782,6 +2784,10 @@ module Command_buffer : sig
   val create_compute_encoder : t -> dispatch_type -> (compute_encoder,error) result
   val create_acceleration_encoder : t -> (acceleration_encoder,error) result
   val logs : t -> (string option,error) result
+  val create_acceleration_encoder_with_descriptor : t -> (acceleration_encoder,error) result
+  val create_blit_encoder_with_descriptor : t -> (blit_encoder,error) result
+  val create_compute_encoder_with_descriptor : t -> (compute_encoder,error) result
+  val create_resource_state_encoder_with_descriptor : t -> (resource_state_encoder,error) result
   val present :
     t -> Drawable.t -> ?at:present_time -> unit -> (unit, error) result
   val add_scheduled_handler : t -> (unit -> unit) -> (unit, error) result
@@ -2948,7 +2954,7 @@ module Render_encoder : sig
 end
 
 module Resource_state_encoder : sig
-  type t
+  type t = resource_state_encoder
 
   type mapping_mode =
     | Map
@@ -3032,7 +3038,7 @@ module Placement_mapping : sig
 end
 
 module Blit_encoder : sig
-  type t
+  type t = blit_encoder
 
   val create : Command_buffer.t -> (t, error) result
   val copy_buffer_to_texture :
