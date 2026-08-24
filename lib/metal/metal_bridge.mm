@@ -1085,6 +1085,7 @@ enum class Handle_kind : std::uint32_t {
   Raster_rate_map,
   Render_pipeline_descriptor,
   Compute_pipeline_descriptor,
+  Compute_pipeline_descriptor4,
 };
 
 struct Handle {
@@ -14880,6 +14881,7 @@ extern "C" CAMLprim value caml_prismel_metal_pipeline_render_imageblock_length(v
 #include "../../tools/metal/metal4_command_buffer7_callable_bridge.inc"
 #include "../../tools/metal/metal4_acceleration_structure11_callable_bridge.inc"
 #include "../../tools/metal/metal4_stitched_callable_bridge.inc"
+#include "../../tools/metal/metal4_compute_pipeline_reset1_callable_bridge.inc"
 #include "../../tools/metal/metal4_argument_table_resource_bridge.inc"
 #pragma clang diagnostic pop
 

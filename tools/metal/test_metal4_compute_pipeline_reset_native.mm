@@ -15,7 +15,7 @@ static bool is_default(MTL4ComputePipelineDescriptor *descriptor)
          descriptor.threadGroupSizeIsMultipleOfThreadExecutionWidth == NO &&
          threads.width == 0 && threads.height == 0 && threads.depth == 0 &&
          descriptor.supportBinaryLinking == NO &&
-         descriptor.staticLinkingDescriptor == nil &&
+         descriptor.staticLinkingDescriptor != nil &&
          descriptor.supportIndirectCommandBuffers ==
              MTL4IndirectCommandBufferSupportStateDisabled;
 }

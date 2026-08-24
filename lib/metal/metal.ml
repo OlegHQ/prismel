@@ -2340,10 +2340,10 @@ module Function_specialization = struct
     type t=metal4_function_descriptor
     let create (function_:function_handle) ~name =
       let operation="Metal.Function_specialization.Function_descriptor.create"in
-      if name=""||contains_nul name then error operation Invalid_argument "function name is empty or contains NUL"else on_main operation(fun()->Result.bind(ensure_live operation function_.lifetime)(fun()->match Metal_raw.metal4_function_descriptor function_.raw name with Error m->native_error operation m|Ok raw->let value={raw;lifetime=lifetime();function_;descriptor_name=name}in attach function_.lifetime;attach_finalizer value value.lifetime function_.lifetime;Ok value))
+      if name=""||contains_nul name then error operation Invalid_argument "function name is empty or contains NUL"else on_main operation(fun()->Result.bind(ensure_live operation function_.lifetime)(fun()->match Metal_raw.metal4_function_descriptor function_.library.raw name with Error m->native_error operation m|Ok raw->let value={raw;lifetime=lifetime();function_;descriptor_name=name}in attach function_.lifetime;attach_finalizer value value.lifetime function_.lifetime;Ok value))
     let name (value:t)=value.descriptor_name
     let destroyed (value:t)=is_destroyed value.lifetime
-    let destroy (value:t)=destroy_leaf "Metal.Function_specialization.Function_descriptor.destroy" value.lifetime value.raw(fun()->detach value.function_.lifetime)
+    let destroy (value:t)=destroy_parent "Metal.Function_specialization.Function_descriptor.destroy" value.lifetime value.raw(fun()->detach value.function_.lifetime)
   end
   module Constants = struct
     type t=metal4_function_constants
@@ -2371,6 +2371,69 @@ module Function_specialization = struct
     let destroy (value:t)=destroy_leaf "Metal.Function_specialization.Stitched.destroy" value.lifetime value.raw(fun()->List.iter(fun(x:metal4_function_descriptor)->detach x.lifetime)value.stitched_functions)
   end
 
+end
+
+module Metal4_compute_pipeline_descriptor = struct
+  type t =
+    { raw : Metal_raw.handle; lifetime : lifetime
+    ; mutable function_descriptor : metal4_function_descriptor option
+    ; mutable max_threads : int64; mutable threadgroup_multiple : bool }
+  let detach_child value =
+    Option.iter (fun (child : metal4_function_descriptor) -> detach child.lifetime)
+      value.function_descriptor;
+    value.function_descriptor <- None
+  let create () =
+    let operation = "Metal.Metal4_compute_pipeline_descriptor.create" in
+    on_main operation (fun () ->
+      match Metal_raw.metal4_compute_pipeline_reset1_create () with
+      | Error message -> native_error operation message
+      | Ok raw ->
+          let value : t = { raw; lifetime=lifetime(); function_descriptor=None;
+                            max_threads=0L; threadgroup_multiple=false } in
+          Gc.finalise (fun (value:t) ->
+            if Atomic.compare_and_set value.lifetime.destroyed false true then
+              (detach_child value; ignore (Metal_raw.destroy value.raw))) value;
+          Ok value)
+  let configure (value:t) ?function_descriptor ~max_threads
+      ~threadgroup_multiple () =
+    let operation = "Metal.Metal4_compute_pipeline_descriptor.configure" in
+    on_main operation (fun () -> match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when max_threads < 0L ->
+          error operation Invalid_argument "maximum thread count is negative"
+      | Ok () when function_descriptor=None &&
+                   (max_threads<>0L || threadgroup_multiple) ->
+          error operation Invalid_argument
+            "nondefault compute limits require a function descriptor"
+      | Ok () -> match function_descriptor with
+        | Some (child:metal4_function_descriptor) when is_destroyed child.lifetime ->
+            error operation Destroyed "function descriptor is destroyed"
+        | _ -> match Metal_raw.metal4_compute_pipeline_reset1_configure value.raw
+                 (Option.map(fun(child:metal4_function_descriptor)->child.raw)
+                    function_descriptor) max_threads threadgroup_multiple with
+          | Error message -> native_error operation message
+          | Ok () ->
+              Option.iter(fun(child:metal4_function_descriptor)->attach child.lifetime)
+                function_descriptor;
+              detach_child value;
+              value.function_descriptor <- function_descriptor;
+              value.max_threads <- max_threads;
+              value.threadgroup_multiple <- threadgroup_multiple;
+              Ok ())
+  let snapshot (value:t) =
+    value.function_descriptor, value.max_threads, value.threadgroup_multiple
+  let reset (value:t) =
+    let operation = "Metal.Metal4_compute_pipeline_descriptor.reset" in
+    on_main operation (fun () -> match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () -> match Metal_raw.metal4_compute_pipeline_reset1_reset value.raw with
+        | Error message -> native_error operation message
+        | Ok () -> detach_child value; value.max_threads<-0L;
+            value.threadgroup_multiple<-false; Ok ())
+  let destroyed (value:t) = is_destroyed value.lifetime
+  let destroy (value:t) = destroy_leaf
+    "Metal.Metal4_compute_pipeline_descriptor.destroy" value.lifetime value.raw
+    (fun () -> detach_child value)
 end
 
 let sparse_page_size_code = function

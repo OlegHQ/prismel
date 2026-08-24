@@ -2813,6 +2813,14 @@ external metal4_render_pipeline3_reset :
   handle -> int -> bool -> (unit, string) result =
   "caml_prismel_metal4_render_pipeline3_reset"
 
+external metal4_compute_pipeline_reset1_create : unit -> (handle,string) result =
+  "caml_prismel_metal4_compute_pipeline_reset1_create"
+external metal4_compute_pipeline_reset1_configure :
+  handle -> handle option -> int64 -> bool -> (unit,string) result =
+  "caml_prismel_metal4_compute_pipeline_reset1_configure"
+external metal4_compute_pipeline_reset1_reset : handle -> (unit,string) result =
+  "caml_prismel_metal4_compute_pipeline_reset1_reset"
+
 external binary_archive5_descriptor_create : int -> (handle, string) result =
   "caml_prismel_metal_binary_archive5_descriptor_create"
 external binary_archive5_configured_descriptor :

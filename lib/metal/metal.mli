@@ -2193,6 +2193,19 @@ module Function_specialization : sig
   end
 end
 
+module Metal4_compute_pipeline_descriptor : sig
+  type t
+  val create : unit -> (t,error) result
+  val configure : t ->
+    ?function_descriptor:Function_specialization.Function_descriptor.t ->
+    max_threads:int64 -> threadgroup_multiple:bool -> unit -> (unit,error) result
+  val snapshot : t ->
+    Function_specialization.Function_descriptor.t option * int64 * bool
+  val reset : t -> (unit,error) result
+  val destroyed : t -> bool
+  val destroy : t -> (unit,error) result
+end
+
 module Pipeline_archive : sig
   type t
 
