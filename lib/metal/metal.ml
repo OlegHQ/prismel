@@ -17737,6 +17737,39 @@ module Resource100 = struct
           | Ok label -> Ok label)
     let clear_slot (t:t) index = Option.iter(fun (old:texture)->detach old.lifetime)t.pool_views.(index);Option.iter(fun(old:buffer)->detach old.lifetime)t.pool_buffers.(index);t.pool_views.(index)<-None;t.pool_buffers.(index)<-None
     let set (t:t) ~index(texture:Texture.t)=let op="Metal.Resource100.Texture_view_pool.set"in on_main op(fun()->match ensure_live op t.lifetime with Error _ as e->e|Ok()->match ensure_live op texture.lifetime with Error _ as e->e|Ok()->match ensure_same_device op t.device texture.device with Error _ as e->e|Ok()->if index<0||index>=Array.length t.pool_views then error op Invalid_argument "view index is out of range"else match Metal_raw.resource_texture_pool_set t.raw texture.raw(Int64.of_int index)with Error m->native_error op m|Ok id->clear_slot t index;attach texture.lifetime;t.pool_views.(index)<-Some texture;Ok id)
+    let set_view (t:t) ~index (texture:Texture.t) ~format ~kind
+        ~level_start ~level_count ~slice_start ~slice_count =
+      let op="Metal.Resource100.Texture_view_pool.set_view" in
+      on_main op (fun () ->
+        match ensure_live op t.lifetime with Error _ as e->e | Ok () ->
+        match ensure_texture_usable op texture with Error _ as e->e | Ok () ->
+        match ensure_same_device op t.device texture.device with Error _ as e->e | Ok () ->
+        let within start count total =
+          start >= 0 && count > 0 && start <= total && count <= total - start
+        in
+        if index < 0 || index >= Array.length t.pool_views then
+          error op Invalid_argument "view index is out of range"
+        else if not (within level_start level_count texture.descriptor.mip_levels)
+             || not (within slice_start slice_count texture.descriptor.array_length)
+        then error op Invalid_argument "texture-view level or slice range is invalid"
+        else
+          match Metal_raw.resource_texture_view_descriptor_create
+            (Int64.of_int (Metal_format.code format))
+            (Int64.of_int (Texture.kind_code kind))
+            (Int64.of_int level_start) (Int64.of_int level_count)
+            (Int64.of_int slice_start) (Int64.of_int slice_count) with
+          | Error message -> native_error op message
+          | Ok descriptor ->
+              let result = Metal_raw.resource_texture_pool_set_descriptor
+                t.raw texture.raw descriptor (Int64.of_int index) in
+              ignore (Metal_raw.destroy descriptor);
+              match result with
+              | Error message -> native_error op message
+              | Ok id ->
+                  clear_slot t index;
+                  attach texture.lifetime;
+                  t.pool_views.(index) <- Some texture;
+                  Ok id)
     let set_from_buffer (t:t) ~index(buffer:Buffer.t) ~offset ~bytes_per_row descriptor=let op="Metal.Resource100.Texture_view_pool.set_from_buffer"in on_main op(fun()->match ensure_live op t.lifetime with Error _ as e->e|Ok()->match ensure_buffer_usable op buffer with Error _ as e->e|Ok()->match ensure_same_device op t.device buffer.device with Error _ as e->e|Ok()->if index<0||index>=Array.length t.pool_views then error op Invalid_argument "view index is out of range"else match Texture.validate_buffer_descriptor op buffer descriptor with Error _ as e->e|Ok descriptor->match Texture.validate_buffer_layout op buffer descriptor~offset~bytes_per_row with Error _ as e->e|Ok()->match Metal_raw.resource_texture_descriptor_buffer(Int64.of_int(Metal_format.code descriptor.format))(Int64.of_int descriptor.width)(Int64.of_int(resource_options_code~storage:descriptor.storage~cpu_cache:descriptor.cpu_cache~hazard_tracking:descriptor.hazard_tracking))(Int64.of_int(Texture.usage_bits descriptor.usage))with Error m->native_error op m|Ok raw_descriptor->let result=Metal_raw.resource_texture_pool_set_buffer t.raw buffer.raw raw_descriptor offset(Int64.of_int bytes_per_row)(Int64.of_int index)in ignore(Metal_raw.destroy raw_descriptor);match result with Error m->native_error op m|Ok id->clear_slot t index;attach buffer.lifetime;t.pool_buffers.(index)<-Some buffer;Ok id)
     let copy ~(source:t) ~source_index ~length ~(destination:t) ~destination_index=let op="Metal.Resource100.Texture_view_pool.copy"in on_main op(fun()->match ensure_live op source.lifetime with Error _ as e->e|Ok()->match ensure_live op destination.lifetime with Error _ as e->e|Ok()->match ensure_same_device op source.device destination.device with Error _ as e->e|Ok()->if source_index<0||destination_index<0||length<0||source_index>Array.length source.pool_views-length||destination_index>Array.length destination.pool_views-length then error op Invalid_argument "view pool copy range is invalid"else let snapshot=Array.sub source.pool_views source_index length and buffer_snapshot=Array.sub source.pool_buffers source_index length in match Metal_raw.resource_pool_copy destination.raw source.raw(Int64.of_int source_index)(Int64.of_int length)(Int64.of_int destination_index)with Error m->native_error op m|Ok id->for i=0 to length-1 do let di=destination_index+i in clear_slot destination di;let next=snapshot.(i)and next_buffer=buffer_snapshot.(i)in Option.iter(fun (x:texture)->attach x.lifetime)next;Option.iter(fun(x:buffer)->attach x.lifetime)next_buffer;destination.pool_views.(di)<-next;destination.pool_buffers.(di)<-next_buffer done;Ok id)
     let destroyed (t:t)=is_destroyed t.lifetime
