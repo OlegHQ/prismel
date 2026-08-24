@@ -102,11 +102,39 @@ module Event : sig
   val destroyed:t->bool
   val destroy:t->(unit,error)result
 end
+module Shared_event_listener : sig
+  type mode = Shared | Default | Serial_queue of string
+  type t
+  module Queue : sig
+    type t
+    val label:t->string
+    val destroyed:t->bool
+    val destroy:t->(unit,error)result
+  end
+  val create:mode->(t,error)result
+  val queue:t->(Queue.t,error)result
+  val destroyed:t->bool
+  val destroy:t->(unit,error)result
+end
+module Shared_event_handle : sig
+  type t
+  val label:t->(string option,error)result
+  val destroyed:t->bool
+  val destroy:t->(unit,error)result
+end
 module Shared_event : sig
   type t
+  module Notification : sig
+    type t
+    val cancel:t->(unit,error)result
+    val destroyed:t->bool
+  end
   val device_registry_id:t->int64
   val signaled_value:t->(int64,error)result
   val set_signaled_value:t->int64->(unit,error)result
+  val export_handle:t->(Shared_event_handle.t,error)result
+  val notify:t->listener:Shared_event_listener.t->at_value:int64->
+    (int64->unit)->(Notification.t,error)result
   val destroyed:t->bool
   val destroy:t->(unit,error)result
 end

@@ -493,6 +493,19 @@ type device =
   }
 type command_event={raw:Metal_raw.handle;lifetime:lifetime;device:device;registry_id:int64}
 type command_shared_event={raw:Metal_raw.handle;lifetime:lifetime;device:device;registry_id:int64;mutable value:int64}
+type shared_event_listener={raw:Metal_raw.handle;lifetime:lifetime}
+type shared_event_queue={raw:Metal_raw.handle;lifetime:lifetime;listener:shared_event_listener;label:string}
+type shared_event_handle={raw:Metal_raw.handle;lifetime:lifetime;event:command_shared_event}
+type shared_event_notification_state=
+  { finished:bool Atomic.t
+  ; event_lifetime:lifetime
+  ; listener_lifetime:lifetime
+  }
+type shared_event_notification=
+  { token:nativeint
+  ; lifetime:lifetime
+  ; state:shared_event_notification_state
+  }
 
 type buffer_storage_mode =
   | Shared
@@ -2332,13 +2345,99 @@ module Event = struct
   let destroyed(value:t)=is_destroyed value.lifetime
   let destroy(value:t)=destroy_parent "Metal.Event.destroy" value.lifetime value.raw(fun()->detach value.device.lifetime)
 end
+module Shared_event_listener = struct
+  type mode=Shared|Default|Serial_queue of string
+  type t=shared_event_listener
+  module Queue = struct
+    type t=shared_event_queue
+    let label(value:t)=value.label
+    let destroyed(value:t)=is_destroyed value.lifetime
+    let destroy(value:t)=destroy_leaf "Metal.Shared_event_listener.Queue.destroy" value.lifetime value.raw(fun()->detach value.listener.lifetime)
+  end
+  let mode_code=function Shared->0|Default->1|Serial_queue _->2
+  let create mode=
+    let operation="Metal.Shared_event_listener.create"in
+    let label=match mode with Serial_queue label->Some label|Shared|Default->None in
+    if option_exists(fun label->label=""||contains_nul label)label then
+      error operation Invalid_argument "listener queue label is empty or contains NUL"
+    else on_main operation(fun()->
+      match Metal_raw.event_listener_create(mode_code mode)label with
+      |Error message->native_error operation message
+      |Ok raw->
+          let value:t={raw;lifetime=lifetime()}in
+          Gc.finalise(fun(value:t)->if Atomic.compare_and_set value.lifetime.destroyed false true then ignore(Metal_raw.destroy value.raw))value;
+          Ok value)
+  let queue(value:t)=
+    let operation="Metal.Shared_event_listener.queue"in
+    on_main operation(fun()->Result.bind(ensure_live operation value.lifetime)(fun()->
+      match Metal_raw.event_listener_queue value.raw with
+      |Error message->native_error operation message
+      |Ok(raw,label)->
+          attach value.lifetime;
+          let queue:shared_event_queue={raw;lifetime=lifetime();listener=value;label=String.sub label 0(String.length label)}in
+          Gc.finalise(fun(queue:shared_event_queue)->if Atomic.compare_and_set queue.lifetime.destroyed false true then(ignore(Metal_raw.destroy queue.raw);detach queue.listener.lifetime))queue;
+          Ok queue))
+  let destroyed(value:t)=is_destroyed value.lifetime
+  let destroy(value:t)=destroy_parent "Metal.Shared_event_listener.destroy" value.lifetime value.raw ignore
+end
+module Shared_event_handle = struct
+  type t=shared_event_handle
+  let label(value:t)=
+    let operation="Metal.Shared_event_handle.label"in
+    on_main operation(fun()->Result.bind(ensure_live operation value.lifetime)(fun()->
+      match Metal_raw.shared_event_handle_label value.raw with Error message->native_error operation message|Ok label->Ok label))
+  let destroyed(value:t)=is_destroyed value.lifetime
+  let destroy(value:t)=destroy_leaf "Metal.Shared_event_handle.destroy" value.lifetime value.raw(fun()->detach value.event.lifetime)
+end
 module Shared_event = struct
   type t=command_shared_event
+  let finish state=
+    if Atomic.compare_and_set state.finished false true then begin
+      detach state.event_lifetime;
+      detach state.listener_lifetime
+    end
+  module Notification = struct
+    type t=shared_event_notification
+    let cancel(value:t)=
+      let operation="Metal.Shared_event.Notification.cancel"in
+      on_main operation(fun()->
+        if Atomic.compare_and_set value.lifetime.destroyed false true then begin
+          Metal_raw.shared_event_notify_cancel value.token;
+          finish value.state
+        end;
+        Ok())
+    let destroyed(value:t)=is_destroyed value.lifetime
+  end
   let device_registry_id(value:t)=value.registry_id
   let signaled_value(value:t)=let operation="Metal.Shared_event.signaled_value"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.command_shared_event_value value.raw with Error m->native_error operation m|Ok x->value.value<-x;Ok x)
   let set_signaled_value(value:t) next=let operation="Metal.Shared_event.set_signaled_value"in if next<0L then error operation Invalid_argument "shared-event value must be nonnegative"else on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok() when next<value.value->error operation Invalid_argument "shared-event value must not decrease"|Ok()->match Metal_raw.command_shared_event_set_value value.raw next with Error m->native_error operation m|Ok()->value.value<-next;Ok())
+  let export_handle(value:t)=
+    let operation="Metal.Shared_event.export_handle"in
+    on_main operation(fun()->Result.bind(ensure_live operation value.lifetime)(fun()->
+      match Metal_raw.shared_event_export_handle value.raw with
+      |Error message->native_error operation message
+      |Ok raw->
+          attach value.lifetime;
+          let handle:shared_event_handle={raw;lifetime=lifetime();event=value}in
+          Gc.finalise(fun(handle:shared_event_handle)->if Atomic.compare_and_set handle.lifetime.destroyed false true then(ignore(Metal_raw.destroy handle.raw);detach handle.event.lifetime))handle;
+          Ok handle))
+  let notify(value:t)~(listener:shared_event_listener)~at_value callback=
+    let operation="Metal.Shared_event.notify"in
+    if at_value<0L then error operation Invalid_argument "shared-event threshold must be nonnegative"
+    else on_main operation(fun()->
+      Result.bind(ensure_live operation value.lifetime)(fun()->
+      Result.bind(ensure_live operation listener.lifetime)(fun()->
+        attach value.lifetime;attach listener.lifetime;
+        let state={finished=Atomic.make false;event_lifetime=value.lifetime;listener_lifetime=listener.lifetime}in
+        let invoke number=finish state;try callback number with _->()in
+        match Metal_raw.shared_event_notify value.raw listener.raw at_value invoke with
+        |Error message->finish state;native_error operation message
+        |Ok token->
+            let notification:shared_event_notification={token;lifetime=lifetime();state}in
+            Gc.finalise(fun(notification:shared_event_notification)->if Atomic.compare_and_set notification.lifetime.destroyed false true then(Metal_raw.shared_event_notify_cancel notification.token;finish notification.state))notification;
+            Ok notification)))
   let destroyed(value:t)=is_destroyed value.lifetime
-  let destroy(value:t)=destroy_leaf "Metal.Shared_event.destroy" value.lifetime value.raw(fun()->detach value.device.lifetime)
+  let destroy(value:t)=destroy_parent "Metal.Shared_event.destroy" value.lifetime value.raw(fun()->detach value.device.lifetime)
 end
 
 module Device = struct
