@@ -83,6 +83,7 @@ can change the denominator explicitly rather than being hidden.
 | `45aec54` | 2026-08-24 05:03:56 +02:00 | 4,581 | 5,249 | 87.2738% | 16 | 0.027 | 593.8 | 11.31 |
 | `dac5e94` | 2026-08-24 05:15:05 +02:00 | 4,601 | 5,249 | 87.6548% | 20 | 0.186 | 107.6 | 2.05 |
 | `ace712c` | 2026-08-24 05:30:15 +02:00 | 4,628 | 5,249 | 88.1692% | 27 | 0.253 | 106.8 | 2.03 |
+| `06dddcd` | 2026-08-24 05:34:34 +02:00 | 4,636 | 5,286 | 87.7034% | 8 | 0.072 | 111.1 | 2.10 |
 
 ## Current measured rate
 
@@ -104,3 +105,7 @@ therefore move 46 new declarations while proving all 47 safe IDs.
 
 Rates describe completed commits, not forecasts. Hardware-only gates and
 complex ownership features will vary materially from pure-value batches.
+
+The `06dddcd` row uses the refreshed 5,286-declaration SDK inventory; its lower
+percentage relative to the preceding row reflects the 37-declaration inventory
+expansion, not a loss of bound coverage.
