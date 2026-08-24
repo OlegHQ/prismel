@@ -602,6 +602,8 @@ let validate_direct_method inventory
        || List.mem entry.sdk_id Binding_metal4_native32_reachability.promotable_ids
        || List.mem entry.sdk_id Binding_metal4_final9_reachability.promotable_ids
        || List.mem entry.sdk_id Binding_metal4_pending41_reachability.remaining_promotable_ids
+       || List.mem entry.sdk_id Binding_presentation_public_audit.safe_reachable
+       || List.mem entry.sdk_id Binding_presentation_safe_handoff.promotable_ids
     then "bound"
     else "unreviewed"
   in
@@ -662,6 +664,8 @@ let validate_direct_property inventory
        || List.mem property.sdk_id Binding_metal4_native32_reachability.promotable_ids
        || List.mem property.sdk_id Binding_metal4_final9_reachability.promotable_ids
        || List.mem property.sdk_id Binding_metal4_pending41_reachability.remaining_promotable_ids
+       || List.mem property.sdk_id Binding_presentation_public_audit.safe_reachable
+       || List.mem property.sdk_id Binding_presentation_safe_handoff.promotable_ids
     then "bound"
     else "unreviewed"
   in

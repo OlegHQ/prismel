@@ -73,6 +73,35 @@ let validate () =
      || List.length safe_device_identifiers <> 38
   then fail "expected 19 safe Device properties and 38 identifiers";
   reject_duplicates "inventory identifier" inventory_ids;
+  let presentation_promotable =
+    Binding_presentation_public_audit.safe_reachable
+    @ Binding_presentation_safe_handoff.promotable_ids
+  in
+  let generated_presentation =
+    inventory_ids |> List.filter (fun id -> List.mem id presentation_promotable)
+    |> List.sort_uniq String.compare
+  in
+  let expected_generated_presentation =
+    [ "method:-[MTLCommandBuffer GPUEndTime]"
+    ; "method:-[MTLCommandBuffer GPUStartTime]"
+    ; "method:-[MTLCommandBuffer enqueue]"
+    ; "method:-[MTLCommandBuffer errorOptions]"
+    ; "method:-[MTLCommandBuffer kernelEndTime]"
+    ; "method:-[MTLCommandBuffer kernelStartTime]"
+    ; "method:-[MTLCommandBuffer popDebugGroup]"
+    ; "method:-[MTLCommandBuffer retainedReferences]"
+    ; "method:-[MTLCommandBuffer waitUntilScheduled]"
+    ; "property:MTLCommandBuffer:GPUEndTime"
+    ; "property:MTLCommandBuffer:GPUStartTime"
+    ; "property:MTLCommandBuffer:errorOptions"
+    ; "property:MTLCommandBuffer:kernelEndTime"
+    ; "property:MTLCommandBuffer:kernelStartTime"
+    ; "property:MTLCommandBuffer:retainedReferences" ]
+  in
+  if generated_presentation <> expected_generated_presentation then
+    fail "promoted Presentation direct-call evidence drift: expected [%s], got [%s]"
+      (String.concat "; " expected_generated_presentation)
+      (String.concat "; " generated_presentation);
   reject_duplicates "OCaml external"
     (List.map
        (fun (entry : Binding_direct_spec.method_entry) -> entry.ocaml_name)
