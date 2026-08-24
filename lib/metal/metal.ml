@@ -9143,6 +9143,55 @@ module Function = struct
       (fun () -> detach value.library.lifetime)
 end
 
+module Library_metadata = struct
+  type attribute_kind = Stage_input | Vertex
+  type attribute =
+    { name : string option; index : int64; data_type : Shader_type.t
+    ; active : bool; patch_control_point_data : bool; patch_data : bool
+    ; kind : attribute_kind }
+  type function_reflection = { bindings : Binding.t list }
+
+  let attribute kind (value:Shader_attribute.t) =
+    let ( let* ) = Result.bind in
+    let* name = Shader_attribute.name value in
+    let* index = Shader_attribute.index value in
+    let* data_type = Shader_attribute.data_type value in
+    let* active = Shader_attribute.active value in
+    let* patch_control_point_data = Shader_attribute.patch_control_point_data value in
+    let* patch_data = Shader_attribute.patch_data value in
+    Ok {name;index;data_type;active;patch_control_point_data;patch_data;kind}
+
+  let attributes (function_:Function.t) ~vertex =
+    Result.bind (Function.attributes function_ ~vertex) (fun handles ->
+      let kind = if vertex then Vertex else Stage_input in
+      let rec copy output = function
+        | [] -> Ok (List.rev output)
+        | handle::rest ->
+            let copied = Fun.protect
+              ~finally:(fun () -> ignore (Shader_attribute.destroy handle))
+              (fun () -> attribute kind handle) in
+            (match copied with Ok value -> copy (value::output) rest
+             | Error _ as failure ->
+                 List.iter (fun item -> ignore (Shader_attribute.destroy item)) rest;
+                 failure)
+      in copy [] handles)
+
+  let function_reflection ~(library:Library.t) name =
+    let operation = "Metal.Library_metadata.function_reflection" in
+    on_main operation (fun () ->
+      match ensure_live operation library.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when name = "" || contains_nul name ->
+          error operation Invalid_argument "function reflection name is invalid"
+      | Ok () -> match Library.reflection library name with
+        | Error ({message;_} as failure)
+          when String.equal message "function reflection requires macOS 26" ->
+            Error {failure with operation;kind=Unsupported}
+        | Error _ as failure -> failure
+        | Ok None -> error operation Invalid_argument "function reflection is absent"
+        | Ok (Some (bindings,_annotation)) -> Ok {bindings})
+end
+
 module Library_function_task = struct
   type t = library_function_task
   type kind = Descriptor | Constants | Intersection
@@ -9779,6 +9828,37 @@ module Binary_archive = struct
       (fun () -> List.iter detach !(value.archive_edges);value.archive_edges:=[];detach value.device.lifetime)
 end
 
+type pipeline_buffer_mutability = Default | Mutable | Immutable
+type pipeline_buffer_descriptor =
+  { raw : Metal_raw.handle
+  ; lifetime : lifetime
+  ; mutability : pipeline_buffer_mutability
+  }
+
+module Pipeline_buffer_descriptor = struct
+  type mutability = pipeline_buffer_mutability = Default | Mutable | Immutable
+  type t = pipeline_buffer_descriptor
+  let mutability_code = function Default -> 0 | Mutable -> 1 | Immutable -> 2
+  let create ?(mutability=Default) () =
+    let operation="Metal.Pipeline_buffer_descriptor.create" in
+    on_main operation (fun () ->
+      match Metal_raw.mesh_buffer_descriptor_create () with
+      | Error message -> native_error operation message
+      | Ok raw ->
+          (match Metal_raw.mesh_buffer_set_mutability raw (mutability_code mutability) with
+           | Error message -> ignore(Metal_raw.destroy raw);native_error operation message
+           | Ok () ->
+               let value:t={raw;lifetime=lifetime();mutability} in
+               Gc.finalise (fun (value:t) ->
+                 if Atomic.compare_and_set value.lifetime.destroyed false true
+                 then ignore(Metal_raw.destroy value.raw)) value;
+               Ok value))
+  let mutability (value:t) = value.mutability
+  let destroyed (value:t) = is_destroyed value.lifetime
+  let destroy (value:t) = destroy_leaf "Metal.Pipeline_buffer_descriptor.destroy"
+      value.lifetime value.raw ignore
+end
+
 module Compute_pipeline = struct
   type t = compute_pipeline
   type size3 = { width:int64; height:int64; depth:int64 }
@@ -9803,7 +9883,7 @@ module Compute_pipeline = struct
     attach_finalizer value value.lifetime device.lifetime;
     value
 
-  let create ?label ?(linked_functions = []) ?(preloaded_libraries = [])
+  let create ?label ?(buffer_descriptors = []) ?(linked_functions = []) ?(preloaded_libraries = [])
       ?(binary_archives = []) ?(fail_on_binary_archive_miss = false)
       ?(support_indirect_command_buffers = false) ?(reflection = false)
       (function_value : Function.t) =
@@ -9811,6 +9891,20 @@ module Compute_pipeline = struct
     on_main operation (fun () ->
       let ( let* ) value callback = Result.bind value callback in
       let* () = ensure_live operation function_value.lifetime in
+      let buffer_mutabilities=Array.make 31 0 in
+      let rec validate_buffers seen = function
+        | [] -> Ok ()
+        | (index,descriptor)::rest when index<0||index>=31 ->
+            error operation Invalid_argument "pipeline buffer index must be in [0,31)"
+        | (index,_)::_ when List.mem index seen ->
+            error operation Invalid_argument "pipeline buffer indices must be unique"
+        | (index,None)::rest -> validate_buffers (index::seen) rest
+        | (index,Some (descriptor:pipeline_buffer_descriptor))::rest ->
+            let* ()=ensure_live operation descriptor.lifetime in
+            buffer_mutabilities.(index)<-Pipeline_buffer_descriptor.mutability_code descriptor.mutability;
+            validate_buffers (index::seen) rest
+      in
+      let* ()=validate_buffers [] buffer_descriptors in
       if option_exists contains_nul label then
         error operation Invalid_argument "pipeline label contains a NUL byte"
       else
@@ -9853,7 +9947,7 @@ module Compute_pipeline = struct
                   label <> None || linked_functions <> []
                   || preloaded_libraries <> [] || binary_archives <> []
                   || fail_on_binary_archive_miss || support_indirect_command_buffers
-                  || reflection
+                  || reflection || buffer_descriptors <> []
                 in
                 let creation =
                   if not descriptor_required then
@@ -9882,6 +9976,7 @@ module Compute_pipeline = struct
                                binary_archives)
                       ; fail_on_binary_archive_miss
                       ; support_indirect_command_buffers
+                      ; buffer_mutabilities
                       }
                     in
                     Metal_raw.compute_pipeline_create_descriptor device.raw
@@ -10466,10 +10561,10 @@ module Render_pipeline = struct
       let kind_of_code=function 2->Fragment|3->Tile|7->Mesh|8->Object|_->Other
     end
     type size3={width:int64;height:int64;depth:int64}
-    type mutability=Default|Mutable|Immutable
+    type mutability=pipeline_buffer_mutability=Default|Mutable|Immutable
     type mesh_descriptor={raw:Metal_raw.handle;lifetime:lifetime;device:device;mutable functions:function_handle list;mutable archives:binary_archive list;mutable object_function:function_handle option;mutable mesh_function:function_handle;mutable fragment_function:function_handle option;mutable object_linked:linked_functions option;mutable mesh_linked:linked_functions option;mutable fragment_linked:linked_functions option;required_mesh:size3;required_object:size3;mutable has_object:bool}
     type tile_descriptor={raw:Metal_raw.handle;lifetime:lifetime;device:device;mutable function_:function_handle;mutable archives:binary_archive list;mutable libraries:dynamic_library list;mutable linked:linked_functions option;required:size3}
-    type buffer_descriptor={raw:Metal_raw.handle;lifetime:lifetime;mutable mutability:mutability}
+    type buffer_descriptor=pipeline_buffer_descriptor
     type color_attachment={raw:Metal_raw.handle;lifetime:lifetime;value:render_color_attachment}
     type descriptor_kind=Render_descriptor|Mesh_descriptor|Tile_descriptor
     type buffer_stage=Vertex_buffers|Fragment_buffers|Object_buffers|Mesh_buffers|Tile_buffers
@@ -10493,10 +10588,11 @@ module Render_pipeline = struct
     let descriptor_color_formats(value:pipeline_descriptor)=let operation="Metal.Render_pipeline.Mesh_tile.descriptor_color_formats"in Result.bind(ensure_live operation value.lifetime)(fun()->snapshot_formats operation value.raw(descriptor_kind_code value.descriptor_kind))
     let buffer_array_kind descriptor_kind stage=match descriptor_kind,stage with Render_descriptor,Fragment_buffers->Some 1|Render_descriptor,Vertex_buffers->Some 2|Mesh_descriptor,Fragment_buffers->Some 1|Mesh_descriptor,Mesh_buffers->Some 2|Mesh_descriptor,Object_buffers->Some 3|Tile_descriptor,Tile_buffers->Some 1|_->None
     let descriptor_buffer_mutabilities(value:pipeline_descriptor) stage=let operation="Metal.Render_pipeline.Mesh_tile.descriptor_buffer_mutabilities"in match buffer_array_kind value.descriptor_kind stage with None->error operation Invalid_argument "buffer stage does not belong to descriptor kind"|Some code->Result.bind(ensure_live operation value.lifetime)(fun()->snapshot_mutabilities operation value.raw(descriptor_kind_code value.descriptor_kind)code)
+    let set_descriptor_buffer(value:pipeline_descriptor) stage ~index replacement=let operation="Metal.Render_pipeline.Mesh_tile.set_descriptor_buffer"in match buffer_array_kind value.descriptor_kind stage with None->error operation Invalid_argument "buffer stage does not belong to descriptor kind"|Some array_kind->on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok() when index<0||index>=31->error operation Invalid_argument "pipeline buffer index must be in [0,31)"|Ok()->match replacement with Some descriptor when is_destroyed descriptor.lifetime->error operation Destroyed "pipeline buffer descriptor is destroyed"|_->match Metal_raw.render93_buffer_at value.raw(descriptor_kind_code value.descriptor_kind)array_kind(Int64.of_int index)(Option.map(fun descriptor->descriptor.raw)replacement)with Error m->native_error operation m|Ok()->Ok())
     let destroy_descriptor(value:pipeline_descriptor)=destroy_parent "Metal.Render_pipeline.Mesh_tile.destroy_descriptor" value.lifetime value.raw(fun()->Array.iter(Option.iter(fun(color:color_attachment)->detach color.lifetime))value.descriptor_colors)
-    let mutability_code=function Default->0|Mutable->1|Immutable->2
-    let buffer_descriptor ?(mutability=Default)()=let operation="Metal.Render_pipeline.Mesh_tile.buffer_descriptor"in on_main operation(fun()->match Metal_raw.mesh_buffer_descriptor_create()with Error m->native_error operation m|Ok raw->let value=({raw;lifetime=lifetime();mutability}:buffer_descriptor)in Gc.finalise(fun _->if Atomic.compare_and_set value.lifetime.destroyed false true then ignore(Metal_raw.destroy value.raw))value;match Metal_raw.mesh_buffer_set_mutability raw(mutability_code mutability)with Error m->ignore(Metal_raw.destroy raw);native_error operation m|Ok()->Ok value)
-    let set_buffer_mutability(value:buffer_descriptor) mutability=let operation="Metal.Render_pipeline.Mesh_tile.set_buffer_mutability"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.mesh_buffer_set_mutability value.raw(mutability_code mutability)with Error m->native_error operation m|Ok()->value.mutability<-mutability;Ok())
+    let mutability_code=Pipeline_buffer_descriptor.mutability_code
+    let buffer_descriptor ?(mutability=Default)()=Pipeline_buffer_descriptor.create ~mutability ()
+    let set_buffer_mutability (_:buffer_descriptor) _=error "Metal.Render_pipeline.Mesh_tile.set_buffer_mutability" Invalid_argument "pipeline buffer descriptors are immutable; create a replacement"
     let buffer_mutability(value:buffer_descriptor)=value.mutability
     let create_color_attachment format=let operation="Metal.Render_pipeline.Mesh_tile.color_attachment"in let safe=color_attachment format in on_main operation(fun()->match Metal_raw.mesh_color_attachment_create()with Error m->native_error operation m|Ok raw->let value:color_attachment={raw;lifetime=lifetime();value=safe}in Gc.finalise(fun _->if Atomic.compare_and_set value.lifetime.destroyed false true then ignore(Metal_raw.destroy value.raw))value;let r=raw_color_attachment safe in match Metal_raw.mesh_color_attachment_set raw(Int64.of_int r.pixel_format)r.source_rgb_blend_factor r.destination_rgb_blend_factor r.rgb_blend_operation r.source_alpha_blend_factor r.destination_alpha_blend_factor r.alpha_blend_operation(Int64.of_int r.write_mask)with Error m->ignore(Metal_raw.destroy raw);native_error operation m|Ok()->Ok value)
     let color_attachment_format(value:color_attachment)=value.value.format
@@ -20365,6 +20461,119 @@ module Metal4_argument_table_resource = struct
                        replace_argument_binding Fun.id table.id_resources
                          buffer_index (Some retained);
                        Ok ()))
+end
+
+module Metal4_render_pipeline_reset = struct
+  type snapshot =
+    { format : Texture.format option
+    ; blending : bool
+    ; write_mask : int
+    }
+
+  type attachment =
+    { raw : Metal_raw.handle
+    ; lifetime : lifetime
+    ; mutable snapshot : snapshot
+    }
+
+  type attachment_array =
+    { raw : Metal_raw.handle
+    ; lifetime : lifetime
+    ; entries : snapshot array
+    }
+
+  let default = { format = None; blending = false; write_mask = 0xf }
+  let copy value = { format = value.format; blending = value.blending;
+                     write_mask = value.write_mask }
+
+  let create operation kind make =
+    on_main operation (fun () ->
+      match Metal_raw.metal4_render_pipeline3_create kind with
+      | Error message -> native_error operation message
+      | Ok raw -> Ok (make raw))
+
+  let attachment () =
+    create "Metal.Metal4_render_pipeline_reset.attachment" 0
+      (fun raw ->
+        let value = { raw; lifetime = lifetime (); snapshot = copy default } in
+        Gc.finalise
+          (fun value ->
+            if Atomic.compare_and_set value.lifetime.destroyed false true then
+              ignore (Metal_raw.destroy value.raw))
+          value;
+        value)
+
+  let attachment_array () =
+    create "Metal.Metal4_render_pipeline_reset.attachment_array" 1
+      (fun raw ->
+        let value =
+          { raw; lifetime = lifetime (); entries = Array.init 8 (fun _ -> copy default) }
+        in
+        Gc.finalise
+          (fun value ->
+            if Atomic.compare_and_set value.lifetime.destroyed false true then
+              ignore (Metal_raw.destroy value.raw))
+          value;
+        value)
+
+  let configure (value : attachment) ~format ~blending ~write_mask =
+    let operation = "Metal.Metal4_render_pipeline_reset.configure" in
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when write_mask < 0 || write_mask land lnot 0xf <> 0 ->
+          error operation Invalid_argument "color write mask is outside four channels"
+      | Ok () ->
+          value.snapshot <- { format = Some format; blending; write_mask };
+          Ok ())
+
+  let snapshot (value : attachment) = copy value.snapshot
+
+  let reset_attachment (value : attachment) =
+    let operation = "Metal.Metal4_render_pipeline_reset.reset_attachment" in
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          match Metal_raw.metal4_render_pipeline3_reset value.raw 0 true with
+          | Error message -> native_error operation message
+          | Ok () -> value.snapshot <- copy default; Ok ())
+
+  let set (array : attachment_array) ~index (value : attachment) =
+    let operation = "Metal.Metal4_render_pipeline_reset.set" in
+    on_main operation (fun () ->
+      match ensure_live operation array.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when index < 0 || index >= 8 ->
+          error operation Invalid_argument "color attachment index is outside [0, 8)"
+      | Ok () ->
+          (match ensure_live operation value.lifetime with
+           | Error _ as failure -> failure
+           | Ok () -> array.entries.(index) <- copy value.snapshot; Ok ()))
+
+  let snapshots (array : attachment_array) = Array.map copy array.entries
+
+  let reset_array (array : attachment_array) =
+    let operation = "Metal.Metal4_render_pipeline_reset.reset_array" in
+    on_main operation (fun () ->
+      match ensure_live operation array.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          match Metal_raw.metal4_render_pipeline3_reset array.raw 1 true with
+          | Error message -> native_error operation message
+          | Ok () ->
+              Array.iteri (fun index _ -> array.entries.(index) <- copy default)
+                array.entries;
+              Ok ())
+
+  let attachment_destroyed value = is_destroyed value.lifetime
+  let array_destroyed value = is_destroyed value.lifetime
+  let destroy_attachment value =
+    destroy_leaf "Metal.Metal4_render_pipeline_reset.destroy_attachment"
+      value.lifetime value.raw ignore
+  let destroy_array value =
+    destroy_leaf "Metal.Metal4_render_pipeline_reset.destroy_array"
+      value.lifetime value.raw ignore
 end
 
 module Compute_pass = struct

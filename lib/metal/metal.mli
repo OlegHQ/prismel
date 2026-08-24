@@ -1505,6 +1505,18 @@ and Shader_argument_encoder : sig
   val destroy : t -> (unit,error) result
 end
 
+module Library_metadata : sig
+  type attribute_kind = Stage_input | Vertex
+  type attribute =
+    { name : string option; index : int64; data_type : Shader_type.t
+    ; active : bool; patch_control_point_data : bool; patch_data : bool
+    ; kind : attribute_kind }
+  type function_reflection = { bindings : Binding.t list }
+  val attributes : Function.t -> vertex:bool -> (attribute list,error) result
+  val function_reflection :
+    library:Library.t -> string -> (function_reflection,error) result
+end
+
 module Library_function_task : sig
   type t
   type kind = Descriptor | Constants | Intersection
@@ -1695,6 +1707,15 @@ module Binary_archive : sig
   val destroy : t -> (unit, error) result
 end
 
+module Pipeline_buffer_descriptor : sig
+  type mutability = Default | Mutable | Immutable
+  type t
+  val create : ?mutability:mutability -> unit -> (t,error) result
+  val mutability : t -> mutability
+  val destroyed : t -> bool
+  val destroy : t -> (unit,error) result
+end
+
 module Compute_pipeline : sig
   type t
   type size3 = { width:int64; height:int64; depth:int64 }
@@ -1702,7 +1723,9 @@ module Compute_pipeline : sig
   type function_handle_info={name:string;kind:Function.kind;resource_id:int64}
 
   val create :
-    ?label:string -> ?linked_functions:Function.t list ->
+    ?label:string ->
+    ?buffer_descriptors:(int * Pipeline_buffer_descriptor.t option) list ->
+    ?linked_functions:Function.t list ->
     ?preloaded_libraries:Dynamic_library.t list ->
     ?binary_archives:Binary_archive.t list ->
     ?fail_on_binary_archive_miss:bool -> ?support_indirect_command_buffers:bool ->
@@ -2019,10 +2042,10 @@ module Render_pipeline : sig
   end
   module Mesh_tile:sig
     type size3={width:int64;height:int64;depth:int64}
-    type mutability=Default|Mutable|Immutable
+    type mutability=Pipeline_buffer_descriptor.mutability=Default|Mutable|Immutable
     type mesh_descriptor
     type tile_descriptor
-    type buffer_descriptor
+    type buffer_descriptor=Pipeline_buffer_descriptor.t
     type color_attachment
     type descriptor_kind=Render_descriptor|Mesh_descriptor|Tile_descriptor
     type buffer_stage=Vertex_buffers|Fragment_buffers|Object_buffers|Mesh_buffers|Tile_buffers
@@ -2040,6 +2063,7 @@ module Render_pipeline : sig
     val set_descriptor_vertex : pipeline_descriptor -> Vertex_descriptor.t option -> (unit,error) result
     val descriptor_color_formats : pipeline_descriptor -> (Texture.format option array,error) result
     val descriptor_buffer_mutabilities : pipeline_descriptor -> buffer_stage -> (mutability array,error) result
+    val set_descriptor_buffer : pipeline_descriptor -> buffer_stage -> index:int -> buffer_descriptor option -> (unit,error) result
     val destroy_descriptor : pipeline_descriptor -> (unit,error) result
     val buffer_descriptor : ?mutability:mutability -> unit -> (buffer_descriptor,error) result
     val set_buffer_mutability : buffer_descriptor -> mutability -> (unit,error) result
@@ -3892,6 +3916,30 @@ module Metal4_argument_table_resource : sig
 
   val set : Command4.Argument_table.t -> buffer_index:int -> t ->
     (unit, error) result
+end
+
+module Metal4_render_pipeline_reset : sig
+  type snapshot =
+    { format : Texture.format option
+    ; blending : bool
+    ; write_mask : int
+    }
+  type attachment
+  type attachment_array
+  val attachment : unit -> (attachment, error) result
+  val attachment_array : unit -> (attachment_array, error) result
+  val configure : attachment -> format:Texture.format -> blending:bool ->
+    write_mask:int -> (unit, error) result
+  val snapshot : attachment -> snapshot
+  val reset_attachment : attachment -> (unit, error) result
+  (* Assignment snapshots the descriptor, matching Metal's copy semantics. *)
+  val set : attachment_array -> index:int -> attachment -> (unit, error) result
+  val snapshots : attachment_array -> snapshot array
+  val reset_array : attachment_array -> (unit, error) result
+  val attachment_destroyed : attachment -> bool
+  val array_destroyed : attachment_array -> bool
+  val destroy_attachment : attachment -> (unit, error) result
+  val destroy_array : attachment_array -> (unit, error) result
 end
 
 
