@@ -12901,6 +12901,18 @@ extern "C" CAMLprim value caml_prismel_metal_command4_render_encoder_end(
       @try {
         id<MTL4RenderCommandEncoder> encoder =
             object_of_handle(raw, Handle_kind::Render_encoder4);
+        /* Metal 4 does not implicitly make attachment writes visible to later
+           encoders.  The safe API currently has no cross-pass hazard
+           declaration, so close each render pass with the conservative
+           execution-and-device-visibility barrier its sequential semantics
+           promise.  Without it, a following Load pass races deferred depth or
+           stencil stores and produces nondeterministic pixels. */
+        constexpr MTLStages render_stages =
+            MTLStageVertex | MTLStageFragment | MTLStageTile |
+            MTLStageObject | MTLStageMesh;
+        [encoder barrierAfterStages:render_stages
+                  beforeQueueStages:MTLStageAll
+                  visibilityOptions:MTL4VisibilityOptionDevice];
         [encoder endEncoding];
         CAMLreturn(result_unit());
       } @catch (NSException *exception) {
