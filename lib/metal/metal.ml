@@ -18117,6 +18117,26 @@ module Blit_encoder = struct
                  | Ok()->retain_command_buffer_texture value.command_buffer source;
                     retain_command_buffer_texture value.command_buffer destination;Ok())))))
 
+  let copy_indirect (value:t) ~(source:Indirect_command_buffer.t) ~source_location
+      ~length ~(destination:Indirect_command_buffer.t) ~destination_index =
+    let operation = "Metal.Blit_encoder.copy_indirect" in
+    on_main operation (fun () -> match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () -> Result.bind (ensure_live operation source.lifetime) (fun () ->
+          Result.bind (ensure_live operation destination.lifetime) (fun () ->
+            if source_location<0 || length<0 || destination_index<0
+               || source_location>source.max_command_count-length
+               || destination_index>destination.max_command_count-length
+            then error operation Invalid_argument "indirect copy range is invalid"
+            else Result.bind (ensure_same_device operation value.command_buffer.queue.device source.device)
+              (fun () -> Result.bind (ensure_same_device operation source.device destination.device)
+                (fun () -> match Metal_raw.blit_copy value.raw 7 source.raw destination.raw
+                  (Metal_raw.Blit_indirect_commands(Int64.of_int source_location,
+                    Int64.of_int length,Int64.of_int destination_index)) with
+                 | Error message->native_error operation message
+                 | Ok()->retain_command_buffer_indirect value.command_buffer source;
+                    retain_command_buffer_indirect value.command_buffer destination;Ok())))))
+
   let fence_call operation update (value:t) (fence:Fence.t) =
     on_main operation (fun () -> match ensure_live operation value.lifetime with
       | Error _ as failure -> failure
