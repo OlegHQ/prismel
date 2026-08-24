@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4694,
+    "bound": 4707,
     "scope-excluded": 37,
-    "unreviewed": 554
+    "unreviewed": 541
   },
-  "classification_source_sha256": "91f782dfd382af95129c9ce64f46adf512dfa1fcec1a39ae6a59e2a6164fd8f9",
+  "classification_source_sha256": "43666afc69e8025b7e37cd071f8e606287b8d97579cbed5a755ccf87d6718ab6",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -64962,7 +64962,7 @@
           "line": 40
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLinkedFunctions.h",
       "id": "method:-[MTLLinkedFunctions binaryFunctions]",
       "kind": "method",
@@ -64970,7 +64970,7 @@
       "macos_introduced": "11.0",
       "name": "binaryFunctions",
       "owner": "MTLLinkedFunctions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the LinkedFunctions safe9 retained nullable arrays and deterministic named-group graph with atomic same-device validation.",
       "signature": "instance () -> NSArray<id<MTLFunction>> * _Nullable"
     },
     {
@@ -65000,7 +65000,7 @@
           "line": 21
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLinkedFunctions.h",
       "id": "method:-[MTLLinkedFunctions groups]",
       "kind": "method",
@@ -65008,7 +65008,7 @@
       "macos_introduced": "11.0",
       "name": "groups",
       "owner": "MTLLinkedFunctions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the LinkedFunctions safe9 retained nullable arrays and deterministic named-group graph with atomic same-device validation.",
       "signature": "instance () -> NSDictionary<NSString *,NSArray<id<MTLFunction>> *> * _Nullable"
     },
     {
@@ -65025,7 +65025,7 @@
           "line": 54
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLinkedFunctions.h",
       "id": "method:-[MTLLinkedFunctions privateFunctions]",
       "kind": "method",
@@ -65033,7 +65033,7 @@
       "macos_introduced": "12.0",
       "name": "privateFunctions",
       "owner": "MTLLinkedFunctions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the LinkedFunctions safe9 retained nullable arrays and deterministic named-group graph with atomic same-device validation.",
       "signature": "instance () -> NSArray<id<MTLFunction>> * _Nullable"
     },
     {
@@ -65050,7 +65050,7 @@
           "line": 40
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLinkedFunctions.h",
       "id": "method:-[MTLLinkedFunctions setBinaryFunctions:]",
       "kind": "method",
@@ -65058,7 +65058,7 @@
       "macos_introduced": "11.0",
       "name": "setBinaryFunctions:",
       "owner": "MTLLinkedFunctions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the LinkedFunctions safe9 retained nullable arrays and deterministic named-group graph with atomic same-device validation.",
       "signature": "instance (NSArray<id<MTLFunction>> * _Nullable) -> void"
     },
     {
@@ -65088,7 +65088,7 @@
           "line": 21
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLinkedFunctions.h",
       "id": "method:-[MTLLinkedFunctions setGroups:]",
       "kind": "method",
@@ -65096,7 +65096,7 @@
       "macos_introduced": "11.0",
       "name": "setGroups:",
       "owner": "MTLLinkedFunctions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the LinkedFunctions safe9 retained nullable arrays and deterministic named-group graph with atomic same-device validation.",
       "signature": "instance (NSDictionary<NSString *,NSArray<id<MTLFunction>> *> * _Nullable) -> void"
     },
     {
@@ -65113,7 +65113,7 @@
           "line": 54
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLinkedFunctions.h",
       "id": "method:-[MTLLinkedFunctions setPrivateFunctions:]",
       "kind": "method",
@@ -65121,7 +65121,7 @@
       "macos_introduced": "12.0",
       "name": "setPrivateFunctions:",
       "owner": "MTLLinkedFunctions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the LinkedFunctions safe9 retained nullable arrays and deterministic named-group graph with atomic same-device validation.",
       "signature": "instance (NSArray<id<MTLFunction>> * _Nullable) -> void"
     },
     {
@@ -75388,7 +75388,7 @@
           "line": 546
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineState requiredThreadsPerMeshThreadgroup]",
       "kind": "method",
@@ -75396,7 +75396,7 @@
       "macos_introduced": "26.0",
       "name": "requiredThreadsPerMeshThreadgroup",
       "owner": "MTLRenderPipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": "instance () -> MTLSize"
     },
     {
@@ -75413,7 +75413,7 @@
           "line": 539
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineState requiredThreadsPerObjectThreadgroup]",
       "kind": "method",
@@ -75421,7 +75421,7 @@
       "macos_introduced": "26.0",
       "name": "requiredThreadsPerObjectThreadgroup",
       "owner": "MTLRenderPipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": "instance () -> MTLSize"
     },
     {
@@ -96468,7 +96468,7 @@
           "line": 40
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLinkedFunctions.h",
       "id": "property:MTLLinkedFunctions:binaryFunctions",
       "kind": "property",
@@ -96476,7 +96476,7 @@
       "macos_introduced": "11.0",
       "name": "binaryFunctions",
       "owner": "MTLLinkedFunctions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the LinkedFunctions safe9 retained nullable arrays and deterministic named-group graph with atomic same-device validation.",
       "signature": "NSArray<id<MTLFunction>> * _Nullable"
     },
     {
@@ -96506,7 +96506,7 @@
           "line": 21
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLinkedFunctions.h",
       "id": "property:MTLLinkedFunctions:groups",
       "kind": "property",
@@ -96514,7 +96514,7 @@
       "macos_introduced": "11.0",
       "name": "groups",
       "owner": "MTLLinkedFunctions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the LinkedFunctions safe9 retained nullable arrays and deterministic named-group graph with atomic same-device validation.",
       "signature": "NSDictionary<NSString *,NSArray<id<MTLFunction>> *> * _Nullable"
     },
     {
@@ -96531,7 +96531,7 @@
           "line": 54
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLinkedFunctions.h",
       "id": "property:MTLLinkedFunctions:privateFunctions",
       "kind": "property",
@@ -96539,7 +96539,7 @@
       "macos_introduced": "12.0",
       "name": "privateFunctions",
       "owner": "MTLLinkedFunctions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the LinkedFunctions safe9 retained nullable arrays and deterministic named-group graph with atomic same-device validation.",
       "signature": "NSArray<id<MTLFunction>> * _Nullable"
     },
     {
@@ -100201,7 +100201,7 @@
           "line": 546
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineState:requiredThreadsPerMeshThreadgroup",
       "kind": "property",
@@ -100209,7 +100209,7 @@
       "macos_introduced": "26.0",
       "name": "requiredThreadsPerMeshThreadgroup",
       "owner": "MTLRenderPipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": "MTLSize"
     },
     {
@@ -100226,7 +100226,7 @@
           "line": 539
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineState:requiredThreadsPerObjectThreadgroup",
       "kind": "property",
@@ -100234,7 +100234,7 @@
       "macos_introduced": "26.0",
       "name": "requiredThreadsPerObjectThreadgroup",
       "owner": "MTLRenderPipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": "MTLSize"
     },
     {

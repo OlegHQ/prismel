@@ -52,6 +52,11 @@ let expected_promoted_function_handle_struct_ids =
 let expected_promoted_compute_encoder_struct_ids =
   [ "method:-[MTLComputeCommandEncoder dispatchThreadgroups:threadsPerThreadgroup:]"
   ; "method:-[MTLComputeCommandEncoder setStageInRegion:]" ]
+let expected_promoted_render_required_struct_ids =
+  [ "method:-[MTLRenderPipelineState requiredThreadsPerMeshThreadgroup]"
+  ; "method:-[MTLRenderPipelineState requiredThreadsPerObjectThreadgroup]"
+  ; "property:MTLRenderPipelineState:requiredThreadsPerMeshThreadgroup"
+  ; "property:MTLRenderPipelineState:requiredThreadsPerObjectThreadgroup" ]
 
 let fail format =
   Printf.ksprintf (fun message -> invalid_arg ("Metal struct plan: " ^ message)) format
@@ -96,7 +101,9 @@ let relevant declaration =
           || String.equal declaration.classification "bound"
              && List.mem declaration.id expected_promoted_function_handle_struct_ids
           || String.equal declaration.classification "bound"
-             && List.mem declaration.id expected_promoted_compute_encoder_struct_ids))
+             && List.mem declaration.id expected_promoted_compute_encoder_struct_ids
+          || String.equal declaration.classification "bound"
+             && List.mem declaration.id expected_promoted_render_required_struct_ids))
   && (String.equal declaration.kind "method"
       || String.equal declaration.kind "property")
   && Binding_struct_spec.mechanically_safe_signature declaration.signature
@@ -105,6 +112,8 @@ let relevant declaration =
        Binding_struct_spec.objc_types
 
 let select declarations =
+  let promoted_render_required_struct_ids=declarations|>List.filter(fun d->String.equal d.classification "bound"&&List.mem d.id expected_promoted_render_required_struct_ids&&(String.equal d.kind "method"||String.equal d.kind "property")&&Binding_struct_spec.mechanically_safe_signature d.signature&&List.exists(Binding_struct_spec.contains_type d.signature)Binding_struct_spec.objc_types)|>List.map(fun d->d.id)|>List.sort_uniq String.compare in
+  if promoted_render_required_struct_ids<>expected_promoted_render_required_struct_ids then fail "promoted RenderPipeline required-size struct drift: expected [%s], found [%s]"(String.concat "; " expected_promoted_render_required_struct_ids)(String.concat "; " promoted_render_required_struct_ids);
   let promoted_compute_encoder_struct_ids = declarations|>List.filter(fun d->String.equal d.classification "bound"&&List.mem d.id expected_promoted_compute_encoder_struct_ids&&(String.equal d.kind "method"||String.equal d.kind "property")&&Binding_struct_spec.mechanically_safe_signature d.signature&&List.exists(Binding_struct_spec.contains_type d.signature)Binding_struct_spec.objc_types)|>List.map(fun d->d.id)|>List.sort_uniq String.compare in
   if promoted_compute_encoder_struct_ids<>expected_promoted_compute_encoder_struct_ids then fail "promoted ComputeEncoder struct intersection drift: expected [%s], found [%s]"(String.concat "; " expected_promoted_compute_encoder_struct_ids)(String.concat "; " promoted_compute_encoder_struct_ids);
   let promoted_function_handle_struct_ids =

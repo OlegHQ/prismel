@@ -1738,6 +1738,13 @@ let render_pipeline93_required_thread_sizes4 =
   ; "method:-[MTLRenderPipelineState requiredThreadsPerObjectThreadgroup]"
   ; "property:MTLRenderPipelineState:requiredThreadsPerObjectThreadgroup" ]
 
+let linked_functions_safe9 =
+  [ "method:-[MTLLinkedFunctions binaryFunctions]"; "method:-[MTLLinkedFunctions groups]"
+  ; "method:-[MTLLinkedFunctions privateFunctions]"; "method:-[MTLLinkedFunctions setBinaryFunctions:]"
+  ; "method:-[MTLLinkedFunctions setGroups:]"; "method:-[MTLLinkedFunctions setPrivateFunctions:]"
+  ; "property:MTLLinkedFunctions:binaryFunctions"; "property:MTLLinkedFunctions:groups"
+  ; "property:MTLLinkedFunctions:privateFunctions" ]
+
 let classify ~unavailable ~identifier ~header ~kind ~signature =
   if unavailable then
     Scope_excluded, "Clang marks this declaration unavailable for macOS."
@@ -1829,6 +1836,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier Binding_compute_encoder35_safe_closure.callable_ids then
     Bound,
       "Implemented by the ComputeEncoder safe35 closure with checked indices, ranges, strides, cardinality, capabilities and device identity plus command-completion retention."
+  else if List.mem identifier linked_functions_safe9 then
+    Bound,
+      "Implemented by the LinkedFunctions safe9 retained nullable arrays and deterministic named-group graph with atomic same-device validation."
   else if List.mem identifier io_compressor_safe5 then
     Bound,
       "Implemented by the owned IO.Compressor lifecycle with copied configuration, checked byte ranges, synchronous consumption, exact finalization state, and real compressed-output conformance."
