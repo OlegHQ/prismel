@@ -66,6 +66,7 @@
   binding_resource_safe_reachability
   binding_rasterization_rate_reachability
   binding_tensor_safe_handoff
+  binding_function_stitching_handoff
   binding_argument_reflection_plan
   binding_argument_reflection_codegen
   binding_argument_reflection_evidence
@@ -476,6 +477,13 @@
  (name test_binding_tensor_safe_handoff)
  (modules test_binding_tensor_safe_handoff)
  (libraries metal_inventory_classification))
+
+(test
+ (name test_binding_function_stitching_handoff)
+ (modules test_binding_function_stitching_handoff)
+ (libraries metal_inventory_classification yojson)
+ (deps ../../lib/metal/generated_api_inventory.json)
+ (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
  (name test_binding_render_command_safe_reachability)
