@@ -323,20 +323,7 @@ let validate_struct_native_output inventory
     in
     if declaration.kind <> kind
        || (declaration.classification <> "unreviewed"
-           && not (List.mem identifier
-                     Binding_resource_safe_reachability.promotable_ids)
-               && not (List.mem identifier
-                     Binding_pipeline_state_safe_reachability.promotable_ids)
-               && not (List.mem identifier Binding_shader_safe_reachability.promotable_ids)
-               && not (List.mem identifier Binding_mesh_tile_safe_reachability.promotable_ids)
-               && not (List.mem identifier Binding_command_support_safe_reachability.promotable_ids)
-               && not (List.mem identifier Binding_io_safe_reachability.promotable_ids)
-               && not (List.mem identifier Binding_pipeline_expanded_reachability.promotable_ids)
-               && not (List.mem identifier Binding_metal4_callable_safe_reachability.promotable_ids)
-               && not (List.mem identifier Binding_metal4_second_slice_reachability.promotable_ids)
-               && not (List.mem identifier Binding_metal4_native32_reachability.promotable_ids)
-               && not (List.mem identifier Binding_metal4_final9_reachability.promotable_ids)
-               && not (List.mem identifier Binding_metal4_pending41_reachability.remaining_promotable_ids))
+           && declaration.classification <> "bound")
        || not (String_set.mem identifier planned)
     then fail "generated Metal struct-native inventory mismatch: %s" identifier
   in
