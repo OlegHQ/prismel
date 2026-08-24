@@ -1781,15 +1781,6 @@ module Binary_function : sig
     val reset : t -> (unit, error) result
     val destroy : t -> (unit, error) result
   end
-  module Device_owned : sig
-    type t
-    val create : Device.t -> Descriptor.t -> (t,error) result
-    val size_and_align : Device.t -> Descriptor.t -> (int64 * int64,error) result
-    val device : t -> Device.t
-    val descriptor : t -> Descriptor.t
-    val destroyed : t -> bool
-    val destroy : t -> (unit,error) result
-  end
 end
 
 module Function_specialization : sig
@@ -3242,6 +3233,15 @@ module Tensor : sig
     val options : t -> Buffer.storage_mode * Heap.cpu_cache_mode * Heap.hazard_tracking_mode * int64
     val checked_options : t -> (Buffer.storage_mode * Heap.cpu_cache_mode * Heap.hazard_tracking_mode * int64,error) result
     val set_options : t -> storage:Buffer.storage_mode -> cpu_cache:Heap.cpu_cache_mode -> hazard_tracking:Heap.hazard_tracking_mode -> usage:int64 -> (unit,error) result
+    val destroyed : t -> bool
+    val destroy : t -> (unit,error) result
+  end
+  module Device_owned : sig
+    type t
+    val create : Device.t -> Descriptor.t -> (t,error) result
+    val size_and_align : Device.t -> Descriptor.t -> (int64 * int64,error) result
+    val device : t -> Device.t
+    val descriptor : t -> Descriptor.t
     val destroyed : t -> bool
     val destroy : t -> (unit,error) result
   end
