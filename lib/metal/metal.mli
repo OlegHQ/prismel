@@ -1913,6 +1913,19 @@ module Render_pipeline : sig
     val named : pipeline -> stage -> string -> (t option,error) result
     val destroy : t -> (unit,error) result
   end
+  module Function_table:sig
+    type pipeline = t
+    type t
+    type kind=Visible|Intersection
+    val create : kind -> pipeline:pipeline -> stage:Function_lookup.stage -> capacity:int -> (t,error) result
+    val destroy : t -> (unit,error) result
+  end
+  module Specialization_descriptor:sig
+    type pipeline = t
+    type t
+    val create : pipeline -> (t,error) result
+    val destroy : t -> (unit,error) result
+  end
   module Mesh_tile:sig
     type size3={width:int64;height:int64;depth:int64}
     type mutability=Default|Mutable|Immutable

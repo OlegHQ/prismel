@@ -1332,6 +1332,10 @@ type render_pipeline =
 type render_pipeline_function_handle =
   { raw:Metal_raw.handle; lifetime:lifetime; pipeline:render_pipeline
   ; retained:lifetime list }
+type render_pipeline_function_table =
+  { raw:Metal_raw.handle; lifetime:lifetime; pipeline:render_pipeline }
+type render_pipeline_specialization_descriptor =
+  { raw:Metal_raw.handle; lifetime:lifetime; pipeline:render_pipeline }
 
 type mesh_pipeline_limits =
   { max_object_threads : int
@@ -10041,6 +10045,19 @@ module Render_pipeline = struct
     let function_ (pipeline:render_pipeline) stage (source:function_handle)=let operation="Metal.Render_pipeline.Function_lookup.function_"in on_main operation(fun()->match ensure_live operation pipeline.lifetime with Error _ as e->e|Ok()->Result.bind(ensure_live operation source.lifetime)(fun()->Result.bind(ensure_same_device operation pipeline.device source.library.device)(fun()->make operation pipeline[source.lifetime](Metal_raw.render93_function_handle pipeline.raw 0 source.raw(stage_code stage)))))
     let named (pipeline:render_pipeline) stage name=let operation="Metal.Render_pipeline.Function_lookup.named"in if name=""||contains_nul name then error operation Invalid_argument "function name is empty or contains NUL"else on_main operation(fun()->match ensure_live operation pipeline.lifetime with Error _ as e->e|Ok()->make operation pipeline[](Metal_raw.render93_function_handle_name pipeline.raw 2 name(stage_code stage)))
     let destroy(value:t)=destroy_leaf "Metal.Render_pipeline.Function_lookup.destroy" value.lifetime value.raw(fun()->List.iter detach value.retained;detach value.pipeline.lifetime)
+  end
+  module Function_table = struct
+    type t=render_pipeline_function_table
+    type kind=Visible|Intersection
+    type pipeline=render_pipeline
+    let create kind ~(pipeline:pipeline) ~stage ~capacity=let operation="Metal.Render_pipeline.Function_table.create"in if capacity<=0||capacity>1_000_000 then error operation Invalid_argument "capacity must be between 1 and 1000000"else on_main operation(fun()->match ensure_live operation pipeline.lifetime with Error _ as e->e|Ok()->let kind_code=match kind with Visible->0|Intersection->1 in match Metal_raw.render93_function_table pipeline.raw kind_code(Function_lookup.stage_code stage)(Int64.of_int capacity)with Error m->native_error operation m|Ok raw->let value:t={raw;lifetime=lifetime();pipeline}in attach pipeline.lifetime;Gc.finalise(fun(value:t)->finalize_child value.lifetime value.pipeline.lifetime ignore)value;Ok value)
+    let destroy(value:t)=destroy_leaf "Metal.Render_pipeline.Function_table.destroy" value.lifetime value.raw(fun()->detach value.pipeline.lifetime)
+  end
+  module Specialization_descriptor = struct
+    type pipeline=render_pipeline
+    type t=render_pipeline_specialization_descriptor
+    let create(pipeline:render_pipeline)=let operation="Metal.Render_pipeline.Specialization_descriptor.create"in on_main operation(fun()->match ensure_live operation pipeline.lifetime with Error _ as e->e|Ok()->match Metal_raw.render93_specialization_descriptor pipeline.raw with Error m->native_error operation m|Ok raw->let value:t={raw;lifetime=lifetime();pipeline}in attach pipeline.lifetime;Gc.finalise(fun(value:t)->finalize_child value.lifetime value.pipeline.lifetime ignore)value;Ok value)
+    let destroy(value:t)=destroy_leaf "Metal.Render_pipeline.Specialization_descriptor.destroy" value.lifetime value.raw(fun()->detach value.pipeline.lifetime)
   end
 
   module Mesh_tile = struct
