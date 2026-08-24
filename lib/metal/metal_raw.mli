@@ -1075,6 +1075,10 @@ external command4_argument_table_set_sampler :
   handle -> handle option -> int -> (unit, string) result =
   "caml_prismel_metal_command4_argument_table_set_sampler"
 
+external metal4_argument_table_set_resource :
+  handle -> handle -> int -> int64 -> (unit, string) result =
+  "caml_prismel_metal4_argument_table_set_resource"
+
 external command4_buffer_create :
   handle -> string option -> (handle, string) result =
   "caml_prismel_metal_command4_buffer_create"
