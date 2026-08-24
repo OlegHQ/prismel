@@ -972,6 +972,11 @@
  (modules test_metal_binary_archive5_safe)
  (libraries metal unix))
 
+(test
+ (name test_metal_function_descriptor4_safe)
+ (modules test_metal_function_descriptor4_safe)
+ (libraries metal))
+
 (rule
  (targets test_metal_compute_pass20_native.exe)
  (deps ../../tools/metal/test_compute_pass20_native.mm)

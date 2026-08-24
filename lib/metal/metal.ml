@@ -9751,7 +9751,7 @@ module Binary_archive = struct
       | Ok () -> Ok (Metal_raw.binary_archive_label value.raw))
 
   let destroy (value : t) =
-    destroy_leaf "Metal.Binary_archive.destroy" value.lifetime value.raw
+    destroy_parent "Metal.Binary_archive.destroy" value.lifetime value.raw
       (fun () -> List.iter detach !(value.archive_edges);value.archive_edges:=[];detach value.device.lifetime)
 end
 
