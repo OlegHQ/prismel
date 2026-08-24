@@ -151,6 +151,70 @@ let receivers =
       "metal_drawable"
   ; direct "MTLRenderPassDescriptor" "MTLRenderPassDescriptor *"
       "Render_pass_descriptor" "render_pass_descriptor"
+  ; direct "MTLAccelerationStructureBoundingBoxGeometryDescriptor" "MTLAccelerationStructureBoundingBoxGeometryDescriptor *" "Acceleration_bbox_descriptor" "acceleration_bbox_descriptor"
+  ; direct "MTLAccelerationStructureCurveGeometryDescriptor" "MTLAccelerationStructureCurveGeometryDescriptor *" "Acceleration_curve_descriptor" "acceleration_curve_descriptor"
+  ; direct "MTLIndirectInstanceAccelerationStructureDescriptor" "MTLIndirectInstanceAccelerationStructureDescriptor *" "Acceleration_indirect_instance_descriptor" "acceleration_indirect_instance_descriptor"
+  ; direct "MTLInstanceAccelerationStructureDescriptor" "MTLInstanceAccelerationStructureDescriptor *" "Acceleration_instance_descriptor" "acceleration_instance_descriptor"
+  ; direct "MTLAccelerationStructureMotionBoundingBoxGeometryDescriptor" "MTLAccelerationStructureMotionBoundingBoxGeometryDescriptor *" "Acceleration_motion_bbox_descriptor" "acceleration_motion_bbox_descriptor"
+  ; direct "MTLAccelerationStructureMotionCurveGeometryDescriptor" "MTLAccelerationStructureMotionCurveGeometryDescriptor *" "Acceleration_motion_curve_descriptor" "acceleration_motion_curve_descriptor"
+  ; direct "MTLMotionKeyframeData" "MTLMotionKeyframeData *" "Acceleration_motion_keyframe" "acceleration_motion_keyframe"
+  ; direct "MTLAccelerationStructureMotionTriangleGeometryDescriptor" "MTLAccelerationStructureMotionTriangleGeometryDescriptor *" "Acceleration_motion_triangle_descriptor" "acceleration_motion_triangle_descriptor"
+  ; direct "MTLPrimitiveAccelerationStructureDescriptor" "MTLPrimitiveAccelerationStructureDescriptor *" "Acceleration_primitive_descriptor" "acceleration_primitive_descriptor"
+  ; direct "MTLAccelerationStructureTriangleGeometryDescriptor" "MTLAccelerationStructureTriangleGeometryDescriptor *" "Acceleration_triangle_owned_descriptor" "acceleration_triangle_owned_descriptor"
+  ; direct "MTLAccelerationStructurePassDescriptor" "MTLAccelerationStructurePassDescriptor *" "Acceleration_pass_descriptor" "acceleration_pass_descriptor"
+  ; direct "MTLAccelerationStructurePassSampleBufferAttachmentDescriptor" "MTLAccelerationStructurePassSampleBufferAttachmentDescriptor *" "Acceleration_sample_attachment" "acceleration_sample_attachment"
+  ; direct "MTLAccelerationStructurePassSampleBufferAttachmentDescriptorArray" "MTLAccelerationStructurePassSampleBufferAttachmentDescriptorArray *" "Acceleration_sample_attachment_array" "acceleration_sample_attachment_array"
+  ; direct "MTL4RenderPipelineBinaryFunctionsDescriptor" "MTL4RenderPipelineBinaryFunctionsDescriptor *" "Binary_functions_descriptor4" "binary_functions_descriptor4"
+  ; direct "MTLBlitPassDescriptor" "MTLBlitPassDescriptor *" "Blit_pass_descriptor" "blit_pass_descriptor"
+  ; direct "MTLBlitPassSampleBufferAttachmentDescriptor" "MTLBlitPassSampleBufferAttachmentDescriptor *" "Blit_sample_attachment" "blit_sample_attachment"
+  ; direct "MTLBlitPassSampleBufferAttachmentDescriptorArray" "MTLBlitPassSampleBufferAttachmentDescriptorArray *" "Blit_sample_attachment_array" "blit_sample_attachment_array"
+  ; direct "MTLCaptureScope" "id<MTLCaptureScope>" "Capture_scope" "capture_scope"
+  ; direct "MTL4RenderPipelineColorAttachmentDescriptorArray" "MTL4RenderPipelineColorAttachmentDescriptorArray *" "Color_attachment_array4" "color_attachment_array4"
+  ; direct "MTL4RenderPipelineColorAttachmentDescriptor" "MTL4RenderPipelineColorAttachmentDescriptor *" "Color_attachment_descriptor4" "color_attachment_descriptor4"
+  ; direct "MTL4CommandBufferOptions" "MTL4CommandBufferOptions *" "Command_buffer_options4" "command_buffer_options4"
+  ; direct "MTL4CommandQueueDescriptor" "MTL4CommandQueueDescriptor *" "Command_queue_descriptor" "command_queue_descriptor"
+  ; direct "MTLCompileOptions" "MTLCompileOptions *" "Compile_options" "compile_options"
+  ; direct "MTLComputePassDescriptor" "MTLComputePassDescriptor *" "Compute_pass_descriptor" "compute_pass_descriptor"
+  ; direct "MTLComputePassSampleBufferAttachmentDescriptor" "MTLComputePassSampleBufferAttachmentDescriptor *" "Compute_sample_attachment" "compute_sample_attachment"
+  ; direct "MTLComputePassSampleBufferAttachmentDescriptorArray" "MTLComputePassSampleBufferAttachmentDescriptorArray *" "Compute_sample_attachment_array" "compute_sample_attachment_array"
+  ; direct "MTLCounter" "id<MTLCounter>" "Counter" "counter"
+  ; direct "MTLFunctionConstantValues" "MTLFunctionConstantValues *" "Function_constant_values" "function_constant_values"
+  ; direct "MTL4FunctionDescriptor" "MTL4FunctionDescriptor *" "Function_descriptor4" "function_descriptor4"
+  ; direct "MTLFunctionDescriptor" "MTLFunctionDescriptor *" "Function_descriptor" "function_descriptor"
+  ; direct "MTLFunctionReflection" "MTLFunctionReflection *" "Function_reflection" "function_reflection"
+  ; direct "MTLLogState" "id<MTLLogState>" "Log_state" "log_state"
+  ; direct "MTLLogStateDescriptor" "MTLLogStateDescriptor *" "Log_state_descriptor" "log_state_descriptor"
+  ; direct "MTL4MachineLearningPipelineDescriptor" "MTL4MachineLearningPipelineDescriptor *" "Machine_learning_descriptor4" "machine_learning_descriptor4"
+  ; direct "MTL4MachineLearningCommandEncoder" "id<MTL4MachineLearningCommandEncoder>" "Machine_learning_encoder4" "machine_learning_encoder4"
+  ; direct "MTL4MachineLearningPipelineState" "id<MTL4MachineLearningPipelineState>" "Machine_learning_pipeline4" "machine_learning_pipeline4"
+  ; direct "MTLParallelRenderCommandEncoder" "id<MTLParallelRenderCommandEncoder>" "Parallel_render_encoder" "parallel_render_encoder"
+  ; direct "MTLRasterizationRateMapDescriptor" "MTLRasterizationRateMapDescriptor *" "Raster_rate_descriptor" "raster_rate_descriptor"
+  ; direct "MTLRasterizationRateLayerDescriptor" "MTLRasterizationRateLayerDescriptor *" "Raster_rate_layer" "raster_rate_layer"
+  ; direct "MTLRasterizationRateLayerArray" "MTLRasterizationRateLayerArray *" "Raster_rate_layer_array" "raster_rate_layer_array"
+  ; direct "MTLRasterizationRateMap" "id<MTLRasterizationRateMap>" "Raster_rate_map" "raster_rate_map"
+  ; direct "MTLRasterizationRateSampleArray" "MTLRasterizationRateSampleArray *" "Raster_rate_sample_array" "raster_rate_sample_array"
+  ; direct "MTL4RenderPassDescriptor" "MTL4RenderPassDescriptor *" "Render_pass_descriptor4" "render_pass_descriptor4"
+  ; direct "MTLSharedEventHandle" "MTLSharedEventHandle *" "Shared_event_handle" "shared_event_handle"
+  ; direct "MTLSharedEventListener" "MTLSharedEventListener *" "Shared_event_listener" "shared_event_listener"
+  ; direct "MTL4SpecializedFunctionDescriptor" "MTL4SpecializedFunctionDescriptor *" "Specialized_function_descriptor4" "specialized_function_descriptor4"
+  ; direct "MTL4StitchedFunctionDescriptor" "MTL4StitchedFunctionDescriptor *" "Stitched_function_descriptor4" "stitched_function_descriptor4"
+  ; direct "MTLStitchedLibraryDescriptor" "MTLStitchedLibraryDescriptor *" "Stitched_library_descriptor" "stitched_library_descriptor"
+  ; direct "MTLFunctionStitchingAttribute" "id<MTLFunctionStitchingAttribute>" "Stitching_attribute" "stitching_attribute"
+  ; direct "MTLFunctionStitchingFunctionNode" "MTLFunctionStitchingFunctionNode *" "Stitching_function_node" "stitching_function_node"
+  ; direct "MTLFunctionStitchingGraph" "MTLFunctionStitchingGraph *" "Stitching_graph" "stitching_graph"
+  ; direct "MTLTensorExtents" "MTLTensorExtents *" "Tensor_extents" "tensor_extents"
+  ; direct "MTL4AccelerationStructureBoundingBoxGeometryDescriptor" "MTL4AccelerationStructureBoundingBoxGeometryDescriptor *" "Acceleration4_bbox_descriptor" "acceleration4_bbox_descriptor"
+  ; direct "MTL4AccelerationStructureCurveGeometryDescriptor" "MTL4AccelerationStructureCurveGeometryDescriptor *" "Acceleration4_curve_descriptor" "acceleration4_curve_descriptor"
+  ; direct "MTL4IndirectInstanceAccelerationStructureDescriptor" "MTL4IndirectInstanceAccelerationStructureDescriptor *" "Acceleration4_indirect_instance_descriptor" "acceleration4_indirect_instance_descriptor"
+  ; direct "MTL4InstanceAccelerationStructureDescriptor" "MTL4InstanceAccelerationStructureDescriptor *" "Acceleration4_instance_descriptor" "acceleration4_instance_descriptor"
+  ; direct "MTL4AccelerationStructureMotionBoundingBoxGeometryDescriptor" "MTL4AccelerationStructureMotionBoundingBoxGeometryDescriptor *" "Acceleration4_motion_bbox_descriptor" "acceleration4_motion_bbox_descriptor"
+  ; direct "MTL4AccelerationStructureMotionCurveGeometryDescriptor" "MTL4AccelerationStructureMotionCurveGeometryDescriptor *" "Acceleration4_motion_curve_descriptor" "acceleration4_motion_curve_descriptor"
+  ; direct "MTL4AccelerationStructureMotionTriangleGeometryDescriptor" "MTL4AccelerationStructureMotionTriangleGeometryDescriptor *" "Acceleration4_motion_triangle_descriptor" "acceleration4_motion_triangle_descriptor"
+  ; direct "MTL4PrimitiveAccelerationStructureDescriptor" "MTL4PrimitiveAccelerationStructureDescriptor *" "Acceleration4_primitive_descriptor" "acceleration4_primitive_descriptor"
+  ; direct "MTL4AccelerationStructureTriangleGeometryDescriptor" "MTL4AccelerationStructureTriangleGeometryDescriptor *" "Acceleration4_triangle_descriptor" "acceleration4_triangle_descriptor"
+  ; direct "MTL4AccelerationStructureDescriptor" "MTL4AccelerationStructureDescriptor *" "Acceleration_descriptor4" "acceleration_descriptor4"
+  ; direct "MTLIOScratchBufferAllocator" "id<MTLIOScratchBufferAllocator>" "Io_scratch_allocator" "io_scratch_allocator"
+  ; direct "MTLIOScratchBuffer" "id<MTLIOScratchBuffer>" "Io_scratch_buffer" "io_scratch_buffer"
   ]
 
 let polymorphic_receivers =
@@ -222,16 +286,22 @@ let exclusions =
     ; reason =
         "PrismelMetal4SubmissionState owns completion state and has no SDK receiver represented by the handle"
     }
+  ; { handle_kind = "Dispatch_queue"
+    ; reason = "dispatch_queue_t callback executor retained by Prismel; not an Objective-C Metal SDK receiver"
+    }
+  ; { handle_kind = "Function_constants4"
+    ; reason = "Prismel immutable MTL4 function-constant snapshot helper; the SDK exposes no MTL4FunctionConstantValues receiver"
+    }
   ] @ List.map (fun handle_kind ->
     { handle_kind
     ; reason = "Handwritten ownership receiver; not qualified for mechanical receiver generation"
     }) handwritten_only_handle_kinds
 
-let expected_receiver_count = 44
+let expected_receiver_count = 108
 let expected_polymorphic_receiver_count = 3
-let expected_catalog_count = 47
-let expected_handle_kind_count = 92
-let expected_exclusion_count = 48
+let expected_catalog_count = 111
+let expected_handle_kind_count = 158
+let expected_exclusion_count = 50
 
 let source_paths =
   [ "tools/metal/binding_receiver_catalog.ml"
