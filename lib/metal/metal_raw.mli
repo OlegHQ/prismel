@@ -2667,3 +2667,9 @@ external metal4_stitched_graph_pair :
 external metal4_stitched_graph_snapshot :
   handle -> ((handle array * handle option), string) result =
   "caml_prismel_metal4_stitched_graph_snapshot"
+
+external metal4_render_pipeline3_create : int -> (handle, string) result =
+  "caml_prismel_metal4_render_pipeline3_create"
+external metal4_render_pipeline3_reset :
+  handle -> int -> bool -> (unit, string) result =
+  "caml_prismel_metal4_render_pipeline3_reset"

@@ -1056,6 +1056,8 @@ enum class Handle_kind : std::uint32_t {
   Dispatch_queue,
   Pipeline_buffer_descriptor,
   Color_attachment_descriptor,
+  Color_attachment_descriptor4,
+  Color_attachment_array4,
   Io_command_buffer,
   Io_file_handle,
   Io_command_queue,
@@ -14768,6 +14770,7 @@ extern "C" CAMLprim value caml_prismel_metal_pipeline_render_imageblock_length(v
 #include "../../tools/metal/metal_drawable10_callable_bridge.inc"
 #include "../../tools/metal/metal_function_constant_values3_callable_bridge.inc"
 #include "../../tools/metal/metal4_stitched_descriptor3_callable_bridge.inc"
+#include "../../tools/metal/metal4_render_pipeline3_callable_bridge.inc"
 #include "../../tools/metal/metal_tensor_ownership_callable_bridge.inc"
 #include "../../tools/metal/metal_resource_remaining16_bridge.inc"
 #pragma clang diagnostic pop
