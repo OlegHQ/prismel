@@ -2345,3 +2345,26 @@ external resource_heap_acceleration_size_align :
 external resource_heap_acceleration_triangle_size_align :
   handle -> acceleration_triangle_descriptor -> ((int64*int64),string) result =
   "caml_prismel_metal_resource_heap_acceleration_triangle_size_align"
+
+(* Exact callable ABI for ArgumentEncoder34. *)
+external argument_encoder_snapshot :
+  handle -> ((string option * int64 * int64 * int64),string) result =
+  "caml_prismel_metal_argument_encoder_snapshot"
+external argument_encoder_set_label :
+  handle -> string option -> (unit,string) result =
+  "caml_prismel_metal_argument_encoder_set_label"
+external argument_encoder_set_buffer :
+  handle -> handle -> int64 -> int64 -> int64 -> (unit,string) result =
+  "caml_prismel_metal_argument_encoder_set_buffer"
+external argument_encoder_nested : handle -> int64 -> (handle,string) result =
+  "caml_prismel_metal_argument_encoder_nested"
+external argument_encoder_constant_available :
+  handle -> int64 -> (bool,string) result =
+  "caml_prismel_metal_argument_encoder_constant_available"
+external argument_encoder_single :
+  handle -> int -> handle -> int64 -> int64 -> (unit,string) result =
+  "caml_prismel_metal_argument_encoder_single"
+external argument_encoder_array :
+  handle -> int -> handle array -> int64 array -> (int64 * int64) ->
+  (unit,string) result =
+  "caml_prismel_metal_argument_encoder_array"
