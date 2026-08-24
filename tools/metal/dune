@@ -76,6 +76,7 @@
   binding_compute_encoder35_native_closure
   binding_render_encoder33_native_closure
   binding_render_pipeline93_native_closure
+  binding_acceleration_command32_native_closure
   binding_argument_encoder_handoff
   binding_acceleration_command_handoff
   binding_acceleration_structure_header_handoff
@@ -561,6 +562,11 @@
 (test
  (name test_binding_render_pipeline93_native_closure)
  (modules test_binding_render_pipeline93_native_closure)
+ (libraries metal_inventory_classification))
+
+(test
+ (name test_binding_acceleration_command32_native_closure)
+ (modules test_binding_acceleration_command32_native_closure)
  (libraries metal_inventory_classification))
 
 (rule
