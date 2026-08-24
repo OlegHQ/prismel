@@ -353,6 +353,11 @@
  (libraries metal unix))
 
 (test
+ (name test_metal_blit_command25_safe)
+ (modules test_metal_blit_command25_safe)
+ (libraries metal))
+
+(test
  (name test_metal_mesh_tile105_safe)
  (modules test_metal_mesh_tile105_safe)
  (libraries metal))
