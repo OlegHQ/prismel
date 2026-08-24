@@ -106,3 +106,48 @@ prismel_metal4_command_buffer_machine_learning_encoder(
     return nil;
   }
 }
+
+API_AVAILABLE(macos(26.0))
+@interface PrismelMetal4CommandBufferOptionsState : NSObject
+@property(nonatomic, strong) MTL4CommandBufferOptions *options;
+@property(nonatomic, strong) id<MTLDevice> device;
+@property(nonatomic, strong, nullable) PrismelMetalLogStateState *logState;
+@end
+@implementation PrismelMetal4CommandBufferOptionsState @end
+
+extern "C" CAMLprim value caml_prismel_metal4_command_buffer_options_create(value raw_device) {
+  CAMLparam1(raw_device); CAMLlocal1(raw);
+  if (@available(macOS 26.0,*)) { @try {
+    id<MTLDevice> device=object_of_handle(raw_device,Handle_kind::Device);
+    PrismelMetal4CommandBufferOptionsState *state=[PrismelMetal4CommandBufferOptionsState new];
+    state.options=prismel_metal4_command_buffer_options_create(); state.device=device;
+    raw=allocate_handle(state,Handle_kind::Command_buffer_options4); CAMLreturn(result_ok(raw));
+  } @catch(NSException*x){CAMLreturn(result_error(x.reason));} }
+  CAMLreturn(result_error_text("Metal 4 requires macOS 26"));
+}
+
+extern "C" CAMLprim value caml_prismel_metal4_command_buffer_options_log_state(value raw_options,value raw_log) {
+  CAMLparam2(raw_options,raw_log);
+  if (@available(macOS 26.0,*)) { @try {
+    PrismelMetal4CommandBufferOptionsState *state=object_of_handle(raw_options,Handle_kind::Command_buffer_options4);
+    PrismelMetalLogStateState *log=nil; if(Is_block(raw_log))log=object_of_handle(Field(raw_log,0),Handle_kind::Log_state);
+    NSString *failure=nil; if(!prismel_metal4_command_buffer_options_set_log_state(state.options,log.state,log.registryID,state.device.registryID,&failure))CAMLreturn(result_error(failure));
+    state.logState=log; CAMLreturn(result_unit());
+  } @catch(NSException*x){CAMLreturn(result_error(x.reason));} }
+  CAMLreturn(result_error_text("Metal 4 requires macOS 26"));
+}
+
+extern "C" CAMLprim value caml_prismel_metal4_command_buffer_create_options(value raw_allocator,value raw_label,value raw_options) {
+  CAMLparam3(raw_allocator,raw_label,raw_options); CAMLlocal1(raw);
+  if (@available(macOS 26.0,*)) { @try {
+    id<MTL4CommandAllocator> allocator=object_of_handle(raw_allocator,Handle_kind::Command_allocator4);
+    PrismelMetal4CommandBufferOptionsState *options=object_of_handle(raw_options,Handle_kind::Command_buffer_options4);
+    if(allocator.device.registryID!=options.device.registryID)CAMLreturn(result_error_text("Metal 4 command-buffer options belong to another device"));
+    id<MTL4CommandBuffer> buffer=[allocator.device newCommandBuffer]; NSString *failure=nil;
+    if(!prismel_metal4_command_buffer_begin_with_options(buffer,allocator,options.options,options.logState.registryID,&failure))CAMLreturn(result_error(failure));
+    if(Is_block(raw_label))buffer.label=string_from_ocaml(Field(raw_label,0));
+    PrismelMetal4CommandBufferState *state=[[PrismelMetal4CommandBufferState alloc]initWithCommandBuffer:buffer allocator:allocator];
+    [state retainEncodedObject:options]; raw=allocate_handle(state,Handle_kind::Command_buffer4); CAMLreturn(result_ok(raw));
+  } @catch(NSException*x){CAMLreturn(result_error(x.reason));} }
+  CAMLreturn(result_error_text("Metal 4 requires macOS 26"));
+}

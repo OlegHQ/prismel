@@ -1076,6 +1076,12 @@ external command4_argument_table_set_sampler :
 external command4_buffer_create :
   handle -> string option -> (handle, string) result =
   "caml_prismel_metal_command4_buffer_create"
+external metal4_command_buffer_options_create : handle -> (handle,string) result =
+  "caml_prismel_metal4_command_buffer_options_create"
+external metal4_command_buffer_options_log_state : handle -> handle option -> (unit,string) result =
+  "caml_prismel_metal4_command_buffer_options_log_state"
+external metal4_command_buffer_create_options : handle -> string option -> handle -> (handle,string) result =
+  "caml_prismel_metal4_command_buffer_create_options"
 
 external command4_buffer_label : handle -> string option =
   "caml_prismel_metal_command4_buffer_label"

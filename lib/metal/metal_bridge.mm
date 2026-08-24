@@ -961,6 +961,7 @@ enum class Handle_kind : std::uint32_t {
   Command_allocator4,
   Command_queue4,
   Command_buffer4,
+  Command_buffer_options4,
   Render_encoder4,
   Submission4,
   Argument_table4,
@@ -11596,7 +11597,8 @@ extern "C" CAMLprim value caml_prismel_metal_command4_render_encoder_create(
               "Metal changed checked Metal 4 render-pass properties"));
         }
         id<MTL4RenderCommandEncoder> encoder =
-            [state.commandBuffer renderCommandEncoderWithDescriptor:descriptor];
+            [state.commandBuffer renderCommandEncoderWithDescriptor:descriptor
+                                                             options:MTL4RenderEncoderOptionNone];
         if (encoder == nil || encoder.commandBuffer != state.commandBuffer) {
           CAMLreturn(result_error_text(
               "Metal failed to create a checked Metal 4 render encoder"));
@@ -14758,6 +14760,7 @@ extern "C" CAMLprim value caml_prismel_metal_pipeline_render_imageblock_length(v
 #include "../../tools/metal/metal4_ml_callable_bridge.inc"
 #include "../../tools/metal/metal4_specialized_callable_bridge.inc"
 #include "../../tools/metal/metal4_render_pass_callable_bridge.inc"
+#include "../../tools/metal/metal4_command_buffer7_callable_bridge.inc"
 #include "../../tools/metal/metal4_stitched_callable_bridge.inc"
 #pragma clang diagnostic pop
 
