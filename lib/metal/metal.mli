@@ -3605,6 +3605,21 @@ module Resource100 : sig
   end
 end
 
+module Acceleration_pass : sig
+  type t
+  type attachment
+  val create : Device.t -> (t,error) result
+  val set_attachment : t -> index:int -> sample_buffer:Resource100.Sample_buffer.t -> first:int64 -> last:int64 -> (attachment,error) result
+  val attachment : t -> index:int -> (attachment option,error) result
+  val clear_attachment : t -> index:int -> (unit,error) result
+  val attachment_index : attachment -> int
+  val attachment_range : attachment -> int64 * int64
+  val create_encoder : Command_buffer.t -> t -> (Acceleration_encoder.t,error) result
+  val destroy_attachment : attachment -> (unit,error) result
+  val destroyed : t -> bool
+  val destroy : t -> (unit,error) result
+end
+
 module rec Blit_pass_descriptor : sig
   type t
   val create : Device.t -> (t,error) result

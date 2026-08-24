@@ -1642,6 +1642,17 @@ and resource100_sample_buffer =
   ; sample_count : int64; label : string option }
 type counter_sample_buffer = resource100_sample_buffer
 
+type acceleration_pass =
+  { raw:Metal_raw.handle; lifetime:lifetime; device:device
+  ; mutable acceleration_attachments:acceleration_pass_attachment_array option }
+and acceleration_pass_attachment_array =
+  { raw:Metal_raw.handle; lifetime:lifetime; parent:acceleration_pass
+  ; slots:acceleration_pass_attachment option array }
+and acceleration_pass_attachment =
+  { raw:Metal_raw.handle; lifetime:lifetime
+  ; parent:acceleration_pass_attachment_array; index:int
+  ; sample_buffer:counter_sample_buffer; first:int64; last:int64 }
+
 type blit_pass_descriptor =
   { raw : Metal_raw.handle; lifetime : lifetime; device : device
   ; mutable blit_attachments : blit_pass_attachment_array option }
@@ -19430,6 +19441,37 @@ module Resource100 = struct
     let destroyed(t:t)=is_destroyed t.lifetime
     let destroy(t:t)=destroy_leaf "Metal.Resource100.Resource_state_pass.destroy" t.lifetime t.raw(fun()->())
   end
+end
+
+module Acceleration_pass : sig
+  type t = acceleration_pass
+  type attachment = acceleration_pass_attachment
+  val create : Device.t -> (t,error) result
+  val set_attachment : t -> index:int -> sample_buffer:Resource100.Sample_buffer.t -> first:int64 -> last:int64 -> (attachment,error) result
+  val attachment : t -> index:int -> (attachment option,error) result
+  val clear_attachment : t -> index:int -> (unit,error) result
+  val attachment_index : attachment -> int
+  val attachment_range : attachment -> int64 * int64
+  val create_encoder : Command_buffer.t -> t -> (Acceleration_encoder.t,error) result
+  val destroy_attachment : attachment -> (unit,error) result
+  val destroyed : t -> bool
+  val destroy : t -> (unit,error) result
+end = struct
+  type t=acceleration_pass
+  type attachment=acceleration_pass_attachment
+  let capacity=4
+  let create(device:Device.t)=let operation="Metal.Acceleration_pass.create"in on_main operation(fun()->match ensure_live operation device.lifetime with Error _ as e->e|Ok()->match Metal_raw.acceleration_pass_create()with Error m->native_error operation m|Ok raw->attach device.lifetime;let value:t={raw;lifetime=lifetime();device;acceleration_attachments=None}in attach_finalizer value value.lifetime device.lifetime;Ok value)
+  let attachments(value:t)=let operation="Metal.Acceleration_pass.attachments"in match value.acceleration_attachments with Some x->Ok x|None->match Metal_raw.acceleration_pass_attachments value.raw with Error m->native_error operation m|Ok raw->let x:acceleration_pass_attachment_array={raw;lifetime=lifetime();parent=value;slots=Array.make capacity None}in attach value.lifetime;attach_finalizer x x.lifetime value.lifetime;value.acceleration_attachments<-Some x;Ok x
+  let valid operation index=if index<0||index>=capacity then error operation Invalid_argument "acceleration sample attachment index is outside [0,4)"else Ok()
+  let set_attachment(value:t)~index~(sample_buffer:counter_sample_buffer)~first~last=let operation="Metal.Acceleration_pass.set_attachment"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->Result.bind(valid operation index)(fun()->Result.bind(ensure_live operation sample_buffer.lifetime)(fun()->Result.bind(ensure_same_device operation value.device sample_buffer.device)(fun()->if first<0L||last<first||last>=sample_buffer.sample_count then error operation Invalid_argument "acceleration sample range is invalid"else Result.bind(attachments value)(fun (array:acceleration_pass_attachment_array)->match Metal_raw.acceleration_pass_attachment array.raw(Int64.of_int index)(Some sample_buffer.raw)first last with Error m->native_error operation m|Ok raw->match Metal_raw.acceleration_pass_attachment_set array.raw(Int64.of_int index)(Some raw)with Error m->ignore(Metal_raw.destroy raw);native_error operation m|Ok()->attach array.lifetime;attach sample_buffer.lifetime;let item:acceleration_pass_attachment={raw;lifetime=lifetime();parent=array;index;sample_buffer;first;last}in attach_finalizer~on_finalize:(fun()->detach sample_buffer.lifetime)item item.lifetime array.lifetime;array.slots.(index)<-Some item;Ok item)))))
+  let attachment(value:t)~index=let operation="Metal.Acceleration_pass.attachment"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->Result.bind(valid operation index)(fun()->Result.bind(attachments value)(fun array->match array.slots.(index)with None->Ok None|Some item->match Metal_raw.acceleration_pass_attachment_snapshot item.raw with Error m->native_error operation m|Ok(native,first,last)->Option.iter(fun raw->ignore(Metal_raw.destroy raw))native;if Option.is_none native||first<>item.first||last<>item.last then error operation Native_error "acceleration sample attachment graph drift"else Ok(Some item))))
+  let clear_attachment(value:t)~index=let operation="Metal.Acceleration_pass.clear_attachment"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->Result.bind(valid operation index)(fun()->Result.bind(attachments value)(fun array->match Metal_raw.acceleration_pass_attachment_set array.raw(Int64.of_int index)None with Error m->native_error operation m|Ok()->array.slots.(index)<-None;Ok())))
+  let attachment_index(item:attachment)=item.index
+  let attachment_range(item:attachment)=ignore item.parent.parent.device;(item.first,item.last)
+  let create_encoder(command:Command_buffer.t)(value:t)=let operation="Metal.Acceleration_pass.create_encoder"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match ensure_live operation command.lifetime with Error _ as e->e|Ok()when command.phase<>Recording||dependent_count command.lifetime<>0->error operation Invalid_state "command buffer cannot create an acceleration encoder"|Ok()->Result.bind(ensure_same_device operation command.queue.device value.device)(fun()->match Metal_raw.acceleration_encoder_with_pass command.raw value.raw with Error m->native_error operation m|Ok raw->let encoder:acceleration_encoder={raw;lifetime=lifetime();command_buffer=command}in attach command.lifetime;attach value.lifetime;command.presentation_events:=value.lifetime::!(command.presentation_events);attach_finalizer encoder encoder.lifetime command.lifetime;Ok encoder))
+  let destroy_attachment(item:attachment)=destroy_leaf "Metal.Acceleration_pass.destroy_attachment" item.lifetime item.raw(fun()->detach item.sample_buffer.lifetime;detach item.parent.lifetime)
+  let destroyed(value:t)=is_destroyed value.lifetime
+  let destroy(value:t)=destroy_parent "Metal.Acceleration_pass.destroy" value.lifetime value.raw(fun()->detach value.device.lifetime)
 end
 
 module rec Blit_pass_descriptor : sig

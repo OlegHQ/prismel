@@ -2412,6 +2412,9 @@ external acceleration_pass_attachment :
 external acceleration_pass_attachment_snapshot :
   handle -> ((handle option * int64 * int64),string) result =
   "caml_prismel_metal_acceleration_pass_attachment_snapshot"
+external acceleration_pass_attachment_set :
+  handle -> int64 -> handle option -> (unit,string) result =
+  "caml_prismel_metal_acceleration_pass_attachment_set"
 external acceleration_encoder_fence :
   handle -> handle -> bool -> (unit,string) result =
   "caml_prismel_metal_acceleration_encoder_fence"
