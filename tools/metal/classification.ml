@@ -1666,6 +1666,19 @@ let io_compressor_safe5 =
   ; "function:MTLIOFlushAndDestroyCompressionContext"
   ; "typedef:MTLIOCompressionContext" ]
 
+let render_pipeline93_safe11 =
+  [ "class:MTLMeshRenderPipelineDescriptor"
+  ; "class:MTLRenderPipelineColorAttachmentDescriptor"
+  ; "class:MTLRenderPipelineColorAttachmentDescriptorArray"
+  ; "class:MTLTileRenderPipelineDescriptor"
+  ; "method:-[MTLMeshRenderPipelineDescriptor reset]"
+  ; "method:-[MTLRenderPipelineColorAttachmentDescriptorArray objectAtIndexedSubscript:]"
+  ; "method:-[MTLRenderPipelineColorAttachmentDescriptorArray setObject:atIndexedSubscript:]"
+  ; "method:-[MTLRenderPipelineDescriptor label]"
+  ; "method:-[MTLRenderPipelineDescriptor setLabel:]"
+  ; "method:-[MTLTileRenderPipelineDescriptor reset]"
+  ; "property:MTLRenderPipelineDescriptor:label" ]
+
 let classify ~unavailable ~identifier ~header ~kind ~signature =
   if unavailable then
     Scope_excluded, "Clang marks this declaration unavailable for macOS."
@@ -1747,6 +1760,12 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier Binding_command_queue_tail_handoff.callable_ids then
     Bound,
       "Implemented by the CommandQueue14 safe closure with checked descriptor limits and log-state ownership, copied queue identity, capture-state validation, and retained classic command buffers."
+  else if List.mem identifier render_pipeline93_safe11 then
+    Bound,
+      "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership."
+  else if List.mem identifier Binding_compute_encoder35_safe_closure.callable_ids then
+    Bound,
+      "Implemented by the ComputeEncoder safe16 binding closure with checked indices, ranges, strides, cardinality and device identity plus command-completion retention."
   else if List.mem identifier io_compressor_safe5 then
     Bound,
       "Implemented by the owned IO.Compressor lifecycle with copied configuration, checked byte ranges, synchronous consumption, exact finalization state, and real compressed-output conformance."

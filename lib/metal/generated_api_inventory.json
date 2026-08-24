@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4601,
+    "bound": 4617,
     "scope-excluded": 37,
-    "unreviewed": 647
+    "unreviewed": 631
   },
-  "classification_source_sha256": "d70b3bfd132f4cf9ddf8be36c434a6c73c6fc945b97ce6d869206d2734571c50",
+  "classification_source_sha256": "f3a29f134b846fe08828f74c161fe804eb8dd4ae1ec65abd789fe40f4c8ed62b",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -52146,7 +52146,7 @@
           "line": 157
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputeCommandEncoder.h",
       "id": "method:-[MTLComputeCommandEncoder setAccelerationStructure:atBufferIndex:]",
       "kind": "method",
@@ -52154,7 +52154,7 @@
       "macos_introduced": "11.0",
       "name": "setAccelerationStructure:atBufferIndex:",
       "owner": "MTLComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ComputeEncoder safe16 binding closure with checked indices, ranges, strides, cardinality and device identity plus command-completion retention.",
       "signature": "instance (id<MTLAccelerationStructure>  _Nullable __strong, NSUInteger) -> void"
     },
     {
@@ -52190,7 +52190,7 @@
           "line": 95
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputeCommandEncoder.h",
       "id": "method:-[MTLComputeCommandEncoder setBuffer:offset:attributeStride:atIndex:]",
       "kind": "method",
@@ -52198,7 +52198,7 @@
       "macos_introduced": "14.0",
       "name": "setBuffer:offset:attributeStride:atIndex:",
       "owner": "MTLComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ComputeEncoder safe16 binding closure with checked indices, ranges, strides, cardinality and device identity plus command-completion retention.",
       "signature": "instance (id<MTLBuffer>  _Nonnull __strong, NSUInteger, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -52215,7 +52215,7 @@
           "line": 77
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputeCommandEncoder.h",
       "id": "method:-[MTLComputeCommandEncoder setBufferOffset:atIndex:]",
       "kind": "method",
@@ -52223,7 +52223,7 @@
       "macos_introduced": "10.11",
       "name": "setBufferOffset:atIndex:",
       "owner": "MTLComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ComputeEncoder safe16 binding closure with checked indices, ranges, strides, cardinality and device identity plus command-completion retention.",
       "signature": "instance (NSUInteger, NSUInteger) -> void"
     },
     {
@@ -52240,7 +52240,7 @@
           "line": 115
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputeCommandEncoder.h",
       "id": "method:-[MTLComputeCommandEncoder setBufferOffset:attributeStride:atIndex:]",
       "kind": "method",
@@ -52248,7 +52248,7 @@
       "macos_introduced": "14.0",
       "name": "setBufferOffset:attributeStride:atIndex:",
       "owner": "MTLComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ComputeEncoder safe16 binding closure with checked indices, ranges, strides, cardinality and device identity plus command-completion retention.",
       "signature": "instance (NSUInteger, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -52265,7 +52265,7 @@
           "line": 106
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputeCommandEncoder.h",
       "id": "method:-[MTLComputeCommandEncoder setBuffers:offsets:attributeStrides:withRange:]",
       "kind": "method",
@@ -52273,7 +52273,7 @@
       "macos_introduced": "14.0",
       "name": "setBuffers:offsets:attributeStrides:withRange:",
       "owner": "MTLComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ComputeEncoder safe16 binding closure with checked indices, ranges, strides, cardinality and device identity plus command-completion retention.",
       "signature": "instance (id<MTLBuffer>  _Nullable const __unsafe_unretained * _Nonnull, const NSUInteger * _Nonnull, const NSUInteger * _Nonnull, NSRange) -> void"
     },
     {
@@ -52284,7 +52284,7 @@
           "line": 45
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputeCommandEncoder.h",
       "id": "method:-[MTLComputeCommandEncoder setBuffers:offsets:withRange:]",
       "kind": "method",
@@ -52292,7 +52292,7 @@
       "macos_introduced": "10.11",
       "name": "setBuffers:offsets:withRange:",
       "owner": "MTLComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ComputeEncoder safe16 binding closure with checked indices, ranges, strides, cardinality and device identity plus command-completion retention.",
       "signature": "instance (id<MTLBuffer>  _Nullable const __unsafe_unretained * _Nonnull, const NSUInteger * _Nonnull, NSRange) -> void"
     },
     {
@@ -52334,7 +52334,7 @@
           "line": 125
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputeCommandEncoder.h",
       "id": "method:-[MTLComputeCommandEncoder setBytes:length:attributeStride:atIndex:]",
       "kind": "method",
@@ -52342,7 +52342,7 @@
       "macos_introduced": "14.0",
       "name": "setBytes:length:attributeStride:atIndex:",
       "owner": "MTLComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ComputeEncoder safe16 binding closure with checked indices, ranges, strides, cardinality and device identity plus command-completion retention.",
       "signature": "instance (const void * _Nonnull, NSUInteger, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -52403,7 +52403,7 @@
           "line": 144
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputeCommandEncoder.h",
       "id": "method:-[MTLComputeCommandEncoder setIntersectionFunctionTable:atBufferIndex:]",
       "kind": "method",
@@ -52411,7 +52411,7 @@
       "macos_introduced": "11.0",
       "name": "setIntersectionFunctionTable:atBufferIndex:",
       "owner": "MTLComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ComputeEncoder safe16 binding closure with checked indices, ranges, strides, cardinality and device identity plus command-completion retention.",
       "signature": "instance (id<MTLIntersectionFunctionTable>  _Nullable __strong, NSUInteger) -> void"
     },
     {
@@ -52428,7 +52428,7 @@
           "line": 150
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputeCommandEncoder.h",
       "id": "method:-[MTLComputeCommandEncoder setIntersectionFunctionTables:withBufferRange:]",
       "kind": "method",
@@ -52436,7 +52436,7 @@
       "macos_introduced": "11.0",
       "name": "setIntersectionFunctionTables:withBufferRange:",
       "owner": "MTLComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ComputeEncoder safe16 binding closure with checked indices, ranges, strides, cardinality and device identity plus command-completion retention.",
       "signature": "instance (id<MTLIntersectionFunctionTable>  _Nullable const __unsafe_unretained * _Nonnull, NSRange) -> void"
     },
     {
@@ -52447,7 +52447,7 @@
           "line": 45
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputeCommandEncoder.h",
       "id": "method:-[MTLComputeCommandEncoder setSamplerState:atIndex:]",
       "kind": "method",
@@ -52455,7 +52455,7 @@
       "macos_introduced": "10.11",
       "name": "setSamplerState:atIndex:",
       "owner": "MTLComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ComputeEncoder safe16 binding closure with checked indices, ranges, strides, cardinality and device identity plus command-completion retention.",
       "signature": "instance (id<MTLSamplerState>  _Nullable __strong, NSUInteger) -> void"
     },
     {
@@ -52466,7 +52466,7 @@
           "line": 45
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputeCommandEncoder.h",
       "id": "method:-[MTLComputeCommandEncoder setSamplerState:lodMinClamp:lodMaxClamp:atIndex:]",
       "kind": "method",
@@ -52474,7 +52474,7 @@
       "macos_introduced": "10.11",
       "name": "setSamplerState:lodMinClamp:lodMaxClamp:atIndex:",
       "owner": "MTLComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ComputeEncoder safe16 binding closure with checked indices, ranges, strides, cardinality and device identity plus command-completion retention.",
       "signature": "instance (id<MTLSamplerState>  _Nullable __strong, float, float, NSUInteger) -> void"
     },
     {
@@ -52485,7 +52485,7 @@
           "line": 45
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputeCommandEncoder.h",
       "id": "method:-[MTLComputeCommandEncoder setSamplerStates:lodMinClamps:lodMaxClamps:withRange:]",
       "kind": "method",
@@ -52493,7 +52493,7 @@
       "macos_introduced": "10.11",
       "name": "setSamplerStates:lodMinClamps:lodMaxClamps:withRange:",
       "owner": "MTLComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ComputeEncoder safe16 binding closure with checked indices, ranges, strides, cardinality and device identity plus command-completion retention.",
       "signature": "instance (id<MTLSamplerState>  _Nullable const __unsafe_unretained * _Nonnull, const float * _Nonnull, const float * _Nonnull, NSRange) -> void"
     },
     {
@@ -52504,7 +52504,7 @@
           "line": 45
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputeCommandEncoder.h",
       "id": "method:-[MTLComputeCommandEncoder setSamplerStates:withRange:]",
       "kind": "method",
@@ -52512,7 +52512,7 @@
       "macos_introduced": "10.11",
       "name": "setSamplerStates:withRange:",
       "owner": "MTLComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ComputeEncoder safe16 binding closure with checked indices, ranges, strides, cardinality and device identity plus command-completion retention.",
       "signature": "instance (id<MTLSamplerState>  _Nullable const __unsafe_unretained * _Nonnull, NSRange) -> void"
     },
     {
@@ -52592,7 +52592,7 @@
           "line": 45
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputeCommandEncoder.h",
       "id": "method:-[MTLComputeCommandEncoder setTextures:withRange:]",
       "kind": "method",
@@ -52600,7 +52600,7 @@
       "macos_introduced": "10.11",
       "name": "setTextures:withRange:",
       "owner": "MTLComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ComputeEncoder safe16 binding closure with checked indices, ranges, strides, cardinality and device identity plus command-completion retention.",
       "signature": "instance (id<MTLTexture>  _Nullable const __unsafe_unretained * _Nonnull, NSRange) -> void"
     },
     {
@@ -52636,7 +52636,7 @@
           "line": 132
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputeCommandEncoder.h",
       "id": "method:-[MTLComputeCommandEncoder setVisibleFunctionTable:atBufferIndex:]",
       "kind": "method",
@@ -52644,7 +52644,7 @@
       "macos_introduced": "11.0",
       "name": "setVisibleFunctionTable:atBufferIndex:",
       "owner": "MTLComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ComputeEncoder safe16 binding closure with checked indices, ranges, strides, cardinality and device identity plus command-completion retention.",
       "signature": "instance (id<MTLVisibleFunctionTable>  _Nullable __strong, NSUInteger) -> void"
     },
     {
@@ -52661,7 +52661,7 @@
           "line": 138
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputeCommandEncoder.h",
       "id": "method:-[MTLComputeCommandEncoder setVisibleFunctionTables:withBufferRange:]",
       "kind": "method",
@@ -52669,7 +52669,7 @@
       "macos_introduced": "11.0",
       "name": "setVisibleFunctionTables:withBufferRange:",
       "owner": "MTLComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ComputeEncoder safe16 binding closure with checked indices, ranges, strides, cardinality and device identity plus command-completion retention.",
       "signature": "instance (id<MTLVisibleFunctionTable>  _Nullable const __unsafe_unretained * _Nonnull, NSRange) -> void"
     },
     {
