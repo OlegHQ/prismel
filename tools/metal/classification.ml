@@ -41,6 +41,7 @@ let bound_identifiers =
   ; "class:MTL4ArgumentTableDescriptor"
   ; "class:MTL4BinaryFunctionDescriptor"
   ; "class:MTL4CommandAllocatorDescriptor"
+  ; "class:MTL4CommandBufferOptions"
   ; "class:MTL4CommandQueueDescriptor"
   ; "class:MTL4CommitOptions"
   ; "class:MTL4CompilerDescriptor"
