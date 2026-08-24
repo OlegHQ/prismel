@@ -1068,6 +1068,8 @@ type shader_attribute_descriptor_array = { raw:Metal_raw.handle; lifetime:lifeti
 type shader_attribute_descriptor = { raw:Metal_raw.handle; lifetime:lifetime; parent:shader_attribute_descriptor_array }
 type shader_buffer_layout_descriptor_array = { raw:Metal_raw.handle; lifetime:lifetime; parent:shader_stage_descriptor }
 type shader_stitching_input = { raw:Metal_raw.handle; lifetime:lifetime }
+type stitching_function_node={raw:Metal_raw.handle;lifetime:lifetime;mutable stitch_name:string;mutable stitch_arguments:shader_stitching_input list;mutable stitch_dependencies:stitching_function_node list}
+type stitching_graph={raw:Metal_raw.handle;lifetime:lifetime;mutable graph_name:string;mutable graph_nodes:stitching_function_node list;mutable graph_output:stitching_function_node option;mutable graph_inline:bool}
 type capture_manager={raw:Metal_raw.handle;lifetime:lifetime}
 type capture_descriptor={raw:Metal_raw.handle;lifetime:lifetime;mutable destination:int}
 
@@ -8659,6 +8661,29 @@ module Shader_stitching_input = struct
   let set_argument_index(value:t) index=let operation="Metal.Shader_stitching_input.set_argument_index" in if index<0L then error operation Invalid_argument "argument index must be nonnegative"else on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.shader_stitching_input_set_index value.raw index with Error m->native_error operation m|Ok()->Ok())
   let destroyed(value:t)=is_destroyed value.lifetime
   let destroy(value:t)=destroy_leaf "Metal.Shader_stitching_input.destroy" value.lifetime value.raw ignore
+end
+
+module Function_stitching_node = struct
+  type t=stitching_function_node
+  let rec reaches target node=target==node||List.exists(reaches target)node.stitch_dependencies
+  let validate op ~name ~arguments ~dependencies ~self=
+    if name=""||contains_nul name then error op Invalid_argument "stitching node name is invalid"
+    else match List.find_opt(fun(x:shader_stitching_input)->is_destroyed x.lifetime)arguments with Some _->error op Destroyed "stitching input is destroyed"|None->match List.find_opt(fun(x:t)->is_destroyed x.lifetime)dependencies with Some _->error op Destroyed "stitching dependency is destroyed"|None->match self with Some node when List.exists(reaches node)dependencies->error op Invalid_argument "stitching graph contains a cycle"|_->Ok()
+  let create ~name ~arguments ~dependencies=let op="Metal.Function_stitching_node.create"in on_main op(fun()->match validate op~name~arguments~dependencies~self:None with Error _ as e->e|Ok()->match Metal_raw.stitch_function_create name(Array.of_list(List.map(fun(x:shader_stitching_input)->x.raw)arguments))(Array.of_list(List.map(fun(x:t)->x.raw)dependencies))with Error m->native_error op m|Ok raw->List.iter(fun(x:shader_stitching_input)->attach x.lifetime)arguments;List.iter(fun(x:t)->attach x.lifetime)dependencies;let value:t={raw;lifetime=lifetime();stitch_name=name;stitch_arguments=arguments;stitch_dependencies=dependencies}in Gc.finalise(fun(value:t)->if Atomic.compare_and_set value.lifetime.destroyed false true then(begin ignore(Metal_raw.destroy value.raw);List.iter(fun(x:shader_stitching_input)->detach x.lifetime)value.stitch_arguments;List.iter(fun(x:t)->detach x.lifetime)value.stitch_dependencies end))value;Ok value)
+  let name t=t.stitch_name and arguments t=t.stitch_arguments and dependencies t=t.stitch_dependencies
+  let set (value:t) ~name ~arguments ~dependencies=let op="Metal.Function_stitching_node.set"in on_main op(fun()->match ensure_live op value.lifetime with Error _ as e->e|Ok()->match validate op~name~arguments~dependencies~self:(Some value)with Error _ as e->e|Ok()->match Metal_raw.stitch_function_set value.raw name(Array.of_list(List.map(fun(x:shader_stitching_input)->x.raw)arguments))(Array.of_list(List.map(fun(x:t)->x.raw)dependencies))with Error m->native_error op m|Ok()->List.iter(fun(x:shader_stitching_input)->attach x.lifetime)arguments;List.iter(fun(x:t)->attach x.lifetime)dependencies;List.iter(fun(x:shader_stitching_input)->detach x.lifetime)value.stitch_arguments;List.iter(fun(x:t)->detach x.lifetime)value.stitch_dependencies;value.stitch_name<-name;value.stitch_arguments<-arguments;value.stitch_dependencies<-dependencies;Ok())
+  let destroyed(value:t)=is_destroyed value.lifetime
+  let destroy(value:t)=destroy_parent "Metal.Function_stitching_node.destroy" value.lifetime value.raw(fun()->List.iter(fun(x:shader_stitching_input)->detach x.lifetime)value.stitch_arguments;List.iter(fun(x:t)->detach x.lifetime)value.stitch_dependencies)
+end
+
+module Function_stitching_graph = struct
+  type t=stitching_graph
+  let validate op ~name ~nodes ~output=if name=""||contains_nul name||List.exists(fun(x:stitching_function_node)->is_destroyed x.lifetime)nodes then error op Invalid_argument "stitching graph identity or nodes are invalid"else match output with Some x when not(List.exists((==)x)nodes)->error op Invalid_argument "output is not a graph node"|_->Ok()
+  let create ~name ~nodes ?output ?(always_inline=false)()=let op="Metal.Function_stitching_graph.create"in on_main op(fun()->match validate op~name~nodes~output with Error _ as e->e|Ok()->match Metal_raw.stitch_graph_create name(Array.of_list(List.map(fun(x:stitching_function_node)->x.raw)nodes))(Option.map(fun(x:stitching_function_node)->x.raw)output)always_inline with Error m->native_error op m|Ok raw->List.iter(fun(x:stitching_function_node)->attach x.lifetime)nodes;let value:t={raw;lifetime=lifetime();graph_name=name;graph_nodes=nodes;graph_output=output;graph_inline=always_inline}in Gc.finalise(fun(value:t)->if Atomic.compare_and_set value.lifetime.destroyed false true then(begin ignore(Metal_raw.destroy value.raw);List.iter(fun(x:stitching_function_node)->detach x.lifetime)value.graph_nodes end))value;Ok value)
+  let name t=t.graph_name and nodes t=t.graph_nodes and output t=t.graph_output and always_inline t=t.graph_inline
+  let set (value:t) ~name ~nodes ?output ?(always_inline=false)()=let op="Metal.Function_stitching_graph.set"in on_main op(fun()->match ensure_live op value.lifetime with Error _ as e->e|Ok()->match validate op~name~nodes~output with Error _ as e->e|Ok()->match Metal_raw.stitch_graph_set value.raw name(Array.of_list(List.map(fun(x:stitching_function_node)->x.raw)nodes))(Option.map(fun(x:stitching_function_node)->x.raw)output)always_inline with Error m->native_error op m|Ok()->List.iter(fun(x:stitching_function_node)->attach x.lifetime)nodes;List.iter(fun(x:stitching_function_node)->detach x.lifetime)value.graph_nodes;value.graph_name<-name;value.graph_nodes<-nodes;value.graph_output<-output;value.graph_inline<-always_inline;Ok())
+  let destroyed(value:t)=is_destroyed value.lifetime
+  let destroy(value:t)=destroy_parent "Metal.Function_stitching_graph.destroy" value.lifetime value.raw(fun()->List.iter(fun(x:stitching_function_node)->detach x.lifetime)value.graph_nodes)
 end
 
 module Capture = struct

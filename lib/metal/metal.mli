@@ -1430,6 +1430,29 @@ module Shader_stitching_input : sig
   val destroy:t->(unit,error)result
 end
 
+module Function_stitching_node : sig
+  type t
+  val create : name:string -> arguments:Shader_stitching_input.t list -> dependencies:t list -> (t,error) result
+  val name : t -> string
+  val arguments : t -> Shader_stitching_input.t list
+  val dependencies : t -> t list
+  val set : t -> name:string -> arguments:Shader_stitching_input.t list -> dependencies:t list -> (unit,error) result
+  val destroyed : t -> bool
+  val destroy : t -> (unit,error) result
+end
+
+module Function_stitching_graph : sig
+  type t
+  val create : name:string -> nodes:Function_stitching_node.t list -> ?output:Function_stitching_node.t -> ?always_inline:bool -> unit -> (t,error) result
+  val name : t -> string
+  val nodes : t -> Function_stitching_node.t list
+  val output : t -> Function_stitching_node.t option
+  val always_inline : t -> bool
+  val set : t -> name:string -> nodes:Function_stitching_node.t list -> ?output:Function_stitching_node.t -> ?always_inline:bool -> unit -> (unit,error) result
+  val destroyed : t -> bool
+  val destroy : t -> (unit,error) result
+end
+
 module Capture : sig
   type destination=Developer_tools|Gpu_trace_document
   module Descriptor:sig
