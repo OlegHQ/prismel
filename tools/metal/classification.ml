@@ -1620,6 +1620,13 @@ let library_existing_safe18 =
   ; "property:MTLFunction:stageInputAttributes"; "property:MTLFunction:vertexAttributes"
   ; "method:-[MTLLibrary newFunctionWithDescriptor:error:]" ]
 
+let blit_safe5 =
+  [ "method:-[MTLBlitCommandEncoder copyFromBuffer:sourceOffset:sourceBytesPerRow:sourceBytesPerImage:sourceSize:toTexture:destinationSlice:destinationLevel:destinationOrigin:options:]"
+  ; "method:-[MTLBlitCommandEncoder fillBuffer:range:value:]"
+  ; "method:-[MTLBlitCommandEncoder generateMipmapsForTexture:]"
+  ; "method:-[MTLBlitCommandEncoder updateFence:]"
+  ; "method:-[MTLBlitCommandEncoder waitForFence:]" ]
+
 let classify ~unavailable ~identifier ~header ~kind ~signature =
   if unavailable then
     Scope_excluded, "Clang marks this declaration unavailable for macOS."
@@ -1683,6 +1690,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier Binding_library_header_handoff.callable_ids then
     Bound,
       "Implemented by the MTLLibrary34 safe closure with immutable compile options, retained reflection and argument-encoder graphs, checked synchronous construction, and cancellable exactly-once asynchronous tasks."
+  else if List.mem identifier blit_safe5 then
+    Bound,
+      "Implemented by the owned Blit_encoder safe surface with checked ranges, device identity, resource retention, and native command execution."
   else if List.mem identifier Binding_resource_safe_reachability.promotable_ids then
     Bound,
       "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance."

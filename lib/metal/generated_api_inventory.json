@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4474,
+    "bound": 4479,
     "scope-excluded": 37,
-    "unreviewed": 774
+    "unreviewed": 769
   },
-  "classification_source_sha256": "f71739001c04328c535db22ad704c89fb5e38d8bcbbfdb6582325520f1bcbbe5",
+  "classification_source_sha256": "97808e7d87dde2fc7d76c45b923575fa2a7ac1fd60ebbe9e0e9b8bc6b88a43e4",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -47843,7 +47843,7 @@
           "line": 79
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBlitCommandEncoder.h",
       "id": "method:-[MTLBlitCommandEncoder copyFromBuffer:sourceOffset:sourceBytesPerRow:sourceBytesPerImage:sourceSize:toTexture:destinationSlice:destinationLevel:destinationOrigin:options:]",
       "kind": "method",
@@ -47851,7 +47851,7 @@
       "macos_introduced": "10.11",
       "name": "copyFromBuffer:sourceOffset:sourceBytesPerRow:sourceBytesPerImage:sourceSize:toTexture:destinationSlice:destinationLevel:destinationOrigin:options:",
       "owner": "MTLBlitCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned Blit_encoder safe surface with checked ranges, device identity, resource retention, and native command execution.",
       "signature": "instance (id<MTLBuffer>  _Nonnull __strong, NSUInteger, NSUInteger, NSUInteger, MTLSize, id<MTLTexture>  _Nonnull __strong, NSUInteger, NSUInteger, MTLOrigin, MTLBlitOption) -> void"
     },
     {
@@ -48044,7 +48044,7 @@
           "line": 39
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBlitCommandEncoder.h",
       "id": "method:-[MTLBlitCommandEncoder fillBuffer:range:value:]",
       "kind": "method",
@@ -48052,7 +48052,7 @@
       "macos_introduced": "10.11",
       "name": "fillBuffer:range:value:",
       "owner": "MTLBlitCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned Blit_encoder safe surface with checked ranges, device identity, resource retention, and native command execution.",
       "signature": "instance (id<MTLBuffer>  _Nonnull __strong, NSRange, uint8_t) -> void"
     },
     {
@@ -48063,7 +48063,7 @@
           "line": 39
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBlitCommandEncoder.h",
       "id": "method:-[MTLBlitCommandEncoder generateMipmapsForTexture:]",
       "kind": "method",
@@ -48071,7 +48071,7 @@
       "macos_introduced": "10.11",
       "name": "generateMipmapsForTexture:",
       "owner": "MTLBlitCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned Blit_encoder safe surface with checked ranges, device identity, resource retention, and native command execution.",
       "signature": "instance (id<MTLTexture>  _Nonnull __strong) -> void"
     },
     {
@@ -48388,7 +48388,7 @@
           "line": 148
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBlitCommandEncoder.h",
       "id": "method:-[MTLBlitCommandEncoder updateFence:]",
       "kind": "method",
@@ -48396,7 +48396,7 @@
       "macos_introduced": "10.13",
       "name": "updateFence:",
       "owner": "MTLBlitCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned Blit_encoder safe surface with checked ranges, device identity, resource retention, and native command execution.",
       "signature": "instance (id<MTLFence>  _Nonnull __strong) -> void"
     },
     {
@@ -48413,7 +48413,7 @@
           "line": 156
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBlitCommandEncoder.h",
       "id": "method:-[MTLBlitCommandEncoder waitForFence:]",
       "kind": "method",
@@ -48421,7 +48421,7 @@
       "macos_introduced": "10.13",
       "name": "waitForFence:",
       "owner": "MTLBlitCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned Blit_encoder safe surface with checked ranges, device identity, resource retention, and native command execution.",
       "signature": "instance (id<MTLFence>  _Nonnull __strong) -> void"
     },
     {
