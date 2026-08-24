@@ -1482,6 +1482,7 @@ type command_queue =
   ; device : device
   ; residency_sets : residency_set list ref
   }
+type command_queue_descriptor={raw:Metal_raw.handle;lifetime:lifetime;device:device;mutable max_count:int64;mutable descriptor_log_state:command4_log_state option}
 
 type capture_scope={raw:Metal_raw.handle;lifetime:lifetime;device:device;parent:lifetime}
 type capture_source=
@@ -15628,6 +15629,19 @@ end
 
 module Command_queue = struct
   type t = command_queue
+  module Descriptor=struct
+    type t=command_queue_descriptor
+    let create (device:Device.t)?(max_command_buffer_count=64L)?log_state()=let operation="Metal.Command_queue.Descriptor.create"in on_main operation(fun()->match ensure_live operation device.lifetime with Error _ as failure->failure|Ok()when max_command_buffer_count<=0L->error operation Invalid_argument "command buffer limit must be positive"|Ok()->match log_state with Some(log:command4_log_state)when is_destroyed log.lifetime->error operation Destroyed "log state is destroyed"|Some log when not(same_device device log.device)->error operation Device_mismatch "log state belongs to another device"|_->match Metal_raw.command_queue_descriptor_create max_command_buffer_count(Option.map(fun(log:command4_log_state)->log.raw)log_state)with Error message->native_error operation message|Ok raw->Option.iter(fun(log:command4_log_state)->attach log.lifetime)log_state;attach device.lifetime;let value:t={raw;lifetime=lifetime();device;max_count=max_command_buffer_count;descriptor_log_state=log_state}in Gc.finalise(fun(value:t)->if Atomic.compare_and_set value.lifetime.destroyed false true then(begin ignore(Metal_raw.destroy value.raw);Option.iter(fun(log:command4_log_state)->detach log.lifetime)value.descriptor_log_state;detach value.device.lifetime end))value;Ok value)
+    let max_command_buffer_count(value:t)=value.max_count
+    let log_state(value:t)=value.descriptor_log_state
+    let set(value:t)~max_command_buffer_count~log_state=let operation="Metal.Command_queue.Descriptor.set"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as failure->failure|Ok()when max_command_buffer_count<=0L->error operation Invalid_argument "command buffer limit must be positive"|Ok()->match log_state with Some(log:command4_log_state)when is_destroyed log.lifetime->error operation Destroyed "log state is destroyed"|Some log when not(same_device value.device log.device)->error operation Device_mismatch "log state belongs to another device"|_->match Metal_raw.command_queue_descriptor_set value.raw max_command_buffer_count(Option.map(fun(log:command4_log_state)->log.raw)log_state)with Error message->native_error operation message|Ok()->Option.iter(fun(log:command4_log_state)->attach log.lifetime)log_state;Option.iter(fun(log:command4_log_state)->detach log.lifetime)value.descriptor_log_state;value.max_count<-max_command_buffer_count;value.descriptor_log_state<-log_state;Ok())
+    let destroyed(value:t)=is_destroyed value.lifetime
+    let destroy(value:t)=destroy_parent "Metal.Command_queue.Descriptor.destroy" value.lifetime value.raw(fun()->Option.iter(fun(log:command4_log_state)->detach log.lifetime)value.descriptor_log_state;detach value.device.lifetime)
+  end
+
+  let label(value:t)=let operation="Metal.Command_queue.label"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as failure->failure|Ok()->match Metal_raw.command_queue_snapshot value.raw with Error message->native_error operation message|Ok(label,registry)when registry=value.device.registry_id->Ok label|Ok _->error operation Device_mismatch "command queue device identity changed")
+  let set_label(value:t) label=let operation="Metal.Command_queue.set_label"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as failure->failure|Ok()when option_exists contains_nul label->error operation Invalid_argument "label contains a NUL byte"|Ok()->match Metal_raw.command_queue_set_label value.raw label with Error message->native_error operation message|Ok()->Ok())
+  let insert_capture_boundary(value:t)(manager:Capture.Manager.t)=let operation="Metal.Command_queue.insert_capture_boundary"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as failure->failure|Ok()->match Capture.Manager.is_capturing manager with Error _ as failure->failure|Ok false->error operation Invalid_state "debug capture is not active"|Ok true->match Metal_raw.command_queue_capture_boundary value.raw with Error message->native_error operation message|Ok()->Ok())
 
   let same_residency_set (left : residency_set) (right : residency_set) =
     left.lifetime == right.lifetime
@@ -15834,6 +15848,13 @@ module Command_buffer = struct
     let retained = !tokens in
     tokens := [];
     List.iter Metal_raw.command_buffer_cancel_handler retained
+
+  let wrap_queue_raw (queue:Command_queue.t) raw =
+    let value:t={raw;lifetime=lifetime();queue;phase=Recording;resources=ref[];callback_tokens=ref[];presentation_events=ref[];debug_depth=0;explicitly_enqueued=false}in
+    attach queue.lifetime;let resources=value.resources and callback_tokens=value.callback_tokens and presentation_events=value.presentation_events in attach_finalizer~on_finalize:(fun()->release_command_resources resources;release_callback_tokens callback_tokens;List.iter detach !presentation_events;presentation_events:=[])value value.lifetime queue.lifetime;value
+
+  let create_unretained (queue:Command_queue.t)=let operation="Metal.Command_buffer.create_unretained"in on_main operation(fun()->match ensure_live operation queue.lifetime with Error _ as failure->failure|Ok()->match Metal_raw.command_queue_command_buffer queue.raw 0 false 0L None with Error message->native_error operation message|Ok raw->Ok(wrap_queue_raw queue raw))
+  let create_with_descriptor (queue:Command_queue.t)?(retained_references=true)?(error_options=0L)?log_state()=let operation="Metal.Command_buffer.create_with_descriptor"in on_main operation(fun()->match ensure_live operation queue.lifetime with Error _ as failure->failure|Ok()when error_options<0L->error operation Invalid_argument "command-buffer error options are invalid"|Ok()->match log_state with Some(log:command4_log_state)when is_destroyed log.lifetime->error operation Destroyed "log state is destroyed"|Some log when not(same_device queue.device log.device)->error operation Device_mismatch "log state belongs to another device"|_->match Metal_raw.command_queue_command_buffer queue.raw 1 retained_references error_options(Option.map(fun(log:command4_log_state)->log.raw)log_state)with Error message->native_error operation message|Ok raw->let value=wrap_queue_raw queue raw in Option.iter(fun(log:command4_log_state)->attach log.lifetime;value.presentation_events:=log.lifetime::!(value.presentation_events))log_state;Ok value)
 
   let create (queue : Command_queue.t) ?label () =
     on_main "Metal.Command_buffer.create" (fun () ->

@@ -2992,10 +2992,24 @@ end
 
 module Command_queue : sig
   type t = command_queue
+  module Descriptor : sig
+    type t
+    val create : Device.t -> ?max_command_buffer_count:int64 ->
+      ?log_state:Command4.Log_state.t -> unit -> (t,error) result
+    val max_command_buffer_count : t -> int64
+    val log_state : t -> Command4.Log_state.t option
+    val set : t -> max_command_buffer_count:int64 ->
+      log_state:Command4.Log_state.t option -> (unit,error) result
+    val destroyed : t -> bool
+    val destroy : t -> (unit,error) result
+  end
 
   val create : Device.t -> (t, error) result
   val device : t -> Device.t
   val generation : t -> int64
+  val label : t -> (string option,error) result
+  val set_label : t -> string option -> (unit,error) result
+  val insert_capture_boundary : t -> Capture.Manager.t -> (unit,error) result
   val add_residency_set : t -> Residency_set.t -> (unit, error) result
   val add_residency_sets : t -> Residency_set.t list -> (unit, error) result
   val remove_residency_set : t -> Residency_set.t -> (unit, error) result
@@ -3028,6 +3042,9 @@ module Command_buffer : sig
     | Unknown of int
 
   val create : Command_queue.t -> ?label:string -> unit -> (t, error) result
+  val create_unretained : Command_queue.t -> (t,error) result
+  val create_with_descriptor : Command_queue.t -> ?retained_references:bool ->
+    ?error_options:int64 -> ?log_state:Command4.Log_state.t -> unit -> (t,error) result
   val device : t -> Device.t
   val generation : t -> int64
   val use_residency_set : t -> Residency_set.t -> (unit, error) result

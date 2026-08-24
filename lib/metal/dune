@@ -945,6 +945,11 @@
   (bash
    "status=0; ./test_metal_command_queue15_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
 
+(test
+ (name test_metal_command_queue_safe)
+ (modules test_metal_command_queue_safe)
+ (libraries metal))
+
 (rule
  (targets test_metal_indirect_command14_native.exe)
  (deps ../../tools/metal/test_indirect_command14_native.mm)
