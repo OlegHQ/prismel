@@ -1652,7 +1652,7 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
       "Implemented by owned layer/drawable/render-pass values, checked presentation state and callback lifetimes, and real M1 drawable/readback conformance."
   else if List.mem identifier Binding_presentation_safe_handoff.promotable_ids then
     Bound,
-      "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance."
+      "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance."
   else if List.mem identifier Binding_resource_safe_reachability.promotable_ids then
     Bound,
       "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance."

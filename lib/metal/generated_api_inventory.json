@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4271,
+    "bound": 4276,
     "scope-excluded": 37,
-    "unreviewed": 977
+    "unreviewed": 972
   },
-  "classification_source_sha256": "b8e43c0feb98257e304260a7b7fc16d58540b572f9a6e17ebda156229f9a0f35",
+  "classification_source_sha256": "6d1fc7927dd20cb29a9f4470a38dc553cba96b4ae5bf29cbaf726e3f45b3d93f",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -29974,7 +29974,7 @@
       "macos_introduced": null,
       "name": "layer",
       "owner": "CAMetalDrawable",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> CAMetalLayer * _Nonnull"
     },
     {
@@ -30013,7 +30013,7 @@
       "macos_introduced": "10.15",
       "name": "EDRMetadata",
       "owner": "CAMetalLayer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> CAEDRMetadata * _Nullable"
     },
     {
@@ -30038,7 +30038,7 @@
       "macos_introduced": "10.13",
       "name": "allowsNextDrawableTimeout",
       "owner": "CAMetalLayer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -30057,7 +30057,7 @@
       "macos_introduced": "10.11",
       "name": "colorspace",
       "owner": "CAMetalLayer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> CGColorSpaceRef _Nullable"
     },
     {
@@ -30101,7 +30101,7 @@
       "macos_introduced": "10.11",
       "name": "device",
       "owner": "CAMetalLayer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> id<MTLDevice> _Nullable"
     },
     {
@@ -30130,7 +30130,7 @@
       "macos_introduced": "10.13",
       "name": "displaySyncEnabled",
       "owner": "CAMetalLayer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -30149,7 +30149,7 @@
       "macos_introduced": "10.11",
       "name": "drawableSize",
       "owner": "CAMetalLayer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> CGSize"
     },
     {
@@ -30168,7 +30168,7 @@
       "macos_introduced": "10.11",
       "name": "framebufferOnly",
       "owner": "CAMetalLayer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -30193,7 +30193,7 @@
       "macos_introduced": "10.13.2",
       "name": "maximumDrawableCount",
       "owner": "CAMetalLayer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -30231,7 +30231,7 @@
       "macos_introduced": "10.11",
       "name": "pixelFormat",
       "owner": "CAMetalLayer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> MTLPixelFormat"
     },
     {
@@ -30275,7 +30275,7 @@
       "macos_introduced": "10.11",
       "name": "presentsWithTransaction",
       "owner": "CAMetalLayer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -30348,7 +30348,7 @@
       "macos_introduced": "10.11",
       "name": "setColorspace:",
       "owner": "CAMetalLayer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance (CGColorSpaceRef _Nullable) -> void"
     },
     {
@@ -30465,7 +30465,7 @@
       "macos_introduced": "10.15",
       "name": "setEDRMetadata:",
       "owner": "CAMetalLayer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance (CAEDRMetadata * _Nullable) -> void"
     },
     {
@@ -30572,7 +30572,7 @@
       "macos_introduced": "10.11",
       "name": "setWantsExtendedDynamicRangeContent:",
       "owner": "CAMetalLayer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -30597,7 +30597,7 @@
       "macos_introduced": "10.11",
       "name": "wantsExtendedDynamicRangeContent",
       "owner": "CAMetalLayer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -49670,7 +49670,7 @@
       "macos_introduced": "10.15",
       "name": "GPUEndTime",
       "owner": "MTLCommandBuffer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> CFTimeInterval"
     },
     {
@@ -49695,7 +49695,7 @@
       "macos_introduced": "10.15",
       "name": "GPUStartTime",
       "owner": "MTLCommandBuffer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> CFTimeInterval"
     },
     {
@@ -49720,7 +49720,7 @@
       "macos_introduced": "13.0",
       "name": "accelerationStructureCommandEncoderWithDescriptor:",
       "owner": "MTLCommandBuffer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance (MTLAccelerationStructurePassDescriptor * _Nonnull __strong) -> id<MTLAccelerationStructureCommandEncoder> _Nonnull"
     },
     {
@@ -49745,7 +49745,7 @@
       "macos_introduced": "11.0",
       "name": "accelerationStructureCommandEncoder",
       "owner": "MTLCommandBuffer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> id<MTLAccelerationStructureCommandEncoder> _Nullable"
     },
     {
@@ -49808,7 +49808,7 @@
       "macos_introduced": "11.0",
       "name": "blitCommandEncoderWithDescriptor:",
       "owner": "MTLCommandBuffer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance (MTLBlitPassDescriptor * _Nonnull __strong) -> id<MTLBlitCommandEncoder> _Nullable"
     },
     {
@@ -49846,7 +49846,7 @@
       "macos_introduced": "10.11",
       "name": "commandQueue",
       "owner": "MTLCommandBuffer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> id<MTLCommandQueue> _Nonnull"
     },
     {
@@ -49890,7 +49890,7 @@
       "macos_introduced": "11.0",
       "name": "computeCommandEncoderWithDescriptor:",
       "owner": "MTLCommandBuffer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance (MTLComputePassDescriptor * _Nonnull __strong) -> id<MTLComputeCommandEncoder> _Nullable"
     },
     {
@@ -49915,7 +49915,7 @@
       "macos_introduced": "10.14",
       "name": "computeCommandEncoderWithDispatchType:",
       "owner": "MTLCommandBuffer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance (MTLDispatchType) -> id<MTLComputeCommandEncoder> _Nullable"
     },
     {
@@ -49953,7 +49953,7 @@
       "macos_introduced": "10.11",
       "name": "device",
       "owner": "MTLCommandBuffer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> id<MTLDevice> _Nonnull"
     },
     {
@@ -49978,7 +49978,7 @@
       "macos_introduced": "10.14",
       "name": "encodeSignalEvent:value:",
       "owner": "MTLCommandBuffer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance (id<MTLEvent>  _Nonnull __strong, uint64_t) -> void"
     },
     {
@@ -50003,7 +50003,7 @@
       "macos_introduced": "10.14",
       "name": "encodeWaitForEvent:value:",
       "owner": "MTLCommandBuffer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance (id<MTLEvent>  _Nonnull __strong, uint64_t) -> void"
     },
     {
@@ -50022,7 +50022,7 @@
       "macos_introduced": "10.11",
       "name": "enqueue",
       "owner": "MTLCommandBuffer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> void"
     },
     {
@@ -50047,7 +50047,7 @@
       "macos_introduced": "11.0",
       "name": "errorOptions",
       "owner": "MTLCommandBuffer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> MTLCommandBufferErrorOption"
     },
     {
@@ -50091,7 +50091,7 @@
       "macos_introduced": "10.15",
       "name": "kernelEndTime",
       "owner": "MTLCommandBuffer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> CFTimeInterval"
     },
     {
@@ -50116,7 +50116,7 @@
       "macos_introduced": "10.15",
       "name": "kernelStartTime",
       "owner": "MTLCommandBuffer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> CFTimeInterval"
     },
     {
@@ -50160,7 +50160,7 @@
       "macos_introduced": "11.0",
       "name": "logs",
       "owner": "MTLCommandBuffer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> id<MTLLogContainer> _Nonnull"
     },
     {
@@ -50171,7 +50171,7 @@
           "line": 244
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "method:-[MTLCommandBuffer parallelRenderCommandEncoderWithDescriptor:]",
       "kind": "method",
@@ -50179,7 +50179,7 @@
       "macos_introduced": "10.11",
       "name": "parallelRenderCommandEncoderWithDescriptor:",
       "owner": "MTLCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance (MTLRenderPassDescriptor * _Nonnull __strong) -> id<MTLParallelRenderCommandEncoder> _Nullable"
     },
     {
@@ -50204,7 +50204,7 @@
       "macos_introduced": "10.13",
       "name": "popDebugGroup",
       "owner": "MTLCommandBuffer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> void"
     },
     {
@@ -50292,7 +50292,7 @@
       "macos_introduced": "10.13",
       "name": "pushDebugGroup:",
       "owner": "MTLCommandBuffer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance (NSString * _Nonnull __strong) -> void"
     },
     {
@@ -50336,7 +50336,7 @@
       "macos_introduced": "11.0",
       "name": "resourceStateCommandEncoderWithDescriptor:",
       "owner": "MTLCommandBuffer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance (MTLResourceStatePassDescriptor * _Nonnull __strong) -> id<MTLResourceStateCommandEncoder> _Nullable"
     },
     {
@@ -50380,7 +50380,7 @@
       "macos_introduced": "10.11",
       "name": "retainedReferences",
       "owner": "MTLCommandBuffer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -50510,7 +50510,7 @@
       "macos_introduced": "10.11",
       "name": "waitUntilScheduled",
       "owner": "MTLCommandBuffer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> void"
     },
     {
@@ -71576,7 +71576,7 @@
       "macos_introduced": "10.15",
       "name": "defaultRasterSampleCount",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -71620,7 +71620,7 @@
       "macos_introduced": "10.13",
       "name": "getSamplePositions:count:",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance (MTLSamplePosition * _Nullable, NSUInteger) -> NSUInteger"
     },
     {
@@ -71645,7 +71645,7 @@
       "macos_introduced": "11.0",
       "name": "imageblockSampleLength",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -71662,7 +71662,7 @@
           "line": 396
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassDescriptor rasterizationRateMap]",
       "kind": "method",
@@ -71670,7 +71670,7 @@
       "macos_introduced": "10.15.4",
       "name": "rasterizationRateMap",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> id<MTLRasterizationRateMap> _Nullable"
     },
     {
@@ -71695,7 +71695,7 @@
       "macos_introduced": "10.11",
       "name": "renderTargetArrayLength",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -71720,7 +71720,7 @@
       "macos_introduced": "10.15",
       "name": "renderTargetHeight",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -71745,7 +71745,7 @@
       "macos_introduced": "10.15",
       "name": "renderTargetWidth",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -71762,7 +71762,7 @@
           "line": 402
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassDescriptor sampleBufferAttachments]",
       "kind": "method",
@@ -71770,7 +71770,7 @@
       "macos_introduced": "11.0",
       "name": "sampleBufferAttachments",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> MTLRenderPassSampleBufferAttachmentDescriptorArray * _Nonnull"
     },
     {
@@ -71814,7 +71814,7 @@
       "macos_introduced": "10.11",
       "name": "setDepthAttachment:",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance (MTLRenderPassDepthAttachmentDescriptor * _Nullable) -> void"
     },
     {
@@ -71839,7 +71839,7 @@
       "macos_introduced": "11.0",
       "name": "setImageblockSampleLength:",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -71864,7 +71864,7 @@
       "macos_introduced": "10.15.4",
       "name": "setRasterizationRateMap:",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance (id<MTLRasterizationRateMap> _Nullable) -> void"
     },
     {
@@ -71964,7 +71964,7 @@
       "macos_introduced": "10.13",
       "name": "setSamplePositions:count:",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance (const MTLSamplePosition * _Nullable, NSUInteger) -> void"
     },
     {
@@ -71983,7 +71983,7 @@
       "macos_introduced": "10.11",
       "name": "setStencilAttachment:",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance (MTLRenderPassStencilAttachmentDescriptor * _Nullable) -> void"
     },
     {
@@ -72008,7 +72008,7 @@
       "macos_introduced": "26.0",
       "name": "setSupportColorAttachmentMapping:",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -72033,7 +72033,7 @@
       "macos_introduced": "11.0",
       "name": "setThreadgroupMemoryLength:",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -72058,7 +72058,7 @@
       "macos_introduced": "11.0",
       "name": "setTileHeight:",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -72083,7 +72083,7 @@
       "macos_introduced": "11.0",
       "name": "setTileWidth:",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -72127,7 +72127,7 @@
       "macos_introduced": "26.0",
       "name": "setVisibilityResultType:",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance (MTLVisibilityResultType) -> void"
     },
     {
@@ -72171,7 +72171,7 @@
       "macos_introduced": "26.0",
       "name": "supportColorAttachmentMapping",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -72196,7 +72196,7 @@
       "macos_introduced": "11.0",
       "name": "threadgroupMemoryLength",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -72221,7 +72221,7 @@
       "macos_introduced": "11.0",
       "name": "tileHeight",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -72246,7 +72246,7 @@
       "macos_introduced": "11.0",
       "name": "tileWidth",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -72290,7 +72290,7 @@
       "macos_introduced": "26.0",
       "name": "visibilityResultType",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> MTLVisibilityResultType"
     },
     {
@@ -82515,7 +82515,7 @@
       "macos_introduced": null,
       "name": "layer",
       "owner": "CAMetalDrawable",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "CAMetalLayer * _Nonnull"
     },
     {
@@ -82554,7 +82554,7 @@
       "macos_introduced": "10.15",
       "name": "EDRMetadata",
       "owner": "CAMetalLayer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "CAEDRMetadata * _Nullable"
     },
     {
@@ -82598,7 +82598,7 @@
       "macos_introduced": "10.11",
       "name": "colorspace",
       "owner": "CAMetalLayer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "CGColorSpaceRef _Nullable"
     },
     {
@@ -82851,7 +82851,7 @@
       "macos_introduced": "10.11",
       "name": "wantsExtendedDynamicRangeContent",
       "owner": "CAMetalLayer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "BOOL"
     },
     {
@@ -90533,7 +90533,7 @@
       "macos_introduced": "10.15",
       "name": "GPUEndTime",
       "owner": "MTLCommandBuffer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "CFTimeInterval"
     },
     {
@@ -90558,7 +90558,7 @@
       "macos_introduced": "10.15",
       "name": "GPUStartTime",
       "owner": "MTLCommandBuffer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "CFTimeInterval"
     },
     {
@@ -90577,7 +90577,7 @@
       "macos_introduced": "10.11",
       "name": "commandQueue",
       "owner": "MTLCommandBuffer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "id<MTLCommandQueue> _Nonnull"
     },
     {
@@ -90596,7 +90596,7 @@
       "macos_introduced": "10.11",
       "name": "device",
       "owner": "MTLCommandBuffer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "id<MTLDevice> _Nonnull"
     },
     {
@@ -90640,7 +90640,7 @@
       "macos_introduced": "11.0",
       "name": "errorOptions",
       "owner": "MTLCommandBuffer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "MTLCommandBufferErrorOption"
     },
     {
@@ -90665,7 +90665,7 @@
       "macos_introduced": "10.15",
       "name": "kernelEndTime",
       "owner": "MTLCommandBuffer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "CFTimeInterval"
     },
     {
@@ -90690,7 +90690,7 @@
       "macos_introduced": "10.15",
       "name": "kernelStartTime",
       "owner": "MTLCommandBuffer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "CFTimeInterval"
     },
     {
@@ -90734,7 +90734,7 @@
       "macos_introduced": "11.0",
       "name": "logs",
       "owner": "MTLCommandBuffer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "id<MTLLogContainer> _Nonnull"
     },
     {
@@ -90753,7 +90753,7 @@
       "macos_introduced": "10.11",
       "name": "retainedReferences",
       "owner": "MTLCommandBuffer",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "BOOL"
     },
     {
@@ -98252,7 +98252,7 @@
       "macos_introduced": "11.0",
       "name": "imageblockSampleLength",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -98269,7 +98269,7 @@
           "line": 396
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "property:MTLRenderPassDescriptor:rasterizationRateMap",
       "kind": "property",
@@ -98277,7 +98277,7 @@
       "macos_introduced": "10.15.4",
       "name": "rasterizationRateMap",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "id<MTLRasterizationRateMap> _Nullable"
     },
     {
@@ -98369,7 +98369,7 @@
           "line": 402
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "property:MTLRenderPassDescriptor:sampleBufferAttachments",
       "kind": "property",
@@ -98377,7 +98377,7 @@
       "macos_introduced": "11.0",
       "name": "sampleBufferAttachments",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "MTLRenderPassSampleBufferAttachmentDescriptorArray * _Nonnull"
     },
     {
@@ -98421,7 +98421,7 @@
       "macos_introduced": "26.0",
       "name": "supportColorAttachmentMapping",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "BOOL"
     },
     {
@@ -98446,7 +98446,7 @@
       "macos_introduced": "11.0",
       "name": "threadgroupMemoryLength",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -98471,7 +98471,7 @@
       "macos_introduced": "11.0",
       "name": "tileHeight",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -98496,7 +98496,7 @@
       "macos_introduced": "11.0",
       "name": "tileWidth",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -98540,7 +98540,7 @@
       "macos_introduced": "26.0",
       "name": "visibilityResultType",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
+      "reason": "Implemented by the Presentation81 safe closure with checked native snapshots, owned attachment/layer/drawable/rasterization/sample graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "MTLVisibilityResultType"
     },
     {

@@ -73,14 +73,8 @@ let modules = [ Render_pass_descriptor; Layer; Drawable; Command_buffer ]
 let private_metadata_ids =
   [ "record:_CAMetalLayerPrivate" ]
 
-let final_graph_blocked id =
-  contains id "rasterizationRateMap"
-  || contains id "sampleBufferAttachments"
-  || contains id "parallelRenderCommandEncoderWithDescriptor"
-
 let promotable_ids =
-  pending_items |> List.filter_map (fun item ->
-    if final_graph_blocked item.id then None else Some item.id)
+  List.map (fun item->item.id) pending_items
 
 let prebound_overlap_ids =
   [ "method:-[MTLCommandBuffer resourceStateCommandEncoderWithDescriptor:]" ]
@@ -99,7 +93,7 @@ let validate () =
           (fun item -> item.public_operation = "" || item.required_tests = [])
           pending_items
      || category_counts <> [ 31; 17; 2; 31 ]
-     || List.length promotable_ids <> 76
+     || List.length promotable_ids <> 81
      || prebound_overlap_ids
         <> [ "method:-[MTLCommandBuffer resourceStateCommandEncoderWithDescriptor:]" ]
      || private_metadata_ids <> [ "record:_CAMetalLayerPrivate" ]
