@@ -2681,3 +2681,7 @@ external binary_archive5_add :
   (unit, string) result =
   "caml_prismel_metal_binary_archive5_add_bytecode"
   "caml_prismel_metal_binary_archive5_add"
+
+external metal4_ml_pipeline5_label :
+  handle -> (string option, string) result =
+  "caml_prismel_metal4_ml_pipeline5_label"
