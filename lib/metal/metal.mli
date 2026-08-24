@@ -1247,6 +1247,16 @@ module Binding : sig
     expected:layout list -> t list -> (unit, error) result
 end
 
+module Compile_options : sig
+  type t
+  type size = { width : int64; height : int64; depth : int64 }
+  val create : ?required_threads:size -> (string * string) array -> (t,error) result
+  val macros : t -> (string * string) array
+  val required_threads : t -> size option
+  val destroyed : t -> bool
+  val destroy : t -> (unit,error) result
+end
+
 module Library : sig
   type t
 

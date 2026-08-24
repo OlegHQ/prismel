@@ -1054,6 +1054,13 @@ type function_handle =
   ; library : library
   }
 
+type library_compile_options =
+  { raw : Metal_raw.handle
+  ; lifetime : lifetime
+  ; macros : (string * string) array
+  ; required_threads : (int64 * int64 * int64) option
+  }
+
 type shader_attribute =
   { raw : Metal_raw.handle; lifetime : lifetime; function_ : function_handle
   ; vertex : bool }
@@ -8177,6 +8184,64 @@ module Binding = struct
       error "Metal.Binding.validate_layout" Invalid_argument
         (Printf.sprintf "shader bind layout mismatch (expected [%s], reflected [%s])"
            (summarize expected) (summarize actual))
+end
+
+module Compile_options = struct
+  type t = library_compile_options
+  type size = { width : int64; height : int64; depth : int64 }
+
+  let validate_size operation = function
+    | None -> Ok (0L, 0L, 0L)
+    | Some { width; height; depth }
+      when width <= 0L || height <= 0L || depth <= 0L ->
+        error operation Invalid_argument "threadgroup dimensions must be positive"
+    | Some { width; height; depth }
+      when width > 1024L || height > 1024L || depth > 1024L
+           || width > Int64.div 1024L height
+           || Int64.mul width height > Int64.div 1024L depth ->
+        error operation Invalid_argument "threadgroup size exceeds the safe limit"
+    | Some { width; height; depth } -> Ok (width, height, depth)
+
+  let create ?required_threads macros =
+    let operation = "Metal.Compile_options.create" in
+    on_main operation (fun () ->
+      let macros = Array.copy macros in
+      if Array.exists (fun (name, value) ->
+           name = "" || contains_nul name || contains_nul value) macros
+      then error operation Invalid_argument "invalid preprocessor macro"
+      else
+        let names = Hashtbl.create (Array.length macros) in
+        if Array.exists (fun (name, _) ->
+             let duplicate = Hashtbl.mem names name in
+             Hashtbl.replace names name (); duplicate) macros
+        then error operation Invalid_argument "duplicate preprocessor macro"
+        else match validate_size operation required_threads with
+          | Error _ as failure -> failure
+          | Ok required ->
+              match Metal_raw.compile_options_create macros required with
+              | Error message -> native_error operation message
+              | Ok raw ->
+                  let required_threads =
+                    Option.map
+                      (fun { width; height; depth } -> width, height, depth)
+                      required_threads
+                  in
+                  let value : t =
+                    { raw; lifetime=lifetime (); macros; required_threads }
+                  in
+                  Gc.finalise (fun (value:t) ->
+                    if Atomic.compare_and_set value.lifetime.destroyed false true
+                    then ignore (Metal_raw.destroy value.raw)) value;
+                  Ok value)
+
+  let macros (value:t) = Array.copy value.macros
+  let required_threads (value:t) =
+    Option.map
+      (fun (width, height, depth) -> { width; height; depth })
+      value.required_threads
+  let destroyed (value:t) = is_destroyed value.lifetime
+  let destroy (value:t) =
+    destroy_leaf "Metal.Compile_options.destroy" value.lifetime value.raw ignore
 end
 
 module Library = struct
