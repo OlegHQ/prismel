@@ -1790,6 +1790,9 @@ let render_pipeline93_reflection6 =
   ; "method:-[MTLRenderPipelineReflection tileArguments]"
   ; "property:MTLRenderPipelineReflection:tileArguments" ]
 
+let render_pipeline93_binary_lookup1 =
+  [ "method:-[MTLRenderPipelineState functionHandleWithBinaryFunction:stage:]" ]
+
 let linked_functions_safe9 =
   [ "method:-[MTLLinkedFunctions binaryFunctions]"; "method:-[MTLLinkedFunctions groups]"
   ; "method:-[MTLLinkedFunctions privateFunctions]"; "method:-[MTLLinkedFunctions setBinaryFunctions:]"
@@ -1894,6 +1897,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier Binding_acceleration_command32_native_closure.ids then
     Bound,
       "Implemented by the AccelerationCommand32 safe closure with owned pass/sample graphs, checked build/refit/copy/fence/resource/counter state, capability gates, and command-completion retention."
+  else if List.mem identifier Binding_acceleration_structure23_safe_closure.ids then
+    Bound,
+      "Implemented by the AccelerationStructure23 safe descriptor variants with checked nested geometry/buffer ownership, same-device range/stride/count validation, and real constructor conformance."
   else if List.mem identifier Binding_function_log_tail_handoff.callable_ids then
     Bound,
       "Implemented by copied FunctionLog16 snapshots after command completion with exact nullable log/location/function graphs, typed validation logs, UTF-8 source identity, and checked source positions."
@@ -1911,7 +1917,8 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
           || List.mem identifier render_pipeline93_table_specialization3
           || List.mem identifier render_pipeline93_relink2
           || List.mem identifier render_pipeline93_vertex_descriptor3
-          || List.mem identifier render_pipeline93_reflection6 then
+          || List.mem identifier render_pipeline93_reflection6
+          || List.mem identifier render_pipeline93_binary_lookup1 then
     Bound,
       "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership."
   else if List.mem identifier Binding_compute_encoder35_safe_closure.callable_ids then

@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4792,
+    "bound": 4816,
     "scope-excluded": 37,
-    "unreviewed": 456
+    "unreviewed": 432
   },
-  "classification_source_sha256": "e2077490c5b9b746a8b68bd083193809a5590fcf74512d62fe4d18ea2fbe7a69",
+  "classification_source_sha256": "cfd3244a3d361dea773dfa3f17951cdc696cfbc1b4644d16747eaaa1a0c23b4a",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -1456,7 +1456,7 @@
           "line": 314
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "class:MTLAccelerationStructureBoundingBoxGeometryDescriptor",
       "kind": "class",
@@ -1464,7 +1464,7 @@
       "macos_introduced": "11.0",
       "name": "MTLAccelerationStructureBoundingBoxGeometryDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationStructure23 safe descriptor variants with checked nested geometry/buffer ownership, same-device range/stride/count validation, and real constructor conformance.",
       "signature": ""
     },
     {
@@ -1478,7 +1478,7 @@
           "line": 547
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "class:MTLAccelerationStructureCurveGeometryDescriptor",
       "kind": "class",
@@ -1486,7 +1486,7 @@
       "macos_introduced": "14.0",
       "name": "MTLAccelerationStructureCurveGeometryDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationStructure23 safe descriptor variants with checked nested geometry/buffer ownership, same-device range/stride/count validation, and real constructor conformance.",
       "signature": ""
     },
     {
@@ -1500,7 +1500,7 @@
           "line": 125
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "class:MTLAccelerationStructureDescriptor",
       "kind": "class",
@@ -1508,7 +1508,7 @@
       "macos_introduced": "11.0",
       "name": "MTLAccelerationStructureDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationStructure23 safe descriptor variants with checked nested geometry/buffer ownership, same-device range/stride/count validation, and real constructor conformance.",
       "signature": ""
     },
     {
@@ -1522,7 +1522,7 @@
           "line": 136
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "class:MTLAccelerationStructureGeometryDescriptor",
       "kind": "class",
@@ -1530,7 +1530,7 @@
       "macos_introduced": "11.0",
       "name": "MTLAccelerationStructureGeometryDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationStructure23 safe descriptor variants with checked nested geometry/buffer ownership, same-device range/stride/count validation, and real constructor conformance.",
       "signature": ""
     },
     {
@@ -1544,7 +1544,7 @@
           "line": 432
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "class:MTLAccelerationStructureMotionBoundingBoxGeometryDescriptor",
       "kind": "class",
@@ -1552,7 +1552,7 @@
       "macos_introduced": "12.0",
       "name": "MTLAccelerationStructureMotionBoundingBoxGeometryDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationStructure23 safe descriptor variants with checked nested geometry/buffer ownership, same-device range/stride/count validation, and real constructor conformance.",
       "signature": ""
     },
     {
@@ -1566,7 +1566,7 @@
           "line": 661
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "class:MTLAccelerationStructureMotionCurveGeometryDescriptor",
       "kind": "class",
@@ -1574,7 +1574,7 @@
       "macos_introduced": "14.0",
       "name": "MTLAccelerationStructureMotionCurveGeometryDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationStructure23 safe descriptor variants with checked nested geometry/buffer ownership, same-device range/stride/count validation, and real constructor conformance.",
       "signature": ""
     },
     {
@@ -1588,7 +1588,7 @@
           "line": 367
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "class:MTLAccelerationStructureMotionTriangleGeometryDescriptor",
       "kind": "class",
@@ -1596,7 +1596,7 @@
       "macos_introduced": "12.0",
       "name": "MTLAccelerationStructureMotionTriangleGeometryDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationStructure23 safe descriptor variants with checked nested geometry/buffer ownership, same-device range/stride/count validation, and real constructor conformance.",
       "signature": ""
     },
     {
@@ -1676,7 +1676,7 @@
           "line": 243
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "class:MTLAccelerationStructureTriangleGeometryDescriptor",
       "kind": "class",
@@ -1684,7 +1684,7 @@
       "macos_introduced": "11.0",
       "name": "MTLAccelerationStructureTriangleGeometryDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationStructure23 safe descriptor variants with checked nested geometry/buffer ownership, same-device range/stride/count validation, and real constructor conformance.",
       "signature": ""
     },
     {
@@ -2504,7 +2504,7 @@
           "line": 1102
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "class:MTLIndirectInstanceAccelerationStructureDescriptor",
       "kind": "class",
@@ -2512,7 +2512,7 @@
       "macos_introduced": "14.0",
       "name": "MTLIndirectInstanceAccelerationStructureDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationStructure23 safe descriptor variants with checked nested geometry/buffer ownership, same-device range/stride/count validation, and real constructor conformance.",
       "signature": ""
     },
     {
@@ -2526,7 +2526,7 @@
           "line": 1025
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "class:MTLInstanceAccelerationStructureDescriptor",
       "kind": "class",
@@ -2534,7 +2534,7 @@
       "macos_introduced": "11.0",
       "name": "MTLInstanceAccelerationStructureDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationStructure23 safe descriptor variants with checked nested geometry/buffer ownership, same-device range/stride/count validation, and real constructor conformance.",
       "signature": ""
     },
     {
@@ -2680,7 +2680,7 @@
           "line": 346
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "class:MTLMotionKeyframeData",
       "kind": "class",
@@ -2688,7 +2688,7 @@
       "macos_introduced": "12.0",
       "name": "MTLMotionKeyframeData",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationStructure23 safe descriptor variants with checked nested geometry/buffer ownership, same-device range/stride/count validation, and real constructor conformance.",
       "signature": ""
     },
     {
@@ -2768,7 +2768,7 @@
           "line": 200
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "class:MTLPrimitiveAccelerationStructureDescriptor",
       "kind": "class",
@@ -2776,7 +2776,7 @@
       "macos_introduced": "11.0",
       "name": "MTLPrimitiveAccelerationStructureDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationStructure23 safe descriptor variants with checked nested geometry/buffer ownership, same-device range/stride/count validation, and real constructor conformance.",
       "signature": ""
     },
     {
@@ -29389,7 +29389,7 @@
           "line": 314
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:+[MTLAccelerationStructureBoundingBoxGeometryDescriptor descriptor]",
       "kind": "method",
@@ -29397,7 +29397,7 @@
       "macos_introduced": "11.0",
       "name": "descriptor",
       "owner": "MTLAccelerationStructureBoundingBoxGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationStructure23 safe descriptor variants with checked nested geometry/buffer ownership, same-device range/stride/count validation, and real constructor conformance.",
       "signature": "class () -> instancetype _Nonnull"
     },
     {
@@ -29408,7 +29408,7 @@
           "line": 547
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:+[MTLAccelerationStructureCurveGeometryDescriptor descriptor]",
       "kind": "method",
@@ -29416,7 +29416,7 @@
       "macos_introduced": "14.0",
       "name": "descriptor",
       "owner": "MTLAccelerationStructureCurveGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationStructure23 safe descriptor variants with checked nested geometry/buffer ownership, same-device range/stride/count validation, and real constructor conformance.",
       "signature": "class () -> instancetype _Nonnull"
     },
     {
@@ -29427,7 +29427,7 @@
           "line": 432
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:+[MTLAccelerationStructureMotionBoundingBoxGeometryDescriptor descriptor]",
       "kind": "method",
@@ -29435,7 +29435,7 @@
       "macos_introduced": "12.0",
       "name": "descriptor",
       "owner": "MTLAccelerationStructureMotionBoundingBoxGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationStructure23 safe descriptor variants with checked nested geometry/buffer ownership, same-device range/stride/count validation, and real constructor conformance.",
       "signature": "class () -> instancetype _Nonnull"
     },
     {
@@ -29446,7 +29446,7 @@
           "line": 661
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:+[MTLAccelerationStructureMotionCurveGeometryDescriptor descriptor]",
       "kind": "method",
@@ -29454,7 +29454,7 @@
       "macos_introduced": "14.0",
       "name": "descriptor",
       "owner": "MTLAccelerationStructureMotionCurveGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationStructure23 safe descriptor variants with checked nested geometry/buffer ownership, same-device range/stride/count validation, and real constructor conformance.",
       "signature": "class () -> instancetype _Nonnull"
     },
     {
@@ -29465,7 +29465,7 @@
           "line": 367
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:+[MTLAccelerationStructureMotionTriangleGeometryDescriptor descriptor]",
       "kind": "method",
@@ -29473,7 +29473,7 @@
       "macos_introduced": "12.0",
       "name": "descriptor",
       "owner": "MTLAccelerationStructureMotionTriangleGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationStructure23 safe descriptor variants with checked nested geometry/buffer ownership, same-device range/stride/count validation, and real constructor conformance.",
       "signature": "class () -> instancetype _Nonnull"
     },
     {
@@ -29503,7 +29503,7 @@
           "line": 243
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:+[MTLAccelerationStructureTriangleGeometryDescriptor descriptor]",
       "kind": "method",
@@ -29511,7 +29511,7 @@
       "macos_introduced": "11.0",
       "name": "descriptor",
       "owner": "MTLAccelerationStructureTriangleGeometryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationStructure23 safe descriptor variants with checked nested geometry/buffer ownership, same-device range/stride/count validation, and real constructor conformance.",
       "signature": "class () -> instancetype _Nonnull"
     },
     {
@@ -29617,7 +29617,7 @@
           "line": 1102
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:+[MTLIndirectInstanceAccelerationStructureDescriptor descriptor]",
       "kind": "method",
@@ -29625,7 +29625,7 @@
       "macos_introduced": "14.0",
       "name": "descriptor",
       "owner": "MTLIndirectInstanceAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationStructure23 safe descriptor variants with checked nested geometry/buffer ownership, same-device range/stride/count validation, and real constructor conformance.",
       "signature": "class () -> instancetype _Nonnull"
     },
     {
@@ -29636,7 +29636,7 @@
           "line": 1025
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:+[MTLInstanceAccelerationStructureDescriptor descriptor]",
       "kind": "method",
@@ -29644,7 +29644,7 @@
       "macos_introduced": "11.0",
       "name": "descriptor",
       "owner": "MTLInstanceAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationStructure23 safe descriptor variants with checked nested geometry/buffer ownership, same-device range/stride/count validation, and real constructor conformance.",
       "signature": "class () -> instancetype _Nonnull"
     },
     {
@@ -29693,7 +29693,7 @@
           "line": 346
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:+[MTLMotionKeyframeData data]",
       "kind": "method",
@@ -29701,7 +29701,7 @@
       "macos_introduced": "12.0",
       "name": "data",
       "owner": "MTLMotionKeyframeData",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationStructure23 safe descriptor variants with checked nested geometry/buffer ownership, same-device range/stride/count validation, and real constructor conformance.",
       "signature": "class () -> instancetype _Nonnull"
     },
     {
@@ -29712,7 +29712,7 @@
           "line": 200
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "method:+[MTLPrimitiveAccelerationStructureDescriptor descriptor]",
       "kind": "method",
@@ -29720,7 +29720,7 @@
       "macos_introduced": "11.0",
       "name": "descriptor",
       "owner": "MTLPrimitiveAccelerationStructureDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationStructure23 safe descriptor variants with checked nested geometry/buffer ownership, same-device range/stride/count validation, and real constructor conformance.",
       "signature": "class () -> instancetype _Nonnull"
     },
     {
@@ -74914,7 +74914,7 @@
           "line": 391
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineState functionHandleWithBinaryFunction:stage:]",
       "kind": "method",
@@ -74922,7 +74922,7 @@
       "macos_introduced": "26.0",
       "name": "functionHandleWithBinaryFunction:stage:",
       "owner": "MTLRenderPipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": "instance (id<MTL4BinaryFunction>  _Nonnull __strong, MTLRenderStages) -> id<MTLFunctionHandle> _Nullable"
     },
     {
@@ -104577,7 +104577,7 @@
           "line": 1198
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "protocol:MTLAccelerationStructure",
       "kind": "protocol",
@@ -104585,7 +104585,7 @@
       "macos_introduced": "11.0",
       "name": "MTLAccelerationStructure",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationStructure23 safe descriptor variants with checked nested geometry/buffer ownership, same-device range/stride/count validation, and real constructor conformance.",
       "signature": ""
     },
     {
