@@ -29,5 +29,18 @@ let () =
   let invalid = ok (create ~layer ~drawable_id:43 ~max_handlers:1) in
   error (present ~now:10. invalid (At_time 9.));
   error (present ~now:10. invalid (After_minimum_duration (-1.)));
+  for index=0 to 9_999 do
+    let value=ok(create~layer~drawable_id:index~max_handlers:1)in
+    let fired=ref 0 in
+    ignore(ok(add_presented_handler value(fun _->incr fired)));
+    if index land 1=0 then begin
+      ignore(ok(present~now:0. value Immediate));
+      ignore(ok(mark_presented value~time:0.));
+      if !fired<>1||rooted_handler_count value<>0 then failwith"drawable callback/root leak"
+    end else begin
+      ignore(ok(destroy value));
+      if !fired<>0||rooted_handler_count value<>0 then failwith"drawable cancellation/root leak"
+    end
+  done;
   Printf.printf
-    "Drawable10 reconciled: callable8 metadata2 excluded; timing/idempotence/parent/device/lifetime passed\n%!"
+    "Drawable10 reconciled: callable8 metadata2 excluded; timing/idempotence/parent/device/lifetime and 10k callback roots passed\n%!"
