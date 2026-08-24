@@ -230,6 +230,7 @@
   ../../tools/metal/metal_tensor_mechanical_callable_bridge.inc
   ../../tools/metal/metal_tensor_ownership_callable_bridge.inc
   ../../tools/metal/metal_resource_remaining16_bridge.inc
+  ../../tools/metal/metal_compute_encoder35_bindings.inc
   ../../tools/metal/metal_rasterization_rate_callable_bridge.inc
   ../../tools/metal/metal_function_stitching_callable_bridge.inc
   ../../tools/metal/metal_library42_callable_bridge.inc
@@ -404,6 +405,11 @@
 (test
  (name test_metal4_command_queue6_safe)
  (modules test_metal4_command_queue6_safe)
+ (libraries metal))
+
+(test
+ (name test_render_pipeline93_descriptor_safe)
+ (modules test_render_pipeline93_descriptor_safe)
  (libraries metal))
 
 (test

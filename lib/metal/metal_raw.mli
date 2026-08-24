@@ -1594,6 +1594,20 @@ external compute_encoder_dispatch :
   handle -> (int * int * int) -> (int * int * int) -> (unit, string) result
   = "caml_prismel_metal_compute_encoder_dispatch"
 
+val compute35_buffer_stride : handle -> handle option -> int64 -> int64 -> int64 -> (unit,string) result
+val compute35_buffer_offset : handle -> int64 -> int64 -> (unit,string) result
+val compute35_buffer_offset_stride : handle -> int64 -> int64 -> int64 -> (unit,string) result
+val compute35_buffers : handle -> handle option array -> int64 array -> int64 array -> int64 -> (unit,string) result
+val compute35_bytes : handle -> bytes -> int64 -> int64 -> (unit,string) result
+val compute35_textures : handle -> handle option array -> int64 -> (unit,string) result
+val compute35_sampler : handle -> handle option -> (float*float) option -> int64 -> (unit,string) result
+val compute35_samplers : handle -> handle option array -> float array option -> float array option -> int64 -> (unit,string) result
+val compute35_acceleration : handle -> handle option -> int64 -> (unit,string) result
+val compute35_visible : handle -> handle option -> int64 -> (unit,string) result
+val compute35_visibles : handle -> handle option array -> int64 -> (unit,string) result
+val compute35_intersection : handle -> handle option -> int64 -> (unit,string) result
+val compute35_intersections : handle -> handle option array -> int64 -> (unit,string) result
+
 external compute_encoder_end : handle -> (unit, string) result =
   "caml_prismel_metal_compute_encoder_end"
 
@@ -2628,7 +2642,7 @@ external render93_descriptor_label : handle -> int -> string option -> (string o
   "caml_prismel_metal_render93_descriptor_label"
 external render93_descriptor_reset : handle -> int -> (unit,string) result =
   "caml_prismel_metal_render93_descriptor_reset"
-external render93_color_at : handle -> int64 -> handle option -> (handle option,string) result =
+external render93_color_at : handle -> int64 -> bool -> handle option -> (handle option,string) result =
   "caml_prismel_metal_render93_color_at"
 
 external intersection_table_array :
