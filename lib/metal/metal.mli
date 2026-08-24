@@ -38,6 +38,7 @@ type intersection_function_table
 type render_pipeline
 type compute_pipeline
 type depth_stencil
+type binary_archive
 
 (** Copied values of immutable, typed NSString globals exported by the Metal
     SDK. Each call returns an independently owned OCaml string. *)
@@ -1449,6 +1450,19 @@ module Function_stitching_graph : sig
   val output : t -> Function_stitching_node.t option
   val always_inline : t -> bool
   val set : t -> name:string -> nodes:Function_stitching_node.t list -> ?output:Function_stitching_node.t -> ?always_inline:bool -> unit -> (unit,error) result
+  val destroyed : t -> bool
+  val destroy : t -> (unit,error) result
+end
+
+module Stitched_library_descriptor : sig
+  type t
+  val create : functions:Function.t list -> graphs:Function_stitching_graph.t list -> ?archives:binary_archive list -> ?options:int64 -> unit -> (t,error) result
+  val functions : t -> Function.t list
+  val graphs : t -> Function_stitching_graph.t list
+  val archives : t -> binary_archive list
+  val options : t -> int64
+  val set : t -> functions:Function.t list -> graphs:Function_stitching_graph.t list -> ?archives:binary_archive list -> ?options:int64 -> unit -> (unit,error) result
+  val checked : t -> (unit,error) result
   val destroyed : t -> bool
   val destroy : t -> (unit,error) result
 end

@@ -1084,6 +1084,7 @@ type binary_archive =
   ; lifetime : lifetime
   ; device : device
   }
+type stitched_library_descriptor={mutable raw:Metal_raw.handle;lifetime:lifetime;mutable descriptor_functions:function_handle list;mutable descriptor_graphs:stitching_graph list;mutable descriptor_archives:binary_archive list;mutable descriptor_options:int64}
 
 type pipeline113_compute_descriptor =
   { raw : Metal_raw.handle; lifetime : lifetime; device : device
@@ -8684,6 +8685,22 @@ module Function_stitching_graph = struct
   let set (value:t) ~name ~nodes ?output ?(always_inline=false)()=let op="Metal.Function_stitching_graph.set"in on_main op(fun()->match ensure_live op value.lifetime with Error _ as e->e|Ok()->match validate op~name~nodes~output with Error _ as e->e|Ok()->match Metal_raw.stitch_graph_set value.raw name(Array.of_list(List.map(fun(x:stitching_function_node)->x.raw)nodes))(Option.map(fun(x:stitching_function_node)->x.raw)output)always_inline with Error m->native_error op m|Ok()->List.iter(fun(x:stitching_function_node)->attach x.lifetime)nodes;List.iter(fun(x:stitching_function_node)->detach x.lifetime)value.graph_nodes;value.graph_name<-name;value.graph_nodes<-nodes;value.graph_output<-output;value.graph_inline<-always_inline;Ok())
   let destroyed(value:t)=is_destroyed value.lifetime
   let destroy(value:t)=destroy_parent "Metal.Function_stitching_graph.destroy" value.lifetime value.raw(fun()->List.iter(fun(x:stitching_function_node)->detach x.lifetime)value.graph_nodes)
+end
+
+module Stitched_library_descriptor = struct
+  type t=stitched_library_descriptor
+  let validate op ~functions ~graphs ~archives ~options=
+    if options<0L||Int64.logand options(Int64.lognot 3L)<>0L then error op Invalid_argument "stitched options are invalid"
+    else match List.find_opt(fun(x:function_handle)->is_destroyed x.lifetime)functions with Some _->error op Destroyed "stitched function is destroyed"|None->match List.find_opt(fun(x:stitching_graph)->is_destroyed x.lifetime)graphs with Some _->error op Destroyed "stitched graph is destroyed"|None->match List.find_opt(fun(x:binary_archive)->is_destroyed x.lifetime)archives with Some _->error op Destroyed "stitched archive is destroyed"|None->let devices=List.map(fun(x:function_handle)->x.library.device)functions@List.map(fun(x:binary_archive)->x.device)archives in match devices with []->Ok()|first::rest when List.for_all(same_device first)rest->Ok()|_->error op Device_mismatch "stitched objects belong to different devices"
+  let retain functions graphs archives=List.iter(fun(x:function_handle)->attach x.lifetime)functions;List.iter(fun(x:stitching_graph)->attach x.lifetime)graphs;List.iter(fun(x:binary_archive)->attach x.lifetime)archives
+  let release functions graphs archives=List.iter(fun(x:function_handle)->detach x.lifetime)functions;List.iter(fun(x:stitching_graph)->detach x.lifetime)graphs;List.iter(fun(x:binary_archive)->detach x.lifetime)archives
+  let native op functions graphs archives options=match Metal_raw.stitched_descriptor_create(Array.of_list(List.map(fun(x:function_handle)->x.raw)functions))(Array.of_list(List.map(fun(x:stitching_graph)->x.raw)graphs))(Array.of_list(List.map(fun(x:binary_archive)->x.raw)archives))options with Error m->native_error op m|Ok raw->Ok raw
+  let create ~functions ~graphs ?(archives=[]) ?(options=0L)()=let op="Metal.Stitched_library_descriptor.create"in on_main op(fun()->match validate op~functions~graphs~archives~options with Error _ as e->e|Ok()->match native op functions graphs archives options with Error _ as e->e|Ok raw->retain functions graphs archives;let value:t={raw;lifetime=lifetime();descriptor_functions=functions;descriptor_graphs=graphs;descriptor_archives=archives;descriptor_options=options}in Gc.finalise(fun(value:t)->if Atomic.compare_and_set value.lifetime.destroyed false true then(begin ignore(Metal_raw.destroy value.raw);release value.descriptor_functions value.descriptor_graphs value.descriptor_archives end))value;Ok value)
+  let functions t=t.descriptor_functions and graphs t=t.descriptor_graphs and archives t=t.descriptor_archives and options t=t.descriptor_options
+  let set (value:t) ~functions ~graphs ?(archives=[]) ?(options=0L)()=let op="Metal.Stitched_library_descriptor.set"in on_main op(fun()->match ensure_live op value.lifetime with Error _ as e->e|Ok()->match validate op~functions~graphs~archives~options with Error _ as e->e|Ok()->match native op functions graphs archives options with Error _ as e->e|Ok raw->retain functions graphs archives;let old_raw=value.raw and old_functions=value.descriptor_functions and old_graphs=value.descriptor_graphs and old_archives=value.descriptor_archives in value.raw<-raw;value.descriptor_functions<-functions;value.descriptor_graphs<-graphs;value.descriptor_archives<-archives;value.descriptor_options<-options;ignore(Metal_raw.destroy old_raw);release old_functions old_graphs old_archives;Ok())
+  let checked(value:t)=let op="Metal.Stitched_library_descriptor.checked"in on_main op(fun()->match ensure_live op value.lifetime with Error _ as e->e|Ok()->match Metal_raw.stitched_descriptor_snapshot value.raw with Error m->native_error op m|Ok(functions,graphs,archives,options)->Array.iter(fun raw->ignore(Metal_raw.destroy raw))functions;Array.iter(fun raw->ignore(Metal_raw.destroy raw))graphs;Array.iter(fun raw->ignore(Metal_raw.destroy raw))archives;if Array.length functions<>List.length value.descriptor_functions||Array.length graphs<>List.length value.descriptor_graphs||Array.length archives<>List.length value.descriptor_archives||options<>value.descriptor_options then native_error op "native stitched descriptor disagrees"else Ok())
+  let destroyed(value:t)=is_destroyed value.lifetime
+  let destroy(value:t)=destroy_parent "Metal.Stitched_library_descriptor.destroy" value.lifetime value.raw(fun()->release value.descriptor_functions value.descriptor_graphs value.descriptor_archives)
 end
 
 module Capture = struct
