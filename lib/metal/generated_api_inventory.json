@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4939,
+    "bound": 4949,
     "scope-excluded": 37,
-    "unreviewed": 309
+    "unreviewed": 299
   },
-  "classification_source_sha256": "b2fdbf54f42cb9b7ef5b990f326b3d3c14257fc777ce0053cc75421363f56508",
+  "classification_source_sha256": "777e0663b84a8f3c6e38e0335918c54be3256580147384861869d32311d98782",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -53070,7 +53070,7 @@
           "line": 67
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "method:-[MTLComputePipelineDescriptor buffers]",
       "kind": "method",
@@ -53078,7 +53078,7 @@
       "macos_introduced": "10.13",
       "name": "buffers",
       "owner": "MTLComputePipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ComputePipeline11 safe descriptor/reflection/relink closure with owned library inputs, immutable snapshots, nullable named handles, capability-gated binary relink, and real dispatch/readback.",
       "signature": "instance () -> MTLPipelineBufferDescriptorArray * _Nonnull"
     },
     {
@@ -53114,7 +53114,7 @@
           "line": 83
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "method:-[MTLComputePipelineDescriptor insertLibraries]",
       "kind": "method",
@@ -53122,7 +53122,7 @@
       "macos_introduced": "11.0",
       "name": "insertLibraries",
       "owner": "MTLComputePipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ComputePipeline11 safe descriptor/reflection/relink closure with owned library inputs, immutable snapshots, nullable named handles, capability-gated binary relink, and real dispatch/readback.",
       "signature": "instance () -> NSArray<id<MTLDynamicLibrary>> * _Nullable"
     },
     {
@@ -53346,7 +53346,7 @@
           "line": 83
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "method:-[MTLComputePipelineDescriptor setInsertLibraries:]",
       "kind": "method",
@@ -53354,7 +53354,7 @@
       "macos_introduced": "11.0",
       "name": "setInsertLibraries:",
       "owner": "MTLComputePipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ComputePipeline11 safe descriptor/reflection/relink closure with owned library inputs, immutable snapshots, nullable named handles, capability-gated binary relink, and real dispatch/readback.",
       "signature": "instance (NSArray<id<MTLDynamicLibrary>> * _Nullable) -> void"
     },
     {
@@ -53753,7 +53753,7 @@
           "line": 26
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "method:-[MTLComputePipelineReflection arguments]",
       "kind": "method",
@@ -53761,7 +53761,7 @@
       "macos_introduced": "10.11",
       "name": "arguments",
       "owner": "MTLComputePipelineReflection",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ComputePipeline11 safe descriptor/reflection/relink closure with owned library inputs, immutable snapshots, nullable named handles, capability-gated binary relink, and real dispatch/readback.",
       "signature": "instance () -> NSArray<MTLArgument *> * _Nonnull"
     },
     {
@@ -53872,7 +53872,7 @@
           "line": 199
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "method:-[MTLComputePipelineState functionHandleWithName:]",
       "kind": "method",
@@ -53880,7 +53880,7 @@
       "macos_introduced": "26.0",
       "name": "functionHandleWithName:",
       "owner": "MTLComputePipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ComputePipeline11 safe descriptor/reflection/relink closure with owned library inputs, immutable snapshots, nullable named handles, capability-gated binary relink, and real dispatch/readback.",
       "signature": "instance (NSString * _Nonnull __strong) -> id<MTLFunctionHandle> _Nullable"
     },
     {
@@ -53992,7 +53992,7 @@
           "line": 277
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "method:-[MTLComputePipelineState newComputePipelineStateWithAdditionalBinaryFunctions:error:]",
       "kind": "method",
@@ -54000,7 +54000,7 @@
       "macos_introduced": "11.0",
       "name": "newComputePipelineStateWithAdditionalBinaryFunctions:error:",
       "owner": "MTLComputePipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ComputePipeline11 safe descriptor/reflection/relink closure with owned library inputs, immutable snapshots, nullable named handles, capability-gated binary relink, and real dispatch/readback.",
       "signature": "instance (NSArray<id<MTLFunction>> * _Nonnull __strong, NSError *__autoreleasing  _Nullable * _Nullable) -> id<MTLComputePipelineState> _Nullable"
     },
     {
@@ -54018,7 +54018,7 @@
           "line": 218
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "method:-[MTLComputePipelineState newComputePipelineStateWithBinaryFunctions:error:]",
       "kind": "method",
@@ -54026,7 +54026,7 @@
       "macos_introduced": "26.0",
       "name": "newComputePipelineStateWithBinaryFunctions:error:",
       "owner": "MTLComputePipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ComputePipeline11 safe descriptor/reflection/relink closure with owned library inputs, immutable snapshots, nullable named handles, capability-gated binary relink, and real dispatch/readback.",
       "signature": "instance (NSArray<id<MTL4BinaryFunction>> * _Nonnull __strong, NSError *__autoreleasing  _Nullable * _Nullable) -> id<MTLComputePipelineState> _Nullable"
     },
     {
@@ -91537,7 +91537,7 @@
           "line": 67
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "property:MTLComputePipelineDescriptor:buffers",
       "kind": "property",
@@ -91545,7 +91545,7 @@
       "macos_introduced": "10.13",
       "name": "buffers",
       "owner": "MTLComputePipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ComputePipeline11 safe descriptor/reflection/relink closure with owned library inputs, immutable snapshots, nullable named handles, capability-gated binary relink, and real dispatch/readback.",
       "signature": "MTLPipelineBufferDescriptorArray * _Nonnull"
     },
     {
@@ -91581,7 +91581,7 @@
           "line": 83
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "property:MTLComputePipelineDescriptor:insertLibraries",
       "kind": "property",
@@ -91589,7 +91589,7 @@
       "macos_introduced": "11.0",
       "name": "insertLibraries",
       "owner": "MTLComputePipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ComputePipeline11 safe descriptor/reflection/relink closure with owned library inputs, immutable snapshots, nullable named handles, capability-gated binary relink, and real dispatch/readback.",
       "signature": "NSArray<id<MTLDynamicLibrary>> * _Nullable"
     },
     {
@@ -91869,7 +91869,7 @@
           "line": 26
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "property:MTLComputePipelineReflection:arguments",
       "kind": "property",
@@ -91877,7 +91877,7 @@
       "macos_introduced": "10.11",
       "name": "arguments",
       "owner": "MTLComputePipelineReflection",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ComputePipeline11 safe descriptor/reflection/relink closure with owned library inputs, immutable snapshots, nullable named handles, capability-gated binary relink, and real dispatch/readback.",
       "signature": "NSArray<MTLArgument *> * _Nonnull"
     },
     {
