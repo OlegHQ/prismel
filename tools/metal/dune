@@ -511,6 +511,11 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (name test_binding_function_stitching_safe_package)
+ (modules test_binding_function_stitching_safe_package binding_function_stitching_safe_package)
+ (libraries metal_inventory_classification))
+
+(test
  (name test_binding_rasterization_rate_safe_package)
  (modules test_binding_rasterization_rate_safe_package binding_rasterization_rate_safe_package)
  (libraries metal_inventory_classification))
