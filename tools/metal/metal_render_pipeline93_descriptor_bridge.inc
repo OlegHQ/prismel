@@ -50,7 +50,7 @@ extern "C" CAMLprim value caml_prismel_metal_render93_color_at(value descriptor_
     MTLRenderPipelineDescriptor*d=object_of_handle(descriptor_raw,Handle_kind::Render_pipeline_descriptor);
     if(Bool_val(set_raw))d.colorAttachments[(NSUInteger)index]=Is_none(replacement)?nil:object_of_handle(Field(replacement,0),Handle_kind::Color_attachment_descriptor);
     MTLRenderPipelineColorAttachmentDescriptor*color=d.colorAttachments[(NSUInteger)index];
-    if(color==nil)CAMLreturn(result_ok(Val_none));
+    if(color==nil||color.pixelFormat==MTLPixelFormatInvalid)CAMLreturn(result_ok(Val_none));
     handle=allocate_handle(color,Handle_kind::Color_attachment_descriptor);
     option=caml_alloc(1,0); Store_field(option,0,handle); result=result_ok(option); CAMLreturn(result);
   } @catch(NSException *exception) { CAMLreturn(result_error(exception.reason)); }
