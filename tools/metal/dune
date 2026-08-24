@@ -707,6 +707,10 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (name test_binding_stage_input_output_safe_package)
+ (modules test_binding_stage_input_output_safe_package binding_stage_input_output_safe_package))
+
+(test
  (name test_binding_log_state_handoff)
  (modules test_binding_log_state_handoff binding_log_state_handoff)
  (libraries yojson)
