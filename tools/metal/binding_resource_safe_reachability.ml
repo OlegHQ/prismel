@@ -40,7 +40,11 @@ let pool_core =
 
 let safe_constructor_core =
   [ "class:MTLResourceStatePassDescriptor"
-  ; "class:MTLResourceStatePassSampleBufferAttachmentDescriptorArray" ]
+  ; "class:MTLResourceStatePassSampleBufferAttachmentDescriptorArray"
+  ; "class:MTLBufferLayoutDescriptorArray"
+  ; "enum-case:MTLResourceOptions:MTLResourceOptionCPUCacheModeDefault"
+  ; "enum-case:MTLResourceOptions:MTLResourceOptionCPUCacheModeWriteCombined"
+  ; "enum-case:MTLResourceOptions:MTLResourceStorageModeMemoryless" ]
 
 let has_public_operation id =
   mem id Binding_resource_integration_partition.descriptor_owned
@@ -51,7 +55,11 @@ let has_public_operation id =
   || mem id pool_core
 
 let public_operation id =
-  if id = "class:MTLResourceStatePassSampleBufferAttachmentDescriptorArray" then
+  if contains id "MTLResourceOptions:" then
+    "Metal.Resource100.Options"
+  else if contains id "MTLBufferLayoutDescriptorArray" then
+    "Metal.Resource100.Buffer_layout_array"
+  else if id = "class:MTLResourceStatePassSampleBufferAttachmentDescriptorArray" then
     "Metal.Resource100.Resource_state_pass.sample_attachment/set_sample_attachment"
   else if contains id "sampleBufferAttachments" then
     "Metal.Resource100.Resource_state_pass.sample_attachment/set_sample_attachment"
