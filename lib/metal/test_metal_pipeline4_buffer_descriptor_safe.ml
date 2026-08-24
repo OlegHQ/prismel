@@ -4,10 +4,10 @@ let get = function Ok value -> value | Error value -> failwith value.message
 let fail message = failwith message
 
 let () =
-  let device = get (Device.create ()) in
-  let library = get (Library.compile device
+  let device = get (Device.system_default ()) in
+  let library = get (Library.compile_source ~device
     "#include <metal_stdlib>\nusing namespace metal; kernel void p4(device uint *x [[buffer(0)]]) { x[0]=4; }") in
-  let function_ = get (Function.create library "p4") in
+  let function_ = get (Function.find ~library "p4") in
   let immutable = get (Pipeline_buffer_descriptor.create ~mutability:Immutable ()) in
   if Pipeline_buffer_descriptor.mutability immutable <> Immutable then
     fail "immutable descriptor snapshot drift";
@@ -15,16 +15,16 @@ let () =
     ~buffer_descriptors:[0,Some immutable;1,None] function_) in
   let queue = get (Command_queue.create device) in
   let command = get (Command_buffer.create queue ()) in
-  let output = get (Buffer.create device ~length:4 ~storage:Shared) in
+  let output = get (Buffer.create ~device ~length:4L ~storage:Buffer.Shared ()) in
   let encoder = get (Compute_encoder.create command) in
   get (Compute_encoder.set_pipeline encoder pipeline);
-  get (Compute_encoder.set_buffer encoder ~index:0 output);
-  get (Compute_encoder.dispatch_threads encoder ~threads:(1,1,1)
-    ~threads_per_threadgroup:(1,1,1));
+  get (Compute_encoder.set_buffers encoder ~start:0 [Some output,0L,0L]);
+  get (Compute_encoder.dispatch_threadgroups encoder ~threadgroups:(1,1,1)
+    ~threadgroup:(1,1,1));
   get (Compute_encoder.end_encoding encoder);
   get (Command_buffer.commit command);
   get (Command_buffer.wait_until_completed command);
-  let bytes = get (Buffer.read output ~offset:0 ~length:4) in
+  let bytes = get (Buffer.read_bytes output ~offset:0L ~length:4) in
   if Bytes.get_uint8 bytes 0 <> 4 then fail "compute readback drift";
   let render = get (Render_pipeline.Mesh_tile.descriptor
     Render_pipeline.Mesh_tile.Render_descriptor) in

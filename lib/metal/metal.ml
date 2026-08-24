@@ -9900,7 +9900,7 @@ module Compute_pipeline = struct
       let buffer_mutabilities=Array.make 31 0 in
       let rec validate_buffers seen = function
         | [] -> Ok ()
-        | (index,descriptor)::rest when index<0||index>=31 ->
+        | (index,_)::_ when index<0||index>=31 ->
             error operation Invalid_argument "pipeline buffer index must be in [0,31)"
         | (index,_)::_ when List.mem index seen ->
             error operation Invalid_argument "pipeline buffer indices must be unique"
@@ -10594,9 +10594,8 @@ module Render_pipeline = struct
     let descriptor_color_formats(value:pipeline_descriptor)=let operation="Metal.Render_pipeline.Mesh_tile.descriptor_color_formats"in Result.bind(ensure_live operation value.lifetime)(fun()->snapshot_formats operation value.raw(descriptor_kind_code value.descriptor_kind))
     let buffer_array_kind descriptor_kind stage=match descriptor_kind,stage with Render_descriptor,Fragment_buffers->Some 1|Render_descriptor,Vertex_buffers->Some 2|Mesh_descriptor,Fragment_buffers->Some 1|Mesh_descriptor,Mesh_buffers->Some 2|Mesh_descriptor,Object_buffers->Some 3|Tile_descriptor,Tile_buffers->Some 1|_->None
     let descriptor_buffer_mutabilities(value:pipeline_descriptor) stage=let operation="Metal.Render_pipeline.Mesh_tile.descriptor_buffer_mutabilities"in match buffer_array_kind value.descriptor_kind stage with None->error operation Invalid_argument "buffer stage does not belong to descriptor kind"|Some code->Result.bind(ensure_live operation value.lifetime)(fun()->snapshot_mutabilities operation value.raw(descriptor_kind_code value.descriptor_kind)code)
-    let set_descriptor_buffer(value:pipeline_descriptor) stage ~index replacement=let operation="Metal.Render_pipeline.Mesh_tile.set_descriptor_buffer"in match buffer_array_kind value.descriptor_kind stage with None->error operation Invalid_argument "buffer stage does not belong to descriptor kind"|Some array_kind->on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok() when index<0||index>=31->error operation Invalid_argument "pipeline buffer index must be in [0,31)"|Ok()->match replacement with Some descriptor when is_destroyed descriptor.lifetime->error operation Destroyed "pipeline buffer descriptor is destroyed"|_->match Metal_raw.render93_buffer_at value.raw(descriptor_kind_code value.descriptor_kind)array_kind(Int64.of_int index)(Option.map(fun descriptor->descriptor.raw)replacement)with Error m->native_error operation m|Ok()->Ok())
+    let set_descriptor_buffer(value:pipeline_descriptor) stage ~index (replacement:buffer_descriptor option)=let operation="Metal.Render_pipeline.Mesh_tile.set_descriptor_buffer"in match buffer_array_kind value.descriptor_kind stage with None->error operation Invalid_argument "buffer stage does not belong to descriptor kind"|Some array_kind->on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok() when index<0||index>=31->error operation Invalid_argument "pipeline buffer index must be in [0,31)"|Ok()->match replacement with Some descriptor when is_destroyed descriptor.lifetime->error operation Destroyed "pipeline buffer descriptor is destroyed"|_->match Metal_raw.render93_buffer_at value.raw(descriptor_kind_code value.descriptor_kind)array_kind(Int64.of_int index)(Option.map(fun (descriptor:buffer_descriptor)->descriptor.raw)replacement)with Error m->native_error operation m|Ok()->Ok())
     let destroy_descriptor(value:pipeline_descriptor)=destroy_parent "Metal.Render_pipeline.Mesh_tile.destroy_descriptor" value.lifetime value.raw(fun()->Array.iter(Option.iter(fun(color:color_attachment)->detach color.lifetime))value.descriptor_colors)
-    let mutability_code=Pipeline_buffer_descriptor.mutability_code
     let buffer_descriptor ?(mutability=Default)()=Pipeline_buffer_descriptor.create ~mutability ()
     let set_buffer_mutability (_:buffer_descriptor) _=error "Metal.Render_pipeline.Mesh_tile.set_buffer_mutability" Invalid_argument "pipeline buffer descriptors are immutable; create a replacement"
     let buffer_mutability(value:buffer_descriptor)=value.mutability
@@ -17141,9 +17140,9 @@ module Acceleration_encoder = struct
   let write_compacted_size_typed (value:t) ~source ~destination ~offset kind=
     let operation="Metal.Acceleration_encoder.write_compacted_size_typed"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->let bytes,code=match kind with Uint32->4L,0|Uint64->8L,1 in Result.bind(validate_acceleration operation value.command_buffer.queue.device source)(fun()->Result.bind(ensure_buffer_usable operation destination)(fun()->Result.bind(ensure_same_device operation value.command_buffer.queue.device destination.device)(fun()->if offset<0L||Int64.rem offset bytes<>0L||offset>destination.length||bytes>Int64.sub destination.length offset then error operation Invalid_argument "compacted-size output range is invalid"else match Metal_raw.acceleration_encoder_write_type value.raw source.raw destination.raw offset code with Error m->native_error operation m|Ok()->retain_command_buffer_acceleration_structure value.command_buffer source;retain_command_buffer_buffer value.command_buffer destination;Ok()))))
 
-  let destroyed value = is_destroyed value.lifetime
+  let destroyed (value:acceleration_encoder) = is_destroyed value.lifetime
 
-  let end_encoding value =
+  let end_encoding (value:acceleration_encoder) =
     let operation = "Metal.Acceleration_encoder.end_encoding" in
     on_main operation (fun () ->
       match ensure_live operation value.lifetime with
