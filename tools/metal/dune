@@ -670,6 +670,13 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (name test_binding_small_tail_handoffs)
+ (modules test_binding_small_tail_handoffs)
+ (libraries yojson)
+ (deps ../../lib/metal/generated_api_inventory.json)
+ (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
+
+(test
  (name test_binding_render_command_safe_reachability)
  (modules test_binding_render_command_safe_reachability)
  (libraries metal_inventory_classification))
