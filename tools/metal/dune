@@ -91,6 +91,7 @@
   binding_function_log_tail_handoff
   binding_command_encoder_tail_handoff
   binding_command_queue_tail_handoff
+  binding_command_buffer19_safe_closure
   binding_indirect_command_tail_handoff
   binding_capture_scope_tail_handoff
   binding_event_tail_handoff
@@ -1096,6 +1097,11 @@
  (alias runtest)
  (deps test_library42_callback_race_native.exe)
  (action (run ./test_library42_callback_race_native.exe)))
+
+(test
+ (name test_binding_command_buffer19_safe_closure)
+ (modules test_binding_command_buffer19_safe_closure)
+ (libraries metal_inventory_classification))
 
 (executable
  (name generate_inventory)
