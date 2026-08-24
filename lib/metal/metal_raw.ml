@@ -1826,6 +1826,16 @@ external raster_rate_map_physical_size : handle -> int64 -> ((int64 * int64 * in
 external raster_rate_map_coordinate : handle -> int64 -> bool -> (float * float) -> ((float * float),string) result = "caml_prismel_metal_rate_map_coordinate"
 external raster_rate_map_copy_parameters : handle -> handle -> int64 -> (unit,string) result = "caml_prismel_metal_rate_map_copy_parameters"
 
+(** FunctionStitching43 exact ownership graph ABI. *)
+external stitch_function_create : string -> handle array -> handle array -> (handle,string) result = "caml_prismel_metal_stitch_function_create"
+external stitch_function_snapshot : handle -> ((string * handle array * handle array),string) result = "caml_prismel_metal_stitch_function_snapshot"
+external stitch_function_set : handle -> string -> handle array -> handle array -> (unit,string) result = "caml_prismel_metal_stitch_function_set"
+external stitch_graph_create : string -> handle array -> handle option -> bool -> (handle,string) result = "caml_prismel_metal_stitch_graph_create"
+external stitch_graph_snapshot : handle -> ((string * handle array * handle option * bool),string) result = "caml_prismel_metal_stitch_graph_snapshot"
+external stitch_graph_set : handle -> string -> handle array -> handle option -> bool -> (unit,string) result = "caml_prismel_metal_stitch_graph_set"
+external stitched_descriptor_create : handle array -> handle array -> handle array -> int64 -> (handle,string) result = "caml_prismel_metal_stitched_descriptor_create"
+external stitched_descriptor_snapshot : handle -> ((handle array * handle array * handle array * int64),string) result = "caml_prismel_metal_stitched_descriptor_snapshot"
+
 (** Authoritative Metal4 lifecycle190 prepared CAML subset. The resource and
     compute-owner shards currently contain typed native helpers only, not OCaml
     primitives, so they are intentionally absent here. *)

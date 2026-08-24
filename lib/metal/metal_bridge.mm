@@ -992,6 +992,10 @@ enum class Handle_kind : std::uint32_t {
   Shader_stage_descriptor,
   Shader_argument_encoder,
   Shader_stitching_input_node,
+  Stitching_attribute,
+  Stitching_function_node,
+  Stitching_graph,
+  Stitched_library_descriptor,
   Mesh_pipeline_descriptor,
   Tile_pipeline_descriptor,
   Linked_functions,
@@ -14694,5 +14698,6 @@ extern "C" CAMLprim value caml_prismel_metal_pipeline_render_imageblock_length(v
 #pragma clang diagnostic ignored "-Wunguarded-availability-new"
 #include "../../tools/metal/metal_tensor_mechanical_callable_bridge.inc"
 #include "../../tools/metal/metal_rasterization_rate_callable_bridge.inc"
+#include "../../tools/metal/metal_function_stitching_callable_bridge.inc"
 #include "../../tools/metal/metal_tensor_ownership_callable_bridge.inc"
 #pragma clang diagnostic pop
