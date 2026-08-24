@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4749,
+    "bound": 4781,
     "scope-excluded": 37,
-    "unreviewed": 499
+    "unreviewed": 467
   },
-  "classification_source_sha256": "90616e4b78840e7813895820a8c1df71c671b40c7164e6e731af3f094321bf9b",
+  "classification_source_sha256": "cf321cfda0d7196be5d802e0f9893acb2a2518e870e03d2b60042763f12cc940",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -1610,7 +1610,7 @@
           "line": 303
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureCommandEncoder.h",
       "id": "class:MTLAccelerationStructurePassDescriptor",
       "kind": "class",
@@ -1618,7 +1618,7 @@
       "macos_introduced": "13.0",
       "name": "MTLAccelerationStructurePassDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationCommand32 safe closure with owned pass/sample graphs, checked build/refit/copy/fence/resource/counter state, capability gates, and command-completion retention.",
       "signature": ""
     },
     {
@@ -1632,7 +1632,7 @@
           "line": 254
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureCommandEncoder.h",
       "id": "class:MTLAccelerationStructurePassSampleBufferAttachmentDescriptor",
       "kind": "class",
@@ -1640,7 +1640,7 @@
       "macos_introduced": "13.0",
       "name": "MTLAccelerationStructurePassSampleBufferAttachmentDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationCommand32 safe closure with owned pass/sample graphs, checked build/refit/copy/fence/resource/counter state, capability gates, and command-completion retention.",
       "signature": ""
     },
     {
@@ -1654,7 +1654,7 @@
           "line": 288
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureCommandEncoder.h",
       "id": "class:MTLAccelerationStructurePassSampleBufferAttachmentDescriptorArray",
       "kind": "class",
@@ -1662,7 +1662,7 @@
       "macos_introduced": "13.0",
       "name": "MTLAccelerationStructurePassSampleBufferAttachmentDescriptorArray",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationCommand32 safe closure with owned pass/sample graphs, checked build/refit/copy/fence/resource/counter state, capability gates, and command-completion retention.",
       "signature": ""
     },
     {
@@ -29484,7 +29484,7 @@
           "line": 303
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureCommandEncoder.h",
       "id": "method:+[MTLAccelerationStructurePassDescriptor accelerationStructurePassDescriptor]",
       "kind": "method",
@@ -29492,7 +29492,7 @@
       "macos_introduced": "13.0",
       "name": "accelerationStructurePassDescriptor",
       "owner": "MTLAccelerationStructurePassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationCommand32 safe closure with owned pass/sample graphs, checked build/refit/copy/fence/resource/counter state, capability gates, and command-completion retention.",
       "signature": "class () -> MTLAccelerationStructurePassDescriptor * _Nonnull"
     },
     {
@@ -42687,7 +42687,7 @@
           "line": 21
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureCommandEncoder.h",
       "id": "method:-[MTLAccelerationStructureCommandEncoder buildAccelerationStructure:descriptor:scratchBuffer:scratchBufferOffset:]",
       "kind": "method",
@@ -42695,7 +42695,7 @@
       "macos_introduced": "11.0",
       "name": "buildAccelerationStructure:descriptor:scratchBuffer:scratchBufferOffset:",
       "owner": "MTLAccelerationStructureCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationCommand32 safe closure with owned pass/sample graphs, checked build/refit/copy/fence/resource/counter state, capability gates, and command-completion retention.",
       "signature": "instance (id<MTLAccelerationStructure>  _Nonnull __strong, MTLAccelerationStructureDescriptor * _Nonnull __strong, id<MTLBuffer>  _Nonnull __strong, NSUInteger) -> void"
     },
     {
@@ -42706,7 +42706,7 @@
           "line": 21
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureCommandEncoder.h",
       "id": "method:-[MTLAccelerationStructureCommandEncoder copyAccelerationStructure:toAccelerationStructure:]",
       "kind": "method",
@@ -42714,7 +42714,7 @@
       "macos_introduced": "11.0",
       "name": "copyAccelerationStructure:toAccelerationStructure:",
       "owner": "MTLAccelerationStructureCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationCommand32 safe closure with owned pass/sample graphs, checked build/refit/copy/fence/resource/counter state, capability gates, and command-completion retention.",
       "signature": "instance (id<MTLAccelerationStructure>  _Nonnull __strong, id<MTLAccelerationStructure>  _Nonnull __strong) -> void"
     },
     {
@@ -42725,7 +42725,7 @@
           "line": 21
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureCommandEncoder.h",
       "id": "method:-[MTLAccelerationStructureCommandEncoder copyAndCompactAccelerationStructure:toAccelerationStructure:]",
       "kind": "method",
@@ -42733,7 +42733,7 @@
       "macos_introduced": "11.0",
       "name": "copyAndCompactAccelerationStructure:toAccelerationStructure:",
       "owner": "MTLAccelerationStructureCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationCommand32 safe closure with owned pass/sample graphs, checked build/refit/copy/fence/resource/counter state, capability gates, and command-completion retention.",
       "signature": "instance (id<MTLAccelerationStructure>  _Nonnull __strong, id<MTLAccelerationStructure>  _Nonnull __strong) -> void"
     },
     {
@@ -42744,7 +42744,7 @@
           "line": 21
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureCommandEncoder.h",
       "id": "method:-[MTLAccelerationStructureCommandEncoder refitAccelerationStructure:descriptor:destination:scratchBuffer:scratchBufferOffset:]",
       "kind": "method",
@@ -42752,7 +42752,7 @@
       "macos_introduced": "11.0",
       "name": "refitAccelerationStructure:descriptor:destination:scratchBuffer:scratchBufferOffset:",
       "owner": "MTLAccelerationStructureCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationCommand32 safe closure with owned pass/sample graphs, checked build/refit/copy/fence/resource/counter state, capability gates, and command-completion retention.",
       "signature": "instance (id<MTLAccelerationStructure>  _Nonnull __strong, MTLAccelerationStructureDescriptor * _Nonnull __strong, id<MTLAccelerationStructure>  _Nullable __strong, id<MTLBuffer>  _Nullable __strong, NSUInteger) -> void"
     },
     {
@@ -42769,7 +42769,7 @@
           "line": 114
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureCommandEncoder.h",
       "id": "method:-[MTLAccelerationStructureCommandEncoder refitAccelerationStructure:descriptor:destination:scratchBuffer:scratchBufferOffset:options:]",
       "kind": "method",
@@ -42777,7 +42777,7 @@
       "macos_introduced": "13.0",
       "name": "refitAccelerationStructure:descriptor:destination:scratchBuffer:scratchBufferOffset:options:",
       "owner": "MTLAccelerationStructureCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationCommand32 safe closure with owned pass/sample graphs, checked build/refit/copy/fence/resource/counter state, capability gates, and command-completion retention.",
       "signature": "instance (id<MTLAccelerationStructure>  _Nonnull __strong, MTLAccelerationStructureDescriptor * _Nonnull __strong, id<MTLAccelerationStructure>  _Nullable __strong, id<MTLBuffer>  _Nullable __strong, NSUInteger, MTLAccelerationStructureRefitOptions) -> void"
     },
     {
@@ -42794,7 +42794,7 @@
           "line": 249
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureCommandEncoder.h",
       "id": "method:-[MTLAccelerationStructureCommandEncoder sampleCountersInBuffer:atSampleIndex:withBarrier:]",
       "kind": "method",
@@ -42802,7 +42802,7 @@
       "macos_introduced": "11.0",
       "name": "sampleCountersInBuffer:atSampleIndex:withBarrier:",
       "owner": "MTLAccelerationStructureCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationCommand32 safe closure with owned pass/sample graphs, checked build/refit/copy/fence/resource/counter state, capability gates, and command-completion retention.",
       "signature": "instance (id<MTLCounterSampleBuffer>  _Nonnull __strong, NSUInteger, BOOL) -> void"
     },
     {
@@ -42813,7 +42813,7 @@
           "line": 21
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureCommandEncoder.h",
       "id": "method:-[MTLAccelerationStructureCommandEncoder updateFence:]",
       "kind": "method",
@@ -42821,7 +42821,7 @@
       "macos_introduced": "11.0",
       "name": "updateFence:",
       "owner": "MTLAccelerationStructureCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationCommand32 safe closure with owned pass/sample graphs, checked build/refit/copy/fence/resource/counter state, capability gates, and command-completion retention.",
       "signature": "instance (id<MTLFence>  _Nonnull __strong) -> void"
     },
     {
@@ -42832,7 +42832,7 @@
           "line": 21
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureCommandEncoder.h",
       "id": "method:-[MTLAccelerationStructureCommandEncoder useHeap:]",
       "kind": "method",
@@ -42840,7 +42840,7 @@
       "macos_introduced": "11.0",
       "name": "useHeap:",
       "owner": "MTLAccelerationStructureCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationCommand32 safe closure with owned pass/sample graphs, checked build/refit/copy/fence/resource/counter state, capability gates, and command-completion retention.",
       "signature": "instance (id<MTLHeap>  _Nonnull __strong) -> void"
     },
     {
@@ -42851,7 +42851,7 @@
           "line": 21
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureCommandEncoder.h",
       "id": "method:-[MTLAccelerationStructureCommandEncoder useHeaps:count:]",
       "kind": "method",
@@ -42859,7 +42859,7 @@
       "macos_introduced": "11.0",
       "name": "useHeaps:count:",
       "owner": "MTLAccelerationStructureCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationCommand32 safe closure with owned pass/sample graphs, checked build/refit/copy/fence/resource/counter state, capability gates, and command-completion retention.",
       "signature": "instance (id<MTLHeap>  _Nonnull const __unsafe_unretained * _Nonnull, NSUInteger) -> void"
     },
     {
@@ -42870,7 +42870,7 @@
           "line": 21
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureCommandEncoder.h",
       "id": "method:-[MTLAccelerationStructureCommandEncoder useResource:usage:]",
       "kind": "method",
@@ -42878,7 +42878,7 @@
       "macos_introduced": "11.0",
       "name": "useResource:usage:",
       "owner": "MTLAccelerationStructureCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationCommand32 safe closure with owned pass/sample graphs, checked build/refit/copy/fence/resource/counter state, capability gates, and command-completion retention.",
       "signature": "instance (id<MTLResource>  _Nonnull __strong, MTLResourceUsage) -> void"
     },
     {
@@ -42889,7 +42889,7 @@
           "line": 21
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureCommandEncoder.h",
       "id": "method:-[MTLAccelerationStructureCommandEncoder useResources:count:usage:]",
       "kind": "method",
@@ -42897,7 +42897,7 @@
       "macos_introduced": "11.0",
       "name": "useResources:count:usage:",
       "owner": "MTLAccelerationStructureCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationCommand32 safe closure with owned pass/sample graphs, checked build/refit/copy/fence/resource/counter state, capability gates, and command-completion retention.",
       "signature": "instance (id<MTLResource>  _Nonnull const __unsafe_unretained * _Nonnull, NSUInteger, MTLResourceUsage) -> void"
     },
     {
@@ -42908,7 +42908,7 @@
           "line": 21
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureCommandEncoder.h",
       "id": "method:-[MTLAccelerationStructureCommandEncoder waitForFence:]",
       "kind": "method",
@@ -42916,7 +42916,7 @@
       "macos_introduced": "11.0",
       "name": "waitForFence:",
       "owner": "MTLAccelerationStructureCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationCommand32 safe closure with owned pass/sample graphs, checked build/refit/copy/fence/resource/counter state, capability gates, and command-completion retention.",
       "signature": "instance (id<MTLFence>  _Nonnull __strong) -> void"
     },
     {
@@ -42927,7 +42927,7 @@
           "line": 21
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureCommandEncoder.h",
       "id": "method:-[MTLAccelerationStructureCommandEncoder writeCompactedAccelerationStructureSize:toBuffer:offset:]",
       "kind": "method",
@@ -42935,7 +42935,7 @@
       "macos_introduced": "11.0",
       "name": "writeCompactedAccelerationStructureSize:toBuffer:offset:",
       "owner": "MTLAccelerationStructureCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationCommand32 safe closure with owned pass/sample graphs, checked build/refit/copy/fence/resource/counter state, capability gates, and command-completion retention.",
       "signature": "instance (id<MTLAccelerationStructure>  _Nonnull __strong, id<MTLBuffer>  _Nonnull __strong, NSUInteger) -> void"
     },
     {
@@ -42952,7 +42952,7 @@
           "line": 167
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureCommandEncoder.h",
       "id": "method:-[MTLAccelerationStructureCommandEncoder writeCompactedAccelerationStructureSize:toBuffer:offset:sizeDataType:]",
       "kind": "method",
@@ -42960,7 +42960,7 @@
       "macos_introduced": "12.0",
       "name": "writeCompactedAccelerationStructureSize:toBuffer:offset:sizeDataType:",
       "owner": "MTLAccelerationStructureCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationCommand32 safe closure with owned pass/sample graphs, checked build/refit/copy/fence/resource/counter state, capability gates, and command-completion retention.",
       "signature": "instance (id<MTLAccelerationStructure>  _Nonnull __strong, id<MTLBuffer>  _Nonnull __strong, NSUInteger, MTLDataType) -> void"
     },
     {
@@ -45131,7 +45131,7 @@
           "line": 303
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureCommandEncoder.h",
       "id": "method:-[MTLAccelerationStructurePassDescriptor sampleBufferAttachments]",
       "kind": "method",
@@ -45139,7 +45139,7 @@
       "macos_introduced": "13.0",
       "name": "sampleBufferAttachments",
       "owner": "MTLAccelerationStructurePassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationCommand32 safe closure with owned pass/sample graphs, checked build/refit/copy/fence/resource/counter state, capability gates, and command-completion retention.",
       "signature": "instance () -> MTLAccelerationStructurePassSampleBufferAttachmentDescriptorArray * _Nonnull"
     },
     {
@@ -45150,7 +45150,7 @@
           "line": 254
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureCommandEncoder.h",
       "id": "method:-[MTLAccelerationStructurePassSampleBufferAttachmentDescriptor endOfEncoderSampleIndex]",
       "kind": "method",
@@ -45158,7 +45158,7 @@
       "macos_introduced": "13.0",
       "name": "endOfEncoderSampleIndex",
       "owner": "MTLAccelerationStructurePassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationCommand32 safe closure with owned pass/sample graphs, checked build/refit/copy/fence/resource/counter state, capability gates, and command-completion retention.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -45169,7 +45169,7 @@
           "line": 254
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureCommandEncoder.h",
       "id": "method:-[MTLAccelerationStructurePassSampleBufferAttachmentDescriptor sampleBuffer]",
       "kind": "method",
@@ -45177,7 +45177,7 @@
       "macos_introduced": "13.0",
       "name": "sampleBuffer",
       "owner": "MTLAccelerationStructurePassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationCommand32 safe closure with owned pass/sample graphs, checked build/refit/copy/fence/resource/counter state, capability gates, and command-completion retention.",
       "signature": "instance () -> id<MTLCounterSampleBuffer> _Nullable"
     },
     {
@@ -45188,7 +45188,7 @@
           "line": 254
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureCommandEncoder.h",
       "id": "method:-[MTLAccelerationStructurePassSampleBufferAttachmentDescriptor setEndOfEncoderSampleIndex:]",
       "kind": "method",
@@ -45196,7 +45196,7 @@
       "macos_introduced": "13.0",
       "name": "setEndOfEncoderSampleIndex:",
       "owner": "MTLAccelerationStructurePassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationCommand32 safe closure with owned pass/sample graphs, checked build/refit/copy/fence/resource/counter state, capability gates, and command-completion retention.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -45207,7 +45207,7 @@
           "line": 254
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureCommandEncoder.h",
       "id": "method:-[MTLAccelerationStructurePassSampleBufferAttachmentDescriptor setSampleBuffer:]",
       "kind": "method",
@@ -45215,7 +45215,7 @@
       "macos_introduced": "13.0",
       "name": "setSampleBuffer:",
       "owner": "MTLAccelerationStructurePassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationCommand32 safe closure with owned pass/sample graphs, checked build/refit/copy/fence/resource/counter state, capability gates, and command-completion retention.",
       "signature": "instance (id<MTLCounterSampleBuffer> _Nullable) -> void"
     },
     {
@@ -45226,7 +45226,7 @@
           "line": 254
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureCommandEncoder.h",
       "id": "method:-[MTLAccelerationStructurePassSampleBufferAttachmentDescriptor setStartOfEncoderSampleIndex:]",
       "kind": "method",
@@ -45234,7 +45234,7 @@
       "macos_introduced": "13.0",
       "name": "setStartOfEncoderSampleIndex:",
       "owner": "MTLAccelerationStructurePassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationCommand32 safe closure with owned pass/sample graphs, checked build/refit/copy/fence/resource/counter state, capability gates, and command-completion retention.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -45245,7 +45245,7 @@
           "line": 254
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureCommandEncoder.h",
       "id": "method:-[MTLAccelerationStructurePassSampleBufferAttachmentDescriptor startOfEncoderSampleIndex]",
       "kind": "method",
@@ -45253,7 +45253,7 @@
       "macos_introduced": "13.0",
       "name": "startOfEncoderSampleIndex",
       "owner": "MTLAccelerationStructurePassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationCommand32 safe closure with owned pass/sample graphs, checked build/refit/copy/fence/resource/counter state, capability gates, and command-completion retention.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -45264,7 +45264,7 @@
           "line": 288
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureCommandEncoder.h",
       "id": "method:-[MTLAccelerationStructurePassSampleBufferAttachmentDescriptorArray objectAtIndexedSubscript:]",
       "kind": "method",
@@ -45272,7 +45272,7 @@
       "macos_introduced": "13.0",
       "name": "objectAtIndexedSubscript:",
       "owner": "MTLAccelerationStructurePassSampleBufferAttachmentDescriptorArray",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationCommand32 safe closure with owned pass/sample graphs, checked build/refit/copy/fence/resource/counter state, capability gates, and command-completion retention.",
       "signature": "instance (NSUInteger) -> MTLAccelerationStructurePassSampleBufferAttachmentDescriptor * _Nonnull"
     },
     {
@@ -45283,7 +45283,7 @@
           "line": 288
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureCommandEncoder.h",
       "id": "method:-[MTLAccelerationStructurePassSampleBufferAttachmentDescriptorArray setObject:atIndexedSubscript:]",
       "kind": "method",
@@ -45291,7 +45291,7 @@
       "macos_introduced": "13.0",
       "name": "setObject:atIndexedSubscript:",
       "owner": "MTLAccelerationStructurePassSampleBufferAttachmentDescriptorArray",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationCommand32 safe closure with owned pass/sample graphs, checked build/refit/copy/fence/resource/counter state, capability gates, and command-completion retention.",
       "signature": "instance (MTLAccelerationStructurePassSampleBufferAttachmentDescriptor * _Nullable __strong, NSUInteger) -> void"
     },
     {
@@ -88725,7 +88725,7 @@
           "line": 303
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureCommandEncoder.h",
       "id": "property:MTLAccelerationStructurePassDescriptor:sampleBufferAttachments",
       "kind": "property",
@@ -88733,7 +88733,7 @@
       "macos_introduced": "13.0",
       "name": "sampleBufferAttachments",
       "owner": "MTLAccelerationStructurePassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationCommand32 safe closure with owned pass/sample graphs, checked build/refit/copy/fence/resource/counter state, capability gates, and command-completion retention.",
       "signature": "MTLAccelerationStructurePassSampleBufferAttachmentDescriptorArray * _Nonnull"
     },
     {
@@ -88744,7 +88744,7 @@
           "line": 254
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureCommandEncoder.h",
       "id": "property:MTLAccelerationStructurePassSampleBufferAttachmentDescriptor:endOfEncoderSampleIndex",
       "kind": "property",
@@ -88752,7 +88752,7 @@
       "macos_introduced": "13.0",
       "name": "endOfEncoderSampleIndex",
       "owner": "MTLAccelerationStructurePassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationCommand32 safe closure with owned pass/sample graphs, checked build/refit/copy/fence/resource/counter state, capability gates, and command-completion retention.",
       "signature": "NSUInteger"
     },
     {
@@ -88763,7 +88763,7 @@
           "line": 254
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureCommandEncoder.h",
       "id": "property:MTLAccelerationStructurePassSampleBufferAttachmentDescriptor:sampleBuffer",
       "kind": "property",
@@ -88771,7 +88771,7 @@
       "macos_introduced": "13.0",
       "name": "sampleBuffer",
       "owner": "MTLAccelerationStructurePassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationCommand32 safe closure with owned pass/sample graphs, checked build/refit/copy/fence/resource/counter state, capability gates, and command-completion retention.",
       "signature": "id<MTLCounterSampleBuffer> _Nullable"
     },
     {
@@ -88782,7 +88782,7 @@
           "line": 254
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureCommandEncoder.h",
       "id": "property:MTLAccelerationStructurePassSampleBufferAttachmentDescriptor:startOfEncoderSampleIndex",
       "kind": "property",
@@ -88790,7 +88790,7 @@
       "macos_introduced": "13.0",
       "name": "startOfEncoderSampleIndex",
       "owner": "MTLAccelerationStructurePassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationCommand32 safe closure with owned pass/sample graphs, checked build/refit/copy/fence/resource/counter state, capability gates, and command-completion retention.",
       "signature": "NSUInteger"
     },
     {
@@ -104598,7 +104598,7 @@
           "line": 21
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructureCommandEncoder.h",
       "id": "protocol:MTLAccelerationStructureCommandEncoder",
       "kind": "protocol",
@@ -104606,7 +104606,7 @@
       "macos_introduced": "11.0",
       "name": "MTLAccelerationStructureCommandEncoder",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the AccelerationCommand32 safe closure with owned pass/sample graphs, checked build/refit/copy/fence/resource/counter state, capability gates, and command-completion retention.",
       "signature": ""
     },
     {
