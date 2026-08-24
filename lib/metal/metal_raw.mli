@@ -2429,6 +2429,11 @@ external acceleration_encoder_refit_options :
 external acceleration_encoder_write_type :
   handle -> handle -> handle -> int64 -> int -> (unit,string) result =
   "caml_prismel_metal_acceleration_encoder_write_type"
+external acceleration_encoder_with_pass :
+  handle -> handle -> (handle,string) result =
+  "caml_prismel_metal_acceleration_encoder_with_pass"
+external acceleration_supports_counters : handle -> (bool,string) result =
+  "caml_prismel_metal_acceleration_supports_counters"
 
 type blit_copy_spec =
   | Blit_buffer_to_texture of int64 * int64 * int64 * int64 * int64 * int64 * int64 * int64 * int64 * int64 * int64 * int64
@@ -2672,6 +2677,7 @@ external render93_array_snapshot : handle -> int -> int -> (int64 array,string) 
 external render93_mesh_linked : handle -> int -> bool -> handle option -> (handle option,string) result = "caml_prismel_metal_render93_mesh_linked"
 external render93_tile_linked : handle -> bool -> handle option -> (handle option,string) result = "caml_prismel_metal_render93_tile_linked"
 external render93_function_handle : handle -> int -> handle -> int64 -> (handle option,string) result = "caml_prismel_metal_render93_function_handle"
+external render93_function_handle_name : handle -> int -> string -> int64 -> (handle option,string) result = "caml_prismel_metal_render93_function_handle"
 external render93_function_table : handle -> int -> int64 -> int64 -> (handle,string) result = "caml_prismel_metal_render93_function_table"
 external render93_functions_descriptor_create : unit -> (handle,string) result = "caml_prismel_metal_render93_functions_descriptor_create"
 external render93_functions_descriptor_array : handle -> int -> bool -> handle array -> (handle array,string) result = "caml_prismel_metal_render93_functions_descriptor_array"
