@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4617,
+    "bound": 4628,
     "scope-excluded": 37,
-    "unreviewed": 631
+    "unreviewed": 620
   },
-  "classification_source_sha256": "f3a29f134b846fe08828f74c161fe804eb8dd4ae1ec65abd789fe40f4c8ed62b",
+  "classification_source_sha256": "7f83d323b05c6db2b15b1b066ab80797a670e2ff1f5e273484b47090875eccf1",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -2658,7 +2658,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "class:MTLMeshRenderPipelineDescriptor",
       "kind": "class",
@@ -2666,7 +2666,7 @@
       "macos_introduced": "13.0",
       "name": "MTLMeshRenderPipelineDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": ""
     },
     {
@@ -3054,7 +3054,7 @@
           "line": 112
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "class:MTLRenderPipelineColorAttachmentDescriptor",
       "kind": "class",
@@ -3062,7 +3062,7 @@
       "macos_introduced": "10.11",
       "name": "MTLRenderPipelineColorAttachmentDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": ""
     },
     {
@@ -3076,7 +3076,7 @@
           "line": 550
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "class:MTLRenderPipelineColorAttachmentDescriptorArray",
       "kind": "class",
@@ -3084,7 +3084,7 @@
       "macos_introduced": "10.11",
       "name": "MTLRenderPipelineColorAttachmentDescriptorArray",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": ""
     },
     {
@@ -3661,7 +3661,7 @@
           "line": 581
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "class:MTLTileRenderPipelineDescriptor",
       "kind": "class",
@@ -3669,7 +3669,7 @@
       "macos_introduced": "11.0",
       "name": "MTLTileRenderPipelineDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": ""
     },
     {
@@ -65814,7 +65814,7 @@
           "line": 683
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLMeshRenderPipelineDescriptor reset]",
       "kind": "method",
@@ -65822,7 +65822,7 @@
       "macos_introduced": "13.0",
       "name": "reset",
       "owner": "MTLMeshRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": "instance () -> void"
     },
     {
@@ -73019,7 +73019,7 @@
           "line": 550
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineColorAttachmentDescriptorArray objectAtIndexedSubscript:]",
       "kind": "method",
@@ -73027,7 +73027,7 @@
       "macos_introduced": "10.11",
       "name": "objectAtIndexedSubscript:",
       "owner": "MTLRenderPipelineColorAttachmentDescriptorArray",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": "instance (NSUInteger) -> MTLRenderPipelineColorAttachmentDescriptor * _Nonnull"
     },
     {
@@ -73038,7 +73038,7 @@
           "line": 550
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineColorAttachmentDescriptorArray setObject:atIndexedSubscript:]",
       "kind": "method",
@@ -73046,7 +73046,7 @@
       "macos_introduced": "10.11",
       "name": "setObject:atIndexedSubscript:",
       "owner": "MTLRenderPipelineColorAttachmentDescriptorArray",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": "instance (MTLRenderPipelineColorAttachmentDescriptor * _Nullable __strong, NSUInteger) -> void"
     },
     {
@@ -73321,7 +73321,7 @@
           "line": 179
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor label]",
       "kind": "method",
@@ -73329,7 +73329,7 @@
       "macos_introduced": "10.11",
       "name": "label",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": "instance () -> NSString * _Nullable"
     },
     {
@@ -73679,7 +73679,7 @@
           "line": 179
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineDescriptor setLabel:]",
       "kind": "method",
@@ -73687,7 +73687,7 @@
       "macos_introduced": "10.11",
       "name": "setLabel:",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": "instance (NSString * _Nullable) -> void"
     },
     {
@@ -81491,7 +81491,7 @@
           "line": 581
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLTileRenderPipelineDescriptor reset]",
       "kind": "method",
@@ -81499,7 +81499,7 @@
       "macos_introduced": "11.0",
       "name": "reset",
       "owner": "MTLTileRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": "instance () -> void"
     },
     {
@@ -99111,7 +99111,7 @@
           "line": 179
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineDescriptor:label",
       "kind": "property",
@@ -99119,7 +99119,7 @@
       "macos_introduced": "10.11",
       "name": "label",
       "owner": "MTLRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": "NSString * _Nullable"
     },
     {
