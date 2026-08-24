@@ -53,6 +53,7 @@
   binding_metal4_manifest
   binding_metal4_callable_safe_reachability
   binding_metal4_argument_table_safe_package
+  binding_metal4_render_pipeline_safe_package
   binding_metal4_second_slice_reachability
   binding_metal4_native32_reachability
   binding_metal4_final9_reachability
@@ -85,6 +86,7 @@
   binding_fence6_safe_package
   binding_indirect_command_buffer4_safe_package
   binding_argument8_safe_package
+  binding_library8_safe_package
   binding_metal4_argument_table_safe_package
   binding_render_encoder33_native_closure
   binding_render_pipeline93_native_closure
@@ -100,6 +102,7 @@
   binding_function_log_tail_handoff
   binding_command_encoder_tail_handoff
   binding_command_encoder9_closure
+  binding_pipeline4_buffer_descriptor_safe_closure
   binding_command_queue_tail_handoff
   binding_command_buffer19_safe_closure
   binding_indirect_command_tail_handoff
@@ -922,6 +925,11 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (name test_binding_pipeline4_buffer_descriptor_safe_closure)
+ (modules test_binding_pipeline4_buffer_descriptor_safe_closure)
+ (libraries metal_inventory_classification))
+
+(test
  (name test_binding_metal4_command_queue_safe_package)
  (modules test_binding_metal4_command_queue_safe_package binding_metal4_command_queue_safe_package))
 
@@ -942,7 +950,8 @@
 
 (test
  (name test_binding_metal4_render_pipeline_safe_package)
- (modules test_binding_metal4_render_pipeline_safe_package binding_metal4_render_pipeline_safe_package))
+ (modules test_binding_metal4_render_pipeline_safe_package)
+ (libraries metal_inventory_classification))
 
 (test
  (name test_binding_metal4_command_encoder_safe_package)
@@ -979,6 +988,11 @@
 (test
  (name test_binding_argument8_safe_package)
  (modules test_binding_argument8_safe_package)
+ (libraries metal_inventory_classification))
+
+(test
+ (name test_binding_library8_safe_package)
+ (modules test_binding_library8_safe_package)
  (libraries metal_inventory_classification))
 
 (test

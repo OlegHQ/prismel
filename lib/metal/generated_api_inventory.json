@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4981,
+    "bound": 4995,
     "scope-excluded": 37,
-    "unreviewed": 267
+    "unreviewed": 253
   },
-  "classification_source_sha256": "3b5d741d8876dad2687d54c3c0127d1e572b869b7ae7f3b6ff35050d0958213e",
+  "classification_source_sha256": "9400cbb1ec9b5e0f09990c3c207f7d5eb183929eb6fedcbca5fe8df25af4c2c4",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -1786,7 +1786,7 @@
           "line": 72
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "class:MTLAttribute",
       "kind": "class",
@@ -1794,7 +1794,7 @@
       "macos_introduced": "10.12",
       "name": "MTLAttribute",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Library8 immutable attribute/function-reflection snapshots and private autoreleasing ABI conventions, with bounded exactly-once cancellable tasks, exception capture, and real compute/render callback conformance.",
       "signature": ""
     },
     {
@@ -2328,7 +2328,7 @@
           "line": 410
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "class:MTLFunctionReflection",
       "kind": "class",
@@ -2336,7 +2336,7 @@
       "macos_introduced": "26.0",
       "name": "MTLFunctionReflection",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Library8 immutable attribute/function-reflection snapshots and private autoreleasing ABI conventions, with bounded exactly-once cancellable tasks, exception capture, and real compute/render callback conformance.",
       "signature": ""
     },
     {
@@ -2702,7 +2702,7 @@
           "line": 33
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPipeline.h",
       "id": "class:MTLPipelineBufferDescriptor",
       "kind": "class",
@@ -2710,7 +2710,7 @@
       "macos_introduced": "10.13",
       "name": "MTLPipelineBufferDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by immutable PipelineBufferDescriptor values and checked copied array assignment/reset with fixed-slot validation in compute and render pipeline descriptors plus real compute readback.",
       "signature": ""
     },
     {
@@ -2724,7 +2724,7 @@
           "line": 41
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPipeline.h",
       "id": "class:MTLPipelineBufferDescriptorArray",
       "kind": "class",
@@ -2732,7 +2732,7 @@
       "macos_introduced": "10.13",
       "name": "MTLPipelineBufferDescriptorArray",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by immutable PipelineBufferDescriptor values and checked copied array assignment/reset with fixed-slot validation in compute and render pipeline descriptors plus real compute readback.",
       "signature": ""
     },
     {
@@ -3705,7 +3705,7 @@
           "line": 60
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "class:MTLVertexAttribute",
       "kind": "class",
@@ -3713,7 +3713,7 @@
       "macos_introduced": "10.11",
       "name": "MTLVertexAttribute",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Library8 immutable attribute/function-reflection snapshots and private autoreleasing ABI conventions, with bounded exactly-once cancellable tasks, exception capture, and real compute/render callback conformance.",
       "signature": ""
     },
     {
@@ -40857,7 +40857,7 @@
           "line": 43
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "method:-[MTL4RenderPipelineColorAttachmentDescriptor reset]",
       "kind": "method",
@@ -40865,7 +40865,7 @@
       "macos_introduced": "26.0",
       "name": "reset",
       "owner": "MTL4RenderPipelineColorAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned Metal 4 render-pipeline attachment descriptors with exact eight-entry copy snapshots, idempotent default restoration, destroyed/availability rejection, and repeated native conformance.",
       "signature": "instance () -> void"
     },
     {
@@ -41142,7 +41142,7 @@
           "line": 97
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "method:-[MTL4RenderPipelineColorAttachmentDescriptorArray reset]",
       "kind": "method",
@@ -41150,7 +41150,7 @@
       "macos_introduced": "26.0",
       "name": "reset",
       "owner": "MTL4RenderPipelineColorAttachmentDescriptorArray",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by owned Metal 4 render-pipeline attachment descriptors with exact eight-entry copy snapshots, idempotent default restoration, destroyed/availability rejection, and repeated native conformance.",
       "signature": "instance () -> void"
     },
     {
@@ -66746,7 +66746,7 @@
           "line": 41
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPipeline.h",
       "id": "method:-[MTLPipelineBufferDescriptorArray objectAtIndexedSubscript:]",
       "kind": "method",
@@ -66754,7 +66754,7 @@
       "macos_introduced": "10.13",
       "name": "objectAtIndexedSubscript:",
       "owner": "MTLPipelineBufferDescriptorArray",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by immutable PipelineBufferDescriptor values and checked copied array assignment/reset with fixed-slot validation in compute and render pipeline descriptors plus real compute readback.",
       "signature": "instance (NSUInteger) -> MTLPipelineBufferDescriptor * _Nonnull"
     },
     {
@@ -66765,7 +66765,7 @@
           "line": 41
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLPipeline.h",
       "id": "method:-[MTLPipelineBufferDescriptorArray setObject:atIndexedSubscript:]",
       "kind": "method",
@@ -66773,7 +66773,7 @@
       "macos_introduced": "10.13",
       "name": "setObject:atIndexedSubscript:",
       "owner": "MTLPipelineBufferDescriptorArray",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by immutable PipelineBufferDescriptor values and checked copied array assignment/reset with fixed-slot validation in compute and render pipeline descriptors plus real compute readback.",
       "signature": "instance (MTLPipelineBufferDescriptor * _Nullable __strong, NSUInteger) -> void"
     },
     {
@@ -107351,7 +107351,7 @@
           "line": 52
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "typedef:MTLAutoreleasedArgument",
       "kind": "typedef",
@@ -107359,13 +107359,13 @@
       "macos_introduced": "10.11",
       "name": "MTLAutoreleasedArgument",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Library8 immutable attribute/function-reflection snapshots and private autoreleasing ABI conventions, with bounded exactly-once cancellable tasks, exception capture, and real compute/render callback conformance.",
       "signature": "MTLArgument * _Nullable __autoreleasing"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "typedef:MTLAutoreleasedComputePipelineReflection",
       "kind": "typedef",
@@ -107373,13 +107373,13 @@
       "macos_introduced": null,
       "name": "MTLAutoreleasedComputePipelineReflection",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Library8 immutable attribute/function-reflection snapshots and private autoreleasing ABI conventions, with bounded exactly-once cancellable tasks, exception capture, and real compute/render callback conformance.",
       "signature": "MTLComputePipelineReflection * _Nullable __autoreleasing"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "typedef:MTLAutoreleasedRenderPipelineReflection",
       "kind": "typedef",
@@ -107387,7 +107387,7 @@
       "macos_introduced": null,
       "name": "MTLAutoreleasedRenderPipelineReflection",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Library8 immutable attribute/function-reflection snapshots and private autoreleasing ABI conventions, with bounded exactly-once cancellable tasks, exception capture, and real compute/render callback conformance.",
       "signature": "MTLRenderPipelineReflection * _Nullable __autoreleasing"
     },
     {
@@ -108980,7 +108980,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "typedef:MTLNewComputePipelineStateWithReflectionCompletionHandler",
       "kind": "typedef",
@@ -108988,7 +108988,7 @@
       "macos_introduced": null,
       "name": "MTLNewComputePipelineStateWithReflectionCompletionHandler",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Library8 immutable attribute/function-reflection snapshots and private autoreleasing ABI conventions, with bounded exactly-once cancellable tasks, exception capture, and real compute/render callback conformance.",
       "signature": "void (^)(id<MTLComputePipelineState>  _Nullable __strong, MTLComputePipelineReflection * _Nullable_result __strong, NSError * _Nullable __strong)"
     },
     {
@@ -109036,7 +109036,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "typedef:MTLNewRenderPipelineStateWithReflectionCompletionHandler",
       "kind": "typedef",
@@ -109044,7 +109044,7 @@
       "macos_introduced": null,
       "name": "MTLNewRenderPipelineStateWithReflectionCompletionHandler",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Library8 immutable attribute/function-reflection snapshots and private autoreleasing ABI conventions, with bounded exactly-once cancellable tasks, exception capture, and real compute/render callback conformance.",
       "signature": "void (^)(id<MTLRenderPipelineState>  _Nullable __strong, MTLRenderPipelineReflection * _Nullable_result __strong, NSError * _Nullable __strong)"
     },
     {

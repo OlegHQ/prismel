@@ -1871,8 +1871,11 @@ let function_descriptor_safe4 = Binding_function_descriptor4_safe_package.ids
 let fence_safe6 = Binding_fence6_safe_package.ids
 let indirect_command_buffer_safe4 = Binding_indirect_command_buffer4_safe_package.ids
 let argument_safe8 = Binding_argument8_safe_package.ids
+let library_safe8 = Binding_library8_safe_package.ids
 let metal4_argument_table_safe1 =
   Binding_metal4_argument_table_safe_package.callable_ids
+let metal4_render_pipeline_reset_safe2 =
+  Binding_metal4_render_pipeline_safe_package.callable_ids
 
 let classify ~unavailable ~identifier ~header ~kind ~signature =
   if unavailable then
@@ -1887,6 +1890,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier metal4_argument_table_safe1 then
     Bound,
       "Implemented by the closed ID-bearing resource variant with checked live/device/index/nonzero validation, atomic replacement retention, command lifetime, and real Metal 4 texture-table conformance."
+  else if List.mem identifier metal4_render_pipeline_reset_safe2 then
+    Bound,
+      "Implemented by owned Metal 4 render-pipeline attachment descriptors with exact eight-entry copy snapshots, idempotent default restoration, destroyed/availability rejection, and repeated native conformance."
   else if acceleration_scalar_identifier ~header ~kind ~signature identifier then
     Bound,
       "Implemented by generated immutable acceleration-structure descriptor values with native execute-or-capability-reject conformance."
@@ -1967,6 +1973,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier Binding_command_encoder9_closure.ids then
     Bound,
       "Implemented by the CommandEncoder9 shared safe token with retained command parent, exact device/label snapshots, balanced debug depth, known nonzero stage masks, end-state rejection, and real 256-command conformance."
+  else if List.mem identifier Binding_pipeline4_buffer_descriptor_safe_closure.promotable_ids then
+    Bound,
+      "Implemented by immutable PipelineBufferDescriptor values and checked copied array assignment/reset with fixed-slot validation in compute and render pipeline descriptors plus real compute readback."
   else if List.mem identifier Binding_capture_scope_tail_handoff.callable_ids then
     Bound,
       "Implemented by the CaptureScope11 safe lifecycle with retained queue/device identity, copied nullable labels, balanced begin/end state, Metal4 availability, and parent ownership."
@@ -2027,6 +2036,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier argument_safe8 then
     Bound,
       "Implemented by the immutable Argument8 reflection tree with copied argument, struct/member, pointer and array metadata, nullable nested variants, bounded traversal/unwind, and macOS-26-gated tensor reflection provenance."
+  else if List.mem identifier library_safe8 then
+    Bound,
+      "Implemented by the Library8 immutable attribute/function-reflection snapshots and private autoreleasing ABI conventions, with bounded exactly-once cancellable tasks, exception capture, and real compute/render callback conformance."
   else if List.mem identifier Binding_command_buffer19_safe_closure.promotable_ids then
     Bound,
       "Implemented by the CommandBuffer19 safe descriptor/callback closure with retained log-state and resources, exact-once completion, queue ownership, and error-only EncoderInfo snapshots."
