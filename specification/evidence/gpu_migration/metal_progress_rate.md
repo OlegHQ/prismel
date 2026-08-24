@@ -111,6 +111,7 @@ can change the denominator explicitly rather than being hidden.
 | `bb6d5c6` | 2026-08-24 07:15:30 +02:00 | 4,969 | 5,249 | 94.6657% | 10 | 0.013 | 782.6 | 14.91 |
 | `0f05773` | 2026-08-24 07:18:24 +02:00 | 4,973 | 5,249 | 94.7419% | 4 | 0.048 | 82.8 | 1.58 |
 | `203d6ef` | 2026-08-24 07:21:30 +02:00 | 4,981 | 5,249 | 94.8943% | 8 | 0.052 | 154.8 | 2.95 |
+| `110c501` | 2026-08-24 07:31:37 +02:00 | 4,991 | 5,249 | 95.0848% | 10 | 0.169 | 59.3 | 1.13 |
 
 ## Current measured rate
 
@@ -170,6 +171,13 @@ The safe representation copies recursive struct/member, pointer, and array
 metadata before native owners die, bounds traversal and unwind, preserves
 nullable children, and only materializes tensor reflection behind the native
 macOS 26 availability check.
+
+The `110c501` interval is an intentional coordinated promotion of ten
+declarations: Library8 contributes exactly eight and the Metal 4 render-pipeline
+reset closure contributes two. Library8 exposes copied immutable attribute and
+function-reflection snapshots while keeping autoreleasing typedef conventions
+private; bounded exactly-once cancellable tasks capture exceptions, and real
+safe plus native compute/render fixtures prove callback and owner lifetimes.
 
 Rates describe completed commits, not forecasts. Hardware-only gates and
 complex ownership features will vary materially from pure-value batches.
