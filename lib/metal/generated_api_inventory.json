@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4196,
+    "bound": 4271,
     "scope-excluded": 37,
-    "unreviewed": 1052
+    "unreviewed": 977
   },
-  "classification_source_sha256": "eb164458821ad1ade284687e9d61449134f7fe1e49eec49083c38ee302ced400",
+  "classification_source_sha256": "b8e43c0feb98257e304260a7b7fc16d58540b572f9a6e17ebda156229f9a0f35",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -29966,7 +29966,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "method:-[CAMetalDrawable layer]",
       "kind": "method",
@@ -29974,7 +29974,7 @@
       "macos_introduced": null,
       "name": "layer",
       "owner": "CAMetalDrawable",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> CAMetalLayer * _Nonnull"
     },
     {
@@ -30005,7 +30005,7 @@
           "line": 138
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "method:-[CAMetalLayer EDRMetadata]",
       "kind": "method",
@@ -30013,7 +30013,7 @@
       "macos_introduced": "10.15",
       "name": "EDRMetadata",
       "owner": "CAMetalLayer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> CAEDRMetadata * _Nullable"
     },
     {
@@ -30030,7 +30030,7 @@
           "line": 153
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "method:-[CAMetalLayer allowsNextDrawableTimeout]",
       "kind": "method",
@@ -30038,7 +30038,7 @@
       "macos_introduced": "10.13",
       "name": "allowsNextDrawableTimeout",
       "owner": "CAMetalLayer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -30049,7 +30049,7 @@
           "line": 52
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "method:-[CAMetalLayer colorspace]",
       "kind": "method",
@@ -30057,7 +30057,7 @@
       "macos_introduced": "10.11",
       "name": "colorspace",
       "owner": "CAMetalLayer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> CGColorSpaceRef _Nullable"
     },
     {
@@ -30093,7 +30093,7 @@
           "line": 52
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "method:-[CAMetalLayer device]",
       "kind": "method",
@@ -30101,7 +30101,7 @@
       "macos_introduced": "10.11",
       "name": "device",
       "owner": "CAMetalLayer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> id<MTLDevice> _Nullable"
     },
     {
@@ -30122,7 +30122,7 @@
           "line": 145
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "method:-[CAMetalLayer displaySyncEnabled]",
       "kind": "method",
@@ -30130,7 +30130,7 @@
       "macos_introduced": "10.13",
       "name": "displaySyncEnabled",
       "owner": "CAMetalLayer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -30141,7 +30141,7 @@
           "line": 52
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "method:-[CAMetalLayer drawableSize]",
       "kind": "method",
@@ -30149,7 +30149,7 @@
       "macos_introduced": "10.11",
       "name": "drawableSize",
       "owner": "CAMetalLayer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> CGSize"
     },
     {
@@ -30160,7 +30160,7 @@
           "line": 52
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "method:-[CAMetalLayer framebufferOnly]",
       "kind": "method",
@@ -30168,7 +30168,7 @@
       "macos_introduced": "10.11",
       "name": "framebufferOnly",
       "owner": "CAMetalLayer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -30185,7 +30185,7 @@
           "line": 109
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "method:-[CAMetalLayer maximumDrawableCount]",
       "kind": "method",
@@ -30193,7 +30193,7 @@
       "macos_introduced": "10.13.2",
       "name": "maximumDrawableCount",
       "owner": "CAMetalLayer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -30223,7 +30223,7 @@
           "line": 52
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "method:-[CAMetalLayer pixelFormat]",
       "kind": "method",
@@ -30231,7 +30231,7 @@
       "macos_introduced": "10.11",
       "name": "pixelFormat",
       "owner": "CAMetalLayer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> MTLPixelFormat"
     },
     {
@@ -30267,7 +30267,7 @@
           "line": 52
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "method:-[CAMetalLayer presentsWithTransaction]",
       "kind": "method",
@@ -30275,7 +30275,7 @@
       "macos_introduced": "10.11",
       "name": "presentsWithTransaction",
       "owner": "CAMetalLayer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -30340,7 +30340,7 @@
           "line": 52
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "method:-[CAMetalLayer setColorspace:]",
       "kind": "method",
@@ -30348,7 +30348,7 @@
       "macos_introduced": "10.11",
       "name": "setColorspace:",
       "owner": "CAMetalLayer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance (CGColorSpaceRef _Nullable) -> void"
     },
     {
@@ -30457,7 +30457,7 @@
           "line": 138
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "method:-[CAMetalLayer setEDRMetadata:]",
       "kind": "method",
@@ -30465,7 +30465,7 @@
       "macos_introduced": "10.15",
       "name": "setEDRMetadata:",
       "owner": "CAMetalLayer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance (CAEDRMetadata * _Nullable) -> void"
     },
     {
@@ -30564,7 +30564,7 @@
           "line": 129
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "method:-[CAMetalLayer setWantsExtendedDynamicRangeContent:]",
       "kind": "method",
@@ -30572,7 +30572,7 @@
       "macos_introduced": "10.11",
       "name": "setWantsExtendedDynamicRangeContent:",
       "owner": "CAMetalLayer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -30589,7 +30589,7 @@
           "line": 129
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "method:-[CAMetalLayer wantsExtendedDynamicRangeContent]",
       "kind": "method",
@@ -30597,7 +30597,7 @@
       "macos_introduced": "10.11",
       "name": "wantsExtendedDynamicRangeContent",
       "owner": "CAMetalLayer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -49662,7 +49662,7 @@
           "line": 294
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "method:-[MTLCommandBuffer GPUEndTime]",
       "kind": "method",
@@ -49670,7 +49670,7 @@
       "macos_introduced": "10.15",
       "name": "GPUEndTime",
       "owner": "MTLCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> CFTimeInterval"
     },
     {
@@ -49687,7 +49687,7 @@
           "line": 289
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "method:-[MTLCommandBuffer GPUStartTime]",
       "kind": "method",
@@ -49695,7 +49695,7 @@
       "macos_introduced": "10.15",
       "name": "GPUStartTime",
       "owner": "MTLCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> CFTimeInterval"
     },
     {
@@ -49712,7 +49712,7 @@
           "line": 429
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "method:-[MTLCommandBuffer accelerationStructureCommandEncoderWithDescriptor:]",
       "kind": "method",
@@ -49720,7 +49720,7 @@
       "macos_introduced": "13.0",
       "name": "accelerationStructureCommandEncoderWithDescriptor:",
       "owner": "MTLCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance (MTLAccelerationStructurePassDescriptor * _Nonnull __strong) -> id<MTLAccelerationStructureCommandEncoder> _Nonnull"
     },
     {
@@ -49737,7 +49737,7 @@
           "line": 427
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "method:-[MTLCommandBuffer accelerationStructureCommandEncoder]",
       "kind": "method",
@@ -49745,7 +49745,7 @@
       "macos_introduced": "11.0",
       "name": "accelerationStructureCommandEncoder",
       "owner": "MTLCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> id<MTLAccelerationStructureCommandEncoder> _Nullable"
     },
     {
@@ -49800,7 +49800,7 @@
           "line": 390
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "method:-[MTLCommandBuffer blitCommandEncoderWithDescriptor:]",
       "kind": "method",
@@ -49808,7 +49808,7 @@
       "macos_introduced": "11.0",
       "name": "blitCommandEncoderWithDescriptor:",
       "owner": "MTLCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance (MTLBlitPassDescriptor * _Nonnull __strong) -> id<MTLBlitCommandEncoder> _Nullable"
     },
     {
@@ -49838,7 +49838,7 @@
           "line": 244
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "method:-[MTLCommandBuffer commandQueue]",
       "kind": "method",
@@ -49846,7 +49846,7 @@
       "macos_introduced": "10.11",
       "name": "commandQueue",
       "owner": "MTLCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> id<MTLCommandQueue> _Nonnull"
     },
     {
@@ -49882,7 +49882,7 @@
           "line": 384
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "method:-[MTLCommandBuffer computeCommandEncoderWithDescriptor:]",
       "kind": "method",
@@ -49890,7 +49890,7 @@
       "macos_introduced": "11.0",
       "name": "computeCommandEncoderWithDescriptor:",
       "owner": "MTLCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance (MTLComputePassDescriptor * _Nonnull __strong) -> id<MTLComputeCommandEncoder> _Nullable"
     },
     {
@@ -49907,7 +49907,7 @@
           "line": 402
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "method:-[MTLCommandBuffer computeCommandEncoderWithDispatchType:]",
       "kind": "method",
@@ -49915,7 +49915,7 @@
       "macos_introduced": "10.14",
       "name": "computeCommandEncoderWithDispatchType:",
       "owner": "MTLCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance (MTLDispatchType) -> id<MTLComputeCommandEncoder> _Nullable"
     },
     {
@@ -49945,7 +49945,7 @@
           "line": 244
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "method:-[MTLCommandBuffer device]",
       "kind": "method",
@@ -49953,7 +49953,7 @@
       "macos_introduced": "10.11",
       "name": "device",
       "owner": "MTLCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> id<MTLDevice> _Nonnull"
     },
     {
@@ -49970,7 +49970,7 @@
           "line": 416
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "method:-[MTLCommandBuffer encodeSignalEvent:value:]",
       "kind": "method",
@@ -49978,7 +49978,7 @@
       "macos_introduced": "10.14",
       "name": "encodeSignalEvent:value:",
       "owner": "MTLCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance (id<MTLEvent>  _Nonnull __strong, uint64_t) -> void"
     },
     {
@@ -49995,7 +49995,7 @@
           "line": 409
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "method:-[MTLCommandBuffer encodeWaitForEvent:value:]",
       "kind": "method",
@@ -50003,7 +50003,7 @@
       "macos_introduced": "10.14",
       "name": "encodeWaitForEvent:value:",
       "owner": "MTLCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance (id<MTLEvent>  _Nonnull __strong, uint64_t) -> void"
     },
     {
@@ -50014,7 +50014,7 @@
           "line": 244
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "method:-[MTLCommandBuffer enqueue]",
       "kind": "method",
@@ -50022,7 +50022,7 @@
       "macos_introduced": "10.11",
       "name": "enqueue",
       "owner": "MTLCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> void"
     },
     {
@@ -50039,7 +50039,7 @@
           "line": 268
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "method:-[MTLCommandBuffer errorOptions]",
       "kind": "method",
@@ -50047,7 +50047,7 @@
       "macos_introduced": "11.0",
       "name": "errorOptions",
       "owner": "MTLCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> MTLCommandBufferErrorOption"
     },
     {
@@ -50083,7 +50083,7 @@
           "line": 277
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "method:-[MTLCommandBuffer kernelEndTime]",
       "kind": "method",
@@ -50091,7 +50091,7 @@
       "macos_introduced": "10.15",
       "name": "kernelEndTime",
       "owner": "MTLCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> CFTimeInterval"
     },
     {
@@ -50108,7 +50108,7 @@
           "line": 276
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "method:-[MTLCommandBuffer kernelStartTime]",
       "kind": "method",
@@ -50116,7 +50116,7 @@
       "macos_introduced": "10.15",
       "name": "kernelStartTime",
       "owner": "MTLCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> CFTimeInterval"
     },
     {
@@ -50152,7 +50152,7 @@
           "line": 283
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "method:-[MTLCommandBuffer logs]",
       "kind": "method",
@@ -50160,7 +50160,7 @@
       "macos_introduced": "11.0",
       "name": "logs",
       "owner": "MTLCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> id<MTLLogContainer> _Nonnull"
     },
     {
@@ -50196,7 +50196,7 @@
           "line": 441
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "method:-[MTLCommandBuffer popDebugGroup]",
       "kind": "method",
@@ -50204,7 +50204,7 @@
       "macos_introduced": "10.13",
       "name": "popDebugGroup",
       "owner": "MTLCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> void"
     },
     {
@@ -50284,7 +50284,7 @@
           "line": 435
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "method:-[MTLCommandBuffer pushDebugGroup:]",
       "kind": "method",
@@ -50292,7 +50292,7 @@
       "macos_introduced": "10.13",
       "name": "pushDebugGroup:",
       "owner": "MTLCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance (NSString * _Nonnull __strong) -> void"
     },
     {
@@ -50336,7 +50336,7 @@
       "macos_introduced": "11.0",
       "name": "resourceStateCommandEncoderWithDescriptor:",
       "owner": "MTLCommandBuffer",
-      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance (MTLResourceStatePassDescriptor * _Nonnull __strong) -> id<MTLResourceStateCommandEncoder> _Nullable"
     },
     {
@@ -50372,7 +50372,7 @@
           "line": 244
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "method:-[MTLCommandBuffer retainedReferences]",
       "kind": "method",
@@ -50380,7 +50380,7 @@
       "macos_introduced": "10.11",
       "name": "retainedReferences",
       "owner": "MTLCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -50502,7 +50502,7 @@
           "line": 244
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "method:-[MTLCommandBuffer waitUntilScheduled]",
       "kind": "method",
@@ -50510,7 +50510,7 @@
       "macos_introduced": "10.11",
       "name": "waitUntilScheduled",
       "owner": "MTLCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> void"
     },
     {
@@ -71568,7 +71568,7 @@
           "line": 357
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassDescriptor defaultRasterSampleCount]",
       "kind": "method",
@@ -71576,7 +71576,7 @@
       "macos_introduced": "10.15",
       "name": "defaultRasterSampleCount",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -71612,7 +71612,7 @@
           "line": 388
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassDescriptor getSamplePositions:count:]",
       "kind": "method",
@@ -71620,7 +71620,7 @@
       "macos_introduced": "10.13",
       "name": "getSamplePositions:count:",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance (MTLSamplePosition * _Nullable, NSUInteger) -> NSUInteger"
     },
     {
@@ -71637,7 +71637,7 @@
           "line": 331
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassDescriptor imageblockSampleLength]",
       "kind": "method",
@@ -71645,7 +71645,7 @@
       "macos_introduced": "11.0",
       "name": "imageblockSampleLength",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -71687,7 +71687,7 @@
           "line": 324
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassDescriptor renderTargetArrayLength]",
       "kind": "method",
@@ -71695,7 +71695,7 @@
       "macos_introduced": "10.11",
       "name": "renderTargetArrayLength",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -71712,7 +71712,7 @@
           "line": 371
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassDescriptor renderTargetHeight]",
       "kind": "method",
@@ -71720,7 +71720,7 @@
       "macos_introduced": "10.15",
       "name": "renderTargetHeight",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -71737,7 +71737,7 @@
           "line": 364
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassDescriptor renderTargetWidth]",
       "kind": "method",
@@ -71745,7 +71745,7 @@
       "macos_introduced": "10.15",
       "name": "renderTargetWidth",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -71806,7 +71806,7 @@
           "line": 299
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassDescriptor setDepthAttachment:]",
       "kind": "method",
@@ -71814,7 +71814,7 @@
       "macos_introduced": "10.11",
       "name": "setDepthAttachment:",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance (MTLRenderPassDepthAttachmentDescriptor * _Nullable) -> void"
     },
     {
@@ -71831,7 +71831,7 @@
           "line": 331
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassDescriptor setImageblockSampleLength:]",
       "kind": "method",
@@ -71839,7 +71839,7 @@
       "macos_introduced": "11.0",
       "name": "setImageblockSampleLength:",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -71856,7 +71856,7 @@
           "line": 396
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassDescriptor setRasterizationRateMap:]",
       "kind": "method",
@@ -71864,7 +71864,7 @@
       "macos_introduced": "10.15.4",
       "name": "setRasterizationRateMap:",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance (id<MTLRasterizationRateMap> _Nullable) -> void"
     },
     {
@@ -71956,7 +71956,7 @@
           "line": 379
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassDescriptor setSamplePositions:count:]",
       "kind": "method",
@@ -71964,7 +71964,7 @@
       "macos_introduced": "10.13",
       "name": "setSamplePositions:count:",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance (const MTLSamplePosition * _Nullable, NSUInteger) -> void"
     },
     {
@@ -71975,7 +71975,7 @@
           "line": 299
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassDescriptor setStencilAttachment:]",
       "kind": "method",
@@ -71983,7 +71983,7 @@
       "macos_introduced": "10.11",
       "name": "setStencilAttachment:",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance (MTLRenderPassStencilAttachmentDescriptor * _Nullable) -> void"
     },
     {
@@ -72000,7 +72000,7 @@
           "line": 408
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassDescriptor setSupportColorAttachmentMapping:]",
       "kind": "method",
@@ -72008,7 +72008,7 @@
       "macos_introduced": "26.0",
       "name": "setSupportColorAttachmentMapping:",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -72025,7 +72025,7 @@
           "line": 337
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassDescriptor setThreadgroupMemoryLength:]",
       "kind": "method",
@@ -72033,7 +72033,7 @@
       "macos_introduced": "11.0",
       "name": "setThreadgroupMemoryLength:",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -72050,7 +72050,7 @@
           "line": 351
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassDescriptor setTileHeight:]",
       "kind": "method",
@@ -72058,7 +72058,7 @@
       "macos_introduced": "11.0",
       "name": "setTileHeight:",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -72075,7 +72075,7 @@
           "line": 344
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassDescriptor setTileWidth:]",
       "kind": "method",
@@ -72083,7 +72083,7 @@
       "macos_introduced": "11.0",
       "name": "setTileWidth:",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -72119,7 +72119,7 @@
           "line": 405
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassDescriptor setVisibilityResultType:]",
       "kind": "method",
@@ -72127,7 +72127,7 @@
       "macos_introduced": "26.0",
       "name": "setVisibilityResultType:",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance (MTLVisibilityResultType) -> void"
     },
     {
@@ -72163,7 +72163,7 @@
           "line": 408
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassDescriptor supportColorAttachmentMapping]",
       "kind": "method",
@@ -72171,7 +72171,7 @@
       "macos_introduced": "26.0",
       "name": "supportColorAttachmentMapping",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -72188,7 +72188,7 @@
           "line": 337
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassDescriptor threadgroupMemoryLength]",
       "kind": "method",
@@ -72196,7 +72196,7 @@
       "macos_introduced": "11.0",
       "name": "threadgroupMemoryLength",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -72213,7 +72213,7 @@
           "line": 351
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassDescriptor tileHeight]",
       "kind": "method",
@@ -72221,7 +72221,7 @@
       "macos_introduced": "11.0",
       "name": "tileHeight",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -72238,7 +72238,7 @@
           "line": 344
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassDescriptor tileWidth]",
       "kind": "method",
@@ -72246,7 +72246,7 @@
       "macos_introduced": "11.0",
       "name": "tileWidth",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -72282,7 +72282,7 @@
           "line": 405
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassDescriptor visibilityResultType]",
       "kind": "method",
@@ -72290,7 +72290,7 @@
       "macos_introduced": "26.0",
       "name": "visibilityResultType",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "instance () -> MTLVisibilityResultType"
     },
     {
@@ -82507,7 +82507,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "property:CAMetalDrawable:layer",
       "kind": "property",
@@ -82515,7 +82515,7 @@
       "macos_introduced": null,
       "name": "layer",
       "owner": "CAMetalDrawable",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "CAMetalLayer * _Nonnull"
     },
     {
@@ -82546,7 +82546,7 @@
           "line": 138
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "property:CAMetalLayer:EDRMetadata",
       "kind": "property",
@@ -82554,7 +82554,7 @@
       "macos_introduced": "10.15",
       "name": "EDRMetadata",
       "owner": "CAMetalLayer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "CAEDRMetadata * _Nullable"
     },
     {
@@ -82590,7 +82590,7 @@
           "line": 52
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "property:CAMetalLayer:colorspace",
       "kind": "property",
@@ -82598,7 +82598,7 @@
       "macos_introduced": "10.11",
       "name": "colorspace",
       "owner": "CAMetalLayer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "CGColorSpaceRef _Nullable"
     },
     {
@@ -82843,7 +82843,7 @@
           "line": 129
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "property:CAMetalLayer:wantsExtendedDynamicRangeContent",
       "kind": "property",
@@ -82851,7 +82851,7 @@
       "macos_introduced": "10.11",
       "name": "wantsExtendedDynamicRangeContent",
       "owner": "CAMetalLayer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "BOOL"
     },
     {
@@ -90525,7 +90525,7 @@
           "line": 294
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "property:MTLCommandBuffer:GPUEndTime",
       "kind": "property",
@@ -90533,7 +90533,7 @@
       "macos_introduced": "10.15",
       "name": "GPUEndTime",
       "owner": "MTLCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "CFTimeInterval"
     },
     {
@@ -90550,7 +90550,7 @@
           "line": 289
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "property:MTLCommandBuffer:GPUStartTime",
       "kind": "property",
@@ -90558,7 +90558,7 @@
       "macos_introduced": "10.15",
       "name": "GPUStartTime",
       "owner": "MTLCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "CFTimeInterval"
     },
     {
@@ -90569,7 +90569,7 @@
           "line": 244
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "property:MTLCommandBuffer:commandQueue",
       "kind": "property",
@@ -90577,7 +90577,7 @@
       "macos_introduced": "10.11",
       "name": "commandQueue",
       "owner": "MTLCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "id<MTLCommandQueue> _Nonnull"
     },
     {
@@ -90588,7 +90588,7 @@
           "line": 244
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "property:MTLCommandBuffer:device",
       "kind": "property",
@@ -90596,7 +90596,7 @@
       "macos_introduced": "10.11",
       "name": "device",
       "owner": "MTLCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "id<MTLDevice> _Nonnull"
     },
     {
@@ -90632,7 +90632,7 @@
           "line": 268
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "property:MTLCommandBuffer:errorOptions",
       "kind": "property",
@@ -90640,7 +90640,7 @@
       "macos_introduced": "11.0",
       "name": "errorOptions",
       "owner": "MTLCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "MTLCommandBufferErrorOption"
     },
     {
@@ -90657,7 +90657,7 @@
           "line": 277
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "property:MTLCommandBuffer:kernelEndTime",
       "kind": "property",
@@ -90665,7 +90665,7 @@
       "macos_introduced": "10.15",
       "name": "kernelEndTime",
       "owner": "MTLCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "CFTimeInterval"
     },
     {
@@ -90682,7 +90682,7 @@
           "line": 276
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "property:MTLCommandBuffer:kernelStartTime",
       "kind": "property",
@@ -90690,7 +90690,7 @@
       "macos_introduced": "10.15",
       "name": "kernelStartTime",
       "owner": "MTLCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "CFTimeInterval"
     },
     {
@@ -90726,7 +90726,7 @@
           "line": 283
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "property:MTLCommandBuffer:logs",
       "kind": "property",
@@ -90734,7 +90734,7 @@
       "macos_introduced": "11.0",
       "name": "logs",
       "owner": "MTLCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "id<MTLLogContainer> _Nonnull"
     },
     {
@@ -90745,7 +90745,7 @@
           "line": 244
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandBuffer.h",
       "id": "property:MTLCommandBuffer:retainedReferences",
       "kind": "property",
@@ -90753,7 +90753,7 @@
       "macos_introduced": "10.11",
       "name": "retainedReferences",
       "owner": "MTLCommandBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "BOOL"
     },
     {
@@ -98244,7 +98244,7 @@
           "line": 331
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "property:MTLRenderPassDescriptor:imageblockSampleLength",
       "kind": "property",
@@ -98252,7 +98252,7 @@
       "macos_introduced": "11.0",
       "name": "imageblockSampleLength",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -98413,7 +98413,7 @@
           "line": 408
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "property:MTLRenderPassDescriptor:supportColorAttachmentMapping",
       "kind": "property",
@@ -98421,7 +98421,7 @@
       "macos_introduced": "26.0",
       "name": "supportColorAttachmentMapping",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "BOOL"
     },
     {
@@ -98438,7 +98438,7 @@
           "line": 337
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "property:MTLRenderPassDescriptor:threadgroupMemoryLength",
       "kind": "property",
@@ -98446,7 +98446,7 @@
       "macos_introduced": "11.0",
       "name": "threadgroupMemoryLength",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -98463,7 +98463,7 @@
           "line": 351
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "property:MTLRenderPassDescriptor:tileHeight",
       "kind": "property",
@@ -98471,7 +98471,7 @@
       "macos_introduced": "11.0",
       "name": "tileHeight",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -98488,7 +98488,7 @@
           "line": 344
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "property:MTLRenderPassDescriptor:tileWidth",
       "kind": "property",
@@ -98496,7 +98496,7 @@
       "macos_introduced": "11.0",
       "name": "tileWidth",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -98532,7 +98532,7 @@
           "line": 405
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "property:MTLRenderPassDescriptor:visibilityResultType",
       "kind": "property",
@@ -98540,7 +98540,7 @@
       "macos_introduced": "26.0",
       "name": "visibilityResultType",
       "owner": "MTLRenderPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Presentation76 safe closure with checked native snapshots, owned attachment/layer/drawable graphs, command state validation, completion retention, and real M1 conformance.",
       "signature": "MTLVisibilityResultType"
     },
     {

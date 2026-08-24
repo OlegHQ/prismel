@@ -59,6 +59,7 @@
   binding_presentation_adapter
   binding_presentation_manifest
   binding_presentation_public_audit
+  binding_presentation_safe_handoff
   binding_presentation_coverage
   binding_presentation_integration
   binding_presentation_native_codegen
