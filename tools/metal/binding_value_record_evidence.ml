@@ -1,4 +1,4 @@
-let expected_layout_digest = "c95fd400a567c22bd4dc920c8df5ccc9"
+let expected_layout_digest = "a8d1eeebc45edb6043faf80261f32b2d"
 
 let is_bound_identifier identifier =
   List.mem identifier Binding_value_record_plan.acceleration_type_ids
@@ -82,7 +82,34 @@ let bound_ids ~inventory ~public_interface ~test_source =
     public_interface;
   require_markers ~kind:"test"
     [ "MTLPackedFloat3Make"; "MTLPackedFloatQuaternionMake" ] test_source;
-  selection.ids
+  require_markers ~kind:"public"
+    [ "module MTLArgumentAccess"; "module MTLIndexType"; "module MTLTimestamp"
+    ; "module MTLCoordinate2D"; "val buffer_range_make"
+    ; "val coordinate2d_make"; "val indirect_command_buffer_execution_range_make"
+    ; "val region_make_1d"; "val region_make_2d"; "val sample_position_make" ]
+    public_interface;
+  require_markers ~kind:"test"
+    [ "MTLArgumentAccess"; "MTLIndexType"; "MTLTimestamp"; "MTL4BufferRangeMake"
+    ; "MTLCoordinate2DMake"; "MTLIndirectCommandBufferExecutionRangeMake"
+    ; "MTLRegionMake1D"; "MTLRegionMake2D"; "MTLSamplePositionMake" ] test_source;
+  let classifications = Hashtbl.create (List.length selection.ids) in
+  (match inventory with
+   | `Assoc members ->
+       (match List.assoc_opt "symbols" members with
+        | Some (`List symbols) ->
+            List.iter
+              (function
+                | `Assoc fields ->
+                    (match List.assoc_opt "id" fields, List.assoc_opt "classification" fields with
+                     | Some (`String id), Some (`String classification) ->
+                         Hashtbl.replace classifications id classification
+                     | _ -> ())
+                | _ -> ()) symbols
+        | _ -> ())
+   | _ -> ());
+  List.filter
+    (fun id -> String.equal (Option.value ~default:"" (Hashtbl.find_opt classifications id)) "bound")
+    selection.ids
 
 let () =
   if List.length Binding_value_record_plan.record_names <> Binding_value_record_plan.expected_record_count then

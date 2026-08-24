@@ -25,4 +25,5 @@ val expected_record_count : int
 val expected_field_count : int
 val expected_id_count : int
 val acceleration_type_ids : string list
+val pure_tail_ids : string list
 val record_names : string list

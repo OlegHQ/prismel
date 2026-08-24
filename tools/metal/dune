@@ -14,6 +14,7 @@
   binding_value_record_plan
   binding_value_record_codegen
   binding_value_record_evidence
+  binding_pure_tail_plan
   binding_global_string_spec
   binding_global_string_codegen
   binding_global_string_evidence
@@ -706,8 +707,8 @@
 
 (test
  (name test_binding_pure_tail_plan)
- (modules test_binding_pure_tail_plan binding_pure_tail_plan)
- (libraries yojson)
+ (modules test_binding_pure_tail_plan)
+ (libraries metal_inventory_classification yojson)
  (deps ../../lib/metal/generated_api_inventory.json)
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 

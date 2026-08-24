@@ -18,9 +18,9 @@ type selection =
   ; ids : string list
   }
 
-let expected_record_count = 28
-let expected_field_count = 112
-let expected_id_count = 147
+let expected_record_count = 29
+let expected_field_count = 114
+let expected_id_count = 180
 
 let acceleration_type_ids =
   [ "function:MTLPackedFloat3Make"
@@ -31,6 +31,11 @@ let acceleration_type_ids =
   ; "typedef:MTLPackedFloat4x3"
   ; "typedef:MTLPackedFloatQuaternion"
   ]
+
+let pure_tail_ids =
+  Binding_pure_tail_plan.items
+  |> List.filter_map (fun (item : Binding_pure_tail_plan.item) ->
+    match item.lane with Enum_case -> None | Fixed_alias | Scalar_alias | Constructor -> Some item.id)
 
 let record_names =
   [ "MTL4BufferRange"; "MTL4CopySparseBufferMappingOperation"
@@ -48,7 +53,7 @@ let record_names =
   ; "MTLIndirectCommandBufferExecutionRange"
   ; "MTLIntersectionFunctionBufferArguments"; "MTLMapIndirectArguments"
   ; "_MTLPackedFloat3"; "MTLPackedFloatQuaternion"; "MTLQuadTessellationFactorsHalf"
-  ; "MTLSamplePosition"; "MTLStageInRegionIndirectArguments"
+  ; "MTLRegion"; "MTLSamplePosition"; "MTLStageInRegionIndirectArguments"
   ; "MTLTriangleTessellationFactorsHalf"; "_MTLAxisAlignedBoundingBox"
   ; "_MTLPackedFloat4x3"
   ]
@@ -76,7 +81,7 @@ let fixed_field_type = function
   | "MTLGPUAddress" | "NSUInteger" | "uint64_t" | "uint32_t" | "uint16_t" | "float"
   | "MTLAccelerationStructureInstanceOptions" | "MTLMotionBorderMode"
   | "MTLPackedFloat3" | "MTLPackedFloatQuaternion" | "MTLPackedFloat4x3"
-  | "MTLResourceID" | "MTLOrigin" | "MTLRegion" | "NSRange"
+  | "MTLResourceID" | "MTLOrigin" | "MTLSize" | "MTLRegion" | "NSRange"
   | "float[3]" | "uint32_t[3]" | "uint16_t[2]" | "uint16_t[3]" | "uint16_t[4]"
   | "MTLPackedFloat3[4]" -> true
   | _ -> false
@@ -140,7 +145,7 @@ let select json =
       (fun (record : record) ->
         record.id :: List.map (fun (field : field) -> field.id) record.fields)
       records
-    @ acceleration_type_ids
+    @ acceleration_type_ids @ pure_tail_ids
   in
   if List.length records <> expected_record_count then
     fail "record cardinality drift: expected %d, got %d" expected_record_count (List.length records);

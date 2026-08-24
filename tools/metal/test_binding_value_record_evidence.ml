@@ -15,7 +15,7 @@ let () =
     Binding_value_record_evidence.bound_ids ~inventory
       ~public_interface:generated.ocaml_mli ~test_source:tests
   in
-  if ids <> selection.ids || List.length ids <> 147 then
+  if List.length selection.ids <> 180 || List.length ids <> 150 then
     fail "value-record bound-evidence identifier closure drift";
   expect_rejection (fun () ->
       Binding_value_record_evidence.bound_ids ~inventory ~public_interface:""
@@ -23,4 +23,4 @@ let () =
   expect_rejection (fun () ->
       Binding_value_record_evidence.bound_ids ~inventory
         ~public_interface:generated.ocaml_mli ~test_source:"");
-  Printf.printf "Metal value-record bound evidence: exact digest + 28 records and acceleration aliases/functions guard 147 IDs\n%!"
+  Printf.printf "Metal value-record evidence: exact digest + 29 records guard 150 bound and 30 pending pure-tail IDs\n%!"

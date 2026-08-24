@@ -41,7 +41,7 @@ let ocaml_type = function
   | "MTLPackedFloat4x3" ->
       "(float * float * float) * (float * float * float) * (float * float * float) * (float * float * float)"
   | "MTLResourceID" -> "int64"
-  | "MTLOrigin" -> "int64 * int64 * int64"
+  | "MTLOrigin" | "MTLSize" -> "int64 * int64 * int64"
   | "MTLRegion" -> "(int64 * int64 * int64) * (int64 * int64 * int64)"
   | objc_type -> invalid_arg ("unsupported generated Metal value-record field: " ^ objc_type)
 
@@ -69,7 +69,7 @@ let zero = function
   | "uint16_t[4]" -> "0, 0, 0, 0"
   | "NSRange" -> "0L, 0L"
   | "MTLPackedFloat3" -> "0.0, 0.0, 0.0"
-  | "MTLOrigin" -> "0L, 0L, 0L"
+  | "MTLOrigin" | "MTLSize" -> "0L, 0L, 0L"
   | "MTLPackedFloatQuaternion" -> "0.0, 0.0, 0.0, 0.0"
   | "MTLPackedFloat4x3" | "MTLPackedFloat3[4]" ->
       "(0.0, 0.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, 0.0)"
@@ -124,8 +124,14 @@ let generate (selection : Binding_value_record_plan.selection) =
     "let packed_float3_make x y z : MTLPackedFloat3.t =\n  { elements = (x, y, z); x; y; z }\n\nlet packed_float_quaternion_make x y z w : MTLPackedFloatQuaternion.t =\n  { w; x; y; z }\n\n";
   Buffer.add_string ocaml_mli
     "val packed_float3_make : float -> float -> float -> MTLPackedFloat3.t\nval packed_float_quaternion_make : float -> float -> float -> float -> MTLPackedFloatQuaternion.t\n\n";
+  Buffer.add_string ocaml
+    "module MTLArgumentAccess = struct type t = int64 let of_int64 x = x let to_int64 x = x end\nmodule MTLIndexType = struct type t = int64 let of_int64 x = x let to_int64 x = x end\nmodule MTLTimestamp = struct type t = int64 let of_int64 x = x let to_int64 x = x end\nmodule MTLCoordinate2D = struct type t = MTLSamplePosition.t end\n\nlet buffer_range_make buffer_address length : MTL4BufferRange.t = { buffer_address; length }\nlet coordinate2d_make x y : MTLCoordinate2D.t = { x; y }\nlet indirect_command_buffer_execution_range_make location length : MTLIndirectCommandBufferExecutionRange.t = { length; location }\nlet region_make_1d x width : MTLRegion.t = { origin = (x, 0L, 0L); size = (width, 1L, 1L) }\nlet region_make_2d x y width height : MTLRegion.t = { origin = (x, y, 0L); size = (width, height, 1L) }\nlet sample_position_make x y : MTLSamplePosition.t = { x; y }\n\n";
+  Buffer.add_string ocaml_mli
+    "module MTLArgumentAccess : sig type t = private int64 val of_int64 : int64 -> t val to_int64 : t -> int64 end\nmodule MTLIndexType : sig type t = private int64 val of_int64 : int64 -> t val to_int64 : t -> int64 end\nmodule MTLTimestamp : sig type t = private int64 val of_int64 : int64 -> t val to_int64 : t -> int64 end\nmodule MTLCoordinate2D : sig type t = MTLSamplePosition.t end\n\nval buffer_range_make : int64 -> int64 -> MTL4BufferRange.t\nval coordinate2d_make : float -> float -> MTLCoordinate2D.t\nval indirect_command_buffer_execution_range_make : int32 -> int32 -> MTLIndirectCommandBufferExecutionRange.t\nval region_make_1d : int64 -> int64 -> MTLRegion.t\nval region_make_2d : int64 -> int64 -> int64 -> int64 -> MTLRegion.t\nval sample_position_make : float -> float -> MTLSamplePosition.t\n\n";
   List.iter (emit_test tests) selection.records;
   List.iter (emit_checks native) selection.records;
+  Buffer.add_string native
+    "static_assert(sizeof(MTLTimestamp) == sizeof(uint64_t));\nstatic_assert(std::is_same_v<decltype(MTL4BufferRangeMake(0, 0)), MTL4BufferRange>);\nstatic_assert(std::is_same_v<decltype(MTLCoordinate2DMake(0, 0)), MTLCoordinate2D>);\nstatic_assert(std::is_same_v<decltype(MTLIndirectCommandBufferExecutionRangeMake(0, 0)), MTLIndirectCommandBufferExecutionRange>);\nstatic_assert(std::is_same_v<decltype(MTLRegionMake1D(0, 0)), MTLRegion>);\nstatic_assert(std::is_same_v<decltype(MTLRegionMake2D(0, 0, 0, 0)), MTLRegion>);\nstatic_assert(std::is_same_v<decltype(MTLSamplePositionMake(0, 0)), MTLSamplePosition>);\n";
   Buffer.add_string native "#pragma clang diagnostic pop\n";
   Buffer.add_string tests "let () =\n";
   List.iter
@@ -135,8 +141,10 @@ let generate (selection : Binding_value_record_plan.selection) =
     selection.records;
   Buffer.add_string tests
     "  let p = Metal.Value.packed_float3_make 1.0 2.0 3.0 in\n  if p.elements <> (1.0, 2.0, 3.0) || p.x <> 1.0 || p.y <> 2.0 || p.z <> 3.0 then failwith \"MTLPackedFloat3Make\";\n  let q = Metal.Value.packed_float_quaternion_make 1.0 2.0 3.0 4.0 in\n  if (q.x, q.y, q.z, q.w) <> (1.0, 2.0, 3.0, 4.0) then failwith \"MTLPackedFloatQuaternionMake\";\n";
+  Buffer.add_string tests
+    "  if Metal.Value.MTLArgumentAccess.(to_int64 (of_int64 7L)) <> 7L then failwith \"MTLArgumentAccess\";\n  if Metal.Value.MTLIndexType.(to_int64 (of_int64 1L)) <> 1L then failwith \"MTLIndexType\";\n  if Metal.Value.MTLTimestamp.(to_int64 (of_int64 9L)) <> 9L then failwith \"MTLTimestamp\";\n  let b = Metal.Value.buffer_range_make 4L 8L in if (b.buffer_address, b.length) <> (4L, 8L) then failwith \"MTL4BufferRangeMake\";\n  let c = Metal.Value.coordinate2d_make 1.0 2.0 in if (c.x, c.y) <> (1.0, 2.0) then failwith \"MTLCoordinate2DMake\";\n  let e = Metal.Value.indirect_command_buffer_execution_range_make 3l 5l in if (e.location, e.length) <> (3l, 5l) then failwith \"MTLIndirectCommandBufferExecutionRangeMake\";\n  let r1 = Metal.Value.region_make_1d 2L 7L in if (r1.origin, r1.size) <> ((2L, 0L, 0L), (7L, 1L, 1L)) then failwith \"MTLRegionMake1D\";\n  let r2 = Metal.Value.region_make_2d 2L 3L 7L 8L in if (r2.origin, r2.size) <> ((2L, 3L, 0L), (7L, 8L, 1L)) then failwith \"MTLRegionMake2D\";\n  let s = Metal.Value.sample_position_make 0.25 0.75 in if (s.x, s.y) <> (0.25, 0.75) then failwith \"MTLSamplePositionMake\";\n";
   Printf.bprintf tests "  Printf.printf %S\n"
-    "Metal generated value records/types: 28 records + 112 fields + 7 aliases/functions = 147 IDs\n%!";
+    "Metal generated value records/types: 29 records + 114 fields + 37 aliases/functions = 180 IDs\n%!";
   { ocaml_ml = Buffer.contents ocaml
   ; ocaml_mli = Buffer.contents ocaml_mli
   ; test_ml = Buffer.contents tests
