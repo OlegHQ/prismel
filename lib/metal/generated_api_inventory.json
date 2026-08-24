@@ -3,9 +3,9 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4066,
+    "bound": 4068,
     "scope-excluded": 37,
-    "unreviewed": 1182
+    "unreviewed": 1180
   },
   "classification_source_sha256": "7ff476e493a9cf58288fd9b8dc6f1030a7f8e92df2f93ece481d6e8dc6d4ddc0",
   "deployment_target": "14.0",
@@ -3185,7 +3185,7 @@
           "line": 67
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResourceStatePass.h",
       "id": "class:MTLResourceStatePassDescriptor",
       "kind": "class",
@@ -3193,7 +3193,7 @@
       "macos_introduced": "11.0",
       "name": "MTLResourceStatePassDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": ""
     },
     {
@@ -29807,7 +29807,7 @@
           "line": 67
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResourceStatePass.h",
       "id": "method:+[MTLResourceStatePassDescriptor resourceStatePassDescriptor]",
       "kind": "method",
@@ -29815,7 +29815,7 @@
       "macos_introduced": "11.0",
       "name": "resourceStatePassDescriptor",
       "owner": "MTLResourceStatePassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance.",
       "signature": "class () -> MTLResourceStatePassDescriptor * _Nonnull"
     },
     {

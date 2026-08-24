@@ -16,6 +16,7 @@ type item =
 
 val items : item list
 val pool_core : string list
+val safe_constructor_core : string list
 val promotable_ids : string list
 val blocked : item list
 val find : string -> item

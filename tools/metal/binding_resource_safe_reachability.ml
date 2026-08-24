@@ -38,11 +38,14 @@ let pool_core =
   ; "property:MTLResourceViewPool:resourceViewCount"
   ]
 
+let safe_constructor_core = [ "class:MTLResourceStatePassDescriptor" ]
+
 let has_public_operation id =
   mem id Binding_resource_integration_partition.descriptor_owned
   || mem id Binding_resource_integration_partition.already_callable
   || mem id Binding_resource_integration_partition.graph_gated_scalars
   || mem id Binding_resource_integration_partition.safe_ownership_tail
+  || mem id safe_constructor_core
   || mem id pool_core
 
 let public_operation id =

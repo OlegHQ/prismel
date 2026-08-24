@@ -72,6 +72,7 @@ let safe_ownership_tail =
   ; "property:MTLHeap:device"
   ; "method:-[MTLResourceStateCommandEncoder updateFence:]"
   ; "method:-[MTLResourceStateCommandEncoder waitForFence:]"
+  ; "method:+[MTLResourceStatePassDescriptor resourceStatePassDescriptor]"
   ]
 
 let handwritten_ownership =
@@ -81,5 +82,5 @@ let handwritten_ownership =
 
 let () =
   validate ();
-  if List.length safe_ownership_tail <> 28 then failwith "resource safe ownership28 drift";
-  if List.length handwritten_ownership <> 28 then failwith "resource handwritten28 drift"
+  if List.length safe_ownership_tail <> 29 then failwith "resource safe ownership29 drift";
+  if List.length handwritten_ownership <> 27 then failwith "resource handwritten27 drift"
