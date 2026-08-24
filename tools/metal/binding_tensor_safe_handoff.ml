@@ -24,6 +24,7 @@ let ownership_ids =
   ; "method:-[MTLTensorExtents initWithRank:values:]" ]
 
 let callable_ids=List.sort_uniq String.compare(mechanical_ids@ownership_ids)
+let safe41_ids=List.filter(fun id->not(contains id "resourceOptions"||contains id "ResourceOptions"))callable_ids
 let device_enablers=
   ["method:-[MTLDevice newTensorWithDescriptor:error:]";"method:-[MTLDevice tensorSizeAndAlignWithDescriptor:]"]
 let buffer_enabler="method:-[MTLBuffer newTensorWithDescriptor:offset:error:]"
@@ -39,6 +40,7 @@ let items=List.map make callable_ids
 let items_for m=List.filter(fun x->x.public_module=m)items
 let validate()=
   if List.length mechanical_ids<>29||List.length ownership_ids<>15||List.length callable_ids<>44
+     ||List.length safe41_ids<>41
      || List.map(fun m->List.length(items_for m))[Extents;Descriptor;Tensor;Byte_slice]<>[4;24;14;2]
      || List.exists(fun x->x.operation=""||x.tests=[])items||List.length device_enablers<>2
   then failwith"Tensor44 safe handoff drift"

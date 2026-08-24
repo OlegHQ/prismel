@@ -3,6 +3,7 @@ type item = { id:string; public_module:public_module; operation:string; tests:st
 val mechanical_ids:string list
 val ownership_ids:string list
 val callable_ids:string list
+val safe41_ids:string list
 val device_enablers:string list
 val buffer_enabler:string
 val items:item list

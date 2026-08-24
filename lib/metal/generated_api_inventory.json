@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4276,
+    "bound": 4317,
     "scope-excluded": 37,
-    "unreviewed": 972
+    "unreviewed": 931
   },
-  "classification_source_sha256": "6d1fc7927dd20cb29a9f4470a38dc553cba96b4ae5bf29cbaf726e3f45b3d93f",
+  "classification_source_sha256": "8c81ca0d57984fdd7e6c60c5433756277b39a4a48beec8996c14fd9b9988e5ea",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -78469,7 +78469,7 @@
           "line": 155
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTensor.h",
       "id": "method:-[MTLTensor bufferOffset]",
       "kind": "method",
@@ -78477,7 +78477,7 @@
       "macos_introduced": "26.0",
       "name": "bufferOffset",
       "owner": "MTLTensor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Tensor41 safe closure with owned extents/descriptor/resource graphs, checked ranges and metadata, buffer retention, and real M1 conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -78488,7 +78488,7 @@
           "line": 155
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTensor.h",
       "id": "method:-[MTLTensor buffer]",
       "kind": "method",
@@ -78496,7 +78496,7 @@
       "macos_introduced": "26.0",
       "name": "buffer",
       "owner": "MTLTensor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Tensor41 safe closure with owned extents/descriptor/resource graphs, checked ranges and metadata, buffer retention, and real M1 conformance.",
       "signature": "instance () -> id<MTLBuffer> _Nullable"
     },
     {
@@ -78507,7 +78507,7 @@
           "line": 155
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTensor.h",
       "id": "method:-[MTLTensor dataType]",
       "kind": "method",
@@ -78515,7 +78515,7 @@
       "macos_introduced": "26.0",
       "name": "dataType",
       "owner": "MTLTensor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Tensor41 safe closure with owned extents/descriptor/resource graphs, checked ranges and metadata, buffer retention, and real M1 conformance.",
       "signature": "instance () -> MTLTensorDataType"
     },
     {
@@ -78526,7 +78526,7 @@
           "line": 155
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTensor.h",
       "id": "method:-[MTLTensor dimensions]",
       "kind": "method",
@@ -78534,7 +78534,7 @@
       "macos_introduced": "26.0",
       "name": "dimensions",
       "owner": "MTLTensor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Tensor41 safe closure with owned extents/descriptor/resource graphs, checked ranges and metadata, buffer retention, and real M1 conformance.",
       "signature": "instance () -> MTLTensorExtents * _Nonnull"
     },
     {
@@ -78545,7 +78545,7 @@
           "line": 155
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTensor.h",
       "id": "method:-[MTLTensor getBytes:strides:fromSliceOrigin:sliceDimensions:]",
       "kind": "method",
@@ -78553,7 +78553,7 @@
       "macos_introduced": "26.0",
       "name": "getBytes:strides:fromSliceOrigin:sliceDimensions:",
       "owner": "MTLTensor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Tensor41 safe closure with owned extents/descriptor/resource graphs, checked ranges and metadata, buffer retention, and real M1 conformance.",
       "signature": "instance (void * _Nonnull, MTLTensorExtents * _Nonnull __strong, MTLTensorExtents * _Nonnull __strong, MTLTensorExtents * _Nonnull __strong) -> void"
     },
     {
@@ -78564,7 +78564,7 @@
           "line": 155
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTensor.h",
       "id": "method:-[MTLTensor gpuResourceID]",
       "kind": "method",
@@ -78572,7 +78572,7 @@
       "macos_introduced": "26.0",
       "name": "gpuResourceID",
       "owner": "MTLTensor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Tensor41 safe closure with owned extents/descriptor/resource graphs, checked ranges and metadata, buffer retention, and real M1 conformance.",
       "signature": "instance () -> MTLResourceID"
     },
     {
@@ -78583,7 +78583,7 @@
           "line": 155
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTensor.h",
       "id": "method:-[MTLTensor replaceSliceOrigin:sliceDimensions:withBytes:strides:]",
       "kind": "method",
@@ -78591,7 +78591,7 @@
       "macos_introduced": "26.0",
       "name": "replaceSliceOrigin:sliceDimensions:withBytes:strides:",
       "owner": "MTLTensor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Tensor41 safe closure with owned extents/descriptor/resource graphs, checked ranges and metadata, buffer retention, and real M1 conformance.",
       "signature": "instance (MTLTensorExtents * _Nonnull __strong, MTLTensorExtents * _Nonnull __strong, const void * _Nonnull, MTLTensorExtents * _Nonnull __strong) -> void"
     },
     {
@@ -78602,7 +78602,7 @@
           "line": 155
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTensor.h",
       "id": "method:-[MTLTensor strides]",
       "kind": "method",
@@ -78610,7 +78610,7 @@
       "macos_introduced": "26.0",
       "name": "strides",
       "owner": "MTLTensor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Tensor41 safe closure with owned extents/descriptor/resource graphs, checked ranges and metadata, buffer retention, and real M1 conformance.",
       "signature": "instance () -> MTLTensorExtents * _Nullable"
     },
     {
@@ -78621,7 +78621,7 @@
           "line": 155
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTensor.h",
       "id": "method:-[MTLTensor usage]",
       "kind": "method",
@@ -78629,7 +78629,7 @@
       "macos_introduced": "26.0",
       "name": "usage",
       "owner": "MTLTensor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Tensor41 safe closure with owned extents/descriptor/resource graphs, checked ranges and metadata, buffer retention, and real M1 conformance.",
       "signature": "instance () -> MTLTensorUsage"
     },
     {
@@ -78697,7 +78697,7 @@
           "line": 103
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTensor.h",
       "id": "method:-[MTLTensorDescriptor cpuCacheMode]",
       "kind": "method",
@@ -78705,7 +78705,7 @@
       "macos_introduced": "26.0",
       "name": "cpuCacheMode",
       "owner": "MTLTensorDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Tensor41 safe closure with owned extents/descriptor/resource graphs, checked ranges and metadata, buffer retention, and real M1 conformance.",
       "signature": "instance () -> MTLCPUCacheMode"
     },
     {
@@ -78716,7 +78716,7 @@
           "line": 103
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTensor.h",
       "id": "method:-[MTLTensorDescriptor dataType]",
       "kind": "method",
@@ -78724,7 +78724,7 @@
       "macos_introduced": "26.0",
       "name": "dataType",
       "owner": "MTLTensorDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Tensor41 safe closure with owned extents/descriptor/resource graphs, checked ranges and metadata, buffer retention, and real M1 conformance.",
       "signature": "instance () -> MTLTensorDataType"
     },
     {
@@ -78735,7 +78735,7 @@
           "line": 103
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTensor.h",
       "id": "method:-[MTLTensorDescriptor dimensions]",
       "kind": "method",
@@ -78743,7 +78743,7 @@
       "macos_introduced": "26.0",
       "name": "dimensions",
       "owner": "MTLTensorDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Tensor41 safe closure with owned extents/descriptor/resource graphs, checked ranges and metadata, buffer retention, and real M1 conformance.",
       "signature": "instance () -> MTLTensorExtents * _Nonnull"
     },
     {
@@ -78754,7 +78754,7 @@
           "line": 103
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTensor.h",
       "id": "method:-[MTLTensorDescriptor hazardTrackingMode]",
       "kind": "method",
@@ -78762,7 +78762,7 @@
       "macos_introduced": "26.0",
       "name": "hazardTrackingMode",
       "owner": "MTLTensorDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Tensor41 safe closure with owned extents/descriptor/resource graphs, checked ranges and metadata, buffer retention, and real M1 conformance.",
       "signature": "instance () -> MTLHazardTrackingMode"
     },
     {
@@ -78792,7 +78792,7 @@
           "line": 103
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTensor.h",
       "id": "method:-[MTLTensorDescriptor setCpuCacheMode:]",
       "kind": "method",
@@ -78800,7 +78800,7 @@
       "macos_introduced": "26.0",
       "name": "setCpuCacheMode:",
       "owner": "MTLTensorDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Tensor41 safe closure with owned extents/descriptor/resource graphs, checked ranges and metadata, buffer retention, and real M1 conformance.",
       "signature": "instance (MTLCPUCacheMode) -> void"
     },
     {
@@ -78811,7 +78811,7 @@
           "line": 103
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTensor.h",
       "id": "method:-[MTLTensorDescriptor setDataType:]",
       "kind": "method",
@@ -78819,7 +78819,7 @@
       "macos_introduced": "26.0",
       "name": "setDataType:",
       "owner": "MTLTensorDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Tensor41 safe closure with owned extents/descriptor/resource graphs, checked ranges and metadata, buffer retention, and real M1 conformance.",
       "signature": "instance (MTLTensorDataType) -> void"
     },
     {
@@ -78830,7 +78830,7 @@
           "line": 103
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTensor.h",
       "id": "method:-[MTLTensorDescriptor setDimensions:]",
       "kind": "method",
@@ -78838,7 +78838,7 @@
       "macos_introduced": "26.0",
       "name": "setDimensions:",
       "owner": "MTLTensorDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Tensor41 safe closure with owned extents/descriptor/resource graphs, checked ranges and metadata, buffer retention, and real M1 conformance.",
       "signature": "instance (MTLTensorExtents * _Nonnull) -> void"
     },
     {
@@ -78849,7 +78849,7 @@
           "line": 103
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTensor.h",
       "id": "method:-[MTLTensorDescriptor setHazardTrackingMode:]",
       "kind": "method",
@@ -78857,7 +78857,7 @@
       "macos_introduced": "26.0",
       "name": "setHazardTrackingMode:",
       "owner": "MTLTensorDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Tensor41 safe closure with owned extents/descriptor/resource graphs, checked ranges and metadata, buffer retention, and real M1 conformance.",
       "signature": "instance (MTLHazardTrackingMode) -> void"
     },
     {
@@ -78887,7 +78887,7 @@
           "line": 103
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTensor.h",
       "id": "method:-[MTLTensorDescriptor setStorageMode:]",
       "kind": "method",
@@ -78895,7 +78895,7 @@
       "macos_introduced": "26.0",
       "name": "setStorageMode:",
       "owner": "MTLTensorDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Tensor41 safe closure with owned extents/descriptor/resource graphs, checked ranges and metadata, buffer retention, and real M1 conformance.",
       "signature": "instance (MTLStorageMode) -> void"
     },
     {
@@ -78906,7 +78906,7 @@
           "line": 103
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTensor.h",
       "id": "method:-[MTLTensorDescriptor setStrides:]",
       "kind": "method",
@@ -78914,7 +78914,7 @@
       "macos_introduced": "26.0",
       "name": "setStrides:",
       "owner": "MTLTensorDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Tensor41 safe closure with owned extents/descriptor/resource graphs, checked ranges and metadata, buffer retention, and real M1 conformance.",
       "signature": "instance (MTLTensorExtents * _Nullable) -> void"
     },
     {
@@ -78925,7 +78925,7 @@
           "line": 103
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTensor.h",
       "id": "method:-[MTLTensorDescriptor setUsage:]",
       "kind": "method",
@@ -78933,7 +78933,7 @@
       "macos_introduced": "26.0",
       "name": "setUsage:",
       "owner": "MTLTensorDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Tensor41 safe closure with owned extents/descriptor/resource graphs, checked ranges and metadata, buffer retention, and real M1 conformance.",
       "signature": "instance (MTLTensorUsage) -> void"
     },
     {
@@ -78944,7 +78944,7 @@
           "line": 103
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTensor.h",
       "id": "method:-[MTLTensorDescriptor storageMode]",
       "kind": "method",
@@ -78952,7 +78952,7 @@
       "macos_introduced": "26.0",
       "name": "storageMode",
       "owner": "MTLTensorDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Tensor41 safe closure with owned extents/descriptor/resource graphs, checked ranges and metadata, buffer retention, and real M1 conformance.",
       "signature": "instance () -> MTLStorageMode"
     },
     {
@@ -78963,7 +78963,7 @@
           "line": 103
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTensor.h",
       "id": "method:-[MTLTensorDescriptor strides]",
       "kind": "method",
@@ -78971,7 +78971,7 @@
       "macos_introduced": "26.0",
       "name": "strides",
       "owner": "MTLTensorDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Tensor41 safe closure with owned extents/descriptor/resource graphs, checked ranges and metadata, buffer retention, and real M1 conformance.",
       "signature": "instance () -> MTLTensorExtents * _Nullable"
     },
     {
@@ -78982,7 +78982,7 @@
           "line": 103
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTensor.h",
       "id": "method:-[MTLTensorDescriptor usage]",
       "kind": "method",
@@ -78990,7 +78990,7 @@
       "macos_introduced": "26.0",
       "name": "usage",
       "owner": "MTLTensorDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Tensor41 safe closure with owned extents/descriptor/resource graphs, checked ranges and metadata, buffer retention, and real M1 conformance.",
       "signature": "instance () -> MTLTensorUsage"
     },
     {
@@ -79001,7 +79001,7 @@
           "line": 41
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTensor.h",
       "id": "method:-[MTLTensorExtents extentAtDimensionIndex:]",
       "kind": "method",
@@ -79009,7 +79009,7 @@
       "macos_introduced": "26.0",
       "name": "extentAtDimensionIndex:",
       "owner": "MTLTensorExtents",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Tensor41 safe closure with owned extents/descriptor/resource graphs, checked ranges and metadata, buffer retention, and real M1 conformance.",
       "signature": "instance (NSUInteger) -> NSInteger"
     },
     {
@@ -79023,7 +79023,7 @@
           "line": 41
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTensor.h",
       "id": "method:-[MTLTensorExtents initWithRank:values:]",
       "kind": "method",
@@ -79031,7 +79031,7 @@
       "macos_introduced": "26.0",
       "name": "initWithRank:values:",
       "owner": "MTLTensorExtents",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Tensor41 safe closure with owned extents/descriptor/resource graphs, checked ranges and metadata, buffer retention, and real M1 conformance.",
       "signature": "instance (NSUInteger, const NSInteger * _Nullable) -> instancetype _Nullable"
     },
     {
@@ -79042,7 +79042,7 @@
           "line": 41
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTensor.h",
       "id": "method:-[MTLTensorExtents rank]",
       "kind": "method",
@@ -79050,7 +79050,7 @@
       "macos_introduced": "26.0",
       "name": "rank",
       "owner": "MTLTensorExtents",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Tensor41 safe closure with owned extents/descriptor/resource graphs, checked ranges and metadata, buffer retention, and real M1 conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -101777,7 +101777,7 @@
           "line": 155
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTensor.h",
       "id": "property:MTLTensor:buffer",
       "kind": "property",
@@ -101785,7 +101785,7 @@
       "macos_introduced": "26.0",
       "name": "buffer",
       "owner": "MTLTensor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Tensor41 safe closure with owned extents/descriptor/resource graphs, checked ranges and metadata, buffer retention, and real M1 conformance.",
       "signature": "id<MTLBuffer> _Nullable"
     },
     {
@@ -101796,7 +101796,7 @@
           "line": 155
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTensor.h",
       "id": "property:MTLTensor:bufferOffset",
       "kind": "property",
@@ -101804,7 +101804,7 @@
       "macos_introduced": "26.0",
       "name": "bufferOffset",
       "owner": "MTLTensor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Tensor41 safe closure with owned extents/descriptor/resource graphs, checked ranges and metadata, buffer retention, and real M1 conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -101815,7 +101815,7 @@
           "line": 155
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTensor.h",
       "id": "property:MTLTensor:dataType",
       "kind": "property",
@@ -101823,7 +101823,7 @@
       "macos_introduced": "26.0",
       "name": "dataType",
       "owner": "MTLTensor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Tensor41 safe closure with owned extents/descriptor/resource graphs, checked ranges and metadata, buffer retention, and real M1 conformance.",
       "signature": "MTLTensorDataType"
     },
     {
@@ -101834,7 +101834,7 @@
           "line": 155
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTensor.h",
       "id": "property:MTLTensor:dimensions",
       "kind": "property",
@@ -101842,7 +101842,7 @@
       "macos_introduced": "26.0",
       "name": "dimensions",
       "owner": "MTLTensor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Tensor41 safe closure with owned extents/descriptor/resource graphs, checked ranges and metadata, buffer retention, and real M1 conformance.",
       "signature": "MTLTensorExtents * _Nonnull"
     },
     {
@@ -101853,7 +101853,7 @@
           "line": 155
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTensor.h",
       "id": "property:MTLTensor:gpuResourceID",
       "kind": "property",
@@ -101861,7 +101861,7 @@
       "macos_introduced": "26.0",
       "name": "gpuResourceID",
       "owner": "MTLTensor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Tensor41 safe closure with owned extents/descriptor/resource graphs, checked ranges and metadata, buffer retention, and real M1 conformance.",
       "signature": "MTLResourceID"
     },
     {
@@ -101872,7 +101872,7 @@
           "line": 155
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTensor.h",
       "id": "property:MTLTensor:strides",
       "kind": "property",
@@ -101880,7 +101880,7 @@
       "macos_introduced": "26.0",
       "name": "strides",
       "owner": "MTLTensor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Tensor41 safe closure with owned extents/descriptor/resource graphs, checked ranges and metadata, buffer retention, and real M1 conformance.",
       "signature": "MTLTensorExtents * _Nullable"
     },
     {
@@ -101891,7 +101891,7 @@
           "line": 155
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTensor.h",
       "id": "property:MTLTensor:usage",
       "kind": "property",
@@ -101899,7 +101899,7 @@
       "macos_introduced": "26.0",
       "name": "usage",
       "owner": "MTLTensor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Tensor41 safe closure with owned extents/descriptor/resource graphs, checked ranges and metadata, buffer retention, and real M1 conformance.",
       "signature": "MTLTensorUsage"
     },
     {
@@ -101967,7 +101967,7 @@
           "line": 103
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTensor.h",
       "id": "property:MTLTensorDescriptor:cpuCacheMode",
       "kind": "property",
@@ -101975,7 +101975,7 @@
       "macos_introduced": "26.0",
       "name": "cpuCacheMode",
       "owner": "MTLTensorDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Tensor41 safe closure with owned extents/descriptor/resource graphs, checked ranges and metadata, buffer retention, and real M1 conformance.",
       "signature": "MTLCPUCacheMode"
     },
     {
@@ -101986,7 +101986,7 @@
           "line": 103
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTensor.h",
       "id": "property:MTLTensorDescriptor:dataType",
       "kind": "property",
@@ -101994,7 +101994,7 @@
       "macos_introduced": "26.0",
       "name": "dataType",
       "owner": "MTLTensorDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Tensor41 safe closure with owned extents/descriptor/resource graphs, checked ranges and metadata, buffer retention, and real M1 conformance.",
       "signature": "MTLTensorDataType"
     },
     {
@@ -102005,7 +102005,7 @@
           "line": 103
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTensor.h",
       "id": "property:MTLTensorDescriptor:dimensions",
       "kind": "property",
@@ -102013,7 +102013,7 @@
       "macos_introduced": "26.0",
       "name": "dimensions",
       "owner": "MTLTensorDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Tensor41 safe closure with owned extents/descriptor/resource graphs, checked ranges and metadata, buffer retention, and real M1 conformance.",
       "signature": "MTLTensorExtents * _Nonnull"
     },
     {
@@ -102024,7 +102024,7 @@
           "line": 103
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTensor.h",
       "id": "property:MTLTensorDescriptor:hazardTrackingMode",
       "kind": "property",
@@ -102032,7 +102032,7 @@
       "macos_introduced": "26.0",
       "name": "hazardTrackingMode",
       "owner": "MTLTensorDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Tensor41 safe closure with owned extents/descriptor/resource graphs, checked ranges and metadata, buffer retention, and real M1 conformance.",
       "signature": "MTLHazardTrackingMode"
     },
     {
@@ -102062,7 +102062,7 @@
           "line": 103
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTensor.h",
       "id": "property:MTLTensorDescriptor:storageMode",
       "kind": "property",
@@ -102070,7 +102070,7 @@
       "macos_introduced": "26.0",
       "name": "storageMode",
       "owner": "MTLTensorDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Tensor41 safe closure with owned extents/descriptor/resource graphs, checked ranges and metadata, buffer retention, and real M1 conformance.",
       "signature": "MTLStorageMode"
     },
     {
@@ -102081,7 +102081,7 @@
           "line": 103
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTensor.h",
       "id": "property:MTLTensorDescriptor:strides",
       "kind": "property",
@@ -102089,7 +102089,7 @@
       "macos_introduced": "26.0",
       "name": "strides",
       "owner": "MTLTensorDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Tensor41 safe closure with owned extents/descriptor/resource graphs, checked ranges and metadata, buffer retention, and real M1 conformance.",
       "signature": "MTLTensorExtents * _Nullable"
     },
     {
@@ -102100,7 +102100,7 @@
           "line": 103
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTensor.h",
       "id": "property:MTLTensorDescriptor:usage",
       "kind": "property",
@@ -102108,7 +102108,7 @@
       "macos_introduced": "26.0",
       "name": "usage",
       "owner": "MTLTensorDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Tensor41 safe closure with owned extents/descriptor/resource graphs, checked ranges and metadata, buffer retention, and real M1 conformance.",
       "signature": "MTLTensorUsage"
     },
     {
@@ -102119,7 +102119,7 @@
           "line": 41
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTensor.h",
       "id": "property:MTLTensorExtents:rank",
       "kind": "property",
@@ -102127,7 +102127,7 @@
       "macos_introduced": "26.0",
       "name": "rank",
       "owner": "MTLTensorExtents",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Tensor41 safe closure with owned extents/descriptor/resource graphs, checked ranges and metadata, buffer retention, and real M1 conformance.",
       "signature": "NSUInteger"
     },
     {
