@@ -7,6 +7,16 @@ type item =
   ; tests : string list
   }
 
+let callable_ids =
+  [ "method:-[MTLLogState addLogHandler:]"
+  ; "method:-[MTLLogStateDescriptor bufferSize]"
+  ; "method:-[MTLLogStateDescriptor level]"
+  ; "method:-[MTLLogStateDescriptor setBufferSize:]"
+  ; "method:-[MTLLogStateDescriptor setLevel:]"
+  ; "property:MTLLogStateDescriptor:bufferSize"
+  ; "property:MTLLogStateDescriptor:level"
+  ]
+
 let make ~kind id =
   if kind = "class" || kind = "protocol" then
     { id; lane = Metadata; operation = "Metal.Log_state opaque capability"

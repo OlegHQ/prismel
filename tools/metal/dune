@@ -714,6 +714,10 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (name test_binding_log_state_safe_package)
+ (modules test_binding_log_state_safe_package binding_log_state_safe_package binding_log_state_handoff))
+
+(test
  (name test_binding_linked_functions_handoff)
  (modules test_binding_linked_functions_handoff)
  (libraries yojson)
