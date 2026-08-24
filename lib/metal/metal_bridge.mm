@@ -930,6 +930,7 @@ enum class Handle_kind : std::uint32_t {
   Sampler,
   Library,
   Function,
+  Function_descriptor,
   Dynamic_library,
   Binary_archive,
   Compute_pipeline,
@@ -14771,6 +14772,7 @@ extern "C" CAMLprim value caml_prismel_metal_pipeline_render_imageblock_length(v
 #include "../../tools/metal/metal_function_constant_values3_callable_bridge.inc"
 #include "../../tools/metal/metal4_stitched_descriptor3_callable_bridge.inc"
 #include "../../tools/metal/metal4_render_pipeline3_callable_bridge.inc"
+#include "../../tools/metal/metal_binary_archive5_callable_bridge.inc"
 #include "../../tools/metal/metal_tensor_ownership_callable_bridge.inc"
 #include "../../tools/metal/metal_resource_remaining16_bridge.inc"
 #pragma clang diagnostic pop

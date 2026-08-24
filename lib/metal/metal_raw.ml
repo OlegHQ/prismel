@@ -2696,3 +2696,11 @@ external metal4_render_pipeline3_create : int -> (handle, string) result =
 external metal4_render_pipeline3_reset :
   handle -> int -> bool -> (unit, string) result =
   "caml_prismel_metal4_render_pipeline3_reset"
+
+external binary_archive5_descriptor_create : int -> (handle, string) result =
+  "caml_prismel_metal_binary_archive5_descriptor_create"
+external binary_archive5_add :
+  handle -> int -> handle -> handle option -> int64 -> int64 -> int64 option ->
+  (unit, string) result =
+  "caml_prismel_metal_binary_archive5_add_bytecode"
+  "caml_prismel_metal_binary_archive5_add"
