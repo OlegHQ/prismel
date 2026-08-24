@@ -46,17 +46,46 @@ let () =
   in
   let queue = get (Command_queue.create device) in
   let commands = get (Command_buffer.create queue ()) in
-  let encoder = get (Acceleration_encoder.create commands) in
+  let pass = get (Acceleration_pass.create device) in
+  (match Resource100.Sample_buffer.create device ~sample_count:2L () with
+   | Error error when error.kind=Unsupported -> ()
+   | Error error -> failwith (Format.asprintf "%a" pp_error error)
+   | Ok samples ->
+       let attachment = get (Acceleration_pass.set_attachment pass ~index:0
+         ~sample_buffer:samples ~first:0L ~last:1L) in
+       (match get (Acceleration_pass.attachment pass ~index:0) with
+        | Some retained when retained==attachment -> ()
+        | _ -> failwith "acceleration pass attachment identity drift");
+       check (Acceleration_pass.attachment_index attachment=0
+              &&Acceleration_pass.attachment_range attachment=(0L,1L))
+         "acceleration pass attachment range drift";
+       get (Acceleration_pass.clear_attachment pass ~index:0);
+       get (Acceleration_pass.destroy_attachment attachment);
+       get (Resource100.Sample_buffer.destroy samples));
+  let encoder = get (Acceleration_pass.create_encoder commands pass) in
+  let fence = get (Fence.create device) in
+  let heap = get (Heap.create ~device (Heap.make_descriptor ~size:1048576L ())) in
+  get (Acceleration_encoder.use_resources encoder ~usage:Acceleration_encoder.Read
+    [Acceleration_encoder.Buffer_resource vertex]);
+  get (Acceleration_encoder.use_heaps encoder [heap]);
+  get (Acceleration_encoder.update_fence encoder fence);
+  get (Acceleration_encoder.wait_for_fence encoder fence);
   get
     (Acceleration_encoder.build encoder ~destination:source ~descriptor ~scratch
        ~scratch_offset:0L);
   get
     (Acceleration_encoder.refit encoder ~source ~destination:refitted ~descriptor
        ~scratch ~scratch_offset:0L);
+  get
+    (Acceleration_encoder.refit_with_options encoder ~source ~destination:refitted
+       ~descriptor ~scratch ~scratch_offset:0L ~options:0L);
   get (Acceleration_encoder.copy encoder ~source ~destination:copied);
   get
     (Acceleration_encoder.write_compacted_size encoder ~source
        ~destination:compacted_size ~offset:0L);
+  get
+    (Acceleration_encoder.write_compacted_size_typed encoder ~source
+       ~destination:compacted_size ~offset:0L Acceleration_encoder.Uint64);
   get (Acceleration_encoder.end_encoding encoder);
   get (Command_buffer.commit commands);
   get (Command_buffer.wait_until_completed commands);
@@ -76,6 +105,9 @@ let () =
     (fun destroy -> get (destroy ()))
     [ (fun () -> Command_buffer.destroy compact_commands)
     ; (fun () -> Command_buffer.destroy commands)
+    ; (fun () -> Acceleration_pass.destroy pass)
+    ; (fun () -> Heap.destroy heap)
+    ; (fun () -> Fence.destroy fence)
     ; (fun () -> Acceleration_structure.destroy compacted)
     ; (fun () -> Acceleration_structure.destroy copied)
     ; (fun () -> Acceleration_structure.destroy refitted)
