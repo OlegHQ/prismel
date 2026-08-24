@@ -802,6 +802,10 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (name test_binding_function_constant_values_safe_package)
+ (modules test_binding_function_constant_values_safe_package binding_function_constant_values_safe_package))
+
+(test
  (name test_binding_one_two_id_tails)
  (modules test_binding_one_two_id_tails)
  (libraries yojson)
