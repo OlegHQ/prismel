@@ -786,6 +786,11 @@
  (libraries metal_inventory_classification))
 
 (test
+ (name test_binding_event10_callback_stress)
+ (modules test_binding_event10_callback_stress binding_event10_safe_closure)
+ (libraries metal_inventory_classification))
+
+(test
  (name test_binding_acceleration_value_tail_handoff)
  (modules test_binding_acceleration_value_tail_handoff)
  (libraries metal_inventory_classification yojson)
