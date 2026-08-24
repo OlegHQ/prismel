@@ -128,5 +128,12 @@ The `21ad4be` inventory write is one intentionally combined promotion interval:
 37 scope-excluded SDK declarations remain outside the frozen 5,249 in-scope
 denominator.
 
+The `881a8f8` inventory write is another coordinated promotion interval. It
+moves exactly 17 declarations: Drawable8, LogState7, and BinaryArchive2. The
+LogState portion is independently pinned as descriptor6 plus handler1 and is
+backed by real safe construction/cancellation, a persistent 40,000-delivery
+native gate, and in-flight cancellation draining; no declaration is counted in
+more than one of the three closures.
+
 Rates describe completed commits, not forecasts. Hardware-only gates and
 complex ownership features will vary materially from pure-value batches.
