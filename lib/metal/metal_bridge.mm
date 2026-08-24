@@ -5896,6 +5896,17 @@ extern "C" CAMLprim value caml_prismel_metal_indirect_command_buffer_size(value 
   CAMLreturn(caml_copy_int64(static_cast<std::int64_t>(buffer.size)));
 }
 
+extern "C" CAMLprim value caml_prismel_metal_indirect_command_buffer_gpu_resource_id(value raw) {
+  CAMLparam1(raw); CAMLlocal2(identifier, result);
+  @autoreleasepool { @try {
+    id<MTLIndirectCommandBuffer> buffer =
+        object_of_handle(raw, Handle_kind::Indirect_command_buffer);
+    identifier = caml_copy_int64((int64_t)buffer.gpuResourceID._impl);
+    result = result_ok(identifier);
+  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); } }
+  CAMLreturn(result);
+}
+
 extern "C" CAMLprim value caml_prismel_metal_indirect_command_buffer_reset(
     value raw, value raw_location, value raw_length) {
   CAMLparam3(raw, raw_location, raw_length);

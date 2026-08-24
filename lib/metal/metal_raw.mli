@@ -750,6 +750,8 @@ external indirect_command_buffer_create :
   (handle, string) result = "caml_prismel_metal_indirect_command_buffer_create"
 external indirect_command_buffer_size : handle -> int64 =
   "caml_prismel_metal_indirect_command_buffer_size"
+external indirect_command_buffer_gpu_resource_id : handle -> (int64,string) result =
+  "caml_prismel_metal_indirect_command_buffer_gpu_resource_id"
 external indirect_command_buffer_reset : handle -> int64 -> int64 ->
   (unit, string) result = "caml_prismel_metal_indirect_command_buffer_reset"
 external indirect_render_command : handle -> int64 -> (handle, string) result =

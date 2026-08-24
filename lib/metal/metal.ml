@@ -16116,6 +16116,13 @@ module Indirect_command_buffer = struct
   let destroyed (value : t) = is_destroyed value.lifetime
   let max_command_count (value : t) = value.max_command_count
   let allocated_size (value : t) = Metal_raw.indirect_command_buffer_size value.raw
+  let gpu_resource_id (value:t) =
+    let operation = "Metal.Indirect_command_buffer.gpu_resource_id" in
+    on_main operation (fun () -> match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () -> match Metal_raw.indirect_command_buffer_gpu_resource_id value.raw with
+        | Error message -> native_error operation message
+        | Ok identifier -> Ok identifier)
 
   let validate_range operation (value : t) ~location ~length =
     if location < 0 || length < 0 || location > value.max_command_count ||

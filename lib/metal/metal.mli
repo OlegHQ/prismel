@@ -3135,6 +3135,7 @@ module Indirect_command_buffer : sig
   val destroyed : t -> bool
   val max_command_count : t -> int
   val allocated_size : t -> int64
+  val gpu_resource_id : t -> (int64,error) result
   val reset : t -> location:int -> length:int -> (unit, error) result
   val destroy : t -> (unit, error) result
 
