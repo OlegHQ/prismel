@@ -2586,3 +2586,17 @@ external linked_functions_groups :
 external linked_functions_set_groups :
   handle -> (string * handle array) array option -> int64 -> (unit, string) result =
   "caml_prismel_metal_linked_functions_set_groups"
+
+external metal4_queue_copy_buffer_mappings :
+  handle -> handle -> handle -> (int64 * int64 * int64) array -> bool ->
+  (unit, string) result =
+  "caml_prismel_metal4_queue_copy_buffer_mappings"
+external metal4_queue_copy_texture_mappings :
+  handle -> handle -> handle ->
+  (int64 * int64 * int64 * int64 * int64 * int64 * int64 * int64 * int64 *
+   int64 * int64 * int64 * int64) array -> bool -> (unit, string) result =
+  "caml_prismel_metal4_queue_copy_texture_mappings"
+external metal4_queue_synchronize :
+  handle -> int -> handle -> int64 -> bool -> bool -> (unit, string) result =
+  "caml_prismel_metal4_queue_synchronize_bytecode"
+  "caml_prismel_metal4_queue_synchronize"
