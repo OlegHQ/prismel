@@ -2512,3 +2512,24 @@ external command_queue_set_label :
   "caml_prismel_metal_command_queue_set_label"
 external command_queue_capture_boundary : handle -> (unit, string) result =
   "caml_prismel_metal_command_queue_capture_boundary"
+
+external indirect_command_set_buffer_stride :
+  handle -> handle -> int64 -> int64 -> int64 -> int -> int64 ->
+  (unit, string) result =
+  "caml_prismel_metal_indirect_command_set_buffer_stride_bytecode"
+  "caml_prismel_metal_indirect_command_set_buffer_stride"
+external indirect_render_set_stage_buffer :
+  handle -> handle -> int64 -> int64 -> int -> int64 -> (unit, string) result =
+  "caml_prismel_metal_indirect_render_set_stage_buffer_bytecode"
+  "caml_prismel_metal_indirect_render_set_stage_buffer"
+external indirect_render_draw_indexed :
+  handle -> int -> int64 -> int -> handle -> int64 -> int64 -> int64 -> int64 ->
+  int64 -> (unit, string) result =
+  "caml_prismel_metal_indirect_render_draw_indexed_bytecode"
+  "caml_prismel_metal_indirect_render_draw_indexed"
+external indirect_render_draw_patches :
+  handle -> handle option -> handle -> handle ->
+  (int64 * int64 * int64 * int64 * int64 * int64 * int64 * int64 * int64) ->
+  int64 -> (unit, string) result =
+  "caml_prismel_metal_indirect_render_draw_patches_bytecode"
+  "caml_prismel_metal_indirect_render_draw_patches"
