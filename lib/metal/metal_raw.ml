@@ -2529,6 +2529,9 @@ external function_log_location : handle -> (handle option,string) result =
   "caml_prismel_metal_function_log_location"
 external command_function_logs : handle -> (handle array,string) result =
   "caml_prismel_metal_command_function_logs"
+external command_buffer_encoder_infos :
+  handle -> ((string option * string array * int) array, string) result =
+  "caml_prismel_metal_command_buffer_encoder_infos"
 external function_log_encoder_label : handle -> (string option,string) result =
   "caml_prismel_metal_function_log_encoder_label"
 external function_log_function : handle -> (handle option,string) result =

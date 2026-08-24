@@ -243,6 +243,7 @@
   ../../tools/metal/metal_function_log18_callable_bridge.inc
   ../../tools/metal/metal_command_encoder9_callable_bridge.inc
   ../../tools/metal/metal_command_queue15_callable_bridge.inc
+  ../../tools/metal/metal_command_buffer19_encoder_info.inc
   ../../tools/metal/metal_indirect_command14_callable_bridge.inc
   ../../tools/metal/metal_capture_scope12_callable_bridge.inc
   ../../tools/metal/metal_event14_callable_bridge.inc
@@ -932,6 +933,11 @@
 (test
  (name test_metal_counters_safe)
  (modules test_metal_counters_safe)
+ (libraries metal))
+
+(test
+ (name test_metal_command_buffer19_safe)
+ (modules test_metal_command_buffer19_safe)
  (libraries metal))
 
 (rule

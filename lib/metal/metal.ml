@@ -16037,6 +16037,8 @@ module Command_buffer = struct
   type diagnostics =
     { error_options:int64; gpu_start_time:float; gpu_end_time:float
     ; kernel_start_time:float; kernel_end_time:float; retained_references:bool }
+  type encoder_info =
+    { label : string option; debug_signposts : string list; error_state : int }
   type dispatch_type = Serial | Concurrent
 
   let release_callback_tokens tokens =
@@ -16115,6 +16117,20 @@ module Command_buffer = struct
   let create_acceleration_encoder(value:t)=let operation="Metal.Command_buffer.create_acceleration_encoder"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()when value.phase<>Recording||dependent_count value.lifetime<>0->error operation Invalid_state "command buffer cannot create another encoder"|Ok()->match Metal_raw.presentation_acceleration_encoder value.raw with Error m->native_error operation m|Ok raw->let encoder:acceleration_encoder={raw;lifetime=lifetime();command_buffer=value}in attach value.lifetime;attach_finalizer encoder encoder.lifetime value.lifetime;Ok encoder)
   let logs(value:t)=let operation="Metal.Command_buffer.logs"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.presentation_command_logs value.raw with Error m->native_error operation m|Ok logs->Ok logs)
   let function_logs(value:t)=let operation="Metal.Command_buffer.function_logs"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as failure->failure|Ok()when value.phase<>Submitted->error operation Invalid_state "command buffer has not completed"|Ok()->let status=Metal_raw.command_buffer_status value.raw in if status<>4&&status<>5 then error operation Invalid_state "command buffer has not completed"else match Metal_raw.command_function_logs value.raw with Error message->native_error operation message|Ok handles->let rec loop index reversed=if index=Array.length handles then Ok(List.rev reversed)else match Function_log.snapshot operation handles.(index)with Ok log->loop(index+1)(log::reversed)|Error _ as failure->Array.iteri(fun remaining raw->if remaining>index then ignore(Metal_raw.destroy raw))handles;failure in loop 0[])
+  let encoder_infos(value:t)=let operation="Metal.Command_buffer.encoder_infos"in
+    on_main operation(fun()->match ensure_live operation value.lifetime with
+    | Error _ as failure->failure
+    | Ok() when value.phase<>Submitted->
+        error operation Invalid_state "command buffer has not been committed"
+    | Ok()->
+        let status=Metal_raw.command_buffer_status value.raw in
+        if status<>5 then
+          error operation Invalid_state
+            "encoder diagnostics are available only after an actual command-buffer error"
+        else match Metal_raw.command_buffer_encoder_infos value.raw with
+        | Error message->native_error operation message
+        | Ok infos->Ok(Array.to_list(Array.map(fun(label,signposts,error_state)->
+            {label;debug_signposts=Array.to_list signposts;error_state})infos)))
   let create_descriptor_encoder operation kind finish (value:t)=on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()when value.phase<>Recording||dependent_count value.lifetime<>0->error operation Invalid_state "command buffer cannot create another encoder"|Ok()->match Metal_raw.presentation_descriptor_encoder value.raw kind with Error m->native_error operation m|Ok raw->finish raw)
   let create_acceleration_encoder_with_descriptor(value:t)=create_descriptor_encoder "Metal.Command_buffer.create_acceleration_encoder_with_descriptor" 0(fun raw->let encoder:acceleration_encoder={raw;lifetime=lifetime();command_buffer=value}in attach value.lifetime;attach_finalizer encoder encoder.lifetime value.lifetime;Ok encoder)value
   let create_blit_encoder_with_descriptor(value:t)=create_descriptor_encoder "Metal.Command_buffer.create_blit_encoder_with_descriptor" 1(fun raw->let encoder:blit_encoder={raw;lifetime=lifetime();command_buffer=value}in attach value.lifetime;attach_finalizer encoder encoder.lifetime value.lifetime;Ok encoder)value
@@ -20003,6 +20019,13 @@ module IO = struct
               else match Metal_raw.io_command_copy_status value.raw destination.raw offset with
                 | Error message -> native_error operation message
                 | Ok () -> retain value destination.lifetime; Ok ()))))
+    let add_completed_handler (value : t) callback =
+      let operation = "Metal.IO.Command_buffer.add_completed_handler" in
+      on_main operation (fun () ->
+        Result.bind (recording operation value) (fun () ->
+          match Metal_raw.io_command_handler value.raw callback with
+          | Error message -> native_error operation message
+          | Ok _token -> Ok ()))
     let load_buffer (value : t) ~(destination : Buffer.t)
         ~destination_offset ~size ~(source : File.t) ~source_offset =
       let operation = "Metal.IO.Command_buffer.load_buffer" in

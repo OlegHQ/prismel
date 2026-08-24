@@ -3134,6 +3134,8 @@ module Command_buffer : sig
   type diagnostics =
     { error_options:int64; gpu_start_time:float; gpu_end_time:float
     ; kernel_start_time:float; kernel_end_time:float; retained_references:bool }
+  type encoder_info =
+    { label : string option; debug_signposts : string list; error_state : int }
   type dispatch_type = Serial | Concurrent
 
   type status =
@@ -3165,6 +3167,7 @@ module Command_buffer : sig
   val create_acceleration_encoder : t -> (acceleration_encoder,error) result
   val logs : t -> (string option,error) result
   val function_logs : t -> (Function_log.t list,error) result
+  val encoder_infos : t -> (encoder_info list,error) result
   val create_acceleration_encoder_with_descriptor : t -> (acceleration_encoder,error) result
   val create_blit_encoder_with_descriptor : t -> (blit_encoder,error) result
   val create_compute_encoder_with_descriptor : t -> (compute_encoder,error) result
@@ -3811,6 +3814,7 @@ module IO : sig
     val wait_event : t -> Shared_event.t -> int64 -> (unit,error) result
     val signal_event : t -> Shared_event.t -> int64 -> (unit,error) result
     val copy_status : t -> destination:Buffer.t -> offset:int64 -> (unit,error) result
+    val add_completed_handler : t -> (unit -> unit) -> (unit, error) result
     val load_buffer :
       t -> destination:Buffer.t -> destination_offset:int64 -> size:int64 ->
       source:File.t -> source_offset:int64 -> (unit, error) result
