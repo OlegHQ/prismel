@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4881,
+    "bound": 4892,
     "scope-excluded": 37,
-    "unreviewed": 367
+    "unreviewed": 356
   },
-  "classification_source_sha256": "8b81613341bcff5b187277e11f51f3737d2f9141c180a77957e23941b3b501e0",
+  "classification_source_sha256": "6e4520afa97119940de1106874ada258693d51e72827710619fe8c28a1905fd6",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -49523,7 +49523,7 @@
           "line": 19
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCaptureScope.h",
       "id": "method:-[MTLCaptureScope beginScope]",
       "kind": "method",
@@ -49531,7 +49531,7 @@
       "macos_introduced": "10.13",
       "name": "beginScope",
       "owner": "MTLCaptureScope",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CaptureScope11 safe lifecycle with retained queue/device identity, copied nullable labels, balanced begin/end state, Metal4 availability, and parent ownership.",
       "signature": "instance () -> void"
     },
     {
@@ -49542,7 +49542,7 @@
           "line": 19
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCaptureScope.h",
       "id": "method:-[MTLCaptureScope commandQueue]",
       "kind": "method",
@@ -49550,7 +49550,7 @@
       "macos_introduced": "10.13",
       "name": "commandQueue",
       "owner": "MTLCaptureScope",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CaptureScope11 safe lifecycle with retained queue/device identity, copied nullable labels, balanced begin/end state, Metal4 availability, and parent ownership.",
       "signature": "instance () -> id<MTLCommandQueue> _Nullable"
     },
     {
@@ -49561,7 +49561,7 @@
           "line": 19
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCaptureScope.h",
       "id": "method:-[MTLCaptureScope device]",
       "kind": "method",
@@ -49569,7 +49569,7 @@
       "macos_introduced": "10.13",
       "name": "device",
       "owner": "MTLCaptureScope",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CaptureScope11 safe lifecycle with retained queue/device identity, copied nullable labels, balanced begin/end state, Metal4 availability, and parent ownership.",
       "signature": "instance () -> id<MTLDevice> _Nonnull"
     },
     {
@@ -49580,7 +49580,7 @@
           "line": 19
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCaptureScope.h",
       "id": "method:-[MTLCaptureScope endScope]",
       "kind": "method",
@@ -49588,7 +49588,7 @@
       "macos_introduced": "10.13",
       "name": "endScope",
       "owner": "MTLCaptureScope",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CaptureScope11 safe lifecycle with retained queue/device identity, copied nullable labels, balanced begin/end state, Metal4 availability, and parent ownership.",
       "signature": "instance () -> void"
     },
     {
@@ -49599,7 +49599,7 @@
           "line": 19
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCaptureScope.h",
       "id": "method:-[MTLCaptureScope label]",
       "kind": "method",
@@ -49607,7 +49607,7 @@
       "macos_introduced": "10.13",
       "name": "label",
       "owner": "MTLCaptureScope",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CaptureScope11 safe lifecycle with retained queue/device identity, copied nullable labels, balanced begin/end state, Metal4 availability, and parent ownership.",
       "signature": "instance () -> NSString * _Nullable"
     },
     {
@@ -49618,7 +49618,7 @@
           "line": 19
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCaptureScope.h",
       "id": "method:-[MTLCaptureScope mtl4CommandQueue]",
       "kind": "method",
@@ -49626,7 +49626,7 @@
       "macos_introduced": "10.13",
       "name": "mtl4CommandQueue",
       "owner": "MTLCaptureScope",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CaptureScope11 safe lifecycle with retained queue/device identity, copied nullable labels, balanced begin/end state, Metal4 availability, and parent ownership.",
       "signature": "instance () -> id<MTL4CommandQueue> _Nullable"
     },
     {
@@ -49637,7 +49637,7 @@
           "line": 19
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCaptureScope.h",
       "id": "method:-[MTLCaptureScope setLabel:]",
       "kind": "method",
@@ -49645,7 +49645,7 @@
       "macos_introduced": "10.13",
       "name": "setLabel:",
       "owner": "MTLCaptureScope",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CaptureScope11 safe lifecycle with retained queue/device identity, copied nullable labels, balanced begin/end state, Metal4 availability, and parent ownership.",
       "signature": "instance (NSString * _Nullable) -> void"
     },
     {
@@ -90443,7 +90443,7 @@
           "line": 19
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCaptureScope.h",
       "id": "property:MTLCaptureScope:commandQueue",
       "kind": "property",
@@ -90451,7 +90451,7 @@
       "macos_introduced": "10.13",
       "name": "commandQueue",
       "owner": "MTLCaptureScope",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CaptureScope11 safe lifecycle with retained queue/device identity, copied nullable labels, balanced begin/end state, Metal4 availability, and parent ownership.",
       "signature": "id<MTLCommandQueue> _Nullable"
     },
     {
@@ -90462,7 +90462,7 @@
           "line": 19
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCaptureScope.h",
       "id": "property:MTLCaptureScope:device",
       "kind": "property",
@@ -90470,7 +90470,7 @@
       "macos_introduced": "10.13",
       "name": "device",
       "owner": "MTLCaptureScope",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CaptureScope11 safe lifecycle with retained queue/device identity, copied nullable labels, balanced begin/end state, Metal4 availability, and parent ownership.",
       "signature": "id<MTLDevice> _Nonnull"
     },
     {
@@ -90481,7 +90481,7 @@
           "line": 19
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCaptureScope.h",
       "id": "property:MTLCaptureScope:label",
       "kind": "property",
@@ -90489,7 +90489,7 @@
       "macos_introduced": "10.13",
       "name": "label",
       "owner": "MTLCaptureScope",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CaptureScope11 safe lifecycle with retained queue/device identity, copied nullable labels, balanced begin/end state, Metal4 availability, and parent ownership.",
       "signature": "NSString * _Nullable"
     },
     {
@@ -90500,7 +90500,7 @@
           "line": 19
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCaptureScope.h",
       "id": "property:MTLCaptureScope:mtl4CommandQueue",
       "kind": "property",
@@ -90508,7 +90508,7 @@
       "macos_introduced": "10.13",
       "name": "mtl4CommandQueue",
       "owner": "MTLCaptureScope",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CaptureScope11 safe lifecycle with retained queue/device identity, copied nullable labels, balanced begin/end state, Metal4 availability, and parent ownership.",
       "signature": "id<MTL4CommandQueue> _Nullable"
     },
     {

@@ -1909,6 +1909,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier Binding_command_queue_tail_handoff.callable_ids then
     Bound,
       "Implemented by the CommandQueue14 safe closure with checked descriptor limits and log-state ownership, copied queue identity, capture-state validation, and retained classic command buffers."
+  else if List.mem identifier Binding_capture_scope_tail_handoff.callable_ids then
+    Bound,
+      "Implemented by the CaptureScope11 safe lifecycle with retained queue/device identity, copied nullable labels, balanced begin/end state, Metal4 availability, and parent ownership."
   else if List.mem identifier render_pipeline93_safe11
           || List.mem identifier render_pipeline93_mesh_graph12
           || List.mem identifier render_pipeline93_tile_graph9
