@@ -2543,3 +2543,21 @@ external shared_event_notify_cancel : nativeint -> unit =
 
 external acceleration_descriptor_create : int -> (handle, string) result =
   "caml_prismel_metal_acceleration_descriptor_create"
+
+external log_state_descriptor_create : int -> int64 -> (handle, string) result =
+  "caml_prismel_metal_log_state_descriptor_create"
+external log_state_descriptor_snapshot :
+  handle -> ((int * int64), string) result =
+  "caml_prismel_metal_log_state_descriptor_snapshot"
+external log_state_descriptor_set :
+  handle -> int -> int64 -> (unit, string) result =
+  "caml_prismel_metal_log_state_descriptor_set"
+external log_state_create :
+  handle -> handle -> ((handle * int64), string) result =
+  "caml_prismel_metal_log_state_create"
+external log_state_add_handler :
+  handle -> (string option * string option * int * string -> unit) ->
+  (nativeint, string) result =
+  "caml_prismel_metal_log_state_add_handler"
+external log_state_handler_cancel : nativeint -> unit =
+  "caml_prismel_metal_log_state_handler_cancel"

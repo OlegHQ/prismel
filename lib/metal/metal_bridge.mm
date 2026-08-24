@@ -936,6 +936,7 @@ enum class Handle_kind : std::uint32_t {
   Command_queue,
   Command_queue_descriptor,
   Log_state,
+  Log_state_descriptor,
   Command_buffer,
   Compute_encoder,
   Render_encoder,
@@ -14755,6 +14756,7 @@ extern "C" CAMLprim value caml_prismel_metal_pipeline_render_imageblock_length(v
 #include "../../tools/metal/metal_capture_scope12_callable_bridge.inc"
 #include "../../tools/metal/metal_event14_callable_bridge.inc"
 #include "../../tools/metal/metal_acceleration_structure28_callable_bridge.inc"
+#include "../../tools/metal/metal_log_state9_callable_bridge.inc"
 #include "../../tools/metal/metal_tensor_ownership_callable_bridge.inc"
 #include "../../tools/metal/metal_resource_remaining16_bridge.inc"
 #pragma clang diagnostic pop
