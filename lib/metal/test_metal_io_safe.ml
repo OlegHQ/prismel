@@ -37,6 +37,9 @@ let exercise device path expected =
     get (Buffer.create ~device ~length:8L ~storage:Buffer.Shared ())
   in
   let commands = get (IO.Queue.create_command_buffer queue ()) in
+  let completed = Atomic.make false in
+  get (IO.Command_buffer.add_completed_handler commands
+         (fun () -> Atomic.set completed true));
   get (IO.Command_buffer.set_label commands (Some "safe-command"));
   if get (IO.Command_buffer.label commands) <> Some "safe-command" then
     failwith "IO command label did not round-trip";
@@ -67,6 +70,8 @@ let exercise device path expected =
    | IO.Command_buffer.Complete -> ()
    | IO.Command_buffer.Recording | IO.Command_buffer.Submitted
    | IO.Command_buffer.Failed -> failwith "IO command did not complete");
+  if not (Atomic.get completed) then
+    failwith "IO completion handler did not run exactly before wait returned";
   expect_kind Invalid_state
     (IO.Command_buffer.load_buffer commands ~destination
        ~destination_offset:0L ~size:0L ~source ~source_offset:0L);
