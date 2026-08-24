@@ -72,6 +72,8 @@
   binding_function_stitching_handoff
   binding_library_header_handoff
   binding_library42_native_closure
+  binding_compute_command_manifest
+  binding_compute_encoder35_native_closure
   binding_argument_encoder_handoff
   binding_acceleration_command_handoff
   binding_acceleration_structure_header_handoff
@@ -543,6 +545,26 @@
  (libraries metal_inventory_classification yojson)
  (deps ../../lib/metal/generated_api_inventory.json)
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
+
+(test
+ (name test_binding_compute_encoder35_native_closure)
+ (modules test_binding_compute_encoder35_native_closure)
+ (libraries metal_inventory_classification))
+
+(rule
+ (targets test_compute_encoder35_native.exe)
+ (deps test_compute_encoder35_native.mm)
+ (action
+  (run xcrun clang++ -std=c++17 -fobjc-arc -fblocks -Wall -Wextra -Werror
+   -framework Foundation -framework Metal
+   %{dep:test_compute_encoder35_native.mm} -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_compute_encoder35_native.exe)
+ (action
+  (bash
+   "status=0; ./test_compute_encoder35_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
 
 (test
  (name test_binding_argument_encoder_handoff)
