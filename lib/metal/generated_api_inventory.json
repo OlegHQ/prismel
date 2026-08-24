@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4781,
+    "bound": 4783,
     "scope-excluded": 37,
-    "unreviewed": 467
+    "unreviewed": 465
   },
-  "classification_source_sha256": "cf321cfda0d7196be5d802e0f9893acb2a2518e870e03d2b60042763f12cc940",
+  "classification_source_sha256": "f96aae8ab07c1ff28f395ffb20c4caaddca4fcf4bf1d5dfe5b6876909adf445c",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -75261,7 +75261,7 @@
           "line": 520
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineState newRenderPipelineStateWithAdditionalBinaryFunctions:error:]",
       "kind": "method",
@@ -75269,7 +75269,7 @@
       "macos_introduced": "12.0",
       "name": "newRenderPipelineStateWithAdditionalBinaryFunctions:error:",
       "owner": "MTLRenderPipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": "instance (MTLRenderPipelineFunctionsDescriptor * _Nonnull __strong, NSError *__autoreleasing  _Nullable * _Nullable) -> id<MTLRenderPipelineState> _Nullable"
     },
     {
@@ -75287,7 +75287,7 @@
           "line": 403
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineState newRenderPipelineStateWithBinaryFunctions:error:]",
       "kind": "method",
@@ -75295,7 +75295,7 @@
       "macos_introduced": "26.0",
       "name": "newRenderPipelineStateWithBinaryFunctions:error:",
       "owner": "MTLRenderPipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": "instance (MTL4RenderPipelineBinaryFunctionsDescriptor * _Nonnull __strong, NSError *__autoreleasing  _Nullable * _Nullable) -> id<MTLRenderPipelineState> _Nullable"
     },
     {
