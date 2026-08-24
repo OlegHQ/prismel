@@ -18055,6 +18055,46 @@ module Blit_encoder = struct
   let update_fence value fence = fence_call "Metal.Blit_encoder.update_fence" true value fence
   let wait_for_fence value fence = fence_call "Metal.Blit_encoder.wait_for_fence" false value fence
 
+  let indirect operation optimize (value:t) (commands:Indirect_command_buffer.t)
+      ~location ~length =
+    on_main operation (fun () -> match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () -> Result.bind (ensure_live operation commands.lifetime) (fun () ->
+          Result.bind (ensure_same_device operation value.command_buffer.queue.device commands.device)
+            (fun () -> Result.bind
+              (Indirect_command_buffer.validate_range operation commands ~location ~length)
+              (fun () -> match Metal_raw.blit_indirect value.raw commands.raw optimize
+                                (Int64.of_int location) (Int64.of_int length) with
+               | Error message -> native_error operation message
+               | Ok () -> retain_command_buffer_indirect value.command_buffer commands; Ok ()))))
+  let optimize_indirect value commands ~location ~length =
+    indirect "Metal.Blit_encoder.optimize_indirect" true value commands ~location ~length
+  let reset_indirect value commands ~location ~length =
+    indirect "Metal.Blit_encoder.reset_indirect" false value commands ~location ~length
+
+  let texture_aux operation mode (value:t) (texture:Texture.t) ?slice ?level () =
+    on_main operation (fun () -> match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () -> Result.bind (ensure_texture_usable operation texture) (fun () ->
+          let descriptor = texture.descriptor in
+          let spec = match slice,level with
+            | None,None -> Ok [||]
+            | Some slice,Some level when slice >= 0 && slice < Texture.total_slices descriptor
+                                         && level >= 0 && level < descriptor.mip_levels ->
+                Ok [|Int64.of_int slice;Int64.of_int level|]
+            | _ -> error operation Invalid_argument "texture slice/level is invalid"
+          in Result.bind spec (fun spec ->
+            Result.bind (ensure_same_device operation value.command_buffer.queue.device texture.device)
+              (fun () -> match Metal_raw.blit_texture_aux value.raw texture.raw mode spec with
+               | Error message -> native_error operation message
+               | Ok () -> retain_command_buffer_texture value.command_buffer texture; Ok ()))))
+  let optimize_for_cpu value texture = texture_aux "Metal.Blit_encoder.optimize_for_cpu" 0 value texture ()
+  let optimize_slice_for_cpu value texture ~slice ~level = texture_aux "Metal.Blit_encoder.optimize_slice_for_cpu" 1 value texture ~slice ~level ()
+  let optimize_for_gpu value texture = texture_aux "Metal.Blit_encoder.optimize_for_gpu" 2 value texture ()
+  let optimize_slice_for_gpu value texture ~slice ~level = texture_aux "Metal.Blit_encoder.optimize_slice_for_gpu" 3 value texture ~slice ~level ()
+  let synchronize_texture value texture = texture_aux "Metal.Blit_encoder.synchronize_texture" 4 value texture ()
+  let synchronize_texture_slice value texture ~slice ~level = texture_aux "Metal.Blit_encoder.synchronize_texture_slice" 5 value texture ~slice ~level ()
+
   let end_encoding (value : t) =
     on_main "Metal.Blit_encoder.end_encoding" (fun () ->
       match ensure_live "Metal.Blit_encoder.end_encoding" value.lifetime with

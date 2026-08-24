@@ -3199,6 +3199,14 @@ module Blit_encoder : sig
   val generate_mipmaps : t -> Texture.t -> (unit,error) result
   val update_fence : t -> Fence.t -> (unit,error) result
   val wait_for_fence : t -> Fence.t -> (unit,error) result
+  val optimize_indirect : t -> Indirect_command_buffer.t -> location:int -> length:int -> (unit,error) result
+  val reset_indirect : t -> Indirect_command_buffer.t -> location:int -> length:int -> (unit,error) result
+  val optimize_for_cpu : t -> Texture.t -> (unit,error) result
+  val optimize_slice_for_cpu : t -> Texture.t -> slice:int -> level:int -> (unit,error) result
+  val optimize_for_gpu : t -> Texture.t -> (unit,error) result
+  val optimize_slice_for_gpu : t -> Texture.t -> slice:int -> level:int -> (unit,error) result
+  val synchronize_texture : t -> Texture.t -> (unit,error) result
+  val synchronize_texture_slice : t -> Texture.t -> slice:int -> level:int -> (unit,error) result
   val end_encoding : t -> (unit, error) result
   val destroyed : t -> bool
 end
