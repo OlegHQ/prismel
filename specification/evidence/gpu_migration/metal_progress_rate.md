@@ -100,6 +100,7 @@ can change the denominator explicitly rather than being hidden.
 | `691c559` | 2026-08-24 06:28:35 +02:00 | 4,838 | 5,249 | 92.1699% | 22 | 0.118 | 186.4 | 3.55 |
 | `65ea228` | 2026-08-24 06:30:36 +02:00 | 4,855 | 5,249 | 92.4938% | 17 | 0.034 | 505.8 | 9.64 |
 | `533e89c` | 2026-08-24 06:35:51 +02:00 | 4,881 | 5,249 | 92.9891% | 26 | 0.088 | 297.1 | 5.66 |
+| `21ad4be` | 2026-08-24 06:45:06 +02:00 | 4,912 | 5,286 | 92.9247% | 20 | 0.008 | 2,666.7 | 50.45 |
 | `a7228f7` | 2026-08-24 06:43:15 +02:00 | 4,892 | 5,249 | 93.1987% | 11 | 0.123 | 89.2 | 1.70 |
 
 ## Current measured rate
@@ -119,6 +120,13 @@ cross-batch overlap.
 The Tensor47 closure likewise has one intentional overlap: the buffer-backed
 constructor was already bound by Resource100. Its two Tensor promotion commits
 therefore move 46 new declarations while proving all 47 safe IDs.
+
+The `21ad4be` inventory write is one intentionally combined promotion interval:
+10 declarations are the exact Event10 listener/export/notification closure and
+10 are the final IO scratch/load closure. CaptureScope's preceding 11-ID update
+and 37 newly inventoried SDK declarations explain the change from the prior
+recorded row's 5,249-declaration denominator; the interval delta remains exactly
+20.
 
 Rates describe completed commits, not forecasts. Hardware-only gates and
 complex ownership features will vary materially from pure-value batches.
