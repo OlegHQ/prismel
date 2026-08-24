@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4554,
+    "bound": 4565,
     "scope-excluded": 37,
-    "unreviewed": 694
+    "unreviewed": 683
   },
-  "classification_source_sha256": "6bc74fef989c937da96f2765b1c4e5a136888a23a82d523c5ed980b2ff611f73",
+  "classification_source_sha256": "cc77eba976fb5cb127cff7924dd835a01d87f42a3e0ed09d197a47ba93e9354b",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -542,7 +542,7 @@
           "line": 187
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "class:MTL4AccelerationStructureBoundingBoxGeometryDescriptor",
       "kind": "class",
@@ -550,7 +550,7 @@
       "macos_introduced": "26.0",
       "name": "MTL4AccelerationStructureBoundingBoxGeometryDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -564,7 +564,7 @@
           "line": 316
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "class:MTL4AccelerationStructureCurveGeometryDescriptor",
       "kind": "class",
@@ -572,7 +572,7 @@
       "macos_introduced": "26.0",
       "name": "MTL4AccelerationStructureCurveGeometryDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -586,7 +586,7 @@
           "line": 16
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "class:MTL4AccelerationStructureDescriptor",
       "kind": "class",
@@ -594,7 +594,7 @@
       "macos_introduced": "26.0",
       "name": "MTL4AccelerationStructureDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -608,7 +608,7 @@
           "line": 23
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "class:MTL4AccelerationStructureGeometryDescriptor",
       "kind": "class",
@@ -616,7 +616,7 @@
       "macos_introduced": "26.0",
       "name": "MTL4AccelerationStructureGeometryDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -630,7 +630,7 @@
           "line": 281
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "class:MTL4AccelerationStructureMotionBoundingBoxGeometryDescriptor",
       "kind": "class",
@@ -638,7 +638,7 @@
       "macos_introduced": "26.0",
       "name": "MTL4AccelerationStructureMotionBoundingBoxGeometryDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -652,7 +652,7 @@
           "line": 401
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "class:MTL4AccelerationStructureMotionCurveGeometryDescriptor",
       "kind": "class",
@@ -660,7 +660,7 @@
       "macos_introduced": "26.0",
       "name": "MTL4AccelerationStructureMotionCurveGeometryDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -674,7 +674,7 @@
           "line": 211
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "class:MTL4AccelerationStructureMotionTriangleGeometryDescriptor",
       "kind": "class",
@@ -682,7 +682,7 @@
       "macos_introduced": "26.0",
       "name": "MTL4AccelerationStructureMotionTriangleGeometryDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -696,7 +696,7 @@
           "line": 126
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "class:MTL4AccelerationStructureTriangleGeometryDescriptor",
       "kind": "class",
@@ -704,7 +704,7 @@
       "macos_introduced": "26.0",
       "name": "MTL4AccelerationStructureTriangleGeometryDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -972,7 +972,7 @@
           "line": 590
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "class:MTL4IndirectInstanceAccelerationStructureDescriptor",
       "kind": "class",
@@ -980,7 +980,7 @@
       "macos_introduced": "26.0",
       "name": "MTL4IndirectInstanceAccelerationStructureDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -994,7 +994,7 @@
           "line": 509
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "class:MTL4InstanceAccelerationStructureDescriptor",
       "kind": "class",
@@ -1002,7 +1002,7 @@
       "macos_introduced": "26.0",
       "name": "MTL4InstanceAccelerationStructureDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
@@ -1214,7 +1214,7 @@
           "line": 77
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4AccelerationStructure.h",
       "id": "class:MTL4PrimitiveAccelerationStructureDescriptor",
       "kind": "class",
@@ -1222,7 +1222,7 @@
       "macos_introduced": "26.0",
       "name": "MTL4PrimitiveAccelerationStructureDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
