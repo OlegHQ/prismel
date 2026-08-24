@@ -340,7 +340,7 @@
 (test
  (name test_metal_presentation_safe)
  (modules test_metal_presentation_safe)
- (libraries metal))
+ (libraries metal unix))
 
 (test
  (name test_metal_resource100_safe)
@@ -395,6 +395,11 @@
 (test
  (name test_metal_io_safe)
  (modules test_metal_io_safe)
+ (libraries metal))
+
+(test
+ (name test_metal_log_state7_safe)
+ (modules test_metal_log_state7_safe)
  (libraries metal))
 
 (test

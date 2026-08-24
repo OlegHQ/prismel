@@ -14,19 +14,19 @@ let () =
   match Device.system_default () with
   | Error _ -> print_endline "metal LogState safe: skipped (no Metal device)"
   | Ok device ->
-      match Command4.Log_state.Descriptor.create ~level:Notice ~buffer_size:4096L () with
+      match Command4.Log_state.Descriptor.create ~level:Log_notice ~buffer_size:4096L () with
       | Error error when error.kind = Unsupported || error.kind = Native_error ->
           get (Device.destroy device);
           print_endline "metal LogState safe: skipped (LogState unavailable)"
       | Error error -> failwith (Format.asprintf "%a" pp_error error)
       | Ok descriptor ->
-          if Command4.Log_state.Descriptor.level descriptor <> Notice
+          if Command4.Log_state.Descriptor.level descriptor <> Log_notice
              || Command4.Log_state.Descriptor.buffer_size descriptor <> 4096L
           then failwith "LogState descriptor snapshot changed";
           expect_kind Invalid_argument
-            (Command4.Log_state.Descriptor.set descriptor ~level:Fault
+            (Command4.Log_state.Descriptor.set descriptor ~level:Log_fault
                ~buffer_size:0L);
-          get (Command4.Log_state.Descriptor.set descriptor ~level:Debug
+          get (Command4.Log_state.Descriptor.set descriptor ~level:Log_debug
                  ~buffer_size:8192L);
           let state = get (Command4.Log_state.create_with_descriptor device descriptor) in
           let deliveries = Atomic.make 0 in
