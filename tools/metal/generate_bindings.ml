@@ -652,6 +652,7 @@ let validate_direct_property inventory
        || List.mem property.sdk_id Binding_metal4_pending41_reachability.remaining_promotable_ids
        || List.mem property.sdk_id Binding_presentation_public_audit.safe_reachable
        || List.mem property.sdk_id Binding_presentation_safe_handoff.promotable_ids
+       || List.mem property.sdk_id Binding_compute_encoder35_safe_closure.callable_ids
     then "bound"
     else "unreviewed"
   in

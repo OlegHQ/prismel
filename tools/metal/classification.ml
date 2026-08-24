@@ -1821,7 +1821,7 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
       "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership."
   else if List.mem identifier Binding_compute_encoder35_safe_closure.callable_ids then
     Bound,
-      "Implemented by the ComputeEncoder safe16 binding closure with checked indices, ranges, strides, cardinality and device identity plus command-completion retention."
+      "Implemented by the ComputeEncoder safe35 closure with checked indices, ranges, strides, cardinality, capabilities and device identity plus command-completion retention."
   else if List.mem identifier io_compressor_safe5 then
     Bound,
       "Implemented by the owned IO.Compressor lifecycle with copied configuration, checked byte ranges, synchronous consumption, exact finalization state, and real compressed-output conformance."

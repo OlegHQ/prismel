@@ -109,8 +109,13 @@ let validate () =
     |> List.sort_uniq String.compare
   in
   let expected_generated_compute =
-    [ "method:-[MTLComputeCommandEncoder setBufferOffset:atIndex:]"
+    [ "method:-[MTLComputeCommandEncoder dispatchType]"
+    ; "method:-[MTLComputeCommandEncoder memoryBarrierWithScope:]"
+    ; "method:-[MTLComputeCommandEncoder setBufferOffset:atIndex:]"
     ; "method:-[MTLComputeCommandEncoder setBufferOffset:attributeStride:atIndex:]" ]
+    @ [ "method:-[MTLComputeCommandEncoder setImageblockWidth:height:]"
+      ; "method:-[MTLComputeCommandEncoder setThreadgroupMemoryLength:atIndex:]"
+      ; "property:MTLComputeCommandEncoder:dispatchType" ]
   in
   if generated_compute <> expected_generated_compute then
     fail "promoted ComputeEncoder direct-call evidence drift: expected [%s], got [%s]"
