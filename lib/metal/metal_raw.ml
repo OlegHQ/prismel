@@ -2661,7 +2661,7 @@ external metal4_queue_synchronize :
 
 external render93_descriptor_create : int -> (handle,string) result =
   "caml_prismel_metal_render93_descriptor_create"
-external render93_descriptor_label : handle -> int -> string option -> (string option,string) result =
+external render93_descriptor_label : handle -> int -> bool -> string option -> (string option,string) result =
   "caml_prismel_metal_render93_descriptor_label"
 external render93_descriptor_reset : handle -> int -> (unit,string) result =
   "caml_prismel_metal_render93_descriptor_reset"

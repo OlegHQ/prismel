@@ -3111,6 +3111,14 @@ module Compute_encoder : sig
   val set_buffer :
     t -> index:int -> offset:int64 -> Buffer.t -> (unit, error) result
   val set_texture : t -> index:int -> Texture.t -> (unit, error) result
+  val set_buffer_with_stride : t -> index:int -> offset:int64 -> stride:int64 -> Buffer.t option -> (unit,error) result
+  val set_buffer_offset : t -> index:int -> offset:int64 -> ?stride:int64 -> unit -> (unit,error) result
+  val set_buffers : t -> start:int -> (Buffer.t option * int64 * int64) list -> (unit,error) result
+  val set_bytes_with_stride : t -> index:int -> stride:int64 -> bytes -> (unit,error) result
+  val set_textures : t -> start:int -> Texture.t option list -> (unit,error) result
+  val set_sampler : t -> index:int -> ?lod_min:float -> ?lod_max:float -> Sampler.t option -> (unit,error) result
+  val set_samplers : t -> start:int -> ?lod_mins:float list -> ?lod_maxs:float list -> Sampler.t option list -> (unit,error) result
+  val set_acceleration_structure : t -> index:int -> Acceleration_structure.t option -> (unit,error) result
   val dispatch_threads :
     t -> threads:int * int * int -> threadgroup:int * int * int ->
     (unit, error) result
