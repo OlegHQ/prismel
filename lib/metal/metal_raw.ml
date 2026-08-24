@@ -2533,3 +2533,16 @@ external indirect_render_draw_patches :
   int64 -> (unit, string) result =
   "caml_prismel_metal_indirect_render_draw_patches_bytecode"
   "caml_prismel_metal_indirect_render_draw_patches"
+
+external capture_scope_snapshot :
+  handle -> ((string option * int64 * handle option * handle option), string) result =
+  "caml_prismel_metal_capture_scope_snapshot"
+external capture_scope_set_label :
+  handle -> string option -> (unit, string) result =
+  "caml_prismel_metal_capture_scope_set_label"
+external capture_scope_transition :
+  handle -> bool -> (unit, string) result =
+  "caml_prismel_metal_capture_scope_transition"
+external capture_scope_queue_identity :
+  handle -> bool -> (handle option, string) result =
+  "caml_prismel_metal_capture_scope_queue_identity"
