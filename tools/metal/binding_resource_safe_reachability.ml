@@ -57,6 +57,8 @@ let has_public_operation id =
 let public_operation id =
   if contains id "MTLResourceOptions:" then
     "Metal.Resource100.Options"
+  else if id = "class:MTLTextureReferenceType" then
+    "Metal.Resource100.Texture_reference_type.of_reflection"
   else if contains id "MTLBufferLayoutDescriptorArray" then
     "Metal.Resource100.Buffer_layout_array"
   else if id = "class:MTLResourceStatePassSampleBufferAttachmentDescriptorArray" then

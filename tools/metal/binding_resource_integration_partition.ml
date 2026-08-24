@@ -93,6 +93,7 @@ let safe_ownership_tail =
   ; "method:-[MTLResourceStatePassSampleBufferAttachmentDescriptor sampleBuffer]"
   ; "method:-[MTLResourceStatePassSampleBufferAttachmentDescriptor setSampleBuffer:]"
   ; "property:MTLResourceStatePassSampleBufferAttachmentDescriptor:sampleBuffer"
+  ; "class:MTLTextureReferenceType"
   ]
 
 let handwritten_ownership =
@@ -102,5 +103,5 @@ let handwritten_ownership =
 
 let () =
   validate ();
-  if List.length safe_ownership_tail <> 49 then failwith "resource safe ownership49 drift";
+  if List.length safe_ownership_tail <> 50 then failwith "resource safe ownership50 drift";
   if List.length handwritten_ownership <> 7 then failwith "resource handwritten7 drift"
