@@ -15,12 +15,41 @@ let destroy get_result value = ignore (get (get_result value))
 
 let exercise device path expected =
   let queue = get (Device.new_io_queue device ~label:"safe-io" ()) in
+  if get (IO.Queue.label queue) <> Some "safe-io" then
+    failwith "IO queue label did not round-trip";
+  expect_kind Invalid_argument (IO.Queue.set_label queue (Some "bad\000label"));
+  get (IO.Queue.set_label queue (Some "safe-io-updated"));
+  if get (IO.Queue.label queue) <> Some "safe-io-updated" then
+    failwith "updated IO queue label did not round-trip";
+  get (IO.Queue.enqueue_barrier queue);
+  let unretained = get (IO.Queue.create_unretained_command_buffer queue) in
+  destroy IO.Command_buffer.destroy unretained;
   let source = get (Device.open_io_file device ~label:"safe-source" path) in
+  if get (IO.File.label source) <> Some "safe-source" then
+    failwith "IO file label did not round-trip";
+  expect_kind Invalid_argument (IO.File.set_label source (Some "bad\000label"));
+  get (IO.File.set_label source (Some "safe-source-updated"));
   let destination =
     get (Buffer.create ~device ~length:(Int64.of_int (Bytes.length expected))
            ~storage:Buffer.Shared ())
   in
+  let status_destination =
+    get (Buffer.create ~device ~length:8L ~storage:Buffer.Shared ())
+  in
   let commands = get (IO.Queue.create_command_buffer queue ()) in
+  get (IO.Command_buffer.set_label commands (Some "safe-command"));
+  if get (IO.Command_buffer.label commands) <> Some "safe-command" then
+    failwith "IO command label did not round-trip";
+  expect_kind Invalid_argument
+    (IO.Command_buffer.push_debug_group commands "bad\000label");
+  get (IO.Command_buffer.push_debug_group commands "safe-load");
+  get (IO.Command_buffer.pop_debug_group commands);
+  get (IO.Command_buffer.add_barrier commands);
+  expect_kind Invalid_argument
+    (IO.Command_buffer.copy_status commands ~destination:status_destination
+       ~offset:(-1L));
+  get (IO.Command_buffer.copy_status commands ~destination:status_destination
+         ~offset:0L);
   expect_kind Invalid_argument
     (IO.Command_buffer.load_buffer commands ~destination
        ~destination_offset:(-1L) ~size:1L ~source ~source_offset:0L);
@@ -41,6 +70,8 @@ let exercise device path expected =
   expect_kind Invalid_state
     (IO.Command_buffer.load_buffer commands ~destination
        ~destination_offset:0L ~size:0L ~source ~source_offset:0L);
+  expect_kind Invalid_state
+    (IO.Command_buffer.set_label commands (Some "too-late"));
   expect_kind Invalid_state (IO.Command_buffer.commit_and_wait commands);
   let actual = get (Buffer.read_bytes destination ~offset:0L
                       ~length:(Bytes.length expected)) in
@@ -48,6 +79,7 @@ let exercise device path expected =
   destroy IO.Command_buffer.destroy commands;
   destroy IO.File.destroy source;
   destroy Buffer.destroy destination;
+  destroy Buffer.destroy status_destination;
   destroy IO.Queue.destroy queue
 
 let () =
