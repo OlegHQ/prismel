@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4816,
+    "bound": 4838,
     "scope-excluded": 37,
-    "unreviewed": 432
+    "unreviewed": 410
   },
-  "classification_source_sha256": "cfd3244a3d361dea773dfa3f17951cdc696cfbc1b4644d16747eaaa1a0c23b4a",
+  "classification_source_sha256": "c345e53049686024504dcf9ad3ae694a1957dda8dd76d4353209a23359a4cbfe",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -54239,7 +54239,7 @@
           "line": 106
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "method:-[MTLCounter name]",
       "kind": "method",
@@ -54247,7 +54247,7 @@
       "macos_introduced": "10.15",
       "name": "name",
       "owner": "MTLCounter",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Counters22 safe metadata/descriptor/sample graph with copied names, checked labels/devices/ranges, explicit sampling-point capability, and execute-or-Unsupported conformance.",
       "signature": "instance () -> NSString * _Nonnull"
     },
     {
@@ -54264,7 +54264,7 @@
           "line": 171
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "method:-[MTLCounterSampleBuffer device]",
       "kind": "method",
@@ -54272,7 +54272,7 @@
       "macos_introduced": "10.15",
       "name": "device",
       "owner": "MTLCounterSampleBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Counters22 safe metadata/descriptor/sample graph with copied names, checked labels/devices/ranges, explicit sampling-point capability, and execute-or-Unsupported conformance.",
       "signature": "instance () -> id<MTLDevice> _Nonnull"
     },
     {
@@ -54289,7 +54289,7 @@
           "line": 177
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "method:-[MTLCounterSampleBuffer label]",
       "kind": "method",
@@ -54297,7 +54297,7 @@
       "macos_introduced": "10.15",
       "name": "label",
       "owner": "MTLCounterSampleBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Counters22 safe metadata/descriptor/sample graph with copied names, checked labels/devices/ranges, explicit sampling-point capability, and execute-or-Unsupported conformance.",
       "signature": "instance () -> NSString * _Nonnull"
     },
     {
@@ -54314,7 +54314,7 @@
           "line": 194
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "method:-[MTLCounterSampleBuffer resolveCounterRange:]",
       "kind": "method",
@@ -54322,7 +54322,7 @@
       "macos_introduced": "10.15",
       "name": "resolveCounterRange:",
       "owner": "MTLCounterSampleBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Counters22 safe metadata/descriptor/sample graph with copied names, checked labels/devices/ranges, explicit sampling-point capability, and execute-or-Unsupported conformance.",
       "signature": "instance (NSRange) -> NSData * _Nullable"
     },
     {
@@ -54339,7 +54339,7 @@
           "line": 181
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "method:-[MTLCounterSampleBuffer sampleCount]",
       "kind": "method",
@@ -54347,7 +54347,7 @@
       "macos_introduced": "10.15",
       "name": "sampleCount",
       "owner": "MTLCounterSampleBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Counters22 safe metadata/descriptor/sample graph with copied names, checked labels/devices/ranges, explicit sampling-point capability, and execute-or-Unsupported conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -54364,7 +54364,7 @@
           "line": 142
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "method:-[MTLCounterSampleBufferDescriptor counterSet]",
       "kind": "method",
@@ -54372,7 +54372,7 @@
       "macos_introduced": "10.15",
       "name": "counterSet",
       "owner": "MTLCounterSampleBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Counters22 safe metadata/descriptor/sample graph with copied names, checked labels/devices/ranges, explicit sampling-point capability, and execute-or-Unsupported conformance.",
       "signature": "instance () -> id<MTLCounterSet> _Nullable"
     },
     {
@@ -54389,7 +54389,7 @@
           "line": 146
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "method:-[MTLCounterSampleBufferDescriptor label]",
       "kind": "method",
@@ -54397,7 +54397,7 @@
       "macos_introduced": "10.15",
       "name": "label",
       "owner": "MTLCounterSampleBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Counters22 safe metadata/descriptor/sample graph with copied names, checked labels/devices/ranges, explicit sampling-point capability, and execute-or-Unsupported conformance.",
       "signature": "instance () -> NSString * _Nonnull"
     },
     {
@@ -54439,7 +54439,7 @@
           "line": 142
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "method:-[MTLCounterSampleBufferDescriptor setCounterSet:]",
       "kind": "method",
@@ -54447,7 +54447,7 @@
       "macos_introduced": "10.15",
       "name": "setCounterSet:",
       "owner": "MTLCounterSampleBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Counters22 safe metadata/descriptor/sample graph with copied names, checked labels/devices/ranges, explicit sampling-point capability, and execute-or-Unsupported conformance.",
       "signature": "instance (id<MTLCounterSet> _Nullable) -> void"
     },
     {
@@ -54464,7 +54464,7 @@
           "line": 146
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "method:-[MTLCounterSampleBufferDescriptor setLabel:]",
       "kind": "method",
@@ -54472,7 +54472,7 @@
       "macos_introduced": "10.15",
       "name": "setLabel:",
       "owner": "MTLCounterSampleBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Counters22 safe metadata/descriptor/sample graph with copied names, checked labels/devices/ranges, explicit sampling-point capability, and execute-or-Unsupported conformance.",
       "signature": "instance (NSString * _Nonnull) -> void"
     },
     {
@@ -54564,7 +54564,7 @@
           "line": 129
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "method:-[MTLCounterSet counters]",
       "kind": "method",
@@ -54572,7 +54572,7 @@
       "macos_introduced": "10.15",
       "name": "counters",
       "owner": "MTLCounterSet",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Counters22 safe metadata/descriptor/sample graph with copied names, checked labels/devices/ranges, explicit sampling-point capability, and execute-or-Unsupported conformance.",
       "signature": "instance () -> NSArray<id<MTLCounter>> * _Nonnull"
     },
     {
@@ -54589,7 +54589,7 @@
           "line": 119
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "method:-[MTLCounterSet name]",
       "kind": "method",
@@ -54597,7 +54597,7 @@
       "macos_introduced": "10.15",
       "name": "name",
       "owner": "MTLCounterSet",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Counters22 safe metadata/descriptor/sample graph with copied names, checked labels/devices/ranges, explicit sampling-point capability, and execute-or-Unsupported conformance.",
       "signature": "instance () -> NSString * _Nonnull"
     },
     {
@@ -92151,7 +92151,7 @@
           "line": 106
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "property:MTLCounter:name",
       "kind": "property",
@@ -92159,7 +92159,7 @@
       "macos_introduced": "10.15",
       "name": "name",
       "owner": "MTLCounter",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Counters22 safe metadata/descriptor/sample graph with copied names, checked labels/devices/ranges, explicit sampling-point capability, and execute-or-Unsupported conformance.",
       "signature": "NSString * _Nonnull"
     },
     {
@@ -92176,7 +92176,7 @@
           "line": 171
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "property:MTLCounterSampleBuffer:device",
       "kind": "property",
@@ -92184,7 +92184,7 @@
       "macos_introduced": "10.15",
       "name": "device",
       "owner": "MTLCounterSampleBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Counters22 safe metadata/descriptor/sample graph with copied names, checked labels/devices/ranges, explicit sampling-point capability, and execute-or-Unsupported conformance.",
       "signature": "id<MTLDevice> _Nonnull"
     },
     {
@@ -92201,7 +92201,7 @@
           "line": 177
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "property:MTLCounterSampleBuffer:label",
       "kind": "property",
@@ -92209,7 +92209,7 @@
       "macos_introduced": "10.15",
       "name": "label",
       "owner": "MTLCounterSampleBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Counters22 safe metadata/descriptor/sample graph with copied names, checked labels/devices/ranges, explicit sampling-point capability, and execute-or-Unsupported conformance.",
       "signature": "NSString * _Nonnull"
     },
     {
@@ -92226,7 +92226,7 @@
           "line": 181
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "property:MTLCounterSampleBuffer:sampleCount",
       "kind": "property",
@@ -92234,7 +92234,7 @@
       "macos_introduced": "10.15",
       "name": "sampleCount",
       "owner": "MTLCounterSampleBuffer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Counters22 safe metadata/descriptor/sample graph with copied names, checked labels/devices/ranges, explicit sampling-point capability, and execute-or-Unsupported conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -92251,7 +92251,7 @@
           "line": 142
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "property:MTLCounterSampleBufferDescriptor:counterSet",
       "kind": "property",
@@ -92259,7 +92259,7 @@
       "macos_introduced": "10.15",
       "name": "counterSet",
       "owner": "MTLCounterSampleBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Counters22 safe metadata/descriptor/sample graph with copied names, checked labels/devices/ranges, explicit sampling-point capability, and execute-or-Unsupported conformance.",
       "signature": "id<MTLCounterSet> _Nullable"
     },
     {
@@ -92276,7 +92276,7 @@
           "line": 146
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "property:MTLCounterSampleBufferDescriptor:label",
       "kind": "property",
@@ -92284,7 +92284,7 @@
       "macos_introduced": "10.15",
       "name": "label",
       "owner": "MTLCounterSampleBufferDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Counters22 safe metadata/descriptor/sample graph with copied names, checked labels/devices/ranges, explicit sampling-point capability, and execute-or-Unsupported conformance.",
       "signature": "NSString * _Nonnull"
     },
     {
@@ -92351,7 +92351,7 @@
           "line": 129
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "property:MTLCounterSet:counters",
       "kind": "property",
@@ -92359,7 +92359,7 @@
       "macos_introduced": "10.15",
       "name": "counters",
       "owner": "MTLCounterSet",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Counters22 safe metadata/descriptor/sample graph with copied names, checked labels/devices/ranges, explicit sampling-point capability, and execute-or-Unsupported conformance.",
       "signature": "NSArray<id<MTLCounter>> * _Nonnull"
     },
     {
@@ -92376,7 +92376,7 @@
           "line": 119
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "property:MTLCounterSet:name",
       "kind": "property",
@@ -92384,7 +92384,7 @@
       "macos_introduced": "10.15",
       "name": "name",
       "owner": "MTLCounterSet",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Counters22 safe metadata/descriptor/sample graph with copied names, checked labels/devices/ranges, explicit sampling-point capability, and execute-or-Unsupported conformance.",
       "signature": "NSString * _Nonnull"
     },
     {
@@ -104916,7 +104916,7 @@
           "line": 104
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "protocol:MTLCounter",
       "kind": "protocol",
@@ -104924,7 +104924,7 @@
       "macos_introduced": "10.15",
       "name": "MTLCounter",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Counters22 safe metadata/descriptor/sample graph with copied names, checked labels/devices/ranges, explicit sampling-point capability, and execute-or-Unsupported conformance.",
       "signature": ""
     },
     {
@@ -104937,7 +104937,7 @@
           "line": 165
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "protocol:MTLCounterSampleBuffer",
       "kind": "protocol",
@@ -104945,7 +104945,7 @@
       "macos_introduced": "10.15",
       "name": "MTLCounterSampleBuffer",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Counters22 safe metadata/descriptor/sample graph with copied names, checked labels/devices/ranges, explicit sampling-point capability, and execute-or-Unsupported conformance.",
       "signature": ""
     },
     {
@@ -104959,7 +104959,7 @@
           "line": 114
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCounters.h",
       "id": "protocol:MTLCounterSet",
       "kind": "protocol",
@@ -104967,7 +104967,7 @@
       "macos_introduced": "10.15",
       "name": "MTLCounterSet",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Counters22 safe metadata/descriptor/sample graph with copied names, checked labels/devices/ranges, explicit sampling-point capability, and execute-or-Unsupported conformance.",
       "signature": ""
     },
     {

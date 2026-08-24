@@ -1819,6 +1819,9 @@ let blit_pass_safe8 =
   ; "property:MTLBlitPassDescriptor:sampleBufferAttachments"
   ; "property:MTLBlitPassSampleBufferAttachmentDescriptor:sampleBuffer" ]
 
+let counters_safe22 =
+  [ "method:-[MTLCounter name]";"method:-[MTLCounterSampleBuffer device]";"method:-[MTLCounterSampleBuffer label]";"method:-[MTLCounterSampleBuffer resolveCounterRange:]";"method:-[MTLCounterSampleBuffer sampleCount]";"method:-[MTLCounterSampleBufferDescriptor counterSet]";"method:-[MTLCounterSampleBufferDescriptor label]";"method:-[MTLCounterSampleBufferDescriptor setCounterSet:]";"method:-[MTLCounterSampleBufferDescriptor setLabel:]";"method:-[MTLCounterSet counters]";"method:-[MTLCounterSet name]";"property:MTLCounter:name";"property:MTLCounterSampleBuffer:device";"property:MTLCounterSampleBuffer:label";"property:MTLCounterSampleBuffer:sampleCount";"property:MTLCounterSampleBufferDescriptor:counterSet";"property:MTLCounterSampleBufferDescriptor:label";"property:MTLCounterSet:counters";"property:MTLCounterSet:name";"protocol:MTLCounter";"protocol:MTLCounterSampleBuffer";"protocol:MTLCounterSet" ]
+
 let classify ~unavailable ~identifier ~header ~kind ~signature =
   if unavailable then
     Scope_excluded, "Clang marks this declaration unavailable for macOS."
@@ -1933,6 +1936,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier blit_pass_safe8 then
     Bound,
       "Implemented by the BlitPass safe8 descriptor graph with retained sample buffers, checked device/sample ranges, exact default semantics, and parent-child lifetime validation."
+  else if List.mem identifier counters_safe22 then
+    Bound,
+      "Implemented by the Counters22 safe metadata/descriptor/sample graph with copied names, checked labels/devices/ranges, explicit sampling-point capability, and execute-or-Unsupported conformance."
   else if List.mem identifier io_compressor_safe5 then
     Bound,
       "Implemented by the owned IO.Compressor lifecycle with copied configuration, checked byte ranges, synchronous consumption, exact finalization state, and real compressed-output conformance."
