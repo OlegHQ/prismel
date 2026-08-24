@@ -23,7 +23,17 @@ let enum_cases owner names =
   List.map (fun name -> "enum-case:" ^ owner ^ ":" ^ name) names
 
 let bound_identifiers =
-  [ "class:MTLFunctionDescriptor"
+  [ "method:+[MTLSharedEventListener sharedListener]"
+  ; "method:-[MTLSharedEventListener init]"
+  ; "method:-[MTLSharedEventListener initWithDispatchQueue:]"
+  ; "method:-[MTLSharedEventListener dispatchQueue]"
+  ; "property:MTLSharedEventListener:dispatchQueue"
+  ; "method:-[MTLSharedEvent newSharedEventHandle]"
+  ; "method:-[MTLSharedEventHandle label]"
+  ; "property:MTLSharedEventHandle:label"
+  ; "property:MTLEvent:device"
+  ; "method:-[MTLSharedEvent notifyListener:atValue:block:]"
+  ; "class:MTLFunctionDescriptor"
   ; "class:MTLIndirectCommandBufferDescriptor"
   ; "method:+[MTLFunctionDescriptor functionDescriptor]"
   ; "method:-[MTLFunctionDescriptor constantValues]"
