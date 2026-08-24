@@ -2754,6 +2754,9 @@ external function_constants3_set_index :
 external function_constants3_set_range :
   handle -> int -> (int64 * int64) -> string -> (unit, string) result =
   "caml_prismel_metal_function_constants3_set_range"
+external function_constants3_specialize :
+  handle -> handle -> string -> (handle, string) result =
+  "caml_prismel_metal_function_constants3_specialize"
 
 external metal4_stitched_graph_pair :
   handle -> handle array option -> handle option -> int64 array -> int64 option ->

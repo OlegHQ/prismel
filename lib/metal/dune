@@ -404,6 +404,11 @@
  (libraries metal))
 
 (test
+ (name test_metal_function_constant_values3_safe)
+ (modules test_metal_function_constant_values3_safe)
+ (libraries metal))
+
+(test
  (name test_metal4_callable_safe)
  (modules test_metal4_callable_safe)
  (libraries metal))

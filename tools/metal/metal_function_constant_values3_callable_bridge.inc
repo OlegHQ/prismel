@@ -79,3 +79,21 @@ extern "C" CAMLprim value caml_prismel_metal_function_constants3_set_range(
     CAMLreturn(result_unit());
   } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
 }
+
+extern "C" CAMLprim value caml_prismel_metal_function_constants3_specialize(
+    value library_raw, value values_raw, value name_raw) {
+  CAMLparam3(library_raw, values_raw, name_raw); CAMLlocal2(handle, result);
+  @try { id<MTLLibrary> library = object_of_handle(library_raw, Handle_kind::Library);
+    MTLFunctionConstantValues *values = object_of_handle(
+      values_raw, Handle_kind::Function_constant_values);
+    NSString *name = [NSString stringWithUTF8String:String_val(name_raw)];
+    NSError *error = nil;
+    if (name.length == 0) CAMLreturn(result_error_text("function name is empty"));
+    id<MTLFunction> function = [library newFunctionWithName:name
+      constantValues:values error:&error];
+    if (function == nil) CAMLreturn(result_error(error_description(
+      error, @"Metal function specialization failed")));
+    handle = allocate_handle(function, Handle_kind::Function);
+    result = result_ok(handle); CAMLreturn(result);
+  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
+}
