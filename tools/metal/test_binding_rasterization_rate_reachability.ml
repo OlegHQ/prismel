@@ -5,10 +5,10 @@ let () =
   let inventory_ids =
     Yojson.Safe.from_file Sys.argv.(1) |> member "symbols" |> to_list
     |> List.filter_map (fun symbol ->
-      if symbol |> member "classification" |> to_string = "unreviewed"
-         && symbol |> member "header" |> to_string
-            = "Metal/MTLRasterizationRate.h"
-      then Some (symbol |> member "id" |> to_string)
+      let id=symbol |> member "id" |> to_string in
+      let classification=symbol |> member "classification" |> to_string in
+      if List.mem id Binding_rasterization_rate_reachability.all_ids
+         && (classification="unreviewed"||classification="bound") then Some id
       else None)
     |> List.sort String.compare
   in
