@@ -2374,3 +2374,33 @@ external acceleration_encoder_refit_options :
 external acceleration_encoder_write_type :
   handle -> handle -> handle -> int64 -> int -> (unit,string) result =
   "caml_prismel_metal_acceleration_encoder_write_type"
+
+type blit_copy_spec =
+  | Blit_buffer_to_texture of int64 * int64 * int64 * int64 * int64 * int64 * int64 * int64 * int64 * int64 * int64 * int64
+  | Blit_buffer_to_buffer of int64 * int64 * int64
+  | Blit_tensor_to_tensor of handle * handle * handle * handle
+  | Blit_texture_to_buffer of int64 * int64 * int64 * int64 * int64 * int64 * int64 * int64 * int64 * int64 * int64 * int64
+  | Blit_texture_region of int64 * int64 * int64 * int64 * int64 * int64 * int64 * int64 * int64 * int64 * int64 * int64 * int64
+  | Blit_texture_levels of int64 * int64 * int64 * int64 * int64 * int64
+  | Blit_texture_whole
+  | Blit_indirect_commands of int64 * int64 * int64
+
+external blit_copy :
+  handle -> int -> handle -> handle -> blit_copy_spec -> (unit,string) result =
+  "caml_prismel_metal_blit_copy"
+external blit_fill_mipmap :
+  handle -> handle -> bool -> (int64 * int64 * int64) -> (unit,string) result =
+  "caml_prismel_metal_blit_fill_mipmap"
+external blit_fence : handle -> handle -> bool -> (unit,string) result =
+  "caml_prismel_metal_blit_fence"
+external blit_counter :
+  handle -> handle -> int64 -> int64 -> handle -> int64 -> bool ->
+  (unit,string) result =
+  "caml_prismel_metal_blit_counter_bytecode"
+  "caml_prismel_metal_blit_counter"
+external blit_texture_aux :
+  handle -> handle -> int -> int64 array -> (unit,string) result =
+  "caml_prismel_metal_blit_texture_aux"
+external blit_indirect :
+  handle -> handle -> bool -> int64 -> int64 -> (unit,string) result =
+  "caml_prismel_metal_blit_indirect"
