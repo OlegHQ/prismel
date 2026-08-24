@@ -17,6 +17,11 @@ let () =
       (Acceleration_structure.Triangle.create ~vertex_buffer:vertex
          ~vertex_stride:12L ~triangle_count:1L ())
   in
+  let owned_triangle = get (Acceleration_structure.Descriptor.create device
+    (Acceleration_structure.Descriptor.Triangle
+       {buffer=vertex;offset=0L;stride=12L;count=1L;element_size=12L})) in
+  let owned_primitive = get (Acceleration_structure.Descriptor.create device
+    (Acceleration_structure.Descriptor.Primitive [owned_triangle])) in
   let sizes = get (Acceleration_structure.sizes ~device descriptor) in
   check (sizes.acceleration_structure_size > 0L) "empty AS allocation size";
   check (sizes.build_scratch_buffer_size > 0L) "empty AS build scratch size";
@@ -112,6 +117,8 @@ let () =
     ; (fun () -> Acceleration_structure.destroy copied)
     ; (fun () -> Acceleration_structure.destroy refitted)
     ; (fun () -> Acceleration_structure.destroy source)
+    ; (fun () -> Acceleration_structure.Descriptor.destroy owned_primitive)
+    ; (fun () -> Acceleration_structure.Descriptor.destroy owned_triangle)
     ; (fun () -> Buffer.destroy compacted_size)
     ; (fun () -> Buffer.destroy scratch)
     ; (fun () -> Buffer.destroy vertex)

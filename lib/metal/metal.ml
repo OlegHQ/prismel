@@ -3349,6 +3349,19 @@ module Acceleration_structure = struct
     let destroy_geometry(value:geometry_descriptor)=destroy_parent "Metal.Acceleration_structure.Metal4_descriptor.destroy_geometry" value.lifetime value.raw(fun()->detach value.device.lifetime)
   end
 
+  module Descriptor = struct
+    type range={buffer:buffer;offset:int64;stride:int64;count:int64;element_size:int64}
+    type kind=Bounding_boxes of range|Curves of range|Triangle of range|Motion_bounding_boxes of range list|Motion_curves of range list|Motion_triangles of range list|Indirect_instances of range*range|Instances of range|Motion_keyframe of range|Primitive of t list
+    and t={raw:Metal_raw.handle;lifetime:lifetime;device:device;kind:kind;buffers:buffer list;children:t list}
+    let range_buffers=function Bounding_boxes r|Curves r|Triangle r|Instances r|Motion_keyframe r->[r.buffer]|Motion_bounding_boxes rs|Motion_curves rs|Motion_triangles rs->List.map(fun r->r.buffer)rs|Indirect_instances(a,b)->[a.buffer;b.buffer]|Primitive _->[]
+    let ranges=function Bounding_boxes r|Curves r|Triangle r|Instances r|Motion_keyframe r->[r]|Motion_bounding_boxes rs|Motion_curves rs|Motion_triangles rs->rs|Indirect_instances(a,b)->[a;b]|Primitive _->[]
+    let tag=function Bounding_boxes _->0|Curves _->1|Motion_bounding_boxes _->2|Motion_curves _->3|Motion_triangles _->4|Triangle _->5|Indirect_instances _->6|Instances _->7|Motion_keyframe _->8|Primitive _->9
+    let children=function Primitive xs->xs|_->[]
+    let create(device:Device.t)kind=let operation="Metal.Acceleration_structure.Descriptor.create"in on_main operation(fun()->match ensure_live operation device.lifetime with Error _ as e->e|Ok()->let rs=ranges kind in if (match kind with Primitive[]->true|Motion_bounding_boxes[_]|Motion_curves[_]|Motion_triangles[_]->true|_->false)then error operation Invalid_argument "descriptor requires a nonempty geometry graph and motion variants require two keyframes"else let rec validate=function []->Ok()|(r:range)::rest->match ensure_buffer_usable operation r.buffer with Error _ as e->e|Ok()when not(same_device device r.buffer.device)->error operation Device_mismatch "descriptor buffer belongs to another device"|Ok()when r.offset<0L||r.stride<r.element_size||r.count<=0L||r.element_size<=0L||r.offset>r.buffer.length||r.element_size>Int64.sub r.buffer.length r.offset||Int64.sub r.count 1L>Int64.div(Int64.sub(Int64.sub r.buffer.length r.offset)r.element_size)r.stride->error operation Invalid_argument "descriptor range/stride/count exceeds its buffer"|Ok()->validate rest in Result.bind(validate rs)(fun()->let cs=children kind in let rec validate_children=function []->Ok()|(x:t)::xs->match ensure_live operation x.lifetime with Error _ as e->e|Ok()when not(same_device device x.device)->error operation Device_mismatch "nested geometry belongs to another device"|Ok()->validate_children xs in Result.bind(validate_children cs)(fun()->match Metal_raw.acceleration_descriptor_create(tag kind)with Error m->native_error operation m|Ok raw->let buffers=range_buffers kind in List.iter(fun(b:buffer)->attach b.lifetime)buffers;List.iter(fun(x:t)->attach x.lifetime)cs;attach device.lifetime;let value={raw;lifetime=lifetime();device;kind;buffers;children=cs}in Gc.finalise(fun(value:t)->if Atomic.compare_and_set value.lifetime.destroyed false true then(begin ignore(Metal_raw.destroy value.raw);List.iter(fun(b:buffer)->detach b.lifetime)value.buffers;List.iter(fun(x:t)->detach x.lifetime)value.children;detach value.device.lifetime end))value;Ok value)))
+    let kind t=t.kind and device t=t.device and destroyed t=is_destroyed t.lifetime
+    let destroy(t:t)=destroy_parent "Metal.Acceleration_structure.Descriptor.destroy" t.lifetime t.raw(fun()->List.iter(fun(b:buffer)->detach b.lifetime)t.buffers;List.iter(fun(x:t)->detach x.lifetime)t.children;detach t.device.lifetime)
+  end
+
   type sizes =
     { acceleration_structure_size : int64
     ; build_scratch_buffer_size : int64

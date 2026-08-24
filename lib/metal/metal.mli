@@ -354,6 +354,17 @@ module Acceleration_structure : sig
     val destroy_geometry : geometry_descriptor -> (unit,error) result
   end
 
+  module Descriptor : sig
+    type range={buffer:Buffer.t;offset:int64;stride:int64;count:int64;element_size:int64}
+    type t
+    type kind=Bounding_boxes of range|Curves of range|Triangle of range|Motion_bounding_boxes of range list|Motion_curves of range list|Motion_triangles of range list|Indirect_instances of range*range|Instances of range|Motion_keyframe of range|Primitive of t list
+    val create : Device.t -> kind -> (t,error) result
+    val kind : t -> kind
+    val device : t -> Device.t
+    val destroyed : t -> bool
+    val destroy : t -> (unit,error) result
+  end
+
   type sizes =
     { acceleration_structure_size : int64
     ; build_scratch_buffer_size : int64
