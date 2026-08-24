@@ -979,6 +979,16 @@ enum class Handle_kind : std::uint32_t {
   Indirect_render_command,
   Indirect_compute_command,
   Acceleration_structure,
+  Acceleration_bbox_descriptor,
+  Acceleration_curve_descriptor,
+  Acceleration_motion_bbox_descriptor,
+  Acceleration_motion_curve_descriptor,
+  Acceleration_motion_triangle_descriptor,
+  Acceleration_triangle_owned_descriptor,
+  Acceleration_indirect_instance_descriptor,
+  Acceleration_instance_descriptor,
+  Acceleration_motion_keyframe,
+  Acceleration_primitive_descriptor,
   Acceleration_encoder,
   Acceleration_pass_descriptor,
   Acceleration_sample_attachment,
@@ -14744,6 +14754,7 @@ extern "C" CAMLprim value caml_prismel_metal_pipeline_render_imageblock_length(v
 #include "../../tools/metal/metal_indirect_command14_callable_bridge.inc"
 #include "../../tools/metal/metal_capture_scope12_callable_bridge.inc"
 #include "../../tools/metal/metal_event14_callable_bridge.inc"
+#include "../../tools/metal/metal_acceleration_structure28_callable_bridge.inc"
 #include "../../tools/metal/metal_tensor_ownership_callable_bridge.inc"
 #include "../../tools/metal/metal_resource_remaining16_bridge.inc"
 #pragma clang diagnostic pop

@@ -242,6 +242,7 @@
   ../../tools/metal/metal_indirect_command14_callable_bridge.inc
   ../../tools/metal/metal_capture_scope12_callable_bridge.inc
   ../../tools/metal/metal_event14_callable_bridge.inc
+  ../../tools/metal/metal_acceleration_structure28_callable_bridge.inc
   ../../tools/metal/metal_mesh_tile_pipeline_compile.inc
   ../../tools/metal/metal_pipeline_ownership_callable_bridge.inc
   ../../tools/metal/metal_pipeline_descriptor_mechanical_callable_bridge.inc
@@ -925,6 +926,22 @@
  (action
   (bash
    "status=0; ./test_metal_event14_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal_acceleration_structure28_native.exe)
+ (deps ../../tools/metal/test_acceleration_structure28_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -Wall -Wextra -Werror
+   -framework Foundation -framework Metal
+   %{dep:../../tools/metal/test_acceleration_structure28_native.mm}
+   -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal_acceleration_structure28_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal_acceleration_structure28_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
 
 (rule
  (targets test_metal_mesh_tile_pipeline_native.exe)

@@ -2563,3 +2563,6 @@ external shared_event_notify :
   "caml_prismel_metal_shared_event_notify"
 external shared_event_notify_cancel : nativeint -> unit =
   "caml_prismel_metal_shared_event_notify_cancel"
+
+external acceleration_descriptor_create : int -> (handle, string) result =
+  "caml_prismel_metal_acceleration_descriptor_create"
