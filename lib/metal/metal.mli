@@ -3395,6 +3395,7 @@ module Tensor : sig
   val checked_snapshot : t -> (unit,error) result
   val get_bytes : t -> bytes -> origin:int64 array -> slice_dimensions:int64 array -> byte_strides:int64 array -> (unit,error) result
   val replace_bytes : t -> bytes -> origin:int64 array -> slice_dimensions:int64 array -> byte_strides:int64 array -> (unit,error) result
+  val blit_copy : Blit_encoder.t -> source:t -> source_origin:Extents.t -> source_dimensions:Extents.t -> destination:t -> destination_origin:Extents.t -> destination_dimensions:Extents.t -> (unit,error) result
   val destroyed : t -> bool
   val destroy : t -> (unit,error) result
 end

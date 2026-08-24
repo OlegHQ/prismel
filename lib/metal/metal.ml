@@ -18137,6 +18137,23 @@ module Blit_encoder = struct
                  | Ok()->retain_command_buffer_indirect value.command_buffer source;
                     retain_command_buffer_indirect value.command_buffer destination;Ok())))))
 
+  let copy_tensor_private (value:t) (source:resource100_tensor)
+      (destination:resource100_tensor) source_origin source_dimensions
+      destination_origin destination_dimensions =
+    let operation="Metal.Blit_encoder.copy_tensor" in
+    on_main operation (fun()->match ensure_live operation value.lifetime with
+      | Error _ as failure->failure
+      | Ok()->Result.bind(ensure_live operation source.lifetime)(fun()->
+          Result.bind(ensure_live operation destination.lifetime)(fun()->
+            Result.bind(ensure_same_device operation value.command_buffer.queue.device source.buffer.device)(fun()->
+              Result.bind(ensure_same_device operation source.buffer.device destination.buffer.device)(fun()->
+                match Metal_raw.blit_copy value.raw 2 source.raw destination.raw
+                  (Metal_raw.Blit_tensor_to_tensor(source_origin,source_dimensions,
+                    destination_origin,destination_dimensions))with
+                |Error message->native_error operation message
+                |Ok()->retain_command_buffer_buffer value.command_buffer source.buffer;
+                    retain_command_buffer_buffer value.command_buffer destination.buffer;Ok())))))
+
   let fence_call operation update (value:t) (fence:Fence.t) =
     on_main operation (fun () -> match ensure_live operation value.lifetime with
       | Error _ as failure -> failure
@@ -18756,6 +18773,17 @@ module Tensor = struct
               | Error m->native_error op m | Ok()->Ok()))
   let get_bytes value bytes ~origin ~slice_dimensions ~byte_strides=transfer false value bytes~origin~slice_dimensions~byte_strides
   let replace_bytes value bytes ~origin ~slice_dimensions ~byte_strides=transfer true value bytes~origin~slice_dimensions~byte_strides
+  let blit_copy (encoder:Blit_encoder.t) ~(source:t) ~(source_origin:Extents.t)
+      ~(source_dimensions:Extents.t) ~(destination:t)
+      ~(destination_origin:Extents.t) ~(destination_dimensions:Extents.t) =
+    let op="Metal.Tensor.blit_copy" in
+    let extents=[source_origin;source_dimensions;destination_origin;destination_dimensions]in
+    match List.find_opt(fun (x:Extents.t)->is_destroyed x.lifetime)extents with
+    |Some _->error op Destroyed "tensor copy contains destroyed extents"
+    |None when List.exists(fun(x:Extents.t)->Extents.rank x<>Array.length source.dimensions)extents->
+        error op Invalid_argument "tensor copy rank disagrees with tensors"
+    |None->Blit_encoder.copy_tensor_private encoder source destination
+        source_origin.raw source_dimensions.raw destination_origin.raw destination_dimensions.raw
   let destroyed=Resource100.Tensor.destroyed
   let destroy=Resource100.Tensor.destroy
 end
