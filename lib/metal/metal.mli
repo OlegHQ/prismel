@@ -39,6 +39,7 @@ type render_pipeline
 type compute_pipeline
 type depth_stencil
 type binary_archive
+type counter_sample_buffer
 
 (** Copied values of immutable, typed NSString globals exported by the Metal
     SDK. Each call returns an independently owned OCaml string. *)
@@ -1891,6 +1892,7 @@ module Render_pipeline : sig
     type buffer_descriptor
     type color_attachment
     type descriptor_kind=Render_descriptor|Mesh_descriptor|Tile_descriptor
+    type buffer_stage=Vertex_buffers|Fragment_buffers|Object_buffers|Mesh_buffers|Tile_buffers
     type pipeline_descriptor
     type color_attachment_array
     val descriptor : ?label:string -> descriptor_kind -> (pipeline_descriptor,error) result
@@ -1901,6 +1903,8 @@ module Render_pipeline : sig
     val descriptor_color : pipeline_descriptor -> index:int -> (color_attachment option,error) result
     val set_descriptor_color : pipeline_descriptor -> index:int -> color_attachment option -> (unit,error) result
     val descriptor_colors : pipeline_descriptor -> color_attachment_array
+    val descriptor_color_formats : pipeline_descriptor -> (Texture.format option array,error) result
+    val descriptor_buffer_mutabilities : pipeline_descriptor -> buffer_stage -> (mutability array,error) result
     val destroy_descriptor : pipeline_descriptor -> (unit,error) result
     val buffer_descriptor : ?mutability:mutability -> unit -> (buffer_descriptor,error) result
     val set_buffer_mutability : buffer_descriptor -> mutability -> (unit,error) result
@@ -1910,6 +1914,8 @@ module Render_pipeline : sig
     val color_attachment_format : color_attachment -> Texture.format
     val mesh_descriptor : ?label:string -> ?object_function:Function.t -> ?fragment_function:Function.t -> ?binary_archives:Binary_archive.t list -> mesh_function:Function.t -> depth_format:Texture.format -> stencil_format:Texture.format -> required_mesh_threads:size3 -> required_object_threads:size3 -> unit -> (mesh_descriptor,error) result
     val mesh_binary_archives : mesh_descriptor -> (Binary_archive.t list,error) result
+    val mesh_color_formats : mesh_descriptor -> (Texture.format option array,error) result
+    val mesh_buffer_mutabilities : mesh_descriptor -> buffer_stage -> (mutability array,error) result
     val mesh_object_function : mesh_descriptor -> (Function.t option,error) result
     val mesh_mesh_function : mesh_descriptor -> (Function.t,error) result
     val mesh_fragment_function : mesh_descriptor -> (Function.t option,error) result
@@ -1919,6 +1925,8 @@ module Render_pipeline : sig
     val set_mesh_fragment_function : mesh_descriptor -> Function.t option -> (unit,error) result
     val tile_descriptor : ?label:string -> ?binary_archives:Binary_archive.t list -> ?preloaded_libraries:Dynamic_library.t list -> tile_function:Function.t -> required_threads:size3 -> unit -> (tile_descriptor,error) result
     val tile_binary_archives : tile_descriptor -> (Binary_archive.t list,error) result
+    val tile_color_formats : tile_descriptor -> (Texture.format option array,error) result
+    val tile_buffer_mutabilities : tile_descriptor -> (mutability array,error) result
     val tile_preloaded_libraries : tile_descriptor -> (Dynamic_library.t list,error) result
     val tile_function : tile_descriptor -> (Function.t,error) result
     val set_tile_binary_archives : tile_descriptor -> Binary_archive.t list -> (unit,error) result
@@ -3168,6 +3176,7 @@ module Compute_encoder : sig
   val set_stage_in_region : t -> region -> (unit,error) result
   val set_stage_in_region_indirect : t -> Buffer.t -> offset:int64 -> (unit,error) result
   val set_threadgroup_memory_length : t -> index:int -> length:int64 -> (unit,error) result
+  val sample_counters : t -> counter_sample_buffer -> index:int64 -> barrier:bool -> (unit,error) result
   val update_fence : t -> Fence.t -> (unit,error) result
   val wait_for_fence : t -> Fence.t -> (unit,error) result
   val use_heaps : t -> Heap.t list -> (unit,error) result
@@ -3412,7 +3421,7 @@ end
 
 module Resource100 : sig
   type tensor
-  type sample_buffer
+  type sample_buffer = counter_sample_buffer
   module Texture_reference_type : sig
     type t =
       { data_type : Data_type.t
