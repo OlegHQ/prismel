@@ -38,7 +38,9 @@ let pool_core =
   ; "property:MTLResourceViewPool:resourceViewCount"
   ]
 
-let safe_constructor_core = [ "class:MTLResourceStatePassDescriptor" ]
+let safe_constructor_core =
+  [ "class:MTLResourceStatePassDescriptor"
+  ; "class:MTLResourceStatePassSampleBufferAttachmentDescriptorArray" ]
 
 let has_public_operation id =
   mem id Binding_resource_integration_partition.descriptor_owned
@@ -49,7 +51,9 @@ let has_public_operation id =
   || mem id pool_core
 
 let public_operation id =
-  if contains id "sampleBufferAttachments" then
+  if id = "class:MTLResourceStatePassSampleBufferAttachmentDescriptorArray" then
+    "Metal.Resource100.Resource_state_pass.sample_attachment/set_sample_attachment"
+  else if contains id "sampleBufferAttachments" then
     "Metal.Resource100.Resource_state_pass.sample_attachment/set_sample_attachment"
   else if contains id "AttachmentDescriptorArray object" then
     "Metal.Resource100.Resource_state_pass.sample_attachment"
