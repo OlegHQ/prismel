@@ -23,7 +23,15 @@ let enum_cases owner names =
   List.map (fun name -> "enum-case:" ^ owner ^ ":" ^ name) names
 
 let bound_identifiers =
-  [ "method:+[MTLSharedEventListener sharedListener]"
+  [ "method:-[MTLDrawable addPresentedHandler:]"
+  ; "method:-[MTLDrawable drawableID]"
+  ; "method:-[MTLDrawable presentAfterMinimumDuration:]"
+  ; "method:-[MTLDrawable presentAtTime:]"
+  ; "method:-[MTLDrawable present]"
+  ; "method:-[MTLDrawable presentedTime]"
+  ; "property:MTLDrawable:drawableID"
+  ; "property:MTLDrawable:presentedTime"
+  ; "method:+[MTLSharedEventListener sharedListener]"
   ; "method:-[MTLSharedEventListener init]"
   ; "method:-[MTLSharedEventListener initWithDispatchQueue:]"
   ; "method:-[MTLSharedEventListener dispatchQueue]"
@@ -1841,6 +1849,19 @@ let parallel_render_safe7 =
   ; "method:-[MTLParallelRenderCommandEncoder setStencilStoreAction:]"
   ; "method:-[MTLParallelRenderCommandEncoder setStencilStoreActionOptions:]" ]
 
+let binary_archive_safe2 =
+  [ "method:-[MTLBinaryArchive addFunctionWithDescriptor:library:error:]"
+  ; "method:-[MTLBinaryArchive addRenderPipelineFunctionsWithDescriptor:error:]" ]
+
+let log_state_safe7 =
+  [ "method:-[MTLLogState addLogHandler:]"
+  ; "method:-[MTLLogStateDescriptor bufferSize]"
+  ; "method:-[MTLLogStateDescriptor level]"
+  ; "method:-[MTLLogStateDescriptor setBufferSize:]"
+  ; "method:-[MTLLogStateDescriptor setLevel:]"
+  ; "property:MTLLogStateDescriptor:bufferSize"
+  ; "property:MTLLogStateDescriptor:level" ]
+
 let classify ~unavailable ~identifier ~header ~kind ~signature =
   if unavailable then
     Scope_excluded, "Clang marks this declaration unavailable for macOS."
@@ -1964,6 +1985,12 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier parallel_render_safe7 then
     Bound,
       "Implemented by the ParallelRender7 safe parent/child graph with retained pass attachments, checked store writes, exact child ordering, completion ownership, and 256-command native/safe conformance."
+  else if List.mem identifier binary_archive_safe2 then
+    Bound,
+      "Implemented by configured BinaryArchive function/render descriptors with native-first mutation, same-device live validation, retained library/function ownership, NSError propagation, and real serialize/reopen persistence."
+  else if List.mem identifier log_state_safe7 then
+    Bound,
+      "Implemented by the LogState safe7 descriptor and persistent handler API with checked snapshots, rooted multi-shot callbacks, draining cancellation, and owned cleanup."
   else if List.mem identifier Binding_command_buffer19_safe_closure.promotable_ids then
     Bound,
       "Implemented by the CommandBuffer19 safe descriptor/callback closure with retained log-state and resources, exact-once completion, queue ownership, and error-only EncoderInfo snapshots."

@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4919,
+    "bound": 4936,
     "scope-excluded": 37,
-    "unreviewed": 329
+    "unreviewed": 312
   },
-  "classification_source_sha256": "2ed43a52cab9873a7389c5417b5d70341d12400242b1063fe63ce4f8e3edb1a5",
+  "classification_source_sha256": "c9998709b7b046d163ee9c0d7e7dfd97ee6b5fcd81763543b7ea8d477a3684d7",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -47477,7 +47477,7 @@
           "line": 138
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBinaryArchive.h",
       "id": "method:-[MTLBinaryArchive addFunctionWithDescriptor:library:error:]",
       "kind": "method",
@@ -47485,7 +47485,7 @@
       "macos_introduced": "12.0",
       "name": "addFunctionWithDescriptor:library:error:",
       "owner": "MTLBinaryArchive",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by configured BinaryArchive function/render descriptors with native-first mutation, same-device live validation, retained library/function ownership, NSError propagation, and real serialize/reopen persistence.",
       "signature": "instance (MTLFunctionDescriptor * _Nonnull __strong, id<MTLLibrary>  _Nonnull __strong, NSError *__autoreleasing  _Nullable * _Nullable) -> BOOL"
     },
     {
@@ -47546,7 +47546,7 @@
           "line": 60
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBinaryArchive.h",
       "id": "method:-[MTLBinaryArchive addRenderPipelineFunctionsWithDescriptor:error:]",
       "kind": "method",
@@ -47554,7 +47554,7 @@
       "macos_introduced": "11.0",
       "name": "addRenderPipelineFunctionsWithDescriptor:error:",
       "owner": "MTLBinaryArchive",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by configured BinaryArchive function/render descriptors with native-first mutation, same-device live validation, retained library/function ownership, NSError propagation, and real serialize/reopen persistence.",
       "signature": "instance (MTLRenderPipelineDescriptor * _Nonnull __strong, NSError *__autoreleasing  _Nullable * _Nullable) -> BOOL"
     },
     {
@@ -58292,7 +58292,7 @@
           "line": 45
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDrawable.h",
       "id": "method:-[MTLDrawable addPresentedHandler:]",
       "kind": "method",
@@ -58300,7 +58300,7 @@
       "macos_introduced": "10.15.4",
       "name": "addPresentedHandler:",
       "owner": "MTLDrawable",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (MTLDrawablePresentedHandler  _Nonnull __strong) -> void"
     },
     {
@@ -58317,7 +58317,7 @@
           "line": 59
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDrawable.h",
       "id": "method:-[MTLDrawable drawableID]",
       "kind": "method",
@@ -58325,7 +58325,7 @@
       "macos_introduced": "10.15.4",
       "name": "drawableID",
       "owner": "MTLDrawable",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -58342,7 +58342,7 @@
           "line": 39
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDrawable.h",
       "id": "method:-[MTLDrawable presentAfterMinimumDuration:]",
       "kind": "method",
@@ -58350,7 +58350,7 @@
       "macos_introduced": "10.15.4",
       "name": "presentAfterMinimumDuration:",
       "owner": "MTLDrawable",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (CFTimeInterval) -> void"
     },
     {
@@ -58361,7 +58361,7 @@
           "line": 25
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDrawable.h",
       "id": "method:-[MTLDrawable presentAtTime:]",
       "kind": "method",
@@ -58369,7 +58369,7 @@
       "macos_introduced": "10.11",
       "name": "presentAtTime:",
       "owner": "MTLDrawable",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance (CFTimeInterval) -> void"
     },
     {
@@ -58380,7 +58380,7 @@
           "line": 25
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDrawable.h",
       "id": "method:-[MTLDrawable present]",
       "kind": "method",
@@ -58388,7 +58388,7 @@
       "macos_introduced": "10.11",
       "name": "present",
       "owner": "MTLDrawable",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> void"
     },
     {
@@ -58405,7 +58405,7 @@
           "line": 52
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDrawable.h",
       "id": "method:-[MTLDrawable presentedTime]",
       "kind": "method",
@@ -58413,7 +58413,7 @@
       "macos_introduced": "10.15.4",
       "name": "presentedTime",
       "owner": "MTLDrawable",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "instance () -> CFTimeInterval"
     },
     {
@@ -65132,7 +65132,7 @@
           "line": 31
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLogState.h",
       "id": "method:-[MTLLogState addLogHandler:]",
       "kind": "method",
@@ -65140,7 +65140,7 @@
       "macos_introduced": "15.0",
       "name": "addLogHandler:",
       "owner": "MTLLogState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the LogState safe7 descriptor and persistent handler API with checked snapshots, rooted multi-shot callbacks, draining cancellation, and owned cleanup.",
       "signature": "instance (void (^ _Nonnull __strong)(NSString * _Nullable __strong, NSString * _Nullable __strong, MTLLogLevel, NSString * _Nonnull __strong)) -> void"
     },
     {
@@ -65151,7 +65151,7 @@
           "line": 41
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLogState.h",
       "id": "method:-[MTLLogStateDescriptor bufferSize]",
       "kind": "method",
@@ -65159,7 +65159,7 @@
       "macos_introduced": "15.0",
       "name": "bufferSize",
       "owner": "MTLLogStateDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the LogState safe7 descriptor and persistent handler API with checked snapshots, rooted multi-shot callbacks, draining cancellation, and owned cleanup.",
       "signature": "instance () -> NSInteger"
     },
     {
@@ -65170,7 +65170,7 @@
           "line": 41
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLogState.h",
       "id": "method:-[MTLLogStateDescriptor level]",
       "kind": "method",
@@ -65178,7 +65178,7 @@
       "macos_introduced": "15.0",
       "name": "level",
       "owner": "MTLLogStateDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the LogState safe7 descriptor and persistent handler API with checked snapshots, rooted multi-shot callbacks, draining cancellation, and owned cleanup.",
       "signature": "instance () -> MTLLogLevel"
     },
     {
@@ -65189,7 +65189,7 @@
           "line": 41
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLogState.h",
       "id": "method:-[MTLLogStateDescriptor setBufferSize:]",
       "kind": "method",
@@ -65197,7 +65197,7 @@
       "macos_introduced": "15.0",
       "name": "setBufferSize:",
       "owner": "MTLLogStateDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the LogState safe7 descriptor and persistent handler API with checked snapshots, rooted multi-shot callbacks, draining cancellation, and owned cleanup.",
       "signature": "instance (NSInteger) -> void"
     },
     {
@@ -65208,7 +65208,7 @@
           "line": 41
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLogState.h",
       "id": "method:-[MTLLogStateDescriptor setLevel:]",
       "kind": "method",
@@ -65216,7 +65216,7 @@
       "macos_introduced": "15.0",
       "name": "setLevel:",
       "owner": "MTLLogStateDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the LogState safe7 descriptor and persistent handler API with checked snapshots, rooted multi-shot callbacks, draining cancellation, and owned cleanup.",
       "signature": "instance (MTLLogLevel) -> void"
     },
     {
@@ -93628,7 +93628,7 @@
           "line": 59
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDrawable.h",
       "id": "property:MTLDrawable:drawableID",
       "kind": "property",
@@ -93636,7 +93636,7 @@
       "macos_introduced": "10.15.4",
       "name": "drawableID",
       "owner": "MTLDrawable",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "NSUInteger"
     },
     {
@@ -93653,7 +93653,7 @@
           "line": 52
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDrawable.h",
       "id": "property:MTLDrawable:presentedTime",
       "kind": "property",
@@ -93661,7 +93661,7 @@
       "macos_introduced": "10.15.4",
       "name": "presentedTime",
       "owner": "MTLDrawable",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": "CFTimeInterval"
     },
     {
@@ -96550,7 +96550,7 @@
           "line": 41
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLogState.h",
       "id": "property:MTLLogStateDescriptor:bufferSize",
       "kind": "property",
@@ -96558,7 +96558,7 @@
       "macos_introduced": "15.0",
       "name": "bufferSize",
       "owner": "MTLLogStateDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the LogState safe7 descriptor and persistent handler API with checked snapshots, rooted multi-shot callbacks, draining cancellation, and owned cleanup.",
       "signature": "NSInteger"
     },
     {
@@ -96569,7 +96569,7 @@
           "line": 41
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLogState.h",
       "id": "property:MTLLogStateDescriptor:level",
       "kind": "property",
@@ -96577,7 +96577,7 @@
       "macos_introduced": "15.0",
       "name": "level",
       "owner": "MTLLogStateDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the LogState safe7 descriptor and persistent handler API with checked snapshots, rooted multi-shot callbacks, draining cancellation, and owned cleanup.",
       "signature": "MTLLogLevel"
     },
     {

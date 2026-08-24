@@ -825,6 +825,13 @@
  (modules test_binding_drawable_safe_package binding_drawable_safe_package))
 
 (test
+ (name test_binding_drawable8_safe_closure)
+ (modules test_binding_drawable8_safe_closure binding_drawable_safe_package)
+ (libraries yojson)
+ (deps ../../lib/metal/generated_api_inventory.json)
+ (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
+
+(test
  (name test_binding_log_state_handoff)
  (modules test_binding_log_state_handoff binding_log_state_handoff)
  (libraries yojson)
