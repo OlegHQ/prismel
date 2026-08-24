@@ -11,6 +11,23 @@ let expect kind = function
 
 let () =
   let device = get (Device.system_default ()) in
+  let rate_layer=get(Rasterization_rate_layer.create~horizontal:[|1.|]~vertical:[|1.|])in
+  get(Rasterization_rate_layer.set_sample rate_layer~vertical:false~index:0L 0.75);
+  if get(Rasterization_rate_layer.sample rate_layer~vertical:false~index:0L)<>0.75 then fail "rasterization sample drift";
+  let rate_descriptor=get(Rasterization_rate_descriptor.create~width:16L~height:8L~label:"rate"[|rate_layer|])in
+  (match Rasterization_rate_map.create device rate_descriptor with
+   | Error {kind=Unsupported;_}->()
+   | Error error->fail "%s"(Format.asprintf"%a"pp_error error)
+   | Ok map->
+       if Rasterization_rate_map.layer_count map<>1 then fail "rasterization layer count drift";
+       ignore(get(Rasterization_rate_map.physical_size map~layer:0));
+       let size,alignment=Rasterization_rate_map.parameter_size_and_alignment map in
+       let storage=get(Buffer.create~device~length:(Int64.add size alignment)~storage:Buffer.Shared())in
+       get(Rasterization_rate_map.copy_parameters map storage~offset:0L);
+       get(Buffer.destroy storage);get(Rasterization_rate_map.destroy map));
+  expect Parent_has_dependents(Rasterization_rate_layer.destroy rate_layer);
+  get(Rasterization_rate_descriptor.destroy rate_descriptor);
+  get(Rasterization_rate_layer.destroy rate_layer);
   let queue = get (Command_queue.create device) in
   let layer = get (Metal_layer.create device (Metal_layer.default ~width:8 ~height:8)) in
   expect Unsupported

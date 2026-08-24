@@ -825,11 +825,45 @@ module Drawable : sig
   val destroy : t -> (unit,error) result
 end
 
+module Rasterization_rate_layer : sig
+  type t
+  val create : horizontal:float array -> vertical:float array -> (t,error) result
+  val sample_count : t -> int64 * int64
+  val max_sample_count : t -> int64 * int64
+  val samples : t -> float array * float array
+  val set_sample_count : t -> width:int64 -> height:int64 -> (unit,error) result
+  val sample : t -> vertical:bool -> index:int64 -> (float,error) result
+  val set_sample : t -> vertical:bool -> index:int64 -> float -> (unit,error) result
+  val destroyed : t -> bool
+  val destroy : t -> (unit,error) result
+end
+
+module Rasterization_rate_descriptor : sig
+  type t
+  val create : width:int64 -> height:int64 -> ?label:string -> Rasterization_rate_layer.t array -> (t,error) result
+  val screen_size : t -> int64 * int64
+  val label : t -> string option
+  val layer_count : t -> int
+  val layer : t -> index:int -> Rasterization_rate_layer.t option
+  val set_layer : t -> index:int -> Rasterization_rate_layer.t option -> (unit,error) result
+  val set_metadata : t -> width:int64 -> height:int64 -> ?label:string -> unit -> (unit,error) result
+  val destroyed : t -> bool
+  val destroy : t -> (unit,error) result
+end
+
 module Rasterization_rate_map : sig
   type t
   val create_uniform : Device.t -> width:int64 -> height:int64 -> (t,error) result
+  val create : Device.t -> Rasterization_rate_descriptor.t -> (t,error) result
   val device : t -> Device.t
   val screen_size : t -> int64 * int64
+  val layer_count : t -> int
+  val physical_granularity : t -> int64 * int64
+  val parameter_size_and_alignment : t -> int64 * int64
+  val label : t -> string option
+  val physical_size : t -> layer:int -> (int64 * int64,error) result
+  val coordinate : t -> layer:int -> physical_to_screen:bool -> float * float -> (float * float,error) result
+  val copy_parameters : t -> Buffer.t -> offset:int64 -> (unit,error) result
   val destroyed : t -> bool
   val destroy : t -> (unit,error) result
 end

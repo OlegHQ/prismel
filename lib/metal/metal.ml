@@ -808,7 +808,21 @@ and rasterization_rate_map =
   ; lifetime : lifetime
   ; device : device
   ; screen_width : int64
-  ; screen_height : int64 }
+  ; screen_height : int64; layer_count:int
+  ; physical_width:int64; physical_height:int64
+  ; parameter_size:int64; parameter_alignment:int64; rate_label:string option }
+
+and rasterization_rate_layer =
+  { raw:Metal_raw.handle; lifetime:lifetime
+  ; mutable sample_width:int64; mutable sample_height:int64
+  ; max_width:int64; max_height:int64
+  ; horizontal:float array; vertical:float array }
+
+and rasterization_rate_descriptor =
+  { raw:Metal_raw.handle; lifetime:lifetime
+  ; mutable rate_width:int64; mutable rate_height:int64
+  ; mutable descriptor_label:string option
+  ; layers:rasterization_rate_layer option array }
 
 and external_memory =
   { raw : Metal_raw.handle
@@ -6127,6 +6141,32 @@ module Drawable = struct
   let destroy (value:t)=destroy_parent "Metal.Drawable.destroy" value.lifetime value.raw(fun()->detach value.layer.lifetime)
 end
 
+module Rasterization_rate_layer = struct
+  type t=rasterization_rate_layer
+  let create ~horizontal ~vertical=let op="Metal.Rasterization_rate_layer.create"in on_main op(fun()->let horizontal=Array.copy horizontal and vertical=Array.copy vertical in if Array.length horizontal=0||Array.length vertical=0||Array.exists(fun x->not(Float.is_finite x)||x<0.||x>1.)horizontal||Array.exists(fun x->not(Float.is_finite x)||x<0.||x>1.)vertical then error op Invalid_argument "rasterization samples must be nonempty finite normalized values"else let width=Int64.of_int(Array.length horizontal)and height=Int64.of_int(Array.length vertical)in match Metal_raw.raster_rate_layer_create(width,height,0L)horizontal vertical with Error m->native_error op m|Ok raw->match Metal_raw.raster_rate_layer_snapshot raw with Error m->ignore(Metal_raw.destroy raw);native_error op m|Ok(_, (max_width,max_height,_),_,_)->let value:t={raw;lifetime=lifetime();sample_width=width;sample_height=height;max_width;max_height;horizontal;vertical}in Gc.finalise(fun(value:t)->if Atomic.compare_and_set value.lifetime.destroyed false true then ignore(Metal_raw.destroy value.raw))value;Ok value)
+  let sample_count t=t.sample_width,t.sample_height
+  let max_sample_count t=t.max_width,t.max_height
+  let samples t=Array.copy t.horizontal,Array.copy t.vertical
+  let set_sample_count (t:rasterization_rate_layer) ~width ~height=let op="Metal.Rasterization_rate_layer.set_sample_count"in on_main op(fun()->match ensure_live op t.lifetime with Error _ as e->e|Ok()when width<=0L||height<=0L||width>t.max_width||height>t.max_height->error op Invalid_argument "sample count exceeds layer capacity"|Ok()->match Metal_raw.raster_rate_layer_set_count t.raw(width,height,0L)with Error m->native_error op m|Ok()->t.sample_width<-width;t.sample_height<-height;Ok())
+  let sample (t:rasterization_rate_layer) ~vertical ~index=let op="Metal.Rasterization_rate_layer.sample"in on_main op(fun()->match ensure_live op t.lifetime with Error _ as e->e|Ok()when index<0L||index>=(if vertical then t.sample_height else t.sample_width)->error op Invalid_argument "sample index is out of range"|Ok()->match Metal_raw.raster_rate_sample t.raw vertical index false 0. with Error m->native_error op m|Ok x->Ok x)
+  let set_sample (t:rasterization_rate_layer) ~vertical ~index rate=let op="Metal.Rasterization_rate_layer.set_sample"in on_main op(fun()->match ensure_live op t.lifetime with Error _ as e->e|Ok()when index<0L||index>=(if vertical then t.sample_height else t.sample_width)||not(Float.is_finite rate)||rate<0.||rate>1.->error op Invalid_argument "sample index or value is invalid"|Ok()->match Metal_raw.raster_rate_sample t.raw vertical index true rate with Error m->native_error op m|Ok actual->if vertical then t.vertical.(Int64.to_int index)<-actual else t.horizontal.(Int64.to_int index)<-actual;Ok())
+  let destroyed (t:t)=is_destroyed t.lifetime
+  let destroy (t:t)=destroy_parent "Metal.Rasterization_rate_layer.destroy" t.lifetime t.raw(fun()->())
+end
+
+module Rasterization_rate_descriptor = struct
+  type t=rasterization_rate_descriptor
+  let create ~width ~height ?label layers=let op="Metal.Rasterization_rate_descriptor.create"in on_main op(fun()->if width<=0L||height<=0L||Array.length layers=0||option_exists contains_nul label then error op Invalid_argument "rasterization descriptor dimensions/layers/label are invalid"else match Array.find_opt(fun(layer:Rasterization_rate_layer.t)->is_destroyed layer.lifetime)layers with Some _->error op Destroyed "rasterization layer is destroyed"|None->match Metal_raw.raster_rate_descriptor_create(width,height,0L)(Array.map(fun(layer:Rasterization_rate_layer.t)->layer.raw)layers)label with Error m->native_error op m|Ok raw->let retained=Array.map Option.some layers in Array.iter(fun(layer:Rasterization_rate_layer.t)->attach layer.lifetime)layers;let value:t={raw;lifetime=lifetime();rate_width=width;rate_height=height;descriptor_label=label;layers=retained}in Gc.finalise(fun(value:t)->if Atomic.compare_and_set value.lifetime.destroyed false true then(begin ignore(Metal_raw.destroy value.raw);Array.iter(Option.iter(fun(layer:rasterization_rate_layer)->detach layer.lifetime))value.layers end))value;Ok value)
+  let screen_size t=t.rate_width,t.rate_height
+  let label t=t.descriptor_label
+  let layer_count t=Array.length t.layers
+  let layer t ~index=if index<0||index>=Array.length t.layers then None else t.layers.(index)
+  let set_layer (t:rasterization_rate_descriptor) ~index (next:rasterization_rate_layer option)=let op="Metal.Rasterization_rate_descriptor.set_layer"in on_main op(fun()->match ensure_live op t.lifetime with Error _ as e->e|Ok()when index<0||index>=Array.length t.layers->error op Invalid_argument "layer index is out of range"|Ok()->match next with Some layer when is_destroyed layer.lifetime->error op Destroyed "replacement layer is destroyed"|_->match Metal_raw.raster_rate_descriptor_layer t.raw(Int64.of_int index)(Option.map(fun(layer:rasterization_rate_layer)->layer.raw)next)with Error m->native_error op m|Ok returned->Option.iter(fun raw->ignore(Metal_raw.destroy raw))returned;Option.iter(fun(layer:rasterization_rate_layer)->attach layer.lifetime)next;Option.iter(fun(layer:rasterization_rate_layer)->detach layer.lifetime)t.layers.(index);t.layers.(index)<-next;Ok())
+  let set_metadata (t:rasterization_rate_descriptor) ~width ~height ?label ()=let op="Metal.Rasterization_rate_descriptor.set_metadata"in on_main op(fun()->match ensure_live op t.lifetime with Error _ as e->e|Ok()when width<=0L||height<=0L||option_exists contains_nul label->error op Invalid_argument "descriptor metadata is invalid"|Ok()->match Metal_raw.raster_rate_descriptor_set t.raw(width,height,0L)label with Error m->native_error op m|Ok()->t.rate_width<-width;t.rate_height<-height;t.descriptor_label<-label;Ok())
+  let destroyed (t:t)=is_destroyed t.lifetime
+  let destroy (t:rasterization_rate_descriptor)=destroy_parent "Metal.Rasterization_rate_descriptor.destroy" t.lifetime t.raw(fun()->Array.iter(Option.iter(fun(layer:rasterization_rate_layer)->detach layer.lifetime))t.layers)
+end
+
 module Rasterization_rate_map = struct
   type t = rasterization_rate_map
   let create_uniform (device:Device.t) ~width ~height =
@@ -6145,12 +6185,20 @@ module Rasterization_rate_map = struct
               match created with
               | Error message->native_error operation message
               | Ok raw->
-                  let value:t={raw;lifetime=lifetime();device;screen_width=width;screen_height=height} in
+                  let value:t={raw;lifetime=lifetime();device;screen_width=width;screen_height=height;layer_count=0;physical_width=0L;physical_height=0L;parameter_size=0L;parameter_alignment=0L;rate_label=None} in
                   attach device.lifetime;
                   attach_finalizer value value.lifetime device.lifetime;
                   Ok value)
   let device(value:t)=value.device
   let screen_size(value:t)=value.screen_width,value.screen_height
+  let create (device:Device.t)(descriptor:Rasterization_rate_descriptor.t)=let op="Metal.Rasterization_rate_map.create"in on_main op(fun()->match ensure_live op device.lifetime with Error _ as e->e|Ok()->match ensure_live op descriptor.lifetime with Error _ as e->e|Ok()->match Metal_raw.raster_rate_map_create device.raw descriptor.raw with Error m->error op Unsupported m|Ok raw->match Metal_raw.raster_rate_map_snapshot raw with Error m->ignore(Metal_raw.destroy raw);native_error op m|Ok((screen_width,screen_height,_),(physical_width,physical_height,_),layers,(parameter_size,parameter_alignment),rate_label,registry)when registry=device.registry_id->let value:t={raw;lifetime=lifetime();device;screen_width;screen_height;layer_count=Int64.to_int layers;physical_width;physical_height;parameter_size;parameter_alignment;rate_label}in attach device.lifetime;attach_finalizer value value.lifetime device.lifetime;Ok value|Ok _->ignore(Metal_raw.destroy raw);error op Device_mismatch "rasterization map device changed")
+  let layer_count value=value.layer_count
+  let physical_granularity value=value.physical_width,value.physical_height
+  let parameter_size_and_alignment value=value.parameter_size,value.parameter_alignment
+  let label value=value.rate_label
+  let physical_size (value:t) ~layer=let op="Metal.Rasterization_rate_map.physical_size"in on_main op(fun()->match ensure_live op value.lifetime with Error _ as e->e|Ok()when layer<0||layer>=value.layer_count->error op Invalid_argument "layer index is out of range"|Ok()->match Metal_raw.raster_rate_map_physical_size value.raw(Int64.of_int layer)with Error m->native_error op m|Ok(w,h,_)->Ok(w,h))
+  let coordinate (value:t) ~layer ~physical_to_screen point=let op="Metal.Rasterization_rate_map.coordinate"in on_main op(fun()->match ensure_live op value.lifetime with Error _ as e->e|Ok()when layer<0||layer>=value.layer_count||not(Float.is_finite(fst point)&&Float.is_finite(snd point))->error op Invalid_argument "coordinate query is invalid"|Ok()->match Metal_raw.raster_rate_map_coordinate value.raw(Int64.of_int layer)physical_to_screen point with Error m->native_error op m|Ok x->Ok x)
+  let copy_parameters (value:t) (buffer:Buffer.t) ~offset=let op="Metal.Rasterization_rate_map.copy_parameters"in on_main op(fun()->match ensure_live op value.lifetime with Error _ as e->e|Ok()->match ensure_buffer_usable op buffer with Error _ as e->e|Ok()when not(same_device value.device buffer.device)->error op Device_mismatch "parameter buffer belongs to another device"|Ok()when offset<0L||offset>buffer.length||value.parameter_size>Int64.sub buffer.length offset||(value.parameter_alignment>0L&&Int64.rem offset value.parameter_alignment<>0L)->error op Invalid_argument "parameter buffer range/alignment is invalid"|Ok()->match Metal_raw.raster_rate_map_copy_parameters value.raw buffer.raw offset with Error m->native_error op m|Ok()->Ok())
   let destroyed(value:t)=is_destroyed value.lifetime
   let destroy(value:t)=destroy_parent "Metal.Rasterization_rate_map.destroy" value.lifetime value.raw(fun()->detach value.device.lifetime)
 end
