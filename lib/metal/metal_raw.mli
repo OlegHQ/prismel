@@ -2669,6 +2669,16 @@ external render93_tile_graph : handle -> int -> bool -> handle array -> (unit,st
   "caml_prismel_metal_render93_tile_graph"
 external render93_array_snapshot : handle -> int -> int -> (int64 array,string) result =
   "caml_prismel_metal_render93_array_snapshot"
+external render93_mesh_linked : handle -> int -> bool -> handle option -> (handle option,string) result = "caml_prismel_metal_render93_mesh_linked"
+external render93_tile_linked : handle -> bool -> handle option -> (handle option,string) result = "caml_prismel_metal_render93_tile_linked"
+external render93_function_handle : handle -> int -> handle -> int64 -> (handle option,string) result = "caml_prismel_metal_render93_function_handle"
+external render93_function_table : handle -> int -> int64 -> int64 -> (handle,string) result = "caml_prismel_metal_render93_function_table"
+external render93_functions_descriptor_create : unit -> (handle,string) result = "caml_prismel_metal_render93_functions_descriptor_create"
+external render93_functions_descriptor_array : handle -> int -> bool -> handle array -> (handle array,string) result = "caml_prismel_metal_render93_functions_descriptor_array"
+external render93_specialization_descriptor : handle -> (handle,string) result = "caml_prismel_metal_render93_specialization_descriptor"
+external render93_relink : handle -> int -> handle -> (handle,string) result = "caml_prismel_metal_render93_relink"
+external render93_vertex_descriptor : handle -> bool -> handle option -> (handle option,string) result = "caml_prismel_metal_render93_vertex_descriptor"
+external render93_reflection_arguments : handle -> int -> ((string*int64*int*int*bool*int64) array,string) result = "caml_prismel_metal_render93_reflection_arguments"
 
 external intersection_table_array :
   handle -> int -> handle option array -> int64 array -> int64 array ->
