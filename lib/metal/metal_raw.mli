@@ -2404,3 +2404,21 @@ external blit_texture_aux :
 external blit_indirect :
   handle -> handle -> bool -> int64 -> int64 -> (unit,string) result =
   "caml_prismel_metal_blit_indirect"
+
+external capture_descriptor_snapshot :
+  handle -> ((handle option * int option * int * string option),string) result =
+  "caml_prismel_metal_capture_descriptor_snapshot"
+external capture_descriptor_set :
+  handle -> handle option -> int -> int -> string option -> (unit,string) result =
+  "caml_prismel_metal_capture_descriptor_set"
+external capture_scope_create : handle -> handle -> int -> (handle,string) result =
+  "caml_prismel_metal_capture_scope_create"
+external capture_default_scope :
+  handle -> handle option -> bool -> (handle option,string) result =
+  "caml_prismel_metal_capture_default_scope"
+external capture_lifecycle :
+  handle -> handle -> int -> bool -> (unit,string) result =
+  "caml_prismel_metal_capture_lifecycle"
+external capture_start_descriptor_checked :
+  handle -> handle -> (unit,string) result =
+  "caml_prismel_metal_capture_start_descriptor_checked"
