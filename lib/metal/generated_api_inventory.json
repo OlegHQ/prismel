@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4786,
+    "bound": 4792,
     "scope-excluded": 37,
-    "unreviewed": 462
+    "unreviewed": 456
   },
-  "classification_source_sha256": "302fb7961a41f01f00f96af7f5700fa592f9d9dff046467202db8af5a5aa74d5",
+  "classification_source_sha256": "e2077490c5b9b746a8b68bd083193809a5590fcf74512d62fe4d18ea2fbe7a69",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -74695,7 +74695,7 @@
           "line": 175
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineReflection fragmentArguments]",
       "kind": "method",
@@ -74703,7 +74703,7 @@
       "macos_introduced": "10.11",
       "name": "fragmentArguments",
       "owner": "MTLRenderPipelineReflection",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": "instance () -> NSArray<MTLArgument *> * _Nullable"
     },
     {
@@ -74795,7 +74795,7 @@
           "line": 176
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineReflection tileArguments]",
       "kind": "method",
@@ -74803,7 +74803,7 @@
       "macos_introduced": "11.0",
       "name": "tileArguments",
       "owner": "MTLRenderPipelineReflection",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": "instance () -> NSArray<MTLArgument *> * _Nullable"
     },
     {
@@ -74845,7 +74845,7 @@
           "line": 174
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineReflection vertexArguments]",
       "kind": "method",
@@ -74853,7 +74853,7 @@
       "macos_introduced": "10.11",
       "name": "vertexArguments",
       "owner": "MTLRenderPipelineReflection",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": "instance () -> NSArray<MTLArgument *> * _Nullable"
     },
     {
@@ -99738,7 +99738,7 @@
           "line": 175
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineReflection:fragmentArguments",
       "kind": "property",
@@ -99746,7 +99746,7 @@
       "macos_introduced": "10.11",
       "name": "fragmentArguments",
       "owner": "MTLRenderPipelineReflection",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": "NSArray<MTLArgument *> * _Nullable"
     },
     {
@@ -99838,7 +99838,7 @@
           "line": 176
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineReflection:tileArguments",
       "kind": "property",
@@ -99846,7 +99846,7 @@
       "macos_introduced": "11.0",
       "name": "tileArguments",
       "owner": "MTLRenderPipelineReflection",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": "NSArray<MTLArgument *> * _Nullable"
     },
     {
@@ -99888,7 +99888,7 @@
           "line": 174
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLRenderPipelineReflection:vertexArguments",
       "kind": "property",
@@ -99896,7 +99896,7 @@
       "macos_introduced": "10.11",
       "name": "vertexArguments",
       "owner": "MTLRenderPipelineReflection",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": "NSArray<MTLArgument *> * _Nullable"
     },
     {
