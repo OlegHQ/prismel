@@ -2687,6 +2687,7 @@ external render93_functions_descriptor_array : handle -> int -> bool -> handle a
 external render93_specialization_descriptor : handle -> (handle,string) result = "caml_prismel_metal_render93_specialization_descriptor"
 external render93_relink : handle -> int -> handle -> (handle,string) result = "caml_prismel_metal_render93_relink"
 external render93_vertex_descriptor : handle -> bool -> handle option -> (handle option,string) result = "caml_prismel_metal_render93_vertex_descriptor"
+external render93_vertex_materialize : (int*int*int*int) array -> (int*int64*int*int64) array -> (handle,string) result = "caml_prismel_metal_render93_vertex_materialize"
 external render93_reflection_arguments : handle -> int -> ((string*int64*int*int*bool*int64) array,string) result = "caml_prismel_metal_render93_reflection_arguments"
 
 external intersection_table_array :

@@ -1947,6 +1947,8 @@ module Render_pipeline : sig
     val descriptor_color : pipeline_descriptor -> index:int -> (color_attachment option,error) result
     val set_descriptor_color : pipeline_descriptor -> index:int -> color_attachment option -> (unit,error) result
     val descriptor_colors : pipeline_descriptor -> color_attachment_array
+    val descriptor_vertex : pipeline_descriptor -> (Vertex_descriptor.t option,error) result
+    val set_descriptor_vertex : pipeline_descriptor -> Vertex_descriptor.t option -> (unit,error) result
     val descriptor_color_formats : pipeline_descriptor -> (Texture.format option array,error) result
     val descriptor_buffer_mutabilities : pipeline_descriptor -> buffer_stage -> (mutability array,error) result
     val destroy_descriptor : pipeline_descriptor -> (unit,error) result
