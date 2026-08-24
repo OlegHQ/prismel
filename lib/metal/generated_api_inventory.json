@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4648,
+    "bound": 4657,
     "scope-excluded": 37,
-    "unreviewed": 600
+    "unreviewed": 591
   },
-  "classification_source_sha256": "a91dedf82c87bb791cd1b73820256ebafbd9378e766af3d07eeb3ec3383218b5",
+  "classification_source_sha256": "b6c08e856bdfd14b50c27d42c85eb984a46e4d761f47ad7641c4ed91b7bdfad0",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -81290,7 +81290,7 @@
           "line": 624
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLTileRenderPipelineDescriptor binaryArchives]",
       "kind": "method",
@@ -81298,7 +81298,7 @@
       "macos_introduced": "11.0",
       "name": "binaryArchives",
       "owner": "MTLTileRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": "instance () -> NSArray<id<MTLBinaryArchive>> * _Nullable"
     },
     {
@@ -81428,7 +81428,7 @@
           "line": 635
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLTileRenderPipelineDescriptor preloadedLibraries]",
       "kind": "method",
@@ -81436,7 +81436,7 @@
       "macos_introduced": "12.0",
       "name": "preloadedLibraries",
       "owner": "MTLTileRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": "instance () -> NSArray<id<MTLDynamicLibrary>> * _Nonnull"
     },
     {
@@ -81516,7 +81516,7 @@
           "line": 624
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLTileRenderPipelineDescriptor setBinaryArchives:]",
       "kind": "method",
@@ -81524,7 +81524,7 @@
       "macos_introduced": "11.0",
       "name": "setBinaryArchives:",
       "owner": "MTLTileRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": "instance (NSArray<id<MTLBinaryArchive>> * _Nullable) -> void"
     },
     {
@@ -81635,7 +81635,7 @@
           "line": 635
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLTileRenderPipelineDescriptor setPreloadedLibraries:]",
       "kind": "method",
@@ -81643,7 +81643,7 @@
       "macos_introduced": "12.0",
       "name": "setPreloadedLibraries:",
       "owner": "MTLTileRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": "instance (NSArray<id<MTLDynamicLibrary>> * _Nonnull) -> void"
     },
     {
@@ -81767,7 +81767,7 @@
           "line": 581
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLTileRenderPipelineDescriptor setTileFunction:]",
       "kind": "method",
@@ -81775,7 +81775,7 @@
       "macos_introduced": "11.0",
       "name": "setTileFunction:",
       "owner": "MTLTileRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": "instance (id<MTLFunction> _Nonnull) -> void"
     },
     {
@@ -81880,7 +81880,7 @@
           "line": 581
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLTileRenderPipelineDescriptor tileFunction]",
       "kind": "method",
@@ -81888,7 +81888,7 @@
       "macos_introduced": "11.0",
       "name": "tileFunction",
       "owner": "MTLTileRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": "instance () -> id<MTLFunction> _Nonnull"
     },
     {
@@ -103560,7 +103560,7 @@
           "line": 624
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLTileRenderPipelineDescriptor:binaryArchives",
       "kind": "property",
@@ -103568,7 +103568,7 @@
       "macos_introduced": "11.0",
       "name": "binaryArchives",
       "owner": "MTLTileRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": "NSArray<id<MTLBinaryArchive>> * _Nullable"
     },
     {
@@ -103698,7 +103698,7 @@
           "line": 635
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLTileRenderPipelineDescriptor:preloadedLibraries",
       "kind": "property",
@@ -103706,7 +103706,7 @@
       "macos_introduced": "12.0",
       "name": "preloadedLibraries",
       "owner": "MTLTileRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": "NSArray<id<MTLDynamicLibrary>> * _Nonnull"
     },
     {
@@ -103855,7 +103855,7 @@
           "line": 581
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "property:MTLTileRenderPipelineDescriptor:tileFunction",
       "kind": "property",
@@ -103863,7 +103863,7 @@
       "macos_introduced": "11.0",
       "name": "tileFunction",
       "owner": "MTLTileRenderPipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": "id<MTLFunction> _Nonnull"
     },
     {

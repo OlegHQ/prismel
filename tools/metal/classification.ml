@@ -1701,6 +1701,17 @@ let render_pipeline93_mesh_graph12 =
   ; "method:-[MTLMeshRenderPipelineDescriptor setFragmentFunction:]"
   ; "property:MTLMeshRenderPipelineDescriptor:fragmentFunction" ]
 
+let render_pipeline93_tile_graph9 =
+  [ "method:-[MTLTileRenderPipelineDescriptor binaryArchives]"
+  ; "method:-[MTLTileRenderPipelineDescriptor setBinaryArchives:]"
+  ; "property:MTLTileRenderPipelineDescriptor:binaryArchives"
+  ; "method:-[MTLTileRenderPipelineDescriptor preloadedLibraries]"
+  ; "method:-[MTLTileRenderPipelineDescriptor setPreloadedLibraries:]"
+  ; "property:MTLTileRenderPipelineDescriptor:preloadedLibraries"
+  ; "method:-[MTLTileRenderPipelineDescriptor tileFunction]"
+  ; "method:-[MTLTileRenderPipelineDescriptor setTileFunction:]"
+  ; "property:MTLTileRenderPipelineDescriptor:tileFunction" ]
+
 let classify ~unavailable ~identifier ~header ~kind ~signature =
   if unavailable then
     Scope_excluded, "Clang marks this declaration unavailable for macOS."
@@ -1783,7 +1794,8 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
     Bound,
       "Implemented by the CommandQueue14 safe closure with checked descriptor limits and log-state ownership, copied queue identity, capture-state validation, and retained classic command buffers."
   else if List.mem identifier render_pipeline93_safe11
-          || List.mem identifier render_pipeline93_mesh_graph12 then
+          || List.mem identifier render_pipeline93_mesh_graph12
+          || List.mem identifier render_pipeline93_tile_graph9 then
     Bound,
       "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership."
   else if List.mem identifier Binding_compute_encoder35_safe_closure.callable_ids then
