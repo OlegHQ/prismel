@@ -533,6 +533,11 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (name test_binding_library_safe_package)
+ (modules test_binding_library_safe_package binding_library_safe_package)
+ (libraries metal_inventory_classification))
+
+(test
  (name test_binding_library42_native_closure)
  (modules test_binding_library42_native_closure)
  (libraries metal_inventory_classification yojson)
