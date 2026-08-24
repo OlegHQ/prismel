@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4953,
+    "bound": 4959,
     "scope-excluded": 37,
-    "unreviewed": 295
+    "unreviewed": 289
   },
-  "classification_source_sha256": "e6a7dcd6a6ca5491b349e95251a7e94029fd5c2fa6b859e75e0089c556cb4484",
+  "classification_source_sha256": "08bf78eea38cbf973679653adb1cad038d2f47a8292a3067a80752f5908f9dd8",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -58576,7 +58576,7 @@
           "line": 12
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFence.h",
       "id": "method:-[MTLFence device]",
       "kind": "method",
@@ -58584,7 +58584,7 @@
       "macos_introduced": "10.13",
       "name": "device",
       "owner": "MTLFence",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Fence safe6 owned Device constructor and copied nullable-label/device API with live/same-device encoder validation, command-completion retention, and 256-iteration byte-ordering conformance.",
       "signature": "instance () -> id<MTLDevice> _Nonnull"
     },
     {
@@ -58595,7 +58595,7 @@
           "line": 12
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFence.h",
       "id": "method:-[MTLFence label]",
       "kind": "method",
@@ -58603,7 +58603,7 @@
       "macos_introduced": "10.13",
       "name": "label",
       "owner": "MTLFence",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Fence safe6 owned Device constructor and copied nullable-label/device API with live/same-device encoder validation, command-completion retention, and 256-iteration byte-ordering conformance.",
       "signature": "instance () -> NSString * _Nullable"
     },
     {
@@ -58614,7 +58614,7 @@
           "line": 12
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFence.h",
       "id": "method:-[MTLFence setLabel:]",
       "kind": "method",
@@ -58622,7 +58622,7 @@
       "macos_introduced": "10.13",
       "name": "setLabel:",
       "owner": "MTLFence",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Fence safe6 owned Device constructor and copied nullable-label/device API with live/same-device encoder validation, command-completion retention, and 256-iteration byte-ordering conformance.",
       "signature": "instance (NSString * _Nullable) -> void"
     },
     {
@@ -93767,7 +93767,7 @@
           "line": 12
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFence.h",
       "id": "property:MTLFence:device",
       "kind": "property",
@@ -93775,7 +93775,7 @@
       "macos_introduced": "10.13",
       "name": "device",
       "owner": "MTLFence",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Fence safe6 owned Device constructor and copied nullable-label/device API with live/same-device encoder validation, command-completion retention, and 256-iteration byte-ordering conformance.",
       "signature": "id<MTLDevice> _Nonnull"
     },
     {
@@ -93786,7 +93786,7 @@
           "line": 12
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFence.h",
       "id": "property:MTLFence:label",
       "kind": "property",
@@ -93794,7 +93794,7 @@
       "macos_introduced": "10.13",
       "name": "label",
       "owner": "MTLFence",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Fence safe6 owned Device constructor and copied nullable-label/device API with live/same-device encoder validation, command-completion retention, and 256-iteration byte-ordering conformance.",
       "signature": "NSString * _Nullable"
     },
     {
@@ -105085,7 +105085,7 @@
           "line": 12
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFence.h",
       "id": "protocol:MTLFence",
       "kind": "protocol",
@@ -105093,7 +105093,7 @@
       "macos_introduced": "10.13",
       "name": "MTLFence",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the Fence safe6 owned Device constructor and copied nullable-label/device API with live/same-device encoder validation, command-completion retention, and 256-iteration byte-ordering conformance.",
       "signature": ""
     },
     {

@@ -1868,6 +1868,9 @@ let function_constant_values_safe3 =
   ; "method:-[MTLFunctionConstantValues setConstantValues:type:withRange:]" ]
 
 let function_descriptor_safe4 = Binding_function_descriptor4_safe_package.ids
+let fence_safe6 = Binding_fence6_safe_package.ids
+let metal4_argument_table_safe1 =
+  Binding_metal4_argument_table_safe_package.callable_ids
 
 let classify ~unavailable ~identifier ~header ~kind ~signature =
   if unavailable then
@@ -1879,6 +1882,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
     , "Implemented with an Apple9/M3+ capability gate; the Apple7/M1 Metal 4 driver crashes while serializing this asynchronous dynamic-link request." )
   else if String_set.mem identifier bound_identifier_set then
     Bound, "Implemented by the ownership-aware prismel.metal safe layer."
+  else if List.mem identifier metal4_argument_table_safe1 then
+    Bound,
+      "Implemented by the closed ID-bearing resource variant with checked live/device/index/nonzero validation, atomic replacement retention, command lifetime, and real Metal 4 texture-table conformance."
   else if acceleration_scalar_identifier ~header ~kind ~signature identifier then
     Bound,
       "Implemented by generated immutable acceleration-structure descriptor values with native execute-or-capability-reject conformance."
@@ -1956,6 +1962,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier Binding_command_queue_tail_handoff.callable_ids then
     Bound,
       "Implemented by the CommandQueue14 safe closure with checked descriptor limits and log-state ownership, copied queue identity, capture-state validation, and retained classic command buffers."
+  else if List.mem identifier Binding_command_encoder9_closure.ids then
+    Bound,
+      "Implemented by the CommandEncoder9 shared safe token with retained command parent, exact device/label snapshots, balanced debug depth, known nonzero stage masks, end-state rejection, and real 256-command conformance."
   else if List.mem identifier Binding_capture_scope_tail_handoff.callable_ids then
     Bound,
       "Implemented by the CaptureScope11 safe lifecycle with retained queue/device identity, copied nullable labels, balanced begin/end state, Metal4 availability, and parent ownership."
@@ -2007,6 +2016,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier function_descriptor_safe4 then
     Bound,
       "Implemented by the FunctionDescriptor safe4 owned archive-list and intersection-descriptor API with copied collection semantics, same-device/live checks, parent retention, nil reset, and real function creation conformance."
+  else if List.mem identifier fence_safe6 then
+    Bound,
+      "Implemented by the Fence safe6 owned Device constructor and copied nullable-label/device API with live/same-device encoder validation, command-completion retention, and 256-iteration byte-ordering conformance."
   else if List.mem identifier Binding_command_buffer19_safe_closure.promotable_ids then
     Bound,
       "Implemented by the CommandBuffer19 safe descriptor/callback closure with retained log-state and resources, exact-once completion, queue ownership, and error-only EncoderInfo snapshots."
