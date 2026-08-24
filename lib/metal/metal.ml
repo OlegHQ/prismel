@@ -17830,7 +17830,7 @@ module Resource100 = struct
     let sample_count(value:t)=value.sample_count
     let label(value:t)=value.label
     let destroyed(value:t)=is_destroyed value.lifetime
-    let destroy(value:t)=destroy_leaf "Metal.Resource100.Sample_buffer.destroy" value.lifetime value.raw(fun()->detach value.device.lifetime)
+    let destroy(value:t)=destroy_parent "Metal.Resource100.Sample_buffer.destroy" value.lifetime value.raw(fun()->detach value.device.lifetime)
   end
 
   module View_pool_descriptor = struct
