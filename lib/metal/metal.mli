@@ -2572,7 +2572,29 @@ module Command4 : sig
 
   module Log_state : sig
     type t
+    type level =
+      | Log_undefined | Log_debug | Log_info | Log_notice | Log_error | Log_fault
+    module Descriptor : sig
+      type t
+      val create : ?level:level -> ?buffer_size:int64 -> unit -> (t,error) result
+      val level : t -> level
+      val buffer_size : t -> int64
+      val set : t -> level:level -> buffer_size:int64 -> (unit,error) result
+      val snapshot : t -> ((level * int64),error) result
+      val destroyed : t -> bool
+      val destroy : t -> (unit,error) result
+    end
+    type message={subsystem:string option;category:string option;level:level;text:string}
+    module Handler : sig
+      type t
+      val cancelled : t -> bool
+      val cancel : t -> (unit,error) result
+      val destroyed : t -> bool
+      val destroy : t -> (unit,error) result
+    end
     val create : Device.t -> (t,error) result
+    val create_with_descriptor : Device.t -> Descriptor.t -> (t,error) result
+    val add_handler : t -> (message -> unit) -> (Handler.t,error) result
     val device : t -> Device.t
     val destroyed : t -> bool
     val destroy : t -> (unit,error) result
