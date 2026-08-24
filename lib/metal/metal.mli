@@ -1905,6 +1905,14 @@ module Render_pipeline : sig
     val set_functions : t -> stage -> Function.t list -> (unit,error) result
     val destroy : t -> (unit,error) result
   end
+  module Function_lookup:sig
+    type pipeline = t
+    type t
+    type stage=Vertex|Fragment|Tile|Object|Mesh
+    val function_ : pipeline -> stage -> Function.t -> (t option,error) result
+    val named : pipeline -> stage -> string -> (t option,error) result
+    val destroy : t -> (unit,error) result
+  end
   module Mesh_tile:sig
     type size3={width:int64;height:int64;depth:int64}
     type mutability=Default|Mutable|Immutable

@@ -44,6 +44,13 @@ let ()=match Device.system_default()with Error _->print_endline"RenderPipeline93
   if not(same_linked(get(tile_linked_functions tile_descriptor)))then failwith"tile linked graph identity";
   expect Parent_has_dependents(Linked_functions.destroy linked);
   get(set_tile_linked_functions tile_descriptor None);get(destroy_tile tile_descriptor);get(Linked_functions.destroy linked);
+  (match compile_mesh descriptor with
+   |Error{kind=Unsupported;_}->()
+   |Error e->failwith(Format.asprintf "%a" pp_error e)
+   |Ok pipeline->
+      (match get(Render_pipeline.Function_lookup.function_ pipeline Render_pipeline.Function_lookup.Mesh mesh)with None->()|Some handle->get(Render_pipeline.Function_lookup.destroy handle));
+      (match Render_pipeline.Function_lookup.named pipeline Render_pipeline.Function_lookup.Mesh "mesh93"with Ok(Some handle)->get(Render_pipeline.Function_lookup.destroy handle)|Ok None|Error{kind=Unsupported;_}->()|Error e->failwith(Format.asprintf "%a" pp_error e));
+      get(Render_pipeline.destroy pipeline));
   expect Parent_has_dependents(Function.destroy mesh);
   get(destroy_mesh descriptor);get(Function.destroy mesh);get(Function.destroy fragment);get(Function.destroy tile);get(Library.destroy library);get(Device.destroy device);
   print_endline"RenderPipeline93 mesh graph: function12 + linked12 ownership/identity passed"

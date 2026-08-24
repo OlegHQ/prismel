@@ -1329,6 +1329,9 @@ type render_pipeline =
   ; mesh_constraints : mesh_pipeline_constraints option
   ; tile_constraints : tile_pipeline_constraints option
   }
+type render_pipeline_function_handle =
+  { raw:Metal_raw.handle; lifetime:lifetime; pipeline:render_pipeline
+  ; retained:lifetime list }
 
 type mesh_pipeline_limits =
   { max_object_threads : int
@@ -10017,6 +10020,16 @@ module Render_pipeline = struct
     let functions(value:t) stage=let operation="Metal.Render_pipeline.Functions_descriptor.functions"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.render93_functions_descriptor_array value.raw(stage_code stage)false[||]with Error m->native_error operation m|Ok snapshot->Array.iter(fun h->ignore(Metal_raw.destroy h))snapshot;Ok(retained value stage))
     let set_functions(value:t) stage functions=let operation="Metal.Render_pipeline.Functions_descriptor.set_functions"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->let rec validate=function []->Ok()|(f:function_handle)::rest->Result.bind(ensure_live operation f.lifetime)(fun()->validate rest)in Result.bind(validate functions)(fun()->match Metal_raw.render93_functions_descriptor_array value.raw(stage_code stage)true(Array.of_list(List.map(fun(f:function_handle)->f.raw)functions))with Error m->native_error operation m|Ok snapshot->Array.iter(fun h->ignore(Metal_raw.destroy h))snapshot;List.iter(fun(f:function_handle)->attach f.lifetime)functions;List.iter(fun(f:function_handle)->detach f.lifetime)(retained value stage);assign value stage functions;Ok()))
     let destroy(value:t)=destroy_leaf "Metal.Render_pipeline.Functions_descriptor.destroy" value.lifetime value.raw(fun()->List.iter(fun(f:function_handle)->detach f.lifetime)(value.vertex_functions@value.fragment_functions@value.tile_functions))
+  end
+  module Function_lookup = struct
+    type pipeline=render_pipeline
+    type t=render_pipeline_function_handle
+    type stage=Vertex|Fragment|Tile|Object|Mesh
+    let stage_code=function Vertex->1L|Fragment->2L|Tile->4L|Object->8L|Mesh->16L
+    let make operation (pipeline:render_pipeline) retained result=match result with Error m->native_error operation m|Ok None->Ok None|Ok(Some raw)->let value:t={raw;lifetime=lifetime();pipeline;retained}in attach pipeline.lifetime;List.iter attach retained;Gc.finalise(fun(value:t)->if Atomic.compare_and_set value.lifetime.destroyed false true then(List.iter detach value.retained;detach value.pipeline.lifetime;ignore(Metal_raw.destroy value.raw)))value;Ok(Some value)
+    let function_ (pipeline:render_pipeline) stage (source:function_handle)=let operation="Metal.Render_pipeline.Function_lookup.function_"in on_main operation(fun()->match ensure_live operation pipeline.lifetime with Error _ as e->e|Ok()->Result.bind(ensure_live operation source.lifetime)(fun()->Result.bind(ensure_same_device operation pipeline.device source.library.device)(fun()->make operation pipeline[source.lifetime](Metal_raw.render93_function_handle pipeline.raw 0 source.raw(stage_code stage)))))
+    let named (pipeline:render_pipeline) stage name=let operation="Metal.Render_pipeline.Function_lookup.named"in if name=""||contains_nul name then error operation Invalid_argument "function name is empty or contains NUL"else on_main operation(fun()->match ensure_live operation pipeline.lifetime with Error _ as e->e|Ok()->make operation pipeline[](Metal_raw.render93_function_handle_name pipeline.raw 2 name(stage_code stage)))
+    let destroy(value:t)=destroy_leaf "Metal.Render_pipeline.Function_lookup.destroy" value.lifetime value.raw(fun()->List.iter detach value.retained;detach value.pipeline.lifetime)
   end
 
   module Mesh_tile = struct
