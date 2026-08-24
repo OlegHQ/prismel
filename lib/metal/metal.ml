@@ -1379,6 +1379,11 @@ type command4_counter_heap =
   { raw : Metal_raw.handle; lifetime : lifetime; device : device
   ; count : int64; counter_type : int; mutable counter_label : string option }
 
+type command4_log_state = { raw:Metal_raw.handle; lifetime:lifetime; device:device }
+type command4_buffer_options =
+  { raw:Metal_raw.handle; lifetime:lifetime; device:device
+  ; mutable log_state:command4_log_state option }
+
 type command4_buffer =
   { raw : Metal_raw.handle
   ; lifetime : lifetime
@@ -1386,6 +1391,7 @@ type command4_buffer =
   ; mutable phase : command4_phase
   ; owns_recording : bool ref
   ; resources : command4_resource list ref
+  ; options : command4_buffer_options option
   ; mutable debug_group_depth : int
   }
 
@@ -12462,6 +12468,21 @@ module Command4 = struct
         (fun () -> detach value.device.lifetime)
   end
 
+  module Log_state = struct
+    type t=command4_log_state
+    let create (device:Device.t)=let op="Metal.Command4.Log_state.create"in on_main op(fun()->match ensure_live op device.lifetime with Error _ as e->e|Ok()->match Metal_raw.log_state_descriptor_create 0 0L with Error m->native_error op m|Ok descriptor->match Metal_raw.log_state_create device.raw descriptor with Error m->ignore(Metal_raw.destroy descriptor);native_error op m|Ok(raw,registry)->ignore(Metal_raw.destroy descriptor);if registry<>device.registry_id then begin ignore(Metal_raw.destroy raw);error op Device_mismatch "log state device identity changed" end else let value={raw;lifetime=lifetime();device}in attach device.lifetime;attach_finalizer value value.lifetime device.lifetime;Ok value)
+    let device(value:t)=value.device
+    let destroyed(value:t)=is_destroyed value.lifetime
+    let destroy(value:t)=destroy_parent "Metal.Command4.Log_state.destroy" value.lifetime value.raw(fun()->detach value.device.lifetime)
+  end
+  module Command_buffer_options = struct
+    type t=command4_buffer_options
+    let create (device:Device.t)=let op="Metal.Command4.Command_buffer_options.create"in on_main op(fun()->match ensure_live op device.lifetime with Error _ as e->e|Ok()->match Metal_raw.metal4_command_buffer_options_create device.raw with Error m->native_error op m|Ok raw->let value={raw;lifetime=lifetime();device;log_state=None}in attach device.lifetime;attach_finalizer value value.lifetime device.lifetime;Ok value)
+    let log_state(value:t)=value.log_state
+    let set_log_state(value:t)(next:Log_state.t option)=let op="Metal.Command4.Command_buffer_options.set_log_state"in on_main op(fun()->match ensure_live op value.lifetime with Error _ as e->e|Ok()->match next with Some log when is_destroyed log.lifetime->error op Destroyed "log state is destroyed"|Some log when not(same_device value.device log.device)->error op Device_mismatch "log state belongs to another device"|_->match Metal_raw.metal4_command_buffer_options_log_state value.raw(Option.map(fun(log:command4_log_state)->log.raw)next)with Error m->native_error op m|Ok()->Option.iter(fun(log:command4_log_state)->attach log.lifetime)next;Option.iter(fun(log:command4_log_state)->detach log.lifetime)value.log_state;value.log_state<-next;Ok())
+    let destroyed(value:t)=is_destroyed value.lifetime
+    let destroy(value:t)=destroy_parent "Metal.Command4.Command_buffer_options.destroy" value.lifetime value.raw(fun()->Option.iter(fun(log:command4_log_state)->detach log.lifetime)value.log_state;detach value.device.lifetime)
+  end
   module Command_buffer = struct
     type t = command4_buffer
 
@@ -12479,7 +12500,7 @@ module Command4 = struct
       | Command4_completed -> Completed
       | Command4_failed message -> Failed message
 
-    let create (allocator : Allocator.t) ?label () =
+    let create (allocator : Allocator.t) ?label ?options () =
       let operation = "Metal.Command4.Command_buffer.create" in
       on_main operation (fun () ->
         match ensure_live operation allocator.lifetime with
@@ -12489,8 +12510,10 @@ module Command4 = struct
               "the allocator already services a recording command buffer"
         | Ok () when option_exists contains_nul label ->
             error operation Invalid_argument "label contains a NUL byte"
+        | Ok () when option_exists (fun(options:command4_buffer_options)->is_destroyed options.lifetime) options -> error operation Destroyed "command-buffer options are destroyed"
+        | Ok () when option_exists (fun(options:command4_buffer_options)->not(same_device allocator.device options.device)) options -> error operation Device_mismatch "command-buffer options belong to another device"
         | Ok () ->
-            (match Metal_raw.command4_buffer_create allocator.raw label with
+            (match (match options with None->Metal_raw.command4_buffer_create allocator.raw label|Some options->Metal_raw.metal4_command_buffer_create_options allocator.raw label options.raw) with
              | Error message -> native_error operation message
              | Ok raw ->
                  let owns_recording = ref true in
@@ -12502,15 +12525,17 @@ module Command4 = struct
                    ; phase = Command4_recording
                    ; owns_recording
                    ; resources
+                   ; options
                    ; debug_group_depth = 0
                    }
                  in
                  allocator.recording <- true;
                  attach allocator.lifetime;
+                 Option.iter(fun(options:command4_buffer_options)->attach options.lifetime)options;
                  attach_finalizer
                    ~on_finalize:(fun () ->
                      if !owns_recording then allocator.recording <- false;
-                     release_command4_resources resources)
+                     release_command4_resources resources;Option.iter(fun(options:command4_buffer_options)->detach options.lifetime)options)
                    value value.lifetime allocator.lifetime;
                  Ok value))
 
@@ -12656,6 +12681,7 @@ module Command4 = struct
                 value.allocator.recording <- false
               end;
               release_command4_resources value.resources;
+              Option.iter(fun(options:command4_buffer_options)->detach options.lifetime)value.options;
               detach value.allocator.lifetime
             end;
             Ok ()

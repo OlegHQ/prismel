@@ -394,6 +394,11 @@
  (modules test_metal4_render_pass7_safe)
  (libraries metal))
 
+(test
+ (name test_metal4_command_buffer7_safe)
+ (modules test_metal4_command_buffer7_safe)
+ (libraries metal))
+
 (rule
  (targets test_presentation_lifecycle_native.exe)
  (deps ../../tools/metal/test_presentation_lifecycle_native.mm)

@@ -2394,6 +2394,21 @@ module Command4 : sig
     val destroy : t -> (unit, error) result
   end
 
+  module Log_state : sig
+    type t
+    val create : Device.t -> (t,error) result
+    val device : t -> Device.t
+    val destroyed : t -> bool
+    val destroy : t -> (unit,error) result
+  end
+  module Command_buffer_options : sig
+    type t
+    val create : Device.t -> (t,error) result
+    val log_state : t -> Log_state.t option
+    val set_log_state : t -> Log_state.t option -> (unit,error) result
+    val destroyed : t -> bool
+    val destroy : t -> (unit,error) result
+  end
   module Command_buffer : sig
     type t
 
@@ -2404,7 +2419,7 @@ module Command4 : sig
       | Completed
       | Failed of string
 
-    val create : Allocator.t -> ?label:string -> unit -> (t, error) result
+    val create : Allocator.t -> ?label:string -> ?options:Command_buffer_options.t -> unit -> (t, error) result
     val device : t -> Device.t
     val generation : t -> int64
     val destroyed : t -> bool
