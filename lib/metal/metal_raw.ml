@@ -2584,3 +2584,11 @@ external log_state_add_handler :
   "caml_prismel_metal_log_state_add_handler"
 external log_state_handler_cancel : nativeint -> unit =
   "caml_prismel_metal_log_state_handler_cancel"
+
+external parallel_render_child :
+  handle -> bool -> ((handle * int64), string) result =
+  "caml_prismel_metal_parallel_render_child"
+external parallel_render_store :
+  handle -> int -> int64 -> int64 -> bool -> int64 -> (unit, string) result =
+  "caml_prismel_metal_parallel_render_store_bytecode"
+  "caml_prismel_metal_parallel_render_store"
