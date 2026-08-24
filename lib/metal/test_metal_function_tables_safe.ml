@@ -28,9 +28,19 @@ let () =
   (match Function_handle.create ~pipeline ~function_ with
   | Error error -> check (error.kind = Unsupported) "function-handle rejection was not typed"
   | Ok handle ->
+      check (get (Function_handle.function_type handle) = Function.Kernel)
+        "function handle type drift";
+      check (get (Function_handle.name handle) = "table_kernel")
+        "function handle name drift";
+      check (get (Function_handle.resource_id handle) <> 0L)
+        "function handle resource ID empty";
+      check (Device.registry_id (Function_handle.device handle) = Device.registry_id device)
+        "function handle device identity drift";
       get (Visible_function_table.set_function visible ~index:1 (Some handle));
       get (Intersection_function_table.set_function intersection ~index:1 (Some handle));
-      get (Function_handle.destroy handle));
+      get (Function_handle.destroy handle);
+      check (Result.is_error (Function_handle.name handle))
+        "destroyed function handle remained readable");
   get (Intersection_function_table.destroy intersection);
   get (Visible_function_table.destroy visible);
   get (Buffer.destroy buffer);

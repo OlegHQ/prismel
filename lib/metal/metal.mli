@@ -1742,6 +1742,9 @@ module Function_handle : sig
   type t
   val create : pipeline:Compute_pipeline.t -> function_:Function.t -> (t, error) result
   val device : t -> Device.t
+  val function_type : t -> (Function.kind, error) result
+  val resource_id : t -> (int64, error) result
+  val name : t -> (string, error) result
   val generation : t -> int64
   val destroyed : t -> bool
   val destroy : t -> (unit, error) result
@@ -1906,6 +1909,14 @@ module Render_pipeline : sig
     val create_color_attachment_configured : ?blending:blend_state -> ?source_rgb:blend_factor -> ?destination_rgb:blend_factor -> ?rgb_operation:blend_operation -> ?source_alpha:blend_factor -> ?destination_alpha:blend_factor -> ?alpha_operation:blend_operation -> ?write_mask:color_write list -> Texture.format -> (color_attachment,error) result
     val color_attachment_format : color_attachment -> Texture.format
     val mesh_descriptor : ?label:string -> ?object_function:Function.t -> ?fragment_function:Function.t -> ?binary_archives:Binary_archive.t list -> mesh_function:Function.t -> depth_format:Texture.format -> stencil_format:Texture.format -> required_mesh_threads:size3 -> required_object_threads:size3 -> unit -> (mesh_descriptor,error) result
+    val mesh_binary_archives : mesh_descriptor -> (Binary_archive.t list,error) result
+    val mesh_object_function : mesh_descriptor -> (Function.t option,error) result
+    val mesh_mesh_function : mesh_descriptor -> (Function.t,error) result
+    val mesh_fragment_function : mesh_descriptor -> (Function.t option,error) result
+    val set_mesh_binary_archives : mesh_descriptor -> Binary_archive.t list -> (unit,error) result
+    val set_mesh_object_function : mesh_descriptor -> Function.t option -> (unit,error) result
+    val set_mesh_mesh_function : mesh_descriptor -> Function.t -> (unit,error) result
+    val set_mesh_fragment_function : mesh_descriptor -> Function.t option -> (unit,error) result
     val tile_descriptor : ?label:string -> ?binary_archives:Binary_archive.t list -> ?preloaded_libraries:Dynamic_library.t list -> tile_function:Function.t -> required_threads:size3 -> unit -> (tile_descriptor,error) result
     val compile_mesh : ?reflection:bool -> mesh_descriptor -> (t,error) result
     val compile_tile : ?reflection:bool -> tile_descriptor -> (t,error) result
