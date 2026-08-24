@@ -23,6 +23,27 @@ let prior_bound_ids =
   ; "property:MTLRenderPipelineState:maxTotalThreadsPerObjectThreadgroup"
   ]
 
+let post_plan_ids =
+  [ "class:MTLComputePipelineDescriptor"
+  ; "method:-[MTLComputePipelineDescriptor computeFunction]"
+  ; "method:-[MTLComputePipelineDescriptor preloadedLibraries]"
+  ; "method:-[MTLComputePipelineDescriptor setComputeFunction:]"
+  ; "method:-[MTLComputePipelineDescriptor setPreloadedLibraries:]"
+  ; "property:MTLComputePipelineDescriptor:computeFunction"
+  ; "property:MTLComputePipelineDescriptor:preloadedLibraries" ]
+
+let historical_bound_ids =
+  [ "enum-case:MTLBlendFactor:MTLBlendFactorUnspecialized"
+  ; "enum-case:MTLBlendOperation:MTLBlendOperationUnspecialized"
+  ; "enum-case:MTLColorWriteMask:MTLColorWriteMaskUnspecialized"
+  ; "enum-case:MTLPrimitiveTopologyClass:MTLPrimitiveTopologyClassUnspecified" ]
+
+let promoted_plan_ids =
+  Binding_pipeline_expanded_reachability.promotable_ids
+  @ Binding_pipeline_state_safe_reachability.promotable_ids
+  @ historical_bound_ids
+  |> List.filter (fun id -> not (List.mem id (prior_bound_ids @ post_plan_ids)))
+
 let () =
   if Array.length Sys.argv <> 2 then fail "usage: %s INVENTORY" Sys.argv.(0);
   let json = read_file Sys.argv.(1) |> Yojson.Safe.from_string in
@@ -32,9 +53,7 @@ let () =
         List.map declaration values
         |> List.filter_map (fun (declaration, classification) ->
              if classification = "unreviewed"
-                || List.mem declaration.Binding_pipeline_header_plan.id
-                     Binding_pipeline_state_safe_reachability.promotable_ids
-                   && not (List.mem declaration.id prior_bound_ids)
+                || List.mem declaration.Binding_pipeline_header_plan.id promoted_plan_ids
              then Some declaration else None)
     | None -> fail "inventory symbols are absent"
   in
