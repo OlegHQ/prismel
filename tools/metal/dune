@@ -571,6 +571,11 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (name test_binding_acceleration_structure_constructor_safe_package)
+ (modules test_binding_acceleration_structure_constructor_safe_package binding_acceleration_structure_constructor_safe_package)
+ (libraries metal_inventory_classification))
+
+(test
  (name test_binding_data_type_tail_handoff)
  (modules test_binding_data_type_tail_handoff)
  (libraries metal_inventory_classification yojson)
