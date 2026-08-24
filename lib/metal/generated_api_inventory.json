@@ -1,5 +1,5 @@
 {
-  "binding_plan_source_sha256": "24863d3f0d525d4351b5eef2b59aa46466b9fdba4450cd5d49be5583673e1355",
+  "binding_plan_source_sha256": "41d7b8b5ae98b3927d1f59e832a958eabb30ff1337709cac56384d8bc4685a62",
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,

@@ -102,6 +102,20 @@ let validate () =
     fail "promoted Presentation direct-call evidence drift: expected [%s], got [%s]"
       (String.concat "; " expected_generated_presentation)
       (String.concat "; " generated_presentation);
+  let generated_compute =
+    inventory_ids
+    |> List.filter (fun id ->
+         List.mem id Binding_compute_encoder35_safe_closure.callable_ids)
+    |> List.sort_uniq String.compare
+  in
+  let expected_generated_compute =
+    [ "method:-[MTLComputeCommandEncoder setBufferOffset:atIndex:]"
+    ; "method:-[MTLComputeCommandEncoder setBufferOffset:attributeStride:atIndex:]" ]
+  in
+  if generated_compute <> expected_generated_compute then
+    fail "promoted ComputeEncoder direct-call evidence drift: expected [%s], got [%s]"
+      (String.concat "; " expected_generated_compute)
+      (String.concat "; " generated_compute);
   reject_duplicates "OCaml external"
     (List.map
        (fun (entry : Binding_direct_spec.method_entry) -> entry.ocaml_name)
