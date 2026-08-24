@@ -1626,7 +1626,11 @@ type command_buffer =
 type parallel_render_encoder =
   { raw : Metal_raw.handle
   ; lifetime : lifetime
-  ; command_buffer : command_buffer }
+  ; command_buffer : command_buffer
+  ; pass : render_pass_descriptor
+  ; mutable open_children : int }
+type parallel_render_child=
+  { raw:Metal_raw.handle; lifetime:lifetime; parent:parallel_render_encoder }
 
 type compute_encoder =
   { raw : Metal_raw.handle
@@ -16139,12 +16143,25 @@ end
 
 module Parallel_render_encoder = struct
   type t = parallel_render_encoder
+  type child=parallel_render_child
+  type store_action=Dont_care|Store|Multisample_resolve|Store_and_multisample_resolve
+  type store_options=No_options|Custom_sample_positions
   let destroyed (value:t)=is_destroyed value.lifetime
+  let action_code=function Dont_care->0L|Store->1L|Multisample_resolve->2L|Store_and_multisample_resolve->3L
+  let options_code=function No_options->0L|Custom_sample_positions->1L
+  let create_child(value:t)=let operation="Metal.Parallel_render_encoder.create_child"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.parallel_render_child value.raw true with Error m->native_error operation m|Ok(raw,registry)when registry<>value.command_buffer.queue.device.registry_id->ignore(Metal_raw.destroy raw);error operation Device_mismatch "parallel child device identity changed"|Ok(raw,_)->value.open_children<-value.open_children+1;let child:child={raw;lifetime=lifetime();parent=value}in attach value.lifetime;attach_finalizer child child.lifetime value.lifetime;Ok child)
+  let end_child(value:child)=let operation="Metal.Parallel_render_encoder.Child.end_encoding"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.render_encoder_end value.raw with Error m->native_error operation m|Ok()->if Atomic.compare_and_set value.lifetime.destroyed false true then(begin ignore(Metal_raw.destroy value.raw);value.parent.open_children<-value.parent.open_children-1;detach value.parent.lifetime end);Ok())
+  let child_destroyed(value:child)=is_destroyed value.lifetime
+  let store (value:t) target action options index=let operation="Metal.Parallel_render_encoder.set_store"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()when value.open_children<>0->error operation Invalid_state "store state cannot change while child encoders are open"|Ok()->let attached=match target with 0->index>=0L&&index<8L&&index=0L&&value.pass.pass_color<>None|2->value.pass.pass_depth<>None|4->value.pass.pass_stencil<>None|_->false in if (not attached)&&action<>Dont_care then error operation Invalid_state "store action requires a matching pass attachment"else if action=Dont_care&&options=Custom_sample_positions then error operation Invalid_argument "custom sample positions are incompatible with dont-care"else match Metal_raw.parallel_render_store value.raw target(action_code action)index true(Int64.of_int value.open_children)with Error message->native_error operation message|Ok()->match Metal_raw.parallel_render_store value.raw(target+1)(options_code options)index true(Int64.of_int value.open_children)with Error message->native_error operation message|Ok()->Ok())
+  let set_color_store value~index action options=if index<0||index>=8 then error "Metal.Parallel_render_encoder.set_color_store" Invalid_argument "color attachment index is out of range"else store value 0 action options(Int64.of_int index)
+  let set_depth_store value action options=store value 2 action options 0L
+  let set_stencil_store value action options=store value 4 action options 0L
   let end_encoding (value:t)=
     let operation="Metal.Parallel_render_encoder.end_encoding" in
     on_main operation(fun()->
       match ensure_live operation value.lifetime with
       | Error _ as failure->failure
+      | Ok() when value.open_children<>0->error operation Invalid_state "parallel child encoders must end first"
       | Ok()->
           match Metal_raw.presentation_parallel_encoder_end value.raw with
           | Error message->native_error operation message
@@ -16285,7 +16302,7 @@ module Command_buffer = struct
             | Ok()->match Metal_raw.presentation_parallel_encoder_from_pass value.raw pass.raw with
               | Error message->native_error operation message
               | Ok raw->
-                  let encoder:parallel_render_encoder={raw;lifetime=lifetime();command_buffer=value}in
+                  let encoder:parallel_render_encoder={raw;lifetime=lifetime();command_buffer=value;pass;open_children=0}in
                   attach value.lifetime;
                   retain_command_buffer_texture value target;
                   Option.iter(retain_command_buffer_texture value)pass.pass_depth;

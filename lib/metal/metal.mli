@@ -3159,6 +3159,15 @@ end
 
 module Parallel_render_encoder : sig
   type t
+  type child
+  type store_action=Dont_care|Store|Multisample_resolve|Store_and_multisample_resolve
+  type store_options=No_options|Custom_sample_positions
+  val create_child:t->(child,error)result
+  val end_child:child->(unit,error)result
+  val child_destroyed:child->bool
+  val set_color_store:t->index:int->store_action->store_options->(unit,error)result
+  val set_depth_store:t->store_action->store_options->(unit,error)result
+  val set_stencil_store:t->store_action->store_options->(unit,error)result
   val destroyed : t -> bool
   val end_encoding : t -> (unit,error) result
 end
