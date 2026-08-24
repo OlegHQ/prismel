@@ -1887,6 +1887,18 @@ module Render_pipeline : sig
     type tile_descriptor
     type buffer_descriptor
     type color_attachment
+    type descriptor_kind=Render_descriptor|Mesh_descriptor|Tile_descriptor
+    type pipeline_descriptor
+    type color_attachment_array
+    val descriptor : ?label:string -> descriptor_kind -> (pipeline_descriptor,error) result
+    val descriptor_kind : pipeline_descriptor -> descriptor_kind
+    val descriptor_label : pipeline_descriptor -> (string option,error) result
+    val set_descriptor_label : pipeline_descriptor -> string option -> (unit,error) result
+    val reset_descriptor : pipeline_descriptor -> (unit,error) result
+    val descriptor_color : pipeline_descriptor -> index:int -> (color_attachment option,error) result
+    val set_descriptor_color : pipeline_descriptor -> index:int -> color_attachment option -> (unit,error) result
+    val descriptor_colors : pipeline_descriptor -> color_attachment_array
+    val destroy_descriptor : pipeline_descriptor -> (unit,error) result
     val buffer_descriptor : ?mutability:mutability -> unit -> (buffer_descriptor,error) result
     val set_buffer_mutability : buffer_descriptor -> mutability -> (unit,error) result
     val buffer_mutability : buffer_descriptor -> mutability
@@ -3119,6 +3131,10 @@ module Compute_encoder : sig
   val set_sampler : t -> index:int -> ?lod_min:float -> ?lod_max:float -> Sampler.t option -> (unit,error) result
   val set_samplers : t -> start:int -> ?lod_mins:float list -> ?lod_maxs:float list -> Sampler.t option list -> (unit,error) result
   val set_acceleration_structure : t -> index:int -> Acceleration_structure.t option -> (unit,error) result
+  val set_visible_function_table : t -> index:int -> Visible_function_table.t option -> (unit,error) result
+  val set_visible_function_tables : t -> start:int -> Visible_function_table.t option list -> (unit,error) result
+  val set_intersection_function_table : t -> index:int -> Intersection_function_table.t option -> (unit,error) result
+  val set_intersection_function_tables : t -> start:int -> Intersection_function_table.t option list -> (unit,error) result
   val dispatch_threads :
     t -> threads:int * int * int -> threadgroup:int * int * int ->
     (unit, error) result
