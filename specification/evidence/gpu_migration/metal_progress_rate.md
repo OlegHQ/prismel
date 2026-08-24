@@ -106,11 +106,11 @@ can change the denominator explicitly rather than being hidden.
 
 ## Current measured rate
 
-- Since the bulk-value pivot at `6ec742f`: 2,882 additional bound declarations
-  in 9.981 hours, or **288.7 declarations/hour** and **5.50 percentage
+- Since the bulk-value pivot at `6ec742f`: 3,020 additional bound declarations
+  in 10.518 hours, or **287.1 declarations/hour** and **5.47 percentage
   points/hour**.
-- Latest completed interval (`b7eb05e` through `d9e29ab`): 32 declarations in
-  0.015 hours, or **2,173.6 declarations/hour** and **41.41 percentage
+- Latest completed interval (`21ad4be` through `97f7572`): 7 declarations in
+  0.036 hours, or **196.9 declarations/hour** and **3.75 percentage
   points/hour**.
 
 The `74f45c8` safe handoff covers 76 Presentation declarations, but its inventory
@@ -124,10 +124,9 @@ therefore move 46 new declarations while proving all 47 safe IDs.
 
 The `21ad4be` inventory write is one intentionally combined promotion interval:
 10 declarations are the exact Event10 listener/export/notification closure and
-10 are the final IO scratch/load closure. CaptureScope's preceding 11-ID update
-and 37 newly inventoried SDK declarations explain the change from the prior
-recorded row's 5,249-declaration denominator; the interval delta remains exactly
-20.
+10 are the final IO scratch/load closure. Its interval delta is exactly 20; the
+37 scope-excluded SDK declarations remain outside the frozen 5,249 in-scope
+denominator.
 
 Rates describe completed commits, not forecasts. Hardware-only gates and
 complex ownership features will vary materially from pure-value batches.
