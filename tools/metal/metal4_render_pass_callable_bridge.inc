@@ -77,3 +77,68 @@ extern "C" CAMLprim value caml_prismel_metal4_render_pass_sample_positions(
   }
   CAMLreturn(result_error_text("Metal 4 requires macOS 26"));
 }
+
+extern "C" CAMLprim value caml_prismel_metal4_render_pass_rate_map(
+    value raw_descriptor, value raw_map) {
+  CAMLparam2(raw_descriptor, raw_map);
+  if (@available(macOS 26.0, *)) {
+    @try {
+      MTL4RenderPassDescriptor *descriptor = object_of_handle(
+          raw_descriptor, Handle_kind::Render_pass_descriptor4);
+      id<MTLRasterizationRateMap> map = nil;
+      if (Is_block(raw_map))
+        map = object_of_handle(Field(raw_map, 0), Handle_kind::Rasterization_rate_map);
+      descriptor.rasterizationRateMap = map;
+      if (descriptor.rasterizationRateMap != map)
+        CAMLreturn(result_error_text("Metal changed render-pass rasterization-rate map"));
+      CAMLreturn(result_unit());
+    } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
+  }
+  CAMLreturn(result_error_text("Metal 4 requires macOS 26"));
+}
+
+extern "C" CAMLprim value caml_prismel_metal4_render_pass_depth_attachment(
+    value raw_descriptor, value raw_texture, value raw_values) {
+  CAMLparam3(raw_descriptor, raw_texture, raw_values);
+  if (@available(macOS 26.0, *)) {
+    @try {
+      MTL4RenderPassDescriptor *descriptor = object_of_handle(raw_descriptor, Handle_kind::Render_pass_descriptor4);
+      MTLRenderPassDepthAttachmentDescriptor *attachment = nil;
+      if (Is_block(raw_texture)) {
+        attachment = [MTLRenderPassDepthAttachmentDescriptor new];
+        attachment.texture = object_of_handle(Field(raw_texture, 0), Handle_kind::Texture);
+        attachment.loadAction = (MTLLoadAction)Long_val(Field(raw_values, 0));
+        attachment.storeAction = (MTLStoreAction)Long_val(Field(raw_values, 1));
+        attachment.clearDepth = Double_val(Field(raw_values, 2));
+      }
+      descriptor.depthAttachment = attachment;
+      if (descriptor.depthAttachment != attachment)
+        CAMLreturn(result_error_text("Metal changed render-pass depth attachment"));
+      CAMLreturn(result_unit());
+    } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
+  }
+  CAMLreturn(result_error_text("Metal 4 requires macOS 26"));
+}
+
+extern "C" CAMLprim value caml_prismel_metal4_render_pass_stencil_attachment(
+    value raw_descriptor, value raw_texture, value raw_values) {
+  CAMLparam3(raw_descriptor, raw_texture, raw_values);
+  if (@available(macOS 26.0, *)) {
+    @try {
+      MTL4RenderPassDescriptor *descriptor = object_of_handle(raw_descriptor, Handle_kind::Render_pass_descriptor4);
+      MTLRenderPassStencilAttachmentDescriptor *attachment = nil;
+      if (Is_block(raw_texture)) {
+        attachment = [MTLRenderPassStencilAttachmentDescriptor new];
+        attachment.texture = object_of_handle(Field(raw_texture, 0), Handle_kind::Texture);
+        attachment.loadAction = (MTLLoadAction)Long_val(Field(raw_values, 0));
+        attachment.storeAction = (MTLStoreAction)Long_val(Field(raw_values, 1));
+        attachment.clearStencil = (uint32_t)Int32_val(Field(raw_values, 2));
+      }
+      descriptor.stencilAttachment = attachment;
+      if (descriptor.stencilAttachment != attachment)
+        CAMLreturn(result_error_text("Metal changed render-pass stencil attachment"));
+      CAMLreturn(result_unit());
+    } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); }
+  }
+  CAMLreturn(result_error_text("Metal 4 requires macOS 26"));
+}

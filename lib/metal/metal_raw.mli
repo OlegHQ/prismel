@@ -2245,6 +2245,14 @@ external metal4_render_pass_descriptor : unit -> (handle,string) result =
 external metal4_render_pass_sample_positions :
   handle -> (float * float) array -> ((float * float) array,string) result =
   "caml_prismel_metal4_render_pass_sample_positions"
+external metal4_render_pass_rate_map : handle -> handle option -> (unit,string) result =
+  "caml_prismel_metal4_render_pass_rate_map"
+external metal4_render_pass_depth_attachment :
+  handle -> handle option -> (int * int * float) -> (unit,string) result =
+  "caml_prismel_metal4_render_pass_depth_attachment"
+external metal4_render_pass_stencil_attachment :
+  handle -> handle option -> (int * int * int32) -> (unit,string) result =
+  "caml_prismel_metal4_render_pass_stencil_attachment"
 
 external metal4_stitched_descriptor : handle array -> (handle,string) result =
   "caml_prismel_metal4_stitched_descriptor"

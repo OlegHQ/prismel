@@ -388,6 +388,11 @@
  (modules test_metal4_callable_safe)
  (libraries metal))
 
+(test
+ (name test_metal4_render_pass7_safe)
+ (modules test_metal4_render_pass7_safe)
+ (libraries metal))
+
 (rule
  (targets test_presentation_lifecycle_native.exe)
  (deps ../../tools/metal/test_presentation_lifecycle_native.mm)
@@ -846,6 +851,11 @@
  (action
   (bash
    "status=0; ./test_metal_capture_manager21_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(test
+ (name test_metal_capture_manager_safe)
+ (modules test_metal_capture_manager_safe)
+ (libraries metal))
 
 (rule
  (targets test_metal_compute_pass20_native.exe)

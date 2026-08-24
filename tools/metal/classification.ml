@@ -414,7 +414,10 @@ let bound_identifiers =
           ] )
       ; ( "MTL4RenderPassDescriptor"
         , [ "colorAttachments"; "defaultRasterSampleCount"; "depthAttachment"
+          ; "getSamplePositions:count:"; "rasterizationRateMap"
           ; "renderTargetHeight"; "renderTargetWidth"
+          ; "setDepthAttachment:"; "setRasterizationRateMap:"
+          ; "setSamplePositions:count:"; "setStencilAttachment:"
           ; "setDefaultRasterSampleCount:"; "setRenderTargetHeight:"
           ; "setRenderTargetWidth:"; "setSupportColorAttachmentMapping:"
           ; "setVisibilityResultBuffer:"; "setVisibilityResultType:"
@@ -954,7 +957,7 @@ let bound_identifiers =
       ; "MTL4RenderCommandEncoder", [ "tileHeight"; "tileWidth" ]
       ; ( "MTL4RenderPassDescriptor"
         , [ "colorAttachments"; "defaultRasterSampleCount"; "depthAttachment"
-          ; "renderTargetHeight"; "renderTargetWidth"; "stencilAttachment"
+          ; "rasterizationRateMap"; "renderTargetHeight"; "renderTargetWidth"; "stencilAttachment"
           ; "supportColorAttachmentMapping"
           ; "visibilityResultBuffer"; "visibilityResultType"
           ] )
