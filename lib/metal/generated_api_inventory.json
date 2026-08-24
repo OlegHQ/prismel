@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4536,
+    "bound": 4537,
     "scope-excluded": 37,
-    "unreviewed": 712
+    "unreviewed": 711
   },
-  "classification_source_sha256": "ea5b1079c983fcdd68fa53a2aca6c06246bb91422052def1fe0ca3ad9688d838",
+  "classification_source_sha256": "e5db30722be77f0119c8c8618ca63846fc8b69e4c00b4db8676147fc815a8600",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -797,7 +797,7 @@
           "line": 31
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandBuffer.h",
       "id": "class:MTL4CommandBufferOptions",
       "kind": "class",
@@ -805,7 +805,7 @@
       "macos_introduced": "26.0",
       "name": "MTL4CommandBufferOptions",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the ownership-aware prismel.metal safe layer.",
       "signature": ""
     },
     {
