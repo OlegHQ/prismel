@@ -1585,6 +1585,13 @@ module Capture : sig
     type t=scope
     val create:manager->source->(t,error)result
     val device:t->Device.t
+    val label:t->string option
+    val set_label:t->string option->(unit,error)result
+    val command_queue:t->command_queue option
+    val metal4_command_queue:t->command4_queue option
+    val begin_scope:t->(unit,error)result
+    val end_scope:t->(unit,error)result
+    val active:t->bool
     val destroyed:t->bool
     val destroy:t->(unit,error)result
   end

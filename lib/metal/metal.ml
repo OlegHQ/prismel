@@ -1522,7 +1522,10 @@ type command_queue =
   }
 type command_queue_descriptor={raw:Metal_raw.handle;lifetime:lifetime;device:device;mutable max_count:int64;mutable descriptor_log_state:command4_log_state option}
 
-type capture_scope={raw:Metal_raw.handle;lifetime:lifetime;device:device;parent:lifetime}
+type capture_scope=
+  { raw:Metal_raw.handle; lifetime:lifetime; device:device; parent:lifetime
+  ; classic_queue:command_queue option; metal4_queue:command4_queue option
+  ; mutable scope_label:string option; mutable scope_active:bool }
 type capture_source=
   | Capture_device of device
   | Capture_command_queue of command_queue
@@ -9193,10 +9196,33 @@ module Capture = struct
   end
   module Scope=struct
     type t=capture_scope
-    let create (manager:capture_manager) source=let operation="Metal.Capture.Scope.create"in on_main operation(fun()->match ensure_live operation manager.lifetime with Error _ as failure->failure|Ok()->match source_parts operation source with Error _ as failure->failure|Ok(_,2,_,_)->error operation Invalid_argument "a capture scope cannot own another scope"|Ok(source_raw,kind,parent,device)->let native_kind=if kind=3 then 2 else kind in match Metal_raw.capture_scope_create manager.raw source_raw native_kind with Error message->native_error operation message|Ok raw->attach parent;let value:t={raw;lifetime=lifetime();device;parent}in attach_finalizer value value.lifetime parent;Ok value)
+    let create (manager:capture_manager) source=let operation="Metal.Capture.Scope.create"in on_main operation(fun()->match ensure_live operation manager.lifetime with Error _ as failure->failure|Ok()->match source_parts operation source with Error _ as failure->failure|Ok(_,2,_,_)->error operation Invalid_argument "a capture scope cannot own another scope"|Ok(source_raw,kind,parent,device)->let native_kind=if kind=3 then 2 else kind in match Metal_raw.capture_scope_create manager.raw source_raw native_kind with Error message->native_error operation message|Ok raw->attach parent;let classic_queue=match source with Capture_command_queue queue->Some queue|_->None and metal4_queue=match source with Capture_command4_queue queue->Some queue|_->None in let value:t={raw;lifetime=lifetime();device;parent;classic_queue;metal4_queue;scope_label=None;scope_active=false}in attach_finalizer value value.lifetime parent;Ok value)
     let device (value:t)=value.device
+    let label (value:t)=value.scope_label
+    let command_queue (value:t)=value.classic_queue
+    let metal4_command_queue (value:t)=value.metal4_queue
+    let set_label (value:t) label=let operation="Metal.Capture.Scope.set_label"in
+      on_main operation(fun()->match ensure_live operation value.lifetime with
+      | Error _ as failure->failure
+      | Ok() when (match label with Some text->contains_nul text|None->false)->
+          error operation Invalid_argument "capture scope label contains a NUL byte"
+      | Ok()->match Metal_raw.capture_scope_set_label value.raw label with
+          | Error message->native_error operation message
+          | Ok()->value.scope_label<-Option.map(fun text->String.sub text 0(String.length text))label;Ok())
+    let transition begin_scope (value:t)=let operation=if begin_scope then"Metal.Capture.Scope.begin_scope"else"Metal.Capture.Scope.end_scope"in
+      on_main operation(fun()->match ensure_live operation value.lifetime with
+      | Error _ as failure->failure
+      | Ok() when value.scope_active=begin_scope->error operation Invalid_state(if begin_scope then"capture scope is already active"else"capture scope is not active")
+      | Ok()->match Metal_raw.capture_scope_transition value.raw begin_scope with
+          | Error message->native_error operation message
+          | Ok()->value.scope_active<-begin_scope;Ok())
+    let begin_scope value=transition true value
+    let end_scope value=transition false value
+    let active (value:t)=value.scope_active
     let destroyed (value:t)=is_destroyed value.lifetime
-    let destroy (value:t)=destroy_parent "Metal.Capture.Scope.destroy" value.lifetime value.raw(fun()->detach value.parent)
+    let destroy (value:t)=
+      if value.scope_active then error "Metal.Capture.Scope.destroy" Invalid_state "active capture scope must be ended before destruction"
+      else destroy_parent "Metal.Capture.Scope.destroy" value.lifetime value.raw(fun()->detach value.parent)
   end
   module Manager=struct
     type t=capture_manager
