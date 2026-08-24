@@ -1764,6 +1764,10 @@ let render_pipeline93_functions_descriptor10 =
   ; "method:-[MTLRenderPipelineFunctionsDescriptor setTileAdditionalBinaryFunctions:]"
   ; "property:MTLRenderPipelineFunctionsDescriptor:tileAdditionalBinaryFunctions" ]
 
+let render_pipeline93_function_lookup2 =
+  [ "method:-[MTLRenderPipelineState functionHandleWithFunction:stage:]"
+  ; "method:-[MTLRenderPipelineState functionHandleWithName:stage:]" ]
+
 let linked_functions_safe9 =
   [ "method:-[MTLLinkedFunctions binaryFunctions]"; "method:-[MTLLinkedFunctions groups]"
   ; "method:-[MTLLinkedFunctions privateFunctions]"; "method:-[MTLLinkedFunctions setBinaryFunctions:]"
@@ -1877,7 +1881,8 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
           || List.mem identifier render_pipeline93_array_snapshots18
           || List.mem identifier render_pipeline93_required_thread_sizes4
           || List.mem identifier render_pipeline93_linked_graph12
-          || List.mem identifier render_pipeline93_functions_descriptor10 then
+          || List.mem identifier render_pipeline93_functions_descriptor10
+          || List.mem identifier render_pipeline93_function_lookup2 then
     Bound,
       "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership."
   else if List.mem identifier Binding_compute_encoder35_safe_closure.callable_ids then

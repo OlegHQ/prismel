@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4744,
+    "bound": 4746,
     "scope-excluded": 37,
-    "unreviewed": 504
+    "unreviewed": 502
   },
-  "classification_source_sha256": "de3c3f39262a71b7bbf6043888c2a22ec7d1da9bc4ccdf41b16fdd06372a91c8",
+  "classification_source_sha256": "310b2f0673fe10da931c81dbb5c4e45ecf16b2b2cd05f62eb59daa699f3cc5c8",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -74939,7 +74939,7 @@
           "line": 502
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineState functionHandleWithFunction:stage:]",
       "kind": "method",
@@ -74947,7 +74947,7 @@
       "macos_introduced": "12.0",
       "name": "functionHandleWithFunction:stage:",
       "owner": "MTLRenderPipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": "instance (id<MTLFunction>  _Nonnull __strong, MTLRenderStages) -> id<MTLFunctionHandle> _Nullable"
     },
     {
@@ -74964,7 +74964,7 @@
           "line": 381
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "method:-[MTLRenderPipelineState functionHandleWithName:stage:]",
       "kind": "method",
@@ -74972,7 +74972,7 @@
       "macos_introduced": "26.0",
       "name": "functionHandleWithName:stage:",
       "owner": "MTLRenderPipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership.",
       "signature": "instance (NSString * _Nonnull __strong, MTLRenderStages) -> id<MTLFunctionHandle> _Nullable"
     },
     {
