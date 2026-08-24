@@ -1745,6 +1745,15 @@ let linked_functions_safe9 =
   ; "property:MTLLinkedFunctions:binaryFunctions"; "property:MTLLinkedFunctions:groups"
   ; "property:MTLLinkedFunctions:privateFunctions" ]
 
+let stage_input_output_safe7 =
+  [ "method:-[MTLAttributeDescriptorArray objectAtIndexedSubscript:]"
+  ; "method:-[MTLAttributeDescriptorArray setObject:atIndexedSubscript:]"
+  ; "method:-[MTLStageInputOutputDescriptor attributes]"
+  ; "method:-[MTLStageInputOutputDescriptor layouts]"
+  ; "method:-[MTLStageInputOutputDescriptor reset]"
+  ; "property:MTLStageInputOutputDescriptor:attributes"
+  ; "property:MTLStageInputOutputDescriptor:layouts" ]
+
 let classify ~unavailable ~identifier ~header ~kind ~signature =
   if unavailable then
     Scope_excluded, "Clang marks this declaration unavailable for macOS."
@@ -1839,6 +1848,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier linked_functions_safe9 then
     Bound,
       "Implemented by the LinkedFunctions safe9 retained nullable arrays and deterministic named-group graph with atomic same-device validation."
+  else if List.mem identifier stage_input_output_safe7 then
+    Bound,
+      "Implemented by the StageInputOutputDescriptor safe7 canonical descriptor graph with retained attribute/layout children, checked indices and parent lifetime validation."
   else if List.mem identifier io_compressor_safe5 then
     Bound,
       "Implemented by the owned IO.Compressor lifecycle with copied configuration, checked byte ranges, synchronous consumption, exact finalization state, and real compressed-output conformance."

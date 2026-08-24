@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4707,
+    "bound": 4714,
     "scope-excluded": 37,
-    "unreviewed": 541
+    "unreviewed": 534
   },
-  "classification_source_sha256": "43666afc69e8025b7e37cd071f8e606287b8d97579cbed5a755ccf87d6718ab6",
+  "classification_source_sha256": "5a3f749862d1ac0c2c6b8d5ea738889ff3391aa4c8e0e843f50d8c385de72352",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -47414,7 +47414,7 @@
           "line": 134
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLStageInputOutputDescriptor.h",
       "id": "method:-[MTLAttributeDescriptorArray objectAtIndexedSubscript:]",
       "kind": "method",
@@ -47422,7 +47422,7 @@
       "macos_introduced": "10.12",
       "name": "objectAtIndexedSubscript:",
       "owner": "MTLAttributeDescriptorArray",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the StageInputOutputDescriptor safe7 canonical descriptor graph with retained attribute/layout children, checked indices and parent lifetime validation.",
       "signature": "instance (NSUInteger) -> MTLAttributeDescriptor * _Nonnull"
     },
     {
@@ -47433,7 +47433,7 @@
           "line": 134
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLStageInputOutputDescriptor.h",
       "id": "method:-[MTLAttributeDescriptorArray setObject:atIndexedSubscript:]",
       "kind": "method",
@@ -47441,7 +47441,7 @@
       "macos_introduced": "10.12",
       "name": "setObject:atIndexedSubscript:",
       "owner": "MTLAttributeDescriptorArray",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the StageInputOutputDescriptor safe7 canonical descriptor graph with retained attribute/layout children, checked indices and parent lifetime validation.",
       "signature": "instance (MTLAttributeDescriptor * _Nullable __strong, NSUInteger) -> void"
     },
     {
@@ -77699,7 +77699,7 @@
           "line": 143
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLStageInputOutputDescriptor.h",
       "id": "method:-[MTLStageInputOutputDescriptor attributes]",
       "kind": "method",
@@ -77707,7 +77707,7 @@
       "macos_introduced": "10.12",
       "name": "attributes",
       "owner": "MTLStageInputOutputDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the StageInputOutputDescriptor safe7 canonical descriptor graph with retained attribute/layout children, checked indices and parent lifetime validation.",
       "signature": "instance () -> MTLAttributeDescriptorArray * _Nonnull"
     },
     {
@@ -77756,7 +77756,7 @@
           "line": 143
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLStageInputOutputDescriptor.h",
       "id": "method:-[MTLStageInputOutputDescriptor layouts]",
       "kind": "method",
@@ -77764,7 +77764,7 @@
       "macos_introduced": "10.12",
       "name": "layouts",
       "owner": "MTLStageInputOutputDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the StageInputOutputDescriptor safe7 canonical descriptor graph with retained attribute/layout children, checked indices and parent lifetime validation.",
       "signature": "instance () -> MTLBufferLayoutDescriptorArray * _Nonnull"
     },
     {
@@ -77775,7 +77775,7 @@
           "line": 143
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLStageInputOutputDescriptor.h",
       "id": "method:-[MTLStageInputOutputDescriptor reset]",
       "kind": "method",
@@ -77783,7 +77783,7 @@
       "macos_introduced": "10.12",
       "name": "reset",
       "owner": "MTLStageInputOutputDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the StageInputOutputDescriptor safe7 canonical descriptor graph with retained attribute/layout children, checked indices and parent lifetime validation.",
       "signature": "instance () -> void"
     },
     {
@@ -101398,7 +101398,7 @@
           "line": 143
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLStageInputOutputDescriptor.h",
       "id": "property:MTLStageInputOutputDescriptor:attributes",
       "kind": "property",
@@ -101406,7 +101406,7 @@
       "macos_introduced": "10.12",
       "name": "attributes",
       "owner": "MTLStageInputOutputDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the StageInputOutputDescriptor safe7 canonical descriptor graph with retained attribute/layout children, checked indices and parent lifetime validation.",
       "signature": "MTLAttributeDescriptorArray * _Nonnull"
     },
     {
@@ -101455,7 +101455,7 @@
           "line": 143
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLStageInputOutputDescriptor.h",
       "id": "property:MTLStageInputOutputDescriptor:layouts",
       "kind": "property",
@@ -101463,7 +101463,7 @@
       "macos_introduced": "10.12",
       "name": "layouts",
       "owner": "MTLStageInputOutputDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the StageInputOutputDescriptor safe7 canonical descriptor graph with retained attribute/layout children, checked indices and parent lifetime validation.",
       "signature": "MTLBufferLayoutDescriptorArray * _Nonnull"
     },
     {
