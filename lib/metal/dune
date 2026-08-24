@@ -886,6 +886,11 @@
  (modules test_metal_compute_pass_safe)
  (libraries metal))
 
+(test
+ (name test_metal_compute_encoder35_safe)
+ (modules test_metal_compute_encoder35_safe)
+ (libraries metal))
+
 (rule
  (targets test_metal_compute_pass20_native.exe)
  (deps ../../tools/metal/test_compute_pass20_native.mm)
