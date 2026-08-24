@@ -2635,3 +2635,15 @@ external blit_pass10_sample_buffer :
 external blit_pass10_set_sample_buffer :
   handle -> handle option -> int64 -> (unit, string) result =
   "caml_prismel_metal_blit_pass10_set_sample_buffer"
+
+external drawable10_snapshot :
+  handle -> ((int64 * float), string) result =
+  "caml_prismel_metal_drawable10_snapshot"
+external drawable10_present :
+  handle -> int -> float -> bool -> (unit, string) result =
+  "caml_prismel_metal_drawable10_present"
+external drawable10_add_handler :
+  handle -> (int64 * float -> unit) -> (nativeint, string) result =
+  "caml_prismel_metal_drawable10_add_handler"
+external drawable10_handler_cancel : nativeint -> unit =
+  "caml_prismel_metal_drawable10_handler_cancel"

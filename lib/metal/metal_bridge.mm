@@ -14764,6 +14764,7 @@ extern "C" CAMLprim value caml_prismel_metal_pipeline_render_imageblock_length(v
 #include "../../tools/metal/metal_intersection_table8_callable_bridge.inc"
 #include "../../tools/metal/metal_stage_input_output10_callable_bridge.inc"
 #include "../../tools/metal/metal_blit_pass10_callable_bridge.inc"
+#include "../../tools/metal/metal_drawable10_callable_bridge.inc"
 #include "../../tools/metal/metal_tensor_ownership_callable_bridge.inc"
 #include "../../tools/metal/metal_resource_remaining16_bridge.inc"
 #pragma clang diagnostic pop
