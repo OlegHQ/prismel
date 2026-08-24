@@ -822,6 +822,10 @@
  (modules test_binding_metal4_argument_table_safe_package binding_metal4_argument_table_safe_package))
 
 (test
+ (name test_binding_metal4_compute_pipeline_safe_package)
+ (modules test_binding_metal4_compute_pipeline_safe_package binding_metal4_compute_pipeline_safe_package))
+
+(test
  (name test_binding_one_two_id_tails)
  (modules test_binding_one_two_id_tails)
  (libraries yojson)
