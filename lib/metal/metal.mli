@@ -3314,6 +3314,8 @@ module Resource100 : sig
     val device : t -> Device.t
     val sample_count : t -> int64
     val label : t -> string option
+    val sample : Blit_encoder.t -> t -> index:int64 -> (unit,error) result
+    val resolve : Blit_encoder.t -> t -> first:int64 -> count:int64 -> Buffer.t -> offset:int64 -> (unit,error) result
     val destroyed : t -> bool
     val destroy : t -> (unit,error) result
   end

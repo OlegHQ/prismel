@@ -18659,6 +18659,27 @@ module Resource100 = struct
     let device(value:t)=value.device
     let sample_count(value:t)=value.sample_count
     let label(value:t)=value.label
+    let retain_for_command (commands:command_buffer) (value:t)=
+      if not(List.exists((==)value.lifetime)!(commands.presentation_events))then begin
+        attach value.lifetime;commands.presentation_events:=value.lifetime::!(commands.presentation_events)
+      end
+    let sample (encoder:Blit_encoder.t)(value:t) ~index =
+      let op="Metal.Resource100.Sample_buffer.sample" in
+      on_main op(fun()->match ensure_live op encoder.lifetime with Error _ as e->e|Ok()->
+        match ensure_live op value.lifetime with Error _ as e->e|Ok()->
+        if index<0L||index>=value.sample_count then error op Invalid_argument "sample index is out of range"
+        else match ensure_same_device op encoder.command_buffer.queue.device value.device with Error _ as e->e|Ok()->
+          match Metal_raw.blit_counter encoder.raw value.raw index 0L value.raw 0L true with
+          |Error m->native_error op m|Ok()->retain_for_command encoder.command_buffer value;Ok())
+    let resolve (encoder:Blit_encoder.t)(value:t) ~first ~count (destination:Buffer.t) ~offset =
+      let op="Metal.Resource100.Sample_buffer.resolve" in
+      on_main op(fun()->match ensure_live op encoder.lifetime with Error _ as e->e|Ok()->
+        match ensure_live op value.lifetime with Error _ as e->e|Ok()->match ensure_buffer_usable op destination with Error _ as e->e|Ok()->
+        if first<0L||count<0L||first>value.sample_count||count>Int64.sub value.sample_count first||offset<0L||offset>destination.length then error op Invalid_argument "counter resolve range is invalid"
+        else match ensure_same_device op encoder.command_buffer.queue.device value.device with Error _ as e->e|Ok()->
+          match ensure_same_device op value.device destination.device with Error _ as e->e|Ok()->
+          match Metal_raw.blit_counter encoder.raw value.raw first count destination.raw offset false with
+          |Error m->native_error op m|Ok()->retain_for_command encoder.command_buffer value;retain_command_buffer_buffer encoder.command_buffer destination;Ok())
     let destroyed(value:t)=is_destroyed value.lifetime
     let destroy(value:t)=destroy_parent "Metal.Resource100.Sample_buffer.destroy" value.lifetime value.raw(fun()->detach value.device.lifetime)
   end
