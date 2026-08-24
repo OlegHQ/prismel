@@ -3819,6 +3819,21 @@ module IO : sig
     val create_unretained_command_buffer : t -> (io_command_buffer,error) result
     val destroy : t -> (unit, error) result
   end
+  module Scratch_buffer : sig
+    type t
+    val buffer : t -> Buffer.t
+    val destroyed : t -> bool
+    val destroy : t -> (unit, error) result
+  end
+  module Scratch_allocator : sig
+    type t
+    val create : Device.t -> (t, error) result
+    val device : t -> Device.t
+    val destroyed : t -> bool
+    val create_queue : t -> (Queue.t, error) result
+    val allocate : t -> minimum_size:int64 -> (Scratch_buffer.t, error) result
+    val destroy : t -> (unit, error) result
+  end
   module File : sig
     type t = io_file
     val device : t -> Device.t
@@ -3843,6 +3858,14 @@ module IO : sig
     val signal_event : t -> Shared_event.t -> int64 -> (unit,error) result
     val copy_status : t -> destination:Buffer.t -> offset:int64 -> (unit,error) result
     val add_completed_handler : t -> (unit -> unit) -> (unit, error) result
+    val load_bytes :
+      t -> size:int64 -> source:File.t -> source_offset:int64 ->
+      on_complete:((bytes, string) result -> unit) -> (unit, error) result
+    val load_texture :
+      t -> destination:Texture.t -> slice:int64 -> level:int ->
+      region:Texture.region -> source_bytes_per_row:int64 ->
+      source_bytes_per_image:int64 ->
+      source:File.t -> source_offset:int64 -> (unit, error) result
     val load_buffer :
       t -> destination:Buffer.t -> destination_offset:int64 -> size:int64 ->
       source:File.t -> source_offset:int64 -> (unit, error) result
