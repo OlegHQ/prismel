@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4995,
+    "bound": 4996,
     "scope-excluded": 37,
-    "unreviewed": 253
+    "unreviewed": 252
   },
-  "classification_source_sha256": "9400cbb1ec9b5e0f09990c3c207f7d5eb183929eb6fedcbca5fe8df25af4c2c4",
+  "classification_source_sha256": "18916bd766662ff72b35111f0d9cc6174afc52975479b8e95068d0a96a77dbc7",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -35993,7 +35993,7 @@
           "line": 26
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4ComputePipeline.h",
       "id": "method:-[MTL4ComputePipelineDescriptor reset]",
       "kind": "method",
@@ -36001,7 +36001,7 @@
       "macos_introduced": "26.0",
       "name": "reset",
       "owner": "MTL4ComputePipelineDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by a distinct owned Metal 4 compute descriptor with typed native reset, native-first child replacement, exact default checks, idempotence, and destroyed/availability conformance.",
       "signature": "instance () -> void"
     },
     {
