@@ -249,6 +249,7 @@
   ../../tools/metal/metal_event14_callable_bridge.inc
   ../../tools/metal/metal_acceleration_structure28_callable_bridge.inc
   ../../tools/metal/metal_log_state9_callable_bridge.inc
+  ../../tools/metal/metal_log_state7_handler_lifetime.hpp
   ../../tools/metal/metal_parallel_render8_callable_bridge.inc
   ../../tools/metal/metal_function_handle8_callable_bridge.inc
   ../../tools/metal/metal_linked_functions9_callable_bridge.inc
