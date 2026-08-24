@@ -2681,3 +2681,12 @@ external function_constants3_set_index :
 external function_constants3_set_range :
   handle -> int -> (int64 * int64) -> string -> (unit, string) result =
   "caml_prismel_metal_function_constants3_set_range"
+
+external metal4_stitched_graph_pair :
+  handle -> handle array option -> handle option -> int64 array -> int64 option ->
+  int64 -> bool -> (unit, string) result =
+  "caml_prismel_metal4_stitched_graph_pair_bytecode"
+  "caml_prismel_metal4_stitched_graph_pair"
+external metal4_stitched_graph_snapshot :
+  handle -> ((handle array * handle option), string) result =
+  "caml_prismel_metal4_stitched_graph_snapshot"
