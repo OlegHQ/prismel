@@ -750,6 +750,10 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (name test_binding_function_handle_safe_package)
+ (modules test_binding_function_handle_safe_package binding_function_handle_safe_package))
+
+(test
  (name test_binding_small_tail_handoffs)
  (modules test_binding_small_tail_handoffs)
  (libraries yojson)
