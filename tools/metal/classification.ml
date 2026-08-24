@@ -1712,6 +1712,26 @@ let render_pipeline93_tile_graph9 =
   ; "method:-[MTLTileRenderPipelineDescriptor setTileFunction:]"
   ; "property:MTLTileRenderPipelineDescriptor:tileFunction" ]
 
+let render_pipeline93_array_snapshots18 =
+  [ "method:-[MTLRenderPipelineDescriptor colorAttachments]"
+  ; "property:MTLRenderPipelineDescriptor:colorAttachments"
+  ; "method:-[MTLRenderPipelineDescriptor fragmentBuffers]"
+  ; "property:MTLRenderPipelineDescriptor:fragmentBuffers"
+  ; "method:-[MTLRenderPipelineDescriptor vertexBuffers]"
+  ; "property:MTLRenderPipelineDescriptor:vertexBuffers"
+  ; "method:-[MTLMeshRenderPipelineDescriptor colorAttachments]"
+  ; "property:MTLMeshRenderPipelineDescriptor:colorAttachments"
+  ; "method:-[MTLMeshRenderPipelineDescriptor fragmentBuffers]"
+  ; "property:MTLMeshRenderPipelineDescriptor:fragmentBuffers"
+  ; "method:-[MTLMeshRenderPipelineDescriptor meshBuffers]"
+  ; "property:MTLMeshRenderPipelineDescriptor:meshBuffers"
+  ; "method:-[MTLMeshRenderPipelineDescriptor objectBuffers]"
+  ; "property:MTLMeshRenderPipelineDescriptor:objectBuffers"
+  ; "method:-[MTLTileRenderPipelineDescriptor colorAttachments]"
+  ; "property:MTLTileRenderPipelineDescriptor:colorAttachments"
+  ; "method:-[MTLTileRenderPipelineDescriptor tileBuffers]"
+  ; "property:MTLTileRenderPipelineDescriptor:tileBuffers" ]
+
 let classify ~unavailable ~identifier ~header ~kind ~signature =
   if unavailable then
     Scope_excluded, "Clang marks this declaration unavailable for macOS."
@@ -1795,7 +1815,8 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
       "Implemented by the CommandQueue14 safe closure with checked descriptor limits and log-state ownership, copied queue identity, capture-state validation, and retained classic command buffers."
   else if List.mem identifier render_pipeline93_safe11
           || List.mem identifier render_pipeline93_mesh_graph12
-          || List.mem identifier render_pipeline93_tile_graph9 then
+          || List.mem identifier render_pipeline93_tile_graph9
+          || List.mem identifier render_pipeline93_array_snapshots18 then
     Bound,
       "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership."
   else if List.mem identifier Binding_compute_encoder35_safe_closure.callable_ids then
