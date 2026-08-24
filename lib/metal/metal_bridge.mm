@@ -10654,6 +10654,13 @@ caml_prismel_metal_compute_pipeline_create_descriptor(
         descriptor.linkedFunctions = linked;
       }
       descriptor.preloadedLibraries = preloaded_array;
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+      descriptor.insertLibraries = preloaded_array;
+      MTLPipelineBufferDescriptorArray *checked_buffers = descriptor.buffers;
+      const bool checked_insert_libraries =
+          descriptor.insertLibraries.count == preloaded_array.count;
+#pragma clang diagnostic pop
       descriptor.binaryArchives = archive_array;
       descriptor.supportIndirectCommandBuffers = Bool_val(Field(raw_descriptor, 6));
       if (descriptor.computeFunction != function ||
@@ -10661,6 +10668,8 @@ caml_prismel_metal_compute_pipeline_create_descriptor(
           (expected_label != nil &&
            ![descriptor.label isEqualToString:expected_label]) ||
           descriptor.preloadedLibraries.count != preloaded_array.count ||
+          !checked_insert_libraries ||
+          checked_buffers == nil ||
           descriptor.binaryArchives.count != archive_array.count ||
           descriptor.supportIndirectCommandBuffers != Bool_val(Field(raw_descriptor, 6))) {
         CAMLreturn(result_error_text(
@@ -10690,6 +10699,15 @@ caml_prismel_metal_compute_pipeline_create_descriptor(
       if (reflection_requested && reflection == nil) {
         CAMLreturn(result_error_text(
             "Metal omitted requested compute-pipeline reflection"));
+      }
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+      const bool has_legacy_arguments =
+          !reflection_requested || reflection.arguments != nil;
+#pragma clang diagnostic pop
+      if (!has_legacy_arguments) {
+        CAMLreturn(result_error_text(
+            "Metal omitted requested legacy compute-pipeline arguments"));
       }
       if (pipeline.device.registryID != device.registryID ||
           ((expected_label == nil) != (pipeline.label == nil)) ||
@@ -14811,6 +14829,7 @@ extern "C" CAMLprim value caml_prismel_metal_pipeline_render_imageblock_length(v
 #include "../../tools/metal/metal_function_log18_callable_bridge.inc"
 #include "../../tools/metal/metal_command_encoder9_callable_bridge.inc"
 #include "../../tools/metal/metal_command_queue15_callable_bridge.inc"
+#include "../../tools/metal/metal_compute_pipeline11_callable_bridge.inc"
 #include "../../tools/metal/metal_command_buffer19_encoder_info.inc"
 #include "../../tools/metal/metal_indirect_command14_callable_bridge.inc"
 #include "../../tools/metal/metal_capture_scope12_callable_bridge.inc"

@@ -1355,6 +1355,10 @@ external acceleration_encoder_end : handle -> (unit, string) result
 external compute_pipeline_function_handle :
   handle -> handle -> (handle, string) result
   = "caml_prismel_metal_compute_pipeline_function_handle"
+external compute_pipeline11_named : handle -> string -> (handle option,string) result =
+  "caml_prismel_metal_compute_pipeline11_named"
+external compute_pipeline11_relink : handle -> bool -> (handle,string) result =
+  "caml_prismel_metal_compute_pipeline11_relink"
 external compute_pipeline_visible_function_table :
   handle -> int64 -> (handle, string) result
   = "caml_prismel_metal_compute_pipeline_visible_function_table"
