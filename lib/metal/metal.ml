@@ -9151,14 +9151,20 @@ module Library_metadata = struct
     ; kind : attribute_kind }
   type function_reflection = { bindings : Binding.t list }
 
-  let attribute kind (value:Shader_attribute.t) =
+  let query operation raw (value:shader_attribute) =
+    on_main operation (fun () -> match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () -> match raw value.raw value.vertex with
+        | Error message -> native_error operation message | Ok result -> Ok result)
+  let attribute kind (value:shader_attribute) =
     let ( let* ) = Result.bind in
-    let* name = Shader_attribute.name value in
-    let* index = Shader_attribute.index value in
-    let* data_type = Shader_attribute.data_type value in
-    let* active = Shader_attribute.active value in
-    let* patch_control_point_data = Shader_attribute.patch_control_point_data value in
-    let* patch_data = Shader_attribute.patch_data value in
+    let* name = query "Metal.Library_metadata.attribute.name" Metal_raw.shader_attribute_name value in
+    let* index = query "Metal.Library_metadata.attribute.index" Metal_raw.shader_attribute_index value in
+    let* data_type = Result.map (fun code -> Shader_type.of_code(Int64.to_int code))
+        (query "Metal.Library_metadata.attribute.data_type" Metal_raw.shader_attribute_type value) in
+    let* active = query "Metal.Library_metadata.attribute.active" Metal_raw.shader_attribute_active value in
+    let* patch_control_point_data = query "Metal.Library_metadata.attribute.patch_control_point_data" Metal_raw.shader_attribute_patch_control_point value in
+    let* patch_data = query "Metal.Library_metadata.attribute.patch_data" Metal_raw.shader_attribute_patch_data value in
     Ok {name;index;data_type;active;patch_control_point_data;patch_data;kind}
 
   let attributes (function_:Function.t) ~vertex =
@@ -9166,13 +9172,13 @@ module Library_metadata = struct
       let kind = if vertex then Vertex else Stage_input in
       let rec copy output = function
         | [] -> Ok (List.rev output)
-        | handle::rest ->
+        | (handle:shader_attribute)::rest ->
             let copied = Fun.protect
-              ~finally:(fun () -> ignore (Shader_attribute.destroy handle))
+              ~finally:(fun () -> ignore(destroy_leaf "Metal.Library_metadata.attribute.destroy" handle.lifetime handle.raw(fun()->detach handle.function_.lifetime)))
               (fun () -> attribute kind handle) in
             (match copied with Ok value -> copy (value::output) rest
              | Error _ as failure ->
-                 List.iter (fun item -> ignore (Shader_attribute.destroy item)) rest;
+                 List.iter (fun (item:shader_attribute) -> ignore(destroy_leaf "Metal.Library_metadata.attribute.destroy" item.lifetime item.raw(fun()->detach item.function_.lifetime))) rest;
                  failure)
       in copy [] handles)
 
