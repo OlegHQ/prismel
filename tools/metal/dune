@@ -52,6 +52,7 @@
   binding_io_counter_type_reachability
   binding_metal4_manifest
   binding_metal4_callable_safe_reachability
+  binding_metal4_argument_table_safe_package
   binding_metal4_second_slice_reachability
   binding_metal4_native32_reachability
   binding_metal4_final9_reachability
@@ -82,6 +83,7 @@
   binding_compute_pipeline11_safe_closure
   binding_function_descriptor4_safe_package
   binding_fence6_safe_package
+  binding_metal4_argument_table_safe_package
   binding_render_encoder33_native_closure
   binding_render_pipeline93_native_closure
   binding_acceleration_command32_native_closure
@@ -750,11 +752,6 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
- (name binding_command_encoder9_closure)
- (modules binding_command_encoder9_closure)
- (libraries metal_inventory_classification))
-
-(test
  (name test_binding_command_queue_safe_package)
  (modules test_binding_command_queue_safe_package binding_command_queue_safe_package)
  (libraries metal_inventory_classification))
@@ -951,7 +948,8 @@
 
 (test
  (name test_binding_metal4_argument_table_safe_package)
- (modules test_binding_metal4_argument_table_safe_package binding_metal4_argument_table_safe_package))
+ (modules test_binding_metal4_argument_table_safe_package)
+ (libraries metal_inventory_classification))
 
 (test
  (name test_binding_metal4_compute_pipeline_safe_package)

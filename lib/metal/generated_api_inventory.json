@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4959,
+    "bound": 4969,
     "scope-excluded": 37,
-    "unreviewed": 289
+    "unreviewed": 279
   },
-  "classification_source_sha256": "08bf78eea38cbf973679653adb1cad038d2f47a8292a3067a80752f5908f9dd8",
+  "classification_source_sha256": "8699565752cfab5bb42ed4eb92fdcb988ca312b69f27f871b48e4787a38f84d3",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -32993,7 +32993,7 @@
           "line": 58
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4ArgumentTable.h",
       "id": "method:-[MTL4ArgumentTable setResource:atBufferIndex:]",
       "kind": "method",
@@ -33001,7 +33001,7 @@
       "macos_introduced": "26.0",
       "name": "setResource:atBufferIndex:",
       "owner": "MTL4ArgumentTable",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the closed ID-bearing resource variant with checked live/device/index/nonzero validation, atomic replacement retention, command lifetime, and real Metal 4 texture-table conformance.",
       "signature": "instance (MTLResourceID, NSUInteger) -> void"
     },
     {
@@ -50710,7 +50710,7 @@
           "line": 125
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandEncoder.h",
       "id": "method:-[MTLCommandEncoder barrierAfterQueueStages:beforeStages:]",
       "kind": "method",
@@ -50718,7 +50718,7 @@
       "macos_introduced": "26.0",
       "name": "barrierAfterQueueStages:beforeStages:",
       "owner": "MTLCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CommandEncoder9 shared safe token with retained command parent, exact device/label snapshots, balanced debug depth, known nonzero stage masks, end-state rejection, and real 256-command conformance.",
       "signature": "instance (MTLStages, MTLStages) -> void"
     },
     {
@@ -50729,7 +50729,7 @@
           "line": 82
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandEncoder.h",
       "id": "method:-[MTLCommandEncoder device]",
       "kind": "method",
@@ -50737,7 +50737,7 @@
       "macos_introduced": "10.11",
       "name": "device",
       "owner": "MTLCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CommandEncoder9 shared safe token with retained command parent, exact device/label snapshots, balanced debug depth, known nonzero stage masks, end-state rejection, and real 256-command conformance.",
       "signature": "instance () -> id<MTLDevice> _Nonnull"
     },
     {
@@ -50767,7 +50767,7 @@
           "line": 82
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandEncoder.h",
       "id": "method:-[MTLCommandEncoder insertDebugSignpost:]",
       "kind": "method",
@@ -50775,7 +50775,7 @@
       "macos_introduced": "10.11",
       "name": "insertDebugSignpost:",
       "owner": "MTLCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CommandEncoder9 shared safe token with retained command parent, exact device/label snapshots, balanced debug depth, known nonzero stage masks, end-state rejection, and real 256-command conformance.",
       "signature": "instance (NSString * _Nonnull __strong) -> void"
     },
     {
@@ -50786,7 +50786,7 @@
           "line": 82
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandEncoder.h",
       "id": "method:-[MTLCommandEncoder label]",
       "kind": "method",
@@ -50794,7 +50794,7 @@
       "macos_introduced": "10.11",
       "name": "label",
       "owner": "MTLCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CommandEncoder9 shared safe token with retained command parent, exact device/label snapshots, balanced debug depth, known nonzero stage masks, end-state rejection, and real 256-command conformance.",
       "signature": "instance () -> NSString * _Nullable"
     },
     {
@@ -50805,7 +50805,7 @@
           "line": 82
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandEncoder.h",
       "id": "method:-[MTLCommandEncoder popDebugGroup]",
       "kind": "method",
@@ -50813,7 +50813,7 @@
       "macos_introduced": "10.11",
       "name": "popDebugGroup",
       "owner": "MTLCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CommandEncoder9 shared safe token with retained command parent, exact device/label snapshots, balanced debug depth, known nonzero stage masks, end-state rejection, and real 256-command conformance.",
       "signature": "instance () -> void"
     },
     {
@@ -50824,7 +50824,7 @@
           "line": 82
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandEncoder.h",
       "id": "method:-[MTLCommandEncoder pushDebugGroup:]",
       "kind": "method",
@@ -50832,7 +50832,7 @@
       "macos_introduced": "10.11",
       "name": "pushDebugGroup:",
       "owner": "MTLCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CommandEncoder9 shared safe token with retained command parent, exact device/label snapshots, balanced debug depth, known nonzero stage masks, end-state rejection, and real 256-command conformance.",
       "signature": "instance (NSString * _Nonnull __strong) -> void"
     },
     {
@@ -50843,7 +50843,7 @@
           "line": 82
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandEncoder.h",
       "id": "method:-[MTLCommandEncoder setLabel:]",
       "kind": "method",
@@ -50851,7 +50851,7 @@
       "macos_introduced": "10.11",
       "name": "setLabel:",
       "owner": "MTLCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CommandEncoder9 shared safe token with retained command parent, exact device/label snapshots, balanced debug depth, known nonzero stage masks, end-state rejection, and real 256-command conformance.",
       "signature": "instance (NSString * _Nullable) -> void"
     },
     {
@@ -90903,7 +90903,7 @@
           "line": 82
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandEncoder.h",
       "id": "property:MTLCommandEncoder:device",
       "kind": "property",
@@ -90911,7 +90911,7 @@
       "macos_introduced": "10.11",
       "name": "device",
       "owner": "MTLCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CommandEncoder9 shared safe token with retained command parent, exact device/label snapshots, balanced debug depth, known nonzero stage masks, end-state rejection, and real 256-command conformance.",
       "signature": "id<MTLDevice> _Nonnull"
     },
     {
@@ -90922,7 +90922,7 @@
           "line": 82
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandEncoder.h",
       "id": "property:MTLCommandEncoder:label",
       "kind": "property",
@@ -90930,7 +90930,7 @@
       "macos_introduced": "10.11",
       "name": "label",
       "owner": "MTLCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the CommandEncoder9 shared safe token with retained command parent, exact device/label snapshots, balanced debug depth, known nonzero stage masks, end-state rejection, and real 256-command conformance.",
       "signature": "NSString * _Nullable"
     },
     {
