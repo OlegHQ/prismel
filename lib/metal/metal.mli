@@ -780,6 +780,7 @@ end
 
 module Metal_layer : sig
   type t
+  type edr_metadata = Standard | Hlg | Hdr10 of {minimum_luminance:float;maximum_luminance:float;optical_output_scale:float}
   type config =
     { width:int; height:int; format:Texture.format; framebuffer_only:bool
     ; maximum_drawables:int; allows_timeout:bool; display_sync:bool
@@ -790,6 +791,13 @@ module Metal_layer : sig
   val device : t -> Device.t
   val size : t -> int * int
   val config : t -> config
+  val checked_config : t -> (config,error) result
+  val wants_extended_range : t -> bool
+  val set_wants_extended_range : t -> bool -> (unit,error) result
+  val colorspace : t -> (string option,error) result
+  val set_colorspace : t -> string option -> (unit,error) result
+  val edr_metadata : t -> edr_metadata
+  val set_edr_metadata : t -> edr_metadata -> (unit,error) result
   val destroyed : t -> bool
   val destroy : t -> (unit,error) result
 end
@@ -799,6 +807,7 @@ module Drawable : sig
   type loss = Timeout_or_unavailable
   val acquire : Metal_layer.t -> ((t,loss) result,error) result
   val layer : t -> Metal_layer.t
+  val checked_layer : t -> (Metal_layer.t,error) result
   val texture : t -> (Texture.t,error) result
   val destroyed : t -> bool
   val destroy : t -> (unit,error) result

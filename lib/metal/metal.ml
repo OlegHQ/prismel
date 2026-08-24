@@ -736,6 +736,14 @@ type heap_allocation =
   ; active : bool Atomic.t
   }
 
+type metal_layer_edr_metadata =
+  | Standard
+  | Hlg
+  | Hdr10 of
+      { minimum_luminance : float
+      ; maximum_luminance : float
+      ; optical_output_scale : float }
+
 type io_surface_plane =
   { width : int
   ; height : int
@@ -775,7 +783,10 @@ and metal_layer =
   ; mutable layer_width : int; mutable layer_height : int
   ; mutable layer_format : pixel_format; mutable framebuffer_only : bool
   ; mutable maximum_drawables : int; mutable allows_timeout : bool
-  ; mutable display_sync : bool; mutable presents_with_transaction : bool }
+  ; mutable display_sync : bool; mutable presents_with_transaction : bool
+  ; mutable wants_extended_range : bool
+  ; mutable layer_colorspace : string option
+  ; mutable edr_metadata : metal_layer_edr_metadata }
 
 and metal_drawable =
   { raw : Metal_raw.handle; lifetime : lifetime; layer : metal_layer
@@ -6049,6 +6060,7 @@ end
 
 module Metal_layer = struct
   type t = metal_layer
+  type edr_metadata = metal_layer_edr_metadata = Standard | Hlg | Hdr10 of {minimum_luminance:float;maximum_luminance:float;optical_output_scale:float}
   type config =
     { width:int; height:int; format:Texture.format; framebuffer_only:bool
     ; maximum_drawables:int; allows_timeout:bool; display_sync:bool
@@ -6065,7 +6077,7 @@ module Metal_layer = struct
       match Metal_raw.layer_create device.raw with Error m->native_error operation m|Ok raw->
       match Metal_raw.layer_configure raw config.width config.height (Metal_format.code config.format) (config.framebuffer_only,config.maximum_drawables,config.allows_timeout,config.display_sync,config.presents_with_transaction) with
       | Error m->ignore(Metal_raw.destroy raw);native_error operation m
-      | Ok()->let value : t={raw;lifetime=lifetime();device;layer_width=config.width;layer_height=config.height;layer_format=config.format;framebuffer_only=config.framebuffer_only;maximum_drawables=config.maximum_drawables;allows_timeout=config.allows_timeout;display_sync=config.display_sync;presents_with_transaction=config.presents_with_transaction}in attach device.lifetime;attach_finalizer value value.lifetime device.lifetime;Ok value)
+      | Ok()->let value : t={raw;lifetime=lifetime();device;layer_width=config.width;layer_height=config.height;layer_format=config.format;framebuffer_only=config.framebuffer_only;maximum_drawables=config.maximum_drawables;allows_timeout=config.allows_timeout;display_sync=config.display_sync;presents_with_transaction=config.presents_with_transaction;wants_extended_range=false;layer_colorspace=None;edr_metadata=Standard}in attach device.lifetime;attach_finalizer value value.lifetime device.lifetime;Ok value)
   let device (value:t)=value.device
   let size (value:t)=value.layer_width,value.layer_height
   let config (value:t) =
@@ -6075,6 +6087,13 @@ module Metal_layer = struct
     ; allows_timeout=value.allows_timeout; display_sync=value.display_sync
     ; presents_with_transaction=value.presents_with_transaction }
   let configure (value:t) config = let operation="Metal.Metal_layer.configure" in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->if config.width<=0||config.height<=0||config.maximum_drawables<2||config.maximum_drawables>3 then error operation Invalid_argument "invalid drawable size or maximum count" else if not (List.mem config.format [Texture.Bgra8_unorm;Texture.Bgra8_unorm_srgb;Texture.Rgba16_float]) then error operation Unsupported "pixel format is not supported by CAMetalLayer" else match Metal_raw.layer_configure value.raw config.width config.height(Metal_format.code config.format)(config.framebuffer_only,config.maximum_drawables,config.allows_timeout,config.display_sync,config.presents_with_transaction)with Error m->native_error operation m|Ok()->value.layer_width<-config.width;value.layer_height<-config.height;value.layer_format<-config.format;value.framebuffer_only<-config.framebuffer_only;value.maximum_drawables<-config.maximum_drawables;value.allows_timeout<-config.allows_timeout;value.display_sync<-config.display_sync;value.presents_with_transaction<-config.presents_with_transaction;Ok())
+  let checked_config(value:t)=let operation="Metal.Metal_layer.checked_config"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.layer_native_snapshot value.raw with Error m->native_error operation m|Ok(registry,width,height,format,framebuffer,maximum,timeout,display,transaction,extended)when registry=value.device.registry_id&&width=float value.layer_width&&height=float value.layer_height&&format=Int64.of_int(Metal_format.code value.layer_format)&&framebuffer=value.framebuffer_only&&maximum=Int64.of_int value.maximum_drawables&&timeout=value.allows_timeout&&display=value.display_sync&&transaction=value.presents_with_transaction&&extended=value.wants_extended_range->Ok(config value)|Ok _->error operation Native_error "native layer configuration disagrees with safe metadata")
+  let wants_extended_range(value:t)=value.wants_extended_range
+  let set_wants_extended_range(value:t) enabled=let operation="Metal.Metal_layer.set_wants_extended_range"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.layer_set_extended_range value.raw enabled with Error m->native_error operation m|Ok()->value.wants_extended_range<-enabled;Ok())
+  let colorspace(value:t)=let operation="Metal.Metal_layer.colorspace"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.layer_colorspace_name value.raw with Error m->native_error operation m|Ok actual when actual=value.layer_colorspace->Ok actual|Ok _->error operation Native_error "native layer colorspace disagrees with safe metadata")
+  let set_colorspace(value:t) name=let operation="Metal.Metal_layer.set_colorspace"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->if option_exists contains_nul name then error operation Invalid_argument "colorspace name contains a NUL byte"else match Metal_raw.layer_set_colorspace_name value.raw name with Error m->native_error operation m|Ok()->value.layer_colorspace<-name;Ok())
+  let edr_metadata(value:t)=value.edr_metadata
+  let set_edr_metadata(value:t) metadata=let operation="Metal.Metal_layer.set_edr_metadata"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->let mode,values=match metadata with Standard->0,(0.,0.,0.)|Hlg->1,(0.,0.,0.)|Hdr10{minimum_luminance;maximum_luminance;optical_output_scale}->2,(minimum_luminance,maximum_luminance,optical_output_scale)in let minimum,maximum,scale=values in if mode=2&&(not(List.for_all Float.is_finite[minimum;maximum;scale])||minimum<0.||maximum<=minimum||scale<=0.)then error operation Invalid_argument "HDR10 luminance metadata is invalid"else match Metal_raw.layer_set_edr value.raw mode values with Error m->native_error operation m|Ok()->if Metal_raw.layer_has_edr value.raw<>(mode<>0)then error operation Native_error "native EDR metadata presence disagrees"else begin value.edr_metadata<-metadata;Ok() end)
   let destroyed (value:t)=is_destroyed value.lifetime
   let destroy (value:t)=destroy_parent "Metal.Metal_layer.destroy" value.lifetime value.raw(fun()->detach value.device.lifetime)
 end
@@ -6084,6 +6103,7 @@ module Drawable = struct
   type loss = Timeout_or_unavailable
   let acquire (layer:metal_layer) = let operation="Metal.Drawable.acquire" in on_main operation(fun()->match ensure_live operation layer.lifetime with Error _ as e->e|Ok()->match Metal_raw.layer_next_drawable layer.raw with Error m->native_error operation m|Ok None->Ok(Error Timeout_or_unavailable)|Ok(Some raw)->let value:t={raw;lifetime=lifetime();layer;drawable_texture=None;presentation_scheduled=false}in attach layer.lifetime;attach_finalizer value value.lifetime layer.lifetime;Ok(Ok value))
   let layer (value:t)=value.layer
+  let checked_layer(value:t)=let operation="Metal.Drawable.checked_layer"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.drawable_native_layer value.raw with Error m->native_error operation m|Ok raw->let same=Metal_raw.generation raw=Metal_raw.generation value.layer.raw in ignore(Metal_raw.destroy raw);if same then Ok value.layer else error operation Native_error "drawable returned a different parent layer")
   let texture (value:t)=let operation="Metal.Drawable.texture" in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match value.drawable_texture with Some texture->Ok texture|None->match Metal_raw.drawable_texture value.raw with Error m->native_error operation m|Ok(raw,width,height,format_code)->match (match format_code with 80->Some Texture.Bgra8_unorm|81->Some Texture.Bgra8_unorm_srgb|115->Some Texture.Rgba16_float|_->None) with None->ignore(Metal_raw.destroy raw);error operation Unsupported "drawable returned an unsupported pixel format"|Some format->let descriptor=Texture.descriptor_2d ~storage:Buffer.Private ~usage:[Texture.Render_target] ~format ~width ~height()in let texture:texture={raw;lifetime=lifetime();device=value.layer.device;descriptor;parent=Texture_drawable_resource value;heap_offset=None;placement_sparse_page_size=None;allocation=None;state={relinquished=Atomic.make false;purgeable=Atomic.make Nonvolatile};placement_mappings=ref[]}in attach value.lifetime;attach_finalizer texture texture.lifetime value.lifetime;value.drawable_texture<-Some texture;Ok texture)
   let destroyed (value:t)=is_destroyed value.lifetime
   let destroy (value:t)=destroy_parent "Metal.Drawable.destroy" value.lifetime value.raw(fun()->detach value.layer.lifetime)

@@ -21,6 +21,16 @@ let () =
   get
     (Metal_layer.configure layer
        (Metal_layer.default ~width:16 ~height:8));
+  ignore(get(Metal_layer.checked_config layer));
+  get(Metal_layer.set_wants_extended_range layer true);
+  if not(Metal_layer.wants_extended_range layer)then fail"extended-range snapshot drift";
+  get(Metal_layer.set_wants_extended_range layer false);
+  expect Invalid_argument(Metal_layer.set_colorspace layer(Some "bad\000name"));
+  (match Metal_layer.set_colorspace layer(Some "kCGColorSpaceSRGB")with
+   |Ok()->ignore(get(Metal_layer.colorspace layer))|Error _->());
+  get(Metal_layer.set_edr_metadata layer Metal_layer.Standard);
+  expect Invalid_argument(Metal_layer.set_edr_metadata layer
+    (Metal_layer.Hdr10{minimum_luminance=1.;maximum_luminance=0.;optical_output_scale=1.}));
   if Metal_layer.size layer <> (16, 8) then fail "layer resize snapshot drift";
   let drawable =
     match get (Drawable.acquire layer) with
@@ -28,6 +38,7 @@ let () =
     | Error Drawable.Timeout_or_unavailable -> fail "unexpected drawable loss"
   in
   let texture = get (Drawable.texture drawable) in
+  if get(Drawable.checked_layer drawable)!=layer then fail"drawable parent identity drift";
   let texture_descriptor = Texture.descriptor texture in
   if texture_descriptor.width <> 16 || texture_descriptor.height <> 8 then
     fail "drawable texture metadata did not reflect the acquired texture";
