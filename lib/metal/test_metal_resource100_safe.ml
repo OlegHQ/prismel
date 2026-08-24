@@ -21,6 +21,13 @@ let ()=
  get(Resource100.Sample_attachment.destroy a);
  for i=1 to 10000 do let x=get(Resource100.View_pool_descriptor.create~label:(string_of_int i)~count:4L())in if Resource100.View_pool_descriptor.count x<>4L then failwith"descriptor count";get(Resource100.View_pool_descriptor.destroy x)done;
  let device=get(Device.system_default())in let desc=get(Resource100.View_pool_descriptor.create~count:4L())in
+ let attached=get(Resource100.Sample_attachment.create())in
+ (match Resource100.Sample_buffer.create device ~sample_count:4L() with
+  |Error _->()
+  |Ok samples->get(Resource100.Sample_attachment.set_sample_buffer attached(Some samples));
+    (match get(Resource100.Sample_attachment.sample_buffer attached)with Some value when value==samples->()|_->failwith"sample-buffer graph");
+    reject(Resource100.Sample_buffer.destroy samples);get(Resource100.Sample_attachment.set_sample_buffer attached None);get(Resource100.Sample_buffer.destroy samples));
+ get(Resource100.Sample_attachment.destroy attached);
  let buffer_descriptor=Texture.descriptor_buffer~format:Texture.Rgba8_unorm~width:4()in
  let cube_descriptor=Texture.descriptor_cube~format:Texture.Rgba8_unorm~size:4()in
  let cube=get(Texture.create~device cube_descriptor)in get(Texture.destroy cube);
@@ -57,6 +64,7 @@ let ()=
                ||Resource100.Tensor.dimensions tensor<>[|4L|]
              then failwith"tensor parent metadata"else get(Resource100.Tensor.destroy tensor));
  if get(Resource100.Resource_ops.device(Resource100.Resource_ops.Buffer backing_buffer))!=device then failwith"buffer device";
+ (match Resource100.Resource_ops.set_current_owner(Resource100.Resource_ops.Buffer backing_buffer)with Ok()->()|Error _->());
  (match get(Resource100.Buffer_ops.remote_view backing_buffer~device)with
   |None->()|Some remote->if Buffer.length remote<>4096L then failwith"remote buffer length"else get(Buffer.destroy remote));
  (match get(Resource100.Buffer_ops.remote_storage backing_buffer)with

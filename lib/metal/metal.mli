@@ -3008,6 +3008,7 @@ end
 
 module Resource100 : sig
   type tensor
+  type sample_buffer
   module Options : sig
     type cpu_cache_mode = Default | Write_combined
     type storage_mode = Memoryless
@@ -3026,6 +3027,7 @@ module Resource100 : sig
     type t = Buffer of Buffer.t | Texture of Texture.t
     val device : t -> (Device.t,error) result
     val heap : t -> (Heap.t option,error) result
+    val set_current_owner : t -> (unit,error) result
   end
   module Buffer_ops : sig
     val add_debug_marker : Buffer.t -> label:string -> offset:int64 -> length:int64 -> (unit,error) result
@@ -3082,6 +3084,17 @@ module Resource100 : sig
     val create : ?start:sample_index -> ?finish:sample_index -> unit -> (t,error) result
     val range : t -> int64 * int64
     val set_range : t -> start:sample_index -> finish:sample_index -> (unit,error) result
+    val sample_buffer : t -> (sample_buffer option,error) result
+    val set_sample_buffer : t -> sample_buffer option -> (unit,error) result
+    val destroyed : t -> bool
+    val destroy : t -> (unit,error) result
+  end
+  module Sample_buffer : sig
+    type t = sample_buffer
+    val create : Device.t -> ?label:string -> sample_count:int64 -> unit -> (t,error) result
+    val device : t -> Device.t
+    val sample_count : t -> int64
+    val label : t -> string option
     val destroyed : t -> bool
     val destroy : t -> (unit,error) result
   end

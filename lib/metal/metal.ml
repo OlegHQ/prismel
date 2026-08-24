@@ -1530,7 +1530,12 @@ type resource100_buffer_layout_array =
 
 type resource100_sample_attachment =
   { raw : Metal_raw.handle; lifetime : lifetime
-  ; mutable start_index : int64; mutable end_index : int64 }
+  ; mutable start_index : int64; mutable end_index : int64
+  ; mutable sample_buffer : resource100_sample_buffer option }
+
+and resource100_sample_buffer =
+  { raw : Metal_raw.handle; lifetime : lifetime; device : device
+  ; sample_count : int64; label : string option }
 
 type resource100_view_pool_descriptor =
   { raw : Metal_raw.handle; lifetime : lifetime
@@ -17467,6 +17472,7 @@ end
 
 module Resource100 = struct
   type tensor = resource100_tensor
+  type sample_buffer = resource100_sample_buffer
   module Options = struct
     type cpu_cache_mode = Default | Write_combined
     type storage_mode = Memoryless
@@ -17517,6 +17523,13 @@ module Resource100 = struct
                 native_error operation
                   "resource heap disagrees with its safe parent graph"
               else Ok expected)
+
+    let set_current_owner value =
+      let operation="Metal.Resource100.Resource.set_current_owner" in
+      on_main operation(fun()->let raw,lifetime,_,_=parts value in
+        match ensure_live operation lifetime with Error _ as e->e|Ok()->
+        match Metal_raw.resource_set_current_owner raw with
+        |Error message->native_error operation message|Ok()->Ok())
   end
 
   module Buffer_ops = struct
@@ -17800,11 +17813,24 @@ module Resource100 = struct
     let code = function Dont_sample -> -1L | Index n -> n
     let valid=function Dont_sample->true|Index n->n>=0L
     let create ?(start=Dont_sample)?(finish=Dont_sample)()=
-      let op="Metal.Resource100.Sample_attachment.create"in on_main op(fun()->if not(valid start&&valid finish)then error op Invalid_argument "sample indices must be nonnegative"else match Metal_raw.resource_sample_attachment_create()with Error m->native_error op m|Ok raw->let unwind m=ignore(Metal_raw.destroy raw);native_error op m in match Metal_raw.resource_sample_attachment_set_start raw(code start)with Error m->unwind m|Ok()->match Metal_raw.resource_sample_attachment_set_end raw(code finish)with Error m->unwind m|Ok()->let value={raw;lifetime=lifetime();start_index=code start;end_index=code finish}in Gc.finalise(fun(value:t)->if Atomic.compare_and_set value.lifetime.destroyed false true then ignore(Metal_raw.destroy value.raw))value;Ok value)
+      let op="Metal.Resource100.Sample_attachment.create"in on_main op(fun()->if not(valid start&&valid finish)then error op Invalid_argument "sample indices must be nonnegative"else match Metal_raw.resource_sample_attachment_create()with Error m->native_error op m|Ok raw->let unwind m=ignore(Metal_raw.destroy raw);native_error op m in match Metal_raw.resource_sample_attachment_set_start raw(code start)with Error m->unwind m|Ok()->match Metal_raw.resource_sample_attachment_set_end raw(code finish)with Error m->unwind m|Ok()->let value={raw;lifetime=lifetime();start_index=code start;end_index=code finish;sample_buffer=None}in Gc.finalise(fun(value:t)->if Atomic.compare_and_set value.lifetime.destroyed false true then(ignore(Metal_raw.destroy value.raw);Option.iter(fun(x:resource100_sample_buffer)->detach x.lifetime)value.sample_buffer))value;Ok value)
     let set_range (t:t) ~start ~finish=let op="Metal.Resource100.Sample_attachment.set_range"in on_main op(fun()->match ensure_live op t.lifetime with Error _ as e->e|Ok()->if not(valid start&&valid finish)then error op Invalid_argument "sample indices must be nonnegative"else let old=t.start_index in match Metal_raw.resource_sample_attachment_set_start t.raw(code start)with Error m->native_error op m|Ok()->match Metal_raw.resource_sample_attachment_set_end t.raw(code finish)with Error m->ignore(Metal_raw.resource_sample_attachment_set_start t.raw old);native_error op m|Ok()->t.start_index<-code start;t.end_index<-code finish;Ok())
     let range (t:t)=t.start_index,t.end_index
+    let sample_buffer(t:t)=let op="Metal.Resource100.Sample_attachment.sample_buffer"in on_main op(fun()->match ensure_live op t.lifetime with Error _ as e->e|Ok()->match Metal_raw.resource_sample_attachment_buffer t.raw with Error m->native_error op m|Ok native->Option.iter(fun raw->ignore(Metal_raw.destroy raw))native;if Option.is_some native<>Option.is_some t.sample_buffer then error op Native_error "sample-buffer attachment disagrees with its safe graph"else Ok t.sample_buffer)
+    let set_sample_buffer(t:t)(next:resource100_sample_buffer option)=let op="Metal.Resource100.Sample_attachment.set_sample_buffer"in on_main op(fun()->match ensure_live op t.lifetime with Error _ as e->e|Ok()->match next with Some value->(match ensure_live op value.lifetime with Error _ as e->e|Ok()->match Metal_raw.resource_sample_attachment_set_buffer t.raw(Some value.raw)with Error m->native_error op m|Ok()->Option.iter(fun(x:resource100_sample_buffer)->detach x.lifetime)t.sample_buffer;attach value.lifetime;t.sample_buffer<-Some value;Ok())|None->match Metal_raw.resource_sample_attachment_set_buffer t.raw None with Error m->native_error op m|Ok()->Option.iter(fun(x:resource100_sample_buffer)->detach x.lifetime)t.sample_buffer;t.sample_buffer<-None;Ok())
     let destroyed (t:t)=is_destroyed t.lifetime
-    let destroy (t:t)=destroy_leaf "Metal.Resource100.Sample_attachment.destroy" t.lifetime t.raw(fun()->())
+    let destroy (t:t)=destroy_leaf "Metal.Resource100.Sample_attachment.destroy" t.lifetime t.raw(fun()->Option.iter(fun(x:resource100_sample_buffer)->detach x.lifetime)t.sample_buffer)
+  end
+
+  module Sample_buffer = struct
+    type t=resource100_sample_buffer
+    let create (device:Device.t) ?label ~sample_count ()=
+      let op="Metal.Resource100.Sample_buffer.create"in on_main op(fun()->match ensure_live op device.lifetime with Error _ as e->e|Ok()->if sample_count<=0L||option_exists contains_nul label then error op Invalid_argument "sample count or label is invalid"else match Metal_raw.counter_sets device.raw with Error m->native_error op m|Ok sets->match Array.to_list sets with []->error op Unsupported "device exposes no counter sets"| (counter_set,_)::_->let cleanup()=Array.iter(fun(raw,_)->ignore(Metal_raw.destroy raw))sets in match Metal_raw.counter_descriptor_create()with Error m->cleanup();native_error op m|Ok descriptor->match Metal_raw.counter_descriptor_set descriptor counter_set label sample_count 0L with Error m->ignore(Metal_raw.destroy descriptor);cleanup();native_error op m|Ok()->let created=Metal_raw.counter_sample_buffer_create device.raw descriptor in ignore(Metal_raw.destroy descriptor);cleanup();match created with Error m->native_error op m|Ok raw->let value:t={raw;lifetime=lifetime();device;sample_count;label}in attach device.lifetime;attach_finalizer value value.lifetime device.lifetime;Ok value)
+    let device(value:t)=value.device
+    let sample_count(value:t)=value.sample_count
+    let label(value:t)=value.label
+    let destroyed(value:t)=is_destroyed value.lifetime
+    let destroy(value:t)=destroy_leaf "Metal.Resource100.Sample_buffer.destroy" value.lifetime value.raw(fun()->detach value.device.lifetime)
   end
 
   module View_pool_descriptor = struct
@@ -17897,7 +17923,7 @@ module Resource100 = struct
     let create()=let op="Metal.Resource100.Resource_state_pass.create"in on_main op(fun()->match Metal_raw.resource_pass_create()with Error m->native_error op m|Ok raw->Ok{raw;lifetime=lifetime()})
     let create_encoder (commands:Command_buffer.t)(pass:t)=let op="Metal.Resource100.Resource_state_pass.create_encoder"in on_main op(fun()->match ensure_live op commands.lifetime with Error _ as e->e|Ok()when commands.phase<>Recording->error op Invalid_state "command buffer is no longer recording"|Ok()->match ensure_live op pass.lifetime with Error _ as e->e|Ok()->if dependent_count commands.lifetime<>0 then error op Invalid_state "command buffer already has an open encoder"else match Metal_raw.resource_command_buffer_state_encoder commands.raw pass.raw with Error m->native_error op m|Ok raw->let value:resource_state_encoder={raw;lifetime=lifetime();command_buffer=commands}in attach commands.lifetime;attach_finalizer value value.lifetime commands.lifetime;Ok value)
     let with_attachments op (pass:t) callback=match ensure_live op pass.lifetime with Error _ as e->e|Ok()->match Metal_raw.resource_pass_sample_attachments pass.raw with Error m->native_error op m|Ok None->native_error op "resource-state pass returned no attachment array"|Ok(Some raw)->let result=callback raw in ignore(Metal_raw.destroy raw);result
-    let sample_attachment (pass:t) ~index=let op="Metal.Resource100.Resource_state_pass.sample_attachment"in on_main op(fun()->if index<0||index>=4 then error op Invalid_argument "sample attachment index must be between zero and three"else with_attachments op pass(fun array->match Metal_raw.resource_sample_array_get array(Int64.of_int index)with Error m->native_error op m|Ok None->Ok None|Ok(Some raw)->match Metal_raw.resource_sample_attachment_start raw,Metal_raw.resource_sample_attachment_end raw with Ok start_index,Ok end_index->let value:resource100_sample_attachment={raw;lifetime=lifetime();start_index;end_index}in Gc.finalise(fun(value:resource100_sample_attachment)->if Atomic.compare_and_set value.lifetime.destroyed false true then ignore(Metal_raw.destroy value.raw))value;Ok(Some value)|Error m,_->ignore(Metal_raw.destroy raw);native_error op m|_,Error m->ignore(Metal_raw.destroy raw);native_error op m))
+    let sample_attachment (pass:t) ~index=let op="Metal.Resource100.Resource_state_pass.sample_attachment"in on_main op(fun()->if index<0||index>=4 then error op Invalid_argument "sample attachment index must be between zero and three"else with_attachments op pass(fun array->match Metal_raw.resource_sample_array_get array(Int64.of_int index)with Error m->native_error op m|Ok None->Ok None|Ok(Some raw)->match Metal_raw.resource_sample_attachment_start raw,Metal_raw.resource_sample_attachment_end raw with Ok start_index,Ok end_index->let value:resource100_sample_attachment={raw;lifetime=lifetime();start_index;end_index;sample_buffer=None}in Gc.finalise(fun(value:resource100_sample_attachment)->if Atomic.compare_and_set value.lifetime.destroyed false true then ignore(Metal_raw.destroy value.raw))value;Ok(Some value)|Error m,_->ignore(Metal_raw.destroy raw);native_error op m|_,Error m->ignore(Metal_raw.destroy raw);native_error op m))
     let set_sample_attachment (pass:t) ~index (attachment:Sample_attachment.t option)=let op="Metal.Resource100.Resource_state_pass.set_sample_attachment"in on_main op(fun()->if index<0||index>=4 then error op Invalid_argument "sample attachment index must be between zero and three"else match attachment with Some value->(match ensure_live op value.lifetime with Error _ as e->e|Ok()->with_attachments op pass(fun array->match Metal_raw.resource_sample_array_set array(Int64.of_int index)(Some value.raw)with Error m->native_error op m|Ok()->Ok()))|None->with_attachments op pass(fun array->match Metal_raw.resource_sample_array_set array(Int64.of_int index)None with Error m->native_error op m|Ok()->Ok()))
     let destroyed(t:t)=is_destroyed t.lifetime
     let destroy(t:t)=destroy_leaf "Metal.Resource100.Resource_state_pass.destroy" t.lifetime t.raw(fun()->())
