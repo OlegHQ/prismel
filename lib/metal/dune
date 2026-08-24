@@ -435,6 +435,11 @@
  (libraries metal))
 
 (test
+ (name test_metal4_render_pipeline_reset2_safe)
+ (modules test_metal4_render_pipeline_reset2_safe)
+ (libraries metal))
+
+(test
  (name test_render_pipeline93_descriptor_safe)
  (modules test_render_pipeline93_descriptor_safe)
  (libraries metal))
@@ -1329,6 +1334,20 @@
  (action
   (bash
    "status=0; ./test_metal4_render_pipeline3_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal4_render_pipeline_reset2_lifecycle_native.exe)
+ (deps ../../tools/metal/test_metal4_render_pipeline_reset2_lifecycle_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -Wall -Wextra -Werror
+   -framework Foundation -framework Metal %{deps} -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal4_render_pipeline_reset2_lifecycle_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal4_render_pipeline_reset2_lifecycle_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
 
 (rule
  (targets test_metal_binary_archive5_native.exe)
