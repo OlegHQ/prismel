@@ -8,11 +8,17 @@ let safe_name entry =
 let render entries =
   let output = Buffer.create 16384 in
   Buffer.add_string output
-    "module Make\n  (Api : sig\n    type error\n    val pp_error : Format.formatter -> error -> unit\n";
+    "module Make\n  (Api : sig\n    type error\n    type common_counter\n    type common_counter_set\n    val common_counter_to_string : common_counter -> string\n    val common_counter_set_to_string : common_counter_set -> string\n    val pp_error : Format.formatter -> error -> unit\n";
   List.iter
     (fun entry ->
-      Printf.bprintf output "    val %s : unit -> (string, error) result\n"
-        (safe_name entry))
+      let result_type =
+        match entry.family with
+        | Common_counter -> "common_counter"
+        | Common_counter_set -> "common_counter_set"
+        | Error_domain | Error_user_info_key | Device_notification -> "string"
+      in
+      Printf.bprintf output "    val %s : unit -> (%s, error) result\n"
+        (safe_name entry) result_type)
     entries;
   Buffer.add_string output
     "  end)\n  (Accounting : sig\n    type snapshot\n    val snapshot : unit -> snapshot\n    val equal : snapshot -> snapshot -> bool\n  end) = struct\n\
@@ -25,10 +31,16 @@ let render entries =
   List.iter
     (fun entry ->
       let name = safe_name entry in
+      let to_string =
+        match entry.family with
+        | Common_counter -> "Api.common_counter_to_string "
+        | Common_counter_set -> "Api.common_counter_set_to_string "
+        | Error_domain | Error_user_info_key | Device_notification -> ""
+      in
       Printf.bprintf output
-        "    let first_%s = get (Api.%s ()) in\n    require (String.length first_%s > 0) %S;\n    let second_%s = get (Api.%s ()) in\n    require (String.equal first_%s second_%s) %S;\n    require (first_%s != second_%s) %S;\n"
-        name name name (entry.name ^ " returned an empty NSString")
-        name name name name (entry.name ^ " changed between reads")
+        "    let first_value_%s = get (Api.%s ()) in\n    let first_%s = %sfirst_value_%s in\n    require (String.length first_%s > 0) %S;\n    let second_value_%s = get (Api.%s ()) in\n    let second_%s = %ssecond_value_%s in\n    require (String.equal first_%s second_%s) %S;\n    require (first_%s != second_%s) %S;\n"
+        name name name to_string name name (entry.name ^ " returned an empty NSString")
+        name name name to_string name name name (entry.name ^ " changed between reads")
         name name (entry.name ^ " did not return an independent OCaml copy"))
     entries;
   Buffer.add_string output
@@ -52,6 +64,10 @@ let render_executable entries =
 
 module Api = struct
   type error = Metal.error
+  type common_counter = Metal.Global.Common_counter.t
+  type common_counter_set = Metal.Global.Common_counter_set.t
+  let common_counter_to_string = Metal.Global.Common_counter.to_string
+  let common_counter_set_to_string = Metal.Global.Common_counter_set.to_string
   let pp_error = Metal.pp_error
   include Metal.Global
 end

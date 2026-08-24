@@ -52,7 +52,7 @@ let safe_name entry =
 let render_safe_ml entries =
   let output = Buffer.create 4096 in
   Buffer.add_string output
-    "module Common_counter = struct type t = string let of_string value = value let to_string value = value end\nmodule Common_counter_set = struct type t = string let of_string value = value let to_string value = value end\n\nmodule Make (Error : sig\n  type t\n  val of_native : operation:string -> string -> t\nend) = struct\n";
+    "module Make (Error : sig\n  type t\n  val of_native : operation:string -> string -> t\nend) = struct\n  module Common_counter = struct type t = string let of_string value = value let to_string value = value end\n  module Common_counter_set = struct type t = string let of_string value = value let to_string value = value end\n";
   List.iter
     (fun entry ->
       let wrap = if String.equal entry.objc_typedef "MTLCommonCounter" then "Common_counter.of_string" else if String.equal entry.objc_typedef "MTLCommonCounterSet" then "Common_counter_set.of_string" else "Fun.id" in
@@ -66,7 +66,7 @@ let render_safe_ml entries =
 let render_safe_mli entries =
   let output = Buffer.create 4096 in
   Buffer.add_string output
-    "module Common_counter : sig type t = private string val to_string : t -> string end\nmodule Common_counter_set : sig type t = private string val to_string : t -> string end\n\nmodule Make (Error : sig\n  type t\n  val of_native : operation:string -> string -> t\nend) : sig\n";
+    "module Make (Error : sig\n  type t\n  val of_native : operation:string -> string -> t\nend) : sig\n  module Common_counter : sig type t = private string val to_string : t -> string end\n  module Common_counter_set : sig type t = private string val to_string : t -> string end\n";
   List.iter
     (fun entry ->
       let result_type = if String.equal entry.objc_typedef "MTLCommonCounter" then "Common_counter.t" else if String.equal entry.objc_typedef "MTLCommonCounterSet" then "Common_counter_set.t" else "string" in
