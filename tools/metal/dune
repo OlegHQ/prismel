@@ -81,6 +81,7 @@
   binding_argument_encoder_handoff
   binding_acceleration_command_handoff
   binding_acceleration_structure_header_handoff
+  binding_acceleration_structure23_safe_closure
   binding_data_type_tail_handoff
   binding_blit_command_tail_handoff
   binding_capture_manager_tail_handoff
@@ -660,7 +661,6 @@
 (test
  (name test_binding_acceleration_structure23_safe_closure)
  (modules test_binding_acceleration_structure23_safe_closure
-  binding_acceleration_structure23_safe_closure
   binding_acceleration_structure_constructor_safe_package)
  (libraries metal_inventory_classification))
 
