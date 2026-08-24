@@ -1832,6 +1832,15 @@ let blit_pass_safe8 =
 let counters_safe22 =
   [ "method:-[MTLCounter name]";"method:-[MTLCounterSampleBuffer device]";"method:-[MTLCounterSampleBuffer label]";"method:-[MTLCounterSampleBuffer resolveCounterRange:]";"method:-[MTLCounterSampleBuffer sampleCount]";"method:-[MTLCounterSampleBufferDescriptor counterSet]";"method:-[MTLCounterSampleBufferDescriptor label]";"method:-[MTLCounterSampleBufferDescriptor setCounterSet:]";"method:-[MTLCounterSampleBufferDescriptor setLabel:]";"method:-[MTLCounterSet counters]";"method:-[MTLCounterSet name]";"property:MTLCounter:name";"property:MTLCounterSampleBuffer:device";"property:MTLCounterSampleBuffer:label";"property:MTLCounterSampleBuffer:sampleCount";"property:MTLCounterSampleBufferDescriptor:counterSet";"property:MTLCounterSampleBufferDescriptor:label";"property:MTLCounterSet:counters";"property:MTLCounterSet:name";"protocol:MTLCounter";"protocol:MTLCounterSampleBuffer";"protocol:MTLCounterSet" ]
 
+let parallel_render_safe7 =
+  [ "method:-[MTLParallelRenderCommandEncoder renderCommandEncoder]"
+  ; "method:-[MTLParallelRenderCommandEncoder setColorStoreAction:atIndex:]"
+  ; "method:-[MTLParallelRenderCommandEncoder setColorStoreActionOptions:atIndex:]"
+  ; "method:-[MTLParallelRenderCommandEncoder setDepthStoreAction:]"
+  ; "method:-[MTLParallelRenderCommandEncoder setDepthStoreActionOptions:]"
+  ; "method:-[MTLParallelRenderCommandEncoder setStencilStoreAction:]"
+  ; "method:-[MTLParallelRenderCommandEncoder setStencilStoreActionOptions:]" ]
+
 let classify ~unavailable ~identifier ~header ~kind ~signature =
   if unavailable then
     Scope_excluded, "Clang marks this declaration unavailable for macOS."
@@ -1952,6 +1961,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier counters_safe22 then
     Bound,
       "Implemented by the Counters22 safe metadata/descriptor/sample graph with copied names, checked labels/devices/ranges, explicit sampling-point capability, and execute-or-Unsupported conformance."
+  else if List.mem identifier parallel_render_safe7 then
+    Bound,
+      "Implemented by the ParallelRender7 safe parent/child graph with retained pass attachments, checked store writes, exact child ordering, completion ownership, and 256-command native/safe conformance."
   else if List.mem identifier Binding_command_buffer19_safe_closure.promotable_ids then
     Bound,
       "Implemented by the CommandBuffer19 safe descriptor/callback closure with retained log-state and resources, exact-once completion, queue ownership, and error-only EncoderInfo snapshots."
