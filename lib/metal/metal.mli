@@ -3009,6 +3009,14 @@ end
 module Resource100 : sig
   type tensor
   type sample_buffer
+  module Texture_reference_type : sig
+    type t =
+      { data_type : Data_type.t
+      ; texture_type : Texture.kind
+      ; access : Binding.access
+      ; depth : bool }
+    val of_reflection : Reflection.reflected_type -> (t,error) result
+  end
   module Options : sig
     type cpu_cache_mode = Default | Write_combined
     type storage_mode = Memoryless

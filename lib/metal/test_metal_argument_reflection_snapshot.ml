@@ -1,6 +1,7 @@
 module Mock = struct
   type node =
     | Scalar
+    | Texture_reference
     | Array of node
     | Struct of (string * node) list
     | Member of string * node
@@ -19,7 +20,7 @@ module Mock = struct
     end
   let ok (value : 'a) (_ : handle) : ('a, string) result = Ok value
   let kind handle =
-    Ok (match handle.node with Scalar | Member _ -> Scalar_kind | Array _ -> Array_kind | Struct _ -> Struct_kind)
+    Ok (match handle.node with Scalar | Member _ -> Scalar_kind | Texture_reference -> Texture_reference_kind | Array _ -> Array_kind | Struct _ -> Struct_kind)
   let data_type = ok 1L
   let array_length = ok 1L
   let array_stride = ok 4L
@@ -97,4 +98,9 @@ let () =
   | Ok argument -> check (argument.name = "items") "argument snapshot"
   | Error message -> failwith message);
   no_delta before "argument success";
+  (match Snapshot.reflected_type (Mock.root Texture_reference) with
+  | Ok (Texture_reference {data_type=1L;access=0L;texture_type=2L;depth=false}) -> ()
+  | Ok _ -> failwith "texture-reference snapshot mismatch"
+  | Error message -> failwith message);
+  no_delta before "texture-reference success";
   print_endline "Metal argument reflection snapshot: bounded conversion and zero handle delta"

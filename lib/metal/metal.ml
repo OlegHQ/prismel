@@ -17473,6 +17473,25 @@ end
 module Resource100 = struct
   type tensor = resource100_tensor
   type sample_buffer = resource100_sample_buffer
+
+  module Texture_reference_type = struct
+    type t =
+      { data_type : Data_type.t
+      ; texture_type : Texture.kind
+      ; access : Binding.access
+      ; depth : bool }
+
+    let of_reflection = function
+      | Reflection.Texture_reference {data_type;access;texture_type;depth} ->
+          (match Data_type.of_int64 data_type,
+                 Binding.texture_kind_of_code (Int64.to_int texture_type) with
+           | Some data_type, Some texture_type ->
+               Ok {data_type;texture_type;access=Binding.access_of_code(Int64.to_int access);depth}
+           | _ -> error "Metal.Resource100.Texture_reference_type.of_reflection"
+                    Native_error "texture-reference reflection contains an unknown SDK value")
+      | _ -> error "Metal.Resource100.Texture_reference_type.of_reflection"
+               Invalid_argument "reflection is not an MTLTextureReferenceType"
+  end
   module Options = struct
     type cpu_cache_mode = Default | Write_combined
     type storage_mode = Memoryless

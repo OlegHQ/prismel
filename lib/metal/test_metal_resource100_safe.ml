@@ -3,6 +3,10 @@ let fail f=Printf.ksprintf failwith f
 let get=function Ok x->x|Error e->fail "%s"(Format.asprintf"%a"pp_error e)
 let reject=function Error _->()|Ok _->failwith"expected rejection"
 let ()=
+ let texture_reference=get(Resource100.Texture_reference_type.of_reflection
+   (Reflection.Texture_reference{data_type=Data_type.to_int64 Data_type.mtl_data_type_float;access=0L;texture_type=2L;depth=false}))in
+ if texture_reference.texture_type<>Texture.Texture_2d||texture_reference.access<>Binding.Read_only then failwith"texture reference type mapping";
+ reject(Resource100.Texture_reference_type.of_reflection(Reflection.Scalar 1L));
  if Resource100.Options.cpu_cache_code Resource100.Options.Default<>0L||Resource100.Options.cpu_cache_code Resource100.Options.Write_combined<>1L||Resource100.Options.storage_code Resource100.Options.Memoryless<>48L then failwith"resource option aliases";
  reject(Resource100.View_pool_descriptor.create~count:0L());
  let d=get(Resource100.Buffer_layout.create~stride:16L~step_rate:1L())in
