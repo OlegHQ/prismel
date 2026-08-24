@@ -9,10 +9,11 @@ using M = mesh<V, void, 3, 1, topology::triangle>;
 [[mesh]] void mesh93(M out,uint tid [[thread_index_in_threadgroup]]) { if(tid==0)out.set_primitive_count(0); }
 fragment float4 fragment93(){return float4(1);}
 kernel void tile93(ushort2 p [[thread_position_in_threadgroup]]) { (void)p; }
+[[visible]] float4 visible93(){return float4(1);}
 |}
 let ()=match Device.system_default()with Error _->print_endline"RenderPipeline93 mesh graph: skipped"|Ok device->
   let library=get(Library.compile_source~device source)in
-  let mesh=get(Function.find~library "mesh93")and fragment=get(Function.find~library "fragment93")and tile=get(Function.find~library "tile93")in
+  let mesh=get(Function.find~library "mesh93")and fragment=get(Function.find~library "fragment93")and tile=get(Function.find~library "tile93")and visible=get(Function.find~library "visible93")in
   let additional=get(Render_pipeline.Functions_descriptor.create())in
   get(Render_pipeline.Functions_descriptor.set_functions additional Render_pipeline.Functions_descriptor.Vertex[mesh]);
   get(Render_pipeline.Functions_descriptor.set_functions additional Render_pipeline.Functions_descriptor.Fragment[fragment]);
@@ -57,7 +58,8 @@ let ()=match Device.system_default()with Error _->print_endline"RenderPipeline93
       (match Render_pipeline.Functions_descriptor.relink relink pipeline with Ok next->get(Render_pipeline.destroy next)|Error{kind=Unsupported;_}->()|Error e->failwith(Format.asprintf "%a" pp_error e));
       get(Render_pipeline.Functions_descriptor.destroy relink);
       (match Binary_function.Descriptor.create()with Error{kind=Unsupported;_}->()|Error e->failwith(Format.asprintf "%a" pp_error e)|Ok binary->(match Binary_function.Descriptor.relink_render_pipeline binary pipeline with Ok next->get(Render_pipeline.destroy next)|Error{kind=Unsupported;_}->()|Error e->failwith(Format.asprintf "%a" pp_error e));get(Binary_function.Descriptor.destroy binary));
+      (match Compiler.create device with Error{kind=Unsupported;_}->()|Error e->failwith(Format.asprintf "%a" pp_error e)|Ok compiler->(match Compiler.create_binary_function compiler~source:visible~name:"visible93"with Error{kind=Unsupported;_}->()|Error e->failwith(Format.asprintf "%a" pp_error e)|Ok binary->(match Binary_function.render_pipeline_handle binary~pipeline~stage:Render_pipeline.Function_lookup.Mesh with Ok None->()|Ok(Some handle)->get(Render_pipeline.Function_lookup.destroy handle)|Error{kind=Unsupported;_}->()|Error e->failwith(Format.asprintf "%a" pp_error e));get(Binary_function.destroy binary));get(Compiler.destroy compiler));
       get(Render_pipeline.destroy pipeline));
   expect Parent_has_dependents(Function.destroy mesh);
-  get(destroy_mesh descriptor);get(Function.destroy mesh);get(Function.destroy fragment);get(Function.destroy tile);get(Library.destroy library);get(Device.destroy device);
+  get(destroy_mesh descriptor);get(Function.destroy mesh);get(Function.destroy fragment);get(Function.destroy tile);get(Function.destroy visible);get(Library.destroy library);get(Device.destroy device);
   print_endline"RenderPipeline93 mesh graph: function12 + linked12 ownership/identity passed"
