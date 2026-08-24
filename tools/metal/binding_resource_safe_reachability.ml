@@ -79,6 +79,8 @@ let public_operation id =
     "Metal.Resource100.Texture_view_pool.copy"
   else if contains id "setTextureView:atIndex:" then
     "Metal.Resource100.Texture_view_pool.set"
+  else if contains id "setTextureView:descriptor:atIndex:" then
+    "Metal.Resource100.Texture_view_pool.set_view"
   else if contains id "addDebugMarker" then
     "Metal.Resource100.Buffer_ops.add_debug_marker"
   else if contains id "newTextureViewWithPixelFormat" then

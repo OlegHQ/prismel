@@ -84,6 +84,7 @@ let safe_ownership_tail =
   ; "method:-[MTLTexture replaceRegion:mipmapLevel:withBytes:bytesPerRow:]"
   ; "method:-[MTLBufferLayoutDescriptorArray objectAtIndexedSubscript:]"
   ; "method:-[MTLBufferLayoutDescriptorArray setObject:atIndexedSubscript:]"
+  ; "method:-[MTLTextureViewPool setTextureView:descriptor:atIndex:]"
   ]
 
 let handwritten_ownership =
@@ -93,5 +94,5 @@ let handwritten_ownership =
 
 let () =
   validate ();
-  if List.length safe_ownership_tail <> 40 then failwith "resource safe ownership40 drift";
-  if List.length handwritten_ownership <> 16 then failwith "resource handwritten16 drift"
+  if List.length safe_ownership_tail <> 41 then failwith "resource safe ownership41 drift";
+  if List.length handwritten_ownership <> 15 then failwith "resource handwritten15 drift"
