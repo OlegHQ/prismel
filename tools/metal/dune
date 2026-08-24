@@ -585,6 +585,11 @@
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 
 (test
+ (name test_binding_blit_command_safe_package)
+ (modules test_binding_blit_command_safe_package binding_blit_command_safe_package)
+ (libraries metal_inventory_classification))
+
+(test
  (name test_binding_capture_manager_tail_handoff)
  (modules test_binding_capture_manager_tail_handoff)
  (libraries metal_inventory_classification yojson)
