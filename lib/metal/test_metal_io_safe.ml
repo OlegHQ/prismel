@@ -57,6 +57,15 @@ let exercise device path expected =
   let status_destination =
     get (Buffer.create ~device ~length:8L ~storage:Buffer.Shared ())
   in
+  let texture =
+    get (Texture.create ~device
+           (Texture.descriptor_2d ~storage:Buffer.Shared
+              ~usage:[Texture.Shader_read] ~format:Texture.Rgba8_unorm
+              ~width:4 ~height:4 ()))
+  in
+  let texture_region : Texture.region =
+    { x = 0; y = 0; z = 0; width = 4; height = 4; depth = 1 }
+  in
   let commands = get (IO.Queue.create_command_buffer queue ()) in
   let completed = Atomic.make false in
   let loaded_bytes = Atomic.make None in
@@ -67,6 +76,13 @@ let exercise device path expected =
          ~on_complete:(function
            | Ok bytes -> Atomic.set loaded_bytes (Some bytes)
            | Error message -> failwith message));
+  expect_kind Invalid_argument
+    (IO.Command_buffer.load_texture commands ~destination:texture ~slice:0L
+       ~level:0 ~region:texture_region ~source_bytes_per_row:16L
+       ~source_bytes_per_image:15L ~source ~source_offset:0L);
+  get (IO.Command_buffer.load_texture commands ~destination:texture ~slice:0L
+         ~level:0 ~region:texture_region ~source_bytes_per_row:16L
+         ~source_bytes_per_image:64L ~source ~source_offset:0L);
   get (IO.Command_buffer.set_label commands (Some "safe-command"));
   if get (IO.Command_buffer.label commands) <> Some "safe-command" then
     failwith "IO command label did not round-trip";
@@ -101,6 +117,11 @@ let exercise device path expected =
     failwith "IO completion handler did not run exactly before wait returned";
   if Atomic.get loaded_bytes <> Some expected then
     failwith "IO pinned byte load changed file bytes";
+  let texture_bytes =
+    get (Texture.read_bytes texture ~region:texture_region ~mip_level:0
+           ~slice:0 ~bytes_per_row:16 ~bytes_per_image:64)
+  in
+  if texture_bytes <> expected then failwith "IO texture load changed file bytes";
   expect_kind Invalid_state
     (IO.Command_buffer.load_buffer commands ~destination
        ~destination_offset:0L ~size:0L ~source ~source_offset:0L);
@@ -114,6 +135,7 @@ let exercise device path expected =
   destroy IO.File.destroy source;
   destroy Buffer.destroy destination;
   destroy Buffer.destroy status_destination;
+  destroy Texture.destroy texture;
   destroy IO.Queue.destroy queue
 
 let () =
