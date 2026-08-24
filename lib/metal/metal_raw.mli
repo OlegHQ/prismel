@@ -2573,3 +2573,16 @@ external parallel_render_store :
 external function_handle_snapshot :
   handle -> ((int * int64 * int64 * string), string) result =
   "caml_prismel_metal_function_handle_snapshot"
+
+external linked_functions_array :
+  handle -> int -> (handle array option, string) result =
+  "caml_prismel_metal_linked_functions_array"
+external linked_functions_set_array :
+  handle -> int -> handle array option -> int64 -> (unit, string) result =
+  "caml_prismel_metal_linked_functions_set_array"
+external linked_functions_groups :
+  handle -> ((string * handle array) array option, string) result =
+  "caml_prismel_metal_linked_functions_groups"
+external linked_functions_set_groups :
+  handle -> (string * handle array) array option -> int64 -> (unit, string) result =
+  "caml_prismel_metal_linked_functions_set_groups"
