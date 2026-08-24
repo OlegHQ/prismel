@@ -2473,3 +2473,17 @@ external function_log_location_url : handle -> (string option,string) result =
 external function_log_location_function_name :
   handle -> (string option,string) result =
   "caml_prismel_metal_function_log_location_function_name"
+
+external command_encoder_barrier :
+  handle -> int64 -> int64 -> (unit,string) result =
+  "caml_prismel_metal_command_encoder_barrier"
+external command_encoder_device_id : handle -> (int64,string) result =
+  "caml_prismel_metal_command_encoder_device_id"
+external command_encoder_label : handle -> (string option,string) result =
+  "caml_prismel_metal_command_encoder_label"
+external command_encoder_set_label :
+  handle -> string option -> (unit,string) result =
+  "caml_prismel_metal_command_encoder_set_label"
+external command_encoder_debug :
+  handle -> int -> string option -> int64 -> (int64,string) result =
+  "caml_prismel_metal_command_encoder_debug"

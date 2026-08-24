@@ -1163,6 +1163,8 @@ id<MTLCommandEncoder> command_encoder_of_handle(value raw) {
   auto *handle = handle_of_value(raw);
   std::lock_guard<std::mutex> lock(handle_mutex);
   if (handle->kind != Handle_kind::Compute_encoder &&
+      handle->kind != Handle_kind::Render_encoder &&
+      handle->kind != Handle_kind::Parallel_render_encoder &&
       handle->kind != Handle_kind::Resource_state_encoder &&
       handle->kind != Handle_kind::Blit_encoder &&
       handle->kind != Handle_kind::Acceleration_encoder) {
@@ -14715,6 +14717,7 @@ extern "C" CAMLprim value caml_prismel_metal_pipeline_render_imageblock_length(v
 #include "../../tools/metal/metal_capture_manager21_callable_bridge.inc"
 #include "../../tools/metal/metal_compute_pass20_callable_bridge.inc"
 #include "../../tools/metal/metal_function_log18_callable_bridge.inc"
+#include "../../tools/metal/metal_command_encoder9_callable_bridge.inc"
 #include "../../tools/metal/metal_tensor_ownership_callable_bridge.inc"
 #include "../../tools/metal/metal_resource_remaining16_bridge.inc"
 #pragma clang diagnostic pop
