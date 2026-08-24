@@ -53,6 +53,10 @@ let ()=match Device.system_default()with Error _->print_endline"RenderPipeline93
       (match Render_pipeline.Function_table.create Render_pipeline.Function_table.Visible~pipeline~stage:Render_pipeline.Function_lookup.Mesh~capacity:1 with Ok table->get(Render_pipeline.Function_table.destroy table)|Error{kind=Unsupported;_}->()|Error e->failwith(Format.asprintf "%a" pp_error e));
       (match Render_pipeline.Function_table.create Render_pipeline.Function_table.Intersection~pipeline~stage:Render_pipeline.Function_lookup.Mesh~capacity:1 with Ok table->get(Render_pipeline.Function_table.destroy table)|Error{kind=Unsupported;_}->()|Error e->failwith(Format.asprintf "%a" pp_error e));
       (match Render_pipeline.Specialization_descriptor.create pipeline with Ok descriptor->get(Render_pipeline.Specialization_descriptor.destroy descriptor)|Error{kind=Unsupported;_}->()|Error e->failwith(Format.asprintf "%a" pp_error e));
+      let relink=get(Render_pipeline.Functions_descriptor.create())in
+      (match Render_pipeline.Functions_descriptor.relink relink pipeline with Ok next->get(Render_pipeline.destroy next)|Error{kind=Unsupported;_}->()|Error e->failwith(Format.asprintf "%a" pp_error e));
+      get(Render_pipeline.Functions_descriptor.destroy relink);
+      (match Binary_function.Descriptor.create()with Error{kind=Unsupported;_}->()|Error e->failwith(Format.asprintf "%a" pp_error e)|Ok binary->(match Binary_function.Descriptor.relink_render_pipeline binary pipeline with Ok next->get(Render_pipeline.destroy next)|Error{kind=Unsupported;_}->()|Error e->failwith(Format.asprintf "%a" pp_error e));get(Binary_function.Descriptor.destroy binary));
       get(Render_pipeline.destroy pipeline));
   expect Parent_has_dependents(Function.destroy mesh);
   get(destroy_mesh descriptor);get(Function.destroy mesh);get(Function.destroy fragment);get(Function.destroy tile);get(Library.destroy library);get(Device.destroy device);
