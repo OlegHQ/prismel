@@ -18214,6 +18214,36 @@ module Blit_encoder = struct
                 |Ok()->retain_command_buffer_texture value.command_buffer source;
                     retain_command_buffer_texture value.command_buffer destination;Ok())))))
 
+  let access_counters operation reset (value:t) (texture:Texture.t)
+      ~(region:Texture.region) ~level ~slice ?(buffer:Buffer.t option) ?(offset=0L) () =
+    on_main operation(fun()->match ensure_live operation value.lifetime with
+      |Error _ as failure->failure
+      |Ok()->Result.bind(ensure_texture_usable operation texture)(fun()->
+        if level<0||level>=texture.descriptor.mip_levels||slice<0
+           ||slice>=Texture.total_slices texture.descriptor||region.x<0||region.y<0
+           ||region.z<0||region.width<=0||region.height<=0||region.depth<=0||offset<0L
+        then error operation Invalid_argument "texture access-counter region is invalid"
+        else match buffer,reset with
+        |None,false->error operation Invalid_argument "counter read requires a destination buffer"
+        |Some _,true->error operation Invalid_argument "counter reset does not accept a buffer"
+        |buffer,_->let destination_raw=match buffer with Some b->b.raw|None->texture.raw in
+          Result.bind (match buffer with Some (b:buffer)->Result.bind(ensure_buffer_usable operation b)(fun()->
+              Result.bind(ensure_same_device operation texture.device b.device)(fun()->Ok()))|None->Ok())
+          (fun()->Result.bind(ensure_same_device operation value.command_buffer.queue.device texture.device)(fun()->
+            match Metal_raw.blit_access_counters value.raw texture.raw
+              (Int64.of_int region.x,Int64.of_int region.y,Int64.of_int region.z,
+               Int64.of_int region.width,Int64.of_int region.height,Int64.of_int region.depth)
+              (Int64.of_int level)(Int64.of_int slice)reset destination_raw offset with
+            |Error message->native_error operation message
+            |Ok()->retain_command_buffer_texture value.command_buffer texture;
+                Option.iter(retain_command_buffer_buffer value.command_buffer)buffer;Ok()))))
+  let get_access_counters value texture ~region ~level ~slice ~buffer ~offset =
+    access_counters "Metal.Blit_encoder.get_access_counters" false value texture
+      ~region ~level ~slice ~buffer ~offset ()
+  let reset_access_counters value texture ~region ~level ~slice =
+    access_counters "Metal.Blit_encoder.reset_access_counters" true value texture
+      ~region ~level ~slice ()
+
   let fence_call operation update (value:t) (fence:Fence.t) =
     on_main operation (fun () -> match ensure_live operation value.lifetime with
       | Error _ as failure -> failure

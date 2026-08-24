@@ -3203,6 +3203,8 @@ module Blit_encoder : sig
   val copy_indirect : t -> source:Indirect_command_buffer.t -> source_location:int -> length:int -> destination:Indirect_command_buffer.t -> destination_index:int -> (unit,error) result
   val copy_texture_to_buffer : t -> source:Texture.t -> source_slice:int -> source_level:int -> source_region:Texture.region -> destination:Buffer.t -> destination_offset:int64 -> destination_bytes_per_row:int64 -> destination_bytes_per_image:int64 -> ?options:int64 -> unit -> (unit,error) result
   val copy_texture_region : t -> source:Texture.t -> source_slice:int -> source_level:int -> source_region:Texture.region -> destination:Texture.t -> destination_slice:int -> destination_level:int -> destination_origin:(int*int*int) -> (unit,error) result
+  val get_access_counters : t -> Texture.t -> region:Texture.region -> level:int -> slice:int -> buffer:Buffer.t -> offset:int64 -> (unit,error) result
+  val reset_access_counters : t -> Texture.t -> region:Texture.region -> level:int -> slice:int -> (unit,error) result
   val update_fence : t -> Fence.t -> (unit,error) result
   val wait_for_fence : t -> Fence.t -> (unit,error) result
   val optimize_indirect : t -> Indirect_command_buffer.t -> location:int -> length:int -> (unit,error) result

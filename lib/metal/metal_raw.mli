@@ -2411,6 +2411,7 @@ external blit_texture_aux :
 external blit_indirect :
   handle -> handle -> bool -> int64 -> int64 -> (unit,string) result =
   "caml_prismel_metal_blit_indirect"
+external blit_access_counters : handle -> handle -> (int64*int64*int64*int64*int64*int64) -> int64 -> int64 -> bool -> handle -> int64 -> (unit,string) result = "caml_prismel_metal_blit_access_counters_bytecode" "caml_prismel_metal_blit_access_counters"
 
 external capture_descriptor_snapshot :
   handle -> ((handle option * int option * int * string option),string) result =

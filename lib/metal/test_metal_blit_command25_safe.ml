@@ -24,6 +24,11 @@ let () =
   get (Blit_encoder.generate_mipmaps blit texture);
   get (Blit_encoder.copy_texture blit ~source:texture ~destination:texture2);
   reject (Blit_encoder.optimize_slice_for_cpu blit texture ~slice:(-1) ~level:0);
+  let access_region = Texture.{x=0;y=0;z=0;width=1;height=1;depth=1} in
+  let capability = function Ok () | Error {kind=(Unsupported|Native_error);_}->()
+    | Error error->failwith error.message in
+  capability (Blit_encoder.reset_access_counters blit texture ~region:access_region ~level:0 ~slice:0);
+  capability (Blit_encoder.get_access_counters blit texture ~region:access_region ~level:0 ~slice:0 ~buffer:destination ~offset:0L);
   get (Blit_encoder.end_encoding blit);
   get (Command_buffer.commit commands);
   get (Command_buffer.wait_until_completed commands);
