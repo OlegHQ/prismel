@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4458,
+    "bound": 4474,
     "scope-excluded": 37,
-    "unreviewed": 790
+    "unreviewed": 774
   },
-  "classification_source_sha256": "dc829ac27a7c3e1331ac68124ff7adc2fd226249fc67f93e4e8eed60e264d4a1",
+  "classification_source_sha256": "f71739001c04328c535db22ad704c89fb5e38d8bcbbfdb6582325520f1bcbbe5",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -51483,7 +51483,7 @@
           "line": 290
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLCompileOptions preprocessorMacros]",
       "kind": "method",
@@ -51491,7 +51491,7 @@
       "macos_introduced": "10.11",
       "name": "preprocessorMacros",
       "owner": "MTLCompileOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the MTLLibrary34 safe closure with immutable compile options, retained reflection and argument-encoder graphs, checked synchronous construction, and cancellable exactly-once asynchronous tasks.",
       "signature": "instance () -> NSDictionary<NSString *,NSObject *> * _Nullable"
     },
     {
@@ -51533,7 +51533,7 @@
           "line": 399
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLCompileOptions requiredThreadsPerThreadgroup]",
       "kind": "method",
@@ -51541,7 +51541,7 @@
       "macos_introduced": "26.0",
       "name": "requiredThreadsPerThreadgroup",
       "owner": "MTLCompileOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the MTLLibrary34 safe closure with immutable compile options, retained reflection and argument-encoder graphs, checked synchronous construction, and cancellable exactly-once asynchronous tasks.",
       "signature": "instance () -> MTLSize"
     },
     {
@@ -51852,7 +51852,7 @@
           "line": 290
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLCompileOptions setPreprocessorMacros:]",
       "kind": "method",
@@ -51860,7 +51860,7 @@
       "macos_introduced": "10.11",
       "name": "setPreprocessorMacros:",
       "owner": "MTLCompileOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the MTLLibrary34 safe closure with immutable compile options, retained reflection and argument-encoder graphs, checked synchronous construction, and cancellable exactly-once asynchronous tasks.",
       "signature": "instance (NSDictionary<NSString *,NSObject *> * _Nullable) -> void"
     },
     {
@@ -51902,7 +51902,7 @@
           "line": 399
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLCompileOptions setRequiredThreadsPerThreadgroup:]",
       "kind": "method",
@@ -51910,7 +51910,7 @@
       "macos_introduced": "26.0",
       "name": "setRequiredThreadsPerThreadgroup:",
       "owner": "MTLCompileOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the MTLLibrary34 safe closure with immutable compile options, retained reflection and argument-encoder graphs, checked synchronous construction, and cancellable exactly-once asynchronous tasks.",
       "signature": "instance (MTLSize) -> void"
     },
     {
@@ -58773,7 +58773,7 @@
           "line": 194
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLFunction newArgumentEncoderWithBufferIndex:reflection:]",
       "kind": "method",
@@ -58781,7 +58781,7 @@
       "macos_introduced": "10.13",
       "name": "newArgumentEncoderWithBufferIndex:reflection:",
       "owner": "MTLFunction",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the MTLLibrary34 safe closure with immutable compile options, retained reflection and argument-encoder graphs, checked synchronous construction, and cancellable exactly-once asynchronous tasks.",
       "signature": "instance (NSUInteger, MTLAutoreleasedArgument * _Nullable) -> id<MTLArgumentEncoder> _Nonnull"
     },
     {
@@ -59524,7 +59524,7 @@
           "line": 410
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLFunctionReflection bindings]",
       "kind": "method",
@@ -59532,7 +59532,7 @@
       "macos_introduced": "26.0",
       "name": "bindings",
       "owner": "MTLFunctionReflection",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the MTLLibrary34 safe closure with immutable compile options, retained reflection and argument-encoder graphs, checked synchronous construction, and cancellable exactly-once asynchronous tasks.",
       "signature": "instance () -> NSArray<id<MTLBinding>> * _Nonnull"
     },
     {
@@ -59549,7 +59549,7 @@
           "line": 417
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLFunctionReflection userAnnotation]",
       "kind": "method",
@@ -59557,7 +59557,7 @@
       "macos_introduced": "26.0",
       "name": "userAnnotation",
       "owner": "MTLFunctionReflection",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the MTLLibrary34 safe closure with immutable compile options, retained reflection and argument-encoder graphs, checked synchronous construction, and cancellable exactly-once asynchronous tasks.",
       "signature": "instance () -> NSString * _Nullable"
     },
     {
@@ -64719,7 +64719,7 @@
           "line": 510
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLLibrary newFunctionWithDescriptor:completionHandler:]",
       "kind": "method",
@@ -64727,7 +64727,7 @@
       "macos_introduced": "11.0",
       "name": "newFunctionWithDescriptor:completionHandler:",
       "owner": "MTLLibrary",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the MTLLibrary34 safe closure with immutable compile options, retained reflection and argument-encoder graphs, checked synchronous construction, and cancellable exactly-once asynchronous tasks.",
       "signature": "instance (MTLFunctionDescriptor * _Nonnull __strong, void (^ _Nonnull __strong)(id<MTLFunction>  _Nullable __strong, NSError * _Nullable __strong)) -> void"
     },
     {
@@ -64791,7 +64791,7 @@
           "line": 478
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLLibrary newFunctionWithName:constantValues:completionHandler:]",
       "kind": "method",
@@ -64799,7 +64799,7 @@
       "macos_introduced": "10.12",
       "name": "newFunctionWithName:constantValues:completionHandler:",
       "owner": "MTLLibrary",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the MTLLibrary34 safe closure with immutable compile options, retained reflection and argument-encoder graphs, checked synchronous construction, and cancellable exactly-once asynchronous tasks.",
       "signature": "instance (NSString * _Nonnull __strong, MTLFunctionConstantValues * _Nonnull __strong, void (^ _Nonnull __strong)(id<MTLFunction>  _Nullable __strong, NSError * _Nullable __strong)) -> void"
     },
     {
@@ -64842,7 +64842,7 @@
           "line": 527
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLLibrary newIntersectionFunctionWithDescriptor:completionHandler:]",
       "kind": "method",
@@ -64850,7 +64850,7 @@
       "macos_introduced": "11.0",
       "name": "newIntersectionFunctionWithDescriptor:completionHandler:",
       "owner": "MTLLibrary",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the MTLLibrary34 safe closure with immutable compile options, retained reflection and argument-encoder graphs, checked synchronous construction, and cancellable exactly-once asynchronous tasks.",
       "signature": "instance (MTLIntersectionFunctionDescriptor * _Nonnull __strong, void (^ _Nonnull __strong)(id<MTLFunction>  _Nullable __strong, NSError * _Nullable __strong)) -> void"
     },
     {
@@ -64868,7 +64868,7 @@
           "line": 535
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLLibrary newIntersectionFunctionWithDescriptor:error:]",
       "kind": "method",
@@ -64876,7 +64876,7 @@
       "macos_introduced": "11.0",
       "name": "newIntersectionFunctionWithDescriptor:error:",
       "owner": "MTLLibrary",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the MTLLibrary34 safe closure with immutable compile options, retained reflection and argument-encoder graphs, checked synchronous construction, and cancellable exactly-once asynchronous tasks.",
       "signature": "instance (MTLIntersectionFunctionDescriptor * _Nonnull __strong, NSError *__autoreleasing  _Nullable * _Nullable) -> id<MTLFunction> _Nullable"
     },
     {
@@ -64893,7 +64893,7 @@
           "line": 502
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "method:-[MTLLibrary reflectionForFunctionWithName:]",
       "kind": "method",
@@ -64901,7 +64901,7 @@
       "macos_introduced": "26.0",
       "name": "reflectionForFunctionWithName:",
       "owner": "MTLLibrary",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the MTLLibrary34 safe closure with immutable compile options, retained reflection and argument-encoder graphs, checked synchronous construction, and cancellable exactly-once asynchronous tasks.",
       "signature": "instance (NSString * _Nonnull __strong) -> MTLFunctionReflection * _Nullable"
     },
     {
@@ -91317,7 +91317,7 @@
           "line": 290
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "property:MTLCompileOptions:preprocessorMacros",
       "kind": "property",
@@ -91325,7 +91325,7 @@
       "macos_introduced": "10.11",
       "name": "preprocessorMacros",
       "owner": "MTLCompileOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the MTLLibrary34 safe closure with immutable compile options, retained reflection and argument-encoder graphs, checked synchronous construction, and cancellable exactly-once asynchronous tasks.",
       "signature": "NSDictionary<NSString *,NSObject *> * _Nullable"
     },
     {
@@ -91367,7 +91367,7 @@
           "line": 399
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "property:MTLCompileOptions:requiredThreadsPerThreadgroup",
       "kind": "property",
@@ -91375,7 +91375,7 @@
       "macos_introduced": "26.0",
       "name": "requiredThreadsPerThreadgroup",
       "owner": "MTLCompileOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the MTLLibrary34 safe closure with immutable compile options, retained reflection and argument-encoder graphs, checked synchronous construction, and cancellable exactly-once asynchronous tasks.",
       "signature": "MTLSize"
     },
     {
@@ -94442,7 +94442,7 @@
           "line": 410
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "property:MTLFunctionReflection:bindings",
       "kind": "property",
@@ -94450,7 +94450,7 @@
       "macos_introduced": "26.0",
       "name": "bindings",
       "owner": "MTLFunctionReflection",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the MTLLibrary34 safe closure with immutable compile options, retained reflection and argument-encoder graphs, checked synchronous construction, and cancellable exactly-once asynchronous tasks.",
       "signature": "NSArray<id<MTLBinding>> * _Nonnull"
     },
     {
@@ -94467,7 +94467,7 @@
           "line": 417
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLibrary.h",
       "id": "property:MTLFunctionReflection:userAnnotation",
       "kind": "property",
@@ -94475,7 +94475,7 @@
       "macos_introduced": "26.0",
       "name": "userAnnotation",
       "owner": "MTLFunctionReflection",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the MTLLibrary34 safe closure with immutable compile options, retained reflection and argument-encoder graphs, checked synchronous construction, and cancellable exactly-once asynchronous tasks.",
       "signature": "NSString * _Nullable"
     },
     {

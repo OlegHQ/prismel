@@ -1680,6 +1680,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier library_existing_safe18 then
     Bound,
       "Implemented by retained Function/Shader_attribute handles with checked library ownership, typed attribute metadata, argument-encoder construction, and real shader conformance."
+  else if List.mem identifier Binding_library_header_handoff.callable_ids then
+    Bound,
+      "Implemented by the MTLLibrary34 safe closure with immutable compile options, retained reflection and argument-encoder graphs, checked synchronous construction, and cancellable exactly-once asynchronous tasks."
   else if List.mem identifier Binding_resource_safe_reachability.promotable_ids then
     Bound,
       "Implemented by the Resource100 safe surface with checked descriptor ranges, exact handle kinds, parent ownership, same-device validation, completion retention, and M1 conformance."
