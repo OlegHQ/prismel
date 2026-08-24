@@ -836,6 +836,11 @@
  (modules test_binding_log_state_safe_package binding_log_state_safe_package binding_log_state_handoff))
 
 (test
+ (name test_binding_log_state7_safe_reachability)
+ (modules test_binding_log_state7_safe_reachability
+   binding_log_state7_safe_reachability binding_log_state_handoff))
+
+(test
  (name test_binding_linked_functions_handoff)
  (modules test_binding_linked_functions_handoff)
  (libraries yojson)
