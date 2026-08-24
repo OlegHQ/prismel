@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4150,
+    "bound": 4196,
     "scope-excluded": 37,
-    "unreviewed": 1098
+    "unreviewed": 1052
   },
-  "classification_source_sha256": "89cbed4ca7151fe6c6e8a6313241a23445cbc484cf91061e69c2216c92d2ad82",
+  "classification_source_sha256": "eb164458821ad1ade284687e9d61449134f7fe1e49eec49083c38ee302ced400",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -4022,7 +4022,7 @@
           "line": 67
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "2",
       "header": "Metal/MTL4PipelineState.h",
       "id": "enum-case:MTL4BlendState:MTL4BlendStateUnspecialized",
@@ -4031,7 +4031,7 @@
       "macos_introduced": "26.0",
       "name": "MTL4BlendStateUnspecialized",
       "owner": "MTL4BlendState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "MTL4BlendState"
     },
     {
@@ -4520,7 +4520,7 @@
           "line": 31
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "0",
       "header": "Metal/MTL4PipelineState.h",
       "id": "enum-case:MTL4ShaderReflection:MTL4ShaderReflectionNone",
@@ -4529,7 +4529,7 @@
       "macos_introduced": "26.0",
       "name": "MTL4ShaderReflectionNone",
       "owner": "MTL4ShaderReflection",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "(unnamed enum at /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Metal.framework/Headers/MTL4PipelineState.h:21:9)"
     },
     {
@@ -4580,7 +4580,7 @@
           "line": 34
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "1",
       "header": "Metal/MTL4CommandEncoder.h",
       "id": "enum-case:MTL4VisibilityOptions:MTL4VisibilityOptionDevice",
@@ -4589,7 +4589,7 @@
       "macos_introduced": "26.0",
       "name": "MTL4VisibilityOptionDevice",
       "owner": "MTL4VisibilityOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "(unnamed enum at /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Metal.framework/Headers/MTL4CommandEncoder.h:19:9)"
     },
     {
@@ -4600,7 +4600,7 @@
           "line": 34
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "0",
       "header": "Metal/MTL4CommandEncoder.h",
       "id": "enum-case:MTL4VisibilityOptions:MTL4VisibilityOptionNone",
@@ -4609,7 +4609,7 @@
       "macos_introduced": "26.0",
       "name": "MTL4VisibilityOptionNone",
       "owner": "MTL4VisibilityOptions",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "(unnamed enum at /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Metal.framework/Headers/MTL4CommandEncoder.h:19:9)"
     },
     {
@@ -7377,7 +7377,7 @@
           "line": 51
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "19",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "enum-case:MTLBlendFactor:MTLBlendFactorUnspecialized",
@@ -7386,7 +7386,7 @@
       "macos_introduced": "26.0",
       "name": "MTLBlendFactorUnspecialized",
       "owner": "MTLBlendFactor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "MTLBlendFactor"
     },
     {
@@ -7523,7 +7523,7 @@
           "line": 64
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "5",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "enum-case:MTLBlendOperation:MTLBlendOperationUnspecialized",
@@ -7532,7 +7532,7 @@
       "macos_introduced": "26.0",
       "name": "MTLBlendOperationUnspecialized",
       "owner": "MTLBlendOperation",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "MTLBlendOperation"
     },
     {
@@ -7932,7 +7932,7 @@
           "line": 77
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "16",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "enum-case:MTLColorWriteMask:MTLColorWriteMaskUnspecialized",
@@ -7941,7 +7941,7 @@
       "macos_introduced": "26.0",
       "name": "MTLColorWriteMaskUnspecialized",
       "owner": "MTLColorWriteMask",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "(unnamed enum at /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Metal.framework/Headers/MTLRenderPipeline.h:66:9)"
     },
     {
@@ -13024,7 +13024,7 @@
           "line": 256
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "2001",
       "header": "Metal/MTLDevice.h",
       "id": "enum-case:MTLGPUFamily:MTLGPUFamilyMac1",
@@ -13033,7 +13033,7 @@
       "macos_introduced": "10.15",
       "name": "MTLGPUFamilyMac1",
       "owner": "MTLGPUFamily",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "MTLGPUFamily"
     },
     {
@@ -13070,7 +13070,7 @@
           "line": 256
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "4001",
       "header": "Metal/MTLDevice.h",
       "id": "enum-case:MTLGPUFamily:MTLGPUFamilyMacCatalyst1",
@@ -13079,7 +13079,7 @@
       "macos_introduced": "10.15",
       "name": "MTLGPUFamilyMacCatalyst1",
       "owner": "MTLGPUFamily",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "MTLGPUFamily"
     },
     {
@@ -13096,7 +13096,7 @@
           "line": 256
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "4002",
       "header": "Metal/MTLDevice.h",
       "id": "enum-case:MTLGPUFamily:MTLGPUFamilyMacCatalyst2",
@@ -13105,7 +13105,7 @@
       "macos_introduced": "10.15",
       "name": "MTLGPUFamilyMacCatalyst2",
       "owner": "MTLGPUFamily",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "MTLGPUFamily"
     },
     {
@@ -18758,7 +18758,7 @@
           "line": 84
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "0",
       "header": "Metal/MTLRenderPipeline.h",
       "id": "enum-case:MTLPrimitiveTopologyClass:MTLPrimitiveTopologyClassUnspecified",
@@ -18767,7 +18767,7 @@
       "macos_introduced": "10.11",
       "name": "MTLPrimitiveTopologyClassUnspecified",
       "owner": "MTLPrimitiveTopologyClass",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "MTLPrimitiveTopologyClass"
     },
     {
@@ -20692,7 +20692,7 @@
           "line": 88
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "3",
       "header": "Metal/MTLResource.h",
       "id": "enum-case:MTLStorageMode:MTLStorageModeMemoryless",
@@ -20701,7 +20701,7 @@
       "macos_introduced": "11.0",
       "name": "MTLStorageModeMemoryless",
       "owner": "MTLStorageMode",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "MTLStorageMode"
     },
     {
@@ -20758,7 +20758,7 @@
           "line": 45
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "5",
       "header": "Metal/MTLRenderPass.h",
       "id": "enum-case:MTLStoreAction:MTLStoreActionCustomSampleDepthStore",
@@ -20767,7 +20767,7 @@
       "macos_introduced": "10.13",
       "name": "MTLStoreActionCustomSampleDepthStore",
       "owner": "MTLStoreAction",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "MTLStoreAction"
     },
     {
@@ -20798,7 +20798,7 @@
           "line": 45
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "2",
       "header": "Metal/MTLRenderPass.h",
       "id": "enum-case:MTLStoreAction:MTLStoreActionMultisampleResolve",
@@ -20807,7 +20807,7 @@
       "macos_introduced": "10.11",
       "name": "MTLStoreActionMultisampleResolve",
       "owner": "MTLStoreAction",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "MTLStoreAction"
     },
     {
@@ -20844,7 +20844,7 @@
           "line": 45
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "3",
       "header": "Metal/MTLRenderPass.h",
       "id": "enum-case:MTLStoreAction:MTLStoreActionStoreAndMultisampleResolve",
@@ -20853,7 +20853,7 @@
       "macos_introduced": "10.12",
       "name": "MTLStoreActionStoreAndMultisampleResolve",
       "owner": "MTLStoreAction",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "MTLStoreAction"
     },
     {
@@ -22676,7 +22676,7 @@
           "line": 93
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "constant_value": "0",
       "header": "Metal/MTLVertexDescriptor.h",
       "id": "enum-case:MTLVertexFormat:MTLVertexFormatInvalid",
@@ -22685,7 +22685,7 @@
       "macos_introduced": "10.11",
       "name": "MTLVertexFormatInvalid",
       "owner": "MTLVertexFormat",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "MTLVertexFormat"
     },
     {
@@ -29011,7 +29011,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4BufferRange.h",
       "id": "function:MTL4BufferRangeMake",
       "kind": "function",
@@ -29019,7 +29019,7 @@
       "macos_introduced": null,
       "name": "MTL4BufferRangeMake",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "MTL4BufferRange (MTLGPUAddress, uint64_t)"
     },
     {
@@ -29039,7 +29039,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTypes.h",
       "id": "function:MTLCoordinate2DMake",
       "kind": "function",
@@ -29047,7 +29047,7 @@
       "macos_introduced": null,
       "name": "MTLCoordinate2DMake",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "MTLCoordinate2D (float, float)"
     },
     {
@@ -29208,7 +29208,7 @@
           "line": 42
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "function:MTLIndirectCommandBufferExecutionRangeMake",
       "kind": "function",
@@ -29216,7 +29216,7 @@
       "macos_introduced": "10.14",
       "name": "MTLIndirectCommandBufferExecutionRangeMake",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "MTLIndirectCommandBufferExecutionRange (uint32_t, uint32_t)"
     },
     {
@@ -29264,7 +29264,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTypes.h",
       "id": "function:MTLRegionMake1D",
       "kind": "function",
@@ -29272,13 +29272,13 @@
       "macos_introduced": null,
       "name": "MTLRegionMake1D",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "MTLRegion (NSUInteger, NSUInteger)"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTypes.h",
       "id": "function:MTLRegionMake2D",
       "kind": "function",
@@ -29286,7 +29286,7 @@
       "macos_introduced": null,
       "name": "MTLRegionMake2D",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "MTLRegion (NSUInteger, NSUInteger, NSUInteger, NSUInteger)"
     },
     {
@@ -29335,7 +29335,7 @@
           "line": 83
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTypes.h",
       "id": "function:MTLSamplePositionMake",
       "kind": "function",
@@ -29343,7 +29343,7 @@
       "macos_introduced": "10.13",
       "name": "MTLSamplePositionMake",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "MTLSamplePosition (float, float)"
     },
     {
@@ -106723,7 +106723,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4BufferRange.h",
       "id": "typedef:MTL4BufferRange",
       "kind": "typedef",
@@ -106731,7 +106731,7 @@
       "macos_introduced": null,
       "name": "MTL4BufferRange",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "struct MTL4BufferRange"
     },
     {
@@ -106805,7 +106805,7 @@
           "line": 207
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "typedef:MTL4CopySparseBufferMappingOperation",
       "kind": "typedef",
@@ -106813,7 +106813,7 @@
       "macos_introduced": "26.0",
       "name": "MTL4CopySparseBufferMappingOperation",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "struct MTL4CopySparseBufferMappingOperation"
     },
     {
@@ -106826,7 +106826,7 @@
           "line": 174
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandQueue.h",
       "id": "typedef:MTL4CopySparseTextureMappingOperation",
       "kind": "typedef",
@@ -106834,7 +106834,7 @@
       "macos_introduced": "26.0",
       "name": "MTL4CopySparseTextureMappingOperation",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "struct MTL4CopySparseTextureMappingOperation"
     },
     {
@@ -107030,7 +107030,7 @@
           "line": 21
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4Counters.h",
       "id": "typedef:MTL4TimestampHeapEntry",
       "kind": "typedef",
@@ -107038,7 +107038,7 @@
       "macos_introduced": "26.0",
       "name": "MTL4TimestampHeapEntry",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "struct MTL4TimestampHeapEntry"
     },
     {
@@ -107114,7 +107114,7 @@
           "line": 787
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "typedef:MTLAccelerationStructureInstanceDescriptor",
       "kind": "typedef",
@@ -107122,7 +107122,7 @@
       "macos_introduced": "11.0",
       "name": "MTLAccelerationStructureInstanceDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "struct MTLAccelerationStructureInstanceDescriptor"
     },
     {
@@ -107175,7 +107175,7 @@
           "line": 909
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "typedef:MTLAccelerationStructureMotionInstanceDescriptor",
       "kind": "typedef",
@@ -107183,7 +107183,7 @@
       "macos_introduced": "12.0",
       "name": "MTLAccelerationStructureMotionInstanceDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "struct MTLAccelerationStructureMotionInstanceDescriptor"
     },
     {
@@ -107210,7 +107210,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "typedef:MTLAccelerationStructureSizes",
       "kind": "typedef",
@@ -107218,7 +107218,7 @@
       "macos_introduced": null,
       "name": "MTLAccelerationStructureSizes",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "struct MTLAccelerationStructureSizes"
     },
     {
@@ -107252,7 +107252,7 @@
           "line": 820
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "typedef:MTLAccelerationStructureUserIDInstanceDescriptor",
       "kind": "typedef",
@@ -107260,7 +107260,7 @@
       "macos_introduced": "12.0",
       "name": "MTLAccelerationStructureUserIDInstanceDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "struct MTLAccelerationStructureUserIDInstanceDescriptor"
     },
     {
@@ -107273,7 +107273,7 @@
           "line": 121
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgument.h",
       "id": "typedef:MTLArgumentAccess",
       "kind": "typedef",
@@ -107281,7 +107281,7 @@
       "macos_introduced": "10.11",
       "name": "MTLArgumentAccess",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "MTLBindingAccess"
     },
     {
@@ -107838,7 +107838,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTypes.h",
       "id": "typedef:MTLCoordinate2D",
       "kind": "typedef",
@@ -107846,7 +107846,7 @@
       "macos_introduced": null,
       "name": "MTLCoordinate2D",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "MTLSamplePosition"
     },
     {
@@ -108148,7 +108148,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputeCommandEncoder.h",
       "id": "typedef:MTLDispatchThreadgroupsIndirectArguments",
       "kind": "typedef",
@@ -108156,13 +108156,13 @@
       "macos_introduced": null,
       "name": "MTLDispatchThreadgroupsIndirectArguments",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "struct MTLDispatchThreadgroupsIndirectArguments"
     },
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputeCommandEncoder.h",
       "id": "typedef:MTLDispatchThreadsIndirectArguments",
       "kind": "typedef",
@@ -108170,7 +108170,7 @@
       "macos_introduced": null,
       "name": "MTLDispatchThreadsIndirectArguments",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "struct MTLDispatchThreadsIndirectArguments"
     },
     {
@@ -108209,7 +108209,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "typedef:MTLDrawPatchIndirectArguments",
       "kind": "typedef",
@@ -108217,7 +108217,7 @@
       "macos_introduced": null,
       "name": "MTLDrawPatchIndirectArguments",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "struct MTLDrawPatchIndirectArguments"
     },
     {
@@ -108563,7 +108563,7 @@
           "line": 21
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgument.h",
       "id": "typedef:MTLIndexType",
       "kind": "typedef",
@@ -108571,7 +108571,7 @@
       "macos_introduced": "10.11",
       "name": "MTLIndexType",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "enum MTLIndexType"
     },
     {
@@ -108584,7 +108584,7 @@
           "line": 943
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "typedef:MTLIndirectAccelerationStructureInstanceDescriptor",
       "kind": "typedef",
@@ -108592,7 +108592,7 @@
       "macos_introduced": "14.0",
       "name": "MTLIndirectAccelerationStructureInstanceDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "struct MTLIndirectAccelerationStructureInstanceDescriptor"
     },
     {
@@ -108605,7 +108605,7 @@
           "line": 1005
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLAccelerationStructure.h",
       "id": "typedef:MTLIndirectAccelerationStructureMotionInstanceDescriptor",
       "kind": "typedef",
@@ -108613,7 +108613,7 @@
       "macos_introduced": "14.0",
       "name": "MTLIndirectAccelerationStructureMotionInstanceDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "struct MTLIndirectAccelerationStructureMotionInstanceDescriptor"
     },
     {
@@ -108626,7 +108626,7 @@
           "line": 40
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIndirectCommandBuffer.h",
       "id": "typedef:MTLIndirectCommandBufferExecutionRange",
       "kind": "typedef",
@@ -108634,7 +108634,7 @@
       "macos_introduced": "10.14",
       "name": "MTLIndirectCommandBufferExecutionRange",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "struct MTLIndirectCommandBufferExecutionRange"
     },
     {
@@ -108661,7 +108661,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIntersectionFunctionTable.h",
       "id": "typedef:MTLIntersectionFunctionBufferArguments",
       "kind": "typedef",
@@ -108669,7 +108669,7 @@
       "macos_introduced": null,
       "name": "MTLIntersectionFunctionBufferArguments",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "struct MTLIntersectionFunctionBufferArguments"
     },
     {
@@ -108829,7 +108829,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResourceStateCommandEncoder.h",
       "id": "typedef:MTLMapIndirectArguments",
       "kind": "typedef",
@@ -108837,7 +108837,7 @@
       "macos_introduced": null,
       "name": "MTLMapIndirectArguments",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "struct MTLMapIndirectArguments"
     },
     {
@@ -109222,7 +109222,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "typedef:MTLQuadTessellationFactorsHalf",
       "kind": "typedef",
@@ -109230,7 +109230,7 @@
       "macos_introduced": null,
       "name": "MTLQuadTessellationFactorsHalf",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "struct MTLQuadTessellationFactorsHalf"
     },
     {
@@ -109353,7 +109353,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTypes.h",
       "id": "typedef:MTLSamplePosition",
       "kind": "typedef",
@@ -109361,7 +109361,7 @@
       "macos_introduced": null,
       "name": "MTLSamplePosition",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "struct MTLSamplePosition"
     },
     {
@@ -109601,7 +109601,7 @@
           "line": 39
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputeCommandEncoder.h",
       "id": "typedef:MTLStageInRegionIndirectArguments",
       "kind": "typedef",
@@ -109609,7 +109609,7 @@
       "macos_introduced": "10.14",
       "name": "MTLStageInRegionIndirectArguments",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "struct MTLStageInRegionIndirectArguments"
     },
     {
@@ -110007,7 +110007,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "typedef:MTLTimestamp",
       "kind": "typedef",
@@ -110015,7 +110015,7 @@
       "macos_introduced": null,
       "name": "MTLTimestamp",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "uint64_t"
     },
     {
@@ -110059,7 +110059,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "typedef:MTLTriangleTessellationFactorsHalf",
       "kind": "typedef",
@@ -110067,7 +110067,7 @@
       "macos_introduced": null,
       "name": "MTLTriangleTessellationFactorsHalf",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions.",
       "signature": "struct MTLTriangleTessellationFactorsHalf"
     },
     {

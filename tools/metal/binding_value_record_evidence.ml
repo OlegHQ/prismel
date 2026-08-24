@@ -2,6 +2,7 @@ let expected_layout_digest = "a8d1eeebc45edb6043faf80261f32b2d"
 
 let is_bound_identifier identifier =
   List.mem identifier Binding_value_record_plan.acceleration_type_ids
+  || List.mem identifier Binding_value_record_plan.pure_tail_ids
   || List.exists
     (fun name ->
       String.equal identifier ("record:" ^ name)

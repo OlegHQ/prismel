@@ -1627,6 +1627,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if String_set.mem identifier acceleration_operation_bound_identifiers then
     Bound,
       "Implemented by owned acceleration/function-table handles, checked capacity/index/device validation, retained bindings, typed direct selectors, and execute-or-capability-reject conformance."
+  else if List.exists (fun (item : Binding_pure_tail_plan.item) -> String.equal item.id identifier) Binding_pure_tail_plan.items then
+    Bound,
+      "Implemented by the generated pure-value tail surface with exact typed round trips and native enum/layout/constructor ABI assertions."
   else if generated_public_enum_identifier identifier then
     Bound, "Implemented by the generated, typed prismel.metal pure-value enum surface."
   else if Binding_value_record_evidence.is_bound_identifier identifier then
