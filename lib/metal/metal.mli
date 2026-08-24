@@ -2485,6 +2485,24 @@ module Command4 : sig
   module Queue : sig
     type t = command4_queue
 
+    type buffer_mapping_copy =
+      { source_offset : int64
+      ; length : int64
+      ; destination_offset : int64
+      }
+
+    type texture_mapping_copy =
+      { source_origin : int64 * int64 * int64
+      ; size : int64 * int64 * int64
+      ; source_level : int64
+      ; source_slice : int64
+      ; destination_origin : int64 * int64 * int64
+      ; destination_level : int64
+      ; destination_slice : int64
+      }
+
+    type event = Event of Event.t | Shared_event of Shared_event.t
+
     val create : ?label:string -> Device.t -> (t, error) result
     val device : t -> Device.t
     val generation : t -> int64
@@ -2494,8 +2512,16 @@ module Command4 : sig
     (** Commits one to 64 unique, ended command buffers in list order. *)
     val commit : t -> Command_buffer.t list -> (Submission.t, error) result
     val add_residency_sets : t -> Residency_set.t list -> (unit,error) result
+    val add_residency_set : t -> Residency_set.t -> (unit,error) result
     val remove_residency_set : t -> Residency_set.t -> (unit,error) result
     val remove_residency_sets : t -> Residency_set.t list -> (unit,error) result
+    val copy_buffer_mappings : t -> source:Buffer.t -> destination:Buffer.t ->
+      buffer_mapping_copy list -> (unit,error) result
+    val copy_texture_mappings : t -> source:Texture.t -> destination:Texture.t ->
+      texture_mapping_copy list -> (unit,error) result
+    val signal_drawable : t -> Drawable.t -> (unit,error) result
+    val wait_for_drawable : t -> Drawable.t -> (unit,error) result
+    val wait_for_event : t -> event -> value:int64 -> (unit,error) result
 
     val destroy : t -> (unit, error) result
   end

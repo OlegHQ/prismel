@@ -389,6 +389,10 @@ let bound_identifiers =
           ] )
       ; ( "MTL4CommandQueue"
         , [ "commit:count:"; "commit:count:options:"; "device"; "label"
+          ; "addResidencySet:"
+          ; "copyBufferMappingsFromBuffer:toBuffer:operations:count:"
+          ; "copyTextureMappingsFromTexture:toTexture:operations:count:"
+          ; "signalDrawable:"; "waitForDrawable:"; "waitForEvent:value:"
           ; "signalEvent:value:"
           ; "updateBufferMappings:heap:operations:count:"
           ; "updateTextureMappings:heap:operations:count:"

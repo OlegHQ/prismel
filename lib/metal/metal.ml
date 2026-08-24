@@ -1345,6 +1345,7 @@ type command4_queue =
   ; lifetime : lifetime
   ; device : device
   ; residency_lifetimes : lifetime list ref
+  ; synchronization_lifetimes : lifetime list ref
   }
 
 type command4_phase =
@@ -12832,7 +12833,8 @@ module Command4 = struct
              | Ok raw ->
                  let value : t =
                    { raw; lifetime = lifetime (); device
-                   ; residency_lifetimes = ref [] }
+                   ; residency_lifetimes = ref []
+                   ; synchronization_lifetimes = ref [] }
                  in
                  attach device.lifetime;
                  attach_finalizer value value.lifetime device.lifetime;
@@ -12848,6 +12850,122 @@ module Command4 = struct
         match ensure_live operation value.lifetime with
         | Error _ as failure -> failure
         | Ok () -> Ok (Metal_raw.command4_queue_label value.raw))
+
+    type buffer_mapping_copy =
+      { source_offset : int64
+      ; length : int64
+      ; destination_offset : int64
+      }
+
+    type texture_mapping_copy =
+      { source_origin : int64 * int64 * int64
+      ; size : int64 * int64 * int64
+      ; source_level : int64
+      ; source_slice : int64
+      ; destination_origin : int64 * int64 * int64
+      ; destination_level : int64
+      ; destination_slice : int64
+      }
+
+    type event = Event of Event.t | Shared_event of Shared_event.t
+
+    let retain_synchronization (value : t) lifetime =
+      if not (List.exists ((==) lifetime) !(value.synchronization_lifetimes)) then begin
+        attach lifetime;
+        value.synchronization_lifetimes := lifetime :: !(value.synchronization_lifetimes)
+      end
+
+    let copy_buffer_mappings (value : t) ~(source : Buffer.t)
+        ~(destination : Buffer.t) operations =
+      let operation = "Metal.Command4.Queue.copy_buffer_mappings" in
+      on_main operation (fun () ->
+        Result.bind (ensure_live operation value.lifetime) (fun () ->
+        Result.bind (ensure_buffer_usable operation source) (fun () ->
+        Result.bind (ensure_buffer_usable operation destination) (fun () ->
+        Result.bind (ensure_same_device operation value.device source.device) (fun () ->
+        Result.bind (ensure_same_device operation value.device destination.device) (fun () ->
+          if operations = [] then
+            error operation Invalid_argument "sparse buffer mapping copy requires operations"
+          else
+            let native = Array.of_list (List.map (fun item ->
+              item.source_offset, item.length, item.destination_offset) operations) in
+            match Metal_raw.metal4_queue_copy_buffer_mappings value.raw source.raw
+                    destination.raw native true with
+            | Error message -> native_error operation message
+            | Ok () ->
+                retain_synchronization value source.lifetime;
+                retain_synchronization value destination.lifetime;
+                Ok ()))))))
+
+    let copy_texture_mappings (value : t) ~(source : Texture.t)
+        ~(destination : Texture.t) operations =
+      let operation = "Metal.Command4.Queue.copy_texture_mappings" in
+      on_main operation (fun () ->
+        Result.bind (ensure_live operation value.lifetime) (fun () ->
+        Result.bind (ensure_texture_usable operation source) (fun () ->
+        Result.bind (ensure_texture_usable operation destination) (fun () ->
+        Result.bind (ensure_same_device operation value.device source.device) (fun () ->
+        Result.bind (ensure_same_device operation value.device destination.device) (fun () ->
+          if operations = [] then
+            error operation Invalid_argument "sparse texture mapping copy requires operations"
+          else
+            let native = Array.of_list (List.map (fun item ->
+              let sx,sy,sz = item.source_origin and w,h,d = item.size
+              and dx,dy,dz = item.destination_origin in
+              sx,sy,sz,w,h,d,item.source_level,item.source_slice,
+              dx,dy,dz,item.destination_level,item.destination_slice) operations) in
+            match Metal_raw.metal4_queue_copy_texture_mappings value.raw source.raw
+                    destination.raw native true with
+            | Error message -> native_error operation message
+            | Ok () ->
+                retain_synchronization value source.lifetime;
+                retain_synchronization value destination.lifetime;
+                Ok ()))))))
+
+    let add_residency_set (value : t) (set : Residency_set.t) =
+      let operation = "Metal.Command4.Queue.add_residency_set" in
+      on_main operation (fun () ->
+        Result.bind (ensure_live operation value.lifetime) (fun () ->
+        Result.bind (ensure_live operation set.lifetime) (fun () ->
+        Result.bind (ensure_same_device operation value.device set.device) (fun () ->
+          match Metal_raw.metal4_queue_synchronize value.raw 0 set.raw 0L false true with
+          | Error message -> native_error operation message
+          | Ok () ->
+              if not (List.exists ((==) set.lifetime) !(value.residency_lifetimes)) then begin
+                attach set.lifetime;
+                value.residency_lifetimes := set.lifetime :: !(value.residency_lifetimes)
+              end;
+              Ok ()))))
+
+    let synchronize_drawable operation code (value : t) (drawable : Drawable.t) =
+      on_main operation (fun () ->
+        Result.bind (ensure_live operation value.lifetime) (fun () ->
+        Result.bind (ensure_live operation drawable.lifetime) (fun () ->
+        Result.bind (ensure_same_device operation value.device drawable.layer.device) (fun () ->
+          match Metal_raw.metal4_queue_synchronize value.raw code drawable.raw 0L false true with
+          | Error message -> native_error operation message
+          | Ok () -> retain_synchronization value drawable.lifetime; Ok ()))))
+
+    let signal_drawable value drawable =
+      synchronize_drawable "Metal.Command4.Queue.signal_drawable" 1 value drawable
+
+    let wait_for_drawable value drawable =
+      synchronize_drawable "Metal.Command4.Queue.wait_for_drawable" 2 value drawable
+
+    let wait_for_event (value : t) event ~value:event_value =
+      let operation = "Metal.Command4.Queue.wait_for_event" in
+      on_main operation (fun () ->
+        let raw, lifetime, device, shared = match event with
+          | Event item -> item.raw, item.lifetime, item.device, false
+          | Shared_event item -> item.raw, item.lifetime, item.device, true in
+        Result.bind (ensure_live operation value.lifetime) (fun () ->
+        Result.bind (ensure_live operation lifetime) (fun () ->
+        Result.bind (ensure_same_device operation value.device device) (fun () ->
+          if event_value < 0L then
+            error operation Invalid_argument "Metal 4 event value must be nonnegative"
+          else match Metal_raw.metal4_queue_synchronize value.raw 3 raw event_value shared true with
+            | Error message -> native_error operation message
+            | Ok () -> retain_synchronization value lifetime; Ok ()))))
 
     let same_buffer (left : command4_buffer) (right : command4_buffer) =
       left.lifetime == right.lifetime
@@ -12970,7 +13088,10 @@ module Command4 = struct
     let destroy (value : t) =
       destroy_parent "Metal.Command4.Queue.destroy" value.lifetime value.raw
         (fun () -> List.iter detach !(value.residency_lifetimes);
-          value.residency_lifetimes := []; detach value.device.lifetime)
+          List.iter detach !(value.synchronization_lifetimes);
+          value.residency_lifetimes := [];
+          value.synchronization_lifetimes := [];
+          detach value.device.lifetime)
   end
 
   module Render_encoder = struct

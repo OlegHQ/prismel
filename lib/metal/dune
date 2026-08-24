@@ -401,6 +401,11 @@
  (libraries metal))
 
 (test
+ (name test_metal4_command_queue6_safe)
+ (modules test_metal4_command_queue6_safe)
+ (libraries metal))
+
+(test
  (name test_metal4_acceleration_structure11_safe)
  (modules test_metal4_acceleration_structure11_safe)
  (libraries metal))
