@@ -1732,6 +1732,12 @@ let render_pipeline93_array_snapshots18 =
   ; "method:-[MTLTileRenderPipelineDescriptor tileBuffers]"
   ; "property:MTLTileRenderPipelineDescriptor:tileBuffers" ]
 
+let render_pipeline93_required_thread_sizes4 =
+  [ "method:-[MTLRenderPipelineState requiredThreadsPerMeshThreadgroup]"
+  ; "property:MTLRenderPipelineState:requiredThreadsPerMeshThreadgroup"
+  ; "method:-[MTLRenderPipelineState requiredThreadsPerObjectThreadgroup]"
+  ; "property:MTLRenderPipelineState:requiredThreadsPerObjectThreadgroup" ]
+
 let classify ~unavailable ~identifier ~header ~kind ~signature =
   if unavailable then
     Scope_excluded, "Clang marks this declaration unavailable for macOS."
@@ -1816,7 +1822,8 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier render_pipeline93_safe11
           || List.mem identifier render_pipeline93_mesh_graph12
           || List.mem identifier render_pipeline93_tile_graph9
-          || List.mem identifier render_pipeline93_array_snapshots18 then
+          || List.mem identifier render_pipeline93_array_snapshots18
+          || List.mem identifier render_pipeline93_required_thread_sizes4 then
     Bound,
       "Implemented by the RenderPipeline93 safe descriptor foundation with typed classes, copied labels, exact reset defaults, checked color-array indexing, and retained attachment ownership."
   else if List.mem identifier Binding_compute_encoder35_safe_closure.callable_ids then

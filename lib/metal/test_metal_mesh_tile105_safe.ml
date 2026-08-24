@@ -41,6 +41,12 @@ let ()=
        | Error error->fail "%s"(Format.asprintf "%a" pp_error error)
        | Ok pipeline->
            if Render_pipeline.kind pipeline<>Render_pipeline.Mesh then fail "mesh pipeline kind drift";
+           let mesh_threads=get(Render_pipeline.mesh_threads_per_threadgroup pipeline)in
+           if mesh_threads.width<>3L||mesh_threads.height<>1L||mesh_threads.depth<>1L then
+             fail "mesh required threadgroup size drift";
+           let object_threads=get(Render_pipeline.object_threads_per_threadgroup pipeline)in
+           if object_threads.width<>0L||object_threads.height<>0L||object_threads.depth<>0L then
+             fail "nil-object required threadgroup size drift";
            get(Render_pipeline.destroy pipeline));
       (match compile_tile~reflection:true tile_descriptor with
        | Error {kind=Unsupported;_}->()
