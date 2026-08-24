@@ -1409,6 +1409,10 @@ external command_buffer_render_encoder_attachments :
   "caml_prismel_metal_command_buffer_render_encoder_attachments"
 external device_create_fence : handle -> (handle, string) result =
   "caml_prismel_metal_device_create_fence"
+external fence_snapshot : handle -> (int64 * string option,string) result =
+  "caml_prismel_metal_fence_snapshot"
+external fence_set_label : handle -> string option -> (unit,string) result =
+  "caml_prismel_metal_fence_set_label"
 external layer_create : handle -> (handle,string) result = "caml_prismel_metal_layer_create"
 external layer_configure : handle -> int -> int -> int -> (bool*int*bool*bool*bool) -> (unit,string) result = "caml_prismel_metal_layer_configure"
 external layer_next_drawable : handle -> (handle option,string) result = "caml_prismel_metal_layer_next_drawable"

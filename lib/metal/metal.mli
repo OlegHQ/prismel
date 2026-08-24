@@ -148,6 +148,7 @@ type blit_encoder
 type resource_state_encoder
 type command_queue
 type command4_queue
+type fence
 
 module Device : sig
   type t
@@ -220,6 +221,7 @@ module Device : sig
     }
 
   val system_default : unit -> (t, error) result
+  val new_fence : t -> (fence,error) result
   val new_event:t->(Event.t,error)result
   val new_shared_event:t->(Shared_event.t,error)result
   type io_queue_type = Serial | Concurrent
@@ -990,9 +992,11 @@ module Render_pass_descriptor : sig
 end
 
 module Fence : sig
-  type t
+  type t = fence
   val create : Device.t -> (t, error) result
   val device : t -> Device.t
+  val label : t -> (string option,error) result
+  val set_label : t -> string option -> (unit,error) result
   val destroyed : t -> bool
   val destroy : t -> (unit, error) result
 end
@@ -3233,6 +3237,23 @@ module Parallel_render_encoder : sig
   val end_encoding : t -> (unit,error) result
 end
 
+module Command_encoder : sig
+  type t
+  type stage=Vertex|Fragment|Tile|Object|Mesh|Resource_state|Dispatch|Blit|Acceleration_structure|Machine_learning
+  val of_compute:compute_encoder->t
+  val of_blit:blit_encoder->t
+  val of_resource_state:resource_state_encoder->t
+  val of_acceleration:acceleration_encoder->t
+  val device:t->Device.t
+  val checked_device:t->(Device.t,error)result
+  val label:t->(string option,error)result
+  val set_label:t->string option->(unit,error)result
+  val insert_debug_signpost:t->string->(unit,error)result
+  val push_debug_group:t->string->(unit,error)result
+  val pop_debug_group:t->(unit,error)result
+  val barrier:t->after:stage list->before:stage list->(unit,error)result
+end
+
 module Command_buffer : sig
   type t
   type present_time = Immediate | At_time of float | After_minimum_duration of float
@@ -3849,6 +3870,27 @@ module Tensor : sig
   val blit_copy : Blit_encoder.t -> source:t -> source_origin:Extents.t -> source_dimensions:Extents.t -> destination:t -> destination_origin:Extents.t -> destination_dimensions:Extents.t -> (unit,error) result
   val destroyed : t -> bool
   val destroy : t -> (unit,error) result
+end
+
+
+(** Typed resources whose native objects carry a nonzero [MTLResourceID].
+    [Buffer.t] is deliberately absent: Metal buffers are bound through
+    [Command4.Argument_table.set_buffer], using their GPU address and offset. *)
+module Metal4_argument_table_resource : sig
+  type t =
+    | Acceleration_structure of Acceleration_structure.t
+    | Texture of Texture.t
+    | Sampler of Sampler.t
+    | Tensor of Tensor.Device_owned.t
+    | Compute_pipeline of Compute_pipeline.t
+    | Render_pipeline of Render_pipeline.t
+    | Visible_function_table of Visible_function_table.t
+    | Intersection_function_table of Intersection_function_table.t
+    | Function_handle of Function_handle.t
+    | Indirect_command_buffer of Indirect_command_buffer.t
+
+  val set : Command4.Argument_table.t -> buffer_index:int -> t ->
+    (unit, error) result
 end
 
 

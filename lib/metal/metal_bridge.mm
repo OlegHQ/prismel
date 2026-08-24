@@ -13987,6 +13987,30 @@ extern "C" CAMLprim value caml_prismel_metal_device_create_fence(value raw_devic
   CAMLreturn(result_ok(raw));
 }
 
+extern "C" CAMLprim value caml_prismel_metal_fence_snapshot(value raw_fence) {
+  CAMLparam1(raw_fence); CAMLlocal4(snapshot, label, result, registry);
+  @autoreleasepool { @try {
+    id<MTLFence> fence = object_of_handle(raw_fence, Handle_kind::Fence);
+    snapshot = caml_alloc_tuple(2);
+    registry = caml_copy_int64((int64_t)fence.device.registryID);
+    Store_field(snapshot, 0, registry);
+    label = copy_optional_string(fence.label);
+    Store_field(snapshot, 1, label);
+    result = result_ok(snapshot);
+  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); } }
+  CAMLreturn(result);
+}
+
+extern "C" CAMLprim value caml_prismel_metal_fence_set_label(value raw_fence,
+                                                               value raw_label) {
+  CAMLparam2(raw_fence, raw_label);
+  @autoreleasepool { @try {
+    id<MTLFence> fence = object_of_handle(raw_fence, Handle_kind::Fence);
+    fence.label = Is_block(raw_label) ? string_from_ocaml(Field(raw_label, 0)) : nil;
+  } @catch (NSException *exception) { CAMLreturn(result_error(exception.reason)); } }
+  CAMLreturn(result_unit());
+}
+
 extern "C" CAMLprim value caml_prismel_metal_layer_create(value raw_device) {
   CAMLparam1(raw_device); CAMLlocal1(raw); @autoreleasepool { @try {
     CAMetalLayer *layer=[CAMetalLayer layer]; layer.device=object_of_handle(raw_device,Handle_kind::Device);

@@ -1417,6 +1417,7 @@ type command4_argument_table =
   ; buffer_strides : int option array
   ; textures : texture option array
   ; samplers : sampler option array
+  ; id_resources : lifetime option array
   }
 
 type command4_resource =
@@ -1675,6 +1676,9 @@ type resource_state_encoder =
   ; lifetime : lifetime
   ; command_buffer : command_buffer
   }
+type command_encoder_token=
+  { encoder_raw:Metal_raw.handle; encoder_lifetime:lifetime; encoder_device:device
+  ; mutable encoder_debug_depth:int }
 
 type resource100_buffer_layout =
   { raw : Metal_raw.handle; lifetime : lifetime
@@ -1996,13 +2000,14 @@ let release_argument_binding_array lifetime bindings =
           detach (lifetime value))
     bindings
 
-let release_command4_argument_bindings buffers textures samplers =
+let release_command4_argument_bindings buffers textures samplers id_resources =
   release_argument_binding_array (fun (value : buffer) -> value.lifetime)
     buffers;
   release_argument_binding_array (fun (value : texture) -> value.lifetime)
     textures;
   release_argument_binding_array (fun (value : sampler) -> value.lifetime)
-    samplers
+    samplers;
+  release_argument_binding_array Fun.id id_resources
 
 let retain_command_buffer_buffer (command_buffer : command_buffer) (buffer : buffer) =
   let already_retained =
@@ -2478,6 +2483,19 @@ end
 
 module Device = struct
   type t = device
+
+  let new_fence (value:t) =
+    let operation = "Metal.Device.new_fence" in
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () -> match Metal_raw.device_create_fence value.raw with
+        | Error message -> native_error operation message
+        | Ok raw ->
+            let fence : fence = { raw; lifetime = lifetime (); device = value } in
+            attach value.lifetime;
+            attach_finalizer fence fence.lifetime value.lifetime;
+            Ok fence)
 
   type io_queue_type = Serial | Concurrent
   let io_queue_type_code = function Serial -> 0 | Concurrent -> 1
@@ -6755,20 +6773,26 @@ end
 
 module Fence = struct
   type t = fence
-  let create (device : Device.t) =
-    let operation = "Metal.Fence.create" in
-    on_main operation (fun () ->
-      match ensure_live operation device.lifetime with
-      | Error _ as failure -> failure
-      | Ok () ->
-          match Metal_raw.device_create_fence device.raw with
-          | Error message -> native_error operation message
-          | Ok raw ->
-              let value : t = { raw; lifetime = lifetime (); device } in
-              attach device.lifetime;
-              attach_finalizer value value.lifetime device.lifetime;
-              Ok value)
+  let create = Device.new_fence
   let device (value : t) = value.device
+  let label (value:t) =
+    let operation = "Metal.Fence.label" in
+    on_main operation (fun () -> match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () -> match Metal_raw.fence_snapshot value.raw with
+        | Error message -> native_error operation message
+        | Ok (registry_id,_) when registry_id <> value.device.registry_id ->
+            error operation Device_mismatch "fence device identity changed"
+        | Ok (_,label) -> Ok label)
+  let set_label (value:t) label =
+    let operation = "Metal.Fence.set_label" in
+    on_main operation (fun () -> match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when option_exists contains_nul label ->
+          error operation Invalid_argument "fence label contains a NUL byte"
+      | Ok () -> match Metal_raw.fence_set_label value.raw label with
+        | Error message -> native_error operation message
+        | Ok () -> Ok ())
   let destroyed (value : t) = is_destroyed value.lifetime
   let destroy (value : t) = destroy_parent "Metal.Fence.destroy" value.lifetime value.raw (fun () -> detach value.device.lifetime)
 end
@@ -12771,7 +12795,8 @@ module Command4 = struct
                      let buffers = Array.make max_buffers None
                      and buffer_strides = Array.make max_buffers None
                      and textures = Array.make max_textures None
-                     and samplers = Array.make max_samplers None in
+                     and samplers = Array.make max_samplers None
+                     and id_resources = Array.make max_buffers None in
                      let value : t =
                        { raw
                        ; lifetime = lifetime ()
@@ -12785,13 +12810,14 @@ module Command4 = struct
                        ; buffer_strides
                        ; textures
                        ; samplers
+                       ; id_resources
                        }
                      in
                      attach device.lifetime;
                      attach_finalizer
                        ~on_finalize:(fun () ->
                          release_command4_argument_bindings buffers textures
-                           samplers)
+                           samplers id_resources)
                        value value.lifetime device.lifetime;
                      Ok value))
 
@@ -12990,7 +13016,7 @@ module Command4 = struct
       destroy_parent "Metal.Command4.Argument_table.destroy" value.lifetime
         value.raw (fun () ->
           release_command4_argument_bindings value.buffers value.textures
-            value.samplers;
+            value.samplers value.id_resources;
           detach value.device.lifetime)
   end
 
@@ -16438,6 +16464,28 @@ module Parallel_render_encoder = struct
                 detach value.command_buffer.lifetime
               end;
               Ok())
+end
+
+module Command_encoder = struct
+  type t=command_encoder_token
+  type stage=Vertex|Fragment|Tile|Object|Mesh|Resource_state|Dispatch|Blit|Acceleration_structure|Machine_learning
+  let make raw lifetime command_buffer={encoder_raw=raw;encoder_lifetime=lifetime;encoder_device=command_buffer.queue.device;encoder_debug_depth=0}
+  let of_compute(value:compute_encoder)=make value.raw value.lifetime value.command_buffer
+  let of_blit(value:blit_encoder)=make value.raw value.lifetime value.command_buffer
+  let of_resource_state(value:resource_state_encoder)=make value.raw value.lifetime value.command_buffer
+  let of_acceleration(value:acceleration_encoder)=make value.raw value.lifetime value.command_buffer
+  let stage_bit=function Vertex->1L|Fragment->2L|Tile->4L|Object->8L|Mesh->16L|Resource_state->32L|Dispatch->64L|Blit->128L|Acceleration_structure->256L|Machine_learning->512L
+  let mask operation stages=match stages with []->error operation Invalid_argument "command encoder stage set is empty"|_->Ok(List.fold_left(fun bits stage->Int64.logor bits(stage_bit stage))0L stages)
+  let checked operation(value:t) callback=on_main operation(fun()->match ensure_live operation value.encoder_lifetime with Error _ as e->e|Ok()->callback())
+  let device(value:t)=value.encoder_device
+  let checked_device(value:t)=let operation="Metal.Command_encoder.checked_device"in checked operation value(fun()->match Metal_raw.command_encoder_device_id value.encoder_raw with Error m->native_error operation m|Ok registry when registry=value.encoder_device.registry_id->Ok value.encoder_device|Ok _->error operation Device_mismatch "command encoder device identity changed")
+  let label(value:t)=let operation="Metal.Command_encoder.label"in checked operation value(fun()->match Metal_raw.command_encoder_label value.encoder_raw with Error m->native_error operation m|Ok label->Ok label)
+  let set_label(value:t) label=let operation="Metal.Command_encoder.set_label"in checked operation value(fun()->if option_exists contains_nul label then error operation Invalid_argument "command encoder label contains NUL"else match Metal_raw.command_encoder_set_label value.encoder_raw label with Error m->native_error operation m|Ok()->Ok())
+  let debug operation_code operation (value:t) text=checked operation value(fun()->match Metal_raw.command_encoder_debug value.encoder_raw operation_code text(Int64.of_int value.encoder_debug_depth)with Error m->native_error operation m|Ok depth->value.encoder_debug_depth<-Int64.to_int depth;Ok())
+  let insert_debug_signpost value text=if text=""||contains_nul text then error "Metal.Command_encoder.insert_debug_signpost" Invalid_argument "debug signpost is invalid"else debug 0 "Metal.Command_encoder.insert_debug_signpost" value(Some text)
+  let push_debug_group value text=if text=""||contains_nul text then error "Metal.Command_encoder.push_debug_group" Invalid_argument "debug group is invalid"else debug 1 "Metal.Command_encoder.push_debug_group" value(Some text)
+  let pop_debug_group value=if value.encoder_debug_depth=0 then error "Metal.Command_encoder.pop_debug_group" Invalid_state "debug group stack is empty"else debug 2 "Metal.Command_encoder.pop_debug_group" value None
+  let barrier(value:t)~after~before=let operation="Metal.Command_encoder.barrier"in Result.bind(mask operation after)(fun after->Result.bind(mask operation before)(fun before->checked operation value(fun()->match Metal_raw.command_encoder_barrier value.encoder_raw after before with Error m->error operation Unsupported m|Ok()->Ok())))
 end
 
 module Command_buffer = struct
@@ -20252,6 +20300,64 @@ module Tensor = struct
         source_origin.raw source_dimensions.raw destination_origin.raw destination_dimensions.raw
   let destroyed=Resource100.Tensor.destroyed
   let destroy=Resource100.Tensor.destroy
+end
+
+module Metal4_argument_table_resource = struct
+  type t =
+    | Acceleration_structure of Acceleration_structure.t
+    | Texture of Texture.t
+    | Sampler of Sampler.t
+    | Tensor of Tensor.Device_owned.t
+    | Compute_pipeline of Compute_pipeline.t
+    | Render_pipeline of Render_pipeline.t
+    | Visible_function_table of Visible_function_table.t
+    | Intersection_function_table of Intersection_function_table.t
+    | Function_handle of Function_handle.t
+    | Indirect_command_buffer of Indirect_command_buffer.t
+
+  let parts = function
+    | Acceleration_structure (value : acceleration_structure) ->
+        value.raw, value.lifetime, value.device, 0
+    | Texture (value : texture) -> value.raw, value.lifetime, value.device, 1
+    | Sampler (value : sampler) -> value.raw, value.lifetime, value.device, 2
+    | Tensor (value : Tensor.Device_owned.t) ->
+        value.raw, value.lifetime, value.device, 3
+    | Compute_pipeline (value : compute_pipeline) ->
+        value.raw, value.lifetime, value.device, 4
+    | Render_pipeline (value : render_pipeline) ->
+        value.raw, value.lifetime, value.device, 5
+    | Visible_function_table (value : visible_function_table) ->
+        value.raw, value.lifetime, value.pipeline.device, 6
+    | Intersection_function_table (value : intersection_function_table) ->
+        value.raw, value.lifetime, value.pipeline.device, 7
+    | Function_handle (value : linked_function_handle) ->
+        value.raw, value.lifetime, value.pipeline.device, 8
+    | Indirect_command_buffer (value : indirect_command_buffer) ->
+        value.raw, value.lifetime, value.device, 9
+
+  let set (table : command4_argument_table) ~buffer_index resource =
+    let operation = "Metal.Metal4_argument_table_resource.set" in
+    on_main operation (fun () ->
+      match ensure_live operation table.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when buffer_index < 0 || buffer_index >= table.max_buffers ->
+          error operation Invalid_argument
+            "resource buffer index is outside the argument table"
+      | Ok () ->
+          let raw, retained, resource_device, kind = parts resource in
+          match ensure_live operation retained with
+          | Error _ as failure -> failure
+          | Ok () ->
+              (match ensure_same_device operation table.device resource_device with
+               | Error _ as failure -> failure
+               | Ok () ->
+                   match Metal_raw.metal4_argument_table_set_resource table.raw raw
+                           kind (Int64.of_int buffer_index) with
+                   | Error message -> native_error operation message
+                   | Ok () ->
+                       replace_argument_binding Fun.id table.id_resources
+                         buffer_index (Some retained);
+                       Ok ()))
 end
 
 module Compute_pass = struct
