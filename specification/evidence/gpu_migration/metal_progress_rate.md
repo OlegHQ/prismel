@@ -77,14 +77,16 @@ can change the denominator explicitly rather than being hidden.
 | `63872ed` | 2026-08-24 04:31:01 +02:00 | 4,504 | 5,249 | 85.8068% | 5 | 0.148 | 33.7 | 0.64 |
 | `c5aa2e0` | 2026-08-24 04:46:20 +02:00 | 4,511 | 5,249 | 85.9402% | 7 | 0.255 | 27.4 | 0.52 |
 | `dca23b5` | 2026-08-24 04:46:52 +02:00 | 4,530 | 5,249 | 86.3022% | 19 | 0.009 | 2,137.5 | 40.72 |
+| `de577af` | 2026-08-24 04:54:57 +02:00 | 4,537 | 5,249 | 86.4355% | 7 | 0.135 | 52.0 | 0.99 |
+| `695a9ce` | 2026-08-24 04:55:52 +02:00 | 4,554 | 5,249 | 86.7594% | 17 | 0.015 | 1,112.7 | 21.20 |
 
 ## Current measured rate
 
-- Since the bulk-value pivot at `6ec742f`: 2,631 additional bound declarations
-  in 8.511 hours, or **309.1 declarations/hour** and **5.89 percentage
+- Since the bulk-value pivot at `6ec742f`: 2,655 additional bound declarations
+  in 8.661 hours, or **306.5 declarations/hour** and **5.84 percentage
   points/hour**.
-- Latest completed interval (`c5aa2e0` through `dca23b5`): 19 declarations in
-  0.009 hours, or **2,137.5 declarations/hour** and **40.72 percentage
+- Latest completed interval (`de577af` through `695a9ce`): 17 declarations in
+  0.015 hours, or **1,112.7 declarations/hour** and **21.20 percentage
   points/hour**.
 
 The `74f45c8` safe handoff covers 76 Presentation declarations, but its inventory
