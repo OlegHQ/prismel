@@ -2592,3 +2592,7 @@ external parallel_render_store :
   handle -> int -> int64 -> int64 -> bool -> int64 -> (unit, string) result =
   "caml_prismel_metal_parallel_render_store_bytecode"
   "caml_prismel_metal_parallel_render_store"
+
+external function_handle_snapshot :
+  handle -> ((int * int64 * int64 * string), string) result =
+  "caml_prismel_metal_function_handle_snapshot"
