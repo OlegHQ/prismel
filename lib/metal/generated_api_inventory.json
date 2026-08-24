@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4428,
+    "bound": 4440,
     "scope-excluded": 37,
-    "unreviewed": 820
+    "unreviewed": 808
   },
-  "classification_source_sha256": "91a99ce7ede161b2411d2450a5e5adb0a56fcd2135af078d8d55435aef1f97a8",
+  "classification_source_sha256": "cd5222a34e6c4f0c891b3ec404468ed2f709cdf4302aec5f51e382b14c5a8b63",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -59576,7 +59576,7 @@
       "macos_introduced": "12.0",
       "name": "arguments",
       "owner": "MTLFunctionStitchingFunctionNode",
-      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
+      "reason": "Implemented by the FunctionStitching36 safe node/graph/descriptor closure with cycle and device validation, owned edges, atomic replacement, and real native conformance.",
       "signature": "instance () -> NSArray<id<MTLFunctionStitchingNode>> * _Nonnull"
     },
     {
@@ -59595,7 +59595,7 @@
       "macos_introduced": "12.0",
       "name": "controlDependencies",
       "owner": "MTLFunctionStitchingFunctionNode",
-      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
+      "reason": "Implemented by the FunctionStitching36 safe node/graph/descriptor closure with cycle and device validation, owned edges, atomic replacement, and real native conformance.",
       "signature": "instance () -> NSArray<MTLFunctionStitchingFunctionNode *> * _Nonnull"
     },
     {
@@ -59617,7 +59617,7 @@
       "macos_introduced": "12.0",
       "name": "initWithName:arguments:controlDependencies:",
       "owner": "MTLFunctionStitchingFunctionNode",
-      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
+      "reason": "Implemented by the FunctionStitching36 safe node/graph/descriptor closure with cycle and device validation, owned edges, atomic replacement, and real native conformance.",
       "signature": "instance (NSString * _Nonnull __strong, NSArray<id<MTLFunctionStitchingNode>> * _Nonnull __strong, NSArray<MTLFunctionStitchingFunctionNode *> * _Nonnull __strong) -> instancetype _Nonnull"
     },
     {
@@ -59636,7 +59636,7 @@
       "macos_introduced": "12.0",
       "name": "name",
       "owner": "MTLFunctionStitchingFunctionNode",
-      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
+      "reason": "Implemented by the FunctionStitching36 safe node/graph/descriptor closure with cycle and device validation, owned edges, atomic replacement, and real native conformance.",
       "signature": "instance () -> NSString * _Nonnull"
     },
     {
@@ -59655,7 +59655,7 @@
       "macos_introduced": "12.0",
       "name": "setArguments:",
       "owner": "MTLFunctionStitchingFunctionNode",
-      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
+      "reason": "Implemented by the FunctionStitching36 safe node/graph/descriptor closure with cycle and device validation, owned edges, atomic replacement, and real native conformance.",
       "signature": "instance (NSArray<id<MTLFunctionStitchingNode>> * _Nonnull) -> void"
     },
     {
@@ -59674,7 +59674,7 @@
       "macos_introduced": "12.0",
       "name": "setControlDependencies:",
       "owner": "MTLFunctionStitchingFunctionNode",
-      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
+      "reason": "Implemented by the FunctionStitching36 safe node/graph/descriptor closure with cycle and device validation, owned edges, atomic replacement, and real native conformance.",
       "signature": "instance (NSArray<MTLFunctionStitchingFunctionNode *> * _Nonnull) -> void"
     },
     {
@@ -59693,7 +59693,7 @@
       "macos_introduced": "12.0",
       "name": "setName:",
       "owner": "MTLFunctionStitchingFunctionNode",
-      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
+      "reason": "Implemented by the FunctionStitching36 safe node/graph/descriptor closure with cycle and device validation, owned edges, atomic replacement, and real native conformance.",
       "signature": "instance (NSString * _Nonnull) -> void"
     },
     {
@@ -59712,7 +59712,7 @@
       "macos_introduced": "12.0",
       "name": "attributes",
       "owner": "MTLFunctionStitchingGraph",
-      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
+      "reason": "Implemented by the FunctionStitching36 safe node/graph/descriptor closure with cycle and device validation, owned edges, atomic replacement, and real native conformance.",
       "signature": "instance () -> NSArray<id<MTLFunctionStitchingAttribute>> * _Nonnull"
     },
     {
@@ -59731,7 +59731,7 @@
       "macos_introduced": "12.0",
       "name": "functionName",
       "owner": "MTLFunctionStitchingGraph",
-      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
+      "reason": "Implemented by the FunctionStitching36 safe node/graph/descriptor closure with cycle and device validation, owned edges, atomic replacement, and real native conformance.",
       "signature": "instance () -> NSString * _Nonnull"
     },
     {
@@ -59753,7 +59753,7 @@
       "macos_introduced": "12.0",
       "name": "initWithFunctionName:nodes:outputNode:attributes:",
       "owner": "MTLFunctionStitchingGraph",
-      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
+      "reason": "Implemented by the FunctionStitching36 safe node/graph/descriptor closure with cycle and device validation, owned edges, atomic replacement, and real native conformance.",
       "signature": "instance (NSString * _Nonnull __strong, NSArray<MTLFunctionStitchingFunctionNode *> * _Nonnull __strong, MTLFunctionStitchingFunctionNode * _Nullable __strong, NSArray<id<MTLFunctionStitchingAttribute>> * _Nonnull __strong) -> instancetype _Nonnull"
     },
     {
@@ -59772,7 +59772,7 @@
       "macos_introduced": "12.0",
       "name": "nodes",
       "owner": "MTLFunctionStitchingGraph",
-      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
+      "reason": "Implemented by the FunctionStitching36 safe node/graph/descriptor closure with cycle and device validation, owned edges, atomic replacement, and real native conformance.",
       "signature": "instance () -> NSArray<MTLFunctionStitchingFunctionNode *> * _Nonnull"
     },
     {
@@ -59791,7 +59791,7 @@
       "macos_introduced": "12.0",
       "name": "outputNode",
       "owner": "MTLFunctionStitchingGraph",
-      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
+      "reason": "Implemented by the FunctionStitching36 safe node/graph/descriptor closure with cycle and device validation, owned edges, atomic replacement, and real native conformance.",
       "signature": "instance () -> MTLFunctionStitchingFunctionNode * _Nullable"
     },
     {
@@ -59810,7 +59810,7 @@
       "macos_introduced": "12.0",
       "name": "setAttributes:",
       "owner": "MTLFunctionStitchingGraph",
-      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
+      "reason": "Implemented by the FunctionStitching36 safe node/graph/descriptor closure with cycle and device validation, owned edges, atomic replacement, and real native conformance.",
       "signature": "instance (NSArray<id<MTLFunctionStitchingAttribute>> * _Nonnull) -> void"
     },
     {
@@ -59829,7 +59829,7 @@
       "macos_introduced": "12.0",
       "name": "setFunctionName:",
       "owner": "MTLFunctionStitchingGraph",
-      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
+      "reason": "Implemented by the FunctionStitching36 safe node/graph/descriptor closure with cycle and device validation, owned edges, atomic replacement, and real native conformance.",
       "signature": "instance (NSString * _Nonnull) -> void"
     },
     {
@@ -59848,7 +59848,7 @@
       "macos_introduced": "12.0",
       "name": "setNodes:",
       "owner": "MTLFunctionStitchingGraph",
-      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
+      "reason": "Implemented by the FunctionStitching36 safe node/graph/descriptor closure with cycle and device validation, owned edges, atomic replacement, and real native conformance.",
       "signature": "instance (NSArray<MTLFunctionStitchingFunctionNode *> * _Nonnull) -> void"
     },
     {
@@ -59867,7 +59867,7 @@
       "macos_introduced": "12.0",
       "name": "setOutputNode:",
       "owner": "MTLFunctionStitchingGraph",
-      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
+      "reason": "Implemented by the FunctionStitching36 safe node/graph/descriptor closure with cycle and device validation, owned edges, atomic replacement, and real native conformance.",
       "signature": "instance (MTLFunctionStitchingFunctionNode * _Nullable) -> void"
     },
     {
@@ -59908,7 +59908,7 @@
       "macos_introduced": "12.0",
       "name": "initWithArgumentIndex:",
       "owner": "MTLFunctionStitchingInputNode",
-      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
+      "reason": "Implemented by the FunctionStitching36 safe node/graph/descriptor closure with cycle and device validation, owned edges, atomic replacement, and real native conformance.",
       "signature": "instance (NSUInteger) -> instancetype _Nonnull"
     },
     {
@@ -78066,7 +78066,7 @@
           "line": 121
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "method:-[MTLStitchedLibraryDescriptor binaryArchives]",
       "kind": "method",
@@ -78074,7 +78074,7 @@
       "macos_introduced": "15.0",
       "name": "binaryArchives",
       "owner": "MTLStitchedLibraryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the FunctionStitching36 safe node/graph/descriptor closure with cycle and device validation, owned edges, atomic replacement, and real native conformance.",
       "signature": "instance () -> NSArray<id<MTLBinaryArchive>> * _Nonnull"
     },
     {
@@ -78085,7 +78085,7 @@
           "line": 111
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "method:-[MTLStitchedLibraryDescriptor functionGraphs]",
       "kind": "method",
@@ -78093,7 +78093,7 @@
       "macos_introduced": "12.0",
       "name": "functionGraphs",
       "owner": "MTLStitchedLibraryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the FunctionStitching36 safe node/graph/descriptor closure with cycle and device validation, owned edges, atomic replacement, and real native conformance.",
       "signature": "instance () -> NSArray<MTLFunctionStitchingGraph *> * _Nonnull"
     },
     {
@@ -78104,7 +78104,7 @@
           "line": 111
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "method:-[MTLStitchedLibraryDescriptor functions]",
       "kind": "method",
@@ -78112,7 +78112,7 @@
       "macos_introduced": "12.0",
       "name": "functions",
       "owner": "MTLStitchedLibraryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the FunctionStitching36 safe node/graph/descriptor closure with cycle and device validation, owned edges, atomic replacement, and real native conformance.",
       "signature": "instance () -> NSArray<id<MTLFunction>> * _Nonnull"
     },
     {
@@ -78129,7 +78129,7 @@
           "line": 127
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "method:-[MTLStitchedLibraryDescriptor options]",
       "kind": "method",
@@ -78137,7 +78137,7 @@
       "macos_introduced": "15.0",
       "name": "options",
       "owner": "MTLStitchedLibraryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the FunctionStitching36 safe node/graph/descriptor closure with cycle and device validation, owned edges, atomic replacement, and real native conformance.",
       "signature": "instance () -> MTLStitchedLibraryOptions"
     },
     {
@@ -78154,7 +78154,7 @@
           "line": 121
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "method:-[MTLStitchedLibraryDescriptor setBinaryArchives:]",
       "kind": "method",
@@ -78162,7 +78162,7 @@
       "macos_introduced": "15.0",
       "name": "setBinaryArchives:",
       "owner": "MTLStitchedLibraryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the FunctionStitching36 safe node/graph/descriptor closure with cycle and device validation, owned edges, atomic replacement, and real native conformance.",
       "signature": "instance (NSArray<id<MTLBinaryArchive>> * _Nonnull) -> void"
     },
     {
@@ -78173,7 +78173,7 @@
           "line": 111
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "method:-[MTLStitchedLibraryDescriptor setFunctionGraphs:]",
       "kind": "method",
@@ -78181,7 +78181,7 @@
       "macos_introduced": "12.0",
       "name": "setFunctionGraphs:",
       "owner": "MTLStitchedLibraryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the FunctionStitching36 safe node/graph/descriptor closure with cycle and device validation, owned edges, atomic replacement, and real native conformance.",
       "signature": "instance (NSArray<MTLFunctionStitchingGraph *> * _Nonnull) -> void"
     },
     {
@@ -78192,7 +78192,7 @@
           "line": 111
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "method:-[MTLStitchedLibraryDescriptor setFunctions:]",
       "kind": "method",
@@ -78200,7 +78200,7 @@
       "macos_introduced": "12.0",
       "name": "setFunctions:",
       "owner": "MTLStitchedLibraryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the FunctionStitching36 safe node/graph/descriptor closure with cycle and device validation, owned edges, atomic replacement, and real native conformance.",
       "signature": "instance (NSArray<id<MTLFunction>> * _Nonnull) -> void"
     },
     {
@@ -78217,7 +78217,7 @@
           "line": 127
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "method:-[MTLStitchedLibraryDescriptor setOptions:]",
       "kind": "method",
@@ -78225,7 +78225,7 @@
       "macos_introduced": "15.0",
       "name": "setOptions:",
       "owner": "MTLStitchedLibraryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the FunctionStitching36 safe node/graph/descriptor closure with cycle and device validation, owned edges, atomic replacement, and real native conformance.",
       "signature": "instance (MTLStitchedLibraryOptions) -> void"
     },
     {
@@ -94494,7 +94494,7 @@
       "macos_introduced": "12.0",
       "name": "arguments",
       "owner": "MTLFunctionStitchingFunctionNode",
-      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
+      "reason": "Implemented by the FunctionStitching36 safe node/graph/descriptor closure with cycle and device validation, owned edges, atomic replacement, and real native conformance.",
       "signature": "NSArray<id<MTLFunctionStitchingNode>> * _Nonnull"
     },
     {
@@ -94513,7 +94513,7 @@
       "macos_introduced": "12.0",
       "name": "controlDependencies",
       "owner": "MTLFunctionStitchingFunctionNode",
-      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
+      "reason": "Implemented by the FunctionStitching36 safe node/graph/descriptor closure with cycle and device validation, owned edges, atomic replacement, and real native conformance.",
       "signature": "NSArray<MTLFunctionStitchingFunctionNode *> * _Nonnull"
     },
     {
@@ -94532,7 +94532,7 @@
       "macos_introduced": "12.0",
       "name": "name",
       "owner": "MTLFunctionStitchingFunctionNode",
-      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
+      "reason": "Implemented by the FunctionStitching36 safe node/graph/descriptor closure with cycle and device validation, owned edges, atomic replacement, and real native conformance.",
       "signature": "NSString * _Nonnull"
     },
     {
@@ -94551,7 +94551,7 @@
       "macos_introduced": "12.0",
       "name": "attributes",
       "owner": "MTLFunctionStitchingGraph",
-      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
+      "reason": "Implemented by the FunctionStitching36 safe node/graph/descriptor closure with cycle and device validation, owned edges, atomic replacement, and real native conformance.",
       "signature": "NSArray<id<MTLFunctionStitchingAttribute>> * _Nonnull"
     },
     {
@@ -94570,7 +94570,7 @@
       "macos_introduced": "12.0",
       "name": "functionName",
       "owner": "MTLFunctionStitchingGraph",
-      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
+      "reason": "Implemented by the FunctionStitching36 safe node/graph/descriptor closure with cycle and device validation, owned edges, atomic replacement, and real native conformance.",
       "signature": "NSString * _Nonnull"
     },
     {
@@ -94589,7 +94589,7 @@
       "macos_introduced": "12.0",
       "name": "nodes",
       "owner": "MTLFunctionStitchingGraph",
-      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
+      "reason": "Implemented by the FunctionStitching36 safe node/graph/descriptor closure with cycle and device validation, owned edges, atomic replacement, and real native conformance.",
       "signature": "NSArray<MTLFunctionStitchingFunctionNode *> * _Nonnull"
     },
     {
@@ -94608,7 +94608,7 @@
       "macos_introduced": "12.0",
       "name": "outputNode",
       "owner": "MTLFunctionStitchingGraph",
-      "reason": "Implemented by the FunctionStitching24 safe node/graph closure with cycle validation, owned edges, atomic mutation, and real native conformance.",
+      "reason": "Implemented by the FunctionStitching36 safe node/graph/descriptor closure with cycle and device validation, owned edges, atomic replacement, and real native conformance.",
       "signature": "MTLFunctionStitchingFunctionNode * _Nullable"
     },
     {
@@ -101594,7 +101594,7 @@
           "line": 121
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "property:MTLStitchedLibraryDescriptor:binaryArchives",
       "kind": "property",
@@ -101602,7 +101602,7 @@
       "macos_introduced": "15.0",
       "name": "binaryArchives",
       "owner": "MTLStitchedLibraryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the FunctionStitching36 safe node/graph/descriptor closure with cycle and device validation, owned edges, atomic replacement, and real native conformance.",
       "signature": "NSArray<id<MTLBinaryArchive>> * _Nonnull"
     },
     {
@@ -101613,7 +101613,7 @@
           "line": 111
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "property:MTLStitchedLibraryDescriptor:functionGraphs",
       "kind": "property",
@@ -101621,7 +101621,7 @@
       "macos_introduced": "12.0",
       "name": "functionGraphs",
       "owner": "MTLStitchedLibraryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the FunctionStitching36 safe node/graph/descriptor closure with cycle and device validation, owned edges, atomic replacement, and real native conformance.",
       "signature": "NSArray<MTLFunctionStitchingGraph *> * _Nonnull"
     },
     {
@@ -101632,7 +101632,7 @@
           "line": 111
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "property:MTLStitchedLibraryDescriptor:functions",
       "kind": "property",
@@ -101640,7 +101640,7 @@
       "macos_introduced": "12.0",
       "name": "functions",
       "owner": "MTLStitchedLibraryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the FunctionStitching36 safe node/graph/descriptor closure with cycle and device validation, owned edges, atomic replacement, and real native conformance.",
       "signature": "NSArray<id<MTLFunction>> * _Nonnull"
     },
     {
@@ -101657,7 +101657,7 @@
           "line": 127
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionStitching.h",
       "id": "property:MTLStitchedLibraryDescriptor:options",
       "kind": "property",
@@ -101665,7 +101665,7 @@
       "macos_introduced": "15.0",
       "name": "options",
       "owner": "MTLStitchedLibraryDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the FunctionStitching36 safe node/graph/descriptor closure with cycle and device validation, owned edges, atomic replacement, and real native conformance.",
       "signature": "MTLStitchedLibraryOptions"
     },
     {
