@@ -2600,3 +2600,12 @@ external metal4_queue_synchronize :
   handle -> int -> handle -> int64 -> bool -> bool -> (unit, string) result =
   "caml_prismel_metal4_queue_synchronize_bytecode"
   "caml_prismel_metal4_queue_synchronize"
+
+external intersection_table_array :
+  handle -> int -> handle option array -> int64 array -> int64 array ->
+  (int64 * int64) -> int64 -> int64 -> (unit, string) result =
+  "caml_prismel_metal_intersection_table_array_bytecode"
+  "caml_prismel_metal_intersection_table_array"
+external intersection_table_signature :
+  handle -> int -> int64 -> (int64 * int64) -> int64 -> (unit, string) result =
+  "caml_prismel_metal_intersection_table_signature"
