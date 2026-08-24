@@ -13040,7 +13040,6 @@ module Command4 = struct
     let device (value : t) = value.device
     let generation (value : t) = Metal_raw.generation value.raw
     let destroyed (value : t) = is_destroyed value.lifetime
-
     let label (value : t) =
       let operation = "Metal.Command4.Queue.label" in
       on_main operation (fun () ->
@@ -19483,6 +19482,23 @@ module Resource100 = struct
   end
 end
 
+module Counters = struct
+  type sampling_point=Stage_boundary|Draw_boundary|Dispatch_boundary|Blit_boundary
+  type set={name:string;counters:string list}
+  let point_code=function Stage_boundary->0|Draw_boundary->1|Dispatch_boundary->2|Blit_boundary->3
+  let supports(device:Device.t)point=let operation="Metal.Counters.supports"in on_main operation(fun()->match ensure_live operation device.lifetime with Error _ as e->e|Ok()->match Metal_raw.counter_supports_sampling device.raw(point_code point)with Error m->native_error operation m|Ok x->Ok x)
+  let sets(device:Device.t)=let operation="Metal.Counters.sets"in on_main operation(fun()->match ensure_live operation device.lifetime with Error _ as e->e|Ok()->match Metal_raw.counter_sets device.raw with Error m->native_error operation m|Ok raw_sets->let rec collect i acc=if i=Array.length raw_sets then Ok(List.rev acc)else let raw,name=raw_sets.(i)in match Metal_raw.counter_set_counters raw with Error m->Array.iter(fun(r,_)->ignore(Metal_raw.destroy r))raw_sets;native_error operation m|Ok counters->let names=Array.to_list(Array.map snd counters)in Array.iter(fun(r,_)->ignore(Metal_raw.destroy r))counters;collect(i+1)({name;counters=names}::acc)in let result=collect 0[]in Array.iter(fun(r,_)->ignore(Metal_raw.destroy r))raw_sets;result)
+  module Descriptor=struct
+    type t={raw:Metal_raw.handle;lifetime:lifetime;device:device;set_name:string;label:string option;sample_count:int64;storage:Buffer.storage_mode}
+    let create(device:Device.t)~set_name?label~sample_count~storage()=let operation="Metal.Counters.Descriptor.create"in on_main operation(fun()->match ensure_live operation device.lifetime with Error _ as e->e|Ok()when set_name=""||contains_nul set_name||option_exists contains_nul label||sample_count<=0L->error operation Invalid_argument "counter set, label, or sample count is invalid"|Ok()when storage<>Buffer.Shared->error operation Unsupported "safe counter samples require shared storage"|Ok()->match Metal_raw.counter_sets device.raw with Error m->native_error operation m|Ok sets->match Array.find_opt(fun(_,name)->name=set_name)sets with None->Array.iter(fun(raw,_)->ignore(Metal_raw.destroy raw))sets;error operation Unsupported "counter set is unavailable"|Some(set_raw,_)->match Metal_raw.counter_descriptor_create()with Error m->Array.iter(fun(raw,_)->ignore(Metal_raw.destroy raw))sets;native_error operation m|Ok raw->let result=Metal_raw.counter_descriptor_set raw set_raw label sample_count 0L in Array.iter(fun(h,_)->ignore(Metal_raw.destroy h))sets;match result with Error m->ignore(Metal_raw.destroy raw);native_error operation m|Ok()->let value={raw;lifetime=lifetime();device;set_name;label;sample_count;storage}in attach device.lifetime;attach_finalizer value value.lifetime device.lifetime;Ok value)
+    let set_name t=t.set_name and label t=t.label and sample_count t=t.sample_count and storage t=t.storage
+    let create_buffer(t:t)=let operation="Metal.Counters.Descriptor.create_buffer"in on_main operation(fun()->match ensure_live operation t.lifetime with Error _ as e->e|Ok()->match Metal_raw.counter_sample_buffer_create t.device.raw t.raw with Error m->native_error operation m|Ok raw->let value:counter_sample_buffer={raw;lifetime=lifetime();device=t.device;sample_count=t.sample_count;label=t.label}in attach t.device.lifetime;attach_finalizer value value.lifetime t.device.lifetime;Ok value)
+    let destroyed t=is_destroyed t.lifetime
+    let destroy(t:t)=destroy_parent "Metal.Counters.Descriptor.destroy" t.lifetime t.raw(fun()->detach t.device.lifetime)
+  end
+  let resolve(samples:counter_sample_buffer)~first~count=let operation="Metal.Counters.resolve"in on_main operation(fun()->match ensure_live operation samples.lifetime with Error _ as e->e|Ok()when first<0L||count<0L||first>samples.sample_count||count>Int64.sub samples.sample_count first->error operation Invalid_argument "counter range is out of bounds"|Ok()->match Metal_raw.counter_sample_resolve samples.raw first count with Error m->native_error operation m|Ok bytes->Ok bytes)
+end
+
 module Acceleration_pass : sig
   type t = acceleration_pass
   type attachment = acceleration_pass_attachment
@@ -19910,6 +19926,9 @@ module IO = struct
     type t = io_queue
     let device (value : t) = value.device
     let destroyed (value : t) = is_destroyed value.lifetime
+    let label(value:t)=let operation="Metal.IO.Queue.label"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.io_queue_snapshot value.raw with Error m->native_error operation m|Ok label->Ok label)
+    let set_label(value:t) label=let operation="Metal.IO.Queue.set_label"in if option_exists contains_nul label then error operation Invalid_argument "IO queue label contains NUL"else on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.io_queue_set_label value.raw label with Error m->native_error operation m|Ok()->Ok())
+    let enqueue_barrier(value:t)=let operation="Metal.IO.Queue.enqueue_barrier"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.io_queue_barrier value.raw with Error m->native_error operation m|Ok()->Ok())
     let create_command_buffer (value : t) ?label () =
       let operation = "Metal.IO.Queue.create_command_buffer" in
       on_main operation (fun () ->
@@ -19931,6 +19950,7 @@ module IO = struct
                   commands.io_retained <- [])
                   commands commands.lifetime value.lifetime;
                 Ok commands)
+    let create_unretained_command_buffer(value:t)=let operation="Metal.IO.Queue.create_unretained_command_buffer"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.io_queue_unretained value.raw with Error m->native_error operation m|Ok raw->let commands:io_command_buffer={raw;lifetime=lifetime();queue=value;io_phase=`Recording;io_retained=[]}in attach value.lifetime;attach_finalizer~on_finalize:(fun()->List.iter detach commands.io_retained;commands.io_retained<-[])commands commands.lifetime value.lifetime;Ok commands)
     let destroy (value : t) =
       destroy_parent "Metal.IO.Queue.destroy" value.lifetime value.raw
         (fun () -> detach value.device.lifetime)
@@ -19940,6 +19960,8 @@ module IO = struct
     type t = io_file
     let device (value : t) = value.device
     let destroyed (value : t) = is_destroyed value.lifetime
+    let label(value:t)=let operation="Metal.IO.File.label"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.io_file_snapshot value.raw with Error m->native_error operation m|Ok label->Ok label)
+    let set_label(value:t) label=let operation="Metal.IO.File.set_label"in if option_exists contains_nul label then error operation Invalid_argument "IO file label contains NUL"else on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.io_file_set_label value.raw label with Error m->native_error operation m|Ok()->Ok())
     let destroy (value : t) =
       destroy_parent "Metal.IO.File.destroy" value.lifetime value.raw
         (fun () -> detach value.device.lifetime)
@@ -19956,6 +19978,31 @@ module IO = struct
       attach retained; value.io_retained <- retained :: value.io_retained
     let release_retained value =
       List.iter detach value.io_retained; value.io_retained <- []
+    let recording operation(value:t)=match ensure_live operation value.lifetime with Error _ as e->e|Ok()when value.io_phase<>`Recording->error operation Invalid_state "IO command buffer is already submitted"|Ok()->Ok()
+    let simple operation code(value:t) text=on_main operation(fun()->Result.bind(recording operation value)(fun()->match Metal_raw.io_command_simple value.raw code text with Error m->native_error operation m|Ok()->Ok()))
+    let label(value:t)=let operation="Metal.IO.Command_buffer.label"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.io_command_snapshot value.raw with Error m->native_error operation m|Ok(label,_,_)->Ok label)
+    let error_message(value:t)=let operation="Metal.IO.Command_buffer.error_message"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.io_command_snapshot value.raw with Error m->native_error operation m|Ok(_,message,_)->Ok message)
+    let set_label value label=if option_exists contains_nul label then error "Metal.IO.Command_buffer.set_label" Invalid_argument "IO command label contains NUL"else simple "Metal.IO.Command_buffer.set_label" 0 value label
+    let add_barrier value=simple "Metal.IO.Command_buffer.add_barrier" 1 value None
+    let enqueue value=simple "Metal.IO.Command_buffer.enqueue" 2 value None
+    let try_cancel value=simple "Metal.IO.Command_buffer.try_cancel" 3 value None
+    let push_debug_group value label=if label=""||contains_nul label then error "Metal.IO.Command_buffer.push_debug_group" Invalid_argument "IO debug label is invalid"else simple "Metal.IO.Command_buffer.push_debug_group" 4 value(Some label)
+    let pop_debug_group value=simple "Metal.IO.Command_buffer.pop_debug_group" 5 value None
+    let event_command operation signal(value:t)(event:command_shared_event) number=on_main operation(fun()->Result.bind(recording operation value)(fun()->Result.bind(ensure_live operation event.lifetime)(fun()->Result.bind(ensure_same_device operation value.queue.device event.device)(fun()->if number<0L then error operation Invalid_argument "event value is negative"else match Metal_raw.io_command_event value.raw event.raw number signal with Error m->native_error operation m|Ok()->retain value event.lifetime;Ok()))))
+    let wait_event value event number=event_command "Metal.IO.Command_buffer.wait_event" false value event number
+    let signal_event value event number=event_command "Metal.IO.Command_buffer.signal_event" true value event number
+    let copy_status (value:t) ~destination:(destination:buffer) ~offset =
+      let operation="Metal.IO.Command_buffer.copy_status" in
+      on_main operation (fun () ->
+        Result.bind (recording operation value) (fun () ->
+          Result.bind (ensure_buffer_usable operation destination) (fun () ->
+            Result.bind (ensure_same_device operation value.queue.device destination.device) (fun () ->
+              if offset < 0L || offset > destination.length
+                 || Int64.sub destination.length offset < 8L then
+                error operation Invalid_argument "status destination range is out of bounds"
+              else match Metal_raw.io_command_copy_status value.raw destination.raw offset with
+                | Error message -> native_error operation message
+                | Ok () -> retain value destination.lifetime; Ok ()))))
     let load_buffer (value : t) ~(destination : Buffer.t)
         ~destination_offset ~size ~(source : File.t) ~source_offset =
       let operation = "Metal.IO.Command_buffer.load_buffer" in

@@ -3635,6 +3635,25 @@ module Resource100 : sig
   end
 end
 
+module Counters : sig
+  type sampling_point=Stage_boundary|Draw_boundary|Dispatch_boundary|Blit_boundary
+  type set={name:string;counters:string list}
+  val supports : Device.t -> sampling_point -> (bool,error) result
+  val sets : Device.t -> (set list,error) result
+  module Descriptor : sig
+    type t
+    val create : Device.t -> set_name:string -> ?label:string -> sample_count:int64 -> storage:Buffer.storage_mode -> unit -> (t,error) result
+    val set_name : t -> string
+    val label : t -> string option
+    val sample_count : t -> int64
+    val storage : t -> Buffer.storage_mode
+    val create_buffer : t -> (counter_sample_buffer,error) result
+    val destroyed : t -> bool
+    val destroy : t -> (unit,error) result
+  end
+  val resolve : counter_sample_buffer -> first:int64 -> count:int64 -> (bytes,error) result
+end
+
 module Acceleration_pass : sig
   type t
   type attachment
@@ -3761,20 +3780,37 @@ module IO : sig
     type t = io_queue
     val device : t -> Device.t
     val destroyed : t -> bool
+    val label : t -> (string option,error) result
+    val set_label : t -> string option -> (unit,error) result
+    val enqueue_barrier : t -> (unit,error) result
     val create_command_buffer :
       t -> ?label:string -> unit -> (io_command_buffer, error) result
+    val create_unretained_command_buffer : t -> (io_command_buffer,error) result
     val destroy : t -> (unit, error) result
   end
   module File : sig
     type t = io_file
     val device : t -> Device.t
     val destroyed : t -> bool
+    val label : t -> (string option,error) result
+    val set_label : t -> string option -> (unit,error) result
     val destroy : t -> (unit, error) result
   end
   module Command_buffer : sig
     type t = io_command_buffer
     type status = Recording | Submitted | Complete | Failed
     val status : t -> status
+    val label : t -> (string option,error) result
+    val error_message : t -> (string option,error) result
+    val set_label : t -> string option -> (unit,error) result
+    val add_barrier : t -> (unit,error) result
+    val enqueue : t -> (unit,error) result
+    val try_cancel : t -> (unit,error) result
+    val push_debug_group : t -> string -> (unit,error) result
+    val pop_debug_group : t -> (unit,error) result
+    val wait_event : t -> Shared_event.t -> int64 -> (unit,error) result
+    val signal_event : t -> Shared_event.t -> int64 -> (unit,error) result
+    val copy_status : t -> destination:Buffer.t -> offset:int64 -> (unit,error) result
     val load_buffer :
       t -> destination:Buffer.t -> destination_offset:int64 -> size:int64 ->
       source:File.t -> source_offset:int64 -> (unit, error) result
