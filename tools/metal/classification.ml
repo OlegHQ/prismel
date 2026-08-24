@@ -1768,6 +1768,16 @@ let stage_input_output_safe7 =
   ; "property:MTLStageInputOutputDescriptor:attributes"
   ; "property:MTLStageInputOutputDescriptor:layouts" ]
 
+let blit_pass_safe8 =
+  [ "method:+[MTLBlitPassDescriptor blitPassDescriptor]"
+  ; "method:-[MTLBlitPassDescriptor sampleBufferAttachments]"
+  ; "method:-[MTLBlitPassSampleBufferAttachmentDescriptor sampleBuffer]"
+  ; "method:-[MTLBlitPassSampleBufferAttachmentDescriptor setSampleBuffer:]"
+  ; "method:-[MTLBlitPassSampleBufferAttachmentDescriptorArray objectAtIndexedSubscript:]"
+  ; "method:-[MTLBlitPassSampleBufferAttachmentDescriptorArray setObject:atIndexedSubscript:]"
+  ; "property:MTLBlitPassDescriptor:sampleBufferAttachments"
+  ; "property:MTLBlitPassSampleBufferAttachmentDescriptor:sampleBuffer" ]
+
 let classify ~unavailable ~identifier ~header ~kind ~signature =
   if unavailable then
     Scope_excluded, "Clang marks this declaration unavailable for macOS."
@@ -1866,6 +1876,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier stage_input_output_safe7 then
     Bound,
       "Implemented by the StageInputOutputDescriptor safe7 canonical descriptor graph with retained attribute/layout children, checked indices and parent lifetime validation."
+  else if List.mem identifier blit_pass_safe8 then
+    Bound,
+      "Implemented by the BlitPass safe8 descriptor graph with retained sample buffers, checked device/sample ranges, exact default semantics, and parent-child lifetime validation."
   else if List.mem identifier io_compressor_safe5 then
     Bound,
       "Implemented by the owned IO.Compressor lifecycle with copied configuration, checked byte ranges, synchronous consumption, exact finalization state, and real compressed-output conformance."

@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4726,
+    "bound": 4734,
     "scope-excluded": 37,
-    "unreviewed": 522
+    "unreviewed": 514
   },
-  "classification_source_sha256": "5f8ab33723a6818d8aaa872fea30f7dc3f1a5f560b89f89c159cff265a7a3bf5",
+  "classification_source_sha256": "2b9183d7e2591040bd1410c3cc2bcc0e6ba965e52de7ce5b859f19cad59dc484",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -29541,7 +29541,7 @@
           "line": 64
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBlitPass.h",
       "id": "method:+[MTLBlitPassDescriptor blitPassDescriptor]",
       "kind": "method",
@@ -29549,7 +29549,7 @@
       "macos_introduced": "11.0",
       "name": "blitPassDescriptor",
       "owner": "MTLBlitPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the BlitPass safe8 descriptor graph with retained sample buffers, checked device/sample ranges, exact default semantics, and parent-child lifetime validation.",
       "signature": "class () -> MTLBlitPassDescriptor * _Nonnull"
     },
     {
@@ -48432,7 +48432,7 @@
           "line": 64
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBlitPass.h",
       "id": "method:-[MTLBlitPassDescriptor sampleBufferAttachments]",
       "kind": "method",
@@ -48440,7 +48440,7 @@
       "macos_introduced": "11.0",
       "name": "sampleBufferAttachments",
       "owner": "MTLBlitPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the BlitPass safe8 descriptor graph with retained sample buffers, checked device/sample ranges, exact default semantics, and parent-child lifetime validation.",
       "signature": "instance () -> MTLBlitPassSampleBufferAttachmentDescriptorArray * _Nonnull"
     },
     {
@@ -48470,7 +48470,7 @@
           "line": 18
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBlitPass.h",
       "id": "method:-[MTLBlitPassSampleBufferAttachmentDescriptor sampleBuffer]",
       "kind": "method",
@@ -48478,7 +48478,7 @@
       "macos_introduced": "11.0",
       "name": "sampleBuffer",
       "owner": "MTLBlitPassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the BlitPass safe8 descriptor graph with retained sample buffers, checked device/sample ranges, exact default semantics, and parent-child lifetime validation.",
       "signature": "instance () -> id<MTLCounterSampleBuffer> _Nullable"
     },
     {
@@ -48508,7 +48508,7 @@
           "line": 18
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBlitPass.h",
       "id": "method:-[MTLBlitPassSampleBufferAttachmentDescriptor setSampleBuffer:]",
       "kind": "method",
@@ -48516,7 +48516,7 @@
       "macos_introduced": "11.0",
       "name": "setSampleBuffer:",
       "owner": "MTLBlitPassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the BlitPass safe8 descriptor graph with retained sample buffers, checked device/sample ranges, exact default semantics, and parent-child lifetime validation.",
       "signature": "instance (id<MTLCounterSampleBuffer> _Nullable) -> void"
     },
     {
@@ -48565,7 +48565,7 @@
           "line": 50
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBlitPass.h",
       "id": "method:-[MTLBlitPassSampleBufferAttachmentDescriptorArray objectAtIndexedSubscript:]",
       "kind": "method",
@@ -48573,7 +48573,7 @@
       "macos_introduced": "11.0",
       "name": "objectAtIndexedSubscript:",
       "owner": "MTLBlitPassSampleBufferAttachmentDescriptorArray",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the BlitPass safe8 descriptor graph with retained sample buffers, checked device/sample ranges, exact default semantics, and parent-child lifetime validation.",
       "signature": "instance (NSUInteger) -> MTLBlitPassSampleBufferAttachmentDescriptor * _Nonnull"
     },
     {
@@ -48584,7 +48584,7 @@
           "line": 50
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBlitPass.h",
       "id": "method:-[MTLBlitPassSampleBufferAttachmentDescriptorArray setObject:atIndexedSubscript:]",
       "kind": "method",
@@ -48592,7 +48592,7 @@
       "macos_introduced": "11.0",
       "name": "setObject:atIndexedSubscript:",
       "owner": "MTLBlitPassSampleBufferAttachmentDescriptorArray",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the BlitPass safe8 descriptor graph with retained sample buffers, checked device/sample ranges, exact default semantics, and parent-child lifetime validation.",
       "signature": "instance (MTLBlitPassSampleBufferAttachmentDescriptor * _Nullable __strong, NSUInteger) -> void"
     },
     {
@@ -90026,7 +90026,7 @@
           "line": 64
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBlitPass.h",
       "id": "property:MTLBlitPassDescriptor:sampleBufferAttachments",
       "kind": "property",
@@ -90034,7 +90034,7 @@
       "macos_introduced": "11.0",
       "name": "sampleBufferAttachments",
       "owner": "MTLBlitPassDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the BlitPass safe8 descriptor graph with retained sample buffers, checked device/sample ranges, exact default semantics, and parent-child lifetime validation.",
       "signature": "MTLBlitPassSampleBufferAttachmentDescriptorArray * _Nonnull"
     },
     {
@@ -90064,7 +90064,7 @@
           "line": 18
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBlitPass.h",
       "id": "property:MTLBlitPassSampleBufferAttachmentDescriptor:sampleBuffer",
       "kind": "property",
@@ -90072,7 +90072,7 @@
       "macos_introduced": "11.0",
       "name": "sampleBuffer",
       "owner": "MTLBlitPassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the BlitPass safe8 descriptor graph with retained sample buffers, checked device/sample ranges, exact default semantics, and parent-child lifetime validation.",
       "signature": "id<MTLCounterSampleBuffer> _Nullable"
     },
     {
