@@ -65,20 +65,26 @@ can change the denominator explicitly rather than being hidden.
 | `c41908b` | 2026-08-24 02:54:36 +02:00 | 4,196 | 5,249 | 79.9390% | 46 | 0.247 | 186.1 | 3.55 |
 | `74f45c8` | 2026-08-24 03:02:05 +02:00 | 4,271 | 5,249 | 81.3679% | 75 | 0.125 | 601.3 | 11.46 |
 | `0f532bb` | 2026-08-24 03:10:25 +02:00 | 4,276 | 5,249 | 81.4631% | 5 | 0.139 | 36.0 | 0.69 |
+| `7957cbc` | 2026-08-24 03:20:16 +02:00 | 4,317 | 5,249 | 82.2442% | 41 | 0.164 | 249.7 | 4.76 |
+| `3d06043` | 2026-08-24 03:25:50 +02:00 | 4,322 | 5,249 | 82.3395% | 5 | 0.093 | 53.9 | 1.03 |
 
 ## Current measured rate
 
-- Since the bulk-value pivot at `6ec742f`: 2,377 additional bound declarations
-  in 6.904 hours, or **344.3 declarations/hour** and **6.57 percentage
+- Since the bulk-value pivot at `6ec742f`: 2,423 additional bound declarations
+  in 7.161 hours, or **338.4 declarations/hour** and **6.46 percentage
   points/hour**.
-- Latest completed interval (`74f45c8` through `0f532bb`): 5 declarations in
-  0.139 hours, or **36.0 declarations/hour** and **0.69 percentage
+- Latest completed interval (`7957cbc` through `3d06043`): 5 declarations in
+  0.093 hours, or **53.9 declarations/hour** and **1.03 percentage
   points/hour**.
 
 The `74f45c8` safe handoff covers 76 Presentation declarations, but its inventory
 delta is 75: `method:-[MTLCommandBuffer resourceStateCommandEncoderWithDescriptor:]`
 was already bound by the Resource100 closure and is recorded as the one explicit
 cross-batch overlap.
+
+The Tensor47 closure likewise has one intentional overlap: the buffer-backed
+constructor was already bound by Resource100. Its two Tensor promotion commits
+therefore move 46 new declarations while proving all 47 safe IDs.
 
 Rates describe completed commits, not forecasts. Hardware-only gates and
 complex ownership features will vary materially from pure-value batches.
