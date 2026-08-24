@@ -1402,20 +1402,38 @@ module rec Function : sig
     ; required : bool
     }
 
-  type descriptor = private
-    { name : string
-    ; specialized_name : string option
-    ; constants : (string * constant_value) list
-    ; compile_to_binary : bool
-    }
+  module Constant_values : sig
+    type t
+    type scalar = Bool | Int32 | UInt32 | Float32 | Int64
+    val create : unit -> (t,error) result
+    val set_index :
+      t -> scalar:scalar -> index:int64 -> bytes -> (unit,error) result
+    val set_range :
+      t -> scalar:scalar -> start:int64 -> count:int64 -> bytes ->
+      (unit,error) result
+    val reset : t -> (unit,error) result
+    val destroyed : t -> bool
+    val destroy : t -> (unit,error) result
+  end
 
-  (** Builds an immutable function descriptor. The native
-      [MTLFunctionDescriptor] and its copied strings/constant table exist only
-      for the duration of [create]; they are never exposed as handles. *)
+  type descriptor
+
+  (** Builds an owned immutable function descriptor. Archive parents remain
+      attached until [destroy_descriptor] (or finalization); native descriptor
+      materialization remains contained inside [create]. *)
   val descriptor :
     ?specialized_name:string -> ?compile_to_binary:bool ->
+    ?binary_archives:binary_archive list -> ?intersection:bool ->
     constants:(string * constant_value) list -> string ->
     (descriptor, error) result
+  val descriptor_binary_archives : descriptor -> binary_archive list
+  val descriptor_name : descriptor -> string
+  val descriptor_specialized_name : descriptor -> string option
+  val descriptor_constants : descriptor -> (string * constant_value) list
+  val descriptor_compile_to_binary : descriptor -> bool
+  val descriptor_is_intersection : descriptor -> bool
+  val descriptor_destroyed : descriptor -> bool
+  val destroy_descriptor : descriptor -> (unit,error) result
 
   (** Creates a function through Metal's checked descriptor API. The returned
       function retains its library in the same way as [find] and [specialize]. *)
@@ -1425,6 +1443,8 @@ module rec Function : sig
   val specialize :
     library:Library.t -> ?label:string ->
     constants:(string * constant_value) list -> string -> (t, error) result
+  val specialize_with_values :
+    library:Library.t -> Constant_values.t -> string -> (t,error) result
   val name : t -> (string, error) result
   val label : t -> (string option, error) result
   val kind : t -> (kind, error) result
@@ -1647,7 +1667,7 @@ module Dynamic_library : sig
 end
 
 module Binary_archive : sig
-  type t
+  type t = binary_archive
 
   (** With no [path], creates an empty archive. An absolute [path] opens a
       previously serialized archive. *)
@@ -1675,6 +1695,7 @@ module Compute_pipeline : sig
   type t
   type size3 = { width:int64; height:int64; depth:int64 }
   type shader_validation = Default | Enabled | Disabled
+  type function_handle_info={name:string;kind:Function.kind;resource_id:int64}
 
   val create :
     ?label:string -> ?linked_functions:Function.t list ->
@@ -1696,6 +1717,9 @@ module Compute_pipeline : sig
   val shader_validation : t -> (shader_validation,error) result
   val supports_indirect_command_buffers : t -> (bool,error) result
   val imageblock_memory_length : t -> size3 -> (int64,error) result
+  val function_handle_named:t->string->(function_handle_info option,error)result
+  val relink_additional_binary_functions:t->(t,error)result
+  val relink_binary_functions:t->(t,error)result
   val destroy : t -> (unit, error) result
 end
 

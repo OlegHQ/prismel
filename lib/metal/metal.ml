@@ -652,6 +652,9 @@ type function_constant =
   ; required : bool
   }
 
+type function_constant_values3 =
+  { raw : Metal_raw.handle; lifetime : lifetime }
+
 type library_kind =
   | Executable_library
   | Dynamic_library_source
@@ -8723,11 +8726,92 @@ module Function = struct
     ; required : bool
     }
 
+  module Constant_values = struct
+    type t = function_constant_values3
+    type scalar = Bool | Int32 | UInt32 | Float32 | Int64
+
+    let layout = function
+      | Bool -> Data_type.mtl_data_type_bool, 1
+      | Int32 -> Data_type.mtl_data_type_int, 4
+      | UInt32 -> Data_type.mtl_data_type_u_int, 4
+      | Float32 -> Data_type.mtl_data_type_float, 4
+      | Int64 -> Data_type.mtl_data_type_long, 8
+
+    let create () =
+      let operation = "Metal.Function.Constant_values.create" in
+      on_main operation (fun () ->
+        match Metal_raw.function_constants3_create () with
+        | Error message -> native_error operation message
+        | Ok raw ->
+            let value : function_constant_values3 =
+              { raw; lifetime = lifetime () }
+            in
+            Gc.finalise (fun (value:t) ->
+              if Atomic.compare_and_set value.lifetime.destroyed false true then
+                ignore (Metal_raw.destroy value.raw)) value;
+            Ok value)
+
+    let copied_payload bytes = Bytes.to_string (Bytes.copy bytes)
+
+    let set_index (value:t) ~scalar ~index bytes =
+      let operation = "Metal.Function.Constant_values.set_index" in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () ->
+            let data_type, width = layout scalar in
+            if index < 0L || Bytes.length bytes <> width then
+              error operation Invalid_argument
+                "function constant index or typed byte width is invalid"
+            else match Metal_raw.function_constants3_set_index value.raw
+                         (Int64.to_int (Data_type.to_int64 data_type)) index
+                         (copied_payload bytes) with
+              | Error message -> native_error operation message
+              | Ok () -> Ok ())
+
+    let set_range (value:t) ~scalar ~start ~count bytes =
+      let operation = "Metal.Function.Constant_values.set_range" in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () ->
+            let data_type, width = layout scalar in
+            if start < 0L || count <= 0L
+               || count > Int64.of_int max_int
+               || Int64.of_int width > Int64.div Int64.max_int count
+               || Int64.mul count (Int64.of_int width)
+                  <> Int64.of_int (Bytes.length bytes) then
+              error operation Invalid_argument
+                "function constant range or typed byte cardinality is invalid"
+            else match Metal_raw.function_constants3_set_range value.raw
+                         (Int64.to_int (Data_type.to_int64 data_type))
+                         (start,count) (copied_payload bytes) with
+              | Error message -> native_error operation message
+              | Ok () -> Ok ())
+
+    let reset (value:t) =
+      let operation = "Metal.Function.Constant_values.reset" in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () -> match Metal_raw.function_constants3_reset value.raw with
+          | Error message -> native_error operation message
+          | Ok () -> Ok ())
+
+    let destroyed (value:t) = is_destroyed value.lifetime
+    let destroy (value:t) =
+      destroy_leaf "Metal.Function.Constant_values.destroy" value.lifetime
+        value.raw ignore
+  end
+
   type descriptor =
     { name : string
     ; specialized_name : string option
     ; constants : (string * constant_value) list
     ; compile_to_binary : bool
+    ; binary_archives : binary_archive list
+    ; intersection : bool
+    ; descriptor_lifetime : lifetime
     }
 
   let kind_of_code = function
@@ -8794,8 +8878,8 @@ module Function = struct
     in
     loop [] [] constants
 
-  let descriptor ?specialized_name ?(compile_to_binary = false) ~constants
-      name =
+  let descriptor ?specialized_name ?(compile_to_binary = false)
+      ?(binary_archives=[]) ?(intersection=false) ~constants name =
     let operation = "Metal.Function.descriptor" in
     if name = "" || contains_nul name then
       error operation Invalid_argument
@@ -8808,17 +8892,38 @@ module Function = struct
       error operation Invalid_argument
         "specialized function name must be nonempty and contain no NUL byte"
     else
-      match raw_constants operation constants with
+      match List.find_opt(fun(archive:binary_archive)->is_destroyed archive.lifetime)binary_archives with
+      |Some _->error operation Destroyed "function descriptor archive is destroyed"
+      |None->match raw_constants operation constants with
       | Error _ as failure -> failure
       | Ok _ ->
-          Ok { name; specialized_name; constants; compile_to_binary }
+          let binary_archives=List.map(fun archive->archive)binary_archives in
+          List.iter(fun(archive:binary_archive)->attach archive.lifetime)binary_archives;
+          let value={name;specialized_name;constants;compile_to_binary;binary_archives;intersection;descriptor_lifetime=lifetime()}in
+          Gc.finalise(fun value->if Atomic.compare_and_set value.descriptor_lifetime.destroyed false true then List.iter(fun(archive:binary_archive)->detach archive.lifetime)value.binary_archives)value;
+          Ok value
+
+  let descriptor_binary_archives value=value.binary_archives
+  let descriptor_name value=value.name
+  let descriptor_specialized_name value=value.specialized_name
+  let descriptor_constants value=value.constants
+  let descriptor_compile_to_binary value=value.compile_to_binary
+  let descriptor_is_intersection value=value.intersection
+  let descriptor_destroyed value=is_destroyed value.descriptor_lifetime
+  let destroy_descriptor value=
+    let operation="Metal.Function.destroy_descriptor"in
+    on_main operation(fun()->if Atomic.compare_and_set value.descriptor_lifetime.destroyed false true then List.iter(fun(archive:binary_archive)->detach archive.lifetime)value.binary_archives;Ok())
 
   let create ~(library : Library.t) descriptor =
     let operation = "Metal.Function.create" in
     on_main operation (fun () ->
       match ensure_live operation library.lifetime with
       | Error _ as failure -> failure
-      | Ok () ->
+      | Ok () ->Result.bind(ensure_live operation descriptor.descriptor_lifetime)(fun()->
+          let rec validate=function
+            |[]->Ok()
+            |(archive:binary_archive)::rest->Result.bind(ensure_live operation archive.lifetime)(fun()->Result.bind(ensure_same_device operation library.device archive.device)(fun()->validate rest))in
+          Result.bind(validate descriptor.binary_archives)(fun()->
           (match raw_constants operation descriptor.constants with
            | Error _ as failure -> failure
            | Ok raw_constants ->
@@ -8826,6 +8931,8 @@ module Function = struct
                  Metal_raw.function_create_descriptor library.raw
                    descriptor.name descriptor.specialized_name raw_constants
                    (if descriptor.compile_to_binary then 1 else 0)
+                   (Array.of_list(List.map(fun(archive:binary_archive)->archive.raw)descriptor.binary_archives))
+                   descriptor.intersection
                with
                | Error message -> native_error operation message
                | Ok raw ->
@@ -8834,7 +8941,7 @@ module Function = struct
                    in
                    attach library.lifetime;
                    attach_finalizer value value.lifetime library.lifetime;
-                   Ok value))
+                   Ok value))))
 
   let find ~(library : Library.t) name =
     on_main "Metal.Function.find" (fun () ->
@@ -8916,6 +9023,25 @@ module Function = struct
                    attach library.lifetime;
                    attach_finalizer value value.lifetime library.lifetime;
                    Ok value))
+
+  let specialize_with_values ~(library:Library.t)
+      (values:Constant_values.t) name =
+    let operation = "Metal.Function.specialize_with_values" in
+    on_main operation (fun () ->
+      match ensure_live operation library.lifetime with
+      | Error _ as failure -> failure
+      | Ok () -> match ensure_live operation values.lifetime with
+        | Error _ as failure -> failure
+        | Ok () when name = "" || contains_nul name ->
+            error operation Invalid_argument "function name is invalid"
+        | Ok () -> match Metal_raw.function_constants3_specialize library.raw
+                         values.raw name with
+          | Error message -> native_error operation message
+          | Ok raw ->
+              let value : t = { raw; lifetime = lifetime (); library } in
+              attach library.lifetime;
+              attach_finalizer value value.lifetime library.lifetime;
+              Ok value)
 
   let device (value : t) = value.library.device
   let generation (value : t) = Metal_raw.generation value.raw
@@ -9633,6 +9759,7 @@ module Compute_pipeline = struct
   type t = compute_pipeline
   type size3 = { width:int64; height:int64; depth:int64 }
   type shader_validation = Default | Enabled | Disabled
+  type function_handle_info={name:string;kind:Function.kind;resource_id:int64}
 
   let make device ~reflection raw raw_bindings =
     let bindings =
@@ -9756,6 +9883,15 @@ module Compute_pipeline = struct
     let operation="Metal.Compute_pipeline.imageblock_memory_length" in
     if size.width<=0L||size.height<=0L||size.depth<=0L then error operation Invalid_argument "imageblock dimensions must be positive"
     else state_query operation(fun raw->Metal_raw.pipeline_compute_imageblock_length raw(size.width,size.height,size.depth))value
+
+  let function_handle_named(value:t) name=let operation="Metal.Compute_pipeline.function_handle_named"in
+    if name=""||contains_nul name then error operation Invalid_argument "function handle name is empty or contains NUL"else
+    on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.compute_pipeline11_named value.raw name with Error message->native_error operation message|Ok None->Ok None|Ok(Some raw)->let snapshot=Metal_raw.function_handle_snapshot raw in ignore(Metal_raw.destroy raw);match snapshot with Error message->native_error operation message|Ok(kind,resource_id,registry,actual)when registry=value.device.registry_id&&actual=name->Ok(Some{name=actual;kind=Function.kind_of_code kind;resource_id})|Ok _->error operation Native_error "named function handle metadata changed")
+
+  let relink_empty binary(value:t)=let operation=if binary then"Metal.Compute_pipeline.relink_binary_functions"else"Metal.Compute_pipeline.relink_additional_binary_functions"in
+    on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.compute_pipeline11_relink value.raw binary with Error message->error operation Unsupported message|Ok raw->Ok(make value.device~reflection:false raw[||]))
+  let relink_additional_binary_functions value=relink_empty false value
+  let relink_binary_functions value=relink_empty true value
 
   let static_threadgroup_memory_length (value : t) =
     let operation = "Metal.Compute_pipeline.static_threadgroup_memory_length" in

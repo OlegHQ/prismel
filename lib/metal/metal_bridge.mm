@@ -6307,9 +6307,11 @@ extern "C" CAMLprim value caml_prismel_metal_function_find(
 
 extern "C" CAMLprim value caml_prismel_metal_function_create_descriptor(
     value raw_library, value raw_name, value raw_specialized_name,
-    value raw_constants, value raw_options) {
+    value raw_constants, value raw_options, value raw_archives,
+    value raw_intersection) {
   CAMLparam5(raw_library, raw_name, raw_specialized_name, raw_constants,
              raw_options);
+  CAMLxparam2(raw_archives, raw_intersection);
   CAMLlocal1(raw);
   @autoreleasepool {
     @try {
@@ -6414,14 +6416,21 @@ extern "C" CAMLprim value caml_prismel_metal_function_create_descriptor(
           }
 #undef PRISMEL_SET_FUNCTION_CONSTANT
         }
-        MTLFunctionDescriptor *descriptor =
-            [MTLFunctionDescriptor functionDescriptor];
+        MTLFunctionDescriptor *descriptor = Bool_val(raw_intersection)
+            ? [MTLIntersectionFunctionDescriptor new]
+            : [MTLFunctionDescriptor functionDescriptor];
+        std::vector<id<MTLBinaryArchive>> archives =
+            binary_archives_of_array(raw_archives);
+        NSArray<id<MTLBinaryArchive>> *archive_array = archives.empty()
+            ? nil
+            : [NSArray arrayWithObjects:archives.data() count:archives.size()];
         descriptor.name = name;
         descriptor.specializedName = specialized_name;
         descriptor.constantValues = count == 0 ? nil : constant_values;
         descriptor.options = options_code == 1
                                  ? MTLFunctionOptionCompileToBinary
                                  : MTLFunctionOptionNone;
+        descriptor.binaryArchives = archive_array;
         if (![descriptor.name isEqualToString:name] ||
             ((specialized_name == nil) !=
              (descriptor.specializedName == nil)) ||
@@ -6430,13 +6439,16 @@ extern "C" CAMLprim value caml_prismel_metal_function_create_descriptor(
             ((count == 0) != (descriptor.constantValues == nil)) ||
             descriptor.options !=
                 (options_code == 1 ? MTLFunctionOptionCompileToBinary
-                                   : MTLFunctionOptionNone)) {
+                                   : MTLFunctionOptionNone) ||
+            descriptor.binaryArchives.count != archives.size()) {
           CAMLreturn(result_error_text(
               "Metal changed checked function descriptor properties"));
         }
         NSError *error = nil;
-        id<MTLFunction> function =
-            [library newFunctionWithDescriptor:descriptor error:&error];
+        id<MTLFunction> function = Bool_val(raw_intersection)
+            ? [library newIntersectionFunctionWithDescriptor:
+                (MTLIntersectionFunctionDescriptor *)descriptor error:&error]
+            : [library newFunctionWithDescriptor:descriptor error:&error];
         if (function == nil) {
           CAMLreturn(result_error(labeled_error_description(
               specialized_name ?: name, error,
@@ -6457,6 +6469,12 @@ extern "C" CAMLprim value caml_prismel_metal_function_create_descriptor(
       CAMLreturn(result_error(exception.reason));
     }
   }
+}
+
+extern "C" CAMLprim value
+caml_prismel_metal_function_create_descriptor_bytecode(value *argv, int) {
+  return caml_prismel_metal_function_create_descriptor(
+      argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6]);
 }
 
 extern "C" CAMLprim value caml_prismel_metal_function_name(value raw) {

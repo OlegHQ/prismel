@@ -827,8 +827,10 @@ external function_specialize :
 
 external function_create_descriptor :
   handle -> string -> string option -> function_constant_value array -> int ->
+  handle array -> bool ->
   (handle, string) result
-  = "caml_prismel_metal_function_create_descriptor"
+  = "caml_prismel_metal_function_create_descriptor_bytecode"
+    "caml_prismel_metal_function_create_descriptor"
 
 external dynamic_library_create :
   handle -> handle -> string option -> (handle, string) result =
