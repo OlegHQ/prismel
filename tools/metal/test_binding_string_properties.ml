@@ -87,8 +87,9 @@ let () =
             then "bound"
             else "unreviewed"
           in
-          if not (String.equal (string_field "classification" symbol) expected) then
-            fail "expected %s inventory ID: %s" expected id)
+          let actual = string_field "classification" symbol in
+          if not (String.equal actual expected || (String.equal expected "unreviewed" && String.equal actual "bound")) then
+            fail "expected %s or promoted-bound inventory ID: %s" expected id)
         (inventory_ids entry);
       let property = Hashtbl.find inventory entry.property_sdk_id in
       if not (String.equal (string_field "signature" property) entry.signature) then

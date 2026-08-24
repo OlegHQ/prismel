@@ -274,13 +274,13 @@ let build_families () =
         ; cases = String_table.create 16
         })
     Binding_enum_plan.family_names;
-  if String_table.length families <> 61 then
-    fail "Metal enum plan must select exactly 61 families, found %d"
+  if String_table.length families <> 62 then
+    fail "Metal enum plan must select exactly 62 families, found %d"
       (String_table.length families);
-  if Binding_enum_plan.expected_family_count <> 61
-     || Binding_enum_plan.expected_case_count <> 326
-     || Binding_enum_plan.expected_declaration_count <> 448
-  then fail "Metal enum plan's checked aggregate totals drifted from 61/326/448";
+  if Binding_enum_plan.expected_family_count <> 62
+     || Binding_enum_plan.expected_case_count <> 423
+     || Binding_enum_plan.expected_declaration_count <> 547
+  then fail "Metal enum plan's checked aggregate totals drifted from 62/423/547";
   families
 
 let check_families families =
@@ -308,13 +308,13 @@ let check_families families =
           then incr scope_excluded_case_count)
         entries.cases)
     families;
-  if !enum_count <> 61 || !typedef_count <> 61 || !case_count <> 326 then
+  if !enum_count <> 62 || !typedef_count <> 62 || !case_count <> 423 then
     fail
       "Metal enum inventory totals drifted: %d enums, %d typedefs, %d cases"
       !enum_count !typedef_count !case_count;
   let declaration_count = !enum_count + !typedef_count + !case_count in
-  if declaration_count <> 448 then
-    fail "Metal enum inventory must select 448 declarations, found %d"
+  if declaration_count <> 547 then
+    fail "Metal enum inventory must select 547 declarations, found %d"
       declaration_count;
   if !scope_excluded_case_count <> 25 then
     fail
@@ -354,9 +354,9 @@ let check_codegen_manifest identifiers declarations =
          ~family_names:Binding_enum_plan.family_names
   in
   if
-    selection.family_count <> 61 || selection.case_count <> 326
+    selection.family_count <> 62 || selection.case_count <> 423
     || selection.scope_excluded_case_count <> 25
-    || selection.declaration_count <> 448
+    || selection.declaration_count <> 547
   then
     fail
       "Metal enum codegen totals drifted: %d families, %d cases, %d scope-excluded, %d declarations"
@@ -378,8 +378,8 @@ let check_codegen_manifest identifiers declarations =
         | None -> fail "Metal enum manifest family has no cases list")
       families
   in
-  if List.length cases <> 326 then
-    fail "Metal enum manifest must contain 326 cases, found %d"
+  if List.length cases <> 423 then
+    fail "Metal enum manifest must contain 423 cases, found %d"
       (List.length cases);
   let raw_ml = Binding_enum_codegen.render_raw_ml selection in
   let scope_excluded_count = ref 0 in
@@ -492,7 +492,7 @@ let main () =
   check_codegen_manifest identifiers declarations;
   check_codegen_rejections declarations;
   Printf.printf
-    "Metal bulk enum plan is closed over 61 families, 326 cases (including %d scope-excluded), and 448 declarations\n%!"
+    "Metal bulk enum plan is closed over 62 families, 423 cases (including %d scope-excluded), and 547 declarations\n%!"
     scope_excluded_case_count
 
 let () = protect_main main

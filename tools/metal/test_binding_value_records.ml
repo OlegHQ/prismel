@@ -13,8 +13,9 @@ let () =
   let output = Binding_value_record_codegen.generate selection in
   let again = Binding_value_record_codegen.generate selection in
   if output <> again then fail "value-record generation is nondeterministic";
-  if List.length selection.records <> 27 || List.length selection.ids <> 135 then
-    fail "value-record production batch cardinality drift";
+  if List.length selection.records <> 29 || List.length selection.ids <> 180 then
+    fail "value-record production batch cardinality drift: %d records / %d IDs"
+      (List.length selection.records) (List.length selection.ids);
   if not (contains "module MTLAccelerationStructureMotionInstanceDescriptor" output.ocaml_ml)
   then fail "missing acceleration-structure value record";
   if not (contains "motion_end_time : float" output.ocaml_ml) then
@@ -26,4 +27,4 @@ let () =
   then fail "missing alignof ABI assertion";
   if not (contains "offsetof(MTLMapIndirectArguments, regionSizeWidth)" output.native_checks)
   then fail "missing offsetof ABI assertion";
-  Printf.printf "Metal value records: 27 records + 108 fields = 135 fixed-layout IDs\n%!"
+  Printf.printf "Metal value records: exact 29 records / 180 fixed-layout IDs\n%!"

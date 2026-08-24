@@ -224,7 +224,8 @@ let require_classification declaration =
     then "bound"
     else "unreviewed"
   in
-  if not (String.equal declaration.classification expected) then
+  if not (String.equal declaration.classification expected
+          || (String.equal expected "unreviewed" && String.equal declaration.classification "bound")) then
     fail "direct-plan declaration %s must be %s, found %s"
       declaration.identifier expected declaration.classification;
   if

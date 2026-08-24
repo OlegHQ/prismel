@@ -880,6 +880,10 @@ and acceleration_structure =
   ; allocation : heap_allocation option
   }
 
+and metal4_acceleration_descriptor =
+  { raw : Metal_raw.handle; lifetime : lifetime; device : device
+  ; descriptor_kind : int }
+
 and texture =
   { raw : Metal_raw.handle
   ; lifetime : lifetime
@@ -3271,6 +3275,35 @@ end
 
 module Acceleration_structure = struct
   type t = acceleration_structure
+
+  module Metal4_descriptor = struct
+    type descriptor = metal4_acceleration_descriptor
+    type geometry_descriptor = metal4_acceleration_descriptor
+    type kind = Bounding_box | Curve | Motion_bounding_box | Motion_curve
+      | Motion_triangle | Triangle | Indirect_instance | Instance | Primitive
+    let kind_of_code = function
+      | 0 -> Bounding_box | 1 -> Curve | 2 -> Motion_bounding_box
+      | 3 -> Motion_curve | 4 -> Motion_triangle | 5 -> Triangle
+      | 6 -> Indirect_instance | 7 -> Instance | _ -> Primitive
+    let create operation kind (device:Device.t)=on_main operation(fun()->match ensure_live operation device.lifetime with Error _ as e->e|Ok()->match Metal_raw.metal4_acceleration_structure11_create kind with Error m->native_error operation m|Ok raw->let value={raw;lifetime=lifetime();device;descriptor_kind=kind}in attach device.lifetime;attach_finalizer value value.lifetime device.lifetime;Ok value)
+    let bounding_box device=create "Metal.Acceleration_structure.Metal4_descriptor.bounding_box" 0 device
+    let curve device=create "Metal.Acceleration_structure.Metal4_descriptor.curve" 1 device
+    let motion_bounding_box device=create "Metal.Acceleration_structure.Metal4_descriptor.motion_bounding_box" 2 device
+    let motion_curve device=create "Metal.Acceleration_structure.Metal4_descriptor.motion_curve" 3 device
+    let motion_triangle device=create "Metal.Acceleration_structure.Metal4_descriptor.motion_triangle" 4 device
+    let triangle device=create "Metal.Acceleration_structure.Metal4_descriptor.triangle" 5 device
+    let indirect_instance device=create "Metal.Acceleration_structure.Metal4_descriptor.indirect_instance" 6 device
+    let instance device=create "Metal.Acceleration_structure.Metal4_descriptor.instance" 7 device
+    let primitive device=create "Metal.Acceleration_structure.Metal4_descriptor.primitive" 8 device
+    let kind(value:descriptor)=kind_of_code value.descriptor_kind
+    let device(value:descriptor)=value.device
+    let destroyed(value:descriptor)=is_destroyed value.lifetime
+    let destroy(value:descriptor)=destroy_parent "Metal.Acceleration_structure.Metal4_descriptor.destroy" value.lifetime value.raw(fun()->detach value.device.lifetime)
+    let geometry_device(value:geometry_descriptor)=value.device
+    let geometry_kind(value:geometry_descriptor)=kind_of_code value.descriptor_kind
+    let geometry_destroyed(value:geometry_descriptor)=is_destroyed value.lifetime
+    let destroy_geometry(value:geometry_descriptor)=destroy_parent "Metal.Acceleration_structure.Metal4_descriptor.destroy_geometry" value.lifetime value.raw(fun()->detach value.device.lifetime)
+  end
 
   type sizes =
     { acceleration_structure_size : int64
@@ -15453,6 +15486,25 @@ module Indirect_command_buffer = struct
   end
 end
 
+module Function_log = struct
+  type log_type = Validation
+  type location = {url:string option;function_name:string option;line:int64;column:int64}
+  type t = {log_type:log_type;encoder_label:string option;function_name:string option;location:location option}
+  let snapshot operation raw =
+    let cleanup()=ignore(Metal_raw.destroy raw)in
+    match Metal_raw.command_function_log_type raw with Error message->cleanup();native_error operation message|Ok kind when kind<>0L->cleanup();native_error operation "unknown Metal function-log type"|Ok _->
+    match Metal_raw.function_log_encoder_label raw with Error message->cleanup();native_error operation message|Ok encoder_label->
+    match Metal_raw.function_log_function raw with Error message->cleanup();native_error operation message|Ok function_raw->
+    let function_name=Option.map(fun handle->let name=Metal_raw.function_name handle in ignore(Metal_raw.destroy handle);String.sub name 0(String.length name))function_raw in
+    match Metal_raw.function_log_location raw with Error message->cleanup();native_error operation message|Ok location_raw->
+    let location=match location_raw with None->Ok None|Some handle->
+      match Metal_raw.function_log_location_url handle,Metal_raw.function_log_location_function_name handle,Metal_raw.command_function_log_line handle,Metal_raw.command_function_log_column handle with
+      |Ok url,Ok function_name,Ok line,Ok column when line>0L&&column>0L->ignore(Metal_raw.destroy handle);Ok(Some{url;function_name;line;column})
+      |Ok _,Ok _,Ok _,Ok _->ignore(Metal_raw.destroy handle);native_error operation "Metal returned a non-positive function-log source position"
+      |Error message,_,_,_|_,Error message,_,_|_,_,Error message,_|_,_,_,Error message->ignore(Metal_raw.destroy handle);native_error operation message in
+    cleanup();Result.map(fun location->{log_type=Validation;encoder_label;function_name;location})location
+end
+
 module Command_queue = struct
   type t = command_queue
 
@@ -15725,6 +15777,7 @@ module Command_buffer = struct
   let create_compute_encoder(value:t) dispatch_type=let operation="Metal.Command_buffer.create_compute_encoder"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()when value.phase<>Recording||dependent_count value.lifetime<>0->error operation Invalid_state "command buffer cannot create another encoder"|Ok()->let code=match dispatch_type with Serial->0|Concurrent->1 in match Metal_raw.presentation_compute_encoder value.raw code with Error m->native_error operation m|Ok raw->let encoder:compute_encoder={raw;lifetime=lifetime();command_buffer=value;pipeline=None}in attach value.lifetime;attach_finalizer encoder encoder.lifetime value.lifetime;Ok encoder)
   let create_acceleration_encoder(value:t)=let operation="Metal.Command_buffer.create_acceleration_encoder"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()when value.phase<>Recording||dependent_count value.lifetime<>0->error operation Invalid_state "command buffer cannot create another encoder"|Ok()->match Metal_raw.presentation_acceleration_encoder value.raw with Error m->native_error operation m|Ok raw->let encoder:acceleration_encoder={raw;lifetime=lifetime();command_buffer=value}in attach value.lifetime;attach_finalizer encoder encoder.lifetime value.lifetime;Ok encoder)
   let logs(value:t)=let operation="Metal.Command_buffer.logs"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.presentation_command_logs value.raw with Error m->native_error operation m|Ok logs->Ok logs)
+  let function_logs(value:t)=let operation="Metal.Command_buffer.function_logs"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as failure->failure|Ok()when value.phase<>Submitted->error operation Invalid_state "command buffer has not completed"|Ok()->let status=Metal_raw.command_buffer_status value.raw in if status<>4&&status<>5 then error operation Invalid_state "command buffer has not completed"else match Metal_raw.command_function_logs value.raw with Error message->native_error operation message|Ok handles->let rec loop index reversed=if index=Array.length handles then Ok(List.rev reversed)else match Function_log.snapshot operation handles.(index)with Ok log->loop(index+1)(log::reversed)|Error _ as failure->Array.iteri(fun remaining raw->if remaining>index then ignore(Metal_raw.destroy raw))handles;failure in loop 0[])
   let create_descriptor_encoder operation kind finish (value:t)=on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()when value.phase<>Recording||dependent_count value.lifetime<>0->error operation Invalid_state "command buffer cannot create another encoder"|Ok()->match Metal_raw.presentation_descriptor_encoder value.raw kind with Error m->native_error operation m|Ok raw->finish raw)
   let create_acceleration_encoder_with_descriptor(value:t)=create_descriptor_encoder "Metal.Command_buffer.create_acceleration_encoder_with_descriptor" 0(fun raw->let encoder:acceleration_encoder={raw;lifetime=lifetime();command_buffer=value}in attach value.lifetime;attach_finalizer encoder encoder.lifetime value.lifetime;Ok encoder)value
   let create_blit_encoder_with_descriptor(value:t)=create_descriptor_encoder "Metal.Command_buffer.create_blit_encoder_with_descriptor" 1(fun raw->let encoder:blit_encoder={raw;lifetime=lifetime();command_buffer=value}in attach value.lifetime;attach_finalizer encoder encoder.lifetime value.lifetime;Ok encoder)value

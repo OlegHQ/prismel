@@ -327,6 +327,32 @@ end
 module Acceleration_structure : sig
   type t
 
+  module Metal4_descriptor : sig
+    (** Abstract root representations mirror the two SDK base classes. Only
+        concrete subclasses below can be constructed. *)
+    type descriptor
+    type geometry_descriptor
+    type kind = Bounding_box | Curve | Motion_bounding_box | Motion_curve
+      | Motion_triangle | Triangle | Indirect_instance | Instance | Primitive
+    val bounding_box : Device.t -> (geometry_descriptor,error) result
+    val curve : Device.t -> (geometry_descriptor,error) result
+    val motion_bounding_box : Device.t -> (geometry_descriptor,error) result
+    val motion_curve : Device.t -> (geometry_descriptor,error) result
+    val motion_triangle : Device.t -> (geometry_descriptor,error) result
+    val triangle : Device.t -> (geometry_descriptor,error) result
+    val indirect_instance : Device.t -> (descriptor,error) result
+    val instance : Device.t -> (descriptor,error) result
+    val primitive : Device.t -> (descriptor,error) result
+    val kind : descriptor -> kind
+    val device : descriptor -> Device.t
+    val destroyed : descriptor -> bool
+    val destroy : descriptor -> (unit,error) result
+    val geometry_device : geometry_descriptor -> Device.t
+    val geometry_kind : geometry_descriptor -> kind
+    val geometry_destroyed : geometry_descriptor -> bool
+    val destroy_geometry : geometry_descriptor -> (unit,error) result
+  end
+
   type sizes =
     { acceleration_structure_size : int64
     ; build_scratch_buffer_size : int64
@@ -2932,6 +2958,12 @@ module Indirect_command_buffer : sig
   end
 end
 
+module Function_log : sig
+  type log_type = Validation
+  type location = {url:string option;function_name:string option;line:int64;column:int64}
+  type t = {log_type:log_type;encoder_label:string option;function_name:string option;location:location option}
+end
+
 module Command_queue : sig
   type t = command_queue
 
@@ -2985,6 +3017,7 @@ module Command_buffer : sig
   val create_compute_encoder : t -> dispatch_type -> (compute_encoder,error) result
   val create_acceleration_encoder : t -> (acceleration_encoder,error) result
   val logs : t -> (string option,error) result
+  val function_logs : t -> (Function_log.t list,error) result
   val create_acceleration_encoder_with_descriptor : t -> (acceleration_encoder,error) result
   val create_blit_encoder_with_descriptor : t -> (blit_encoder,error) result
   val create_compute_encoder_with_descriptor : t -> (compute_encoder,error) result

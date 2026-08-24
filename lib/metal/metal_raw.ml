@@ -1929,6 +1929,8 @@ external metal4_compute_copy_acceleration : handle -> handle -> (handle * handle
 external metal4_compute_timestamp : handle -> handle -> (int * handle * int64) -> (unit,string) result = "caml_prismel_metal4_compute_timestamp"
 external metal4_compute_copy_tensor : handle -> handle -> (handle * int64 array * int64 array * handle * int64 array * int64 array) -> (unit,string) result = "caml_prismel_metal4_compute_copy_tensor"
 external metal4_acceleration_descriptor_triangles : handle -> int64 -> int64 -> int64 -> (handle,string) result = "caml_prismel_metal4_acceleration_descriptor_triangles"
+external metal4_acceleration_structure11_create : int -> (handle,string) result =
+  "caml_prismel_metal4_acceleration_structure11_create"
 type metal4_owned_buffer_range = handle * int64 * int64
 external metal4_compute_acceleration : handle -> handle -> (handle * handle * int * metal4_owned_buffer_range * handle option * int64) -> (unit,string) result = "caml_prismel_metal4_compute_acceleration"
 external metal4_compute_write_compacted : handle -> handle -> (handle * metal4_owned_buffer_range) -> (unit,string) result = "caml_prismel_metal4_compute_write_compacted"
@@ -2485,6 +2487,8 @@ external compute_pass_attachment_snapshot :
 
 external function_log_location : handle -> (handle option,string) result =
   "caml_prismel_metal_function_log_location"
+external command_function_logs : handle -> (handle array,string) result =
+  "caml_prismel_metal_command_function_logs"
 external function_log_encoder_label : handle -> (string option,string) result =
   "caml_prismel_metal_function_log_encoder_label"
 external function_log_function : handle -> (handle option,string) result =

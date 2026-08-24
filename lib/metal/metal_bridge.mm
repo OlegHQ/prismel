@@ -968,6 +968,15 @@ enum class Handle_kind : std::uint32_t {
   Compute_encoder4,
   Counter_heap4,
   Acceleration_descriptor4,
+  Acceleration4_bbox_descriptor,
+  Acceleration4_curve_descriptor,
+  Acceleration4_motion_bbox_descriptor,
+  Acceleration4_motion_curve_descriptor,
+  Acceleration4_motion_triangle_descriptor,
+  Acceleration4_triangle_descriptor,
+  Acceleration4_indirect_instance_descriptor,
+  Acceleration4_instance_descriptor,
+  Acceleration4_primitive_descriptor,
   Binary_functions_descriptor4,
   Machine_learning_descriptor4,
   Machine_learning_pipeline4,
@@ -14761,6 +14770,7 @@ extern "C" CAMLprim value caml_prismel_metal_pipeline_render_imageblock_length(v
 #include "../../tools/metal/metal4_specialized_callable_bridge.inc"
 #include "../../tools/metal/metal4_render_pass_callable_bridge.inc"
 #include "../../tools/metal/metal4_command_buffer7_callable_bridge.inc"
+#include "../../tools/metal/metal4_acceleration_structure11_callable_bridge.inc"
 #include "../../tools/metal/metal4_stitched_callable_bridge.inc"
 #pragma clang diagnostic pop
 
