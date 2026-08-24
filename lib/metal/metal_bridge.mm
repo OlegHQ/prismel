@@ -964,6 +964,9 @@ enum class Handle_kind : std::uint32_t {
   Acceleration_pass_descriptor,
   Acceleration_sample_attachment,
   Acceleration_sample_attachment_array,
+  Compute_pass_descriptor,
+  Compute_sample_attachment,
+  Compute_sample_attachment_array,
   Function_handle,
   Visible_function_table,
   Intersection_function_table,
@@ -14710,6 +14713,7 @@ extern "C" CAMLprim value caml_prismel_metal_pipeline_render_imageblock_length(v
 #include "../../tools/metal/metal_acceleration_command32_callable_bridge.inc"
 #include "../../tools/metal/metal_blit_command25_callable_bridge.inc"
 #include "../../tools/metal/metal_capture_manager21_callable_bridge.inc"
+#include "../../tools/metal/metal_compute_pass20_callable_bridge.inc"
 #include "../../tools/metal/metal_tensor_ownership_callable_bridge.inc"
 #include "../../tools/metal/metal_resource_remaining16_bridge.inc"
 #pragma clang diagnostic pop

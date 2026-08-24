@@ -2422,3 +2422,17 @@ external capture_lifecycle :
 external capture_start_descriptor_checked :
   handle -> handle -> (unit,string) result =
   "caml_prismel_metal_capture_start_descriptor_checked"
+
+external compute_pass_create : int -> (handle,string) result =
+  "caml_prismel_metal_compute_pass_create"
+external compute_pass_snapshot :
+  handle -> ((int * handle),string) result =
+  "caml_prismel_metal_compute_pass_snapshot"
+external compute_pass_set_dispatch : handle -> int -> (unit,string) result =
+  "caml_prismel_metal_compute_pass_set_dispatch"
+external compute_pass_attachment :
+  handle -> int64 -> handle option -> int64 -> int64 -> (handle,string) result =
+  "caml_prismel_metal_compute_pass_attachment"
+external compute_pass_attachment_snapshot :
+  handle -> ((handle option * int64 * int64),string) result =
+  "caml_prismel_metal_compute_pass_attachment_snapshot"
