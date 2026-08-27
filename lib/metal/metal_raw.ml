@@ -1941,6 +1941,20 @@ external device_argument_encoder :
   "caml_prismel_metal_device_argument_encoder"
 external device_render_pipeline_simple : handle -> handle -> (handle,string) result =
   "caml_prismel_metal_device_render_pipeline_simple"
+external device_async_compute_function : handle -> handle -> int64 -> (handle,string) result =
+  "caml_prismel_metal_device_async_compute_function"
+external device_async_compute_descriptor : handle -> handle -> int64 -> (handle,string) result =
+  "caml_prismel_metal_device_async_compute_descriptor"
+external device_async_library_source : handle -> string -> handle option -> (handle,string) result =
+  "caml_prismel_metal_device_async_library_source"
+external device_async_library_stitched : handle -> handle -> (handle,string) result =
+  "caml_prismel_metal_device_async_library_stitched"
+external device_async_render_descriptor : handle -> handle -> int64 -> (handle,string) result =
+  "caml_prismel_metal_device_async_render_descriptor"
+external device_async_mesh_pipeline : handle -> handle -> int64 -> (handle,string) result =
+  "caml_prismel_metal_device_async_mesh_pipeline"
+external device_async_tile_pipeline : handle -> handle -> int64 -> (handle,string) result =
+  "caml_prismel_metal_device_async_tile_pipeline"
 
 (** Authoritative Metal4 lifecycle190 prepared CAML subset. The resource and
     compute-owner shards currently contain typed native helpers only, not OCaml
