@@ -1047,7 +1047,7 @@
 (test
  (name test_binding_four_id_tails)
  (modules test_binding_four_id_tails)
- (libraries yojson)
+ (libraries metal_inventory_classification yojson)
  (deps ../../lib/metal/generated_api_inventory.json)
  (action (run %{test} %{dep:../../lib/metal/generated_api_inventory.json})))
 

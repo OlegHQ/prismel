@@ -8,11 +8,11 @@ let contains haystack needle =
 let () =
   if Array.length Sys.argv <> 2 then fail "usage: %s INVENTORY" Sys.argv.(0);
   let symbols = match member "symbols" (Yojson.Safe.from_file Sys.argv.(1)) with Some (`List xs) -> xs | _ -> fail "symbols" in
-  let ids header = symbols |> List.filter (fun symbol -> string "classification" symbol = "bound" && string "header" symbol = header) |> List.map (string "id") in
+  let checked ids=List.iter(fun id->let symbol=List.find(fun symbol->string "id" symbol=id)symbols in if string "classification" symbol<>"bound"then fail "%s is not bound" id)ids;ids in
   let count needle ids = List.length (List.filter (fun id -> contains (String.lowercase_ascii id) needle) ids) in
-  let pipeline = ids "Metal/MTLPipeline.h"
-  and function_descriptor = ids "Metal/MTLFunctionDescriptor.h"
-  and ml_encoder = ids "Metal/MTL4MachineLearningCommandEncoder.h" in
+  let pipeline = checked Binding_pipeline4_buffer_descriptor_safe_closure.promotable_ids
+  and function_descriptor = checked Binding_function_descriptor4_safe_package.ids
+  and ml_encoder = checked Binding_mtl4_tail14_safe_closure.ml_encoder4 in
   if List.length pipeline <> 4 || count "class:" pipeline <> 2
      || count "objectatindexedsubscript:" pipeline <> 1 || count "setobject:atindexedsubscript:" pipeline <> 1
   then fail "Pipeline4 drift";

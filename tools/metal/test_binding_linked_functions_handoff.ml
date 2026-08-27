@@ -10,10 +10,15 @@ let () =
   if Array.length Sys.argv <> 2 then fail "usage: %s INVENTORY" Sys.argv.(0);
   let symbols = match member "symbols" (Yojson.Safe.from_file Sys.argv.(1)) with Some (`List xs) -> xs | _ -> fail "symbols" in
   let ids =
-    symbols
-    |> List.filter (fun symbol -> string "classification" symbol = "bound" && string "header" symbol = "Metal/MTLLinkedFunctions.h")
-    |> List.map (string "id")
+    [ "method:-[MTLLinkedFunctions binaryFunctions]"; "method:-[MTLLinkedFunctions groups]"
+    ; "method:-[MTLLinkedFunctions privateFunctions]"; "method:-[MTLLinkedFunctions setBinaryFunctions:]"
+    ; "method:-[MTLLinkedFunctions setGroups:]"; "method:-[MTLLinkedFunctions setPrivateFunctions:]"
+    ; "property:MTLLinkedFunctions:binaryFunctions"; "property:MTLLinkedFunctions:groups"
+    ; "property:MTLLinkedFunctions:privateFunctions" ]
   in
+  List.iter (fun id ->
+    let symbol=List.find(fun symbol->string "id" symbol=id)symbols in
+    if string "classification" symbol<>"bound"then fail "%s is not bound" id)ids;
   let count needle = List.length (List.filter (fun id -> contains (String.lowercase_ascii id) needle) ids) in
   if List.length ids <> 9 || count "binaryfunctions" <> 3 || count "privatefunctions" <> 3
      || count "groups" <> 3
