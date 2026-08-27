@@ -1,5 +1,5 @@
 type color_format = Rgba8_unorm | Bgra8_unorm
-type depth_format = No_depth | Depth32_float
+type depth_format = No_depth | Depth32_float | Stencil8 | Depth32_float_stencil8
 type blend = Replace | Alpha | Add | Multiply | Screen | Subtract
 type render_descriptor =
   { backend : string; label : string option; layout : Binding.pipeline_layout
@@ -103,7 +103,7 @@ let create_render ?(blend=Replace) capabilities (descriptor : render_descriptor)
             | Error _ as error -> error
             | Ok () ->
                 let color = match descriptor.color_format with Rgba8_unorm -> "rgba8" | Bgra8_unorm -> "bgra8" in
-                let depth = match descriptor.depth_format with No_depth -> "none" | Depth32_float -> "depth32" in
+                let depth = match descriptor.depth_format with No_depth -> "none" | Depth32_float -> "depth32" | Stencil8 -> "stencil8" | Depth32_float_stencil8 -> "depth32-stencil8" in
                 Ok (finish Render descriptor.backend descriptor.label
                   [ "render"; descriptor.backend; Option.value descriptor.label ~default:""
                   ; Shader.provenance_hash descriptor.vertex; descriptor.vertex_entry
