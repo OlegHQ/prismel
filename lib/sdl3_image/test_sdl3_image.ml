@@ -195,6 +195,42 @@ let () =
        fail "wrong-domain decode succeeded"
    | Error _ -> fail "wrong-domain decode returned the wrong error");
   check_watched_reload root;
+
+  let png_bytes = read_file (fixture root "sample.png") in
+  let snapshot = get_image (decode_bytes ~kind:"PNG" png_bytes) in
+  if snapshot.facts.format <> Png || snapshot.facts.source_orientation <> Normal
+      || snapshot.facts.width <> 23 || snapshot.facts.height <> 42
+      || snapshot.facts.color_key <> None then
+    fail "PNG copied decode facts changed";
+  get_sdl (Surface.destroy snapshot.surface);
+  let oriented_snapshot = get_image (decode_file (fixture root "orientation-6.jpg")) in
+  if oriented_snapshot.facts.format <> Jpeg
+      || oriented_snapshot.facts.source_orientation <> Rotate_90
+      || oriented_snapshot.facts.width <> 42
+      || oriented_snapshot.facts.height <> 23 then
+    fail "JPEG source orientation facts changed";
+  get_sdl (Surface.destroy oriented_snapshot.surface);
+
+  let retained = Retained.create (get_image (decode_file (fixture root "sample.png"))) in
+  let retained_surface = match Retained.snapshot retained with
+    | Some value -> value.surface | None -> fail "new retained image is empty" in
+  let missing = fixture root "missing-reload.png" in
+  (match Retained.reload_file retained missing with Error _ -> () | Ok () ->
+    fail "missing retained reload succeeded");
+  if Retained.generation retained <> 0
+      || (match Retained.snapshot retained with
+          | Some value -> value.surface != retained_surface | None -> true) then
+    fail "failed retained reload mutated state";
+  get_image (Retained.reload_file retained (fixture root "rgbrgb.png"));
+  if Retained.generation retained <> 1 || not (Surface.destroyed retained_surface)
+  then fail "successful retained reload was not atomic";
+  get_image (Retained.destroy retained);
+  get_image (Retained.destroy retained);
+
+  for _ = 1 to 10_000 do
+    let value = get_image (decode_bytes ~kind:"PNG" png_bytes) in
+    get_sdl (Surface.destroy value.surface)
+  done;
   get_sdl (Init.quit ());
   Printf.printf
     "SDL3_image %d.%d.%d CPU decode conformance passed (%d formats)\n%!"

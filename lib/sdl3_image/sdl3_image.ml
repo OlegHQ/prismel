@@ -22,6 +22,24 @@ type decoded = {
   pixels : bytes;
 }
 
+type format = Png | Jpeg | Bmp | Gif | Webp | Tiff | Svg | Other of string
+
+type orientation =
+  | Normal | Mirror_horizontal | Rotate_180 | Mirror_vertical
+  | Transpose | Rotate_90 | Transverse | Rotate_270
+
+type facts = {
+  format : format;
+  source_orientation : orientation;
+  width : int;
+  height : int;
+  has_alpha : bool;
+  has_transparency : bool;
+  color_key : int32 option;
+}
+
+type snapshot = { surface : Sdl3.Surface.t; facts : facts }
+
 external linked_version_number : unit -> int = "caml_sdl3_image_version"
 external decode_bytes_raw : bytes -> string option -> (decoded, string) result
   = "caml_sdl3_image_decode_bytes"
@@ -177,7 +195,7 @@ let jpeg_orientation bytes =
     in
     marker 2
 
-let orient decoded orientation =
+let orient (decoded : decoded) orientation =
   if orientation = 1 then decoded
   else
     let source_width = decoded.width and source_height = decoded.height in
@@ -211,7 +229,7 @@ let orient decoded orientation =
     done;
     { width; height; pixels }
 
-let surface operation decoded =
+let surface operation (decoded : decoded) =
   match Sdl3.Surface.of_rgba ~width:decoded.width ~height:decoded.height
       decoded.pixels with
   | Ok surface -> Ok surface
@@ -219,10 +237,59 @@ let surface operation decoded =
       error operation (Surface_error surface_error)
         (Format.asprintf "%a" Sdl3.pp_error surface_error)
 
-let decode operation ?kind bytes =
+let orientation_of_int = function
+  | 2 -> Mirror_horizontal | 3 -> Rotate_180 | 4 -> Mirror_vertical
+  | 5 -> Transpose | 6 -> Rotate_90 | 7 -> Transverse | 8 -> Rotate_270
+  | _ -> Normal
+
+let normalized_format = function
+  | "PNG" -> Png | "JPG" | "JPEG" -> Jpeg | "BMP" -> Bmp
+  | "GIF" -> Gif | "WEBP" -> Webp | "TIF" | "TIFF" -> Tiff
+  | "SVG" -> Svg | value -> Other value
+
+let detected_format ?kind bytes =
+  let prefix value =
+    let length = String.length value in
+    Bytes.length bytes >= length && Bytes.sub_string bytes 0 length = value
+  in
+  if prefix "\x89PNG\r\n\x1a\n" then Png
+  else if prefix "\xff\xd8\xff" then Jpeg
+  else if prefix "BM" then Bmp
+  else if prefix "GIF87a" || prefix "GIF89a" then Gif
+  else if Bytes.length bytes >= 12 && prefix "RIFF"
+      && Bytes.sub_string bytes 8 4 = "WEBP" then Webp
+  else if prefix "II*\x00" || prefix "MM\x00*" then Tiff
+  else
+    match kind with
+    | Some value -> normalized_format (String.uppercase_ascii value)
+    | None -> Other "unknown"
+
+let facts format source_orientation (decoded : decoded) =
+  let has_transparency = ref false in
+  for offset = 3 to Bytes.length decoded.pixels - 1 do
+    if offset mod 4 = 3 && Bytes.get_uint8 decoded.pixels offset < 255 then
+      has_transparency := true
+  done;
+  { format; source_orientation; width = decoded.width; height = decoded.height;
+    has_alpha = true; has_transparency = !has_transparency;
+    color_key = None }
+
+let decode_snapshot operation ?kind bytes =
   match decode_bytes_raw bytes kind with
   | Error message -> error operation Decoder_error message
-  | Ok decoded -> surface operation (orient decoded (jpeg_orientation bytes))
+  | Ok decoded ->
+      let source_orientation_number = jpeg_orientation bytes in
+      let decoded = orient decoded source_orientation_number in
+      (match surface operation decoded with
+       | Error _ as failure -> failure
+       | Ok surface -> Ok { surface;
+           facts = facts (detected_format ?kind bytes)
+             (orientation_of_int source_orientation_number) decoded })
+
+let decode operation ?kind bytes =
+  match decode_snapshot operation ?kind bytes with
+  | Error _ as failure -> failure
+  | Ok value -> Ok value.surface
 
 let read_file operation path =
   try
@@ -284,3 +351,54 @@ let load_bytes ?kind bytes =
   | Some kind when kind = "" || contains_nul kind ->
       error operation Invalid_argument "decoder kind must be non-empty and NUL-free"
   | _ -> on_main operation (fun () -> decode operation ?kind bytes)
+
+let decode_file path =
+  let operation = "SDL3_image.decode_file" in
+  if contains_nul path then
+    error operation Invalid_argument "image path contains a NUL byte"
+  else on_main operation (fun () ->
+    match read_file operation path with
+    | Error _ as failure -> failure
+    | Ok bytes -> decode_snapshot operation ?kind:(kind_of_path path) bytes)
+
+let decode_bytes ?kind bytes =
+  let operation = "SDL3_image.decode_bytes" in
+  match kind with
+  | Some kind when kind = "" || contains_nul kind ->
+      error operation Invalid_argument "decoder kind must be non-empty and NUL-free"
+  | _ -> on_main operation (fun () -> decode_snapshot operation ?kind bytes)
+
+module Retained = struct
+  type t = { mutable current : snapshot option; mutable generation : int }
+
+  let create snapshot = { current = Some snapshot; generation = 0 }
+  let generation value = value.generation
+  let snapshot value = value.current
+
+  let reload_file value path =
+    match value.current with
+    | None -> error "SDL3_image.Retained.reload_file" Invalid_argument
+        "retained image is destroyed"
+    | Some previous ->
+        (match decode_file path with
+         | Error _ as failure -> failure
+         | Ok replacement ->
+             value.current <- Some replacement;
+             value.generation <- value.generation + 1;
+             match Sdl3.Surface.destroy previous.surface with
+             | Ok () -> Ok ()
+             | Error surface_error -> error "SDL3_image.Retained.reload_file"
+                 (Surface_error surface_error)
+                 (Format.asprintf "%a" Sdl3.pp_error surface_error))
+
+  let destroy value =
+    match value.current with
+    | None -> Ok ()
+    | Some snapshot ->
+        value.current <- None;
+        match Sdl3.Surface.destroy snapshot.surface with
+        | Ok () -> Ok ()
+        | Error surface_error -> error "SDL3_image.Retained.destroy"
+            (Surface_error surface_error)
+            (Format.asprintf "%a" Sdl3.pp_error surface_error)
+end
