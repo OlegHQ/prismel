@@ -125,6 +125,7 @@
   binding_function_stitching7_safe_package
   binding_capture_scope_tail_handoff
   binding_event_tail_handoff
+  binding_event4_safe_closure
   binding_acceleration_value_tail_handoff
   binding_pixel_format_tail_handoff
   binding_argument_reflection_plan
@@ -872,6 +873,11 @@
 (test
  (name test_binding_event10_callback_stress)
  (modules test_binding_event10_callback_stress binding_event10_safe_closure)
+ (libraries metal_inventory_classification))
+
+(test
+ (name test_binding_event4_safe_closure)
+ (modules test_binding_event4_safe_closure)
  (libraries metal_inventory_classification))
 
 (test

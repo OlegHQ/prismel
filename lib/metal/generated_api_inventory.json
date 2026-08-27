@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 5142,
+    "bound": 5146,
     "scope-excluded": 37,
-    "unreviewed": 106
+    "unreviewed": 102
   },
-  "classification_source_sha256": "a6bd731163f9e68008b4e8b3a573eaacaf101b859a36e357e357822994efe3ca",
+  "classification_source_sha256": "23e161b0404c904fef7eaae6edb80a74db5f7e36f4ea4d2f9a1f36718d1432ef",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -3295,7 +3295,7 @@
           "line": 71
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLEvent.h",
       "id": "class:MTLSharedEventHandle",
       "kind": "class",
@@ -3303,7 +3303,7 @@
       "macos_introduced": "10.14",
       "name": "MTLSharedEventHandle",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by the owned shared-event handle/listener API and bounded exactly-once notification callback, with copied export state, lifetime conformance, and deliberately opaque private storage.",
       "signature": ""
     },
     {
@@ -3317,7 +3317,7 @@
           "line": 35
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLEvent.h",
       "id": "class:MTLSharedEventListener",
       "kind": "class",
@@ -3325,7 +3325,7 @@
       "macos_introduced": "10.14",
       "name": "MTLSharedEventListener",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by the owned shared-event handle/listener API and bounded exactly-once notification callback, with copied export state, lifetime conformance, and deliberately opaque private storage.",
       "signature": ""
     },
     {
@@ -106438,7 +106438,7 @@
           "line": 71
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLEvent.h",
       "id": "record:MTLSharedEventHandlePrivate",
       "kind": "record",
@@ -106446,7 +106446,7 @@
       "macos_introduced": "10.14",
       "name": "MTLSharedEventHandlePrivate",
       "owner": "MTLSharedEventHandle",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by the owned shared-event handle/listener API and bounded exactly-once notification callback, with copied export state, lifetime conformance, and deliberately opaque private storage.",
       "signature": "struct"
     },
     {
@@ -109495,7 +109495,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLEvent.h",
       "id": "typedef:MTLSharedEventNotificationBlock",
       "kind": "typedef",
@@ -109503,7 +109503,7 @@
       "macos_introduced": null,
       "name": "MTLSharedEventNotificationBlock",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by the owned shared-event handle/listener API and bounded exactly-once notification callback, with copied export state, lifetime conformance, and deliberately opaque private storage.",
       "signature": "void (^)(id<MTLSharedEvent>  _Nonnull __strong, uint64_t)"
     },
     {
