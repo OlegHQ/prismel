@@ -42,41 +42,53 @@ let rss_kib () =
 
 let () =
   let target = ref Headless and scenario = ref "" and profile = ref "release"
-  and width = ref 64 and height = ref 64 and warmup = ref 3. and seconds = ref 30. in
+  and width = ref 64 and height = ref 64 and warmup = ref 3. and seconds = ref 30.
+  and frame_rate = ref 120. in
   Arg.parse [
     "--target", Arg.Symbol (["headless"; "web"], fun x -> target := if x = "headless" then Headless else Web), "target";
     "--scenario", Arg.Set_string scenario, "scenario"; "--profile", Arg.Set_string profile, "profile";
     "--width", Arg.Set_int width, "logical width"; "--height", Arg.Set_int height, "logical height";
-    "--warmup", Arg.Set_float warmup, "warmup seconds"; "--seconds", Arg.Set_float seconds, "measurement seconds" ]
+    "--warmup", Arg.Set_float warmup, "warmup seconds"; "--seconds", Arg.Set_float seconds, "measurement seconds";
+    "--frame-rate", Arg.Set_float frame_rate, "fixed frame scheduling rate (default 120 Hz)" ]
     (fun value -> raise (Arg.Bad ("unexpected argument " ^ value))) "R10 runtime-next target benchmark";
-  if !scenario = "" || !width <= 0 || !height <= 0 || !warmup <= 0. || !seconds <= 0. then
+  if !scenario = "" || !width <= 0 || !height <= 0 || !warmup <= 0.
+     || !seconds <= 0. || !frame_rate <= 0. || not (Float.is_finite !frame_rate) then
     invalid_arg "invalid arguments";
   let work = workload !scenario !width !height in
-  let render, destroy = match !target with
+  let render, capture, destroy = match !target with
     | Headless ->
         let runtime = ok (Runtime_next_headless.create ~logical_width:!width ~logical_height:!height
           ~drawable_width:!width ~drawable_height:!height) in
         (fun () -> Runtime_next_headless.render runtime work),
+        (fun () -> Runtime_next_headless.read_pixels runtime ~bytes_per_row:(!width * 4)),
         (fun () -> Runtime_next_headless.destroy runtime)
     | Web ->
         let config = { Wap.default_config with interface = "127.0.0.1"; port = 0 } in
         let runtime = ok (Runtime_next_web.create ~wap_config:config ~logical_width:!width
           ~logical_height:!height ~drawable_width:!width ~drawable_height:!height ()) in
         (fun () -> Runtime_next_web.render runtime work),
+        (fun () -> Runtime_next_web.read_pixels runtime ~bytes_per_row:(!width * 4)),
         (fun () -> Runtime_next_web.destroy runtime) in
   let run_for duration collect =
-    let deadline = Unix.gettimeofday () +. duration and values = ref [] in
-    while Unix.gettimeofday () < deadline do
-      let started = Unix.gettimeofday () in ignore (ok (render ()));
-      if collect then values := (Unix.gettimeofday () -. started) :: !values
-    done; Array.of_list (List.rev !values) in
+    let count = max 1 (int_of_float (Float.round (duration *. !frame_rate))) in
+    let epoch = Unix.gettimeofday () and values = Array.make count 0. in
+    for index = 0 to count - 1 do
+      let render_started = Unix.gettimeofday () in ignore (ok (render ()));
+      if collect then values.(index) <- Unix.gettimeofday () -. render_started;
+      let deadline = epoch +. (float (index + 1) /. !frame_rate) in
+      let remaining = deadline -. Unix.gettimeofday () in
+      if remaining > 0. then Unix.sleepf remaining
+    done;
+    if collect then values else [||] in
   ignore (run_for !warmup false); Gc.full_major ();
+  let rss0 = rss_kib () in
   let gc0 = Gc.quick_stat () and allocated0 = Gc.allocated_bytes ()
   and cpu0 = Unix.times () and started = Unix.gettimeofday () in
   let frames = run_for !seconds true in
   let wall = Unix.gettimeofday () -. started and cpu1 = Unix.times () and gc1 = Gc.quick_stat () in
   let allocated = Gc.allocated_bytes () -. allocated0
   and promoted = (gc1.promoted_words -. gc0.promoted_words) *. float (Sys.word_size / 8) in
+  let rss1 = rss_kib () and framebuffer = ok (capture ()) in
   ok (destroy ());
   let count = Array.length frames in
   let draws = count * List.length work in
@@ -86,12 +98,18 @@ let () =
     "profile", `String !profile; "width", `Int !width; "height", `Int !height;
     "drawable_width", `Int !width; "drawable_height", `Int !height; "pixel_scale", `Float 1.;
     "warmup_seconds", `Float !warmup; "requested_measure_seconds", `Float !seconds;
+    "scheduling", `String "fixed-rate"; "scheduled_frame_rate", `Float !frame_rate;
     "frames", `Int count; "wall_seconds", `Float wall;
     "user_seconds", `Float (cpu1.tms_utime -. cpu0.tms_utime);
     "system_seconds", `Float (cpu1.tms_stime -. cpu0.tms_stime);
     "cpu_percent", `Float (100. *. (cpu1.tms_utime +. cpu1.tms_stime -. cpu0.tms_utime -. cpu0.tms_stime) /. wall);
     "allocated_bytes", `Float allocated; "promoted_bytes", `Float promoted;
-    "peak_sampled_rss_kib", `Int (rss_kib ());
+    "allocated_bytes_per_frame", `Float (allocated /. float count);
+    "promoted_bytes_per_frame", `Float (promoted /. float count);
+    "rss_before_kib", `Int rss0; "rss_after_kib", `Int rss1;
+    "rss_delta_kib", `Int (rss1 - rss0); "peak_sampled_rss_kib", `Int (max rss0 rss1);
+    "workload_signature", `String (Printf.sprintf "%s:%dx%d:%d" !scenario !width !height (List.length work));
+    "framebuffer_digest", `String (Digest.to_hex (Digest.bytes framebuffer));
     "median_frame_seconds", `Float (percentile 0.5 frames);
     "p95_frame_seconds", `Float (percentile 0.95 frames);
     "p99_frame_seconds", `Float (percentile 0.99 frames);
