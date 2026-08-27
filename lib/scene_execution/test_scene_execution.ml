@@ -71,6 +71,32 @@ let oversized_frame () =
   begin match Scene_execution.render renderer(draws 65)with Error e when e.Ogpu.Error.kind=Device_lost->()|_->failwith"oversized device loss did not unwind"end;
   get(Scene_execution.destroy renderer);
   if Ogpu.Backend_mock.live_counts control<>(0,0,0,0,0)then failwith"oversized frame leaked objects"
+let replacement_reuse () =
+  let driver,control=Ogpu.Backend_mock.create()in
+  let configuration:Ogpu.Surface.configuration={logical_width=8;logical_height=8;physical_width=8;physical_height=8;format=Rgba8_unorm;present_mode=Fifo;max_acquired=2}in
+  let renderer=get(Scene_execution.create driver configuration)in
+  let indices=Bytes.make 12 '\000'and state:Scene_execution.state={viewport=(0,0,8,8);scissor=(0,0,8,8)}in
+  let make byte={Scene_execution.key="mutable";vertices=Bytes.make 48 byte;vertex_count=3;indices;index_count=3}in
+  ignore(get(Scene_execution.render renderer[{mesh=make '\000';state}]));
+  let before=Scene_execution.upload_bytes renderer in Ogpu.Backend_mock.clear_trace control;
+  ignore(get(Scene_execution.render renderer[{mesh=make '\001';state}]));
+  if Scene_execution.upload_bytes renderer<>Int64.add before 60L then failwith"same-size replacement upload cardinality";
+  if List.exists(String.starts_with~prefix:"create-buffer:")(Ogpu.Backend_mock.trace control)then failwith"same-size replacement allocated a buffer";
+  Ogpu.Backend_mock.clear_trace control;
+  let other={state with scissor=(1,1,7,7)}in
+  ignore(get(Scene_execution.render renderer[{mesh=make '\001';state};{mesh=make '\002';state=other}]));
+  let creates=Ogpu.Backend_mock.trace control|>List.filter(String.starts_with~prefix:"create-buffer:")in
+  if List.length creates<>1 then failwith"same-submission replacement aliased a reserved buffer";
+  get(Scene_execution.destroy renderer);
+  if Ogpu.Backend_mock.live_counts control<>(0,0,0,0,0)then failwith"replacement reuse leaked objects";
+  let driver,control=Ogpu.Backend_mock.create()in
+  let renderer=get(Scene_execution.create driver configuration)in
+  ignore(get(Scene_execution.render renderer[{mesh=make '\000';state}]));
+  let before=Scene_execution.upload_bytes renderer in Ogpu.Backend_mock.inject_device_loss control;
+  begin match Scene_execution.render renderer[{mesh=make '\001';state}]with Error e when e.Ogpu.Error.kind=Device_lost->()|_->failwith"replacement device loss was not reported"end;
+  if Scene_execution.upload_bytes renderer<>before then failwith"device loss mutated replacement cache";
+  get(Scene_execution.destroy renderer);
+  if Ogpu.Backend_mock.live_counts control<>(0,0,0,0,0)then failwith"replacement device loss leaked objects"
 let coalesced_signature () =
   let driver,control=Ogpu.Backend_mock.create()in
   let configuration:Ogpu.Surface.configuration={logical_width=8;logical_height=8;physical_width=8;physical_height=8;format=Rgba8_unorm;present_mode=Fifo;max_acquired=2}in
@@ -97,5 +123,6 @@ let ()=let driver,control=Ogpu.Backend_mock.create()in let configuration:Ogpu.Su
   if Scene_execution.upload_bytes renderer<>60L then failwith"stable mesh reuploaded";
   auxiliary_lifecycle renderer control mesh state;
   oversized_frame();
+  replacement_reuse();
   domain_coalescing();
   get(Scene_execution.destroy renderer);if Ogpu.Backend_mock.live_counts control<>(0,0,0,0,0)then failwith"scene execution leaked";print_endline"scene execution: neutral cache/upload/pass, auxiliary resources, blend variants, 1000 frames, zero delta"

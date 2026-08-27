@@ -6,7 +6,7 @@ type texture_level={width:int;height:int;bytes:bytes}
 type sampled_texture={key:string;levels:texture_level array;sampler:Ogpu.Types.sampler_descriptor}
 type shadow_resource={texture:sampled_texture;parameters:bytes}
 type auxiliary_resource={key:string;buffer:bytes;texture:sampled_texture}
-type cached={key:string;payload_hash:string;buffer:Ogpu.Backend.buffer;index_offset:int64;vertex_count:int;index_count:int;bytes:int}
+type cached={key:string;mutable payload_hash:string;buffer:Ogpu.Backend.buffer;mutable index_offset:int64;mutable vertex_count:int;mutable index_count:int;bytes:int}
 type cached_auxiliary={auxiliary_key:string;auxiliary_hash:string;auxiliary_buffer:Ogpu.Backend.buffer}
 type cached_texture={texture_key:string;texture_hash:string;texture:Ogpu.Backend.texture}
 type prepared_run={prepared_identity:string;prepared_version:int64;prepared_draws:(pipeline_family*Ogpu.Pipeline.blend*sampled_texture option*auxiliary_resource option*int*draw)list;prepared_bytes:int}
@@ -76,12 +76,17 @@ let trim_cache cache =
     | item :: rest -> loop entries bytes keep (item :: evict) rest
   in
   loop 0 0 [] [] cache
-let prepare value ~defer ~trusted_key (mesh:mesh)=
+let prepare value ~defer ~trusted_key ~reserved (mesh:mesh)=
   let trusted=if trusted_key then List.find_opt(fun(x:cached)->x.key=mesh.key)value.cache else None in
   match trusted with Some item->Ok item|None->
   let payload_hash=Digest.to_hex(Digest.string(Bytes.to_string mesh.vertices^Bytes.to_string mesh.indices))in match List.find_opt(fun(x:cached)->x.key=mesh.key&&x.payload_hash=payload_hash)value.cache with Some item->Ok item|None->
   let total=Bytes.length mesh.vertices+Bytes.length mesh.indices in
   if mesh.key=""||mesh.vertex_count<=0||mesh.index_count<=0||total=0 then error"Scene_execution.prepare"Ogpu.Error.Invalid_argument"mesh payload is empty"else
+  match List.find_opt(fun(x:cached)->x.key=mesh.key&&x.bytes=total&&not(List.exists((==)x)reserved))value.cache with
+  |Some item->
+    let packed=Bytes.cat mesh.vertices mesh.indices in
+    (match Ogpu.Backend.write_buffer item.buffer~offset:0L packed with Error _ as e->e|Ok()->item.payload_hash<-payload_hash;item.index_offset<-Int64.of_int(Bytes.length mesh.vertices);item.vertex_count<-mesh.vertex_count;item.index_count<-mesh.index_count;value.uploaded<-Int64.add value.uploaded(Int64.of_int total);Ok item)
+  |None->
   let descriptor:Ogpu.Types.buffer_descriptor={label=Some("scene-mesh-"^mesh.key);size=Int64.of_int total;usage=[Vertex;Index;Copy_dst]}in
   match Ogpu.Backend.create_buffer value.device descriptor with Error _ as e->e|Ok buffer->
     let offset=Int64.of_int(Bytes.length mesh.vertices)in match Ogpu.Backend.write_buffer buffer~offset:0L mesh.vertices with Error e->ignore(Ogpu.Backend.destroy_buffer buffer);Error e|Ok()->match Ogpu.Backend.write_buffer buffer~offset mesh.indices with Error e->ignore(Ogpu.Backend.destroy_buffer buffer);Error e|Ok()->let item={key=mesh.key;payload_hash;buffer;index_offset=offset;vertex_count=mesh.vertex_count;index_count=mesh.index_count;bytes=total}in let replaced,others=List.partition(fun(x:cached)->x.key=mesh.key)value.cache in List.iter(fun x->defer(fun()->ignore(Ogpu.Backend.destroy_buffer x.buffer)))replaced;let keep,evict=trim_cache(item::others)in List.iter(fun x->defer(fun()->ignore(Ogpu.Backend.destroy_buffer x.buffer)))evict;value.cache<-keep;value.uploaded<-Int64.add value.uploaded(Int64.of_int total);Ok item
@@ -210,9 +215,11 @@ let coalesce_draws draws =
           error "Scene_execution.coalesce" Ogpu.Error.Capacity "one mesh exceeds the batch byte capacity"
         else
         let meshes, rest = take first first_bytes [draw.mesh] rest in
-        match combine_meshes meshes with
-        | Error _ as result -> result
-        | Ok mesh -> loop ((family, blend, texture, auxiliary, {draw with mesh}) :: result) rest
+        match meshes with
+        | [mesh] -> loop ((family, blend, texture, auxiliary, {draw with mesh}) :: result) rest
+        | _ -> match combine_meshes meshes with
+          | Error _ as result -> result
+          | Ok mesh -> loop ((family, blend, texture, auxiliary, {draw with mesh}) :: result) rest
   in
   loop [] draws
 let coalesce_sampled draws =
@@ -248,9 +255,9 @@ let render_sampled_resources_common ?prepared ?(clear=(0.,0.,0.,0.)) value draws
   if not supported then error"Scene_execution.render"Ogpu.Error.Unsupported"pipeline family/blend variant is unavailable"else
   if not valid then error"Scene_execution.render"Ogpu.Error.Invalid_argument"draw resource preflight failed"else
   let deferred=ref[]in let defer release=deferred:=release::!deferred in let finish result=List.iter(fun release->release())!deferred;result in
-  let rec prepare_all acc=function []->Ok(List.rev acc)|(family,blend,texture,auxiliary,samples,(draw:draw))::rest->match prepare value~defer~trusted_key draw.mesh with Error _ as e->e|Ok mesh->match texture with Some source->(match prepare_texture value~defer source with Error _ as e->e|Ok texture->prepare_aux family blend auxiliary samples draw mesh (Some(source,texture)) acc rest)|None->prepare_aux family blend auxiliary samples draw mesh None acc rest
+  let rec prepare_all acc=function []->Ok(List.rev acc)|(family,blend,texture,auxiliary,samples,(draw:draw))::rest->let reserved=List.map(fun(_,_,_,_,_,_,item)->item)acc in match prepare value~defer~trusted_key~reserved draw.mesh with Error _ as e->e|Ok mesh->match texture with Some source->(match prepare_texture value~defer source with Error _ as e->e|Ok texture->prepare_aux family blend auxiliary samples draw mesh (Some(source,texture)) acc rest)|None->prepare_aux family blend auxiliary samples draw mesh None acc rest
   and prepare_aux family blend auxiliary samples draw mesh texture acc rest=match auxiliary with None->prepare_all((family,blend,samples,draw.state,texture,None,mesh)::acc)rest|Some source->match prepare_auxiliary value~defer source with Error _ as e->e|Ok buffer->match prepare_texture value~defer source.texture with Error _ as e->e|Ok texture2->prepare_all((family,blend,samples,draw.state,texture,Some(source,buffer,texture2),mesh)::acc)rest in
-  match prepare_all[]draws with Error _ as e->finish e|Ok prepared->match Ogpu.Backend.acquire value.surface with Error _ as e->finish e|Ok(`Timeout|`Occluded)->finish(Ok false)|Ok`Device_lost->finish(error"Scene_execution.render"Device_lost"device lost")|Ok(`Acquired frame)->
+  match Ogpu.Backend.acquire value.surface with Error _ as e->finish e|Ok(`Timeout|`Occluded)->finish(Ok false)|Ok`Device_lost->finish(error"Scene_execution.render"Device_lost"device lost")|Ok(`Acquired frame)->match prepare_all[]draws with Error _ as e->ignore(Ogpu.Backend.discard frame);finish e|Ok prepared->
     let resources=`Texture value.target::List.map(fun(_,texture)->`Texture texture)value.multisample_targets@List.concat_map(fun(_,_,_,_,texture,auxiliary,item)->`Buffer item.buffer::(match texture with None->[]|Some(_,cached)->[`Texture cached.texture])@(match auxiliary with None->[]|Some(_,buffer,texture)->[`Buffer buffer.auxiliary_buffer;`Texture texture.texture]))prepared in
     let same_texture a b=match a,b with None,None->true|Some(_,x),Some(_,y)->x==y|_->false in
     let same_auxiliary a b=match a,b with None,None->true|Some(_,ab,at),Some(_,bb,bt)->ab==bb&&at==bt|_->false in
