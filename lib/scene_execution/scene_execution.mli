@@ -9,6 +9,12 @@ type mesh = {
 type state = {
   viewport : int * int * int * int;
   scissor : int * int * int * int;
+  cull : Ogpu.Render_pass.cull;
+  depth_compare : Ogpu.Render_pass.comparison;
+  depth_write : bool;
+  depth_load : Ogpu.Render_pass.load;
+  depth_clear : float;
+  transform_uniforms : bytes option;
 }
 type draw = { mesh : mesh; state : state }
 type pipeline_family = Scene2 | Scene3 | Scene3_textured | Scene3_shadow
