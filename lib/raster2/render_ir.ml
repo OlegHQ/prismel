@@ -4,22 +4,22 @@ type geometry={vertices:float array;indices:int array;color:int32}
 type image={resource_id:int;source:rect;destination:rect}
 type glyph={glyph_id:int;x:float;y:float}
 type glyphs={resource_id:int;color:int32;glyphs:glyph array}
-type command=Clear of int32|Push_clip of rect|Pop_clip|Push_transform of transform|Pop_transform|Geometry of geometry|Image of image|Glyphs of glyphs
+type command=Clear of int32|Set_blend of Composite.blend|Push_clip of rect|Pop_clip|Push_transform of transform|Pop_transform|Geometry of geometry|Image of image|Glyphs of glyphs
 type batch_kind=State|Geometry_batch of int32|Image_batch of int|Glyph_batch of int
 type batch={first:int;count:int;kind:batch_kind}
 type t={commands:command array;batches:batch array}
 type error=Non_finite|Invalid_extent|Invalid_cardinality|Invalid_index of int|Invalid_resource_id of int|Invalid_glyph_id of int|Unbalanced_clip|Unbalanced_transform|Complexity_limit
 let finite=Float.is_finite
 let valid_rect (r:rect)=finite r.x&&finite r.y&&finite r.width&&finite r.height&&r.width>=0.&&r.height>=0.
-let copy_command=function Clear c->Clear c|Push_clip r->Push_clip r|Pop_clip->Pop_clip|Push_transform t->Push_transform t|Pop_transform->Pop_transform|Geometry g->Geometry{g with vertices=Array.copy g.vertices;indices=Array.copy g.indices}|Image i->Image i|Glyphs g->Glyphs{g with glyphs=Array.copy g.glyphs}
-let kind=function Clear _|Push_clip _|Pop_clip|Push_transform _|Pop_transform->State|Geometry g->Geometry_batch g.color|Image i->Image_batch i.resource_id|Glyphs g->Glyph_batch g.resource_id
+let copy_command=function Clear c->Clear c|Set_blend b->Set_blend b|Push_clip r->Push_clip r|Pop_clip->Pop_clip|Push_transform t->Push_transform t|Pop_transform->Pop_transform|Geometry g->Geometry{g with vertices=Array.copy g.vertices;indices=Array.copy g.indices}|Image i->Image i|Glyphs g->Glyphs{g with glyphs=Array.copy g.glyphs}
+let kind=function Clear _|Set_blend _|Push_clip _|Pop_clip|Push_transform _|Pop_transform->State|Geometry g->Geometry_batch g.color|Image i->Image_batch i.resource_id|Glyphs g->Glyph_batch g.resource_id
 let same_kind a b=match a,b with State,State->false|Geometry_batch x,Geometry_batch y->x=y|Image_batch x,Image_batch y->x=y|Glyph_batch x,Glyph_batch y->x=y|_->false
 let create input=
   if Array.length input>1_048_576 then Error Complexity_limit else
   let clip=ref 0 and transform=ref 0 and failure=ref None in
   let fail e=if !failure=None then failure:=Some e in
   Array.iter(fun command->match command with
-  |Clear _->()
+  |Clear _|Set_blend _->()
   |Push_clip r->if valid_rect r then incr clip else fail(if List.for_all finite[r.x;r.y;r.width;r.height]then Invalid_extent else Non_finite)
   |Pop_clip->if !clip=0 then fail Unbalanced_clip else decr clip
   |Push_transform t->if List.for_all finite[t.xx;t.xy;t.yx;t.yy;t.tx;t.ty]then incr transform else fail Non_finite
@@ -46,5 +46,5 @@ module Encoder=struct
  let float t x=i64 t(Int64.bits_of_float x)
  let result t=Bytes.sub t.bytes 0 t.length
 end
-let serialize value=let e=Encoder.create()in Encoder.i32 e 0x52324931l;Encoder.int e(Array.length value.commands);let rect (r:rect)=List.iter(Encoder.float e)[r.x;r.y;r.width;r.height]and transform (t:transform)=List.iter(Encoder.float e)[t.xx;t.xy;t.yx;t.yy;t.tx;t.ty]in Array.iter(function Clear c->Encoder.byte e 0;Encoder.i32 e c|Push_clip r->Encoder.byte e 1;rect r|Pop_clip->Encoder.byte e 2|Push_transform t->Encoder.byte e 3;transform t|Pop_transform->Encoder.byte e 4|Geometry g->Encoder.byte e 5;Encoder.i32 e g.color;Encoder.int e(Array.length g.vertices);Array.iter(Encoder.float e)g.vertices;Encoder.int e(Array.length g.indices);Array.iter(Encoder.int e)g.indices|Image i->Encoder.byte e 6;Encoder.int e i.resource_id;rect i.source;rect i.destination|Glyphs g->Encoder.byte e 7;Encoder.int e g.resource_id;Encoder.i32 e g.color;Encoder.int e(Array.length g.glyphs);Array.iter(fun p->Encoder.int e p.glyph_id;Encoder.float e p.x;Encoder.float e p.y)g.glyphs)value.commands;Encoder.result e
+let serialize value=let e=Encoder.create()in Encoder.i32 e 0x52324931l;Encoder.int e(Array.length value.commands);let rect (r:rect)=List.iter(Encoder.float e)[r.x;r.y;r.width;r.height]and transform (t:transform)=List.iter(Encoder.float e)[t.xx;t.xy;t.yx;t.yy;t.tx;t.ty]in Array.iter(function Clear c->Encoder.byte e 0;Encoder.i32 e c|Set_blend b->Encoder.byte e 8;Encoder.byte e(match b with Composite.Source_over->0|Copy->1|Replace->2|Alpha->3|Add->4|Multiply->5|Screen->6|Subtract->7)|Push_clip r->Encoder.byte e 1;rect r|Pop_clip->Encoder.byte e 2|Push_transform t->Encoder.byte e 3;transform t|Pop_transform->Encoder.byte e 4|Geometry g->Encoder.byte e 5;Encoder.i32 e g.color;Encoder.int e(Array.length g.vertices);Array.iter(Encoder.float e)g.vertices;Encoder.int e(Array.length g.indices);Array.iter(Encoder.int e)g.indices|Image i->Encoder.byte e 6;Encoder.int e i.resource_id;rect i.source;rect i.destination|Glyphs g->Encoder.byte e 7;Encoder.int e g.resource_id;Encoder.i32 e g.color;Encoder.int e(Array.length g.glyphs);Array.iter(fun p->Encoder.int e p.glyph_id;Encoder.float e p.x;Encoder.float e p.y)g.glyphs)value.commands;Encoder.result e
 let hash value=let h=ref 0xcbf29ce484222325L in Bytes.iter(fun c->h:=Int64.mul(Int64.logxor !h(Int64.of_int(Char.code c)))0x100000001b3L)(serialize value);!h

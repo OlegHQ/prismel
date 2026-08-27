@@ -5,7 +5,7 @@ type geometry = { vertices:float array; indices:int array; color:int32 }
 type image = { resource_id:int; source:rect; destination:rect }
 type glyph = { glyph_id:int; x:float; y:float }
 type glyphs = { resource_id:int; color:int32; glyphs:glyph array }
-type command = Clear of int32 | Push_clip of rect | Pop_clip | Push_transform of transform | Pop_transform | Geometry of geometry | Image of image | Glyphs of glyphs
+type command = Clear of int32 | Set_blend of Composite.blend | Push_clip of rect | Pop_clip | Push_transform of transform | Pop_transform | Geometry of geometry | Image of image | Glyphs of glyphs
 type batch_kind = State | Geometry_batch of int32 | Image_batch of int | Glyph_batch of int
 type batch = { first:int; count:int; kind:batch_kind }
 type t

@@ -14,6 +14,11 @@
  (libraries raster2))
 
 (test
+ (name test_raster2_blend_parity)
+ (modules test_raster2_blend_parity)
+ (libraries raster2))
+
+(test
  (name test_raster2_path)
  (modules test_raster2_path)
  (libraries raster2))

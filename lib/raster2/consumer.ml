@@ -51,6 +51,7 @@ let execute ?depth ~lookup ~target ir =
           let identity = { Render_ir.xx=1.; xy=0.; yx=0.; yy=1.; tx=0.; ty=0. } in
           Stack.push identity transforms;
           let active_clip = ref None in
+          let active_blend = ref Composite.Source_over in
           let compose (a : Render_ir.transform) (b : Render_ir.transform) =
             { Render_ir.xx=(a.xx *. b.xx) +. (a.xy *. b.yx);
               xy=(a.xx *. b.xy) +. (a.xy *. b.yy);
@@ -87,6 +88,7 @@ let execute ?depth ~lookup ~target ir =
           Array.iter
             (function
               | Render_ir.Clear color -> Surface.clear working color;(match depth_copy with None->()|Some(d,a)->if Depth_stencil.clear a~depth:d.clear~stencil:d.clear_stencil<>Ok()then fail Surface_error)
+              | Set_blend blend -> active_blend := blend
               | Push_clip rect ->
                   Stack.push !active_clip clips;
                   active_clip := Some rect
@@ -101,7 +103,7 @@ let execute ?depth ~lookup ~target ir =
                     let a = vertex 0 and b = vertex 1 and c = vertex 2 in
                     let make index=let x,y=point transform geometry.vertices.(index)geometry.vertices.(index+1)in {Triangle.x=float x;y=float y;depth=(match depth with None->0.|Some d->d.value);color=geometry.color;u=0.;v=0.}in
                     let clip=match !active_clip with None->{Triangle.x=0;y=0;width=Surface.width working;height=Surface.height working}|Some r->{Triangle.x=int_of_float r.x;y=int_of_float r.y;width=int_of_float r.width;height=int_of_float r.height}in
-                    Triangle.draw~color:working~depth:(Option.map snd depth_copy)~depth_state:(match depth with None->{Depth_stencil.depth_compare=Always;depth_write=false;stencil=None}|Some d->d.state)~blend:Composite.Source_over~cull:Triangle.Cull_none~clip~texture:None(make a)(make b)(make c)
+                    Triangle.draw~color:working~depth:(Option.map snd depth_copy)~depth_state:(match depth with None->{Depth_stencil.depth_compare=Always;depth_write=false;stencil=None}|Some d->d.state)~blend:!active_blend~cull:Triangle.Cull_none~clip~texture:None(make a)(make b)(make c)
                   done
               | Image image ->
                   let source = match Hashtbl.find resources image.resource_id with Image value -> value | _ -> assert false in
@@ -109,7 +111,7 @@ let execute ?depth ~lookup ~target ir =
                     { Image.x=int_of_float (Float.round r.x); y=int_of_float (Float.round r.y);
                       width=int_of_float (Float.round r.width); height=int_of_float (Float.round r.height) }
                   in
-                  draw (fun () -> match Image.blit_scaled ~src:source ~src_rect:(convert image.source)
+                  draw (fun () -> match Image.blit_scaled_blend ~blend:!active_blend ~src:source ~src_rect:(convert image.source)
                     ~dst:working ~dst_rect:(convert image.destination) ~filter:Image.Bilinear with
                     | Ok () -> () | Error _ -> fail Surface_error)
               | Glyphs glyphs ->
@@ -126,10 +128,10 @@ let execute ?depth ~lookup ~target ir =
                           Bytes.blit atlas.bytes (((row * atlas.cell_height) + y) * atlas.pitch + (column * atlas.cell_width))
                             mask (y * atlas.cell_width) atlas.cell_width
                         done;
-                        draw (fun () -> match Image.alpha_mask ~dst:working
+                        draw (fun () -> match Image.alpha_mask_blend ~dst:working
                           ~dst_x:(int_of_float glyph.x) ~dst_y:(int_of_float glyph.y)
                           ~width:atlas.cell_width ~height:atlas.cell_height ~pitch:atlas.cell_width
-                          mask ~color:glyphs.color with Ok () -> () | Error _ -> fail Surface_error))
+                          mask ~blend:!active_blend ~color:glyphs.color with Ok () -> () | Error _ -> fail Surface_error))
                     glyphs.glyphs)
             commands;
           match !failure with
