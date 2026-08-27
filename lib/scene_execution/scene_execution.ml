@@ -8,7 +8,8 @@ type shadow_resource={texture:sampled_texture;parameters:bytes}
 type auxiliary_resource={key:string;buffer:bytes;texture:sampled_texture}
 type cached={mutable key:string;mutable payload_hash:string;buffer:Ogpu.Backend.buffer;mutable index_offset:int64;mutable uniform_offset:int64 option;mutable vertex_count:int;mutable index_count:int;bytes:int}
 type cached_auxiliary={auxiliary_key:string;auxiliary_hash:string;auxiliary_buffer:Ogpu.Backend.buffer}
-type cached_texture={texture_key:string;texture_hash:string;texture:Ogpu.Backend.texture}
+type cached_texture={texture_key:string;texture_hash:string;texture_shape:string;
+  texture:Ogpu.Backend.texture;staging:Ogpu.Backend.buffer;staging_bytes:int}
 type prepared_run={prepared_identity:string;prepared_version:int64;prepared_draws:(pipeline_family*Ogpu.Pipeline.blend*sampled_texture option*auxiliary_resource option*int*draw)list;prepared_bytes:int}
 type pipeline_variant={family:pipeline_family;blend:Ogpu.Pipeline.blend;samples:int;pipeline:Ogpu.Backend.pipeline;key:string}
 type t={device:Ogpu.Backend.device;queue:Ogpu.Backend.queue;surface:Ogpu.Backend.surface;mutable target:Ogpu.Backend.texture;mutable multisample_targets:(int*Ogpu.Backend.texture)list;mutable depth_targets:(int*Ogpu.Backend.texture)list;mutable stencil_targets:(int*Ogpu.Backend.texture)list;pipelines:pipeline_variant list;mutable cache:cached list;mutable prepared_cache:prepared_run list;mutable auxiliary_cache:cached_auxiliary list;mutable texture_cache:cached_texture list;mutable uploaded:int64;mutable dead:bool;before_device_destroy:unit->(unit,Ogpu.Error.t)result}
@@ -116,20 +117,23 @@ let prepare_texture value ~defer(source:sampled_texture)=
   |Some item->Ok item
   |None->
     if not(valid_texture source)then error"Scene_execution.prepare_texture"Ogpu.Error.Invalid_argument"texture or sampler is malformed"else
+    let shape=Array.to_list source.levels|>List.map(fun level->Printf.sprintf"%dx%d"level.width level.height)|>String.concat"/"in
+    let reusable=List.find_opt(fun item->item.texture_key=source.key&&item.texture_shape=shape)value.texture_cache in
     let descriptor:Ogpu.Types.texture_descriptor={label=Some("scene-texture-"^source.key);width=source.levels.(0).width;height=source.levels.(0).height;depth=1;mip_levels=Array.length source.levels;sample_count=1;usage=[Texture_binding;Texture_copy_dst]}in
-    match Ogpu.Backend.create_texture value.device descriptor with Error _ as e->e|Ok texture->
     let rows=Array.map(fun level->align256(level.width*4))source.levels in
     let offsets=Array.make(Array.length source.levels)0 in
     for index=1 to Array.length offsets-1 do offsets.(index)<-offsets.(index-1)+rows.(index-1)*source.levels.(index-1).height done;
     let total=offsets.(Array.length offsets-1)+rows.(Array.length rows-1)*source.levels.(Array.length rows-1).height in
     let staging_descriptor:Ogpu.Types.buffer_descriptor={label=Some"scene-texture-staging";size=Int64.of_int total;usage=[Copy_src]}in
-    match Ogpu.Backend.create_buffer value.device staging_descriptor with Error e->ignore(Ogpu.Backend.destroy_texture texture);Error e|Ok staging->
+    let create_handles ()=match Ogpu.Backend.create_texture value.device descriptor with Error _ as e->e|Ok texture->
+      match Ogpu.Backend.create_buffer value.device staging_descriptor with Error e->ignore(Ogpu.Backend.destroy_texture texture);Error e|Ok staging->Ok(texture,staging,true)in
+    match(match reusable with Some item when item.staging_bytes=total->Ok(item.texture,item.staging,false)|_->create_handles())with Error _ as e->e|Ok(texture,staging,created)->
     let packed=Bytes.make total '\000'in Array.iteri(fun level_index level->for row=0 to level.height-1 do Bytes.blit level.bytes(row*level.width*4)packed(offsets.(level_index)+row*rows.(level_index))(level.width*4)done)source.levels;
-    match Ogpu.Backend.write_buffer staging~offset:0L packed with Error e->ignore(Ogpu.Backend.destroy_buffer staging);ignore(Ogpu.Backend.destroy_texture texture);Error e|Ok()->
+    match Ogpu.Backend.write_buffer staging~offset:0L packed with Error e->if created then(ignore(Ogpu.Backend.destroy_buffer staging);ignore(Ogpu.Backend.destroy_texture texture));Error e|Ok()->
     let pass=Ogpu.Transfer_pass.create(Ogpu.Backend.device_handle value.device)in
     let src=Ogpu.Backend.transfer_buffer staging and dst=Ogpu.Backend.transfer_texture texture in
     let failure=ref None in Array.iteri(fun index level->if !failure=None then match Ogpu.Transfer_pass.buffer_to_texture pass~src~offset:(Int64.of_int offsets.(index))~bytes_per_row:(Int64.of_int rows.(index))~bytes_per_image:(Int64.of_int(rows.(index)*level.height))~dst~mip:index~origin:{x=0;y=0;z=0}~extent:{width=level.width;height=level.height;depth=1}with Ok()->()|Error e->failure:=Some e)source.levels;
-    let finish result=ignore(Ogpu.Backend.destroy_buffer staging);match result with Error e->ignore(Ogpu.Backend.destroy_texture texture);Error e|Ok()->let item={texture_key=source.key;texture_hash=hash;texture}in let replaced,others=List.partition(fun old->old.texture_key=source.key)value.texture_cache in List.iter(fun old->defer(fun()->ignore(Ogpu.Backend.destroy_texture old.texture)))replaced;value.texture_cache<-item::others;value.uploaded<-Int64.add value.uploaded(Int64.of_int total);Ok item in
+    let finish result=match result with Error e->if created then(ignore(Ogpu.Backend.destroy_buffer staging);ignore(Ogpu.Backend.destroy_texture texture));Error e|Ok()->let item={texture_key=source.key;texture_hash=hash;texture_shape=shape;texture;staging;staging_bytes=total}in let replaced,others=List.partition(fun old->old.texture_key=source.key)value.texture_cache in List.iter(fun old->if old.texture!=texture then defer(fun()->ignore(Ogpu.Backend.destroy_texture old.texture));if old.staging!=staging then defer(fun()->ignore(Ogpu.Backend.destroy_buffer old.staging)))replaced;value.texture_cache<-item::others;value.uploaded<-Int64.add value.uploaded(Int64.of_int total);Ok item in
     match !failure with Some e->finish(Error e)|None->match Ogpu.Backend.transfer pass with Error e->finish(Error e)|Ok command->match Ogpu.Backend.submit value.queue command~resources:[`Buffer staging;`Texture texture]~pipelines:[]with Error e->finish(Error e)|Ok receipt->finish(Ogpu.Backend.complete_through value.queue receipt.epoch)
 let prepare_auxiliary value ~defer(source:auxiliary_resource)=
   let hash=Digest.to_hex(Digest.bytes source.buffer)in
@@ -297,4 +301,4 @@ let resize value configuration=
 let upload_bytes value=value.uploaded
 let cache_entries value=List.length value.cache
 let read_pixels value ~bytes_per_row=Ogpu.Backend.read_texture value.target~bytes_per_row
-let destroy value=if value.dead then Ok()else(value.dead<-true;List.iter(fun item->ignore(Ogpu.Backend.destroy_buffer item.buffer))value.cache;value.cache<-[];List.iter(fun item->ignore(Ogpu.Backend.destroy_buffer item.auxiliary_buffer))value.auxiliary_cache;value.auxiliary_cache<-[];List.iter(fun item->ignore(Ogpu.Backend.destroy_texture item.texture))value.texture_cache;value.texture_cache<-[];destroy_targets value.multisample_targets;value.multisample_targets<-[];destroy_targets value.depth_targets;value.depth_targets<-[];destroy_targets value.stencil_targets;value.stencil_targets<-[];ignore(Ogpu.Backend.destroy_texture value.target);List.iter(fun variant->ignore(Ogpu.Backend.destroy_pipeline variant.pipeline))value.pipelines;ignore(Ogpu.Backend.destroy_surface value.surface);ignore(Ogpu.Backend.destroy_queue value.queue);match value.before_device_destroy()with Error _ as e->e|Ok()->Ogpu.Backend.destroy_device value.device)
+let destroy value=if value.dead then Ok()else(value.dead<-true;List.iter(fun item->ignore(Ogpu.Backend.destroy_buffer item.buffer))value.cache;value.cache<-[];List.iter(fun item->ignore(Ogpu.Backend.destroy_buffer item.auxiliary_buffer))value.auxiliary_cache;value.auxiliary_cache<-[];List.iter(fun item->ignore(Ogpu.Backend.destroy_texture item.texture);ignore(Ogpu.Backend.destroy_buffer item.staging))value.texture_cache;value.texture_cache<-[];destroy_targets value.multisample_targets;value.multisample_targets<-[];destroy_targets value.depth_targets;value.depth_targets<-[];destroy_targets value.stencil_targets;value.stencil_targets<-[];ignore(Ogpu.Backend.destroy_texture value.target);List.iter(fun variant->ignore(Ogpu.Backend.destroy_pipeline variant.pipeline))value.pipelines;ignore(Ogpu.Backend.destroy_surface value.surface);ignore(Ogpu.Backend.destroy_queue value.queue);match value.before_device_destroy()with Error _ as e->e|Ok()->Ogpu.Backend.destroy_device value.device)

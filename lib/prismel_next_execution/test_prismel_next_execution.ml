@@ -73,6 +73,22 @@ let () =
   let canvas_draws=get(lower_scene2 resource_runtime~density:2~resource:(function 1->Some(Canvas canvas)|_->None)image_ir)in
   ignore(get(step resource_runtime canvas_draws));let canvas_pixels=get(capture resource_runtime)in
   check(Char.code(Bytes.get canvas_pixels 1)=255)"canvas dependency pixel";
+  let canvas_before=get(stats resource_runtime)and cache_before=snapshot_cache_entries resource_runtime in
+  ignore(Prismel_next_resources.Canvas.clear canvas 0xff0000ffl);
+  let changed_canvas_draws=get(lower_scene2 resource_runtime~density:2~resource:(function 1->Some(Canvas canvas)|_->None)image_ir)in
+  ignore(get(step resource_runtime changed_canvas_draws));
+  let changed_canvas_pixels=get(capture resource_runtime)and canvas_after=get(stats resource_runtime)in
+  check(Char.code(Bytes.get changed_canvas_pixels 0)=255&&Char.code(Bytes.get changed_canvas_pixels 1)=0)"changed canvas exact pixel";
+  check(canvas_after.uploaded_bytes=Int64.add canvas_before.uploaded_bytes 512L)"changed canvas truthful upload";
+  check(snapshot_cache_entries resource_runtime=cache_before)"changed canvas grew snapshot cache";
+  let stable_canvas_upload=canvas_after.uploaded_bytes in
+  ignore(get(step resource_runtime changed_canvas_draws));
+  check((get(stats resource_runtime)).uploaded_bytes=stable_canvas_upload)"stable canvas mesh/texture reuploaded";
+  Gc.full_major();
+  let allocated_before=Gc.allocated_bytes()in
+  for _=1 to 100 do ignore(get(step resource_runtime changed_canvas_draws))done;
+  let allocated_per_step=(Gc.allocated_bytes()-.allocated_before)/.100. in
+  check(allocated_per_step<100_000.)"stable canvas outer-step allocation bound";
   let empty=Result.get_ok(Raster2.Render_ir.create[|Glyphs{resource_id=999;color=Int32.minus_one;glyphs=[||]}|])in
   check(get(lower_scene2 resource_runtime~density:1~resource:(fun _->None)empty)=[])"empty glyph no-op";
   let font=get_resource(Prismel_next_resources.Font.open_system~size:12.)in

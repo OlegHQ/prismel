@@ -138,7 +138,8 @@ let scene2_ir ir =
 type t = { runtime:Runtime_next_orchestrator.t; input:Runtime_next_input.t;
   assets:Prismel_next_resources.Assets.t; timing:timing; mutable frame:int64;
   mutable elapsed:float; mutable last_clock:float; mutable dead:bool;
-  mutable snapshots:(string*int*int*Scene_execution.sampled_texture)list }
+  mutable snapshots:(string*int*int*Scene_execution.sampled_texture)list;
+  mutable canvas_keys:(Prismel_next_resources.Canvas.t*string)list;mutable next_canvas_key:int }
 let runtime_target=function Native->Runtime_next_orchestrator.Native
   |Headless->Headless|Web->Web
 let create (configuration:configuration) =
@@ -159,7 +160,8 @@ let create (configuration:configuration) =
         ~logical_height:configuration.logical_height with
       |Error message->ignore(Runtime_next_orchestrator.destroy runtime);fail operation Backend message
       |Ok input->Ok{runtime;input;assets=Prismel_next_resources.Assets.create();timing=configuration.timing;
-          frame=0L;elapsed=0.;last_clock=Unix.gettimeofday();dead=false;snapshots=[]})
+          frame=0L;elapsed=0.;last_clock=Unix.gettimeofday();dead=false;snapshots=[];
+          canvas_keys=[];next_canvas_key=0})
 let target value=match Runtime_next_orchestrator.target value.runtime with Native->Native|Headless->Headless|Web->Web
 let assets value=value.assets
 let snapshot_cache_entries value=List.length value.snapshots
@@ -192,8 +194,11 @@ let snapshot value ~density source =
       |Ok(width,height),Ok pixels->finish("text:"^Digest.to_hex(Digest.bytes pixels))(Prismel_next_resources.Text.generation text)width height pixels
       |Error e,_|_,Error e->resource operation e)
   |Canvas canvas->(match Prismel_next_resources.Canvas.capture canvas with Error e->resource operation e|Ok image->
+      let key=match List.find_opt(fun(source,_)->source==canvas)value.canvas_keys with Some(_,key)->key|None->
+        let key="canvas:"^string_of_int value.next_canvas_key in value.next_canvas_key<-value.next_canvas_key+1;
+        value.canvas_keys<-(canvas,key)::value.canvas_keys;if List.length value.canvas_keys>256 then value.canvas_keys<-List.rev(List.tl(List.rev value.canvas_keys));key in
       let result=match Prismel_next_resources.Image.size image,Prismel_next_resources.Image.pixels image with
-        |Ok(width,height),Ok pixels->finish("canvas:"^Digest.to_hex(Digest.bytes pixels))(Prismel_next_resources.Canvas.generation canvas)width height pixels
+        |Ok(width,height),Ok pixels->finish key(Prismel_next_resources.Canvas.generation canvas)width height pixels
         |Error e,_|_,Error e->resource operation e in ignore(Prismel_next_resources.Image.destroy image);result)
 let lower_scene2 value ~density ~resource:resolve ir =
   match ensure"Prismel_next_execution.lower_scene2"value with Error _ as e->e|Ok()->
@@ -324,7 +329,7 @@ let capture value=match ensure"Prismel_next_execution.capture"value with Error _
   match Runtime_next_orchestrator.capture value.runtime~bytes_per_row:(facts.drawable_width*4)with Ok x->Ok x|Error e->backend"Prismel_next_execution.capture"e
 let destroy value=if value.dead then Ok()else(
   match Prismel_next_resources.Assets.destroy value.assets with Error e->resource"Prismel_next_execution.destroy"e|Ok()->
-    value.dead<-true;match Runtime_next_orchestrator.destroy value.runtime with Ok()->Ok()|Error e->backend"Prismel_next_execution.destroy"e)
+    value.snapshots<-[];value.canvas_keys<-[];value.dead<-true;match Runtime_next_orchestrator.destroy value.runtime with Ok()->Ok()|Error e->backend"Prismel_next_execution.destroy"e)
 let run configuration body ~on_stop = match create configuration with Error _ as e->e|Ok value->
   let outcome=try body value with exn->fail"Prismel_next_execution.run"Backend(Printexc.to_string exn)in
   let stopped=try on_stop value with exn->fail"Prismel_next_execution.on_stop"Backend(Printexc.to_string exn)in

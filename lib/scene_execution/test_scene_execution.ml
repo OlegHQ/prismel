@@ -25,6 +25,16 @@ let auxiliary_lifecycle renderer control mesh state =
   let uploaded=Scene_execution.upload_bytes renderer in
   ignore(get(Scene_execution.render_resources renderer[Scene2,Ogpu.Pipeline.Replace,Some primary,Some first,draw]));
   if Scene_execution.upload_bytes renderer<>uploaded then failwith"retained auxiliary resources reuploaded";
+  let changed=texture"primary""\000\255\000\255"in
+  Ogpu.Backend_mock.clear_trace control;
+  ignore(get(Scene_execution.render_resources renderer[Scene2,Ogpu.Pipeline.Replace,Some changed,Some first,draw]));
+  if Scene_execution.upload_bytes renderer<>Int64.add uploaded 256L then failwith"changed texture upload cardinality";
+  let trace=Ogpu.Backend_mock.trace control in
+  if List.exists(String.starts_with~prefix:"create-texture:")trace then failwith"same-shape texture replacement allocated texture";
+  if List.exists(String.starts_with~prefix:"create-buffer:")trace then failwith"same-shape texture replacement allocated staging";
+  let changed_uploaded=Scene_execution.upload_bytes renderer in
+  ignore(get(Scene_execution.render_resources renderer[Scene2,Ogpu.Pipeline.Replace,Some changed,Some first,draw]));
+  if Scene_execution.upload_bytes renderer<>changed_uploaded then failwith"stable changed texture reuploaded";
   Ogpu.Backend_mock.clear_trace control;
   ignore(get(Scene_execution.render_resources renderer[Scene2,Ogpu.Pipeline.Replace,Some primary,Some first,draw;Scene2,Ogpu.Pipeline.Replace,Some primary,Some first,draw]));
   let renders=Ogpu.Backend_mock.trace control|>List.filter(String.starts_with~prefix:"render:")in
