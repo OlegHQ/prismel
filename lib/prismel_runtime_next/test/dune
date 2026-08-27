@@ -1,0 +1,7 @@
+(test
+ (name test_runtime_next_parity)
+ (modules test_runtime_next_parity)
+ (libraries prismel_runtime_next_sketch)
+ (link_flags -linkall)
+ (action
+  (setenv PRISMEL_TEST_RUNTIME_NEXT_PARITY 1 (run %{test}))))

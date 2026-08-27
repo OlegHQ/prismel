@@ -54,7 +54,7 @@ let validate configuration =
     Error "dimensions must be positive"
   else Ok ()
 
-let run_state ~configuration ~init ~update ~view ~prepare ?on_stop () =
+let run_state ~configuration ~init ~update ~view ~prepare ?after_frame ?on_stop () =
   match validate configuration with
   | Error message ->
       Error
@@ -92,7 +92,19 @@ let run_state ~configuration ~init ~update ~view ~prepare ?on_stop () =
                 | Ok draws ->
                     match Orchestrator.render runtime draws with
                     | Error _ as error -> error
-                    | Ok _ -> loop (count + 1)
+                    | Ok _ ->
+                        begin
+                          match after_frame with
+                          | None -> loop (count + 1)
+                          | Some callback ->
+                              match Orchestrator.capture runtime
+                                  ~bytes_per_row:
+                                    (configuration.drawable_width * 4) with
+                              | Error _ as error -> error
+                              | Ok pixels ->
+                                  callback current_frame pixels;
+                                  loop (count + 1)
+                        end
             in
             match loop 1 with
             | Error _ as error -> error
@@ -114,7 +126,7 @@ let run_state ~configuration ~init ~update ~view ~prepare ?on_stop () =
 
 let run_selected ~logical_width ~logical_height ~drawable_width
     ~drawable_height ~frames ~dt ?wap_config ~init ~update ~view ~prepare
-    ?on_stop () =
+    ?after_frame ?on_stop () =
   match Orchestrator.selected () with
   | Error message ->
       Error
@@ -124,7 +136,7 @@ let run_selected ~logical_width ~logical_height ~drawable_width
       run_state
         ~configuration:{ target; logical_width; logical_height; drawable_width;
           drawable_height; frames; dt; wap_config }
-        ~init ~update ~view ~prepare ?on_stop ()
+        ~init ~update ~view ~prepare ?after_frame ?on_stop ()
 
 let test () =
   let vertices = Bytes.make 48 '\000' in

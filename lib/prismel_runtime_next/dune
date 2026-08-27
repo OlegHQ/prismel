@@ -1,6 +1,6 @@
 (library
  (name prismel_runtime_next_sketch)
  (wrapped false)
- (modules prismel_runtime_next_sketch)
- (private_modules prismel_runtime_next_sketch)
+ (modules prismel_runtime_next_sketch prismel_runtime_next_parity_test)
+ (private_modules prismel_runtime_next_sketch prismel_runtime_next_parity_test)
  (libraries prismel runtime_next_orchestrator scene_execution wap))
