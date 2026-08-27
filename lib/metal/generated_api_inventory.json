@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 5239,
+    "bound": 5242,
     "scope-excluded": 37,
-    "unreviewed": 9
+    "unreviewed": 6
   },
-  "classification_source_sha256": "a2eb6a8ebe00255b29283bd6fbc2a83f62d44c97b2e9ce699e8eb1ce31760ab9",
+  "classification_source_sha256": "ac198a6a62cdd7dc8a75ba4b81601ef7a9f09c6afec6a40f929dd47f890722c6",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -55791,7 +55791,7 @@
           "line": 1188
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newArgumentEncoderWithBufferBinding:]",
       "kind": "method",
@@ -55799,7 +55799,7 @@
       "macos_introduced": "13.0",
       "name": "newArgumentEncoderWithBufferBinding:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by exact typed Device constructors for reflected buffer argument encoders, synchronous reflected compute pipelines, and imported shared-event handles with live same-device ownership and real conformance.",
       "signature": "instance (id<MTLBufferBinding>  _Nonnull __strong) -> id<MTLArgumentEncoder> _Nonnull"
     },
     {
@@ -56235,7 +56235,7 @@
           "line": 459
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newComputePipelineStateWithFunction:options:reflection:error:]",
       "kind": "method",
@@ -56243,7 +56243,7 @@
       "macos_introduced": "10.11",
       "name": "newComputePipelineStateWithFunction:options:reflection:error:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by exact typed Device constructors for reflected buffer argument encoders, synchronous reflected compute pipelines, and imported shared-event handles with live same-device ownership and real conformance.",
       "signature": "instance (id<MTLFunction>  _Nonnull __strong, MTLPipelineOption, MTLAutoreleasedComputePipelineReflection * _Nullable, NSError *__autoreleasing  _Nullable * _Nullable) -> id<MTLComputePipelineState> _Nullable"
     },
     {
@@ -57190,7 +57190,7 @@
           "line": 1013
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newSharedEventWithHandle:]",
       "kind": "method",
@@ -57198,7 +57198,7 @@
       "macos_introduced": "10.14",
       "name": "newSharedEventWithHandle:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by exact typed Device constructors for reflected buffer argument encoders, synchronous reflected compute pipelines, and imported shared-event handles with live same-device ownership and real conformance.",
       "signature": "instance (MTLSharedEventHandle * _Nonnull __strong) -> id<MTLSharedEvent> _Nullable"
     },
     {

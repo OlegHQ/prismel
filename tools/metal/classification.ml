@@ -1894,6 +1894,7 @@ let device_queues_safe3 = Binding_device_queues3_safe_package.ids
 let device_legacy_io_safe2 = Binding_device_remaining6_safe_package.io_alias_ids
 let device_final_safe4 = Binding_device_final4_safe_package.ids
 let device_async_safe9 = Binding_device_async9_safe_package.ids
+let device_final_constructors_safe3 = Binding_device_final_constructors3_safe_package.ids
 
 let classify ~unavailable ~identifier ~header ~kind ~signature =
   if unavailable then
@@ -1935,6 +1936,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier device_async_safe9 then
     Bound,
       "Implemented by typed classic Device completion selectors presented through a bounded synchronous safe Result, retaining all descriptors until exactly one completion and proven by real library, compute, render, mesh, tile, and stitched fixtures."
+  else if List.mem identifier device_final_constructors_safe3 then
+    Bound,
+      "Implemented by exact typed Device constructors for reflected buffer argument encoders, synchronous reflected compute pipelines, and imported shared-event handles with live same-device ownership and real conformance."
   else if acceleration_scalar_identifier ~header ~kind ~signature identifier then
     Bound,
       "Implemented by generated immutable acceleration-structure descriptor values with native execute-or-capability-reject conformance."
