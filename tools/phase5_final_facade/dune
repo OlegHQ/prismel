@@ -1,0 +1,22 @@
+(executable
+ (name phase5_final_facade)
+ (modules phase5_final_facade)
+ (libraries prismel.prismel_next_api unix))
+
+(rule
+ (alias runtest)
+ (deps ../../specification/evidence/gpu_migration/phase5_prismel_api_map.json
+  (source_tree ../../examples))
+ (action
+  (setenv PRISMEL_RENDER_TARGET headless
+   (run %{exe:phase5_final_facade.exe} --root %{workspace_root}
+    --target headless))))
+
+(rule
+ (alias runtest)
+ (deps ../../specification/evidence/gpu_migration/phase5_prismel_api_map.json
+  (source_tree ../../examples))
+ (action
+  (setenv PRISMEL_RENDER_TARGET web
+   (run %{exe:phase5_final_facade.exe} --root %{workspace_root}
+    --target web))))
