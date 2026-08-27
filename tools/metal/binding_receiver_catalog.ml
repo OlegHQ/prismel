@@ -177,6 +177,17 @@ let receivers =
   ; direct "MTLComputePassDescriptor" "MTLComputePassDescriptor *" "Compute_pass_descriptor" "compute_pass_descriptor"
   ; direct "MTLComputePassSampleBufferAttachmentDescriptor" "MTLComputePassSampleBufferAttachmentDescriptor *" "Compute_sample_attachment" "compute_sample_attachment"
   ; direct "MTLComputePassSampleBufferAttachmentDescriptorArray" "MTLComputePassSampleBufferAttachmentDescriptorArray *" "Compute_sample_attachment_array" "compute_sample_attachment_array"
+  ; direct "MTL4ComputePipelineDescriptor" "MTL4ComputePipelineDescriptor *"
+      "Compute_pipeline_descriptor4" "compute_pipeline_descriptor4"
+  ; direct "MTL4PipelineDescriptor" "MTL4PipelineDescriptor *"
+      "Pipeline_descriptor4" "pipeline_descriptor4"
+  ; direct "MTLRenderPipelineFunctionsDescriptor"
+      "MTLRenderPipelineFunctionsDescriptor *"
+      "Render_pipeline_functions_descriptor" "render_pipeline_functions_descriptor"
+  ; direct "MTLRenderPipelineReflection" "MTLRenderPipelineReflection *"
+      "Render_pipeline_reflection" "render_pipeline_reflection"
+  ; direct "MTLVertexDescriptor" "MTLVertexDescriptor *"
+      "Vertex_descriptor" "vertex_descriptor"
   ; direct "MTLCounter" "id<MTLCounter>" "Counter" "counter"
   ; direct "MTLFunctionConstantValues" "MTLFunctionConstantValues *" "Function_constant_values" "function_constant_values"
   ; direct "MTL4FunctionDescriptor" "MTL4FunctionDescriptor *" "Function_descriptor4" "function_descriptor4"
@@ -297,10 +308,10 @@ let exclusions =
     ; reason = "Handwritten ownership receiver; not qualified for mechanical receiver generation"
     }) handwritten_only_handle_kinds
 
-let expected_receiver_count = 108
+let expected_receiver_count = 113
 let expected_polymorphic_receiver_count = 3
-let expected_catalog_count = 111
-let expected_handle_kind_count = 158
+let expected_catalog_count = 116
+let expected_handle_kind_count = 163
 let expected_exclusion_count = 50
 
 let source_paths =
