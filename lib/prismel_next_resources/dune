@@ -8,3 +8,8 @@
  (name test_prismel_next_resources)
  (modules test_prismel_next_resources)
  (libraries prismel_next_resources unix))
+
+(test
+ (name test_prismel_next_font)
+ (modules test_prismel_next_font)
+ (libraries prismel_next_resources))

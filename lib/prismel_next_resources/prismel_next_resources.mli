@@ -36,6 +36,41 @@ module Canvas : sig
   val destroy : t -> (unit,error) result
 end
 
+module Text : sig
+  type t
+  val generation : t -> int
+  val destroyed : t -> bool
+  val size : t -> ((int*int),error) result
+  val pixels : t -> (bytes,error) result
+  val destroy : t -> (unit,error) result
+end
+
+module Font : sig
+  type t
+  type style = Normal | Bold | Italic | Underline | Strikethrough
+  type hinting = Normal_hinting | Light_hinting | Mono_hinting
+    | None_hinting | Light_subpixel_hinting
+  type glyph_metrics = { min_x:int; max_x:int; min_y:int; max_y:int; advance:int }
+  val open_file : path:string -> size:float -> (t,error) result
+  val open_system : size:float -> (t,error) result
+  val generation : t -> int
+  val destroyed : t -> bool
+  val set_style : t -> style list -> (unit,error) result
+  val set_outline : t -> int -> (unit,error) result
+  val set_hinting : t -> hinting -> (unit,error) result
+  val set_kerning : t -> bool -> (unit,error) result
+  val glyph_metrics : t -> int -> (glyph_metrics,error) result
+  val render : t -> ?wrap_width:int -> density:int ->
+    color:int*int*int*int -> string -> (Text.t option,error) result
+  val cached_text : t -> ?wrap_width:int -> density:int ->
+    color:int*int*int*int -> string -> (Text.t option,error) result
+  val render_cached : t -> renderer:int -> ?wrap_width:int -> density:int ->
+    color:int*int*int*int -> string -> (Text.t option,error) result
+  val cache_entries : t -> renderer:int -> int
+  val release_renderer : t -> renderer:int -> (unit,error) result
+  val destroy : t -> (unit,error) result
+end
+
 module Assets : sig
   type t
   val create : unit -> t

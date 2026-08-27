@@ -70,6 +70,71 @@ module Canvas=struct
   let destroy x=main"Canvas.destroy"(fun()->if x.dead then Ok()else(x.dead<-true;Ok()))
 end
 
+module Text=struct
+  type t={generation:int;width:int;height:int;mutable rgba:bytes;mutable dead:bool}
+  let generation x=x.generation and destroyed x=x.dead
+  let live op x f=main op(fun()->if x.dead then error op Destroyed"text snapshot is destroyed"else f())
+  let owned width height rgba={generation=fresh_identity();width;height;rgba=Bytes.copy rgba;dead=false}
+  let size x=live"Text.size"x(fun()->Ok(x.width,x.height))
+  let pixels x=live"Text.pixels"x(fun()->Ok(Bytes.copy x.rgba))
+  let destroy x=main"Text.destroy"(fun()->if x.dead then Ok()else(x.dead<-true;x.rgba<-Bytes.empty;Ok()))
+end
+
+module Font=struct
+  type style=Normal|Bold|Italic|Underline|Strikethrough
+  type hinting=Normal_hinting|Light_hinting|Mono_hinting|None_hinting|Light_subpixel_hinting
+  type glyph_metrics={min_x:int;max_x:int;min_y:int;max_y:int;advance:int}
+  type cache_entry={key:string;text:Text.t option}
+  type t={raw:Sdl3_ttf.Font.t;base_size:float;mutable generation:int;
+    mutable density:int;mutable caches:(int*cache_entry list)list;mutable dead:bool}
+  let users=ref 0
+  let generation x=x.generation and destroyed x=x.dead
+  let live op x f=main op(fun()->if x.dead then error op Destroyed"font is destroyed"else f())
+  let ttf op result=match result with Ok x->Ok x|Error e->error op Decode(Format.asprintf"%a"Sdl3_ttf.pp_error e)
+  let ensure_init op=match Sdl3_ttf.Init.initialized()with
+    |Error e->error op Decode(Format.asprintf"%a"Sdl3_ttf.pp_error e)
+    |Ok true->Ok()|Ok false->ttf op(Sdl3_ttf.Init.init())
+  let open_file ~path ~size=main"Font.open_file"(fun()->
+    if not(Float.is_finite size)||size<=0. then error"Font.open_file"Invalid_argument"font size must be finite and positive"
+    else match ensure_init"Font.open_file"with Error _ as e->e|Ok()->match ttf"Font.open_file"(Sdl3_ttf.Font.open_file~path~size)with
+      |Error _ as e->e|Ok raw->incr users;Ok{raw;base_size=size;generation=1;density=1;caches=[];dead=false})
+  let open_system ~size=main"Font.open_system"(fun()->match ttf"Font.open_system"(Sdl3_ttf.Font.system_path())with Error _ as e->e|Ok path->open_file~path~size)
+  let destroy_entries entries=List.iter(fun e->Option.iter(fun text->ignore(Text.destroy text))e.text)entries
+  let invalidate x=List.iter(fun(_,entries)->destroy_entries entries)x.caches;x.caches<-[];x.generation<-x.generation+1
+  let mutate op x call=live op x(fun()->match ttf op(call())with Error _ as e->e|Ok()->invalidate x;Ok())
+  let style=function Normal->Sdl3_ttf.Font.Normal|Bold->Bold|Italic->Italic|Underline->Underline|Strikethrough->Strikethrough
+  let hinting=function Normal_hinting->Sdl3_ttf.Font.Normal_hinting|Light_hinting->Light_hinting|Mono_hinting->Mono_hinting|None_hinting->None_hinting|Light_subpixel_hinting->Light_subpixel_hinting
+  let set_style x values=mutate"Font.set_style"x(fun()->Sdl3_ttf.Font.set_style x.raw(List.map style values))
+  let set_outline x value=mutate"Font.set_outline"x(fun()->Sdl3_ttf.Font.set_outline x.raw value)
+  let set_hinting x value=mutate"Font.set_hinting"x(fun()->Sdl3_ttf.Font.set_hinting x.raw(hinting value))
+  let set_kerning x value=mutate"Font.set_kerning"x(fun()->Sdl3_ttf.Font.set_kerning x.raw value)
+  let glyph_metrics x glyph=live"Font.glyph_metrics"x(fun()->match ttf"Font.glyph_metrics"(Sdl3_ttf.Font.glyph_metrics x.raw glyph)with Error _ as e->e|Ok m->Ok{min_x=m.min_x;max_x=m.max_x;min_y=m.min_y;max_y=m.max_y;advance=m.advance})
+  let valid_utf8 text=
+    let n=String.length text in let rec loop i=if i=n then true else let c=Char.code text.[i]in
+      let continuation j= j<n && Char.code text.[j]land 0xc0=0x80 in
+      if c<0x80 then loop(i+1)else if c>=0xc2&&c<=0xdf&&continuation(i+1)then loop(i+2)
+      else if c>=0xe0&&c<=0xef&&continuation(i+1)&&continuation(i+2)then let c1=Char.code text.[i+1]in if(c=0xe0&&c1<0xa0)||(c=0xed&&c1>=0xa0)then false else loop(i+3)
+      else if c>=0xf0&&c<=0xf4&&continuation(i+1)&&continuation(i+2)&&continuation(i+3)then let c1=Char.code text.[i+1]in if(c=0xf0&&c1<0x90)||(c=0xf4&&c1>=0x90)then false else loop(i+4)else false in loop 0
+  let set_density x density=
+    if density=x.density then Ok()else match ttf"Font.render"(Sdl3_ttf.Font.set_size_dpi x.raw~size:x.base_size~horizontal:(72*density)~vertical:(72*density))with Error _ as e->e|Ok()->x.density<-density;Ok()
+  let render x ?wrap_width ~density ~color text=live"Font.render"x(fun()->
+    if density<=0||density>16 then error"Font.render"Invalid_argument"density must be in 1..16"
+    else if not(valid_utf8 text)then error"Font.render"Invalid_argument"text is not strict UTF-8"
+    else match wrap_width with Some width when width<=0->error"Font.render"Invalid_argument"wrap width must be positive"|_->
+      match set_density x density with Error _ as e->e|Ok()->
+      let rendered=match wrap_width with None->Sdl3_ttf.Font.render_blended x.raw~color text|Some width->Sdl3_ttf.Font.render_blended_wrapped x.raw~color~wrap_width:(width*density) text in
+      match ttf"Font.render"rendered with Error _ as e->e|Ok None->Ok None|Ok(Some surface)->Fun.protect~finally:(fun()->ignore(Sdl3.Surface.destroy surface))(fun()->match Sdl3.Surface.copy_rgba surface with Error e->error"Font.render"Decode(Format.asprintf"%a"Sdl3.pp_error e)|Ok s->Ok(Some(Text.owned s.width s.height s.pixels))))
+  let cached_text=render
+  let cache_key x density wrap color text=Marshal.to_string(x.generation,density,wrap,color,text)[]
+  let render_cached x ~renderer ?wrap_width ~density ~color text=live"Font.render_cached"x(fun()->
+    let key=cache_key x density wrap_width color text in let entries=Option.value(List.assoc_opt renderer x.caches)~default:[]in
+    match List.find_opt(fun e->e.key=key)entries with Some e->Ok e.text|None->match render x ?wrap_width~density~color text with Error _ as e->e|Ok text_snapshot->
+      let entries={key;text=text_snapshot}::entries in let kept,evicted=if List.length entries<=256 then entries,[]else let rec split i acc=function []->List.rev acc,[]|rest when i=256->List.rev acc,rest|v::vs->split(i+1)(v::acc)vs in split 0[]entries in destroy_entries evicted;x.caches<-(renderer,kept)::List.remove_assoc renderer x.caches;Ok text_snapshot)
+  let cache_entries x ~renderer=List.assoc_opt renderer x.caches|>Option.fold~none:0~some:List.length
+  let release_renderer x ~renderer=live"Font.release_renderer"x(fun()->let entries=Option.value(List.assoc_opt renderer x.caches)~default:[]in destroy_entries entries;x.caches<-List.remove_assoc renderer x.caches;Ok())
+  let destroy x=main"Font.destroy"(fun()->if x.dead then Ok()else(destroy_entries(List.concat_map snd x.caches);x.caches<-[];match ttf"Font.destroy"(Sdl3_ttf.Font.destroy x.raw)with Error _ as e->e|Ok()->x.dead<-true;decr users;if!users=0 then ignore(Sdl3_ttf.Init.quit());Ok()))
+end
+
 module Assets=struct
   type t={mutable hooks:(unit->(unit,error)result)list;mutable dead:bool}
   let create()={hooks=[];dead=false}
