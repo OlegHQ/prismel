@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 5149,
+    "bound": 5174,
     "scope-excluded": 37,
-    "unreviewed": 99
+    "unreviewed": 74
   },
-  "classification_source_sha256": "bffa3194ea75226474e7ccac305cc4c018a0144add2dbccd5f194ce57ad140d3",
+  "classification_source_sha256": "6543a44ed0e9e8385c334b4824be212a4b88c3b9aba9340e6d35d1300aefd70b",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -1698,7 +1698,7 @@
           "line": 446
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "class:MTLArchitecture",
       "kind": "class",
@@ -1706,7 +1706,7 @@
       "macos_introduced": "14.0",
       "name": "MTLArchitecture",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the public checked Shader_argument_encoder descriptor value and copied immutable Device architecture snapshot, with exact typed round trips, owned encoder construction, and real ARC/native conformance.",
       "signature": ""
     },
     {
@@ -1742,7 +1742,7 @@
           "line": 391
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "class:MTLArgumentDescriptor",
       "kind": "class",
@@ -1750,7 +1750,7 @@
       "macos_introduced": "10.13",
       "name": "MTLArgumentDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the public checked Shader_argument_encoder descriptor value and copied immutable Device architecture snapshot, with exact typed round trips, owned encoder construction, and real ARC/native conformance.",
       "signature": ""
     },
     {
@@ -29522,7 +29522,7 @@
           "line": 391
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:+[MTLArgumentDescriptor argumentDescriptor]",
       "kind": "method",
@@ -29530,7 +29530,7 @@
       "macos_introduced": "10.13",
       "name": "argumentDescriptor",
       "owner": "MTLArgumentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the public checked Shader_argument_encoder descriptor value and copied immutable Device architecture snapshot, with exact typed round trips, owned encoder construction, and real ARC/native conformance.",
       "signature": "class () -> MTLArgumentDescriptor * _Nonnull"
     },
     {
@@ -45793,7 +45793,7 @@
           "line": 446
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLArchitecture name]",
       "kind": "method",
@@ -45801,7 +45801,7 @@
       "macos_introduced": "14.0",
       "name": "name",
       "owner": "MTLArchitecture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the public checked Shader_argument_encoder descriptor value and copied immutable Device architecture snapshot, with exact typed round trips, owned encoder construction, and real ARC/native conformance.",
       "signature": "instance () -> NSString * _Nonnull"
     },
     {
@@ -46134,7 +46134,7 @@
           "line": 391
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLArgumentDescriptor access]",
       "kind": "method",
@@ -46142,7 +46142,7 @@
       "macos_introduced": "10.13",
       "name": "access",
       "owner": "MTLArgumentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the public checked Shader_argument_encoder descriptor value and copied immutable Device architecture snapshot, with exact typed round trips, owned encoder construction, and real ARC/native conformance.",
       "signature": "instance () -> MTLBindingAccess"
     },
     {
@@ -46153,7 +46153,7 @@
           "line": 391
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLArgumentDescriptor arrayLength]",
       "kind": "method",
@@ -46161,7 +46161,7 @@
       "macos_introduced": "10.13",
       "name": "arrayLength",
       "owner": "MTLArgumentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the public checked Shader_argument_encoder descriptor value and copied immutable Device architecture snapshot, with exact typed round trips, owned encoder construction, and real ARC/native conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -46172,7 +46172,7 @@
           "line": 391
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLArgumentDescriptor constantBlockAlignment]",
       "kind": "method",
@@ -46180,7 +46180,7 @@
       "macos_introduced": "10.13",
       "name": "constantBlockAlignment",
       "owner": "MTLArgumentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the public checked Shader_argument_encoder descriptor value and copied immutable Device architecture snapshot, with exact typed round trips, owned encoder construction, and real ARC/native conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -46191,7 +46191,7 @@
           "line": 391
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLArgumentDescriptor dataType]",
       "kind": "method",
@@ -46199,7 +46199,7 @@
       "macos_introduced": "10.13",
       "name": "dataType",
       "owner": "MTLArgumentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the public checked Shader_argument_encoder descriptor value and copied immutable Device architecture snapshot, with exact typed round trips, owned encoder construction, and real ARC/native conformance.",
       "signature": "instance () -> MTLDataType"
     },
     {
@@ -46210,7 +46210,7 @@
           "line": 391
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLArgumentDescriptor index]",
       "kind": "method",
@@ -46218,7 +46218,7 @@
       "macos_introduced": "10.13",
       "name": "index",
       "owner": "MTLArgumentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the public checked Shader_argument_encoder descriptor value and copied immutable Device architecture snapshot, with exact typed round trips, owned encoder construction, and real ARC/native conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -46229,7 +46229,7 @@
           "line": 391
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLArgumentDescriptor setAccess:]",
       "kind": "method",
@@ -46237,7 +46237,7 @@
       "macos_introduced": "10.13",
       "name": "setAccess:",
       "owner": "MTLArgumentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the public checked Shader_argument_encoder descriptor value and copied immutable Device architecture snapshot, with exact typed round trips, owned encoder construction, and real ARC/native conformance.",
       "signature": "instance (MTLBindingAccess) -> void"
     },
     {
@@ -46248,7 +46248,7 @@
           "line": 391
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLArgumentDescriptor setArrayLength:]",
       "kind": "method",
@@ -46256,7 +46256,7 @@
       "macos_introduced": "10.13",
       "name": "setArrayLength:",
       "owner": "MTLArgumentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the public checked Shader_argument_encoder descriptor value and copied immutable Device architecture snapshot, with exact typed round trips, owned encoder construction, and real ARC/native conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -46267,7 +46267,7 @@
           "line": 391
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLArgumentDescriptor setConstantBlockAlignment:]",
       "kind": "method",
@@ -46275,7 +46275,7 @@
       "macos_introduced": "10.13",
       "name": "setConstantBlockAlignment:",
       "owner": "MTLArgumentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the public checked Shader_argument_encoder descriptor value and copied immutable Device architecture snapshot, with exact typed round trips, owned encoder construction, and real ARC/native conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -46286,7 +46286,7 @@
           "line": 391
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLArgumentDescriptor setDataType:]",
       "kind": "method",
@@ -46294,7 +46294,7 @@
       "macos_introduced": "10.13",
       "name": "setDataType:",
       "owner": "MTLArgumentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the public checked Shader_argument_encoder descriptor value and copied immutable Device architecture snapshot, with exact typed round trips, owned encoder construction, and real ARC/native conformance.",
       "signature": "instance (MTLDataType) -> void"
     },
     {
@@ -46305,7 +46305,7 @@
           "line": 391
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLArgumentDescriptor setIndex:]",
       "kind": "method",
@@ -46313,7 +46313,7 @@
       "macos_introduced": "10.13",
       "name": "setIndex:",
       "owner": "MTLArgumentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the public checked Shader_argument_encoder descriptor value and copied immutable Device architecture snapshot, with exact typed round trips, owned encoder construction, and real ARC/native conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -46324,7 +46324,7 @@
           "line": 391
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLArgumentDescriptor setTextureType:]",
       "kind": "method",
@@ -46332,7 +46332,7 @@
       "macos_introduced": "10.13",
       "name": "setTextureType:",
       "owner": "MTLArgumentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the public checked Shader_argument_encoder descriptor value and copied immutable Device architecture snapshot, with exact typed round trips, owned encoder construction, and real ARC/native conformance.",
       "signature": "instance (MTLTextureType) -> void"
     },
     {
@@ -46343,7 +46343,7 @@
           "line": 391
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLArgumentDescriptor textureType]",
       "kind": "method",
@@ -46351,7 +46351,7 @@
       "macos_introduced": "10.13",
       "name": "textureType",
       "owner": "MTLArgumentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the public checked Shader_argument_encoder descriptor value and copied immutable Device architecture snapshot, with exact typed round trips, owned encoder construction, and real ARC/native conformance.",
       "signature": "instance () -> MTLTextureType"
     },
     {
@@ -54892,7 +54892,7 @@
           "line": 480
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice architecture]",
       "kind": "method",
@@ -54900,7 +54900,7 @@
       "macos_introduced": "14.0",
       "name": "architecture",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the public checked Shader_argument_encoder descriptor value and copied immutable Device architecture snapshot, with exact typed round trips, owned encoder construction, and real ARC/native conformance.",
       "signature": "instance () -> MTLArchitecture * _Nonnull"
     },
     {
@@ -89059,7 +89059,7 @@
           "line": 446
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "property:MTLArchitecture:name",
       "kind": "property",
@@ -89067,7 +89067,7 @@
       "macos_introduced": "14.0",
       "name": "name",
       "owner": "MTLArchitecture",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the public checked Shader_argument_encoder descriptor value and copied immutable Device architecture snapshot, with exact typed round trips, owned encoder construction, and real ARC/native conformance.",
       "signature": "NSString * _Nonnull"
     },
     {
@@ -89400,7 +89400,7 @@
           "line": 391
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "property:MTLArgumentDescriptor:access",
       "kind": "property",
@@ -89408,7 +89408,7 @@
       "macos_introduced": "10.13",
       "name": "access",
       "owner": "MTLArgumentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the public checked Shader_argument_encoder descriptor value and copied immutable Device architecture snapshot, with exact typed round trips, owned encoder construction, and real ARC/native conformance.",
       "signature": "MTLBindingAccess"
     },
     {
@@ -89419,7 +89419,7 @@
           "line": 391
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "property:MTLArgumentDescriptor:arrayLength",
       "kind": "property",
@@ -89427,7 +89427,7 @@
       "macos_introduced": "10.13",
       "name": "arrayLength",
       "owner": "MTLArgumentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the public checked Shader_argument_encoder descriptor value and copied immutable Device architecture snapshot, with exact typed round trips, owned encoder construction, and real ARC/native conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -89438,7 +89438,7 @@
           "line": 391
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "property:MTLArgumentDescriptor:constantBlockAlignment",
       "kind": "property",
@@ -89446,7 +89446,7 @@
       "macos_introduced": "10.13",
       "name": "constantBlockAlignment",
       "owner": "MTLArgumentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the public checked Shader_argument_encoder descriptor value and copied immutable Device architecture snapshot, with exact typed round trips, owned encoder construction, and real ARC/native conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -89457,7 +89457,7 @@
           "line": 391
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "property:MTLArgumentDescriptor:dataType",
       "kind": "property",
@@ -89465,7 +89465,7 @@
       "macos_introduced": "10.13",
       "name": "dataType",
       "owner": "MTLArgumentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the public checked Shader_argument_encoder descriptor value and copied immutable Device architecture snapshot, with exact typed round trips, owned encoder construction, and real ARC/native conformance.",
       "signature": "MTLDataType"
     },
     {
@@ -89476,7 +89476,7 @@
           "line": 391
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "property:MTLArgumentDescriptor:index",
       "kind": "property",
@@ -89484,7 +89484,7 @@
       "macos_introduced": "10.13",
       "name": "index",
       "owner": "MTLArgumentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the public checked Shader_argument_encoder descriptor value and copied immutable Device architecture snapshot, with exact typed round trips, owned encoder construction, and real ARC/native conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -89495,7 +89495,7 @@
           "line": 391
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "property:MTLArgumentDescriptor:textureType",
       "kind": "property",
@@ -89503,7 +89503,7 @@
       "macos_introduced": "10.13",
       "name": "textureType",
       "owner": "MTLArgumentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the public checked Shader_argument_encoder descriptor value and copied immutable Device architecture snapshot, with exact typed round trips, owned encoder construction, and real ARC/native conformance.",
       "signature": "MTLTextureType"
     },
     {
@@ -92559,7 +92559,7 @@
           "line": 480
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "property:MTLDevice:architecture",
       "kind": "property",
@@ -92567,7 +92567,7 @@
       "macos_introduced": "14.0",
       "name": "architecture",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the public checked Shader_argument_encoder descriptor value and copied immutable Device architecture snapshot, with exact typed round trips, owned encoder construction, and real ARC/native conformance.",
       "signature": "MTLArchitecture * _Nonnull"
     },
     {

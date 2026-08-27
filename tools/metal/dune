@@ -124,6 +124,7 @@
   binding_intersection_table8_native_closure
   binding_intersection_table7_safe_package
   binding_function_stitching7_safe_package
+  binding_device_descriptor_value_safe_package
   binding_capture_scope_tail_handoff
   binding_event_tail_handoff
   binding_event4_safe_closure
@@ -850,6 +851,11 @@
 (test
  (name test_binding_function_stitching7_safe_package)
  (modules test_binding_function_stitching7_safe_package)
+ (libraries metal_inventory_classification))
+
+(test
+ (name test_binding_device_descriptor_value_safe_package)
+ (modules test_binding_device_descriptor_value_safe_package)
  (libraries metal_inventory_classification))
 
 (test
