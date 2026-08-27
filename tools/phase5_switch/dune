@@ -1,0 +1,11 @@
+(executable
+ (name phase5_switch)
+ (modules phase5_switch)
+ (libraries unix yojson))
+
+(test
+ (name test_phase5_switch_manifest)
+ (modules test_phase5_switch_manifest)
+ (libraries yojson)
+ (deps ../../specification/evidence/gpu_migration/phase5_atomic_switch_manifest.json)
+ (action (run %{test} %{dep:../../specification/evidence/gpu_migration/phase5_atomic_switch_manifest.json})))

@@ -1,0 +1,15 @@
+{
+ "schema":1,
+ "delete":["tsdl_gfx/discover.ml","tsdl_gfx/dune","tsdl_gfx/tsdl_gfx.ml","tsdl_gfx/tsdl_gfx.mli","tsdl_gfx/tsdl_gfx_stubs.c","lib/prismel/renderer3d_gpu.ml","lib/prismel/sdl_compat.ml","test/headless_smoke.ml"],
+ "replace":[
+  "lib/runtime/runtime.ml","lib/runtime/runtime.mli","lib/runtime/target.ml","lib/runtime/dune",
+  "lib/prismel/app.ml","lib/prismel/audio.ml","lib/prismel/canvas.ml","lib/prismel/event.ml","lib/prismel/font.ml","lib/prismel/graphics.ml","lib/prismel/image.ml","lib/prismel/image_snapshot.ml","lib/prismel/preview.ml","lib/prismel/renderer3d.ml","lib/prismel/scene.ml","lib/prismel/texture.ml","lib/prismel/time.ml","lib/prismel/window.ml",
+  "lib/prismel/app.mli","lib/prismel/backend.mli","lib/prismel/font.mli","lib/prismel/graphics.mli","lib/prismel/image.mli","lib/prismel/scene.mli","lib/prismel/window.mli",
+  "lib/prismel/canvas_raster2_snapshot_test.ml","lib/prismel/font_raster2_snapshot_test.ml","lib/prismel/image_raster2_snapshot_test.ml",
+  "lib/prismel/dune","dune-project","prismel.opam",
+  "README.md","AGENTS.md","specification/3d-parity.md","specification/3d.md","specification/api.md","specification/backend.md","specification/color.md","specification/composition.md","specification/geom.md","specification/graphics.md","specification/image.md","specification/input.md","specification/packaging.md","specification/performance.md","specification/project.md","specification/vec2-mat3.md","specification/window.md","specification/workflow.md"],
+ "required_public_modules":["Runtime_next_compat","Prismel","Sketch","Scene","Image","Font","Canvas","Audio"],
+ "forbidden_dependencies":["tsdl_gfx","Tsdl","SDL2","tsdl-image","tsdl-ttf","tsdl-mixer","conf-sdl2","OpenGL"],
+ "forbidden_link_names":["libSDL2","libSDL2_gfx","libSDL2_image","libSDL2_ttf","libSDL2_mixer","OpenGL.framework"],
+ "historical_text_allowlist":["OPTIMIZATION_PLAN.md","NEW_GPU_STUFF.md","specification/evidence/gpu_migration","tools/gpu_migration/capture_environment.ml","tools/gpu_migration/fixture_manifest.ml","tools/gpu_migration/run_baseline_benchmarks.ml","lib/sdl3/generated_inventory.json"]
+}
