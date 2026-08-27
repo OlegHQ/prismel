@@ -128,6 +128,51 @@ let self_test () =
       | _ -> failwith "public exponential fog lowering")
     fog_scenes;
   if prepared.draws.(0).vertices.(0).normal.z<>1. then failwith"authored normal lost";
+  let shared_vertices =
+    [
+      Vec3.create (-0.5) (-0.5) 0.;
+      Vec3.create 0.5 (-0.5) 0.;
+      Vec3.create (-0.5) 0.5 0.;
+      Vec3.create 0.5 0.5 0.5;
+    ]
+  in
+  let authored_normals =
+    [ Vec3.unit_z; Vec3.unit_z; Vec3.create 0. 0.7 0.7; Vec3.create 0.7 0. 0.7 ]
+  in
+  let reversed_normals = List.map (fun value -> Vec3.scale value (-1.)) authored_normals in
+  let shared_mesh normals =
+    Mesh.create_exn ~indices:[ 0; 1; 2; 2; 1; 3 ] ~normals shared_vertices
+  in
+  let shading_scene =
+    Scene3.create
+      [
+        Scene3.mesh ~material ~shading:Scene3.Smooth (shared_mesh authored_normals);
+        Scene3.mesh ~material ~shading:Scene3.Flat (shared_mesh authored_normals);
+        Scene3.mesh ~material ~shading:Scene3.Smooth (shared_mesh reversed_normals);
+      ]
+  in
+  let shading_prepared =
+    match
+      lower_view3d ~resources ~default_viewport:(0, 0, 16, 16)
+        (View3d (camera, shading_scene, None))
+    with
+    | Ok value -> value
+    | Error _ -> failwith "public shading lowering"
+  in
+  begin
+    match shading_prepared.draws.(0).shading, shading_prepared.draws.(1).shading,
+      shading_prepared.draws.(2).shading with
+    | Raster2.Scene3_consumer.Smooth, Flat, Smooth -> ()
+    | _ -> failwith "public shading mode lost"
+  end;
+  List.iteri
+    (fun index expected ->
+      let actual = shading_prepared.draws.(0).vertices.(index).normal in
+      if actual <> vec expected then failwith "authored per-vertex normal lost";
+      let reversed = shading_prepared.draws.(2).vertices.(index).normal in
+      if reversed <> vec (List.nth reversed_normals index) then
+        failwith "orientation-reversed terminal normal lost")
+    authored_normals;
   let draw=prepared.draws.(0)in
   begin match draw.lighting.lights.(1)with
   | Raster2.Scene3_lighting.Spot value when value.concentration=7.->()

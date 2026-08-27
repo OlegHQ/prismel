@@ -204,9 +204,78 @@ let test_non_triangle (topology, indices, expanded, name) =
     failwith (name ^ " source width/size ignored");
   if not (changed_depth thin) then failwith (name ^ " source depth state ignored")
 
+let render_shading shading ~reversed =
+  let color = ok (Surface.create ~width:16 ~height:12 ()) in
+  let normal x y z = { Scene3_lighting.x = x; y; z } in
+  let authored =
+    if reversed then
+      [| normal 0. 0. (-1.); normal 0. 0. (-1.); normal 0. 0. (-1.); normal 0. 0. (-1.) |]
+    else
+      [| normal 0. 0. 1.; normal 0. 0. 1.; normal 0. 0.7 0.7; normal 0.7 0. 0.7 |]
+  in
+  let positions =
+    [| normal (-0.8) (-0.8) 0.; normal 0.8 (-0.8) 0.; normal (-0.8) 0.8 0.; normal 0.8 0.8 0.7 |]
+  in
+  let vertices =
+    Array.mapi
+      (fun index position ->
+        { Scene3_consumer.position; normal = authored.(index); color = 0xffffffffl; u = 0.; v = 0. })
+      positions
+  in
+  let draw =
+    {
+      Scene3_consumer.matrix;
+      viewport = { Scene3.x = 0.; y = 0.; width = 16.; height = 12.; min_depth = 0.; max_depth = 1. };
+      scissor = { Triangle.x = 0; y = 0; width = 16; height = 12 };
+      topology = Scene3.Triangle_list;
+      vertices;
+      indices = [| 0; 1; 2; 2; 1; 3 |];
+      lighting;
+      shadows = [| None |];
+      shading;
+      texture = None;
+      cull = Triangle.Cull_none;
+      blend = Composite.Copy;
+      depth_stencil;
+      mode = Faces;
+      line_width = 1.;
+      point_size = 1.;
+    }
+  in
+  ok
+    (Scene3_consumer.render ~target:{ color; depth = None; multisample = None }
+       ~clear:0x000000ffl ~clear_depth:1. ~clear_stencil:0 ~draws:[| draw |]);
+  Bytes.copy (Surface.bytes color)
+
+let test_shading () =
+  let flat = render_shading Flat ~reversed:false in
+  let smooth = render_shading Smooth ~reversed:false in
+  let reversed = render_shading Smooth ~reversed:true in
+  if flat = smooth then failwith "flat/smooth shared-vertex pixels identical";
+  if smooth = reversed then failwith "orientation-reversed authored normals lost";
+  for _frame = 1 to 600 do
+    if render_shading Flat ~reversed:false <> flat
+       || render_shading Smooth ~reversed:false <> smooth
+       || render_shading Smooth ~reversed:true <> reversed then
+      failwith "flat/smooth frame drift"
+  done;
+  let workers =
+    Array.init 4 (fun _ ->
+        Domain.spawn (fun () ->
+            ( render_shading Flat ~reversed:false,
+              render_shading Smooth ~reversed:false,
+              render_shading Smooth ~reversed:true )))
+  in
+  Array.iter
+    (fun worker ->
+      if Domain.join worker <> (flat, smooth, reversed) then
+        failwith "flat/smooth domain drift")
+    workers
+
 let () =
   List.iter test_case cases;
   List.iter test_non_triangle non_triangle_cases;
+  test_shading ();
   let target = ok (Surface.create ~width:2 ~height:2 ()) in
   let before = Bytes.copy (Surface.bytes target) in
   ok

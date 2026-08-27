@@ -117,7 +117,7 @@ fields are ignored or not integrated and therefore cannot count as parity.
 | Texture wrap U/V | I/T | Public clamp, repeat and mirror map independently for U/V without replacing the resolved texture identity. Exact outside-range UV fixtures cover every address mode through the triangle consumer. |
 | Functional `Shader3` | R/T | Explicit `Unsupported_shader` (`e813369`, `d199322`). |
 | Cull none/back/front | I/T | Raster2 mapping and ordered portable state (`e813369`, `d199322`). |
-| Smooth/flat shading | I/U | Both modes map into consumer draws and Smooth has an authored-normal fixture. Flat normal generation has no dedicated pixel golden yet. |
+| Smooth/flat shading | I/T | Public modes lower end to end. Flat performs stable per-triangle expansion so shared vertices retain distinct geometric face normals; Smooth preserves authored per-vertex normals, including orientation-reversed Boolean-style terminal normals. Bent shared-vertex pixel goldens distinguish both modes through frame 600 and one/four domains. |
 | Blend Replace/Alpha/Add/Multiply/Screen/Subtract | I/T | Complete Raster2 mapping; Alpha checked in ordered state (`e813369`, `d199322`). Per-mode pixels incomplete. |
 | `depth_clear` | I/T | Scene3 consumer plus private OGPU draw state (`ba92d55`, `d199322`). |
 | `with_depth` comparison/write | I/T | Every comparison and write flag maps to per-draw packed Depth_stencil state. Nested override/restore plus pass/fail behavior, frame 600 and four-domain snapshots are exercised. |
@@ -128,7 +128,7 @@ fields are ignored or not integrated and therefore cannot count as parity.
 | Private portable draw submission | I/T | Prepared 2D/Scene3 vertex and index bytes are written once, then submitted as exact Backend render bindings. Consecutive pass-compatible draws batch in order; only incompatible pass-level state splits. A 1,000-primitive fixture proves one render submission per frame, zero replacement uploads through frame 600, exact payload order/cardinality, bounded teardown, and one/four-domain equality. Runtime selection and real Metal pixel parity remain missing. |
 
 The remaining local gaps are dedicated fixtures for already-mapped convenience
-constructors, per-vertex color policy, Flat pixel output, and focused rejection
+constructors, per-vertex color policy, and focused rejection
 tests for area lights/metadata. They do not repair the material external gates
 above.
 The public Scene3 sampling surface is fully represented. Explicit user-selected
