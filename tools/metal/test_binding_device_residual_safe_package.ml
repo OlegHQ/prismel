@@ -3,7 +3,7 @@ let fail message = invalid_arg ("Device residual safe package: " ^ message)
 let () =
   Binding_device_residual_safe_package.validate ();
   let source =
-    In_channel.with_open_bin "lib/metal/generated_api_inventory.json"
+    In_channel.with_open_bin "../../lib/metal/generated_api_inventory.json"
       In_channel.input_all
   in
   let inventory = Yojson.Safe.from_string source in

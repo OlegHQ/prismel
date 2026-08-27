@@ -1360,7 +1360,8 @@
 (test
  (name test_binding_command_buffer19_safe_closure)
  (modules test_binding_command_buffer19_safe_closure)
- (libraries metal_inventory_classification))
+ (libraries metal_inventory_classification)
+ (deps test_command_buffer19_descriptor_lifecycle_native.mm))
 
 (executable
  (name generate_inventory)

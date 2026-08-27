@@ -4,7 +4,7 @@ let () =
   if List.sort_uniq String.compare ids <> List.sort String.compare ids then
     failwith "CommandBuffer19 closure contains duplicates";
   let native = In_channel.with_open_text
-      "tools/metal/test_command_buffer19_descriptor_lifecycle_native.mm"
+      "test_command_buffer19_descriptor_lifecycle_native.mm"
       In_channel.input_all in
   let contains text needle =
     let n = String.length needle in
