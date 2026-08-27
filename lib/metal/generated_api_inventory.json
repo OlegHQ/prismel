@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 5242,
+    "bound": 5248,
     "scope-excluded": 37,
-    "unreviewed": 6
+    "unreviewed": 0
   },
-  "classification_source_sha256": "ac198a6a62cdd7dc8a75ba4b81601ef7a9f09c6afec6a40f929dd47f890722c6",
+  "classification_source_sha256": "462023864a867abf07dea1f09f14587ea91204271a48d7a5ec7030fda8fa1b81",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -55017,7 +55017,7 @@
           "line": 1120
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice convertSparsePixelRegions:toTileRegions:withTileSize:alignmentMode:numRegions:]",
       "kind": "method",
@@ -55025,7 +55025,7 @@
       "macos_introduced": "11.0",
       "name": "convertSparsePixelRegions:toTileRegions:withTileSize:alignmentMode:numRegions:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by checked Device sparse-region conversion, sample-position and timestamp APIs with exact array cardinality, availability gating, and real native-device conformance.",
       "signature": "instance (const MTLRegion * _Nonnull, MTLRegion * _Nonnull, MTLSize, MTLSparseTextureRegionAlignmentMode, NSUInteger) -> void"
     },
     {
@@ -55042,7 +55042,7 @@
           "line": 1130
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice convertSparseTileRegions:toPixelRegions:withTileSize:numRegions:]",
       "kind": "method",
@@ -55050,7 +55050,7 @@
       "macos_introduced": "11.0",
       "name": "convertSparseTileRegions:toPixelRegions:withTileSize:numRegions:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by checked Device sparse-region conversion, sample-position and timestamp APIs with exact array cardinality, availability gating, and real native-device conformance.",
       "signature": "instance (const MTLRegion * _Nonnull, MTLRegion * _Nonnull, MTLSize, NSUInteger) -> void"
     },
     {
@@ -55167,7 +55167,7 @@
           "line": 962
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice getDefaultSamplePositions:count:]",
       "kind": "method",
@@ -55175,7 +55175,7 @@
       "macos_introduced": "10.13",
       "name": "getDefaultSamplePositions:count:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by checked Device sparse-region conversion, sample-position and timestamp APIs with exact array cardinality, availability gating, and real native-device conformance.",
       "signature": "instance (MTLSamplePosition * _Nonnull, NSUInteger) -> void"
     },
     {
@@ -57467,7 +57467,7 @@
           "line": 1517
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice queryTimestampFrequency]",
       "kind": "method",
@@ -57475,7 +57475,7 @@
       "macos_introduced": "26.0",
       "name": "queryTimestampFrequency",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by checked Device sparse-region conversion, sample-position and timestamp APIs with exact array cardinality, availability gating, and real native-device conformance.",
       "signature": "instance () -> uint64_t"
     },
     {
@@ -57567,7 +57567,7 @@
           "line": 1185
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice sampleTimestamps:gpuTimestamp:]",
       "kind": "method",
@@ -57575,7 +57575,7 @@
       "macos_introduced": "10.15",
       "name": "sampleTimestamps:gpuTimestamp:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by checked Device sparse-region conversion, sample-position and timestamp APIs with exact array cardinality, availability gating, and real native-device conformance.",
       "signature": "instance (MTLTimestamp * _Nonnull, MTLTimestamp * _Nonnull) -> void"
     },
     {
@@ -57642,7 +57642,7 @@
           "line": 1511
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice sizeOfCounterHeapEntry:]",
       "kind": "method",
@@ -57650,7 +57650,7 @@
       "macos_introduced": "26.0",
       "name": "sizeOfCounterHeapEntry:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by checked Device sparse-region conversion, sample-position and timestamp APIs with exact array cardinality, availability gating, and real native-device conformance.",
       "signature": "instance (MTL4CounterHeapType) -> NSUInteger"
     },
     {

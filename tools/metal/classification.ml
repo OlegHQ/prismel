@@ -1895,6 +1895,7 @@ let device_legacy_io_safe2 = Binding_device_remaining6_safe_package.io_alias_ids
 let device_final_safe4 = Binding_device_final4_safe_package.ids
 let device_async_safe9 = Binding_device_async9_safe_package.ids
 let device_final_constructors_safe3 = Binding_device_final_constructors3_safe_package.ids
+let device_spatial_timestamp_safe6 = Binding_device_spatial_timestamp6_safe_closure.callable_ids
 
 let classify ~unavailable ~identifier ~header ~kind ~signature =
   if unavailable then
@@ -2139,6 +2140,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier Binding_device_capability13_safe_package.ids then
     Bound,
       "Implemented by the typed Device capability snapshot and checked scalar query/mutation API, with exact direct selectors, enum/range validation, copied counter metadata, and real mutation-restore conformance."
+  else if List.mem identifier device_spatial_timestamp_safe6 then
+    Bound,
+      "Implemented by checked Device sparse-region conversion, sample-position and timestamp APIs with exact array cardinality, availability gating, and real native-device conformance."
   else if List.mem identifier small_header_safe24 then
     Bound,
       "Represented by the existing public owned safe API for this exact small-header type or selector, with copied metadata, checked device/lifetime/range semantics, and its family native conformance fixture."
