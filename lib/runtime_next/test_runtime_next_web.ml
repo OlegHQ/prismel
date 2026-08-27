@@ -29,7 +29,12 @@ let draw extent =
   {
     Scene_execution.mesh = mesh extent;
     state =
-      { viewport = (0, 0, extent, extent); scissor = (0, 0, extent, extent) };
+      { viewport = (0, 0, extent, extent); scissor = (0, 0, extent, extent);
+        cull = Ogpu.Render_pass.Cull_none;
+        depth_compare = Ogpu.Render_pass.Always; depth_write = false;
+        depth_load = Ogpu.Render_pass.Clear; depth_clear = 1.;
+        transform_uniforms = None; stencil_state = None;
+        stencil_load = Ogpu.Render_pass.Clear; stencil_clear = 0 };
   }
 
 let () =
@@ -77,7 +82,7 @@ let () =
   let stats = Web.stats runtime in
   if stats.frames_submitted <> 100_601 || stats.frames_suppressed < 100_598 then
     failwith "slow-client stale-frame storage is not bounded";
-  if Web.backend_live_counts runtime <> (2, 1, 6, 1, 1) then
+  if Web.backend_live_counts runtime <> (2, 3, 6, 1, 1) then
     failwith "web long-run object counts grew";
   let trace_length, dropped_traces = Web.backend_trace_stats runtime in
   if trace_length > 256 || dropped_traces = 0 then

@@ -13,7 +13,11 @@ let mesh extent =
 
 let draw extent =
   {Scene_execution.mesh=mesh extent;
-    state={viewport=(0,0,extent,extent);scissor=(0,0,extent,extent)}}
+    state={viewport=(0,0,extent,extent);scissor=(0,0,extent,extent);
+      cull=Ogpu.Render_pass.Cull_none;depth_compare=Ogpu.Render_pass.Always;
+      depth_write=false;depth_load=Ogpu.Render_pass.Clear;depth_clear=1.;
+      transform_uniforms=None;stencil_state=None;
+      stencil_load=Ogpu.Render_pass.Clear;stencil_clear=0}}
 
 let expect_pixels runtime extent =
   let pitch=extent*4 in let rendered=get(Headless.read_pixels runtime~bytes_per_row:pitch)
@@ -30,7 +34,7 @@ let () =
     ~drawable_width:8~drawable_height:8);
   ignore(get(Headless.render runtime[draw 8]));expect_pixels runtime 8;
   for _cycle=1 to 100_000 do ignore(get(Headless.render runtime[draw 8]))done;
-  if Headless.backend_live_counts runtime<>(2,1,6,1,1)then
+  if Headless.backend_live_counts runtime<>(2,3,6,1,1)then
     failwith"headless long-run object counts grew";
   let trace_length, dropped_traces = Headless.backend_trace_stats runtime in
   if trace_length > 256 || dropped_traces = 0 then

@@ -31,7 +31,12 @@ let mesh extent =
 let draw extent =
   { Scene_execution.mesh = mesh extent;
     state = { viewport = (0, 0, extent, extent);
-      scissor = (0, 0, extent, extent) } }
+      scissor = (0, 0, extent, extent);
+      cull = Ogpu.Render_pass.Cull_none;
+      depth_compare = Ogpu.Render_pass.Always; depth_write = false;
+      depth_load = Ogpu.Render_pass.Clear; depth_clear = 1.;
+      transform_uniforms = None; stencil_state = None;
+      stencil_load = Ogpu.Render_pass.Clear; stencil_clear = 0 } }
 
 let configuration ?wap_config target extent =
   { Orchestrator.target; logical_width = extent; logical_height = extent;
@@ -54,7 +59,7 @@ let exercise_native runtime extent =
   Bytes.set_int32_le indices 4 1l;Bytes.set_int32_le indices 8 2l;
   List.iteri(fun index(x,y)->let offset=index*16 in Bytes.set_int32_le vertices offset(Int32.bits_of_float x);Bytes.set_int32_le vertices(offset+4)(Int32.bits_of_float y);Bytes.set_int32_le vertices(offset+8)0x4080bfffl)[-1.,-1.;3.,-1.;-1.,3.];
   let mesh={Scene_execution.key="selector-native";vertices;vertex_count=3;indices;index_count=3}in
-  ignore(get(Orchestrator.render runtime[{Scene_execution.mesh;state={viewport=(0,0,extent,extent);scissor=(0,0,extent,extent)}}]));
+  ignore(get(Orchestrator.render runtime[{Scene_execution.mesh;state={viewport=(0,0,extent,extent);scissor=(0,0,extent,extent);cull=Ogpu.Render_pass.Cull_none;depth_compare=Ogpu.Render_pass.Always;depth_write=false;depth_load=Ogpu.Render_pass.Clear;depth_clear=1.;transform_uniforms=None;stencil_state=None;stencil_load=Ogpu.Render_pass.Clear;stencil_clear=0}}]));
   if Bytes.get_int32_be(get(Orchestrator.capture runtime~bytes_per_row:(extent*4)))0<>0x4080bfffl then failwith"native capture did not return rendered pixels"
 
 let () =

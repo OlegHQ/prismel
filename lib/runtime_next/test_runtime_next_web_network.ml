@@ -100,7 +100,11 @@ let mesh extent =
   {Scene_execution.key="network-"^string_of_int extent;vertices;vertex_count=3;indices;index_count=3}
 
 let draw extent = {Scene_execution.mesh=mesh extent;
-  state={viewport=(0,0,extent,extent);scissor=(0,0,extent,extent)}}
+  state={viewport=(0,0,extent,extent);scissor=(0,0,extent,extent);
+    cull=Ogpu.Render_pass.Cull_none;depth_compare=Ogpu.Render_pass.Always;
+    depth_write=false;depth_load=Ogpu.Render_pass.Clear;depth_clear=1.;
+    transform_uniforms=None;stencil_state=None;
+    stencil_load=Ogpu.Render_pass.Clear;stencil_clear=0}}
 
 let wait_events runtime expected =
   let deadline = Unix.gettimeofday () +. 3. in
@@ -150,7 +154,7 @@ let () =
     Unix.close socket;
     if Runtime_next_web.backend_trace_stats runtime|>fst>256 then fail"trace bound";
     let buffers,textures,pipelines,queues,surfaces=Runtime_next_web.backend_live_counts runtime in
-    if (buffers,textures,pipelines,queues,surfaces)<>(2,1,6,1,1)then
+    if (buffers,textures,pipelines,queues,surfaces)<>(2,3,6,1,1)then
       fail(Printf.sprintf"live bound %d,%d,%d,%d,%d"buffers textures pipelines queues surfaces));
   if Runtime_next_web.backend_live_counts runtime<>(0,0,0,0,0)then fail"teardown";
   print_endline"runtime-next web network: auth/frame/slow/33-event/reconnect passed"
