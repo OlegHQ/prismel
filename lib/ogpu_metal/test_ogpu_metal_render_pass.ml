@@ -59,6 +59,16 @@ let ()=match Device.system_default()with Error _->print_endline"ogpu_metal rende
       get(Queue.wait_through queue receipt.epoch);
       if List.mem frame[1;2;60;600]then let pixels=get(Texture.read_bytes device target~mip_level:0~bytes_per_row:16)in if byte pixels 0 0 1<>255 then failwith"Command4 stencil pass pixel mismatch"
     done;
+    let execute ~load ~clear ~state ~color=
+      let attachment={stencil_attachment with load;clear}in
+      let pass=get(Ogpu.Render_pass.create~stencil_state:state(Device.Private.handle device){colors=[|Some{texture=color_texture;resolve=None;load=Clear;store=Store;clear=color}|];depth=None;stencil=Some attachment;viewport={x=0;y=0;width=4;height=4};scissor={x=0;y=0;width=4;height=4}})in
+      let encoded=get(Render_pass.create device pass~attachments:[target;stencil_texture]stencil_draw)in
+      let receipt=get(Queue.submit_render_pass queue encoded)in get(Queue.wait_through queue receipt.epoch)
+    in
+    let comparisons=Ogpu.Render_pass.[Never,false;Less,false;Equal,true;Less_equal,true;Greater,false;Not_equal,false;Greater_equal,true;Always,true]in
+    List.iter(fun(compare,passes)->let compare_face:Ogpu.Render_pass.stencil_face={face with compare;pass=Keep}in let compare_state:Ogpu.Render_pass.stencil_state={front=compare_face;back=compare_face;front_reference=9l;back_reference=9l}in execute~load:Clear~clear:9~state:compare_state~color:(1.,0.,0.,1.);let pixels=get(Texture.read_bytes device target~mip_level:0~bytes_per_row:16)in if(byte pixels 0 0 1=255)<>passes then failwith"Command4 stencil comparison pixel mismatch")comparisons;
+    let operations=Ogpu.Render_pass.[Keep,3;Zero,0;Replace,5;Increment_clamp,4;Decrement_clamp,2;Invert,252;Increment_wrap,4;Decrement_wrap,2]in
+    List.iter(fun(operation,expected)->let update_face:Ogpu.Render_pass.stencil_face={face with pass=operation}in let update_state:Ogpu.Render_pass.stencil_state={front=update_face;back=update_face;front_reference=5l;back_reference=5l}in execute~load:Clear~clear:3~state:update_state~color:(0.,0.,0.,1.);let verify_face:Ogpu.Render_pass.stencil_face={face with compare=Equal;pass=Keep}in let verify_state:Ogpu.Render_pass.stencil_state={front=verify_face;back=verify_face;front_reference=Int32.of_int expected;back_reference=Int32.of_int expected}in execute~load:Load~clear:0~state:verify_state~color:(1.,0.,0.,1.);let pixels=get(Texture.read_bytes device target~mip_level:0~bytes_per_row:16)in if byte pixels 0 0 1<>255 then failwith"Command4 stencil operation pixel mismatch")operations;
     get(Texture.destroy stencil_texture));
   let limits=(Device.capabilities device).Ogpu.Capabilities.limits in
   let unsupported={descriptor with sample_count=2;vertex_entry="msaa_vertex"}in expect Ogpu.Error.Invalid_argument(Pipeline.create_render cache device unsupported);
