@@ -107,7 +107,7 @@
  (modules gpu_dependency_direction)
  (deps ../lib/prismel/dune ../lib/runtime/dune ../lib/wap/dune
   ../lib/sdl3/dune ../lib/sdl3_image/dune ../lib/sdl3_ttf/dune
-  ../lib/sdl3_mixer/dune ../lib/metal/dune)
+  ../lib/sdl3_mixer/dune ../lib/metal/dune ../lib/ogpu/dune)
  (action
   (run %{test}
    %{dep:../lib/prismel/dune}

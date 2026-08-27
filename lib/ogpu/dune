@@ -1,0 +1,9 @@
+(library
+ (name ogpu)
+ (public_name prismel.ogpu)
+ (modules Error Handle Capabilities Types))
+
+(test
+ (name test_ogpu_foundation)
+ (modules test_ogpu_foundation)
+ (libraries ogpu))

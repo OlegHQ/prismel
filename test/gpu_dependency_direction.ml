@@ -171,7 +171,7 @@ let verify_negative_test graph =
   check "ogpu_metal" "runtime"
 
 let require_current_foundations graph =
-  [ "sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal"; "runtime"
+  [ "sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal"; "ogpu"; "runtime"
   ; "wap"
   ]
   |> List.iter (fun required ->
