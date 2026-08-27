@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 5115,
+    "bound": 5120,
     "scope-excluded": 37,
-    "unreviewed": 133
+    "unreviewed": 128
   },
-  "classification_source_sha256": "734f55f79db7b0e3d58e31f4739bb11935e9b8a7b97a0ec7db143605e400a6ec",
+  "classification_source_sha256": "a189f5b66c4f85deab1d906c75aa03ed34b0b72cd74a2e8cfc18c3be8d9fdefe",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -2790,7 +2790,7 @@
           "line": 128
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "class:MTLRasterizationRateLayerArray",
       "kind": "class",
@@ -2798,7 +2798,7 @@
       "macos_introduced": "10.15.4",
       "name": "MTLRasterizationRateLayerArray",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by the public RasterizationRate layer/descriptor/map types and immutable sample/layer arrays, with one- and multi-layer native map conformance and capability rejection.",
       "signature": ""
     },
     {
@@ -2812,7 +2812,7 @@
           "line": 45
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "class:MTLRasterizationRateLayerDescriptor",
       "kind": "class",
@@ -2820,7 +2820,7 @@
       "macos_introduced": "10.15.4",
       "name": "MTLRasterizationRateLayerDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by the public RasterizationRate layer/descriptor/map types and immutable sample/layer arrays, with one- and multi-layer native map conformance and capability rejection.",
       "signature": ""
     },
     {
@@ -2834,7 +2834,7 @@
           "line": 152
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "class:MTLRasterizationRateMapDescriptor",
       "kind": "class",
@@ -2842,7 +2842,7 @@
       "macos_introduced": "10.15.4",
       "name": "MTLRasterizationRateMapDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by the public RasterizationRate layer/descriptor/map types and immutable sample/layer arrays, with one- and multi-layer native map conformance and capability rejection.",
       "signature": ""
     },
     {
@@ -2856,7 +2856,7 @@
           "line": 16
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "class:MTLRasterizationRateSampleArray",
       "kind": "class",
@@ -2864,7 +2864,7 @@
       "macos_introduced": "10.15.4",
       "name": "MTLRasterizationRateSampleArray",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by the public RasterizationRate layer/descriptor/map types and immutable sample/layer arrays, with one- and multi-layer native map conformance and capability rejection.",
       "signature": ""
     },
     {
@@ -105577,7 +105577,7 @@
           "line": 243
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRasterizationRate.h",
       "id": "protocol:MTLRasterizationRateMap",
       "kind": "protocol",
@@ -105585,7 +105585,7 @@
       "macos_introduced": "10.15.4",
       "name": "MTLRasterizationRateMap",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by the public RasterizationRate layer/descriptor/map types and immutable sample/layer arrays, with one- and multi-layer native map conformance and capability rejection.",
       "signature": ""
     },
     {
