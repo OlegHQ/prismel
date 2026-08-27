@@ -33,11 +33,12 @@ int main()
         (void)exception;
         return 3;
       }
-      fence = nil;
-      /* The encoded command graph must retain the fence through finalization. */
-      if (weak_fence == nil) return 4;
       [consumer endEncoding];
       [command endCommandBuffer];
+      /* MTLFence is unretained command metadata. Keep the application-owned
+         fence alive until every encoder referring to it has ended. */
+      if (weak_fence == nil) return 4;
+      fence = nil;
       consumer = nil;
       producer = nil;
       command = nil;

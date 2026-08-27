@@ -13695,19 +13695,10 @@ module Command4 = struct
     let device(value:t)=value.device
     let destroyed(value:t)=is_destroyed value.lifetime
     let destroy (value:t) =
-      on_main "Metal.Command4.Log_state.destroy" (fun () ->
-        if Atomic.compare_and_set value.lifetime.destroyed false true then begin
-          List.iter (fun (handler:command4_log_handler) ->
-            if handler.handler_active then begin
-              Metal_raw.log_state_handler_cancel handler.token;
-              handler.handler_active <- false;
-              detach value.lifetime
-            end) value.log_handlers;
+      destroy_parent "Metal.Command4.Log_state.destroy" value.lifetime value.raw
+        (fun () ->
           value.log_handlers <- [];
-          ignore (Metal_raw.destroy value.raw);
-          detach value.device.lifetime;
-          Ok ()
-        end else Ok ())
+          detach value.device.lifetime)
   end
   module Command_buffer_options = struct
     type t=command4_buffer_options
