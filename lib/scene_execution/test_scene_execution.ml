@@ -42,7 +42,46 @@ let auxiliary_lifecycle renderer control mesh state =
   Ogpu.Backend_mock.clear_trace control;
   ignore(get(Scene_execution.render_resources renderer[Scene2,Ogpu.Pipeline.Replace,Some primary,Some first,draw;Scene2,Ogpu.Pipeline.Replace,Some primary,Some second,draw]));
   let renders=Ogpu.Backend_mock.trace control|>List.filter(String.starts_with~prefix:"render:")in
-  if List.length renders<>2 then failwith"distinct auxiliary resources batched together"
+  if List.length renders<>1 then failwith"distinct per-draw auxiliary resources split a compatible pass"
+let mixed_scene2_batching () =
+  let driver,control=Ogpu.Backend_mock.create()in
+  let configuration:Ogpu.Surface.configuration={logical_width=8;logical_height=8;physical_width=8;physical_height=8;format=Rgba8_unorm;present_mode=Fifo;max_acquired=2}in
+  let renderer=get(Scene_execution.create_variants driver configuration)in
+  let indices=Bytes.make 12 '\000'in Bytes.set_int32_le indices 4 1l;Bytes.set_int32_le indices 8 2l;
+  let mesh key:Scene_execution.mesh={key;vertices=Bytes.make 48 '\000';vertex_count=3;indices;index_count=3}in
+  let state:Scene_execution.state={viewport=(0,0,8,8);scissor=(0,0,8,8);cull=Ogpu.Render_pass.Cull_none;depth_compare=Ogpu.Render_pass.Always;depth_write=false;depth_load=Ogpu.Render_pass.Load;depth_clear=1.;transform_uniforms=None;stencil_state=None;stencil_load=Ogpu.Render_pass.Load;stencil_clear=0}in
+  let sampler:Ogpu.Types.sampler_descriptor={label=Some"mixed-pass";min_filter=Nearest;mag_filter=Nearest;mip_filter=No_mip;address_u=Clamp_to_edge;address_v=Clamp_to_edge;lod_min=0.;lod_max=0.;max_anisotropy=1}in
+  let texture key byte:Scene_execution.sampled_texture={key;levels=[|{width=1;height=1;bytes=Bytes.make 4 byte}|];sampler}in
+  let first=texture"mixed-red"'\255'and second=texture"mixed-green"'\128'in
+  let draw key={Scene_execution.mesh=mesh key;state}in
+  let mixed=[
+    Scene_execution.Scene2,Ogpu.Pipeline.Replace,None,None,draw"plain";
+    Scene_execution.Scene2_textured,Ogpu.Pipeline.Alpha,Some first,None,draw"first";
+    Scene_execution.Scene2_textured,Ogpu.Pipeline.Add,Some second,None,draw"second"]in
+  ignore(get(Scene_execution.render_resources renderer mixed));
+  Ogpu.Backend_mock.clear_trace control;
+  ignore(get(Scene_execution.render_resources renderer mixed));
+  let trace=Ogpu.Backend_mock.trace control in
+  let renders=List.filter(String.starts_with~prefix:"render:")trace in
+  if List.length renders<>1||List.length(List.filter(String.starts_with~prefix:"submit:")trace)<>1 then
+    failwith("compatible mixed Scene2 draws did not use one submission: "^String.concat","trace);
+  Ogpu.Backend_mock.clear_trace control;
+  let clipped={state with scissor=(1,1,7,7)}in
+  ignore(get(Scene_execution.render_resources renderer[
+    Scene2,Ogpu.Pipeline.Replace,None,None,draw"clip-a";
+    Scene2_textured,Ogpu.Pipeline.Alpha,Some first,None,{Scene_execution.mesh=mesh"clip-b";state=clipped}]));
+  if List.length(List.filter(String.starts_with~prefix:"render:")(Ogpu.Backend_mock.trace control))<>2 then
+    failwith"incompatible clip states shared a render pass";
+  Ogpu.Backend_mock.clear_trace control;
+  let malformed={first with key="stale";levels=[|{Scene_execution.width=1;height=1;bytes=Bytes.empty}|]}in
+  begin match Scene_execution.render_resources renderer[
+    Scene2,Ogpu.Pipeline.Replace,None,None,draw"atomic-a";
+    Scene2_textured,Ogpu.Pipeline.Alpha,Some malformed,None,draw"atomic-b"]with
+  |Error e when e.Ogpu.Error.kind=Invalid_argument->()
+  |_->failwith"malformed second draw was not rejected"end;
+  if Ogpu.Backend_mock.trace control<>[]then failwith"failed mixed pass submitted partial work";
+  get(Scene_execution.destroy renderer);
+  if Ogpu.Backend_mock.live_counts control<>(0,0,0,0,0)then failwith"mixed pass leaked objects"
 let oversized_frame () =
   let driver,control=Ogpu.Backend_mock.create()in
   let configuration:Ogpu.Surface.configuration={logical_width=8;logical_height=8;physical_width=8;physical_height=8;format=Rgba8_unorm;present_mode=Fifo;max_acquired=2}in
@@ -184,6 +223,7 @@ let ()=let driver,control=Ogpu.Backend_mock.create()in let configuration:Ogpu.Su
   if List.length pipelines<>6||List.length(List.sort_uniq String.compare pipelines)<>6 then failwith"blend pipeline variants/cache";
   if Scene_execution.upload_bytes renderer<>60L then failwith"stable mesh reuploaded";
   auxiliary_lifecycle renderer control mesh state;
+  mixed_scene2_batching();
   oversized_frame();
   replacement_reuse();
   domain_coalescing();
