@@ -1,7 +1,7 @@
 (library
  (name ogpu)
  (public_name prismel.ogpu)
- (modules Error Handle Capabilities Types Command Mock Submission Shader Surface Binding Sync Pipeline Acceleration Cache))
+ (modules Error Handle Capabilities Types Command Mock Submission Shader Surface Binding Sync Pipeline Acceleration Cache Native_pass))
 
 (test
  (name test_ogpu_foundation)
@@ -56,4 +56,9 @@
 (test
  (name test_ogpu_cache)
  (modules test_ogpu_cache)
+ (libraries ogpu))
+
+(test
+ (name test_ogpu_native_pass)
+ (modules test_ogpu_native_pass)
  (libraries ogpu))
