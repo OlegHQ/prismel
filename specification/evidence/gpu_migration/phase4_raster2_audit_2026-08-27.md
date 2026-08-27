@@ -121,9 +121,9 @@ fields are ignored or not integrated and therefore cannot count as parity.
 | `with_raster` line width/point size | M | Flattened state is ignored; unsupported wire/vertex modes cannot provide parity. |
 | Samples 1/4/9/16 | Partial | Samples reach preparation and standalone MSAA is tested (`090ffae`), but private consumer/OGPU target integration does not apply every count. |
 | Viewport/scissor | I/T | Default/explicit validation, matrix conversion and ordered state (`e813369`, `d199322`); nested Scene2 clips now intersect View3d viewport/scissor and are exercised through frame 600/four domains. |
-| Public Runtime/Metal execution | M | No atomic target selection or Metal draw-command payload; Backend currently proves resource/lifecycle submission only. |
+| Private portable draw submission | I/T | Prepared 2D/Scene3 vertex and index bytes are written once, then submitted as exact Backend render bindings. Multiple stable draws split into ordered passes; Backend-mock validates resources/pipeline/index ranges and exact pass count. Runtime selection and real Metal pixel parity remain missing. |
 
 The smallest local gaps are dedicated fixtures for already-mapped convenience
 constructors. They do not repair the material missing semantics above.
-Depth/stencil/raster, texture wrapping, non-zero spot concentration, sample integration and portable draw commands require typed representation
+Depth/stencil/raster, texture wrapping, non-zero spot concentration and sample integration require typed representation
 changes and must not be marked complete by expectation-only tests.

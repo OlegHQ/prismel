@@ -9,12 +9,17 @@ type prepared = {
   key : string;
   bytes : int64;
   buffer : Ogpu.Backend.buffer;
+  vertex_count : int;
+  index_count : int;
+  index_offset : int64;
 }
 
 type prepared3 = {
   mesh_key : string;
   vertex_buffer : Ogpu.Backend.buffer;
   index_buffer : Ogpu.Backend.buffer;
+  vertex_count : int;
+  index_count : int;
 }
 
 type draw_state = {
@@ -32,7 +37,7 @@ type t = {
   mutable surface : Ogpu.Backend.surface;
   mutable target : Ogpu.Backend.texture;
   pipeline : Ogpu.Backend.pipeline;
-  command : Ogpu.Backend.command;
+  pipeline_key : string;
   mutable meshes : prepared list;
   mutable meshes3 : prepared3 list;
   mutable textures3 : (string * Ogpu.Backend.texture) list;
@@ -53,18 +58,36 @@ let shader stage name =
 let portable_pipeline device =
   let capabilities = Ogpu.Backend.capabilities device in
   let handle = Ogpu.Backend.device_handle device in
-  Result.bind (backend (Ogpu.Binding.create_pipeline_layout ~device:handle
-    ~capabilities [])) (fun layout ->
-  Result.bind (backend (shader Ogpu.Shader.Compute "scene_main")) (fun shader ->
-  Result.bind (backend (Ogpu.Pipeline.create_compute capabilities {
-    backend = "mock"; label = Some "prismel-scene"; layout; shader;
-    entry = "scene_main";
-  })) (fun portable ->
-  Result.bind (backend (Ogpu.Backend.adopt_pipeline device portable)) (fun pipeline ->
-  Result.bind (backend (Ogpu.Compute_pass.create handle
-    ~limits:capabilities.limits ~pipeline:portable ~layout ~groups:[||]
-    ~resources:[||] ~dispatch:(Direct { x = 1; y = 1; z = 1 })))
-    (fun pass -> Ok (pipeline, Ogpu.Backend.compute pass))))))
+  Result.bind
+    (backend
+       (Ogpu.Binding.create_pipeline_layout ~device:handle ~capabilities []))
+    (fun layout ->
+      Result.bind
+        (backend (shader Ogpu.Shader.Vertex "scene_vertex"))
+        (fun vertex ->
+          Result.bind
+            (backend (shader Ogpu.Shader.Fragment "scene_fragment"))
+            (fun fragment ->
+              Result.bind
+                (backend
+                   (Ogpu.Pipeline.create_render capabilities
+                      {
+                        backend = "mock";
+                        label = Some "prismel-scene";
+                        layout;
+                        vertex;
+                        vertex_entry = "scene_vertex";
+                        fragment = Some fragment;
+                        fragment_entry = Some "scene_fragment";
+                        color_format = Rgba8_unorm;
+                        depth_format = No_depth;
+                        sample_count = 1;
+                      }))
+                (fun portable ->
+                  Result.bind
+                    (backend (Ogpu.Backend.adopt_pipeline device portable))
+                    (fun pipeline ->
+                      Ok (pipeline, Ogpu.Pipeline.cache_key portable))))))
 
 let texture_descriptor configuration : Ogpu.Types.texture_descriptor = {
   label = Some "prismel-scene-target";
@@ -84,8 +107,8 @@ let create driver configuration =
       | Ok surface ->
           begin match backend (Ogpu.Backend.create_texture device
               (texture_descriptor configuration)), portable_pipeline device with
-          | Ok target, Ok (pipeline, command) -> Ok {
-              device; queue; surface; target; pipeline; command; meshes = [];
+          | Ok target, Ok (pipeline, pipeline_key) -> Ok {
+              device; queue; surface; target; pipeline; pipeline_key; meshes = [];
               meshes3 = []; textures3 = []; draw_states = [||];
               upload_bytes = 0L; destroyed = false; configuration;
             }
@@ -113,6 +136,30 @@ let geometry_key (value : Raster2.Render_ir.geometry) =
 let geometry_bytes (value : Raster2.Render_ir.geometry) =
   Int64.of_int ((Array.length value.vertices * 8) + (Array.length value.indices * 4))
 
+let float_bytes values =
+  let output=Bytes.create(Array.length values*8)in
+  Array.iteri(fun index value->Bytes.set_int64_le output(index*8)
+    (Int64.bits_of_float value))values;
+  output
+
+let index_bytes values =
+  let output=Bytes.create(Array.length values*4)in
+  Array.iteri(fun index value->Bytes.set_int32_le output(index*4)(Int32.of_int value))values;
+  output
+
+let scene3_vertex_bytes values =
+  let stride=68 in
+  let output=Bytes.create(Array.length values*stride)in
+  let put_float offset value=Bytes.set_int64_le output offset(Int64.bits_of_float value)in
+  Array.iteri(fun index(item:Raster2.Scene3_consumer.vertex)->
+    let offset=index*stride in
+    put_float offset item.position.x;put_float(offset+8)item.position.y;
+    put_float(offset+16)item.position.z;put_float(offset+24)item.normal.x;
+    put_float(offset+32)item.normal.y;put_float(offset+40)item.normal.z;
+    Bytes.set_int32_le output(offset+48)item.color;
+    put_float(offset+52)item.u;put_float(offset+60)item.v)values;
+  output
+
 let prepare value ir =
   let geometries = Raster2.Render_ir.commands ir |> Array.to_list
     |> List.filter_map (function Raster2.Render_ir.Geometry item -> Some item | _ -> None) in
@@ -121,7 +168,7 @@ let prepare value ir =
     | geometry :: rest ->
         let key = geometry_key geometry in
         begin match List.find_opt (fun item -> item.key = key) value.meshes with
-        | Some item -> loop (item.buffer :: resources) rest
+        | Some item -> loop (item :: resources) rest
         | None ->
             let bytes = geometry_bytes geometry in
             let descriptor : Ogpu.Types.buffer_descriptor = {
@@ -130,9 +177,19 @@ let prepare value ir =
             } in
             Result.bind (backend (Ogpu.Backend.create_buffer value.device descriptor))
               (fun buffer ->
-                value.meshes <- { key; bytes; buffer } :: value.meshes;
-                value.upload_bytes <- Int64.add value.upload_bytes bytes;
-                loop (buffer :: resources) rest)
+                let vertices=float_bytes geometry.vertices and indices=index_bytes geometry.indices in
+                let index_offset=Int64.of_int(Bytes.length vertices)in
+                match backend(Ogpu.Backend.write_buffer buffer~offset:0L vertices)with
+                | Error error->ignore(Ogpu.Backend.destroy_buffer buffer);Error error
+                | Ok()->begin match backend(Ogpu.Backend.write_buffer buffer~offset:index_offset indices)with
+                    | Error error->ignore(Ogpu.Backend.destroy_buffer buffer);Error error
+                    | Ok()->
+                        let item={key;bytes;buffer;vertex_count=Array.length geometry.vertices/2;
+                          index_count=Array.length geometry.indices;index_offset}in
+                        value.meshes<-item::value.meshes;
+                        value.upload_bytes<-Int64.add value.upload_bytes bytes;
+                        loop(item::resources)rest
+                    end)
         end
   in
   loop [] geometries
@@ -148,8 +205,10 @@ let create_mesh3 value (draw : Raster2.Scene3_consumer.draw) =
   match List.find_opt (fun item -> item.mesh_key = mesh_key) value.meshes3 with
   | Some item -> Ok item
   | None ->
-      let vertex_bytes = Int64.of_int (Array.length draw.vertices * 48) in
-      let index_bytes = Int64.of_int (Array.length draw.indices * 4) in
+      let vertex_payload=scene3_vertex_bytes draw.vertices
+      and index_payload=index_bytes draw.indices in
+      let vertex_bytes=Int64.of_int(Bytes.length vertex_payload)
+      and index_bytes=Int64.of_int(Bytes.length index_payload)in
       let descriptor label size usage : Ogpu.Types.buffer_descriptor =
         { label = Some (label ^ mesh_key); size = max 1L size;
           usage = [usage; Copy_dst] }
@@ -160,11 +219,21 @@ let create_mesh3 value (draw : Raster2.Scene3_consumer.draw) =
           (descriptor "scene3-indices-" index_bytes Index)) with
       | Error error -> ignore (Ogpu.Backend.destroy_buffer vertex_buffer); Error error
       | Ok index_buffer ->
-          let item = { mesh_key; vertex_buffer; index_buffer } in
-          value.meshes3 <- item :: value.meshes3;
-          value.upload_bytes <- Int64.add value.upload_bytes
-            (Int64.add vertex_bytes index_bytes);
-          Ok item)
+          begin match backend(Ogpu.Backend.write_buffer vertex_buffer~offset:0L vertex_payload),
+            backend(Ogpu.Backend.write_buffer index_buffer~offset:0L index_payload)with
+          | Ok(),Ok()->
+              let item={mesh_key;vertex_buffer;index_buffer;
+                vertex_count=Array.length draw.vertices;
+                index_count=Array.length draw.indices}in
+              value.meshes3<-item::value.meshes3;
+              value.upload_bytes<-Int64.add value.upload_bytes
+                (Int64.add vertex_bytes index_bytes);
+              Ok item
+          | Error error,_|_,Error error->
+              ignore(Ogpu.Backend.destroy_buffer vertex_buffer);
+              ignore(Ogpu.Backend.destroy_buffer index_buffer);
+              Error error
+          end)
 
 let texture3 value (texture : Raster2.Triangle.texture) =
   let width = Raster2.Surface.width texture.surface
@@ -194,17 +263,17 @@ let prepare_scene3 value resources node =
       ~default_viewport:viewport node with
   | Error error -> Error (Scene3 error)
   | Ok prepared ->
-      let buffers = ref [] and textures = ref [] and states = ref []
+  let meshes = ref [] and textures = ref [] and states = ref []
       and failure = ref None in
       Array.iter (fun (draw : Raster2.Scene3_consumer.draw) ->
         if !failure = None then match create_mesh3 value draw with
         | Error error -> failure := Some error
         | Ok mesh ->
-            buffers := mesh.vertex_buffer :: mesh.index_buffer :: !buffers;
+            meshes := mesh :: !meshes;
             begin match draw.texture with
-            | None -> ()
+            | None -> textures := None :: !textures
             | Some texture -> begin match texture3 value texture with
-                | Ok item -> textures := item :: !textures
+                | Ok item -> textures := Some item :: !textures
                 | Error error -> failure := Some error
                 end
             end;
@@ -217,7 +286,7 @@ let prepare_scene3 value resources node =
               depth_clear = prepared.clear_depth } :: !states)
         prepared.draws;
       match !failure with Some error -> Error error | None ->
-        Ok (List.rev !buffers, List.rev !textures, List.rev !states)
+        Ok (List.rev !meshes, List.rev !textures, List.rev !states)
 
 let intersect_clip (x,y,w,h) (a,b,c,d) =
   let left = max x a and top = max y b
@@ -268,6 +337,56 @@ let split_scene value scene =
   let scene2 = nodes None scene in
   scene2, List.rev !views
 
+let render_pass value (state:draw_state) load =
+  let texture=Ogpu.Backend.render_texture value.target~format:Ogpu.Render_pass.Rgba8
+    ~usage:Ogpu.Render_pass.Render_target in
+  let x,y,width,height=state.viewport and sx,sy,sw,sh=state.scissor in
+  backend(Ogpu.Render_pass.create(Ogpu.Backend.device_handle value.device){
+    colors=[|Some{texture;resolve=None;load;store=Store;
+      clear=(0.,0.,0.,0.)}|];depth=None;stencil=None;
+    viewport={x;y;width;height};scissor={x=sx;y=sy;width=sw;height=sh}})
+
+let draw2 value (item:prepared) = {
+  Ogpu.Render_pass.pipeline_key=value.pipeline_key;
+  buffers=[{stage=Ogpu.Command.Vertex;index=0;
+    buffer_id=Ogpu.Backend.buffer_id item.buffer;offset=0L}];textures=[];
+  primitive=Ogpu.Render_pass.Triangle_list;vertex_start=0;
+  vertex_count=item.vertex_count;
+  index=Some(Uint32,Ogpu.Backend.buffer_id item.buffer,item.index_offset,
+    item.index_count)}
+
+let draw3 value (item:prepared3) texture = {
+  Ogpu.Render_pass.pipeline_key=value.pipeline_key;
+  buffers=[{stage=Ogpu.Command.Vertex;index=0;
+      buffer_id=Ogpu.Backend.buffer_id item.vertex_buffer;offset=0L}];
+  textures=(match texture with None->[]|Some texture->
+    let view=Ogpu.Backend.render_texture texture~format:Ogpu.Render_pass.Rgba8
+      ~usage:Ogpu.Render_pass.Render_target in
+    [{stage=Ogpu.Command.Fragment;index=0;texture_id=view.id}]);
+  primitive=Ogpu.Render_pass.Triangle_list;vertex_start=0;
+  vertex_count=item.vertex_count;
+  index=Some(Uint32,Ogpu.Backend.buffer_id item.index_buffer,0L,item.index_count)}
+
+let full_state value={viewport=(0,0,value.configuration.physical_width,
+  value.configuration.physical_height);scissor=(0,0,
+  value.configuration.physical_width,value.configuration.physical_height);
+  cull=Raster2.Triangle.Cull_none;blend=Raster2.Composite.Source_over;
+  textured=false;depth_clear=1.}
+
+let submit_draws value resources draws =
+  let submit pass draws=Result.bind(backend(Ogpu.Backend.render pass draws))
+    (fun command->Result.bind(backend(Ogpu.Backend.submit value.queue command
+      ~resources~pipelines:[value.pipeline]))(fun receipt->
+        backend(Ogpu.Backend.complete_through value.queue receipt.epoch)))in
+  let rec loop first = function
+    | []when first->Result.bind(render_pass value(full_state value)Ogpu.Render_pass.Clear)
+        (fun pass->submit pass[])
+    | []->Ok()
+    | (state,draw)::rest->
+        Result.bind(render_pass value state(if first then Ogpu.Render_pass.Clear else Load))
+          (fun pass->Result.bind(submit pass[draw])(fun()->loop false rest))in
+  loop true draws
+
 let render_with_scene3 value scene3_resources scene =
   if value.destroyed then Error Destroyed else
   let scene2,scene3=split_scene value scene in
@@ -284,23 +403,27 @@ let render_with_scene3 value scene3_resources scene =
                 (List.rev_append more_textures textures)
                 (List.rev_append more_states states) rest)
       in
-      Result.bind (prepare3 [] [] [] scene3) (fun (buffers3, textures3, states) ->
-      value.draw_states <- Array.of_list (List.rev states);
+      Result.bind (prepare3 [] [] [] scene3) (fun (meshes3, textures3, states) ->
+      let meshes3=List.rev meshes3 and textures3=List.rev textures3
+      and states=List.rev states in
+      value.draw_states <- Array.of_list states;
       Result.bind (backend (Ogpu.Backend.acquire value.surface)) (function
       | `Timeout | `Occluded -> Ok false
       | `Device_lost -> Error (Backend (Ogpu.Error.make
           "Scene_ogpu_renderer.render" Device_lost "device lost"))
       | `Acquired frame ->
-          match backend (Ogpu.Backend.submit value.queue value.command
-              ~resources:(`Texture value.target ::
-                List.map (fun item -> `Buffer item) (buffers2 @ buffers3) @
-                List.map (fun item -> `Texture item) textures3)
-              ~pipelines:[value.pipeline]) with
-          | Error error -> ignore (Ogpu.Backend.discard frame); Error error
-          | Ok receipt ->
-              Result.bind (backend (Ogpu.Backend.complete_through value.queue receipt.epoch))
-                (fun () -> Result.map (fun () -> true)
-                  (backend (Ogpu.Backend.present frame))))))
+          let full=full_state value in
+          let draws2=List.map(fun item->full,draw2 value item)buffers2 in
+          let draws3=List.map2(fun(item,state)texture->
+            state,draw3 value item texture)(List.combine meshes3 states)textures3 in
+          let resources=`Texture value.target::
+            List.map(fun item->`Buffer item.buffer)buffers2@
+            List.concat_map(fun item->[`Buffer item.vertex_buffer;`Buffer item.index_buffer])meshes3@
+            List.filter_map(fun value->Option.map(fun item->`Texture item)value)textures3 in
+          begin match submit_draws value resources(draws2@draws3)with
+          | Error error->ignore(Ogpu.Backend.discard frame);Error error
+          | Ok()->Result.map(fun()->true)(backend(Ogpu.Backend.present frame))
+          end)))
 
 let render value scene = render_with_scene3 value default_scene3_resources scene
 
@@ -350,6 +473,10 @@ let self_test () =
     let scene = [Scene_description.Clear Color.black;
       Triangle ((1, 1), (8, 1), (4, 8), style)] in
     ignore (get (render renderer scene));
+    let render_count ()=List.fold_left(fun count item->
+      if String.starts_with~prefix:"render:"item then count+1 else count)0
+      (Ogpu.Backend_mock.trace control)in
+    if render_count()<>1 then failwith"2D payload/order drift";
     let first = upload_bytes renderer in
     if first <= 0L then failwith "first mesh was not uploaded";
     for _frame = 2 to 600 do ignore (get (render renderer scene)) done;
@@ -374,7 +501,10 @@ let self_test () =
         [Scene_description.View3d (camera, Scene3.create [colored; textured],
           Some (1, 2, 12, 10))])]
     in
+    let before_scene3=render_count()in
     ignore (get (render_with_scene3 renderer resources (scene3 1)));
+    if render_count()-before_scene3<>2 then
+      failwith"Scene3 draws were not split into ordered render passes";
     let scene3_first = upload_bytes renderer in
     if scene3_first <= first then failwith "Scene3 buffers were not uploaded";
     for frame = 2 to 600 do
