@@ -62,3 +62,7 @@ val set_web_text_input_regions : t -> text_input_region list -> unit
 (** Public legacy names deliberately omitted because they expose SDL values or
     backend flags. Stable and suitable for the B5 deletion gate. *)
 val omitted_raw_api : string list
+
+type coverage = Mapped | Adapted of string | Raw_omission of string
+val api_coverage : (string * coverage) list
+val api_type_coverage : (string * coverage) list

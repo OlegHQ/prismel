@@ -8,4 +8,6 @@
  (name test_runtime_next_compat)
  (modules test_runtime_next_compat)
  (libraries runtime_next_compat scene_execution)
- (action (setenv SDL_VIDEODRIVER dummy (run %{test}))))
+ (deps ../runtime/runtime.mli)
+ (action (setenv SDL_VIDEODRIVER dummy
+  (run %{test} %{dep:../runtime/runtime.mli}))))

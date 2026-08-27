@@ -69,6 +69,24 @@ let remove_web_asset value asset=ignore(O.remove_web_asset value.raw asset)
 let send_web_audio value command=ignore(O.send_web_audio value.raw command)
 let download_web_frame value ~filename=string_result(O.download_web_frame value.raw~filename)
 let set_web_text_input_regions value regions=ignore(O.set_text_input_regions value.raw regions)
-let omitted_raw_api=["present(renderer)";"raw_window";"raw_renderer";"window_flags";
-  "Private.select_target";"Private.next_web_deadline";"Private.fitted_web_drawable_size";
-  "Private.idle_frame_interval"]
+let omitted_raw_api=["present";"Private.select_target";"Private.next_web_deadline";
+  "Private.fitted_web_drawable_size";"Private.idle_frame_interval"]
+type coverage = Mapped | Adapted of string | Raw_omission of string
+let api_coverage = List.map(fun name->name,Mapped)[
+  "start";"stop";"target";"target_of_string";"is_headless";"is_web";
+  "is_displayless";"web_url";"web_client_count";"web_drawable_size";
+  "register_web_file";"register_web_bytes";"remove_web_asset";"send_web_audio";
+  "download_web_frame";"set_web_text_input_regions"] @ [
+  "selected_target",Adapted"returns a result instead of hiding invalid configuration";
+  "drain_web_events",Adapted"file drops carry copied bytes as File_uploaded";
+  "present",Raw_omission"requires a raw Tsdl renderer";
+  "Private.select_target",Raw_omission"private environment injection helper";
+  "Private.next_web_deadline",Raw_omission"private legacy pacing algorithm";
+  "Private.fitted_web_drawable_size",Raw_omission"private legacy scaling helper";
+  "Private.idle_frame_interval",Raw_omission"private legacy pacing helper"]
+let api_type_coverage=[
+  "target",Mapped;"t",Mapped;
+  "web_mouse_button",Adapted"target-neutral constructor identity";
+  "web_event",Adapted"File_dropped path becomes copied File_uploaded payload";
+  "text_input_region",Mapped;
+  "web_audio_command",Adapted"target-neutral constructor identity"]
