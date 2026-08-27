@@ -1736,6 +1736,13 @@ module Binary_archive : sig
   val add_function_descriptor : t -> Function.t -> (unit,error) result
   val add_render_pipeline : t -> vertex:Function.t -> fragment:Function.t ->
     color_format:Texture.format -> (unit,error) result
+  val add_stitched_library :
+    t -> Stitched_library_descriptor.t -> (unit,error) result
+  val add_mesh_render_pipeline :
+    t -> mesh:Function.t -> ?fragment:Function.t ->
+    color_format:Texture.format -> unit -> (unit,error) result
+  val add_tile_render_pipeline :
+    t -> tile:Function.t -> color_format:Texture.format -> (unit,error) result
 
   val serialize : t -> string -> (unit, error) result
   val device : t -> Device.t

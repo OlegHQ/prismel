@@ -10063,6 +10063,60 @@ module Binary_archive = struct
       "archive render descriptor requires vertex and fragment functions"
     | Ok _,Ok _ -> add_configured "Metal.Binary_archive.add_render_pipeline" 3 value vertex(Some fragment)(Int64.of_int(Metal_format.code color_format))
 
+  let add_stitched_library (value : t)
+      (descriptor : Stitched_library_descriptor.t) =
+    let operation = "Metal.Binary_archive.add_stitched_library" in
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match ensure_live operation descriptor.lifetime with
+           | Error _ as failure -> failure
+           | Ok () ->
+               let devices =
+                 List.map (fun (fn : function_handle) -> fn.library.device)
+                   descriptor.descriptor_functions
+                 @ List.map (fun (archive : binary_archive) -> archive.device)
+                     descriptor.descriptor_archives
+               in
+               if not (List.for_all (same_device value.device) devices) then
+                 error operation Device_mismatch
+                   "stitched library descriptor belongs to another device"
+               else
+                 match Metal_raw.binary_archive5_add value.raw 1 descriptor.raw
+                   None value.device.registry_id value.device.registry_id None with
+                 | Error message -> native_error operation message
+                 | Ok () ->
+                     attach descriptor.lifetime;
+                     value.archive_edges := descriptor.lifetime :: !(value.archive_edges);
+                     Ok ()))
+
+  let add_mesh_render_pipeline (value : t) ~(mesh : Function.t) ?fragment
+      ~color_format () =
+    match Function.kind mesh,
+      (match fragment with None -> Ok None
+       | Some function_value -> Result.map Option.some (Function.kind function_value)) with
+    | (Error _ as failure), _ | _, (Error _ as failure) -> failure
+    | Ok mesh_kind, _ when mesh_kind <> Function.Mesh ->
+        error "Metal.Binary_archive.add_mesh_render_pipeline" Invalid_argument
+          "archive mesh descriptor requires a mesh function"
+    | _, Ok (Some fragment_kind) when fragment_kind <> Function.Fragment ->
+        error "Metal.Binary_archive.add_mesh_render_pipeline" Invalid_argument
+          "archive mesh descriptor requires a fragment function"
+    | Ok _, Ok _ ->
+        add_configured "Metal.Binary_archive.add_mesh_render_pipeline" 2 value
+          mesh fragment (Int64.of_int (Metal_format.code color_format))
+
+  let add_tile_render_pipeline (value : t) ~(tile : Function.t) ~color_format =
+    match Function.kind tile with
+    | Error _ as failure -> failure
+    | Ok kind when kind <> Function.Kernel ->
+        error "Metal.Binary_archive.add_tile_render_pipeline" Invalid_argument
+          "archive tile descriptor requires a kernel/tile function"
+    | Ok _ ->
+        add_configured "Metal.Binary_archive.add_tile_render_pipeline" 4 value
+          tile None (Int64.of_int (Metal_format.code color_format))
+
   let label (value : t) =
     on_main "Metal.Binary_archive.label" (fun () ->
       match ensure_live "Metal.Binary_archive.label" value.lifetime with
