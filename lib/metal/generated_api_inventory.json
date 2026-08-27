@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 5207,
+    "bound": 5210,
     "scope-excluded": 37,
-    "unreviewed": 41
+    "unreviewed": 38
   },
-  "classification_source_sha256": "779b09783131f7e7e590af79b8b07a523b290f1b7acd02e65c72abae45000658",
+  "classification_source_sha256": "c36b3f1a6c1074b79c1f4d1c50770e84adcf69e6a97d6fdbb8e876b15107b794",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -3595,7 +3595,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "class:MTLTilePipelineColorAttachmentDescriptor",
       "kind": "class",
@@ -3603,7 +3603,7 @@
       "macos_introduced": null,
       "name": "MTLTilePipelineColorAttachmentDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by the existing owned public tile-pipeline descriptor and indirect compute/render command encoder APIs, with typed protocol/class identity and real descriptor/indirect-command conformance.",
       "signature": ""
     },
     {
@@ -105394,7 +105394,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "protocol:MTLIndirectComputeCommandEncoder",
       "kind": "protocol",
@@ -105402,7 +105402,7 @@
       "macos_introduced": null,
       "name": "MTLIndirectComputeCommandEncoder",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by the existing owned public tile-pipeline descriptor and indirect compute/render command encoder APIs, with typed protocol/class identity and real descriptor/indirect-command conformance.",
       "signature": ""
     },
     {
@@ -105429,7 +105429,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "protocol:MTLIndirectRenderCommandEncoder",
       "kind": "protocol",
@@ -105437,7 +105437,7 @@
       "macos_introduced": null,
       "name": "MTLIndirectRenderCommandEncoder",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by the existing owned public tile-pipeline descriptor and indirect compute/render command encoder APIs, with typed protocol/class identity and real descriptor/indirect-command conformance.",
       "signature": ""
     },
     {

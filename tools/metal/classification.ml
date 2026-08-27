@@ -2119,6 +2119,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier device_descriptor_value_safe25 then
     Bound,
       "Implemented by the public checked Shader_argument_encoder descriptor value and copied immutable Device architecture snapshot, with exact typed round trips, owned encoder construction, and real ARC/native conformance."
+  else if List.mem identifier Binding_device_metadata7_safe_plan.owned_metadata_ids then
+    Bound,
+      "Represented by the existing owned public tile-pipeline descriptor and indirect compute/render command encoder APIs, with typed protocol/class identity and real descriptor/indirect-command conformance."
   else if List.mem identifier small_header_safe24 then
     Bound,
       "Represented by the existing public owned safe API for this exact small-header type or selector, with copied metadata, checked device/lifetime/range semantics, and its family native conformance fixture."
