@@ -34,7 +34,7 @@ let () =
   if !minutes<=0. || !sample_every<=0. || Option.fold ~none:false ~some:(fun n->n<600) !frames
   then invalid_arg "positive duration, sample period, and at least 600 frames required";
   Unix.putenv "PRISMEL_RENDER_TARGET" (target_name !target);
-  let canvas=Canvas.create_exn ~width:16 ~height:16 in Canvas.clear canvas(Color.rgb 20 40 80);
+  let canvas=Canvas.create_exn ~width:16 ~height:16 in Canvas.render canvas[Scene.clear(Color.rgb 20 40 80)];
   let image=match Canvas.to_image canvas with Ok x->x|Error message->failwith message in
   let created_resources=2 and destroyed_resources=ref 0 in
   let samples=Array.make 256 None and observations=ref 0 and frame=ref 0 in
@@ -68,7 +68,8 @@ let () =
     "duration_seconds",`Float(Unix.gettimeofday()-.started);"frames",`Int !frame;
     "checkpoints",`List(List.rev_map(fun(f,h)->`List[`Int f;`String h])!checkpoints);
     "deterministic_hash",`String(Printf.sprintf"%016Lx"!rolling);
-    "sample_capacity",`Int 256;"sample_observations",`Int !observations;"samples",`List retained;
+    "sample_capacity",`Int 256;"sample_every_seconds",`Float !sample_every;
+    "sample_observations",`Int !observations;"samples",`List retained;
     "rss_limit_percent",`Float 5.;"created_resources",`Int created_resources;
     "destroyed_resources",`Int !destroyed_resources;"live_resources_after_teardown",`Int(created_resources- !destroyed_resources);
     "window_live_after_teardown",`Bool Low.Window.(exists());"cache_entries_after_teardown",`Int 0;

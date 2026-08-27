@@ -14,6 +14,12 @@ for target in native headless web; do
   _build/default/tools/r12_final_facade_stability/r12_final_facade_stability.exe --target "$target" --scenario all --minutes 30 --sample-every 10 --report "_build/r12-$target-30m.json"
   _build/default/tools/r12_final_facade_stability/validate_r12_final_facade_stability.exe "_build/r12-$target-30m.json"
 done
+
+# Validate the complete set. Hash equality is intentionally not required:
+# duration-driven lanes may complete different frame counts.
+_build/default/tools/r12_final_facade_stability/validate_r12_final_facade_stability.exe \
+  --complete-set _build/r12-native-30m.json _build/r12-headless-30m.json \
+  _build/r12-web-30m.json
 ```
 
 The Dune `runtest` alias runs only 600-frame headless/web smoke lanes. It is not

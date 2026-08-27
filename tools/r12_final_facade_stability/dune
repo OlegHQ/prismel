@@ -6,6 +6,12 @@
  (name validate_r12_final_facade_stability)
  (libraries yojson))
 
+(test
+ (name test_r12_validator)
+ (libraries unix yojson)
+ (deps validate_r12_final_facade_stability.exe)
+ (action (run %{test} ./%{dep:validate_r12_final_facade_stability.exe})))
+
 (rule
  (alias runtest)
  (action
