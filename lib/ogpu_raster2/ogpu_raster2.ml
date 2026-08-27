@@ -11,6 +11,7 @@ type control = {
   objects : (int64, storage) Hashtbl.t;
   mutable decoded:decoded_entry list; mutable decoded_indices:index_entry list;
   mutable decode_misses:int;
+  mutable fast_rectangles:int; mutable triangle_fallbacks:int;
   mutable buffers : int; mutable textures : int; mutable pipelines : int;
   mutable queues : int; mutable surfaces : int;
 }
@@ -34,6 +35,7 @@ let rgba (r,g,b,a) =
 let create () =
   let control={next=1L;epoch=0L;complete=0L;lost=false;log=Queue.create();dropped_log_entries=0;
     objects=Hashtbl.create 64;decoded=[];decoded_indices=[];decode_misses=0;
+    fast_rectangles=0;triangle_fallbacks=0;
     buffers=0;textures=0;pipelines=0;queues=0;surfaces=0}in
   let create_device () =
     let device_token=next control and device_handle=Ogpu.Handle.create_device()in
@@ -139,12 +141,45 @@ let create () =
                               control.decoded<-List.rev(List.tl(List.rev control.decoded));
                             decoded in
                       let depth=Option.map(fun _->depth)descriptor.depth in
+                      let fast_source=match sampled with
+                        |Some(binding,sampler)->(match find binding.texture_id with
+                            |Some(Texture({levels;_},_))->Some(levels.(0),sampler.sampler)
+                            |_->None)
+                        |None->None in
                       let triangle a b c=Raster2.Triangle.draw~color~depth~depth_state
                           ~blend:Raster2.Composite.Copy~cull:Cull_none~clip~texture
                           decoded.(a)decoded.(b)decoded.(c)in
-                      (match d.primitive with
+                      let fast_rectangle()=match fast_source with None->false|Some(source,sampler)->
+                        let integral value=Float.is_finite value&&value=floor value in
+                        if descriptor.depth<>None||descriptor.stencil<>None||
+                           (Ogpu.Render_pass.raster_state(Ogpu.Render_pass.submission_pass submission)).cull<>
+                             Ogpu.Render_pass.Cull_none||
+                           d.primitive<>Triangle_list||indices<>[|0;1;2;0;2;3|]||Array.length decoded<>4||
+                           sampler.min_filter<>Linear||sampler.mag_filter<>Linear||sampler.mip_filter<>No_mip||
+                           sampler.address_u<>Clamp_to_edge||sampler.address_v<>Clamp_to_edge||sampler.lod_min<>0.
+                        then false else
+                        let a=decoded.(0)and b=decoded.(1)and c=decoded.(2)and e=decoded.(3)in
+                        let white vertex=vertex.Raster2.Triangle.color=0xffffffffl in
+                        let rectangle=a.y=b.y&&b.x=c.x&&c.y=e.y&&e.x=a.x&&b.x>a.x&&c.y>a.y
+                          &&a.v=b.v&&b.u=c.u&&c.v=e.v&&e.u=a.u&&b.u>a.u&&c.v>a.v in
+                        let source_width=float(Raster2.Surface.width source)
+                        and source_height=float(Raster2.Surface.height source)in
+                        let sx=a.u*.source_width and sy=a.v*.source_height
+                        and sw=(b.u-.a.u)*.source_width and sh=(e.v-.a.v)*.source_height
+                        and dw=b.x-.a.x and dh=e.y-.a.y in
+                        if not(rectangle&&white a&&white b&&white c&&white e&&
+                          integral a.x&&integral a.y&&integral dw&&integral dh&&
+                          integral sx&&integral sy&&integral sw&&integral sh&&sw=dw&&sh=dh&&
+                          a.x>=float clip.x&&a.y>=float clip.y&&b.x<=float(clip.x+clip.width)&&
+                          e.y<=float(clip.y+clip.height))then false else
+                        match Raster2.Image.blit_scaled_blend~blend:Raster2.Composite.Copy~src:source
+                          ~src_rect:{x=int_of_float sx;y=int_of_float sy;width=int_of_float sw;height=int_of_float sh}
+                          ~dst:color~dst_rect:{x=int_of_float a.x;y=int_of_float a.y;width=int_of_float dw;height=int_of_float dh}
+                          ~filter:Raster2.Image.Bilinear with Ok()->true|Error _->false in
+                      if fast_rectangle()then control.fast_rectangles<-control.fast_rectangles+1
+                      else begin control.triangle_fallbacks<-control.triangle_fallbacks+1;(match d.primitive with
                        |Triangle_list->for i=0 to Array.length indices/3-1 do triangle indices.(i*3)indices.(i*3+1)indices.(i*3+2)done
-                       |Triangle_strip->for i=0 to Array.length indices-3 do if i land 1=0 then triangle indices.(i)indices.(i+1)indices.(i+2)else triangle indices.(i+1)indices.(i)indices.(i+2)done);
+                       |Triangle_strip->for i=0 to Array.length indices-3 do if i land 1=0 then triangle indices.(i)indices.(i+1)indices.(i+2)else triangle indices.(i+1)indices.(i)indices.(i+2)done)end;
                       Ok())
                   |_->error"Ogpu_raster2.render"Invalid_argument"vertex buffer is absent"in
               let resolve()=
@@ -193,4 +228,5 @@ let trace control=List.of_seq(Queue.to_seq control.log)
 let trace_stats control=Queue.length control.log,control.dropped_log_entries
 let decode_cache_stats control=
   List.length control.decoded+List.length control.decoded_indices,control.decode_misses
+let rectangle_path_stats control=control.fast_rectangles,control.triangle_fallbacks
 let live_counts control=control.buffers,control.textures,control.pipelines,control.queues,control.surfaces

@@ -100,5 +100,21 @@ let ()=
   let auxiliary:Scene_execution.auxiliary_resource={key="shadow-four";buffer=Bytes.make 84 '\000';texture=green}in
   let draw={Scene_execution.mesh;state}and stable=ref None in
   List.iter(fun _->ignore(get(Scene_execution.render_sampled_resources renderer[Scene3_textured,Ogpu.Pipeline.Replace,Some red,None,1,draw]));let pixels=get(Scene_execution.read_pixels renderer~bytes_per_row:16)in if Char.code(Bytes.get pixels 0)<>255 then failwith"texture1/sampler2 exact pixel";ignore(get(Scene_execution.render_sampled_resources renderer[Scene3_shadow,Ogpu.Pipeline.Replace,None,Some auxiliary,1,draw]));let pixels=get(Scene_execution.read_pixels renderer~bytes_per_row:16)in if Char.code(Bytes.get pixels 1)<>255 then failwith"shadow texture4/sampler5 exact pixel";let uploaded=Scene_execution.upload_bytes renderer in match!stable with None->stable:=Some uploaded|Some old when old=uploaded->()|Some _->failwith"sampled resources reuploaded")[1;2;60;600];
+  let quad_vertices=Bytes.make(68*4)'\000'and quad_indices=Bytes.create 24 in
+  List.iteri(fun index(x,y,u,v)->let offset=index*68 in Bytes.set_int64_le quad_vertices offset(Int64.bits_of_float x);Bytes.set_int64_le quad_vertices(offset+8)(Int64.bits_of_float y);Bytes.set_int64_le quad_vertices(offset+40)(Int64.bits_of_float 1.);Bytes.set_int32_le quad_vertices(offset+48)0xffffffffl;Bytes.set_int64_le quad_vertices(offset+52)(Int64.bits_of_float u);Bytes.set_int64_le quad_vertices(offset+60)(Int64.bits_of_float v))[0.,0.,0.,0.;4.,0.,1.,0.;4.,4.,1.,1.;0.,4.,0.,1.];
+  List.iteri(fun index value->Bytes.set_int32_le quad_indices(index*4)(Int32.of_int value))[0;1;2;0;2;3];
+  let quad_mesh:Scene_execution.mesh={key="fast-rectangle";vertices=quad_vertices;vertex_count=4;indices=quad_indices;index_count=6}in
+  let quad_draw={Scene_execution.mesh=quad_mesh;state={state with transform_uniforms=None;depth_load=Load}}in
+  let linear_sampler={sampler with min_filter=Linear;mag_filter=Linear}and pattern=Bytes.init 64(fun index->Char.chr((index*37)land 255))in
+  let pattern_texture:Scene_execution.sampled_texture={key="fast-pattern";levels=[|{width=4;height=4;bytes=pattern}|];sampler=linear_sampler}in
+  let fast0,fallback0=Ogpu_raster2.rectangle_path_stats control in
+  ignore(get(Scene_execution.render_sampled_resources renderer[Scene2_textured,Ogpu.Pipeline.Replace,Some pattern_texture,None,1,quad_draw]));
+  let fast_pixels=get(Scene_execution.read_pixels renderer~bytes_per_row:16)and fast1,fallback1=Ogpu_raster2.rectangle_path_stats control in
+  if fast_pixels<>pattern||fast1<>fast0+1||fallback1<>fallback0 then failwith"exact rectangle fast path";
+  let alternate=Bytes.copy quad_indices in List.iteri(fun index value->Bytes.set_int32_le alternate(index*4)(Int32.of_int value))[0;1;3;1;2;3];
+  let fallback_draw={quad_draw with mesh={quad_mesh with key="rectangle-fallback";indices=alternate}}in
+  ignore(get(Scene_execution.render_sampled_resources renderer[Scene2_textured,Ogpu.Pipeline.Replace,Some pattern_texture,None,1,fallback_draw]));
+  let fallback_pixels=get(Scene_execution.read_pixels renderer~bytes_per_row:16)and fast2,fallback2=Ogpu_raster2.rectangle_path_stats control in
+  if fallback_pixels<>fast_pixels||fast2<>fast1||fallback2<>fallback1+1 then failwith"rectangle topology fallback drift";
   get(Scene_execution.destroy renderer);if Ogpu_raster2.live_counts control<>(0,0,0,0,0)then failwith"sampled resources live delta";
   print_endline"ogpu_raster2: frames1/2/60/600+resize, 4-domain, 100k zero delta"
