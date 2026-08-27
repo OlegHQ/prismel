@@ -28,11 +28,17 @@ int main() { @autoreleasepool {
   NSUInteger count = 0;
   for (id<MTLFunctionLog> log in logs) {
     ++count;
-    if (![log conformsToProtocol:@protocol(MTLFunctionLog)]) return 3;
+    if (![log respondsToSelector:@selector(type)] ||
+        ![log respondsToSelector:@selector(debugLocation)] ||
+        ![log respondsToSelector:@selector(encoderLabel)] ||
+        ![log respondsToSelector:@selector(function)]) return 3;
     if (log.type != MTLFunctionLogTypeValidation) return 4;
     id<MTLFunctionLogDebugLocation> location = log.debugLocation;
     if (location != nil) {
-      if (![location conformsToProtocol:@protocol(MTLFunctionLogDebugLocation)])
+      if (![location respondsToSelector:@selector(functionName)] ||
+          ![location respondsToSelector:@selector(URL)] ||
+          ![location respondsToSelector:@selector(line)] ||
+          ![location respondsToSelector:@selector(column)])
         return 5;
       NSString *function_name = [location.functionName copy];
       NSURL *url = [location.URL copy];

@@ -5,8 +5,16 @@
 extern "C" CAMLprim value caml_prismel_metal_command_function_logs(value raw) {
   CAMLparam1(raw); CAMLlocal3(array, handle, result); @try {
     id<MTLCommandBuffer> command = object_of_handle(raw, Handle_kind::Command_buffer);
-    NSMutableArray *logs = [NSMutableArray array];
-    for (id<MTLFunctionLog> log in command.logs) [logs addObject:log];
+    NSMutableArray<id<MTLFunctionLog>> *logs = [NSMutableArray array];
+    for (id candidate in command.logs) {
+      if (![candidate respondsToSelector:@selector(type)] ||
+          ![candidate respondsToSelector:@selector(debugLocation)] ||
+          ![candidate respondsToSelector:@selector(encoderLabel)] ||
+          ![candidate respondsToSelector:@selector(function)])
+        CAMLreturn(result_error_text("Metal log container yielded an incompatible diagnostic"));
+      id<MTLFunctionLog> log = candidate;
+      [logs addObject:log];
+    }
     array = caml_alloc(logs.count, 0);
     for (NSUInteger index = 0; index < logs.count; ++index) {
       handle = allocate_handle(logs[index], Handle_kind::Function_log);
