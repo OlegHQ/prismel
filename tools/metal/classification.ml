@@ -1893,6 +1893,7 @@ let device_library_safe5 = Binding_device_library5_safe_package.ids
 let device_queues_safe3 = Binding_device_queues3_safe_package.ids
 let device_legacy_io_safe2 = Binding_device_remaining6_safe_package.io_alias_ids
 let device_final_safe4 = Binding_device_final4_safe_package.ids
+let device_async_safe9 = Binding_device_async9_safe_package.ids
 
 let classify ~unavailable ~identifier ~header ~kind ~signature =
   if unavailable then
@@ -1931,6 +1932,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier device_final_safe4 then
     Bound,
       "Implemented by exact Device function-handle, argument-encoder, and synchronous render-pipeline constructors with typed descriptors, same-device ownership, native-first failure handling, and real public conformance."
+  else if List.mem identifier device_async_safe9 then
+    Bound,
+      "Implemented by typed classic Device completion selectors presented through a bounded synchronous safe Result, retaining all descriptors until exactly one completion and proven by real library, compute, render, mesh, tile, and stitched fixtures."
   else if acceleration_scalar_identifier ~header ~kind ~signature identifier then
     Bound,
       "Implemented by generated immutable acceleration-structure descriptor values with native execute-or-capability-reject conformance."
@@ -2125,6 +2129,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier Binding_device_metadata7_safe_plan.owned_metadata_ids then
     Bound,
       "Represented by the existing owned public tile-pipeline descriptor and indirect compute/render command encoder APIs, with typed protocol/class identity and real descriptor/indirect-command conformance."
+  else if List.mem identifier Binding_device_metadata7_safe_plan.observer_ids then
+    Bound,
+      "Implemented by the public owned multi-shot Device observer token with copied notification names, owned initial/callback devices, exact cancellation/root teardown, and real enumeration/removal conformance."
   else if List.mem identifier small_header_safe24 then
     Bound,
       "Represented by the existing public owned safe API for this exact small-header type or selector, with copied metadata, checked device/lifetime/range semantics, and its family native conformance fixture."

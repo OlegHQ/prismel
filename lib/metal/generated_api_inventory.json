@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 5213,
+    "bound": 5226,
     "scope-excluded": 37,
-    "unreviewed": 35
+    "unreviewed": 22
   },
-  "classification_source_sha256": "400aa456104c9cb0b0d8b7c48df86691739b05f6e2e8d542771f03bdab6be316",
+  "classification_source_sha256": "2558b2e6e50807bf174011a16d5a94a3408211f250f3c16a40fc69f39c7a3a97",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -29083,7 +29083,7 @@
           "line": 174
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "function:MTLCopyAllDevicesWithObserver",
       "kind": "function",
@@ -29091,7 +29091,7 @@
       "macos_introduced": "10.13",
       "name": "MTLCopyAllDevicesWithObserver",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the public owned multi-shot Device observer token with copied notification names, owned initial/callback devices, exact cancellation/root teardown, and real enumeration/removal conformance.",
       "signature": "NS_RETURNS_RETAINED NSArray<id<MTLDevice>> * _Nonnull (id<NSObject>  _Nullable __strong * _Nonnull, MTLDeviceNotificationHandler  _Nonnull __strong)"
     },
     {
@@ -29314,7 +29314,7 @@
           "line": 179
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "function:MTLRemoveDeviceObserver",
       "kind": "function",
@@ -29322,7 +29322,7 @@
       "macos_introduced": "10.13",
       "name": "MTLRemoveDeviceObserver",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the public owned multi-shot Device observer token with copied notification names, owned initial/callback devices, exact cancellation/root teardown, and real enumeration/removal conformance.",
       "signature": "void (id<NSObject>  _Nonnull __strong)"
     },
     {
@@ -56129,7 +56129,7 @@
           "line": 864
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newComputePipelineStateWithDescriptor:options:completionHandler:]",
       "kind": "method",
@@ -56137,7 +56137,7 @@
       "macos_introduced": "10.11",
       "name": "newComputePipelineStateWithDescriptor:options:completionHandler:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by typed classic Device completion selectors presented through a bounded synchronous safe Result, retaining all descriptors until exactly one completion and proven by real library, compute, render, mesh, tile, and stitched fixtures.",
       "signature": "instance (MTLComputePipelineDescriptor * _Nonnull __strong, MTLPipelineOption, MTLNewComputePipelineStateWithReflectionCompletionHandler  _Nonnull __strong) -> void"
     },
     {
@@ -56174,7 +56174,7 @@
           "line": 459
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newComputePipelineStateWithFunction:completionHandler:]",
       "kind": "method",
@@ -56182,7 +56182,7 @@
       "macos_introduced": "10.11",
       "name": "newComputePipelineStateWithFunction:completionHandler:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by typed classic Device completion selectors presented through a bounded synchronous safe Result, retaining all descriptors until exactly one completion and proven by real library, compute, render, mesh, tile, and stitched fixtures.",
       "signature": "instance (id<MTLFunction>  _Nonnull __strong, MTLNewComputePipelineStateCompletionHandler  _Nonnull __strong) -> void"
     },
     {
@@ -56214,7 +56214,7 @@
           "line": 459
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newComputePipelineStateWithFunction:options:completionHandler:]",
       "kind": "method",
@@ -56222,7 +56222,7 @@
       "macos_introduced": "10.11",
       "name": "newComputePipelineStateWithFunction:options:completionHandler:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by typed classic Device completion selectors presented through a bounded synchronous safe Result, retaining all descriptors until exactly one completion and proven by real library, compute, render, mesh, tile, and stitched fixtures.",
       "signature": "instance (id<MTLFunction>  _Nonnull __strong, MTLPipelineOption, MTLNewComputePipelineStateWithReflectionCompletionHandler  _Nonnull __strong) -> void"
     },
     {
@@ -56707,7 +56707,7 @@
           "line": 459
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newLibraryWithSource:options:completionHandler:]",
       "kind": "method",
@@ -56715,7 +56715,7 @@
       "macos_introduced": "10.11",
       "name": "newLibraryWithSource:options:completionHandler:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by typed classic Device completion selectors presented through a bounded synchronous safe Result, retaining all descriptors until exactly one completion and proven by real library, compute, render, mesh, tile, and stitched fixtures.",
       "signature": "instance (NSString * _Nonnull __strong, MTLCompileOptions * _Nullable __strong, MTLNewLibraryCompletionHandler  _Nonnull __strong) -> void"
     },
     {
@@ -56753,7 +56753,7 @@
           "line": 804
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newLibraryWithStitchedDescriptor:completionHandler:]",
       "kind": "method",
@@ -56761,7 +56761,7 @@
       "macos_introduced": "12.0",
       "name": "newLibraryWithStitchedDescriptor:completionHandler:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by typed classic Device completion selectors presented through a bounded synchronous safe Result, retaining all descriptors until exactly one completion and proven by real library, compute, render, mesh, tile, and stitched fixtures.",
       "signature": "instance (MTLStitchedLibraryDescriptor * _Nonnull __strong, MTLNewLibraryCompletionHandler  _Nonnull __strong) -> void"
     },
     {
@@ -56954,7 +56954,7 @@
           "line": 459
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newRenderPipelineStateWithDescriptor:completionHandler:]",
       "kind": "method",
@@ -56962,7 +56962,7 @@
       "macos_introduced": "10.11",
       "name": "newRenderPipelineStateWithDescriptor:completionHandler:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by typed classic Device completion selectors presented through a bounded synchronous safe Result, retaining all descriptors until exactly one completion and proven by real library, compute, render, mesh, tile, and stitched fixtures.",
       "signature": "instance (MTLRenderPipelineDescriptor * _Nonnull __strong, MTLNewRenderPipelineStateCompletionHandler  _Nonnull __strong) -> void"
     },
     {
@@ -56994,7 +56994,7 @@
           "line": 459
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newRenderPipelineStateWithDescriptor:options:completionHandler:]",
       "kind": "method",
@@ -57002,7 +57002,7 @@
       "macos_introduced": "10.11",
       "name": "newRenderPipelineStateWithDescriptor:options:completionHandler:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by typed classic Device completion selectors presented through a bounded synchronous safe Result, retaining all descriptors until exactly one completion and proven by real library, compute, render, mesh, tile, and stitched fixtures.",
       "signature": "instance (MTLRenderPipelineDescriptor * _Nonnull __strong, MTLPipelineOption, MTLNewRenderPipelineStateWithReflectionCompletionHandler  _Nonnull __strong) -> void"
     },
     {
@@ -57040,7 +57040,7 @@
           "line": 932
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newRenderPipelineStateWithMeshDescriptor:options:completionHandler:]",
       "kind": "method",
@@ -57048,7 +57048,7 @@
       "macos_introduced": "13.0",
       "name": "newRenderPipelineStateWithMeshDescriptor:options:completionHandler:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by typed classic Device completion selectors presented through a bounded synchronous safe Result, retaining all descriptors until exactly one completion and proven by real library, compute, render, mesh, tile, and stitched fixtures.",
       "signature": "instance (MTLMeshRenderPipelineDescriptor * _Nonnull __strong, MTLPipelineOption, MTLNewRenderPipelineStateWithReflectionCompletionHandler  _Nonnull __strong) -> void"
     },
     {
@@ -57091,7 +57091,7 @@
           "line": 915
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newRenderPipelineStateWithTileDescriptor:options:completionHandler:]",
       "kind": "method",
@@ -57099,7 +57099,7 @@
       "macos_introduced": "11.0",
       "name": "newRenderPipelineStateWithTileDescriptor:options:completionHandler:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by typed classic Device completion selectors presented through a bounded synchronous safe Result, retaining all descriptors until exactly one completion and proven by real library, compute, render, mesh, tile, and stitched fixtures.",
       "signature": "instance (MTLTileRenderPipelineDescriptor * _Nonnull __strong, MTLPipelineOption, MTLNewRenderPipelineStateWithReflectionCompletionHandler  _Nonnull __strong) -> void"
     },
     {
@@ -108112,7 +108112,7 @@
           "line": 166
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "typedef:MTLDeviceNotificationHandler",
       "kind": "typedef",
@@ -108120,7 +108120,7 @@
       "macos_introduced": "10.13",
       "name": "MTLDeviceNotificationHandler",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the public owned multi-shot Device observer token with copied notification names, owned initial/callback devices, exact cancellation/root teardown, and real enumeration/removal conformance.",
       "signature": "void (^)(id<MTLDevice>  _Nonnull __strong, MTLDeviceNotificationName  _Nonnull __strong)"
     },
     {
@@ -108134,7 +108134,7 @@
           "line": 142
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "typedef:MTLDeviceNotificationName",
       "kind": "typedef",
@@ -108142,7 +108142,7 @@
       "macos_introduced": "10.13",
       "name": "MTLDeviceNotificationName",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the public owned multi-shot Device observer token with copied notification names, owned initial/callback devices, exact cancellation/root teardown, and real enumeration/removal conformance.",
       "signature": "NSString *"
     },
     {
