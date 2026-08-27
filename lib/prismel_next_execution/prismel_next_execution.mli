@@ -54,7 +54,7 @@ type facts = {
 
 type text_region = { x:int; y:int; width:int; height:int; focused:bool }
 type audio_intent = Prismel_next_resources.Audio.intent
-type family = Scene2 | Scene3 | Scene3_textured | Scene3_shadow |
+type family = Scene2 | Scene2_textured | Scene3 | Scene3_textured | Scene3_shadow |
   Scene3_stencil | Scene3_textured_stencil | Scene3_shadow_stencil
 type blend = Replace | Alpha | Add | Multiply | Screen | Subtract
 type draw

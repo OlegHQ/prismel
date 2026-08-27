@@ -32,7 +32,7 @@ type facts = { frame:int64; time:float; dt:float; logical_width:int; logical_hei
   dropped_events:int }
 type text_region = {x:int;y:int;width:int;height:int;focused:bool}
 type audio_intent = Prismel_next_resources.Audio.intent
-type family = Scene2 | Scene3 | Scene3_textured | Scene3_shadow |
+type family = Scene2 | Scene2_textured | Scene3 | Scene3_textured | Scene3_shadow |
   Scene3_stencil | Scene3_textured_stencil | Scene3_shadow_stencil
 type blend = Replace | Alpha | Add | Multiply | Screen | Subtract
 type draw = { family:family; blend:blend; texture:Scene_execution.sampled_texture option;
@@ -267,7 +267,7 @@ let lower_scene2 value ~density ~resource:resolve ir =
     put 0 x0 y0 0. 0.;put 1 x1 y0' 1. 0.;put 2 x1' y1 1. 1.;put 3 x0' y1' 0. 1.;
     let indices=Bytes.create 24 in List.iteri(fun i n->Bytes.set_int32_le indices(i*4)(Int32.of_int n))[0;1;2;0;2;3];
     let x,y,w,h=List.hd!clips in
-    {family=Scene3_textured;blend=Alpha;texture=Some texture;auxiliary=None;samples=1;
+    {family=Scene2_textured;blend=Alpha;texture=Some texture;auxiliary=None;samples=1;
       value={Scene_execution.mesh={key=Printf.sprintf"snapshot-%d"!number;vertices;vertex_count=4;indices;index_count=6};state=default_state(x,y,w,h)(x,y,w,h)}}in
   let image (command:Raster2.Render_ir.image) = match resolve command.Raster2.Render_ir.resource_id with None->failure:=Some"resource id is unbound"|Some source->
     match snapshot value~density source with Error e->failure:=Some(Format.asprintf"%a"pp_error e)|Ok(width,height,texture)->
@@ -354,7 +354,7 @@ let step value draws=match ensure"Prismel_next_execution.step"value with Error _
   Runtime_next_input.begin_frame value.input;
   match push_web value with Error _ as e->e|Ok()->
   match Runtime_next_orchestrator.facts value.runtime with Error e->backend"Prismel_next_execution.step"e|Ok f->
-    let family=function Scene2->Runtime_next_orchestrator.Scene2|Scene3->Scene3
+    let family=function Scene2->Runtime_next_orchestrator.Scene2|Scene2_textured->Scene2_textured|Scene3->Scene3
       |Scene3_textured->Scene3_textured|Scene3_shadow->Scene3_shadow|Scene3_stencil->Scene3_stencil
       |Scene3_textured_stencil->Scene3_textured_stencil|Scene3_shadow_stencil->Scene3_shadow_stencil in
     let blend=function Replace->Runtime_next_orchestrator.Replace|Alpha->Alpha|Add->Add

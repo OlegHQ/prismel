@@ -13,7 +13,7 @@ type facts = { title:string;logical_width:int;logical_height:int;drawable_width:
 type pacing = {frames:int64;presented:int64;last_presented:bool}
 type stats={frames:int64;presented:int64;logical_draws:int64;logical_passes:int64;
   logical_submissions:int64;uploaded_bytes:int64;cache_entries:int}
-type family=Scene2|Scene3|Scene3_textured|Scene3_shadow|Scene3_stencil
+type family=Scene2|Scene2_textured|Scene3|Scene3_textured|Scene3_shadow|Scene3_stencil
   |Scene3_textured_stencil|Scene3_shadow_stencil
 type blend=Replace|Alpha|Add|Multiply|Screen|Subtract
 type prepared={family:family;blend:blend;texture:Scene_execution.sampled_texture option;
@@ -91,7 +91,7 @@ let account value draw_count result =
 let render value draws=match ensure"Runtime_next_orchestrator.render"value with Error _ as e->e|Ok()->
   account value(List.length draws)(match value.implementation with Native_runtime x->Runtime_next.render x draws
     |Headless_runtime x->Runtime_next_headless.render x draws|Web_runtime x->Runtime_next_web.render x draws)
-let scene_family=function Scene2->Scene_execution.Scene2|Scene3->Scene3
+let scene_family=function Scene2->Scene_execution.Scene2|Scene2_textured->Scene2_textured|Scene3->Scene3
   |Scene3_textured->Scene3_textured|Scene3_shadow->Scene3_shadow
   |Scene3_stencil->Scene3_stencil|Scene3_textured_stencil->Scene3_textured_stencil
   |Scene3_shadow_stencil->Scene3_shadow_stencil

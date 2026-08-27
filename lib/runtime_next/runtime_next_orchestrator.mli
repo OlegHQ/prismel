@@ -14,7 +14,7 @@ type pacing = { frames:int64; presented:int64; last_presented:bool }
 type stats = { frames:int64; presented:int64; logical_draws:int64;
   logical_passes:int64; logical_submissions:int64; uploaded_bytes:int64;
   cache_entries:int }
-type family = Scene2 | Scene3 | Scene3_textured | Scene3_shadow |
+type family = Scene2 | Scene2_textured | Scene3 | Scene3_textured | Scene3_shadow |
   Scene3_stencil | Scene3_textured_stencil | Scene3_shadow_stencil
 type blend = Replace | Alpha | Add | Multiply | Screen | Subtract
 type prepared = {
