@@ -1,7 +1,7 @@
 (library
  (name ogpu)
  (public_name prismel.ogpu)
- (modules Error Handle Capabilities Types Command Mock Submission))
+ (modules Error Handle Capabilities Types Command Mock Submission Shader))
 
 (test
  (name test_ogpu_foundation)
@@ -21,4 +21,9 @@
 (test
  (name test_ogpu_submission)
  (modules test_ogpu_submission)
+ (libraries ogpu))
+
+(test
+ (name test_ogpu_shader)
+ (modules test_ogpu_shader)
  (libraries ogpu))
