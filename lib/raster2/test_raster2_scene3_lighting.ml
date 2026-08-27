@@ -19,6 +19,9 @@ let spot_descriptor concentration cutoff={descriptor with
 let shade_spot prepared position=shade prepared~position~normal:(v 0. 0. 1.)
   ~view:(v 0. 0. 1.)~front_facing:true~texture:None~fog_distance:0.
 let red value=Int32.(to_int(logand(shift_right_logical value 24)0xffl))
+let area ?(direction=v 0. 0.(-1.)) ?(width=2.) ?(height=2.) ?(samples=4) ?(intensity=1.) ()=Area{position=v 0. 0. 2.;direction;width;height;samples;color=white;intensity;attenuation={constant=1.;linear=0.;quadratic=0.}}
+let area_descriptor light={descriptor with lights=[|light|];material={material with diffuse=white;specular=black;shininess=0.};separate_specular=false;two_sided=false}
+let shade_area prepared=shade prepared~position:(v 0. 0. 0.)~normal:(v 0. 0. 1.)~view:(v 0. 0. 1.)~front_facing:true~texture:None~fog_distance:0.
 let ()=
   let prepared=ok(prepare descriptor) in
   let lit=render prepared 1 in if lit=0l then failwith"unlit";
@@ -52,6 +55,11 @@ let ()=
   begin match prepare(spot_descriptor nan 1.)with
   | Error Invalid_spot->()|_->failwith"nonfinite spot concentration"
   end;
+  let area4=ok(prepare(area_descriptor(area())))and area1=ok(prepare(area_descriptor(area~samples:1())))and area_half=ok(prepare(area_descriptor(area~intensity:0.5())))and area_wide=ok(prepare(area_descriptor(area~width:4.())))and area_back=ok(prepare(area_descriptor(area~direction:(v 0. 0. 1.)())))in
+  let pixel4=shade_area area4 in if pixel4<>0xf0f0f0ffl then failwith(Printf.sprintf"area exact geometry: %lx"pixel4);
+  if shade_area area1<>0xffffffffl||shade_area area_half<>0x787878ffl||red(shade_area area_wide)>=red pixel4||shade_area area_back<>0x000000ffl then failwith"area orientation/intensity/sample policy";
+  begin match prepare(area_descriptor(area~width:nan()))with Error Invalid_direction->()|_->failwith"nonfinite area geometry"end;
+  begin match prepare(area_descriptor(area~samples:3()))with Error Invalid_direction->()|_->failwith"invalid area sample cardinality"end;
   let expected=Array.init 600(fun i->render prepared(i+1))in
   let workers=Array.init 4(fun _->Domain.spawn(fun()->Array.init 600(fun i->render prepared(i+1))))in
   Array.iter(fun worker->if Domain.join worker<>expected then failwith"domain drift")workers;
@@ -63,4 +71,6 @@ let ()=
   let fog_expected=Array.init 600(fun i->shade_fog exponential_squared(float(i+1)/.10.))in
   let fog_workers=Array.init 4(fun _->Domain.spawn(fun()->Array.init 600(fun i->shade_fog exponential_squared(float(i+1)/.10.))))in
   Array.iter(fun worker->if Domain.join worker<>fog_expected then failwith"fog domain drift")fog_workers;
+  let area_expected=Array.init 600(fun _->shade_area area4)in if List.exists(fun frame->area_expected.(frame-1)<>pixel4)[1;2;60;600]then failwith"area frame drift";
+  let area_workers=Array.init 4(fun _->Domain.spawn(fun()->Array.init 600(fun _->shade_area area4)))in Array.iter(fun worker->if Domain.join worker<>area_expected then failwith"area domain drift")area_workers;
   print_endline"Raster2 deterministic Scene3 lighting passed"

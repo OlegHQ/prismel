@@ -6,6 +6,8 @@ type light =
   | Point of { position : vec3; color : color; intensity : float; attenuation : attenuation }
   | Spot of { position : vec3; direction : vec3; inner_cos : float; outer_cos : float;
       concentration : float; color : color; intensity : float; attenuation : attenuation }
+  | Area of { position:vec3; direction:vec3; width:float; height:float; samples:int;
+      color:color; intensity:float; attenuation:attenuation }
 type material = { ambient : color; diffuse : color; specular : color; emissive : color; shininess : float }
 type fog = No_fog | Linear of { color : color; near : float; far : float }
   | Exponential of { color : color; density : float }

@@ -6,6 +6,8 @@ type light =
   | Point of { position : vec3; color : color; intensity : float; attenuation : attenuation }
   | Spot of { position : vec3; direction : vec3; inner_cos : float; outer_cos : float;
       concentration : float; color : color; intensity : float; attenuation : attenuation }
+  | Area of { position:vec3; direction:vec3; width:float; height:float; samples:int;
+      color:color; intensity:float; attenuation:attenuation }
 type material = { ambient : color; diffuse : color; specular : color; emissive : color; shininess : float }
 type fog = No_fog | Linear of { color : color; near : float; far : float }
   | Exponential of { color : color; density : float }
@@ -53,6 +55,10 @@ let validate descriptor =
               l.inner_cos >= l.outer_cos && l.inner_cos <= 1. &&
               l.outer_cos >= -1.) then error := Some Invalid_spot
           else if not (valid_color l.color && finite l.intensity && l.intensity >= 0.) then error := Some Invalid_color
+      | Area l ->
+          if not(valid_vec l.position&&valid_direction l.direction&&finite l.width&&finite l.height)||l.width<=0.||l.height<=0.||not(List.mem l.samples[1;4;9;16])then error:=Some Invalid_direction
+          else if not(valid_attenuation l.attenuation)then error:=Some Invalid_attenuation
+          else if not(valid_color l.color&&finite l.intensity&&l.intensity>=0.)then error:=Some Invalid_color
     done;
     match !error with Some e -> Error e | None ->
       match descriptor.fog with
@@ -85,6 +91,7 @@ let orient_normal ~reversed_winding normal =
 let clamp x = max 0. (min 1. x)
 let normalize v = let inv = 1. /. sqrt (length2 v) in (v.x *. inv, v.y *. inv, v.z *. inv)
 let dot ax ay az bx by bz = (ax *. bx) +. (ay *. by) +. (az *. bz)
+let cross ax ay az bx by bz=(ay*.bz-.az*.by,az*.bx-.ax*.bz,ax*.by-.ay*.bx)
 let channel c shift = Float.of_int Int32.(to_int (logand (shift_right_logical c shift) 0xffl)) /. 255.
 let pack r g b a =
   let c x = Int32.of_int (int_of_float ((clamp x *. 255.) +. 0.5)) in
@@ -118,6 +125,19 @@ let shade prepared ~position ~normal ~view ~front_facing ~texture ~fog_distance 
           let cone = if cosine < l.outer_cos then 0.
             else cosine ** l.concentration in
           let a=l.attenuation in (lx,ly,lz,cone*.l.intensity /. (a.constant +. a.linear*.distance +. a.quadratic*.distance*.distance),l.color)
+      | Area l ->
+          let dx,dy,dz=normalize l.direction in
+          let rx,ry,rz=if abs_float dz<0.999 then 0.,0.,1. else 0.,1.,0. in
+          let ux,uy,uz=cross rx ry rz dx dy dz|>fun(x,y,z)->normalize{x;y;z}in
+          let vx,vy,vz=cross dx dy dz ux uy uz and side=int_of_float(sqrt(float l.samples))in
+          let sx=ref 0. and sy=ref 0. and sz=ref 0. and strength=ref 0. in
+          for row=0 to side-1 do for column=0 to side-1 do
+            let u=((float column+.0.5)/.float side-.0.5)*.l.width and v=((float row+.0.5)/.float side-.0.5)*.l.height in
+            let px=l.position.x+.u*.ux+.v*.vx and py=l.position.y+.u*.uy+.v*.vy and pz=l.position.z+.u*.uz+.v*.vz in
+            let tx=px-.position.x and ty=py-.position.y and tz=pz-.position.z in let distance=sqrt(tx*.tx+.ty*.ty+.tz*.tz)in
+            if distance>0. then let lx=tx/.distance and ly=ty/.distance and lz=tz/.distance in let facing=max 0.(dot dx dy dz(-.lx)(-.ly)(-.lz))and a=l.attenuation in let weight=l.intensity*.facing/.(float l.samples*.(a.constant+.a.linear*.distance+.a.quadratic*.distance*.distance))in sx:=!sx+.lx*.weight;sy:=!sy+.ly*.weight;sz:=!sz+.lz*.weight;strength:=!strength+.weight
+          done done;
+          if !strength=0. then 0.,0.,0.,0.,l.color else let length=sqrt(!sx*. !sx+. !sy*. !sy+. !sz*. !sz)in if length=0. then 0.,0.,0.,0.,l.color else !sx/.length,!sy/.length,!sz/.length,!strength,l.color
     in
     let normal_dot_light = max 0. (dot nx ny nz lx ly lz) in
     let visibility = if i >= Array.length prepared.shadows then 1. else match prepared.shadows.(i) with

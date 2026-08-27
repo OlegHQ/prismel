@@ -31,7 +31,7 @@ let lights values =
           inner_cos=cos cutoff;outer_cos=cos cutoff;concentration;
           color=color value.diffuse;intensity=value.intensity;
           attenuation=attenuation a}::!output
-    | Area _->failure:=Some Unsupported_area_light)values;
+    | Area{position;direction;width;height;samples;attenuation=a}->output:=Raster2.Scene3_lighting.Area{position=vec position;direction=vec direction;width;height;samples;color=color value.diffuse;intensity=value.intensity;attenuation=attenuation a}::!output)values;
   match !failure with Some error->Error error|None->Ok({Raster2.Scene3_lighting.r=min 1. !ar;g=min 1. !ag;b=min 1. !ab;a=1.},Array.of_list(List.rev !output))
 let fog=function None->Ok Raster2.Scene3_lighting.No_fog|Some value->match value.Fog3.mode with
   | Linear{start;end_}->Ok(Linear{color=color value.color;near=start;far=end_})
@@ -100,7 +100,8 @@ let self_test () =
   let directional=Light.directional~direction:(Vec3.create 0. 0.(-1.))()in
   let spot=Light.spot~at:(Vec3.create 0. 0. 2.)
     ~direction:(Vec3.create 0. 0.(-1.))~cutoff:0.75~concentration:7.()in
-  let scene=Scene3.create~lights:[directional;spot][node]in
+  let area=Light.area~at:(Vec3.create 0. 0. 2.)~direction:(Vec3.create 0. 0.(-1.))~width:2.~height:2.~samples:4()in
+  let scene=Scene3.create~lights:[directional;spot;area][node]in
   let surface=match Raster2.Surface.create~width:1~height:1()with Ok value->value|Error _->failwith"surface"in
   let raster_texture=match Raster2.Texture.create~color_space:Linear~hard_capacity:4 surface with Ok value->value|Error _->failwith"texture"in
   let resources={texture=(fun _->Ok{Raster2.Triangle.texture=raster_texture;filter=Raster2.Texture.Nearest;address_u=Clamp;address_v=Clamp});shadow=(fun _->Error Shadow_error)}in
