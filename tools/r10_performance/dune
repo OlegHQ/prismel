@@ -1,0 +1,3 @@
+(executable
+ (name r10_performance_protocol)
+ (libraries unix yojson))

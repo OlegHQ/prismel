@@ -1,0 +1,25 @@
+{
+  "profile": "release",
+  "width": 640,
+  "height": 480,
+  "samples": 5,
+  "warmup_seconds": 3.0,
+  "sample_seconds": 30.0,
+  "display": {
+    "display_id": null,
+    "refresh_hz": null,
+    "color_space": null,
+    "connection": null
+  },
+  "cases": [
+    {
+      "engine": "runtime-next-metal",
+      "target": "runtime-next-native",
+      "scenario": "basic",
+      "profile": "release",
+      "width": 640,
+      "height": 480,
+      "command": ["_build/default/tools/runtime_next_native_benchmark/runtime_next_native_benchmark.exe", "basic", "--visibility", "visible", "--warmup", "5", "--sample-seconds", "{seconds}"]
+    }
+  ]
+}
