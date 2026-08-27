@@ -60,16 +60,18 @@ let check_pixels extent bytes =
 
 let run scenario =
   let runtime = get (Runtime_next.create ~width:4 ~height:4) in
+  let initial_facts=Runtime_next.frame_facts runtime in
   let clear=(0.,0.,0.,0.)in
   let checkpoints = ref [] in
   for frame = 1 to 600 do
     ignore (get (Runtime_next.render ~clear runtime (draws scenario 4)));
     if List.mem frame [ 1; 2; 60; 600 ] then
-      checkpoints := (frame, check_pixels 4 (get (Runtime_next.read_pixels runtime ~bytes_per_row:16))) :: !checkpoints
+      checkpoints := (frame, check_pixels initial_facts.drawable_width (get (Runtime_next.read_pixels runtime ~bytes_per_row:(initial_facts.drawable_width*4)))) :: !checkpoints
   done;
   get (Runtime_next.resize runtime ~width:8 ~height:8);
+  let resized_facts=Runtime_next.frame_facts runtime in
   ignore (get (Runtime_next.render ~clear runtime (draws scenario 8)));
-  let resized_hash = check_pixels 8 (get (Runtime_next.read_pixels runtime ~bytes_per_row:32)) in
+  let resized_hash = check_pixels resized_facts.drawable_width (get (Runtime_next.read_pixels runtime ~bytes_per_row:(resized_facts.drawable_width*4))) in
   let live_stats=Runtime_next.stats runtime in
   get (Runtime_next.destroy runtime);
   let dead_stats=Runtime_next.stats runtime in
@@ -87,12 +89,19 @@ let run scenario =
     "reported_upload_bytes", `String(Int64.to_string live_stats.uploaded_bytes);
     "pipeline_cache_entries_live", `Int live_stats.pipeline_cache_entries;
     "pipeline_cache_entries_after_destroy", `Int dead_stats.pipeline_cache_entries;
+    "initial_logical_drawable", `List[`Int initial_facts.logical_width;`Int initial_facts.logical_height;`Int initial_facts.drawable_width;`Int initial_facts.drawable_height];
+    "initial_pixel_scale", `List[`Float initial_facts.pixel_scale_x;`Float initial_facts.pixel_scale_y];
     "frozen_software_hash", `String (frozen_software_hash scenario);
     "native_matches_frozen_software", `Bool (native_hash = frozen_software_hash scenario);
     "checkpoint_hashes", `List (List.rev_map (fun (frame, hash) -> `List [ `Int frame; `String hash ]) !checkpoints);
     "resized_hash", `String resized_hash ]
 
 let () =
+  let synthetic:Runtime_next.frame_facts={logical_width=10;logical_height=10;drawable_width=15;drawable_height=15;pixel_scale_x=1.5;pixel_scale_y=1.5}in
+  if Runtime_next.map_logical_rect synthetic(1,1,3,3)<>(1,1,5,5)then failwith"synthetic logical/drawable edge mapping drift";
+  let input=match Runtime_next_input.create~max_events:8~max_file_bytes:8~logical_width:10~logical_height:10 with Ok value->value|Error message->failwith message in
+  ignore(Runtime_next_input_sdl3.push input(Sdl3.Event.Mouse_motion{timestamp_ns=0L;window_id=1L;which=1L;buttons=0L;x=3.25;y=4.5;dx=0.;dy=0.}));
+  if (Runtime_next_input.snapshot input).pointer<>(3.25,4.5)then failwith"SDL3 logical pointer was double-scaled";
   let before = metal (Metal.Release_queue.stats ()) and rss_before = rss_kib () in
   match Runtime_next.create ~width:1 ~height:1 with
   | Error error -> failwith ("runtime-next native qualification create failed: " ^ Ogpu.Error.to_string error)

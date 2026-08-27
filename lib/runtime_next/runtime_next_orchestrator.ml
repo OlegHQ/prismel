@@ -67,14 +67,8 @@ let create configuration =
   else
     match configuration.target with
     | Native ->
-        if
-          configuration.logical_width <> configuration.drawable_width
-          || configuration.logical_height <> configuration.drawable_height
-        then invalid "Runtime_next_orchestrator.create"
-            "native composition currently requires equal logical and drawable dimensions"
-        else
-          Runtime_next.create ~width:configuration.drawable_width
-            ~height:configuration.drawable_height
+          Runtime_next.create ~width:configuration.logical_width
+            ~height:configuration.logical_height
           |> map (fun runtime ->
                  { target = Native; implementation = Native_runtime runtime })
     | Headless ->
@@ -106,10 +100,8 @@ let resize value ~logical_width ~logical_height ~drawable_width
     ~drawable_height =
   match value.implementation with
   | Native_runtime runtime ->
-      if logical_width <> drawable_width || logical_height <> drawable_height
-      then invalid "Runtime_next_orchestrator.resize"
-          "native composition currently requires equal logical and drawable dimensions"
-      else Runtime_next.resize runtime ~width:drawable_width ~height:drawable_height
+      let _ = drawable_width,drawable_height in
+      Runtime_next.resize runtime ~width:logical_width ~height:logical_height
   | Headless_runtime runtime ->
       Runtime_next_headless.resize runtime ~logical_width ~logical_height
         ~drawable_width ~drawable_height

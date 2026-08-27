@@ -1,3 +1,3 @@
 (test
  (name runtime_next_native_qualification)
- (libraries runtime_next scene_execution metal ogpu unix yojson))
+ (libraries runtime_next runtime_next_input scene_execution metal ogpu sdl3 unix yojson))

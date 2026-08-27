@@ -49,6 +49,14 @@ let exercise runtime extent =
     end
   done
 
+let exercise_native runtime extent =
+  let vertices=Bytes.make 48 '\000'and indices=Bytes.make 12 '\000'in
+  Bytes.set_int32_le indices 4 1l;Bytes.set_int32_le indices 8 2l;
+  List.iteri(fun index(x,y)->let offset=index*16 in Bytes.set_int32_le vertices offset(Int32.bits_of_float x);Bytes.set_int32_le vertices(offset+4)(Int32.bits_of_float y);Bytes.set_int32_le vertices(offset+8)0x4080bfffl)[-1.,-1.;3.,-1.;-1.,3.];
+  let mesh={Scene_execution.key="selector-native";vertices;vertex_count=3;indices;index_count=3}in
+  ignore(get(Orchestrator.render runtime[{Scene_execution.mesh;state={viewport=(0,0,extent,extent);scissor=(0,0,extent,extent)}}]));
+  if Bytes.get_int32_be(get(Orchestrator.capture runtime~bytes_per_row:(extent*4)))0<>0x4080bfffl then failwith"native capture did not return rendered pixels"
+
 let () =
   List.iter (fun (text, target) ->
       match Orchestrator.target_of_string text with
@@ -101,7 +109,7 @@ let () =
     match Orchestrator.create (configuration Orchestrator.Native 4) with
     | Error _ -> print_endline "runtime_next selector: native smoke skipped"
     | Ok native ->
-        exercise native 4;
+        exercise_native native 4;
         get (Orchestrator.destroy native)
   end;
   print_endline "runtime_next selector: precedence, headless/web facts passed"

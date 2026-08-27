@@ -43,13 +43,22 @@ drain. This finite test establishes handle/cache teardown and a small warm
 allocator envelope; it is not a substitute for the separate native long-run
 RSS gate.
 
+The host's hidden Metal windows reported authoritative SDL3 logical/drawable
+facts `4×4 / 4×4`, density `1×1`; this host configuration therefore did not
+exercise a real Retina backing scale. Runtime-next now queries both sizes from
+SDL3 at creation and after authoritative size-change handling, maps logical
+viewport/scissor edges to drawable pixels exactly once, and ignores caller
+guesses for native drawable size. A synthetic `10×10 / 15×15` fixture proves
+the 1.5× half-open edge mapping (`1,1,3,3` → `1,1,5,5`), while an SDL3 pointer
+fixture proves `(3.25,4.5)` remains in logical coordinates without scaling.
+
 ## Explicit exclusions
 
 - Runtime-next configures `sample_count=1`; MSAA is unsupported by this native
   slice and was not silently treated as qualified.
 - Public Shader3 remains software-only here and was not exercised.
-- Resize and capture are real. Retina drawable scale is not exposed by the
-  current narrow `Runtime_next` API, so this run does not qualify a true 2×
-  drawable/logical-size split or monitor move.
+- Resize and capture are real and drawable facts are now exposed. This run
+  observed 1×, so a true host-provided 2× Retina window/monitor move remains an
+  external qualification even though the synthetic edge contract is green.
 - Canvas behavior is represented by owned prepared geometry and native
   readback; it is not yet the full public Canvas mutation/resource graph.
