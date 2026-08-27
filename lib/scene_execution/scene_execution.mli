@@ -18,6 +18,15 @@ type sampled_texture = {
   levels:texture_level array;
   sampler:Ogpu.Types.sampler_descriptor;
 }
+type shadow_resource = {
+  texture : sampled_texture;
+  parameters : bytes;
+}
+
+(** Packs a software shadow snapshot into a deterministic RGBA8 depth texture
+    and a copied float32 parameter block. No backend allocation occurs here. *)
+val shadow_resource : key:string -> Raster2.Shadow_map.snapshot ->
+  (shadow_resource, Ogpu.Error.t) result
 
 val create : Ogpu.Backend.driver -> Ogpu.Surface.configuration ->
   (t, Ogpu.Error.t) result
