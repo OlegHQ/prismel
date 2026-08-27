@@ -117,6 +117,7 @@ can change the denominator explicitly rather than being hidden.
 | `23a449c` | 2026-08-27 10:08:39 +02:00 | 5,058 | 5,249 | 96.3612% | 58 | 0.157 | 369.4 | 7.04 |
 | `18b6566` | 2026-08-27 10:11:20 +02:00 | 5,069 | 5,249 | 96.5708% | 11 | 0.045 | 246.0 | 4.69 |
 | `75f55a1` | 2026-08-27 10:16:49 +02:00 | 5,083 | 5,249 | 96.8375% | 14 | 0.091 | 153.2 | 2.92 |
+| `be44eaf` | 2026-08-27 10:20:55 +02:00 | 5,088 | 5,249 | 96.9327% | 5 | 0.068 | 73.2 | 1.39 |
 
 ## Current measured rate
 
@@ -217,6 +218,12 @@ Descriptor capacities and dynamic-stride capability are enforced before native
 mutation; device identity, overflow-safe ranges, topology cardinality, buffer
 retention, reset teardown, and mesh/patch capability paths are covered by the
 safe contract, real ICB fixture, and ARC/`-Werror` native fixture.
+
+The `be44eaf` interval moves five exact synchronous `MTLDevice` library
+constructors. The safe API owns returned libraries through their device,
+copies compiled bytes, validates absolute bundle/file paths, checks stitched
+descriptor device graphs, and covers success-or-diagnostic behavior without
+promoting callback overloads or selector lookalikes.
 
 Rates describe completed commits, not forecasts. Hardware-only gates and
 complex ownership features will vary materially from pure-value batches.
