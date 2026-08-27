@@ -2079,6 +2079,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier Binding_render_pass24_safe_closure.promotable_ids then
     Bound,
       "Implemented by the owned classic RenderPass24 graph with copied color/sample descriptors, nullable resolve texture and counter buffers, checked device/range/default reset semantics, completion retention, and real render/resolve conformance."
+  else if List.mem identifier Binding_layer10_safe_closure.promotable_ids then
+    Bound,
+      "Implemented by the main-domain CAMetalLayer/Drawable ownership surface with retained device identity, checked drawable configuration, copied developer-HUD snapshots, availability-gated residency state, attached-window conformance, and an explicitly opaque private ABI record."
   else if List.mem identifier Binding_command_buffer19_safe_closure.promotable_ids then
     Bound,
       "Implemented by the CommandBuffer19 safe descriptor/callback closure with retained log-state and resources, exact-once completion, queue ownership, and error-only EncoderInfo snapshots."

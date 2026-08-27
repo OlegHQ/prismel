@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 5095,
+    "bound": 5105,
     "scope-excluded": 37,
-    "unreviewed": 153
+    "unreviewed": 143
   },
-  "classification_source_sha256": "d410f94a0dd7f200f54dbe506fdc63c5230aef646630f8a879ff45393930fe61",
+  "classification_source_sha256": "56c201836f33b36854d0e439ac5ebcd8ce2bf09ec8e1635dc668928c3bef1997",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -520,7 +520,7 @@
           "line": 52
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "class:CAMetalLayer",
       "kind": "class",
@@ -528,7 +528,7 @@
       "macos_introduced": "10.11",
       "name": "CAMetalLayer",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the main-domain CAMetalLayer/Drawable ownership surface with retained device identity, checked drawable configuration, copied developer-HUD snapshots, availability-gated residency state, attached-window conformance, and an explicitly opaque private ABI record.",
       "signature": ""
     },
     {
@@ -30074,7 +30074,7 @@
           "line": 158
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "method:-[CAMetalLayer developerHUDProperties]",
       "kind": "method",
@@ -30082,7 +30082,7 @@
       "macos_introduced": "13.0",
       "name": "developerHUDProperties",
       "owner": "CAMetalLayer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the main-domain CAMetalLayer/Drawable ownership surface with retained device identity, checked drawable configuration, copied developer-HUD snapshots, availability-gated residency state, attached-window conformance, and an explicitly opaque private ABI record.",
       "signature": "instance () -> API_UNAVAILABLE NSDictionary *"
     },
     {
@@ -30248,7 +30248,7 @@
           "line": 71
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "method:-[CAMetalLayer preferredDevice]",
       "kind": "method",
@@ -30256,7 +30256,7 @@
       "macos_introduced": "10.15",
       "name": "preferredDevice",
       "owner": "CAMetalLayer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the main-domain CAMetalLayer/Drawable ownership surface with retained device identity, checked drawable configuration, copied developer-HUD snapshots, availability-gated residency state, attached-window conformance, and an explicitly opaque private ABI record.",
       "signature": "instance () -> API_UNAVAILABLE id<MTLDevice>"
     },
     {
@@ -30296,7 +30296,7 @@
           "line": 173
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "method:-[CAMetalLayer residencySet]",
       "kind": "method",
@@ -30304,7 +30304,7 @@
       "macos_introduced": "26.0",
       "name": "residencySet",
       "owner": "CAMetalLayer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the main-domain CAMetalLayer/Drawable ownership surface with retained device identity, checked drawable configuration, copied developer-HUD snapshots, availability-gated residency state, attached-window conformance, and an explicitly opaque private ABI record.",
       "signature": "instance () -> API_UNAVAILABLE id<MTLResidencySet>"
     },
     {
@@ -30365,7 +30365,7 @@
           "line": 158
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "method:-[CAMetalLayer setDeveloperHUDProperties:]",
       "kind": "method",
@@ -30373,7 +30373,7 @@
       "macos_introduced": "13.0",
       "name": "setDeveloperHUDProperties:",
       "owner": "CAMetalLayer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the main-domain CAMetalLayer/Drawable ownership surface with retained device identity, checked drawable configuration, copied developer-HUD snapshots, availability-gated residency state, attached-window conformance, and an explicitly opaque private ABI record.",
       "signature": "instance (API_UNAVAILABLE NSDictionary *) -> void"
     },
     {
@@ -82615,7 +82615,7 @@
           "line": 158
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "property:CAMetalLayer:developerHUDProperties",
       "kind": "property",
@@ -82623,7 +82623,7 @@
       "macos_introduced": "13.0",
       "name": "developerHUDProperties",
       "owner": "CAMetalLayer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the main-domain CAMetalLayer/Drawable ownership surface with retained device identity, checked drawable configuration, copied developer-HUD snapshots, availability-gated residency state, attached-window conformance, and an explicitly opaque private ABI record.",
       "signature": "API_UNAVAILABLE NSDictionary *"
     },
     {
@@ -82770,7 +82770,7 @@
           "line": 71
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "property:CAMetalLayer:preferredDevice",
       "kind": "property",
@@ -82778,7 +82778,7 @@
       "macos_introduced": "10.15",
       "name": "preferredDevice",
       "owner": "CAMetalLayer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the main-domain CAMetalLayer/Drawable ownership surface with retained device identity, checked drawable configuration, copied developer-HUD snapshots, availability-gated residency state, attached-window conformance, and an explicitly opaque private ABI record.",
       "signature": "API_UNAVAILABLE id<MTLDevice>"
     },
     {
@@ -82818,7 +82818,7 @@
           "line": 173
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "property:CAMetalLayer:residencySet",
       "kind": "property",
@@ -82826,7 +82826,7 @@
       "macos_introduced": "26.0",
       "name": "residencySet",
       "owner": "CAMetalLayer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the main-domain CAMetalLayer/Drawable ownership surface with retained device identity, checked drawable configuration, copied developer-HUD snapshots, availability-gated residency state, attached-window conformance, and an explicitly opaque private ABI record.",
       "signature": "API_UNAVAILABLE id<MTLResidencySet>"
     },
     {
@@ -104216,7 +104216,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "protocol:CAMetalDrawable",
       "kind": "protocol",
@@ -104224,7 +104224,7 @@
       "macos_introduced": null,
       "name": "CAMetalDrawable",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the main-domain CAMetalLayer/Drawable ownership surface with retained device identity, checked drawable configuration, copied developer-HUD snapshots, availability-gated residency state, attached-window conformance, and an explicitly opaque private ABI record.",
       "signature": ""
     },
     {
@@ -106589,7 +106589,7 @@
           "line": 52
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "QuartzCore/CAMetalLayer.h",
       "id": "record:_CAMetalLayerPrivate",
       "kind": "record",
@@ -106597,7 +106597,7 @@
       "macos_introduced": "10.11",
       "name": "_CAMetalLayerPrivate",
       "owner": "CAMetalLayer",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the main-domain CAMetalLayer/Drawable ownership surface with retained device identity, checked drawable configuration, copied developer-HUD snapshots, availability-gated residency state, attached-window conformance, and an explicitly opaque private ABI record.",
       "signature": "struct"
     },
     {
