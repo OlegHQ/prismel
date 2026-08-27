@@ -129,11 +129,26 @@ module Private=struct
         let* ()=Metal.Command4.Render_encoder.set_cull_mode encoder(match raster.cull with Ogpu.Render_pass.Cull_none->Cull_none|Cull_front->Cull_front|Cull_back->Cull_back)in
         let* ()=Metal.Command4.Render_encoder.set_viewport encoder(Metal.Command4.Render_encoder.viewport~x:(float descriptor.viewport.x)~y:(float descriptor.viewport.y)~width:(float descriptor.viewport.width)~height:(float descriptor.viewport.height)~z_near:0.~z_far:1.)in
         let* ()=Metal.Command4.Render_encoder.set_scissor_rect encoder(Metal.Command4.Render_encoder.scissor_rect~x:descriptor.scissor.x~y:descriptor.scissor.y~width:descriptor.scissor.width~height:descriptor.scissor.height)in
+        let bind_stage encoder stage draw=
+          let buffers=List.filter(fun(b:buffer_binding)->b.stage=stage)draw.buffers
+          and textures=List.filter(fun(b:texture_binding)->b.stage=stage)draw.textures
+          and samplers=List.filter(fun(b:sampler_binding)->b.stage=stage)draw.samplers in
+          if buffers=[]&&textures=[]&&samplers=[]then Metal.Command4.Render_encoder.set_argument_table encoder~stages:[(match stage with Vertex->Metal.Command4.Render_encoder.Vertex|Fragment->Fragment)]None else
+          let capacity items index=List.fold_left(fun n item->max n(index item+1))0 items in
+          match Metal.Command4.Argument_table.create~max_buffers:(capacity buffers(fun(b:buffer_binding)->b.index))~max_textures:(capacity textures(fun(b:texture_binding)->b.index))~max_samplers:(capacity samplers(fun(b:sampler_binding)->b.index))(Metal.Command4.Command_buffer.device command)()with
+          |Error e->Error e
+          |Ok table->cleanup:=(fun()->ignore(Metal.Command4.Argument_table.destroy table))::!cleanup;
+            let rec set_buffers=function []->Ok()|(b:buffer_binding)::rest->(match Metal.Command4.Argument_table.set_buffer table~index:b.index~offset:b.offset(Buffer.Private.metal b.buffer)with Error _ as e->e|Ok()->set_buffers rest)
+            and set_textures=function []->Ok()|(b:texture_binding)::rest->(match Metal.Command4.Argument_table.set_texture table~index:b.index(Texture.Private.metal b.texture)with Error _ as e->e|Ok()->set_textures rest)
+            and set_samplers=function []->Ok()|(b:sampler_binding)::rest->(match Metal.Command4.Argument_table.set_sampler table~index:b.index(Sampler.Private.metal b.sampler)with Error _ as e->e|Ok()->set_samplers rest)in
+            match set_buffers buffers with Error _ as e->e|Ok()->match set_textures textures with Error _ as e->e|Ok()->match set_samplers samplers with Error _ as e->e|Ok()->Metal.Command4.Render_encoder.set_argument_table encoder~stages:[(match stage with Vertex->Metal.Command4.Render_encoder.Vertex|Fragment->Fragment)](Some table)
+        in
         let rec draws=function
           |[]->(match Metal.Command4.Render_encoder.end_encoding encoder with Error e->fail e|Ok()->Ok(List.rev!cleanup))
-          |draw::_ when draw.buffers<>[]||draw.textures<>[]||draw.samplers<>[]->Error(Ogpu.Error.make op Ogpu.Error.Unsupported"Command4 argument-table resource binding is not yet representable")
           |draw::rest->let native=match Pipeline.Private.native draw.pipeline with Render p->p|Compute _->assert false in
             let* ()=Metal.Command4.Render_encoder.set_pipeline encoder native in
+            let* ()=bind_stage encoder Vertex draw in
+            let* ()=bind_stage encoder Fragment draw in
             let primitive=match draw.primitive with Triangle_list->Metal.Command4.Render_encoder.Triangle|Triangle_strip->Triangle_strip in
             let issued=match draw.index with None->Metal.Command4.Render_encoder.draw_primitives encoder primitive~vertex_start:draw.vertex_start~vertex_count:draw.vertex_count|Some(kind,buffer,offset,count)->Metal.Command4.Render_encoder.draw_indexed_primitives encoder primitive(match kind with Uint16->Metal.Command4.Render_encoder.Uint16|Uint32->Uint32)~index_buffer:(Buffer.Private.metal buffer)~index_offset:offset~index_count:count in
             let* ()=issued in draws rest
