@@ -5,7 +5,7 @@ type light =
   | Directional of { direction : vec3; color : color; intensity : float }
   | Point of { position : vec3; color : color; intensity : float; attenuation : attenuation }
   | Spot of { position : vec3; direction : vec3; inner_cos : float; outer_cos : float;
-      color : color; intensity : float; attenuation : attenuation }
+      concentration : float; color : color; intensity : float; attenuation : attenuation }
 type material = { ambient : color; diffuse : color; specular : color; emissive : color; shininess : float }
 type fog = No_fog | Linear of { color : color; near : float; far : float }
 type descriptor = { ambient : color; lights : light array; material : material; fog : fog;
@@ -46,7 +46,10 @@ let validate descriptor =
       | Spot l ->
           if not (valid_vec l.position && valid_direction l.direction) then error := Some Invalid_direction
           else if not (valid_attenuation l.attenuation) then error := Some Invalid_attenuation
-          else if not (finite l.inner_cos && finite l.outer_cos && l.inner_cos >= l.outer_cos && l.inner_cos <= 1. && l.outer_cos >= -1.) then error := Some Invalid_spot
+          else if not (finite l.inner_cos && finite l.outer_cos &&
+              finite l.concentration && l.concentration >= 0. &&
+              l.inner_cos >= l.outer_cos && l.inner_cos <= 1. &&
+              l.outer_cos >= -1.) then error := Some Invalid_spot
           else if not (valid_color l.color && finite l.intensity && l.intensity >= 0.) then error := Some Invalid_color
     done;
     match !error with Some e -> Error e | None ->
@@ -106,7 +109,8 @@ let shade prepared ~position ~normal ~view ~front_facing ~texture ~fog_distance 
           let inv = if distance = 0. then 0. else 1. /. distance in
           let lx,ly,lz = (dx*.inv,dy*.inv,dz*.inv) and sx,sy,sz = normalize l.direction in
           let cosine = -.dot lx ly lz sx sy sz in
-          let cone = if cosine <= l.outer_cos then 0. else if cosine >= l.inner_cos then 1. else (cosine -. l.outer_cos) /. (l.inner_cos -. l.outer_cos) in
+          let cone = if cosine < l.outer_cos then 0.
+            else cosine ** l.concentration in
           let a=l.attenuation in (lx,ly,lz,cone*.l.intensity /. (a.constant +. a.linear*.distance +. a.quadratic*.distance*.distance),l.color)
     in
     let normal_dot_light = max 0. (dot nx ny nz lx ly lz) in

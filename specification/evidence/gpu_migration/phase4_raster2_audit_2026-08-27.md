@@ -103,7 +103,7 @@ fields are ignored or not integrated and therefore cannot count as parity.
 | `group`, `transform`, `translate`, `rotate`, `scale`, `at_node` | I/T | Flattened matrices; camera-only frames 2–600 produce zero replacement upload bytes (`e813369`, `d199322`). Convenience-specific pixels remain open. |
 | `box`, `plane`, `sphere`, `icosphere`, `cylinder`, `cone` | I/U | Convenience constructors produce ordinary Mesh values. No per-primitive lowering pixel matrix. |
 | Material ambient/diffuse/specular/emissive/shininess | I/T | Copied into prepared lighting (`51128b0`, `e813369`). |
-| Ambient/directional/point/spot lights | Partial | Ambient/directional/point and zero-concentration spot map exactly (`51128b0`, `e813369`). Non-zero spot concentration is now explicitly rejected and tested because Raster2 has no exponent field; it is no longer silently approximated. |
+| Ambient/directional/point/spot lights | I/T | Raster2 carries validated spot concentration and applies the public cutoff/exponent rule exactly. Exponents 0/1/high, high cutoff, non-finite rejection, frame 600 and four-domain equality are direct fixtures. |
 | Area lights | R/U | Explicit `Unsupported_area_light`; no focused lowerer fixture. |
 | Scene ambient and separate specular | I/T | Immutable lighting preparation (`51128b0`, `e813369`). |
 | Linear fog | I/T | Deterministic linear fog (`51128b0`, `e813369`). |
@@ -125,5 +125,5 @@ fields are ignored or not integrated and therefore cannot count as parity.
 
 The smallest local gaps are dedicated fixtures for already-mapped convenience
 constructors. They do not repair the material missing semantics above.
-Depth/stencil/raster, texture wrapping, non-zero spot concentration and sample integration require typed representation
+Depth/stencil/raster, texture wrapping and sample integration require typed representation
 changes and must not be marked complete by expectation-only tests.

@@ -1,5 +1,4 @@
 type error = Unsupported_shader | Unsupported_mode | Unsupported_area_light |
-  Unsupported_spot_concentration |
   Unsupported_fog | Texture_error | Shadow_error | Invalid_mesh | Invalid_viewport |
   Lighting_error of Raster2.Scene3_lighting.error
 type resources = {
@@ -20,8 +19,11 @@ let lights values =
     | Ambient->ar:=!ar+.value.intensity*.float value.ambient.r/.255.;ag:=!ag+.value.intensity*.float value.ambient.g/.255.;ab:=!ab+.value.intensity*.float value.ambient.b/.255.
     | Directional{direction}->output:=Raster2.Scene3_lighting.Directional{direction=vec direction;color=color value.diffuse;intensity=value.intensity}::!output
     | Point{position;attenuation=a}->output:=Point{position=vec position;color=color value.diffuse;intensity=value.intensity;attenuation=attenuation a}::!output
-    | Spot{concentration;_}when concentration<>0.->failure:=Some Unsupported_spot_concentration
-    | Spot{position;direction;cutoff;attenuation=a;_}->output:=Spot{position=vec position;direction=vec direction;inner_cos=cos cutoff;outer_cos=cos cutoff;color=color value.diffuse;intensity=value.intensity;attenuation=attenuation a}::!output
+    | Spot{position;direction;cutoff;concentration;attenuation=a}->
+        output:=Spot{position=vec position;direction=vec direction;
+          inner_cos=cos cutoff;outer_cos=cos cutoff;concentration;
+          color=color value.diffuse;intensity=value.intensity;
+          attenuation=attenuation a}::!output
     | Area _->failure:=Some Unsupported_area_light)values;
   match !failure with Some error->Error error|None->Ok({Raster2.Scene3_lighting.r=min 1. !ar;g=min 1. !ag;b=min 1. !ab;a=1.},Array.of_list(List.rev !output))
 let fog=function None->Ok Raster2.Scene3_lighting.No_fog|Some value->match value.Fog3.mode with
@@ -89,7 +91,7 @@ let self_test () =
   let node=Scene3.mesh~material~cull:Scene3.Cull_none mesh in
   let directional=Light.directional~direction:(Vec3.create 0. 0.(-1.))()in
   let spot=Light.spot~at:(Vec3.create 0. 0. 2.)
-    ~direction:(Vec3.create 0. 0.(-1.))~cutoff:0.75~concentration:0.()in
+    ~direction:(Vec3.create 0. 0.(-1.))~cutoff:0.75~concentration:7.()in
   let scene=Scene3.create~lights:[directional;spot][node]in
   let surface=match Raster2.Surface.create~width:1~height:1()with Ok value->value|Error _->failwith"surface"in
   let resources={texture=(fun _->Ok{Raster2.Triangle.surface;filter=Raster2.Image.Nearest});shadow=(fun _->Error Shadow_error)}in
@@ -100,13 +102,9 @@ let self_test () =
   let prepared=match lower_view3d~resources~default_viewport:(0,0,16,16)(View3d(camera,scene,None))with Ok value->value|Error _->failwith"prepared Scene3"in
   if prepared.draws.(0).vertices.(0).normal.z<>1. then failwith"authored normal lost";
   let draw=prepared.draws.(0)in
-  let unsupported_spot=Light.spot~at:(Vec3.create 0. 0. 2.)
-    ~direction:(Vec3.create 0. 0.(-1.))~cutoff:0.75~concentration:7.()in
-  let unsupported_scene=Scene3.create~lights:[unsupported_spot][node]in
-  begin match lower_view3d~resources~default_viewport:(0,0,16,16)
-      (View3d(camera,unsupported_scene,None))with
-  | Error Unsupported_spot_concentration->()
-  | _->failwith"spot concentration silently approximated"
+  begin match draw.lighting.lights.(1)with
+  | Raster2.Scene3_lighting.Spot value when value.concentration=7.->()
+  | _->failwith"spot concentration lost"
   end;
   begin match Raster2.Scene3.prepare~matrix:draw.matrix~viewport:draw.viewport~scissor:draw.scissor~topology:draw.topology~vertices:(Array.map(fun(v:Raster2.Scene3_consumer.vertex)->{Raster2.Scene3.x=v.position.x;y=v.position.y;z=v.position.z;color=v.color;u=v.u;v=v.v})draw.vertices)~indices:draw.indices with Ok value when Array.length value.triangles>0->()|_->failwith"Scene3 projection produced no triangles"end;
   let target=match Raster2.Surface.create~width:16~height:16()with Ok value->value|Error _->failwith"target"in

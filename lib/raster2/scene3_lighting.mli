@@ -5,7 +5,7 @@ type light =
   | Directional of { direction : vec3; color : color; intensity : float }
   | Point of { position : vec3; color : color; intensity : float; attenuation : attenuation }
   | Spot of { position : vec3; direction : vec3; inner_cos : float; outer_cos : float;
-      color : color; intensity : float; attenuation : attenuation }
+      concentration : float; color : color; intensity : float; attenuation : attenuation }
 type material = { ambient : color; diffuse : color; specular : color; emissive : color; shininess : float }
 type fog = No_fog | Linear of { color : color; near : float; far : float }
 type descriptor = { ambient : color; lights : light array; material : material; fog : fog;
