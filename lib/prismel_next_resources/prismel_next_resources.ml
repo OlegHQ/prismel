@@ -135,6 +135,52 @@ module Font=struct
   let destroy x=main"Font.destroy"(fun()->if x.dead then Ok()else(destroy_entries(List.concat_map snd x.caches);x.caches<-[];match ttf"Font.destroy"(Sdl3_ttf.Font.destroy x.raw)with Error _ as e->e|Ok()->x.dead<-true;decr users;if!users=0 then ignore(Sdl3_ttf.Init.quit());Ok()))
 end
 
+module Audio=struct
+  type intent=Master_volume of float|Stop_all
+    |Sample_play of{asset:string;channel:int;loops:int;volume:float}
+    |Sample_stop of int|Sample_pause of int|Sample_resume of int
+    |Music_play of{asset:string;loops:int;fade_ms:int}|Music_volume of float
+    |Music_pause|Music_resume|Music_stop of int|Asset_remove of string
+  type generated={mixed_bytes:int;pcm_f32:bytes}
+  type t={mixer:Sdl3_mixer.Mixer.t;channels:Sdl3_mixer.Channels.t;
+    music:Sdl3_mixer.Music.t;intents:intent Queue.t;mutable dropped:int;
+    mutable master:float;mutable music_volume:float;mutable dead:bool}
+  and sample={owner:t;identity:string;mutable generation:int;
+    mutable raw:Sdl3_mixer.Audio.t;mutable encoded:bytes;mutable dead:bool}
+  let mix_error op e=error op Decode(Format.asprintf"%a"Sdl3_mixer.pp_error e)
+  let result op=function Ok x->Ok x|Error e->mix_error op e
+  let live op x f=main op(fun()->if x.dead then error op Destroyed"audio owner is destroyed"else f())
+  let sample_live op x f=live op x.owner(fun()->if x.dead then error op Destroyed"audio sample is destroyed"else f())
+  let enqueue x intent=if Queue.length x.intents=256 then(x.dropped<-x.dropped+1;ignore(Queue.take x.intents));Queue.add intent x.intents
+  let create_memory ~sample_rate ~channels ~max_channels=main"Audio.create_memory"(fun()->
+    match result"Audio.create_memory"(Sdl3_mixer.Init.init())with Error _ as e->e|Ok()->
+    match result"Audio.create_memory"(Sdl3_mixer.Mixer.create_memory~sample_rate~channels)with Error _ as e->e|Ok mixer->
+    match result"Audio.create_memory"(Sdl3_mixer.Channels.create mixer~count:max_channels)with Error e->ignore(Sdl3_mixer.Mixer.destroy mixer);Error e|Ok channel_bank->
+    match result"Audio.create_memory"(Sdl3_mixer.Music.create mixer)with Error e->ignore(Sdl3_mixer.Channels.destroy channel_bank);ignore(Sdl3_mixer.Mixer.destroy mixer);Error e|Ok music->Ok{mixer;channels=channel_bank;music;intents=Queue.create();dropped=0;master=1.;music_volume=1.;dead=false})
+  let load_sample_bytes x bytes=live"Audio.load_sample_bytes"x(fun()->match result"Audio.load_sample_bytes"(Sdl3_mixer.Audio.load_bytes x.mixer(Bytes.copy bytes))with Error _ as e->e|Ok raw->Ok{owner=x;identity=Printf.sprintf"sample-%x"(fresh_identity());generation=1;raw;encoded=Bytes.copy bytes;dead=false})
+  let reload_sample_bytes x bytes=sample_live"Audio.reload_sample_bytes"x(fun()->match result"Audio.reload_sample_bytes"(Sdl3_mixer.Audio.reload_bytes x.raw(Bytes.copy bytes))with Error _ as e->e|Ok replacement->ignore(Sdl3_mixer.Audio.destroy x.raw);x.raw<-replacement;x.encoded<-Bytes.copy bytes;x.generation<-x.generation+1;Ok())
+  let sample_identity(x:sample)=x.identity and sample_generation(x:sample)=x.generation and sample_destroyed(x:sample)=x.dead
+  let sample_encoded x=sample_live"Audio.sample_encoded"x(fun()->Ok(Bytes.copy x.encoded))
+  let valid_volume x=Float.is_finite x&&x>=0.&&x<=1.
+  let play_sample x ?channel ?(loops=0)?(fade_in_ms=0)?(volume=1.) sample=sample_live"Audio.play_sample"sample(fun()->if not(valid_volume volume)then error"Audio.play_sample"Invalid_argument"volume must be in 0..1"else match result"Audio.play_sample"(Sdl3_mixer.Channels.play x.channels ?channel~loops~fade_in_ms sample.raw)with Error _ as e->e|Ok channel->match result"Audio.play_sample"(Sdl3_mixer.Channels.set_volume x.channels channel volume)with Error _ as e->e|Ok()->enqueue x(Sample_play{asset=sample.identity;channel;loops;volume});Ok channel)
+  let stop_channel x channel ?(fade_out_ms=0)()=live"Audio.stop_channel"x(fun()->match result"Audio.stop_channel"(Sdl3_mixer.Channels.stop x.channels channel~fade_out_ms())with Error _ as e->e|Ok()->enqueue x(Sample_stop channel);Ok())
+  let pause_channel x channel=live"Audio.pause_channel"x(fun()->match result"Audio.pause_channel"(Sdl3_mixer.Channels.pause x.channels channel)with Error _ as e->e|Ok()->enqueue x(Sample_pause channel);Ok())
+  let resume_channel x channel=live"Audio.resume_channel"x(fun()->match result"Audio.resume_channel"(Sdl3_mixer.Channels.resume x.channels channel)with Error _ as e->e|Ok()->enqueue x(Sample_resume channel);Ok())
+  let play_music x ?(loops=0)?(fade_in_ms=0) sample=sample_live"Audio.play_music"sample(fun()->match result"Audio.play_music"(Sdl3_mixer.Music.set_audio x.music sample.raw)with Error _ as e->e|Ok()->match result"Audio.play_music"(Sdl3_mixer.Music.play x.music~loops~fade_in_ms())with Error _ as e->e|Ok()->enqueue x(Music_play{asset=sample.identity;loops;fade_ms=fade_in_ms});Ok())
+  let pause_music x=live"Audio.pause_music"x(fun()->match result"Audio.pause_music"(Sdl3_mixer.Music.pause x.music)with Error _ as e->e|Ok()->enqueue x Music_pause;Ok())
+  let resume_music x=live"Audio.resume_music"x(fun()->match result"Audio.resume_music"(Sdl3_mixer.Music.resume x.music)with Error _ as e->e|Ok()->enqueue x Music_resume;Ok())
+  let stop_music x ?(fade_out_ms=0)()=live"Audio.stop_music"x(fun()->match result"Audio.stop_music"(Sdl3_mixer.Music.stop x.music~fade_out_ms())with Error _ as e->e|Ok()->enqueue x(Music_stop fade_out_ms);Ok())
+  let set_master_volume x volume=live"Audio.set_master_volume"x(fun()->if not(valid_volume volume)then error"Audio.set_master_volume"Invalid_argument"volume must be in 0..1"else match result"Audio.set_master_volume"(Sdl3_mixer.Mixer.set_gain x.mixer volume)with Error _ as e->e|Ok()->x.master<-volume;enqueue x(Master_volume volume);Ok())
+  let set_music_volume x volume=live"Audio.set_music_volume"x(fun()->if not(valid_volume volume)then error"Audio.set_music_volume"Invalid_argument"volume must be in 0..1"else match result"Audio.set_music_volume"(Sdl3_mixer.Music.set_volume x.music volume)with Error _ as e->e|Ok()->x.music_volume<-volume;enqueue x(Music_volume volume);Ok())
+  let master_volume x=live"Audio.master_volume"x(fun()->Ok x.master)
+  let music_volume x=live"Audio.music_volume"x(fun()->Ok x.music_volume)
+  let generate x ~frames=live"Audio.generate"x(fun()->match result"Audio.generate"(Sdl3_mixer.Mixer.generate x.mixer~frames)with Error _ as e->e|Ok generated->Ok{mixed_bytes=generated.mixed_bytes;pcm_f32=Bytes.copy generated.pcm_f32})
+  let drain_web_intents x=if x.dead then[]else let values=List.of_seq(Queue.to_seq x.intents)in Queue.clear x.intents;values
+  let dropped_web_intents x=x.dropped
+  let destroy_sample (x:sample)=main"Audio.destroy_sample"(fun()->if x.dead then Ok()else match result"Audio.destroy_sample"(Sdl3_mixer.Audio.destroy x.raw)with Error _ as e->e|Ok()->x.dead<-true;x.encoded<-Bytes.empty;enqueue x.owner(Asset_remove x.identity);Ok())
+  let destroy x=main"Audio.destroy"(fun()->if x.dead then Ok()else match result"Audio.destroy"(Sdl3_mixer.Music.destroy x.music)with Error _ as e->e|Ok()->match result"Audio.destroy"(Sdl3_mixer.Channels.destroy x.channels)with Error _ as e->e|Ok()->match result"Audio.destroy"(Sdl3_mixer.Mixer.destroy x.mixer)with Error _ as e->e|Ok()->x.dead<-true;Queue.clear x.intents;ignore(Sdl3_mixer.Init.quit());Ok())
+end
+
 module Assets=struct
   type t={mutable hooks:(unit->(unit,error)result)list;mutable dead:bool}
   let create()={hooks=[];dead=false}

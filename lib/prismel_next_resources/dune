@@ -13,3 +13,9 @@
  (name test_prismel_next_font)
  (modules test_prismel_next_font)
  (libraries prismel_next_resources))
+
+(test
+ (name test_prismel_next_audio)
+ (modules test_prismel_next_audio)
+ (libraries prismel_next_resources)
+ (action (setenv SDL_AUDIODRIVER dummy (run %{test}))))
