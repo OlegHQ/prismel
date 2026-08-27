@@ -17,7 +17,7 @@ module Private : sig
       finite [u], [v], and [lod] at indices 0, 1, and 2; indices 3 through 5
       are scratch and may be overwritten. [lod] must be non-negative. *)
   val sample_int_unchecked : t -> address_u:address -> address_v:address ->
-    filter:filter -> float array -> int
+    filter:filter -> Float.Array.t -> int
   (* Integer texel lookup with address-mode application. The caller must prove
      that [level] names an existing mip level. *)
   val texel_int_unchecked : t -> level:int -> address_u:address ->
