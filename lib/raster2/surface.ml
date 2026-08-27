@@ -78,19 +78,25 @@ let set_rgba t ~x ~y color =
       Ok ()
 
 module Private = struct
+  let get_rgba_int_at_unchecked t i =
+    (Char.code (Bytes.unsafe_get t.bytes i) lsl 24)
+    lor (Char.code (Bytes.unsafe_get t.bytes (i + 1)) lsl 16)
+    lor (Char.code (Bytes.unsafe_get t.bytes (i + 2)) lsl 8)
+    lor Char.code (Bytes.unsafe_get t.bytes (i + 3))
+
+  let set_rgba_int_at_unchecked t i color =
+    Bytes.unsafe_set t.bytes i (Char.chr ((color lsr 24) land 255));
+    Bytes.unsafe_set t.bytes (i + 1) (Char.chr ((color lsr 16) land 255));
+    Bytes.unsafe_set t.bytes (i + 2) (Char.chr ((color lsr 8) land 255));
+    Bytes.unsafe_set t.bytes (i + 3) (Char.chr (color land 255))
+
   let get_rgba_int_unchecked t ~x ~y =
     let i=(y*t.pitch)+(x*4)in
-    (Char.code(Bytes.unsafe_get t.bytes i)lsl 24)
-    lor(Char.code(Bytes.unsafe_get t.bytes(i+1))lsl 16)
-    lor(Char.code(Bytes.unsafe_get t.bytes(i+2))lsl 8)
-    lor Char.code(Bytes.unsafe_get t.bytes(i+3))
+    get_rgba_int_at_unchecked t i
 
   let set_rgba_int_unchecked t ~x ~y color =
     let i=(y*t.pitch)+(x*4)in
-    Bytes.unsafe_set t.bytes i(Char.chr((color lsr 24)land 255));
-    Bytes.unsafe_set t.bytes(i+1)(Char.chr((color lsr 16)land 255));
-    Bytes.unsafe_set t.bytes(i+2)(Char.chr((color lsr 8)land 255));
-    Bytes.unsafe_set t.bytes(i+3)(Char.chr(color land 255))
+    set_rgba_int_at_unchecked t i color
 
   let get_rgba_unchecked t ~x ~y =
     Int32.of_int(get_rgba_int_unchecked t~x~y)

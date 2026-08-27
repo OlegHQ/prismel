@@ -7,3 +7,6 @@ val pixel : Surface.t -> blend:blend -> x:int -> y:int -> int32 -> unit
 val pixel_int : Surface.t -> blend:blend -> x:int -> y:int -> int -> unit
 val rect : Surface.t -> blend:blend -> rect -> int32 -> (unit,error) result
 val blit : src:Surface.t -> src_rect:rect -> dst:Surface.t -> dst_x:int -> dst_y:int -> blend:blend -> (unit,error) result
+module Private : sig
+  val blend_int : blend -> int -> int -> int
+end

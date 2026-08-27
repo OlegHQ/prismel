@@ -37,5 +37,8 @@ let pixel_int dst ~blend:mode ~x ~y color=
   end
 let pixel dst ~blend:mode ~x ~y color=
   pixel_int dst~blend:mode~x~y(Int32.to_int color)
+module Private = struct
+  let blend_int = blend_int
+end
 let rect dst ~blend r color=if r.width<0||r.height<0 then Error(Invalid_extent{width=r.width;height=r.height})else(let x0=max 0 r.x and y0=max 0 r.y and x1=min(Surface.width dst)(r.x+r.width)and y1=min(Surface.height dst)(r.y+r.height)in for y=y0 to y1-1 do for x=x0 to x1-1 do pixel dst~blend~x~y color done done;Ok())
 let blit ~src ~src_rect:r ~dst ~dst_x ~dst_y ~blend:mode=if r.width<0||r.height<0 then Error(Invalid_extent{width=r.width;height=r.height})else let samples=Array.init(r.width*r.height)(fun i->let x=r.x+(i mod r.width)and y=r.y+(i/r.width)in match Surface.get_rgba src~x~y with Ok c->Some c|Error _->None)in Array.iteri(fun i c->match c with None->()|Some color->let x=dst_x+(i mod r.width)and y=dst_y+(i/r.width)in pixel dst~blend:mode~x~y color)samples;Ok()

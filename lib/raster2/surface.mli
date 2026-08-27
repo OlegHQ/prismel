@@ -21,9 +21,12 @@ val get_rgba : t -> x:int -> y:int -> (int32, error) result
 val set_rgba : t -> x:int -> y:int -> int32 -> (unit, error) result
 
 module Private : sig
-  (** Caller must prove [0 <= x < width] and [0 <= y < height]. *)
-  val get_rgba_unchecked : t -> x:int -> y:int -> int32
-  val set_rgba_unchecked : t -> x:int -> y:int -> int32 -> unit
+  (** Callers must prove the byte offset addresses a complete pixel. *)
+  val get_rgba_int_at_unchecked : t -> int -> int
+  val set_rgba_int_at_unchecked : t -> int -> int -> unit
+  (** Callers must prove [0 <= x < width] and [0 <= y < height]. *)
   val get_rgba_int_unchecked : t -> x:int -> y:int -> int
   val set_rgba_int_unchecked : t -> x:int -> y:int -> int -> unit
+  val get_rgba_unchecked : t -> x:int -> y:int -> int32
+  val set_rgba_unchecked : t -> x:int -> y:int -> int32 -> unit
 end
