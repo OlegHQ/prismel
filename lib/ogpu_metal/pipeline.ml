@@ -29,6 +29,7 @@ let create_render cache device descriptor=let op="Ogpu_metal.Pipeline.create_ren
 module Private=struct
   type nonrec native=native=Compute of Metal.Compute_pipeline.t|Render of Metal.Render_pipeline.t
   let native value=value.native
+  let portable value=value.portable
   let retain_submission value=if value.dead then Error(Ogpu.Error.make"Ogpu_metal.Pipeline.retain_submission"Ogpu.Error.Stale_handle"pipeline is destroyed")else(value.submission_uses<-value.submission_uses+1;Ok())
   let release_submission value=value.submission_uses<-value.submission_uses-1;if value.submission_uses=0&&value.destroy_requested then ignore(finish_destroy value)
 end
