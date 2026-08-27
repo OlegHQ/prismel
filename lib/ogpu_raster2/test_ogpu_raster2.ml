@@ -33,6 +33,8 @@ let ()=
   let driver,control=Ogpu_raster2.create()in let device=get(Ogpu.Backend.create_device driver)in
   let descriptor:Ogpu.Types.buffer_descriptor={label=None;size=4L;usage=[Copy_dst]}in
   for _=1 to 100_000 do let buffer=get(Ogpu.Backend.create_buffer device descriptor)in get(Ogpu.Backend.destroy_buffer buffer)done;
+  let retained,dropped=Ogpu_raster2.trace_stats control in
+  if retained<>256||dropped<99_744 then failwith"software diagnostic ring did not plateau";
   get(Ogpu.Backend.destroy_device device);
   if Ogpu_raster2.live_counts control<>(0,0,0,0,0)then failwith"software 100k growth";
   print_endline"ogpu_raster2: frames1/2/60/600+resize, 4-domain, 100k zero delta"

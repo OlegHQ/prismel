@@ -2,7 +2,7 @@ type texture = { color : Raster2.Surface.t; depth : Raster2.Depth_stencil.t }
 type storage = Buffer of bytes | Texture of texture * Ogpu.Types.texture_descriptor
 type control = {
   mutable next : int64; mutable epoch : int64; mutable complete : int64;
-  mutable lost : bool; mutable log : string list;
+  mutable lost : bool; log : string Queue.t; mutable dropped_log_entries:int;
   objects : (int64, storage) Hashtbl.t;
   mutable buffers : int; mutable textures : int; mutable pipelines : int;
   mutable queues : int; mutable surfaces : int;
@@ -10,7 +10,10 @@ type control = {
 
 let error operation kind message = Error (Ogpu.Error.make operation kind message)
 let next control = let value=control.next in control.next<-Int64.succ value; value
-let record control text = control.log <- text :: control.log
+let log_capacity=256
+let record control text =
+  Queue.add text control.log;
+  if Queue.length control.log>log_capacity then(Queue.take control.log|>ignore;control.dropped_log_entries<-control.dropped_log_entries+1)
 let valid_range bytes offset length =
   offset >= 0L && length >= 0 && length <= Bytes.length bytes
   && offset <= Int64.of_int (Bytes.length bytes - length)
@@ -21,7 +24,7 @@ let rgba (r,g,b,a) =
       (Int32.logor(Int32.shift_left(byte b)8)(byte a)))
 
 let create () =
-  let control={next=1L;epoch=0L;complete=0L;lost=false;log=[];
+  let control={next=1L;epoch=0L;complete=0L;lost=false;log=Queue.create();dropped_log_entries=0;
     objects=Hashtbl.create 64;buffers=0;textures=0;pipelines=0;queues=0;surfaces=0}in
   let create_device () =
     let device_token=next control and device_handle=Ogpu.Handle.create_device()in
@@ -103,5 +106,6 @@ let create () =
       destroy_device=(fun()->Ogpu.Handle.destroy_device device_handle;Ok())}
   in {Ogpu.Backend.create_device},control
 let inject_device_loss control=control.lost<-true
-let trace control=List.rev control.log
+let trace control=List.of_seq(Queue.to_seq control.log)
+let trace_stats control=Queue.length control.log,control.dropped_log_entries
 let live_counts control=control.buffers,control.textures,control.pipelines,control.queues,control.surfaces
