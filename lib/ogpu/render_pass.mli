@@ -8,6 +8,9 @@ type depth = { texture:texture; load:load; store:store; clear:float }
 type stencil = { texture:texture; load:load; store:store; clear:int }
 type rect = { x:int; y:int; width:int; height:int }
 type descriptor = { colors:color option array; depth:depth option; stencil:stencil option; viewport:rect; scissor:rect }
+type cull = Cull_none | Cull_front | Cull_back
+type comparison = Never | Less | Equal | Less_equal | Greater | Not_equal | Greater_equal | Always
+type raster_state = { cull:cull; depth_compare:comparison; depth_write:bool }
 type t
 type primitive = Triangle_list | Triangle_strip
 type index_type = Uint16 | Uint32
@@ -16,8 +19,10 @@ type texture_binding = { stage:Command.stage; index:int; texture_id:int64 }
 type sampler_binding = { stage:Command.stage; index:int; sampler:Types.sampler_descriptor }
 type draw = { pipeline_key:string; buffers:buffer_binding list; textures:texture_binding list; samplers:sampler_binding list; primitive:primitive; vertex_start:int; vertex_count:int; index:(index_type*int64*int64*int) option }
 type submission
-val create : Handle.device -> descriptor -> (t,Error.t) result
+val default_raster_state : raster_state
+val create : ?raster_state:raster_state -> Handle.device -> descriptor -> (t,Error.t) result
 val descriptor : t -> descriptor
+val raster_state : t -> raster_state
 val encode : t -> Command.t -> (unit,Error.t) result
 val submit : t -> draw list -> (submission,Error.t) result
 val submission_pass : submission -> t
