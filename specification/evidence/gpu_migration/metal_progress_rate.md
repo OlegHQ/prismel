@@ -131,6 +131,7 @@ can change the denominator explicitly rather than being hidden.
 | `daaf52c` | 2026-08-27 10:41:25 +02:00 | 5,174 | 5,249 | 98.5712% | 25 | 0.107 | 234.4 | 4.47 |
 | `a931f53` | 2026-08-27 10:43:23 +02:00 | 5,202 | 5,249 | 99.1046% | 28 | 0.033 | 854.2 | 16.27 |
 | `78a4724` | 2026-08-27 10:49:33 +02:00 | 5,205 | 5,249 | 99.1617% | 3 | 0.103 | 29.2 | 0.56 |
+| `ac089f2` | 2026-08-27 10:50:04 +02:00 | 5,207 | 5,249 | 99.1998% | 2 | 0.009 | 232.3 | 4.43 |
 
 ## Current measured rate
 
@@ -303,6 +304,12 @@ sweep. The latter pins owned public type/protocol metadata and already-safe
 selectors across LogState, Drawable, DepthStencil, Capture, BlitPass,
 ArgumentEncoder, function tables, pools, queues, and Metal 4 linking values;
 the family ownership/native fixtures remain the conformance authority.
+
+The `ac089f2` interval closes the final two non-Device small-header
+declarations: the Metal 4 machine-learning asynchronous compiler selector and
+its completion typedef. The public bounded compiler task validates ownership
+and device identity, stores completion exactly once without calling OCaml from
+Metal's worker queue, and materializes copied pipeline metadata on polling.
 
 The `ec543d9` interval closes the final four synchronous MTLDevice constructor
 selectors from the earlier residual-six partition, moving bound coverage from
