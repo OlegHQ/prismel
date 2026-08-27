@@ -53,6 +53,15 @@ let oversized_frame () =
   let warm=Scene_execution.upload_bytes renderer in
   ignore(get(Scene_execution.render renderer(draws 18_278)));
   if Scene_execution.upload_bytes renderer<>warm then failwith"stable coalesced frame reuploaded";
+  let sampled values=List.map(fun draw->Scene_execution.Scene2,Ogpu.Pipeline.Replace,None,None,1,draw)values in
+  let stable=sampled(draws 18_278)in
+  ignore(get(Scene_execution.render_prepared_sampled_resources~identity:"exact-18278"~version:1L renderer stable));
+  let prepared_upload=Scene_execution.upload_bytes renderer in
+  ignore(get(Scene_execution.render_prepared_sampled_resources~identity:"exact-18278"~version:1L renderer []));
+  if Scene_execution.upload_bytes renderer<>prepared_upload then failwith"prepared identity hit reuploaded";
+  let changed=match draws 18_278 with []->assert false|first::rest->{first with mesh={first.mesh with vertices=Bytes.make 48 '\001'}}::rest in
+  ignore(get(Scene_execution.render_prepared_sampled_resources~identity:"exact-18278"~version:2L renderer(sampled changed)));
+  if Scene_execution.upload_bytes renderer<=prepared_upload then failwith"prepared version change did not invalidate";
   Ogpu.Backend_mock.inject_device_loss control;
   begin match Scene_execution.render renderer(draws 65)with Error e when e.Ogpu.Error.kind=Device_lost->()|_->failwith"oversized device loss did not unwind"end;
   get(Scene_execution.destroy renderer);
