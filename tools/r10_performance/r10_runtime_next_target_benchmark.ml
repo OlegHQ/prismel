@@ -7,6 +7,8 @@ let percentile p values =
   let copy = Array.copy values in Array.sort Float.compare copy;
   copy.(max 0 (min (Array.length copy - 1)
     (int_of_float (Float.ceil (p *. float (Array.length copy))) - 1)))
+
+external monotonic_seconds : unit -> float = "prismel_r10_monotonic_seconds"
 let artifact scenario width height =
   match scenario with
   | ("basic" | "pxui" | "canvas") as value ->
@@ -37,17 +39,15 @@ let rss_kib () =
 
 let () =
   let target = ref Headless and scenario = ref "" and profile = ref "release"
-  and width = ref 64 and height = ref 64 and warmup = ref 3. and seconds = ref 30.
-  and frame_rate = ref 60. in
+  and width = ref 64 and height = ref 64 and warmup = ref 3. and seconds = ref 30. in
   Arg.parse [
     "--target", Arg.Symbol (["headless"; "web"], fun x -> target := if x = "headless" then Headless else Web), "target";
     "--scenario", Arg.Set_string scenario, "scenario"; "--profile", Arg.Set_string profile, "profile";
     "--width", Arg.Set_int width, "logical width"; "--height", Arg.Set_int height, "logical height";
-    "--warmup", Arg.Set_float warmup, "warmup seconds"; "--seconds", Arg.Set_float seconds, "measurement seconds";
-    "--frame-rate", Arg.Set_float frame_rate, "fixed frame scheduling rate (default 60 Hz)" ]
+    "--warmup", Arg.Set_float warmup, "warmup seconds"; "--seconds", Arg.Set_float seconds, "measurement seconds" ]
     (fun value -> raise (Arg.Bad ("unexpected argument " ^ value))) "R10 runtime-next target benchmark";
   if !scenario = "" || !width <= 0 || !height <= 0 || !warmup <= 0.
-     || !seconds <= 0. || !frame_rate <= 0. || not (Float.is_finite !frame_rate) then
+     || !seconds <= 0. then
     invalid_arg "invalid arguments";
   let artifact = artifact !scenario !width !height in
   let work = artifact.draws in
@@ -92,28 +92,35 @@ let () =
         (fun () -> Runtime_next_web.read_pixels runtime ~bytes_per_row:(!width * 4)),
         (fun () -> Runtime_next_web.destroy runtime) in
   let run_for duration collect =
-    let requested=max 1(int_of_float(Float.round(duration*. !frame_rate)))in
-    let count=if collect then requested else max 5 requested in
-    let paced_duration=max duration(float count/. !frame_rate)in
-    let epoch = Unix.gettimeofday () and previous = ref (Unix.gettimeofday ())
-    and values = Array.make count 0. in
-    for index = 0 to count - 1 do
-      let deadline = epoch +. (float index /. !frame_rate) in
-      let remaining = deadline -. Unix.gettimeofday () in
-      if remaining > 0. then Unix.sleepf remaining;
+    let now = monotonic_seconds in
+    let smoke = collect && duration <= 0.1 in
+    let minimum = if smoke then 3 else if collect then 1 else 5 in
+    let capacity = ref 256 and values = ref (Array.make 256 0.)
+    and count = ref 0 in
+    let append value =
+      if !count = !capacity then begin
+        let next = Array.make (!capacity * 2) 0. in
+        Array.blit !values 0 next 0 !count; values := next;
+        capacity := !capacity * 2
+      end;
+      (!values).(!count) <- value; incr count
+    in
+    let epoch = now () and previous = ref (now ()) in
+    let continue () =
+      if smoke then !count < 3
+      else !count < minimum || now () -. epoch < duration in
+    while continue () do
       ignore (ok (render ()));
-      let completed=Unix.gettimeofday()in
-      if collect then values.(index)<-completed-. !previous;
+      let completed = now () in
+      if collect then append (completed -. !previous) else incr count;
       previous:=completed
     done;
-    let remaining=epoch+.paced_duration-.Unix.gettimeofday()in
-    if remaining>0. then Unix.sleepf remaining;
-    (if collect then values else [||]),Unix.gettimeofday()-.epoch in
-  let warmup_frames,warmup_wall=let _,wall=run_for !warmup false in max 5(int_of_float(Float.round(!warmup*. !frame_rate))),wall in Gc.full_major ();
+    (if collect then Array.sub !values 0 !count else [||]), now () -. epoch, !count in
+  let _,warmup_wall,warmup_frames=run_for !warmup false in Gc.full_major ();
   let rss0 = rss_kib () in
   let gc0 = Gc.quick_stat () and allocated0 = Gc.allocated_bytes ()
   and cpu0 = Unix.times () in
-  let frames,wall = run_for !seconds true in
+  let frames,wall,_ = run_for !seconds true in
   let cpu1 = Unix.times () and gc1 = Gc.quick_stat () in
   let allocated = Gc.allocated_bytes () -. allocated0
   and promoted = (gc1.promoted_words -. gc0.promoted_words) *. float (Sys.word_size / 8) in
@@ -128,7 +135,8 @@ let () =
     "drawable_width", `Int !width; "drawable_height", `Int !height; "pixel_scale", `Float 1.;
     "warmup_seconds", `Float !warmup; "requested_measure_seconds", `Float !seconds;
     "warmup_frames",`Int warmup_frames;"warmup_elapsed_seconds",`Float warmup_wall;
-    "scheduling", `String "fixed-rate"; "scheduled_frame_rate", `Float !frame_rate;
+    "scheduling", `String (if !seconds <= 0.1 then "fixed-count" else "duration-bounded");
+    "scheduled_frame_rate", `Null;
     "frames", `Int count; "wall_seconds", `Float wall;
     "user_seconds", `Float (cpu1.tms_utime -. cpu0.tms_utime);
     "system_seconds", `Float (cpu1.tms_stime -. cpu0.tms_stime);

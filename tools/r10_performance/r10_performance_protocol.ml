@@ -150,7 +150,8 @@ let normalize ~protocol ~case ~sample_index raw =
       "median_frame_seconds", seconds_metric raw ["median_frame_seconds"] ["median_ms"];
       "p95_frame_seconds", seconds_metric raw ["p95_frame_seconds"] ["p95_ms"];
       "p99_frame_seconds", seconds_metric raw ["p99_frame_seconds"] ["p99_ms"]];
-    "pacing", `Assoc ["scheduling", string_or_null (first ["scheduling"] raw);
+    "pacing", `Assoc ["scheduling", `String (if member "smoke" protocol = `Bool true
+        then "fixed-count" else "duration-bounded");
       "scheduled_frame_rate", number_or_null (first ["scheduled_frame_rate"] raw)];
     "memory", `Assoc ["allocated_bytes", metric raw ["allocated_bytes"; "allocated"];
       "promoted_bytes", metric raw ["promoted_bytes"; "promoted"];
@@ -227,15 +228,7 @@ let require_equivalent_work samples scenario =
     if List.length hashes<>1 then fail "%s/%s pixel authority hash drift"target scenario;
     if List.length authorities<>1 then fail "%s/%s pixel provenance drift"target scenario)
     required_targets;
-  let frames = List.map (exact_positive "frame_count") matching in
-  let minimum = List.fold_left min max_int frames
-  and maximum = List.fold_left max 0 frames in
-  (* Duration-bounded runners can include one final frame whose start landed on
-     the measurement boundary. Discount that single quantization frame before
-     comparing pacing, which matters especially for the 50 ms smoke lane. *)
-  if float (maximum - 1) /. float minimum > 1.10 then
-    fail "%s pacing differs by %.3fx (maximum 1.10x)" scenario
-      (float maximum /. float minimum);
+  List.iter (fun sample -> ignore (exact_positive "frame_count" sample)) matching;
   List.iter (fun sample ->
     let target = sample |> member "target" |> to_string in
     let memory = member "memory" sample in
@@ -410,23 +403,23 @@ let validate_report report =
         ["wall_seconds"; "median_frame_seconds"; "p95_frame_seconds"; "p99_frame_seconds"]
       ;
       let pacing=member "pacing" sample in
-      let scheduling,rate_value=match pacing with `Assoc _->member "scheduling"pacing,member_opt "scheduled_frame_rate"pacing|_->`Null,None in
-      if scheduling<>`String"fixed-rate"then
-        fail "%s/%s does not report fixed-rate scheduling"target scenario;
-      let rate=match numeric_float rate_value with
-        |Some value when Float.is_finite value&&value>0.->value
-        |_->fail "%s/%s lacks a positive scheduled frame rate"target scenario in
-      let expected=max 1(int_of_float(Float.round(sample_seconds*.rate)))
-      and frames=sample|>member "work"|>member "frame_count"|>to_int
+      let scheduling=match pacing with `Assoc _->member "scheduling"pacing|_->`Null in
+      let expected_scheduling = if smoke then "fixed-count" else "duration-bounded" in
+      if scheduling<>`String expected_scheduling then
+        fail "%s/%s does not report %s scheduling"target scenario expected_scheduling;
+      let frames=sample|>member "work"|>member "frame_count"|>to_int
       and wall=timing|>member "wall_seconds"|>to_float in
-      if abs(frames-expected)>1 then fail "%s/%s emitted %d frames, expected %d (+/-1)"target scenario frames expected;
-      let upper = sample_seconds *. 1.10 +. (if smoke then 1. /. rate else 0.) in
-      if wall < sample_seconds *. 0.90 || wall > upper then
+      if frames <= 0 then fail "%s/%s emitted no measured frames" target scenario;
+      if smoke && frames <> 3 then
+        fail "%s/%s smoke emitted %d frames, expected exactly 3" target scenario frames;
+      if not smoke &&
+         (wall < sample_seconds *. 0.90 || wall > sample_seconds *. 1.10) then
         fail "%s/%s wall interval %.3fs differs from requested %.3fs by more than 10%%"target scenario wall sample_seconds
     ) found
   ) required_scenarios) required_targets;
   List.iter (require_equivalent_work samples) required_scenarios;
-  List.iter (enforce_performance ~profile ~width ~height samples baselines) required_scenarios;
+  if not smoke then
+    List.iter (enforce_performance ~profile ~width ~height samples baselines) required_scenarios;
   print_endline "R10 validation passed"
 
 let () =

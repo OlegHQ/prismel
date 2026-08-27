@@ -29,6 +29,9 @@
 (executable
  (name r10_runtime_next_target_benchmark)
  (modules r10_runtime_next_target_benchmark)
+ (foreign_stubs
+  (language c)
+  (names r10_monotonic_stubs))
  (libraries runtime_next_headless runtime_next_web prismel_next_api
   pxui_next r10_scene2_candidate_lib r10_scene3_candidate_lib
   r10_workload_descriptor scene_execution ogpu wap unix yojson))

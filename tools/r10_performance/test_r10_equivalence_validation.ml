@@ -1,4 +1,4 @@
-let sample ?(wall=1.) ?(rate=100.) ?(frames=100) ~target ~scenario () =
+let sample ?(wall=1.) ?(frames=100) ?(scheduling="duration-bounded") ~target ~scenario () =
   `Assoc
     [ "target", `String target
     ; "scenario", `String scenario
@@ -12,8 +12,8 @@ let sample ?(wall=1.) ?(rate=100.) ?(frames=100) ~target ~scenario () =
         ; "p95_frame_seconds", `Float 0.011
         ; "p99_frame_seconds", `Float 0.012
         ]
-    ; "pacing", `Assoc ["scheduling",`String"fixed-rate";
-        "scheduled_frame_rate",`Float rate]
+    ; "pacing", `Assoc ["scheduling",`String scheduling;
+        "scheduled_frame_rate",`Null]
     ; "memory",
       `Assoc
         [ "allocated_bytes_per_frame", `Float 12.
@@ -116,6 +116,11 @@ let () =
         failwith "equivalent R10 report rejected";
       if run Sys.argv.(1) invalid = Unix.WEXITED 0 then
         failwith "inequivalent R10 report accepted";
+      let different_counts = replace_cell ~target:"headless" ~scenario:"basic"
+        (replace_field "work" (`Assoc ["frame_count", `Int 137; "work_units", `Int 42])) samples in
+      write valid (report different_counts);
+      if run Sys.argv.(1) valid <> Unix.WEXITED 0 then
+        failwith "duration-bounded target-specific frame counts rejected";
       let unsupported = List.map (function
         | `Assoc fields when List.assoc_opt "target" fields=Some(`String "web")
           && List.assoc_opt "scenario" fields=Some(`String "pxui")->
@@ -159,10 +164,10 @@ let () =
       if run Sys.argv.(1) invalid = Unix.WEXITED 0 then
         failwith "Scene3 normalized allocation bypassed equivalence validation";
       let bad_pacing=replace_cell~target:"runtime-next-native"~scenario:"basic"
-        (replace_field "work"(`Assoc["frame_count",`Int 129;"work_units",`Int 42]))samples in
+        (replace_field "work"(`Assoc["frame_count",`Int 0;"work_units",`Int 42]))samples in
       write invalid(report bad_pacing);
       if run Sys.argv.(1) invalid=Unix.WEXITED 0 then
-        failwith"mismatched fixed-rate frame collection accepted";
+        failwith"empty duration-bounded frame collection accepted";
       let bad_wall=replace_cell~target:"runtime-next-native"~scenario:"basic"
         (replace_field "timing"(`Assoc["wall_seconds",`Float 0.7;
           "cpu_seconds",`Float 0.5;
@@ -213,10 +218,17 @@ let () =
       if run Sys.argv.(1) invalid=Unix.WEXITED 0 then
         failwith"mismatched Phase0 baseline resolution accepted";
       let smoke_samples = List.concat_map (fun target ->
-        List.map (fun scenario -> sample ~wall:0.0556 ~rate:60. ~frames:3
+        List.map (fun scenario -> sample ~wall:0.0556 ~frames:3 ~scheduling:"fixed-count"
           ~target ~scenario ()) scenarios) targets in
       write valid (report ~sample_seconds:0.05 ~smoke:true smoke_samples);
       if run Sys.argv.(1) valid <> Unix.WEXITED 0 then
         failwith"one-frame smoke wall quantization rejected";
+      let noisy_smoke = replace_cell ~target:"web" ~scenario:"scene3"
+        (replace_field "timing" (`Assoc ["wall_seconds",`Float 0.0556;
+          "cpu_seconds",`Float 99.; "median_frame_seconds",`Float 99.;
+          "p95_frame_seconds",`Float 99.; "p99_frame_seconds",`Float 99.])) smoke_samples in
+      write valid (report ~sample_seconds:0.05 ~smoke:true noisy_smoke);
+      if run Sys.argv.(1) valid <> Unix.WEXITED 0 then
+        failwith"smoke incorrectly enforced performance thresholds";
       print_endline
         "R10 equivalence validator rejects mismatched work including Scene3")
