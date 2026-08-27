@@ -40,7 +40,7 @@ let render_samples samples =
     { primitives=[|Triangle(vertex(-1.)(-1.),vertex 1.(-1.),vertex(-1.)1.)|];
       varying_count=0;fragment=(fun input->Some{color=input.color;depth=None}) } in
   let draw : Scene3_consumer.draw =
-    { matrix;viewport={x=0.;y=0.;width=2.;height=2.;min_depth=0.;max_depth=1.};
+    { matrix;model_matrix=Array.copy matrix;camera_position={x=0.;y=0.;z=1.};viewport={x=0.;y=0.;width=2.;height=2.;min_depth=0.;max_depth=1.};
       scissor={x=0;y=0;width=2;height=2};topology=Scene3.Triangle_list;
       vertices=[||];indices=[||];lighting;shadows=[||];shading=Smooth;texture=None;
       cull=Triangle.Cull_none;blend=Composite.Copy;depth_stencil;mode=Faces;
@@ -65,6 +65,8 @@ let render ~topology ~indices ~cull mode ~line_width ~point_size =
   let draw =
     {
       Scene3_consumer.matrix;
+      model_matrix = Array.copy matrix;
+      camera_position = { x = 0.; y = 0.; z = 1. };
       viewport =
         { Scene3.x = 0.; y = 0.; width = 16.; height = 12.; min_depth = 0.; max_depth = 1. };
       scissor = { Triangle.x = 1; y = 1; width = 14; height = 10 };
@@ -246,6 +248,8 @@ let render_shading shading ~reversed =
   let draw =
     {
       Scene3_consumer.matrix;
+      model_matrix = Array.copy matrix;
+      camera_position = { x = 0.; y = 0.; z = 1. };
       viewport = { Scene3.x = 0.; y = 0.; width = 16.; height = 12.; min_depth = 0.; max_depth = 1. };
       scissor = { Triangle.x = 0; y = 0; width = 16; height = 12 };
       topology = Scene3.Triangle_list;

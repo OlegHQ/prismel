@@ -116,11 +116,13 @@ let prepare ~resources ~camera ~viewport scene =
         begin match Raster2.Scene3_lighting.prepare_with_shadows lighting shadow_values with Error error->failure:=Some(Lighting_error error)|Ok _->
           let camera_matrix=Mat4.mul depth_zero_to_one(Camera.view_projection_matrix~viewport camera)in
           let matrix=matrix_array(Mat4.mul camera_matrix drawing.transform)in
+          let model_matrix=matrix_array drawing.transform in
+          let camera_position=vec(Camera.position camera)in
           let program_result=match drawing.shader with None->Ok None|Some shader->
             try Ok(Some(program~camera~viewport~drawing shader))
             with Invalid_argument message->Error(Shader_error message)|exn->Error(Shader_error(Printexc.to_string exn))in
           begin match program_result with Error error->failure:=Some error|Ok program->
-            draws:={Raster2.Scene3_consumer.matrix;viewport={x=float vx;y=float vy;width=float vw;height=float vh;min_depth=0.;max_depth=1.};scissor={x=vx;y=vy;width=vw;height=vh};topology;vertices;indices=mesh.indices;lighting;shadows=Array.copy shadow_values;shading=shading drawing.shading;texture;cull=cull drawing.cull;blend=blend drawing.blend;depth_stencil=depth_stencil drawing;mode=mode drawing.mode;line_width=drawing.raster.line_width;point_size=drawing.raster.point_size;program}::!draws
+            draws:={Raster2.Scene3_consumer.matrix;model_matrix;camera_position;viewport={x=float vx;y=float vy;width=float vw;height=float vh;min_depth=0.;max_depth=1.};scissor={x=vx;y=vy;width=vw;height=vh};topology;vertices;indices=mesh.indices;lighting;shadows=Array.copy shadow_values;shading=shading drawing.shading;texture;cull=cull drawing.cull;blend=blend drawing.blend;depth_stencil=depth_stencil drawing;mode=mode drawing.mode;line_width=drawing.raster.line_width;point_size=drawing.raster.point_size;program}::!draws
           end
         end)descriptions;
     match !failure with Some error->Error error|None->Ok{draws=Array.of_list(List.rev !draws);clear_depth=Scene3.Private.depth_clear scene;clear_stencil=Scene3.Private.stencil_clear scene;samples=Scene3.Private.samples scene}
