@@ -77,6 +77,7 @@
   binding_rasterization_rate_reachability
   binding_rasterization_rate_safe_handoff
   binding_rasterization_rate5_safe_closure
+  binding_stage_compute_type6_safe_closure
   binding_tensor_safe_handoff
   binding_function_stitching_handoff
   binding_library_header_handoff
@@ -566,6 +567,11 @@
 (test
  (name test_binding_rasterization_rate5_safe_closure)
  (modules test_binding_rasterization_rate5_safe_closure)
+ (libraries metal_inventory_classification))
+
+(test
+ (name test_binding_stage_compute_type6_safe_closure)
+ (modules test_binding_stage_compute_type6_safe_closure)
  (libraries metal_inventory_classification))
 
 (test

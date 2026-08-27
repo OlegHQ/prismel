@@ -1971,6 +1971,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier Binding_rasterization_rate5_safe_closure.promotable_ids then
     Bound,
       "Represented by the public RasterizationRate layer/descriptor/map types and immutable sample/layer arrays, with one- and multi-layer native map conformance and capability rejection."
+  else if List.mem identifier Binding_stage_compute_type6_safe_closure.promotable_ids then
+    Bound,
+      "Represented by the safe StageInputOutput and ComputePass descriptor graphs, including checked child arrays, retained resources, exact defaults, and native conformance."
   else if List.mem identifier Binding_function_stitching_handoff.callable_ids then
     Bound,
       "Implemented by the FunctionStitching36 safe node/graph/descriptor closure with cycle and device validation, owned edges, atomic replacement, and real native conformance."
