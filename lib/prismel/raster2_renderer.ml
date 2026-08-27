@@ -104,9 +104,29 @@ let cached_image value callback source =
         value.images <- List.rev (List.tl (List.rev value.images));
       Ok snapshot
   | Error _ as failure ->
-      begin match previous with
-      | Some entry -> Ok entry.snapshot
-      | None -> failure
+      begin match Image_snapshot.find (Obj.repr source), previous with
+      | Some snapshot, Some entry
+        when entry.snapshot.generation = snapshot.generation ->
+          Ok entry.snapshot
+      | Some snapshot, _ ->
+          begin match Raster2.Surface.of_bytes ~width:snapshot.width
+                  ~height:snapshot.height ~pitch:(snapshot.width * 4)
+                  snapshot.rgba with
+              | Error _ -> failure
+              | Ok surface ->
+                  let resolved = Scene_raster2_lowering.{
+                    resource_id = snapshot.id;
+                    generation = snapshot.generation;
+                    surface;
+                  } in
+                  value.images <- { source; snapshot = resolved } ::
+                    List.filter (fun entry -> entry.source != source) value.images;
+                  if List.length value.images > value.image_capacity then
+                    value.images <- List.rev (List.tl (List.rev value.images));
+                  Ok resolved
+          end
+      | None, Some entry -> Ok entry.snapshot
+      | None, None -> failure
       end
 
 let scene2_resources value (callbacks : Scene_raster2_lowering.resources) =
