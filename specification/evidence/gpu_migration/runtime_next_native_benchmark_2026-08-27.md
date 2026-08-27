@@ -23,25 +23,27 @@ the SHA-256 of each raw result file.
 
 After the lifetime fix in `57a0ffd`, `6353a8e` deterministically coalesces
 compatible consecutive meshes, rebases their packed indices, and caches the
-combined upload. `998d3bb` then adds an explicit stable identity/version lookup
-before traversal, digesting, concatenation, or index rebasing. One hundred
-measured warm frames produced:
+combined upload. `998d3bb` adds an explicit stable identity/version lookup;
+`5c82923` carries that trusted hit through buffer lookup before payload
+digesting or byte conversion. One hundred measured warm frames produced:
 
 | Median | p95 / p99 | FPS | CPU | Allocated | RSS | Upload after warmup | Draws / passes / backend calls |
 |---:|---:|---:|---:|---:|---:|---:|---:|
-| 13.396 ms | 14.186 / 14.702 ms | 75.67 | 94.82% | 1.416 GB | 191,120 KiB | 0 B | 100 / 100 / 100 |
+| 8.434 ms | 9.277 / 9.381 ms | 120.59 | 7.96% | 1.76 MB | 128,528 KiB | 0 B | 100 / 100 / 100 |
 
 The 18,278 source pieces become one 7,069,128-byte cached packed batch and one
 indexed draw per frame. The persistent cache remains bounded at 64 entries and
 256 MiB; current-frame resources remain retained through completion/present.
 All measured frames hit the combined cache and perform zero replacement upload.
-Median latency improved by about 3.67x over the content-digest fallback and
-259x over the original non-coalesced correctness checkpoint. OCaml allocation
-fell from about 96.1 MB to 14.2 MB per warm frame. The remaining allocation and
-CPU time are downstream command/native presentation costs rather than repeat
-7 MB mesh materialization. This closes the specific buffer/encoder-call and
-warm materialization defects, but remains diagnostic rather than a full R11
-pass: the frozen longer benchmark/legacy comparison protocol is not represented.
+Median latency improved by about 5.84x over the content-digest fallback and
+412x over the original non-coalesced correctness checkpoint. OCaml allocation
+fell from about 96.1 MB to 17.6 KB per warm frame; the intermediate prepared
+lookup still allocated 14.2 MB because buffer lookup recomputed a digest from
+two copied byte strings. The focused mock fixture enforces a strict 100 KB/frame
+warm ceiling. The remaining time is FIFO presentation paced. This closes the
+specific buffer/encoder-call and warm materialization defects, but remains
+diagnostic rather than a full R11 pass: the frozen longer benchmark/legacy
+comparison protocol is not represented.
 
 ## Reproduction and limits
 
@@ -52,7 +54,7 @@ _build/default/tools/runtime_next_native_benchmark/runtime_next_native_benchmark
   basic --warmup 3 --samples 20 --report _build/native-basic.json
 _build/default/tools/runtime_next_native_benchmark/runtime_next_native_benchmark.exe \
   shattered --warmup 1 --samples 100 \
-  --report _build/native-bench-results/shattered-prepared.json
+  --report _build/native-bench-results/shattered-prepared-nocopy.json
 ```
 
 Host: Macmini9,1, Apple M1, 16 GiB, macOS 26.4.1 (25E253), OCaml 5.3.0.

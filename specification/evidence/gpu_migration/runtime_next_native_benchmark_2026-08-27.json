@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "commit": "d2b2460",
+  "commit": "5c82923",
   "machine": {"model":"Macmini9,1","cpu":"Apple M1","memory_bytes":17179869184,"macos":"26.4.1 (25E253)","ocaml":"5.3.0"},
   "profile": "release",
   "protocol": {"ordinary_warmup_frames":3,"ordinary_sample_frames":20,"presentation_mode":"fifo","extent":"64x64"},
@@ -10,6 +10,6 @@
     {"scenario":"canvas-like","pieces":8,"triangles":256,"median_ms":8.201122283935547,"p95_ms":9.187936782836914,"p99_ms":9.624004364013672,"fps":120.14121441532792,"cpu_percent":2.870173612382185,"allocated_bytes":1078304.0,"rss_kib":81952,"prepared_upload_bytes":"3456","measurement_upload_bytes":"0","draws":160,"passes":20,"backend_calls":20,"cache_entries":8,"cache_hits_inferred":160,"cache_misses_observed":0,"raw_json_sha256":"30872e48ccf46e150cf22766eb16a7602c962339f0ba2ac4f9b2fcb35dc98359"},
     {"scenario":"scene3-double68","pieces":12,"triangles":110592,"median_ms":8.319854736328125,"p95_ms":9.297847747802734,"p99_ms":9.508132934570312,"fps":120.12882696716746,"cpu_percent":38.279651357222725,"allocated_bytes":54479904.0,"rss_kib":92224,"prepared_upload_bytes":"1329552","measurement_upload_bytes":"0","draws":240,"passes":20,"backend_calls":20,"cache_entries":12,"cache_hits_inferred":240,"cache_misses_observed":0,"raw_json_sha256":"6171bd8c11342c9f50d74340def87236e21f8941336ad0bd19de6380cff25f20"}
   ],
-  "shattered_cube": {"pieces":18278,"triangles":278368,"result":"stable-prepared","warmup_frames":1,"sample_frames":100,"median_ms":13.396024703979492,"p95_ms":14.185905456542969,"p99_ms":14.702081680297852,"fps":75.67118580097214,"cpu_percent":94.81728221877673,"allocated_bytes":1415595424.0,"allocated_bytes_per_frame":14155954.24,"rss_kib":191120,"prepared_upload_bytes":"7069128","measurement_upload_bytes":"0","draws":100,"passes":100,"backend_calls":100,"cache_entries":1,"cache_hits_inferred":1827800,"cache_misses_observed":0,"raw_json_sha256":"cb4794d7f58c605b39e5527e8f626ff675ca2acb9c90d6688cd1756e0a0c8db8","qualification":"Stable identity/version lookup bypasses warm traversal, digesting, concatenation, and rebasing; this short diagnostic is not the full R11 protocol."},
+  "shattered_cube": {"pieces":18278,"triangles":278368,"result":"stable-prepared-no-copy","warmup_frames":1,"sample_frames":100,"median_ms":8.434057235717773,"p95_ms":9.277105331420898,"p99_ms":9.38105583190918,"fps":120.58620080948474,"cpu_percent":7.956639288012228,"allocated_bytes":1759424.0,"allocated_bytes_per_frame":17594.24,"rss_kib":128528,"prepared_upload_bytes":"7069128","measurement_upload_bytes":"0","draws":100,"passes":100,"backend_calls":100,"cache_entries":1,"cache_hits_inferred":1827800,"cache_misses_observed":0,"warm_allocation_ceiling_bytes_per_frame":100000,"raw_json_sha256":"511251fb2358f51e98968c041d334d485fabc896922c91436ba199a3a97e0687","qualification":"Trusted stable identity/version hits bypass warm traversal, digesting, byte conversion, concatenation, and rebasing; this short diagnostic is not the full R11 protocol."},
   "native_gpu_counters": null
 }
