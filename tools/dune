@@ -33,6 +33,10 @@
  (name bench_raster2_renderer)
  (libraries raster2 unix yojson))
 
+(executable
+ (name bench_runtime_next_parity)
+ (libraries scene_execution ogpu ogpu_raster2 unix yojson))
+
 (rule
  (alias runtest)
  (action
