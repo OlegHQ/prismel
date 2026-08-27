@@ -18,4 +18,8 @@ let port value=Wap.port value.server
 let set_text_input_regions value regions=if value.destroyed then Error Destroyed else
   try Wap.set_text_input_regions value.server regions;value.regions<-regions;Ok()with Invalid_argument message->Error(Invalid_frame message)
 let text_input_regions value=value.regions
+let register_bytes value ?content_type bytes =
+  if value.destroyed then None else Wap.register_bytes value.server ?content_type bytes
+let remove_asset value id = if not value.destroyed then Wap.remove_asset value.server id
+let drain_events value = if value.destroyed then [] else Wap.drain_events value.server
 let destroy value=if not value.destroyed then(value.destroyed<-true;Wap.stop value.server)

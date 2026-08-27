@@ -140,6 +140,10 @@ let set_text_input_regions value regions =
       Result.map_error (presenter_error operation)
         (Presenter.set_text_input_regions value.presenter regions)
 let text_input_regions value = Presenter.text_input_regions value.presenter
+let register_bytes value ?content_type bytes =
+  if value.dead then None else Presenter.register_bytes value.presenter ?content_type bytes
+let remove_asset value id = if not value.dead then Presenter.remove_asset value.presenter id
+let drain_events value = if value.dead then [] else Presenter.drain_events value.presenter
 let read_pixels value ~bytes_per_row =
   match ensure_live "Runtime_next_web.read_pixels" value with
   | Error _ as error_value -> error_value

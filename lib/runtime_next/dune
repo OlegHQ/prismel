@@ -48,6 +48,11 @@
  (libraries runtime_next_web scene_execution ogpu wap))
 
 (test
+ (name test_runtime_next_web_network)
+ (modules test_runtime_next_web_network)
+ (libraries runtime_next_web scene_execution ogpu wap unix threads))
+
+(test
  (name test_runtime_next_orchestrator)
  (modules test_runtime_next_orchestrator)
  (libraries runtime_next_orchestrator scene_execution ogpu wap))

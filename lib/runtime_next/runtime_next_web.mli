@@ -20,6 +20,9 @@ val port : t -> int
 val set_text_input_regions : t -> Wap.text_input_region list ->
   (unit, Ogpu.Error.t) result
 val text_input_regions : t -> Wap.text_input_region list
+val register_bytes : t -> ?content_type:string -> bytes -> string option
+val remove_asset : t -> string -> unit
+val drain_events : t -> Wap.event list
 val read_pixels : t -> bytes_per_row:int -> (bytes, Ogpu.Error.t) result
 val backend_live_counts : t -> int * int * int * int * int
 val backend_trace_stats : t -> int * int
