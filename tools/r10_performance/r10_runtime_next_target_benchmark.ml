@@ -34,6 +34,22 @@ let workload scenario width height =
   | "scene3" -> List.init 12 (fun i -> make ("scene3-" ^ string_of_int i) 9_216)
   | value -> invalid_arg ("unknown scenario " ^ value)
 
+let artifact scenario width height =
+  match scenario with
+  | "basic" -> R10_scene2_legacy_equivalent.create Basic ~width ~height
+  | "pxui" -> R10_scene2_legacy_equivalent.create Pxui ~width ~height
+  | "canvas" -> R10_scene2_legacy_equivalent.create Canvas ~width ~height
+  | "scene3" ->
+      let draws = workload scenario width height in
+      { R10_scene2_legacy_equivalent.draws;
+        workload_signature =
+          Printf.sprintf "scene3-pending-canonical:%dx%d:%d" width height
+            (List.length draws);
+        work_units = List.fold_left
+          (fun total draw -> total + (draw.Scene_execution.mesh.index_count / 3))
+          0 draws }
+  | value -> invalid_arg ("unknown scenario " ^ value)
+
 let rss_kib () =
   let argv = [| "/bin/ps"; "-o"; "rss="; "-p"; string_of_int (Unix.getpid ()) |] in
   let input = Unix.open_process_args_in argv.(0) argv in
@@ -54,7 +70,8 @@ let () =
   if !scenario = "" || !width <= 0 || !height <= 0 || !warmup <= 0.
      || !seconds <= 0. || !frame_rate <= 0. || not (Float.is_finite !frame_rate) then
     invalid_arg "invalid arguments";
-  let work = workload !scenario !width !height in
+  let artifact = artifact !scenario !width !height in
+  let work = artifact.draws in
   let render, capture, destroy = match !target with
     | Headless ->
         let runtime = ok (Runtime_next_headless.create ~logical_width:!width ~logical_height:!height
@@ -108,7 +125,8 @@ let () =
     "promoted_bytes_per_frame", `Float (promoted /. float count);
     "rss_before_kib", `Int rss0; "rss_after_kib", `Int rss1;
     "rss_delta_kib", `Int (rss1 - rss0); "peak_sampled_rss_kib", `Int (max rss0 rss1);
-    "workload_signature", `String (Printf.sprintf "%s:%dx%d:%d" !scenario !width !height (List.length work));
+    "workload_signature", `String artifact.workload_signature;
+    "work_units", `Int artifact.work_units;
     "framebuffer_digest", `String (Digest.to_hex (Digest.bytes framebuffer));
     "median_frame_seconds", `Float (percentile 0.5 frames);
     "p95_frame_seconds", `Float (percentile 0.95 frames);
