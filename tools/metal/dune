@@ -119,6 +119,7 @@
   binding_indirect_command14_safe_package
   binding_intersection_table8_native_closure
   binding_intersection_table7_safe_package
+  binding_function_stitching7_safe_package
   binding_capture_scope_tail_handoff
   binding_event_tail_handoff
   binding_acceleration_value_tail_handoff
@@ -140,6 +141,7 @@
   binding_device_residual_safe_package
   binding_device_residual11_evidence
   binding_device_library5_safe_package
+  binding_device_queues3_safe_package
   binding_availability
   binding_availability_ast
   binding_receiver_catalog
@@ -817,6 +819,11 @@
 (test
  (name test_binding_intersection_table7_safe_package)
  (modules test_binding_intersection_table7_safe_package)
+ (libraries metal_inventory_classification))
+
+(test
+ (name test_binding_function_stitching7_safe_package)
+ (modules test_binding_function_stitching7_safe_package)
  (libraries metal_inventory_classification))
 
 (test

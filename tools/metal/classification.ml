@@ -1876,6 +1876,7 @@ let metal4_counters_safe2 = Binding_metal4_counters2_safe_package.ids
 let render_encoder_safe33 = Binding_render_encoder33_safe_package.ids
 let indirect_command_safe14 = Binding_indirect_command14_safe_package.ids
 let intersection_table_safe7 = Binding_intersection_table7_safe_package.ids
+let function_stitching_safe7 = Binding_function_stitching7_safe_package.ids
 let metal4_argument_table_safe1 =
   Binding_metal4_argument_table_safe_package.callable_ids
 let metal4_render_pipeline_reset_safe2 =
@@ -1886,6 +1887,7 @@ let metal4_command_encoder_wait_safe1 =
   Binding_metal4_command_encoder_safe_package.callable_ids
 let device_residual_safe11 = Binding_device_residual_safe_package.already_safe_ids
 let device_library_safe5 = Binding_device_library5_safe_package.ids
+let device_queues_safe3 = Binding_device_queues3_safe_package.ids
 
 let classify ~unavailable ~identifier ~header ~kind ~signature =
   if unavailable then
@@ -1915,6 +1917,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier device_library_safe5 then
     Bound,
       "Implemented by exact synchronous Device library constructors with copied byte input, checked absolute paths and bundle/descriptor graphs, owned device retention, and execute-or-error conformance."
+  else if List.mem identifier device_queues_safe3 then
+    Bound,
+      "Implemented by exact Device queue constructors with positive limits, checked descriptor/log-state device identity, owned queue/device lifetimes, and Metal 4 capability conformance."
   else if acceleration_scalar_identifier ~header ~kind ~signature identifier then
     Bound,
       "Implemented by generated immutable acceleration-structure descriptor values with native execute-or-capability-reject conformance."
@@ -2076,6 +2081,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier intersection_table_safe7 then
     Bound,
       "Implemented by the owned intersection-function table graph with atomic nullable buffer/function/visible-table arrays, checked offsets/devices/capacity, retained replacements, and capability-gated opaque triangle/curve signatures with real Metal conformance."
+  else if List.mem identifier function_stitching_safe7 then
+    Bound,
+      "Implemented by copied owned stitching input/function/graph/attribute/descriptor values with checked names, argument indices, graph membership/cycles, same-device lifetimes, and real stitched-library compilation conformance."
   else if List.mem identifier Binding_render_pass24_safe_closure.promotable_ids then
     Bound,
       "Implemented by the owned classic RenderPass24 graph with copied color/sample descriptors, nullable resolve texture and counter buffers, checked device/range/default reset semantics, completion retention, and real render/resolve conformance."
