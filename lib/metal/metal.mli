@@ -3101,6 +3101,10 @@ module Command4 : sig
     val pop_debug_group : t -> (unit,error) result
     val barrier : t -> after:stage list -> before:stage list -> ?before_queue:bool -> unit -> (unit,error) result
     val update_fence : t -> Fence.t -> after:stage list -> (unit,error) result
+    (* Waits for a live same-device fence before the selected nonempty stage
+       set. The recording command retains the fence after native encoding
+       succeeds. *)
+    val wait_for_fence : t -> Fence.t -> before:stage list -> (unit,error) result
     val dispatch_threadgroups : t -> threadgroups:(int64*int64*int64) -> threads_per_threadgroup:(int64*int64*int64) -> (unit,error) result
     val dispatch_indirect_threadgroups : t -> indirect_buffer:Buffer.t -> offset:int64 -> threads_per_threadgroup:(int64*int64*int64) -> (unit,error) result
     val dispatch_indirect_threads : t -> indirect_buffer:Buffer.t -> offset:int64 -> (unit,error) result
@@ -3528,6 +3532,7 @@ module Render_encoder : sig
   val set_stage_intersection_function_table : t -> stage:stage -> index:int -> Intersection_function_table.t option -> (unit,error) result
   val set_stage_visible_function_tables : t -> stage:stage -> start:int -> Visible_function_table.t option list -> (unit,error) result
   val set_stage_intersection_function_tables : t -> stage:stage -> start:int -> Intersection_function_table.t option list -> (unit,error) result
+  val sample_counters : t -> counter_sample_buffer -> index:int64 -> barrier:bool -> (unit,error) result
   val set_depth_stencil_state : t -> Depth_stencil.t option -> (unit,error) result
   val set_stage_bytes : t -> stage:stage -> index:int -> bytes -> (unit,error) result
   val set_depth_clip_mode : t -> clamp:bool -> (unit,error) result

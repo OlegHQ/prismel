@@ -1930,6 +1930,8 @@ external metal4_encoder_barrier :
   "caml_prismel_metal4_encoder_barrier_bytecode" "caml_prismel_metal4_encoder_barrier"
 external metal4_encoder_update_fence : handle -> handle -> handle -> int64 -> (unit,string) result =
   "caml_prismel_metal4_encoder_update_fence"
+external metal4_encoder_wait_fence : handle -> handle -> handle -> int64 -> (unit,string) result =
+  "caml_prismel_metal4_encoder_wait_fence"
 external metal4_queue_add_residencies : handle -> handle array -> (unit,string) result =
   "caml_prismel_metal4_queue_add_residencies"
 external metal4_queue_remove_residency : handle -> handle -> (unit,string) result =

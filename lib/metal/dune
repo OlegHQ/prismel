@@ -219,6 +219,7 @@
   ../../tools/metal/metal4_stitched_callable_bridge.inc
   ../../tools/metal/metal4_compute_pipeline_reset1_callable_bridge.inc
   ../../tools/metal/metal4_argument_table_resource_bridge.inc
+  ../../tools/metal/metal4_command_encoder_wait_fence_bridge.inc
   ../../tools/metal/metal_presentation_render_pass_advanced.inc
   ../../tools/metal/metal_presentation_layer_snapshot.inc
   ../../tools/metal/metal_presentation_command_snapshot.inc
@@ -443,6 +444,11 @@
 (test
  (name test_metal4_compute_pipeline_reset1_safe)
  (modules test_metal4_compute_pipeline_reset1_safe)
+ (libraries metal))
+
+(test
+ (name test_metal4_command_encoder_wait_fence_safe)
+ (modules test_metal4_command_encoder_wait_fence_safe)
  (libraries metal))
 
 (rule
@@ -1364,6 +1370,20 @@
  (action
   (bash
    "status=0; ./test_metal4_render_pipeline3_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
+
+(rule
+ (targets test_metal4_command_encoder_wait_fence_native.exe)
+ (deps ../../tools/metal/test_metal4_command_encoder_wait_fence_native.mm)
+ (action
+  (run clang++ -std=c++17 -fobjc-arc -fblocks -Wall -Wextra -Werror
+   -framework Foundation -framework Metal %{deps} -o %{targets})))
+
+(rule
+ (alias runtest)
+ (deps test_metal4_command_encoder_wait_fence_native.exe)
+ (action
+  (bash
+   "status=0; ./test_metal4_command_encoder_wait_fence_native.exe || status=$?; test $status -eq 0 -o $status -eq 77")))
 
 (rule
  (targets test_metal4_render_pipeline_reset2_lifecycle_native.exe)

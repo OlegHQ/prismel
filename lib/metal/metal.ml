@@ -15934,6 +15934,9 @@ module Command4 = struct
     let update_fence value (fence:Fence.t) ~after =
       let operation="Metal.Command4.Compute_encoder.update_fence" in
       callable operation value(fun()->Result.bind(ensure_live operation fence.lifetime)(fun()->Result.bind(ensure_same_device operation value.command_buffer.allocator.device fence.device)(fun()->if after=[]then error operation Invalid_argument "fence stages are empty"else Result.bind(native_unit operation(Metal_raw.metal4_encoder_update_fence value.raw value.command_buffer.raw fence.raw(stage_bits after)))(fun()->retain_command4_other value.command_buffer fence.lifetime;Ok()))))
+    let wait_for_fence value (fence:Fence.t) ~before =
+      let operation="Metal.Command4.Compute_encoder.wait_for_fence" in
+      callable operation value(fun()->Result.bind(ensure_live operation fence.lifetime)(fun()->Result.bind(ensure_same_device operation value.command_buffer.allocator.device fence.device)(fun()->if before=[]then error operation Invalid_argument "fence stages are empty"else Result.bind(native_unit operation(Metal_raw.metal4_encoder_wait_fence value.raw value.command_buffer.raw fence.raw(stage_bits before)))(fun()->retain_command4_other value.command_buffer fence.lifetime;Ok()))))
 
     let positive64 (x,y,z)=x>0L&&y>0L&&z>0L
     let require_pipeline operation (value : t) = match value.pipeline with
@@ -17884,6 +17887,26 @@ module Render_encoder = struct
     let rec valid=function []->Ok()|None::xs->valid xs|Some(x:intersection_function_table)::xs->Result.bind(ensure_live operation x.lifetime)(fun()->Result.bind(ensure_same_device operation value.command_buffer.queue.device x.pipeline.device)(fun()->valid xs))in
     Result.bind(valid items)(fun()->match Metal_raw.render_stage_intersections value.raw(binding_stage_code stage)(Array.of_list(List.map(Option.map(fun(x:intersection_function_table)->x.raw))items))(Int64.of_int start)with
     | Error m->native_error operation m|Ok()->List.iter(Option.iter(retain_command_buffer_intersection_table value.command_buffer))items;Ok())))
+
+  let sample_counters (value:t) (samples:counter_sample_buffer) ~index ~barrier =
+    let operation="Metal.Render_encoder.sample_counters" in
+    on_main operation(fun()->match ensure_live operation value.lifetime with
+    | Error _ as e->e | Ok()->
+      Result.bind(ensure_live operation samples.lifetime)(fun()->
+      if index<0L || index>=samples.sample_count then
+        error operation Invalid_argument "counter sample index is out of range"
+      else Result.bind
+        (ensure_same_device operation value.command_buffer.queue.device samples.device)
+        (fun()->match Metal_raw.render_sample_counters value.raw samples.raw index barrier with
+        | Error m->native_error operation m
+        | Ok()->
+            if not(List.exists((==)samples.lifetime)
+                     !(value.command_buffer.presentation_events)) then begin
+              attach samples.lifetime;
+              value.command_buffer.presentation_events :=
+                samples.lifetime :: !(value.command_buffer.presentation_events)
+            end;
+            Ok())))
 
   let set_depth_stencil_state (value:t) (state:Depth_stencil.t option) =
     let operation="Metal.Render_encoder.set_depth_stencil_state" in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->
