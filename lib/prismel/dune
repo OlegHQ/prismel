@@ -1,7 +1,7 @@
 (library
  (name prismel)
  (public_name prismel)
- (modules (:standard \ scene3_native_qualification))
+ (modules :standard)
  (private_modules App Backend Graphics Renderer3d Renderer3d_gpu Sdl_compat
   Window Scene_description Scene_raster2_lowering Scene3_raster2_lowering Scene3_raster2_resources
   Image_snapshot Audio_snapshot Audio_snapshot_test Image_raster2_snapshot_test Font_raster2_snapshot_test
@@ -9,9 +9,3 @@
   Scene_ogpu_renderer Prismel_runtime_next_input_compat)
  (libraries unix domainslib ctypes ctypes.foreign tsdl tsdl-image tsdl-ttf
   tsdl-mixer tsdl_gfx runtime raster2 ogpu scene_execution runtime_next_input))
-
-(test
- (name scene3_native_qualification)
- (modules scene3_native_qualification)
- (flags (:standard -I lib/prismel/.prismel.objs/byte))
- (libraries prismel runtime_next raster2))

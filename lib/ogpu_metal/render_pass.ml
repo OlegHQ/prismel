@@ -117,7 +117,16 @@ module Private=struct
     |Error e->Error(Adapter.error~operation:op e)
     |Ok encoder->
       let cleanup=ref[]in
-      let fail e=List.iter(fun f->f())!cleanup;Error(Adapter.error~operation:op e)in
+      let sampler_cleanup =
+        List.map
+          (fun sampler () -> ignore (Sampler.destroy sampler))
+          value.owned_samplers
+      in
+      let fail e=
+        List.iter(fun f->f())!cleanup;
+        List.iter(fun f->f())sampler_cleanup;
+        Error(Adapter.error~operation:op e)
+      in
       let raster=Ogpu.Render_pass.raster_state value.pass and stencil=Ogpu.Render_pass.stencil_state value.pass in
       (match Metal.Depth_stencil.create~label:"ogpu-metal-command4-pass"~depth_compare:(metal_compare raster.depth_compare)~depth_write:raster.depth_write?front_face:(Option.map(fun s->metal_face s.Ogpu.Render_pass.front)stencil)?back_face:(Option.map(fun s->metal_face s.Ogpu.Render_pass.back)stencil)(Metal.Command4.Command_buffer.device command)()with
       |Error e->fail e
@@ -143,7 +152,7 @@ module Private=struct
             match set_buffers buffers with Error _ as e->e|Ok()->match set_textures textures with Error _ as e->e|Ok()->match set_samplers samplers with Error _ as e->e|Ok()->Metal.Command4.Render_encoder.set_argument_table encoder~stages:[(match stage with Vertex->Metal.Command4.Render_encoder.Vertex|Fragment->Fragment)](Some table)
         in
         let rec draws=function
-          |[]->(match Metal.Command4.Render_encoder.end_encoding encoder with Error e->fail e|Ok()->Ok(List.rev!cleanup))
+          |[]->(match Metal.Command4.Render_encoder.end_encoding encoder with Error e->fail e|Ok()->Ok(List.rev!cleanup @ sampler_cleanup))
           |draw::rest->let native=match Pipeline.Private.native draw.pipeline with Render p->p|Compute _->assert false in
             let* ()=Metal.Command4.Render_encoder.set_pipeline encoder native in
             let* ()=bind_stage encoder Vertex draw in
