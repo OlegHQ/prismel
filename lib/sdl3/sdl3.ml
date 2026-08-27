@@ -5,6 +5,7 @@ type error_kind =
   | Parent_has_dependents
   | Incompatible_version
   | Invalid_argument
+  | Unsupported
 
 type error = {
   operation : string;
@@ -89,6 +90,7 @@ type release_token =
   | Metal_view_token of nativeint
   | Rgba_presenter_token of nativeint
   | Window_token of nativeint
+  | Cursor_token of nativeint
 
 module Release_queue = struct
   let capacity = 1_024
@@ -97,6 +99,7 @@ module Release_queue = struct
   let metal_views = Queue.create ()
   let rgba_presenters = Queue.create ()
   let windows = Queue.create ()
+  let cursors = Queue.create ()
   let dropped = Atomic.make 0
 
   let enqueue queue token =
@@ -104,6 +107,7 @@ module Release_queue = struct
     if
       Queue.length surfaces + Queue.length metal_views
       + Queue.length rgba_presenters + Queue.length windows
+      + Queue.length cursors
         >= capacity then
       Atomic.incr dropped
     else Queue.add token queue;
@@ -114,6 +118,7 @@ module Release_queue = struct
   let rgba_presenter raw =
     enqueue rgba_presenters (Rgba_presenter_token raw)
   let window raw = enqueue windows (Window_token raw)
+  let cursor raw = enqueue cursors (Cursor_token raw)
 
   let drain () =
     Mutex.lock mutex;
@@ -121,27 +126,37 @@ module Release_queue = struct
     let views = Queue.create ()
     and presenters = Queue.create ()
     and pending_windows = Queue.create () in
+    let pending_cursors = Queue.create () in
     Queue.transfer surfaces pending_surfaces;
     Queue.transfer metal_views views;
     Queue.transfer rgba_presenters presenters;
     Queue.transfer windows pending_windows;
+    Queue.transfer cursors pending_cursors;
     Mutex.unlock mutex;
     Queue.iter (function
       | Surface_token raw -> Private_raw.destroy_surface raw
-      | Metal_view_token _ | Rgba_presenter_token _ | Window_token _ ->
+      | Metal_view_token _ | Rgba_presenter_token _ | Window_token _
+      | Cursor_token _ ->
           assert false) pending_surfaces;
     Queue.iter (function
       | Metal_view_token raw -> Private_raw.destroy_metal_view raw
-      | Surface_token _ | Rgba_presenter_token _ | Window_token _ ->
+      | Surface_token _ | Rgba_presenter_token _ | Window_token _
+      | Cursor_token _ ->
           assert false) views;
     Queue.iter (function
       | Rgba_presenter_token raw -> Private_raw.destroy_rgba_presenter raw
-      | Surface_token _ | Metal_view_token _ | Window_token _ -> assert false)
+      | Surface_token _ | Metal_view_token _ | Window_token _ | Cursor_token _ ->
+          assert false)
       presenters;
     Queue.iter (function
       | Window_token raw -> Private_raw.destroy_window raw
       | Surface_token _ | Metal_view_token _ | Rgba_presenter_token _ ->
-          assert false) pending_windows
+          assert false
+      | Cursor_token _ -> assert false) pending_windows;
+    Queue.iter (function
+      | Cursor_token raw -> Private_raw.destroy_cursor raw
+      | Surface_token _ | Metal_view_token _ | Rgba_presenter_token _
+      | Window_token _ -> assert false) pending_cursors
 end
 
 let dropped_release_tokens () = Atomic.get Release_queue.dropped
@@ -245,6 +260,13 @@ module Display = struct
     let scale = Private_raw.display_content_scale display in
     if Float.is_finite scale && scale > 0. then Ok scale
     else sdl_error "SDL3.Display.content_scale")
+
+  let refresh_rate display = on_main "SDL3.Display.refresh_rate" (fun () ->
+    Private_raw.clear_error ();
+    match Private_raw.display_refresh_rate display with
+    | Some rate -> Ok rate
+    | None -> error "SDL3.Display.refresh_rate" Unsupported
+        "the video driver does not expose a current display refresh rate")
 end
 
 module rec Window : sig
@@ -258,6 +280,12 @@ module rec Window : sig
     metal_views : int Atomic.t;
     presenters : int Atomic.t;
   }
+  type presentation_facts = {
+    logical_width : int; logical_height : int;
+    drawable_width : int; drawable_height : int;
+    pixel_density : float; display_scale : float;
+    refresh_rate : float option; vsync : bool;
+  }
   val create : title:string -> width:int -> height:int -> ?flags:flag list -> unit ->
     (t, error) result
   val generation : t -> int
@@ -269,8 +297,17 @@ module rec Window : sig
   val pixel_density : t -> (float, error) result
   val display_scale : t -> (float, error) result
   val position : t -> (int * int, error) result
+  val title : t -> (string, error) result
+  val set_title : t -> string -> (unit, error) result
   val set_position : t -> x:int -> y:int -> (unit, error) result
+  val center : t -> (unit, error) result
   val set_size : t -> width:int -> height:int -> (unit, error) result
+  val set_bordered : t -> bool -> (unit, error) result
+  val set_resizable : t -> bool -> (unit, error) result
+  val set_always_on_top : t -> bool -> (unit, error) result
+  val set_relative_mouse : t -> bool -> (unit, error) result
+  val relative_mouse : t -> (bool, error) result
+  val presentation_facts : t -> vsync:bool -> (presentation_facts, error) result
   val flags : t -> (int64, error) result
   val show : t -> (unit, error) result
   val hide : t -> (unit, error) result
@@ -290,6 +327,12 @@ end = struct
     mutable destroyed : bool;
     metal_views : int Atomic.t;
     presenters : int Atomic.t;
+  }
+  type presentation_facts = {
+    logical_width : int; logical_height : int;
+    drawable_width : int; drawable_height : int;
+    pixel_density : float; display_scale : float;
+    refresh_rate : float option; vsync : bool;
   }
 
   let next_generation = Atomic.make 1
@@ -375,11 +418,26 @@ end = struct
     | Some position -> Ok position
     | None -> sdl_error "SDL3.Window.position")
 
+  let title value = live "SDL3.Window.title" value (fun raw ->
+    Ok (Private_raw.window_title raw))
+
+  let set_title value title =
+    let operation = "SDL3.Window.set_title" in
+    if contains_nul title then
+      error operation Invalid_argument "window title contains a NUL byte"
+    else live operation value (fun raw ->
+      Private_raw.clear_error ();
+      if Private_raw.set_window_title raw title then Ok () else sdl_error operation)
+
   let set_position value ~x ~y = live "SDL3.Window.set_position" value
       (fun raw ->
         Private_raw.clear_error ();
         if Private_raw.set_window_position raw x y then Ok ()
         else sdl_error "SDL3.Window.set_position")
+
+  let center value = live "SDL3.Window.center" value (fun raw ->
+    Private_raw.clear_error ();
+    if Private_raw.center_window raw then Ok () else sdl_error "SDL3.Window.center")
 
   let set_size value ~width ~height =
     let operation = "SDL3.Window.set_size" in
@@ -396,6 +454,42 @@ end = struct
   let bool_call operation call value = live operation value (fun raw ->
     Private_raw.clear_error ();
     if call raw then Ok () else sdl_error operation)
+
+  let set_bordered value enabled = live "SDL3.Window.set_bordered" value
+      (fun raw -> Private_raw.clear_error ();
+        if Private_raw.set_window_bordered raw enabled then Ok ()
+        else sdl_error "SDL3.Window.set_bordered")
+  let set_resizable value enabled = live "SDL3.Window.set_resizable" value
+      (fun raw -> Private_raw.clear_error ();
+        if Private_raw.set_window_resizable raw enabled then Ok ()
+        else sdl_error "SDL3.Window.set_resizable")
+  let set_always_on_top value enabled = live "SDL3.Window.set_always_on_top" value
+      (fun raw -> Private_raw.clear_error ();
+        if Private_raw.set_window_always_on_top raw enabled then Ok ()
+        else sdl_error "SDL3.Window.set_always_on_top")
+  let set_relative_mouse value enabled = live "SDL3.Window.set_relative_mouse" value
+      (fun raw -> Private_raw.clear_error ();
+        if Private_raw.set_window_relative_mouse raw enabled then Ok ()
+        else error "SDL3.Window.set_relative_mouse" Unsupported
+          (let message = Private_raw.get_error () in
+           if message = "" then "relative mouse mode is unavailable" else message))
+  let relative_mouse value = live "SDL3.Window.relative_mouse" value (fun raw ->
+    Ok (Private_raw.window_relative_mouse raw))
+
+  let presentation_facts value ~vsync =
+    match size value, size_in_pixels value, pixel_density value,
+        display_scale value, display value with
+    | Ok (logical_width, logical_height), Ok (drawable_width, drawable_height),
+      Ok pixel_density, Ok display_scale, Ok display ->
+        let refresh_rate = match Display.refresh_rate display with
+          | Ok value -> Some value | Error { kind = Unsupported; _ } -> None
+          | Error _ -> None
+        in
+        Ok { logical_width; logical_height; drawable_width; drawable_height;
+          pixel_density; display_scale; refresh_rate; vsync }
+    | Error error, _, _, _, _ | _, Error error, _, _, _
+    | _, _, Error error, _, _ | _, _, _, Error error, _
+    | _, _, _, _, Error error -> Error error
 
   let show = bool_call "SDL3.Window.show" Private_raw.show_window
   let hide = bool_call "SDL3.Window.hide" Private_raw.hide_window
@@ -424,6 +518,47 @@ end = struct
       Private_raw.destroy_window value.raw;
       Ok ()
     end)
+end
+
+module Mouse = struct
+  let capture enabled = on_main "SDL3.Mouse.capture" (fun () ->
+    Private_raw.clear_error ();
+    if Private_raw.capture_mouse enabled then Ok ()
+    else error "SDL3.Mouse.capture" Unsupported
+      (let message = Private_raw.get_error () in
+       if message = "" then "mouse capture is unavailable" else message))
+end
+
+module Cursor = struct
+  type shape = Default | Text | Wait | Crosshair | Progress | Nwse_resize
+    | Nesw_resize | Ew_resize | Ns_resize | Move | Not_allowed | Pointer
+  type t = { raw : nativeint; mutable destroyed : bool }
+  let destroyed value = value.destroyed
+  let code = function Default -> 0 | Text -> 1 | Wait -> 2 | Crosshair -> 3
+    | Progress -> 4 | Nwse_resize -> 5 | Nesw_resize -> 6 | Ew_resize -> 7
+    | Ns_resize -> 8 | Move -> 9 | Not_allowed -> 10 | Pointer -> 11
+  let create shape = on_main "SDL3.Cursor.create" (fun () ->
+    Private_raw.clear_error ();
+    let raw = Private_raw.create_system_cursor (code shape) in
+    if raw = Nativeint.zero then error "SDL3.Cursor.create" Unsupported
+      (let message = Private_raw.get_error () in
+       if message = "" then "system cursors are unavailable" else message)
+    else let value = { raw; destroyed = false } in
+      Gc.finalise (fun value -> if not value.destroyed then begin
+        value.destroyed <- true; Release_queue.cursor value.raw end) value;
+      Ok value)
+  let set value = on_main "SDL3.Cursor.set" (fun () ->
+    if value.destroyed then error "SDL3.Cursor.set" Destroyed "cursor is destroyed"
+    else (Private_raw.clear_error ();
+      if Private_raw.set_cursor value.raw then Ok () else sdl_error "SDL3.Cursor.set"))
+  let action operation call = on_main operation (fun () ->
+    Private_raw.clear_error (); if call () then Ok () else sdl_error operation)
+  let show () = action "SDL3.Cursor.show" Private_raw.show_cursor
+  let hide () = action "SDL3.Cursor.hide" Private_raw.hide_cursor
+  let visible () = on_main "SDL3.Cursor.visible" (fun () -> Ok (Private_raw.cursor_visible ()))
+  let destroy value = on_main "SDL3.Cursor.destroy" (fun () ->
+    if value.destroyed then Ok () else begin value.destroyed <- true;
+      Private_raw.destroy_cursor value.raw; Ok () end)
 end
 
 

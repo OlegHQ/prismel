@@ -2,8 +2,8 @@
   "classification_counts": {
     "not-applicable": 0,
     "platform-excluded": 0,
-    "raw-only": 3345,
-    "safe": 58,
+    "raw-only": 3330,
+    "safe": 73,
     "unreviewed": 0
   },
   "compiler": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
@@ -2176,11 +2176,11 @@
       "thread": "raw-only-not-reviewed"
     },
     {
-      "classification": "raw-only",
+      "classification": "safe",
       "header": "SDL3/<clang-elided-source>",
       "name": "SDL_CaptureMouse",
       "signature": "_Bool (_Bool)",
-      "thread": "raw-only-not-reviewed"
+      "thread": "main-thread"
     },
     {
       "classification": "raw-only",
@@ -2659,11 +2659,11 @@
       "thread": "raw-only-not-reviewed"
     },
     {
-      "classification": "raw-only",
+      "classification": "safe",
       "header": "SDL3/<clang-elided-source>",
       "name": "SDL_CreateSystemCursor",
       "signature": "SDL_Cursor *(SDL_SystemCursor)",
-      "thread": "raw-only-not-reviewed"
+      "thread": "main-thread-owned-result"
     },
     {
       "classification": "raw-only",
@@ -2743,11 +2743,11 @@
       "thread": "raw-only-not-reviewed"
     },
     {
-      "classification": "raw-only",
+      "classification": "safe",
       "header": "SDL3/<clang-elided-source>",
       "name": "SDL_CursorVisible",
       "signature": "_Bool (void)",
-      "thread": "raw-only-not-reviewed"
+      "thread": "main-thread"
     },
     {
       "classification": "raw-only",
@@ -2799,11 +2799,11 @@
       "thread": "raw-only-not-reviewed"
     },
     {
-      "classification": "raw-only",
+      "classification": "safe",
       "header": "SDL3/<clang-elided-source>",
       "name": "SDL_DestroyCursor",
       "signature": "void (SDL_Cursor *)",
-      "thread": "raw-only-not-reviewed"
+      "thread": "main-thread-owned-handle"
     },
     {
       "classification": "raw-only",
@@ -3674,11 +3674,11 @@
       "thread": "raw-only-not-reviewed"
     },
     {
-      "classification": "raw-only",
+      "classification": "safe",
       "header": "SDL3/<clang-elided-source>",
       "name": "SDL_GetCurrentDisplayMode",
       "signature": "const SDL_DisplayMode *(SDL_DisplayID)",
-      "thread": "raw-only-not-reviewed"
+      "thread": "main-thread-borrowed-result"
     },
     {
       "classification": "raw-only",
@@ -5844,11 +5844,11 @@
       "thread": "raw-only-not-reviewed"
     },
     {
-      "classification": "raw-only",
+      "classification": "safe",
       "header": "SDL3/<clang-elided-source>",
       "name": "SDL_GetWindowRelativeMouseMode",
       "signature": "_Bool (SDL_Window *)",
-      "thread": "raw-only-not-reviewed"
+      "thread": "main-thread"
     },
     {
       "classification": "raw-only",
@@ -5886,11 +5886,11 @@
       "thread": "raw-only-not-reviewed"
     },
     {
-      "classification": "raw-only",
+      "classification": "safe",
       "header": "SDL3/<clang-elided-source>",
       "name": "SDL_GetWindowTitle",
       "signature": "const char *(SDL_Window *)",
-      "thread": "raw-only-not-reviewed"
+      "thread": "main-thread-borrowed-string"
     },
     {
       "classification": "raw-only",
@@ -6124,11 +6124,11 @@
       "thread": "raw-only-not-reviewed"
     },
     {
-      "classification": "raw-only",
+      "classification": "safe",
       "header": "SDL3/<clang-elided-source>",
       "name": "SDL_HideCursor",
       "signature": "_Bool (void)",
-      "thread": "raw-only-not-reviewed"
+      "thread": "main-thread"
     },
     {
       "classification": "safe",
@@ -7797,11 +7797,11 @@
       "thread": "raw-only-not-reviewed"
     },
     {
-      "classification": "raw-only",
+      "classification": "safe",
       "header": "SDL3/<clang-elided-source>",
       "name": "SDL_SetCursor",
       "signature": "_Bool (SDL_Cursor *)",
-      "thread": "raw-only-not-reviewed"
+      "thread": "main-thread"
     },
     {
       "classification": "raw-only",
@@ -8385,11 +8385,11 @@
       "thread": "raw-only-not-reviewed"
     },
     {
-      "classification": "raw-only",
+      "classification": "safe",
       "header": "SDL3/<clang-elided-source>",
       "name": "SDL_SetWindowAlwaysOnTop",
       "signature": "_Bool (SDL_Window *, _Bool)",
-      "thread": "raw-only-not-reviewed"
+      "thread": "main-thread"
     },
     {
       "classification": "raw-only",
@@ -8399,11 +8399,11 @@
       "thread": "raw-only-not-reviewed"
     },
     {
-      "classification": "raw-only",
+      "classification": "safe",
       "header": "SDL3/<clang-elided-source>",
       "name": "SDL_SetWindowBordered",
       "signature": "_Bool (SDL_Window *, _Bool)",
-      "thread": "raw-only-not-reviewed"
+      "thread": "main-thread"
     },
     {
       "classification": "raw-only",
@@ -8525,18 +8525,18 @@
       "thread": "raw-only-not-reviewed"
     },
     {
-      "classification": "raw-only",
+      "classification": "safe",
       "header": "SDL3/<clang-elided-source>",
       "name": "SDL_SetWindowRelativeMouseMode",
       "signature": "_Bool (SDL_Window *, _Bool)",
-      "thread": "raw-only-not-reviewed"
+      "thread": "main-thread"
     },
     {
-      "classification": "raw-only",
+      "classification": "safe",
       "header": "SDL3/<clang-elided-source>",
       "name": "SDL_SetWindowResizable",
       "signature": "_Bool (SDL_Window *, _Bool)",
-      "thread": "raw-only-not-reviewed"
+      "thread": "main-thread"
     },
     {
       "classification": "raw-only",
@@ -8560,11 +8560,11 @@
       "thread": "raw-only-not-reviewed"
     },
     {
-      "classification": "raw-only",
+      "classification": "safe",
       "header": "SDL3/<clang-elided-source>",
       "name": "SDL_SetWindowTitle",
       "signature": "_Bool (SDL_Window *, const char *)",
-      "thread": "raw-only-not-reviewed"
+      "thread": "main-thread"
     },
     {
       "classification": "raw-only",
@@ -8588,11 +8588,11 @@
       "thread": "raw-only-not-reviewed"
     },
     {
-      "classification": "raw-only",
+      "classification": "safe",
       "header": "SDL3/<clang-elided-source>",
       "name": "SDL_ShowCursor",
       "signature": "_Bool (void)",
-      "thread": "raw-only-not-reviewed"
+      "thread": "main-thread"
     },
     {
       "classification": "raw-only",

@@ -7,6 +7,7 @@
 #include <limits.h>
 #include <stdint.h>
 #include <string.h>
+#include <math.h>
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_metal.h>
@@ -284,6 +285,108 @@ CAMLprim value caml_sdl3_window_position(value raw)
   int y = 0;
   bool success = SDL_GetWindowPosition(window_of_value(raw), &x, &y);
   return copy_size_result(success, x, y);
+}
+
+CAMLprim value caml_sdl3_window_title(value raw)
+{
+  const char *title;
+  CAMLparam1(raw);
+  title = SDL_GetWindowTitle(window_of_value(raw));
+  CAMLreturn(caml_copy_string(title != NULL ? title : ""));
+}
+
+CAMLprim value caml_sdl3_set_window_title(value raw, value title)
+{
+  return Val_bool(SDL_SetWindowTitle(window_of_value(raw), String_val(title)));
+}
+
+CAMLprim value caml_sdl3_center_window(value raw)
+{
+  return Val_bool(SDL_SetWindowPosition(window_of_value(raw),
+      SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED));
+}
+
+CAMLprim value caml_sdl3_set_window_bordered(value raw, value enabled)
+{
+  return Val_bool(SDL_SetWindowBordered(window_of_value(raw), Bool_val(enabled)));
+}
+
+CAMLprim value caml_sdl3_set_window_resizable(value raw, value enabled)
+{
+  return Val_bool(SDL_SetWindowResizable(window_of_value(raw), Bool_val(enabled)));
+}
+
+CAMLprim value caml_sdl3_set_window_always_on_top(value raw, value enabled)
+{
+  return Val_bool(SDL_SetWindowAlwaysOnTop(window_of_value(raw), Bool_val(enabled)));
+}
+
+CAMLprim value caml_sdl3_set_window_relative_mouse(value raw, value enabled)
+{
+  return Val_bool(SDL_SetWindowRelativeMouseMode(
+      window_of_value(raw), Bool_val(enabled)));
+}
+
+CAMLprim value caml_sdl3_window_relative_mouse(value raw)
+{
+  return Val_bool(SDL_GetWindowRelativeMouseMode(window_of_value(raw)));
+}
+
+CAMLprim value caml_sdl3_capture_mouse(value enabled)
+{
+  return Val_bool(SDL_CaptureMouse(Bool_val(enabled)));
+}
+
+CAMLprim value caml_sdl3_display_refresh_rate(value raw_id)
+{
+  const SDL_DisplayMode *mode;
+  CAMLparam1(raw_id);
+  CAMLlocal2(rate, some);
+  mode = SDL_GetCurrentDisplayMode((SDL_DisplayID)Int64_val(raw_id));
+  if (mode == NULL || !isfinite(mode->refresh_rate) ||
+      mode->refresh_rate <= 0.0f) {
+    CAMLreturn(Val_none);
+  }
+  rate = caml_copy_double(mode->refresh_rate);
+  some = caml_alloc(1, 0);
+  Store_field(some, 0, rate);
+  CAMLreturn(some);
+}
+
+CAMLprim value caml_sdl3_create_system_cursor(value shape)
+{
+  CAMLparam1(shape);
+  CAMLreturn(caml_copy_nativeint((intnat)SDL_CreateSystemCursor(
+      (SDL_SystemCursor)Int_val(shape))));
+}
+
+CAMLprim value caml_sdl3_set_cursor(value raw)
+{
+  return Val_bool(SDL_SetCursor((SDL_Cursor *)(intnat)Nativeint_val(raw)));
+}
+
+CAMLprim value caml_sdl3_destroy_cursor(value raw)
+{
+  SDL_DestroyCursor((SDL_Cursor *)(intnat)Nativeint_val(raw));
+  return Val_unit;
+}
+
+CAMLprim value caml_sdl3_show_cursor(value unit)
+{
+  (void)unit;
+  return Val_bool(SDL_ShowCursor());
+}
+
+CAMLprim value caml_sdl3_hide_cursor(value unit)
+{
+  (void)unit;
+  return Val_bool(SDL_HideCursor());
+}
+
+CAMLprim value caml_sdl3_cursor_visible(value unit)
+{
+  (void)unit;
+  return Val_bool(SDL_CursorVisible());
 }
 
 CAMLprim value caml_sdl3_set_window_position(value raw, value x, value y)

@@ -7,6 +7,7 @@ type error_kind =
   | Parent_has_dependents
   | Incompatible_version
   | Invalid_argument
+  | Unsupported
 
 type error = private {
   operation : string;
@@ -66,6 +67,7 @@ module Display : sig
   val bounds : t -> (rect, error) result
   val usable_bounds : t -> (rect, error) result
   val content_scale : t -> (float, error) result
+  val refresh_rate : t -> (float, error) result
 end
 
 module Window : sig
@@ -81,6 +83,12 @@ module Window : sig
     | Utility
     | Metal
     | Transparent
+  type presentation_facts = {
+    logical_width : int; logical_height : int;
+    drawable_width : int; drawable_height : int;
+    pixel_density : float; display_scale : float;
+    refresh_rate : float option; vsync : bool;
+  }
 
   val create :
     title:string -> width:int -> height:int -> ?flags:flag list -> unit ->
@@ -94,8 +102,17 @@ module Window : sig
   val pixel_density : t -> (float, error) result
   val display_scale : t -> (float, error) result
   val position : t -> (int * int, error) result
+  val title : t -> (string, error) result
+  val set_title : t -> string -> (unit, error) result
   val set_position : t -> x:int -> y:int -> (unit, error) result
+  val center : t -> (unit, error) result
   val set_size : t -> width:int -> height:int -> (unit, error) result
+  val set_bordered : t -> bool -> (unit, error) result
+  val set_resizable : t -> bool -> (unit, error) result
+  val set_always_on_top : t -> bool -> (unit, error) result
+  val set_relative_mouse : t -> bool -> (unit, error) result
+  val relative_mouse : t -> (bool, error) result
+  val presentation_facts : t -> vsync:bool -> (presentation_facts, error) result
   val flags : t -> (int64, error) result
   val show : t -> (unit, error) result
   val hide : t -> (unit, error) result
@@ -104,6 +121,23 @@ module Window : sig
   val restore : t -> (unit, error) result
   val set_fullscreen : t -> bool -> (unit, error) result
   val sync : t -> (unit, error) result
+  val destroy : t -> (unit, error) result
+end
+
+module Mouse : sig
+  val capture : bool -> (unit, error) result
+end
+
+module Cursor : sig
+  type shape = Default | Text | Wait | Crosshair | Progress | Nwse_resize
+    | Nesw_resize | Ew_resize | Ns_resize | Move | Not_allowed | Pointer
+  type t
+  val create : shape -> (t, error) result
+  val set : t -> (unit, error) result
+  val show : unit -> (unit, error) result
+  val hide : unit -> (unit, error) result
+  val visible : unit -> (bool, error) result
+  val destroyed : t -> bool
   val destroy : t -> (unit, error) result
 end
 

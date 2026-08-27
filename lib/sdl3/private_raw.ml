@@ -29,6 +29,29 @@ external window_display_scale : nativeint -> float
   = "caml_sdl3_window_display_scale"
 external window_position : nativeint -> (int * int) option
   = "caml_sdl3_window_position"
+external window_title : nativeint -> string = "caml_sdl3_window_title"
+external set_window_title : nativeint -> string -> bool
+  = "caml_sdl3_set_window_title"
+external center_window : nativeint -> bool = "caml_sdl3_center_window"
+external set_window_bordered : nativeint -> bool -> bool
+  = "caml_sdl3_set_window_bordered"
+external set_window_resizable : nativeint -> bool -> bool
+  = "caml_sdl3_set_window_resizable"
+external set_window_always_on_top : nativeint -> bool -> bool
+  = "caml_sdl3_set_window_always_on_top"
+external set_window_relative_mouse : nativeint -> bool -> bool
+  = "caml_sdl3_set_window_relative_mouse"
+external window_relative_mouse : nativeint -> bool
+  = "caml_sdl3_window_relative_mouse"
+external capture_mouse : bool -> bool = "caml_sdl3_capture_mouse"
+external display_refresh_rate : int64 -> float option
+  = "caml_sdl3_display_refresh_rate"
+external create_system_cursor : int -> nativeint = "caml_sdl3_create_system_cursor"
+external set_cursor : nativeint -> bool = "caml_sdl3_set_cursor"
+external destroy_cursor : nativeint -> unit = "caml_sdl3_destroy_cursor"
+external show_cursor : unit -> bool = "caml_sdl3_show_cursor"
+external hide_cursor : unit -> bool = "caml_sdl3_hide_cursor"
+external cursor_visible : unit -> bool = "caml_sdl3_cursor_visible"
 external set_window_position : nativeint -> int -> int -> bool
   = "caml_sdl3_set_window_position"
 external set_window_size : nativeint -> int -> int -> bool

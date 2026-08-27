@@ -15,6 +15,9 @@ let () =
         ~flags:[Window.Hidden; Window.Resizable; Window.High_pixel_density;
           Window.Metal] ()) in
     let logical_width, logical_height = get (Window.size window) in
+    get (Window.set_title window "SDL3 Metal renamed window");
+    if get (Window.title window) <> "SDL3 Metal renamed window" then
+      fail "native window title did not round-trip";
     let pixel_width, pixel_height = get (Window.size_in_pixels window) in
     let density = get (Window.pixel_density window) in
     if abs_float ((float_of_int pixel_width /. float_of_int logical_width)
@@ -23,7 +26,9 @@ let () =
           -. density) > 0.01 then
       fail "logical/drawable sizes disagree with the reported pixel density";
     ignore (get (Window.display_scale window));
-    ignore (get (Display.name (get (Window.display window))));
+    let native_display = get (Window.display window) in
+    ignore (get (Display.name native_display));
+    ignore (get (Display.refresh_rate native_display));
     get (Window.set_size window ~width:80 ~height:60);
     get (Window.sync window);
     if get (Window.size window) <> (80, 60) then
@@ -35,6 +40,22 @@ let () =
         || abs_float ((float_of_int resized_pixel_height /. 60.) -. density)
           > 0.01 then
       fail "native resize double-scaled logical dimensions";
+    let facts = get (Window.presentation_facts window ~vsync:true) in
+    if facts.logical_width <> 80 || facts.logical_height <> 60
+        || facts.drawable_width <> resized_pixel_width
+        || facts.drawable_height <> resized_pixel_height
+        || facts.refresh_rate = None || not facts.vsync then
+      fail "native presentation facts are incomplete";
+    get (Window.set_bordered window false);
+    get (Window.set_bordered window true);
+    get (Window.set_resizable window false);
+    get (Window.set_resizable window true);
+    get (Window.set_always_on_top window true);
+    get (Window.set_always_on_top window false);
+    get (Window.center window);
+    let cursor = get (Cursor.create Cursor.Pointer) in
+    get (Cursor.set cursor);
+    get (Cursor.destroy cursor);
     let has_flag flag bits = Int64.logand bits flag <> 0L in
     let await_flag ~label flag expected =
       let deadline = Unix.gettimeofday () +. 3. in

@@ -32,8 +32,17 @@ let () =
    | Ok view ->
        get (Metal_view.destroy view);
        fail "dummy-video window unexpectedly created a Metal view"
-   | Error _ -> fail "dummy Metal-view constructor returned the wrong error");
+   | Error error -> fail (Format.asprintf
+       "dummy Metal-view constructor returned the wrong error: %a" pp_error error));
   if Window.destroyed window then fail "new window starts destroyed";
+  if get (Window.title window) <> "SDL3 ownership test" then
+    fail "window title snapshot changed";
+  get (Window.set_title window "SDL3 renamed ž");
+  if get (Window.title window) <> "SDL3 renamed ž" then
+    fail "window title did not round-trip";
+  (match Window.set_title window "bad\x00title" with
+   | Error { kind = Invalid_argument; _ } -> ()
+   | Ok () | Error _ -> fail "NUL title mutation was accepted");
   let window_id = get (Window.id window) in
   if window_id = 0L then fail "window ID is zero";
   if get (Window.size window) <> (96, 64) then fail "logical window size changed";
@@ -61,15 +70,37 @@ let () =
     fail "display bounds or scale are invalid";
   get (Window.set_position window ~x:11 ~y:13);
   ignore (get (Window.position window));
+  get (Window.center window);
   get (Window.set_size window ~width:112 ~height:72);
   get (Window.sync window);
   if get (Window.size window) <> (112, 72)
       || get (Window.size_in_pixels window) <> (112, 72) then
     fail "synchronized 1x window resize changed logical/drawable size";
+  let facts = get (Window.presentation_facts window ~vsync:true) in
+  if facts.logical_width <> 112 || facts.logical_height <> 72
+      || facts.drawable_width <> 112 || facts.drawable_height <> 72
+      || facts.pixel_density <> 1. || not facts.vsync then
+    fail "dummy presentation facts changed";
   (match Window.set_size window ~width:0 ~height:72 with
    | Error { kind = Invalid_argument; _ } -> ()
    | Ok () | Error _ -> fail "invalid window resize was not rejected");
   let has_flag flag bits = Int64.logand bits flag <> 0L in
+  get (Window.set_bordered window false);
+  get (Window.set_bordered window true);
+  get (Window.set_resizable window false);
+  get (Window.sync window);
+  get (Window.set_resizable window true);
+  get (Window.sync window);
+  get (Window.set_always_on_top window true);
+  get (Window.sync window);
+  get (Window.set_always_on_top window false);
+  (match Window.set_relative_mouse window true with
+   | Ok () ->
+       if not (get (Window.relative_mouse window)) then
+         fail "relative mouse mode did not round-trip";
+       get (Window.set_relative_mouse window false)
+   | Error { kind = Sdl_error; message; _ } when message <> "" -> ()
+   | Error _ -> fail "relative mouse capability returned an untyped error");
   get (Window.show window);
   get (Window.sync window);
   if has_flag 0x8L (get (Window.flags window)) then
@@ -102,6 +133,24 @@ let () =
   if not (get (Clipboard.has_text ()))
       || get (Clipboard.get_text ()) <> "Prismel ž clipboard" then
     fail "clipboard UTF-8 text did not round-trip";
+  (match Cursor.create Cursor.Crosshair with
+   | Error { kind = Unsupported; message; _ } when message <> "" -> ()
+   | Error _ -> fail "cursor capability returned an untyped error"
+   | Ok cursor ->
+       get (Cursor.set cursor);
+       get (Cursor.hide ());
+       if get (Cursor.visible ()) then fail "cursor remained visible after hide";
+       get (Cursor.show ());
+       if not (get (Cursor.visible ())) then fail "cursor remained hidden after show";
+       get (Cursor.destroy cursor);
+       get (Cursor.destroy cursor);
+       (match Cursor.set cursor with
+        | Error { kind = Destroyed; _ } -> ()
+        | Ok () | Error _ -> fail "destroyed cursor was accepted"));
+  (match Mouse.capture true with
+   | Ok () -> get (Mouse.capture false)
+   | Error { kind = Unsupported; message; _ } when message <> "" -> ()
+   | Error _ -> fail "mouse capture capability returned an untyped error");
   ignore (get (Event.poll_all ()));
   (match get (Event.wait ~timeout_ms:0) with
    | None -> ()
@@ -136,6 +185,8 @@ let () =
     (Domain.spawn (fun () -> Text_input.active window) |> Domain.join);
   expect_wrong_domain "window synchronization"
     (Domain.spawn (fun () -> Window.sync window) |> Domain.join);
+  expect_wrong_domain "cursor visibility"
+    (Domain.spawn Cursor.visible |> Domain.join);
   let wrong_domain = Domain.spawn (fun () ->
     Window.create ~title:"wrong domain" ~width:8 ~height:8 ()) |> Domain.join in
   (match wrong_domain with
