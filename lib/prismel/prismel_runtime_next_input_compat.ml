@@ -95,6 +95,7 @@ let convert value event =
       Input.release_mouse_button input_button;
       Some(PointerCancelled input_button)
   | Wheel (x, y) -> Some(MouseScrolled (integer x, integer y))
+  | Key_pressed raw_key when raw_key.repeat -> None
   | Key_pressed raw_key ->
       let input_key = key raw_key.key in
       Input.press_key input_key;

@@ -113,6 +113,18 @@ let () =
     |[File_dropped{name;contents=Some bytes}]
       when name=Filename.basename drop&&Bytes.to_string bytes="native-drop"->()
     |_->failwith"native file drop ownership/order drift");
+  (match Runtime_next_input_sdl3.push native(Sdl3.Event.Drop{timestamp_ns;
+      window_id;change=File"/definitely/missing/drop.bin";x=0.;y=0.;source=None})with
+   |Error _ when Input.queued_count native=0->()
+   |_->failwith"malformed native drop was not failure-atomic");
+  let key_events=Array.of_list(List.map(fun(scancode,_)->Sdl3.Event.Key{
+    timestamp_ns;window_id;which;scancode;keycode=1 lsl 30 lor scancode;
+    modifiers=0;raw_scancode=scancode;down=true;repeat=false})named)in
+  let translate_all()=Array.map Runtime_next_input_sdl3.translate key_events in
+  let sequential=translate_all()in
+  let domains=Array.init 4(fun _->Domain.spawn translate_all)in
+  Array.iter(fun domain->if Domain.join domain<>sequential then
+    failwith"one/four-domain key translation drift")domains;
   begin
     match Runtime_next_input_wap.push native
         (Wap.File_uploaded { name = "large"; contents = Bytes.make 17 'x' }) with
