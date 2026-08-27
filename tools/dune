@@ -3,6 +3,19 @@
  (libraries unix))
 
 (executable
+ (name native_next_link_gate)
+ (modules native_next_link_gate))
+
+(rule
+ (alias native-next-link-gate)
+ (deps ../lib/prismel/dune ../lib/runtime/dune ../lib/ogpu_metal/dune)
+ (action
+  (run %{exe:native_next_link_gate.exe}
+   %{dep:../lib/prismel/dune}
+   %{dep:../lib/runtime/dune}
+   %{dep:../lib/ogpu_metal/dune})))
+
+(executable
  (name bench_geom)
  (libraries prismel prismel.geom unix))
 
