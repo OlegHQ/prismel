@@ -8,15 +8,15 @@ static bool prismel_device_async_wait(dispatch_semaphore_t semaphore) {
 }
 
 extern "C" CAMLprim value caml_prismel_metal_device_async_compute_function(
-    value raw_device, value raw_function, value raw_options) {
-  CAMLparam3(raw_device, raw_function, raw_options); CAMLlocal2(raw, result);
+    value raw_device, value raw_function, value raw_with_options, value raw_options) {
+  CAMLparam4(raw_device, raw_function, raw_with_options, raw_options); CAMLlocal2(raw, result);
   @try {
     id<MTLDevice> device = object_of_handle(raw_device, Handle_kind::Device);
     id<MTLFunction> function = object_of_handle(raw_function, Handle_kind::Function);
     dispatch_semaphore_t done = dispatch_semaphore_create(0);
     __block id<MTLComputePipelineState> pipeline = nil;
     __block NSError *failure = nil;
-    if (Int64_val(raw_options) == 0) {
+    if (!Bool_val(raw_with_options)) {
       [device newComputePipelineStateWithFunction:function
           completionHandler:^(id<MTLComputePipelineState> _Nullable value,
                               NSError * _Nullable error) {

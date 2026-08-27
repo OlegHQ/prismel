@@ -4194,3 +4194,14 @@ module Pipeline_descriptor : sig
     val destroy : t -> (unit, error) result
   end
 end
+
+module Device_async : sig
+  type variant = Basic | With_options
+  val library_source : ?options:Compile_options.t -> Device.t -> string -> (Library.t,error) result
+  val stitched_library : Device.t -> Stitched_library_descriptor.t -> (Library.t,error) result
+  val compute_function : ?variant:variant -> Device.t -> Function.t -> (Compute_pipeline.t,error) result
+  val compute_descriptor : Pipeline_descriptor.Compute.t -> (Compute_pipeline.t,error) result
+  val render_descriptor : ?variant:variant -> Pipeline_descriptor.Render.t -> (Render_pipeline.t,error) result
+  val mesh : Render_pipeline.Mesh_tile.mesh_descriptor -> (Render_pipeline.t,error) result
+  val tile : Render_pipeline.Mesh_tile.tile_descriptor -> (Render_pipeline.t,error) result
+end

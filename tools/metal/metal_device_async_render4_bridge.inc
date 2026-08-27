@@ -1,14 +1,14 @@
 /* Exact MTLDevice asynchronous classic render, mesh, and tile pipeline calls. */
 extern "C" CAMLprim value caml_prismel_metal_device_async_render_descriptor(
-    value raw_device, value raw_descriptor, value raw_options) {
-  CAMLparam3(raw_device, raw_descriptor, raw_options); CAMLlocal2(raw, result);
+    value raw_device, value raw_descriptor, value raw_with_options, value raw_options) {
+  CAMLparam4(raw_device, raw_descriptor, raw_with_options, raw_options); CAMLlocal2(raw, result);
   @try {
     id<MTLDevice> device = object_of_handle(raw_device, Handle_kind::Device);
     MTLRenderPipelineDescriptor *descriptor = object_of_handle(
         raw_descriptor, Handle_kind::Render_pipeline_descriptor);
     dispatch_semaphore_t done = dispatch_semaphore_create(0);
     __block id<MTLRenderPipelineState> pipeline = nil; __block NSError *failure = nil;
-    if (Int64_val(raw_options) == 0) {
+    if (!Bool_val(raw_with_options)) {
       [device newRenderPipelineStateWithDescriptor:descriptor
           completionHandler:^(id<MTLRenderPipelineState> _Nullable value,
                               NSError * _Nullable error) {
