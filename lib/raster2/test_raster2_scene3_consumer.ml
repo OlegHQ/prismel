@@ -67,6 +67,7 @@ let render ~topology ~indices ~cull mode ~line_width ~point_size =
       mode;
       line_width;
       point_size;
+      program = None;
     }
   in
   ok
@@ -240,6 +241,7 @@ let render_shading shading ~reversed =
       mode = Faces;
       line_width = 1.;
       point_size = 1.;
+      program = None;
     }
   in
   ok

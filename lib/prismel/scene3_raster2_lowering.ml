@@ -1,6 +1,6 @@
 type error = Unsupported_shader | Unsupported_mode | Unsupported_area_light |
   Unsupported_fog | Texture_error | Shadow_error | Invalid_mesh | Invalid_viewport |
-  Lighting_error of Raster2.Scene3_lighting.error
+  Lighting_error of Raster2.Scene3_lighting.error | Shader_error of string
 type resources = {
   texture : Scene3.texture -> (Raster2.Triangle.texture, error) result;
   shadow : Shadow3.t -> (Raster2.Shadow_map.prepared, error) result;
@@ -40,6 +40,41 @@ let fog=function None->Ok Raster2.Scene3_lighting.No_fog|Some value->match value
 let topology=function Mesh.Points->Ok Raster2.Scene3.Point_list|Lines->Ok Line_list|Line_strip->Ok Line_strip|Line_loop->Ok Line_loop|Triangles->Ok Triangle_list|Triangle_strip->Ok Triangle_strip|Triangle_fan->Ok Triangle_fan
 let matrix_array value=Array.init 16(fun index->Mat4.get value~row:(index/4)~column:(index mod 4))
 let depth_zero_to_one=Mat4.of_rows(1.,0.,0.,0.)(0.,1.,0.,0.)(0.,0.,0.5,0.5)(0.,0.,0.,1.)
+let program_vec (value:Vec3.t):Raster2.Scene3_program.vec3={x=value.x;y=value.y;z=value.z}
+let program_vec2 (value:Vec2.t):Raster2.Scene3_program.vec2={x=value.x;y=value.y}
+let unpack_color value=Color.rgba
+  Int32.(to_int(logand(shift_right_logical value 24)0xffl))
+  Int32.(to_int(logand(shift_right_logical value 16)0xffl))
+  Int32.(to_int(logand(shift_right_logical value 8)0xffl))
+  Int32.(to_int(logand value 0xffl))
+let program_vertex (value:Shader3.vertex_output):Raster2.Scene3_program.vertex=
+  let clip_x,clip_y,clip_z,clip_w=value.clip_position in
+  {clip_x;clip_y;clip_z;clip_w;world=program_vec value.world_position;
+   normal=program_vec value.world_normal;color=packed_color value.color;
+   tex_coord=program_vec2 value.tex_coord;varyings=Array.of_list value.varyings}
+let program_primitive=function
+  | Shader3.Point value->Raster2.Scene3_program.Point(program_vertex value)
+  | Line(a,b)->Line(program_vertex a,program_vertex b)
+  | Triangle(a,b,c)->Triangle(program_vertex a,program_vertex b,program_vertex c)
+let program ~camera ~viewport ~drawing shader =
+  let feedback=Transform_feedback3.capture~model:drawing.Scene3.Private.transform
+    ~viewport~camera~shader drawing.mesh in
+  let uniforms=Shader3.uniforms shader in
+  let fragment(input:Raster2.Scene3_program.fragment_input)=
+    Shader3.Private.fragment shader
+      {screen_position=Vec2.create input.screen.x input.screen.y;depth=input.depth;
+       front_facing=input.front_facing;
+       world_position=Vec3.create input.world.x input.world.y input.world.z;
+       world_normal=Vec3.create input.normal.x input.normal.y input.normal.z;
+       color=unpack_color input.color;
+       tex_coord=Vec2.create input.tex_coord.x input.tex_coord.y;
+       varyings=Array.to_list input.varyings;uniforms}
+    |>Option.map(fun(output:Shader3.fragment_output)->
+      {Raster2.Scene3_program.color=packed_color output.color;depth=output.depth})
+  in
+  {Raster2.Scene3_program.primitives=
+     Array.of_list(List.map program_primitive(Transform_feedback3.primitives feedback));
+   varying_count=Shader3.varying_count shader;fragment}
 
 let prepare ~resources ~camera ~viewport scene =
   let vx,vy,vw,vh=viewport in if vw<=0||vh<=0 then Error Invalid_viewport else
@@ -50,7 +85,6 @@ let prepare ~resources ~camera ~viewport scene =
     let global_ambient={Raster2.Scene3_lighting.r=min 1.(scene_ambient.r+.light_ambient.r);g=min 1.(scene_ambient.g+.light_ambient.g);b=min 1.(scene_ambient.b+.light_ambient.b);a=1.}in
     let descriptions=Scene3.Private.drawings scene in
     let preflight=List.find_map(fun(drawing:Scene3.Private.drawing)->
-      if drawing.shader<>None then Some Unsupported_shader else
       match Mesh.mode drawing.mesh with
       | Mesh.Points|Lines|Line_strip|Line_loop|Triangles|Triangle_strip|Triangle_fan->
           let mesh=Mesh.Private.view drawing.mesh in
@@ -82,7 +116,12 @@ let prepare ~resources ~camera ~viewport scene =
         begin match Raster2.Scene3_lighting.prepare_with_shadows lighting shadow_values with Error error->failure:=Some(Lighting_error error)|Ok _->
           let camera_matrix=Mat4.mul depth_zero_to_one(Camera.view_projection_matrix~viewport camera)in
           let matrix=matrix_array(Mat4.mul camera_matrix drawing.transform)in
-          draws:={Raster2.Scene3_consumer.matrix;viewport={x=float vx;y=float vy;width=float vw;height=float vh;min_depth=0.;max_depth=1.};scissor={x=vx;y=vy;width=vw;height=vh};topology;vertices;indices=mesh.indices;lighting;shadows=Array.copy shadow_values;shading=shading drawing.shading;texture;cull=cull drawing.cull;blend=blend drawing.blend;depth_stencil=depth_stencil drawing;mode=mode drawing.mode;line_width=drawing.raster.line_width;point_size=drawing.raster.point_size}::!draws
+          let program_result=match drawing.shader with None->Ok None|Some shader->
+            try Ok(Some(program~camera~viewport~drawing shader))
+            with Invalid_argument message->Error(Shader_error message)|exn->Error(Shader_error(Printexc.to_string exn))in
+          begin match program_result with Error error->failure:=Some error|Ok program->
+            draws:={Raster2.Scene3_consumer.matrix;viewport={x=float vx;y=float vy;width=float vw;height=float vh;min_depth=0.;max_depth=1.};scissor={x=vx;y=vy;width=vw;height=vh};topology;vertices;indices=mesh.indices;lighting;shadows=Array.copy shadow_values;shading=shading drawing.shading;texture;cull=cull drawing.cull;blend=blend drawing.blend;depth_stencil=depth_stencil drawing;mode=mode drawing.mode;line_width=drawing.raster.line_width;point_size=drawing.raster.point_size;program}::!draws
+          end
         end)descriptions;
     match !failure with Some error->Error error|None->Ok{draws=Array.of_list(List.rev !draws);clear_depth=Scene3.Private.depth_clear scene;clear_stencil=Scene3.Private.stencil_clear scene;samples=Scene3.Private.samples scene}
 
@@ -483,7 +522,71 @@ let self_test () =
   let instance_workers=Array.init 4(fun _->Domain.spawn instance_snapshot)in
   Array.iter(fun worker->if Domain.join worker<>expected_instances then
     failwith"instances domain drift")instance_workers;
-  let shader=Scene3.create[Scene3.mesh~material~cull:Scene3.Cull_none~shader:(Obj.magic 0)mesh]in
-  match lower_view3d~resources~default_viewport:(0,0,16,16)(View3d(camera,shader,None))with Error Unsupported_shader->()|_->failwith"functional shader not rejected"
+  let shader_texture=Texture.create_exn~width:1~height:1[Color.blue]in
+  let shader_uniforms=Shader3.empty_uniforms|>
+    Shader3.set_uniform"offset"(Shader3.Float 0.)|>
+    Shader3.set_uniform"texture"(Shader3.Texture shader_texture)in
+  let functional_shader=Shader3.create~varying_count:1~uniforms:shader_uniforms
+    ~vertex:(fun input->let output=Shader3.default_vertex input in
+      let offset=Option.value(Shader3.float_uniform"offset"input.uniforms)~default:0. in
+      {output with Shader3.varyings=[input.position.x+.offset]})
+    ~geometry:(fun input->match input.Shader3.primitive with
+      | Shader3.Triangle(a,_,_)->[input.primitive;Shader3.Point a]
+      | primitive->[primitive])
+    ~fragment:(fun input->if input.Shader3.screen_position.x>14. then Shader3.discard
+      else let color=match Shader3.texture_uniform"texture"input.uniforms with
+        | Some texture when List.hd input.varyings>0.->Texture.sample texture~u:input.tex_coord.x~v:input.tex_coord.y
+        | _->input.color in Shader3.output~depth:0.25 color)()in
+  let shader_scene=Scene3.create[Scene3.mesh~material:(Material.unlit Color.white)
+    ~cull:Scene3.Cull_none~shader:functional_shader mesh]in
+  let shader_prepared=match lower_view3d~resources~default_viewport:(0,0,16,16)
+      (View3d(camera,shader_scene,None))with Ok value->value|Error _->failwith"functional shader lowering"in
+  begin match shader_prepared.draws.(0).program with
+  | Some value when Array.length value.primitives=2&&value.varying_count=1->()
+  | _->failwith"vertex/geometry closure output lost"
+  end;
+  let render_shader()=let surface=match Raster2.Surface.create~width:16~height:16()with Ok value->value|Error _->failwith"shader surface"in
+    let depth=match Raster2.Depth_stencil.create~width:16~height:16()with Ok value->value|Error _->failwith"shader depth"in
+    match Raster2.Scene3_consumer.render~target:{color=surface;depth=Some depth;multisample=None}
+      ~clear:0x000000ffl~clear_depth:1.~clear_stencil:0~draws:shader_prepared.draws with
+    | Error _->failwith"functional shader render"|Ok()->Bytes.cat(Bytes.copy(Raster2.Surface.bytes surface))(Bytes.copy(Raster2.Depth_stencil.bytes depth))in
+  let shader_pixels=render_shader()in
+  let has_color expected=let found=ref false in
+    for offset=0 to 255 do
+      let index=offset*4 in
+      let color=Int32.(logor(shift_left(of_int(Char.code(Bytes.get shader_pixels index)))24)
+        (logor(shift_left(of_int(Char.code(Bytes.get shader_pixels(index+1))))16)
+          (logor(shift_left(of_int(Char.code(Bytes.get shader_pixels(index+2))))8)
+            (of_int(Char.code(Bytes.get shader_pixels(index+3)))))))in
+      if color=expected then found:=true
+    done;!found in
+  let blue=has_color(packed_color Color.blue)and red=has_color(packed_color Color.red)
+  and background=has_color 0x000000ffl in
+  if not(blue&&red&&background)then
+    failwith"functional shader texture/varying/discard pixels missing";
+  List.iter(fun _frame->if render_shader()<>shader_pixels then failwith"functional shader frame drift")[1;2;60;600];
+  let shader_workers=Array.init 4(fun _->Domain.spawn render_shader)in
+  Array.iter(fun worker->if Domain.join worker<>shader_pixels then failwith"functional shader domain drift")shader_workers;
+  let malformed=Shader3.create~varying_count:1~vertex:Shader3.default_vertex
+    ~fragment:Shader3.default_fragment()in
+  let malformed_scene=Scene3.create[Scene3.mesh~material~shader:malformed mesh]in
+  (match lower_view3d~resources~default_viewport:(0,0,16,16)(View3d(camera,malformed_scene,None))with
+  | Error(Shader_error _)->()|_->failwith"malformed shader varying cardinality accepted");
+  let rejected_shader=Shader3.create~vertex:(fun input->let output=Shader3.default_vertex input in
+      {output with Shader3.clip_position=(Float.nan,0.,0.,1.)})
+    ~fragment:(fun _->failwith"fragment must not run")()in
+  let rejected_scene=Scene3.create[Scene3.mesh~material~shader:rejected_shader mesh]in
+  let rejected_prepared=match lower_view3d~resources~default_viewport:(0,0,16,16)
+      (View3d(camera,rejected_scene,None))with Ok value->value|Error _->failwith"nonfinite preflight setup"in
+  let rejected_surface=match Raster2.Surface.create~width:16~height:16()with Ok value->value|Error _->failwith"rejected surface"in
+  Raster2.Surface.clear rejected_surface 0x12345678l;
+  let rejected_before=Bytes.copy(Raster2.Surface.bytes rejected_surface)in
+  begin match Raster2.Scene3_consumer.render~target:{color=rejected_surface;depth=None;multisample=None}
+      ~clear:0x000000ffl~clear_depth:1.~clear_stencil:0~draws:rejected_prepared.draws with
+  | Error(Raster2.Scene3_consumer.Program_error Raster2.Scene3_program.Non_finite)->()
+  | _->failwith"nonfinite programmable output accepted"
+  end;
+  if Raster2.Surface.bytes rejected_surface<>rejected_before then
+    failwith"rejected programmable output mutated framebuffer"
 
 let ()=match Sys.getenv_opt"PRISMEL_TEST_SCENE_RASTER2_LOWERING"with Some"1"->self_test()|_->()
