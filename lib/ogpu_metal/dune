@@ -1,7 +1,7 @@
 (library
  (name ogpu_metal)
  (public_name prismel.ogpu_metal)
- (modules Adapter Device Buffer Texture Sampler Pipeline Command Queue Surface Native_pass Sync)
+ (modules Adapter Device Buffer Texture Sampler Pipeline Command Queue Surface Native_pass Sync Memory)
  (libraries ogpu metal))
 
 (test
@@ -37,4 +37,9 @@
 (test
  (name test_ogpu_metal_sync)
  (modules test_ogpu_metal_sync)
+ (libraries ogpu_metal metal))
+
+(test
+ (name test_ogpu_metal_memory)
+ (modules test_ogpu_metal_memory)
  (libraries ogpu_metal metal))
