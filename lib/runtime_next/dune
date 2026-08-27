@@ -16,6 +16,13 @@
  (modules runtime_next_web)
  (libraries ogpu ogpu_raster2 scene_execution runtime_wap_raster2_presenter wap))
 
+(library
+ (name runtime_next_orchestrator)
+ (public_name prismel.runtime_next_orchestrator)
+ (modules runtime_next_orchestrator)
+ (libraries ogpu scene_execution runtime_next runtime_next_headless
+  runtime_next_web wap))
+
 (test
  (name test_runtime_next)
  (modules test_runtime_next)
@@ -32,3 +39,8 @@
  (name test_runtime_next_web)
  (modules test_runtime_next_web)
  (libraries runtime_next_web scene_execution ogpu wap))
+
+(test
+ (name test_runtime_next_orchestrator)
+ (modules test_runtime_next_orchestrator)
+ (libraries runtime_next_orchestrator scene_execution ogpu wap))

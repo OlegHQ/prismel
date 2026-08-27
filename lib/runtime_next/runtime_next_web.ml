@@ -132,6 +132,10 @@ let resize value ~logical_width ~logical_height ~drawable_width
 
 let stats value = Presenter.stats value.presenter
 let port value = Presenter.port value.presenter
+let read_pixels value ~bytes_per_row =
+  match ensure_live "Runtime_next_web.read_pixels" value with
+  | Error _ as error_value -> error_value
+  | Ok () -> Scene_execution.read_pixels value.renderer ~bytes_per_row
 let backend_live_counts value = Ogpu_raster2.live_counts value.control
 let backend_trace_stats value = Ogpu_raster2.trace_stats value.control
 
