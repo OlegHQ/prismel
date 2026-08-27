@@ -79,9 +79,21 @@ let test_shadow () =
   | Error message -> failwith message
   | Ok canvas -> Canvas.destroy canvas
 
+let test_render2_surface () =
+  let camera = Easy_camera2.create () in
+  let filename = Filename.temp_file "prismel-next-render2" ".png" in
+  Fun.protect ~finally:(fun () -> Sys.remove filename) (fun () ->
+    match
+      Render2.save_png ~logical_width:8 ~logical_height:8 ~factor:2 ~camera
+        [ Scene.rect ~at:(1, 1) ~w:4 ~h:4 ~fill:Color.red () ] filename
+    with
+    | Error message -> failwith message
+    | Ok () -> require ((Unix.stat filename).st_size > 32) "Render2 PNG")
+
 let () =
   test_state ();
   test_feedback ();
   test_frames ();
   test_shadow ();
+  test_render2_surface ();
   print_endline "Prismel next API Batch F tests passed"

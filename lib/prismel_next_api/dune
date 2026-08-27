@@ -5,7 +5,7 @@
   node3 path parallel texture shader3 compute3 input event frame time image
   canvas font audio assets mesh camera easy_camera transform_feedback3 shadow3
   scene3 scene3_raster2_lowering scene3_raster2_resources framebuffer3 render3
-  scene preview sketch)
+  scene preview sketch easy_camera2 render2)
  (libraries domainslib prismel_next_resources runtime_next_input raster2 unix
   prismel_next_execution runtime_next_compat))
 
