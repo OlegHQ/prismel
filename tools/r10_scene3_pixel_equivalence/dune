@@ -1,0 +1,34 @@
+(executable
+ (name r10_scene3_legacy_capture)
+ (modules r10_scene3_legacy_capture r10_scene3_semantics)
+ (libraries prismel yojson))
+
+(copy_files ../r10_performance/r10_scene3_legacy_equivalent.ml)
+(copy_files ../r10_performance/r10_scene3_legacy_equivalent.mli)
+(copy_files ../r10_performance/r10_scene3_equivalence_bridge.ml)
+(copy_files ../r10_performance/r10_scene3_equivalence_bridge.mli)
+
+(executable
+ (name r10_scene3_candidate_capture)
+ (modules r10_scene3_candidate_capture r10_scene3_semantics
+  r10_scene3_legacy_equivalent r10_scene3_equivalence_bridge)
+ (libraries runtime_next_headless prismel_next_api scene_execution ogpu yojson))
+
+(test
+ (name r10_scene3_compare)
+ (modules r10_scene3_compare r10_scene3_semantics)
+ (libraries yojson)
+ (deps r10_scene3_legacy_capture.exe r10_scene3_candidate_capture.exe
+  ../r10_performance/r10_existing_adapter.exe current_mismatch.json)
+ (action
+  (progn
+   (setenv R10_SCENE3_RGBA legacy.rgba
+    (setenv R10_SCENE3_META legacy.json
+     (setenv SDL_VIDEODRIVER dummy
+      (run %{dep:../r10_performance/r10_existing_adapter.exe} --kind legacy
+       --executable %{dep:r10_scene3_legacy_capture.exe} --scenario scene3
+       --target headless --warmup 1 --seconds 1))))
+   (setenv SDL_VIDEODRIVER dummy
+    (run %{dep:r10_scene3_candidate_capture.exe} candidate.rgba candidate.json))
+   (run %{test} legacy.rgba legacy.json candidate.rgba candidate.json
+    %{dep:current_mismatch.json}))))
