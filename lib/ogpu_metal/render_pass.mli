@@ -18,6 +18,8 @@ val attachment : Device.t -> Texture.t -> usage:Ogpu.Render_pass.usage ->
   (Ogpu.Render_pass.texture,Ogpu.Error.t) result
 val create : Device.t -> Ogpu.Render_pass.t -> attachments:Texture.t list ->
   draw -> (t,Ogpu.Error.t) result
+val create_batch : Device.t -> Ogpu.Render_pass.t -> attachments:Texture.t list ->
+  draw list -> (t,Ogpu.Error.t) result
 
 module Private : sig
   val encode_portable : t -> Ogpu.Command.t -> (unit,Ogpu.Error.t) result
