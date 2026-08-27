@@ -135,6 +135,7 @@ can change the denominator explicitly rather than being hidden.
 | `daee7a1` | 2026-08-27 10:54:30 +02:00 | 5,210 | 5,249 | 99.2570% | 3 | 0.074 | 40.6 | 0.77 |
 | `1a13948` | 2026-08-27 10:55:08 +02:00 | 5,213 | 5,249 | 99.3142% | 3 | 0.011 | 284.2 | 5.41 |
 | `076b45c` | 2026-08-27 10:56:24 +02:00 | 5,226 | 5,249 | 99.5618% | 13 | 0.021 | 615.8 | 11.73 |
+| `142d0b4` | 2026-08-27 11:03:23 +02:00 | 5,239 | 5,249 | 99.8095% | 13 | 0.116 | 111.7 | 2.13 |
 
 ## Current measured rate
 
@@ -320,6 +321,12 @@ observer metadata4. The observer API owns a multi-shot registration token,
 copies notification names, returns owned initial and callback device handles,
 rejects double cancellation, and releases its OCaml root exactly once after
 native observer removal; focused safe and native enumeration fixtures pass.
+
+The `142d0b4` interval closes Device capability13 with typed barycentric,
+counter-set, threadgroup-limit, concurrent-compilation, BC-compression,
+counter-sampling, legacy feature-set, and rasterization-rate-layer queries.
+The mutation fixture restores the original compiler setting, and the exact
+deprecated feature selector is isolated under a narrow native warning scope.
 
 The `ec543d9` interval closes the final four synchronous MTLDevice constructor
 selectors from the earlier residual-six partition, moving bound coverage from
