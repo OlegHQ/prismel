@@ -10,4 +10,12 @@ let ()=
   if not(Frame.mouse_down Input.LeftButton frame)||not(Frame.has_event(function Event.MouseMoved _->true|_->false)frame)then failwith"frame";
   Time.init();Time.set_time_scale 0.5;Unix.sleepf 0.001;Time.update();if Time.get_delta_time()<=0.||Time.get_time_scale()<>0.5 then failwith"time";
   let fired=ref false in Time.Scheduler.delay_call 0.(fun()->fired:=true);Time.Scheduler.update();if not !fired then failwith"scheduler";
+  let scene=[Scene.clear Color.black;Scene.rect~at:(0,0)~w:4~h:3~fill:Color.red();
+    Scene.text_input_region~at:(1,1)~w:2~h:1~focused:true()]in
+  let ir=Result.get_ok(Scene.Private.to_ir scene)in
+  if Array.length(Raster2.Render_ir.commands ir)<>2||Scene.Private.text_regions scene<>[1,1,2,1,true]then failwith"scene lowering";
+  Unix.putenv"PRISMEL_RENDER_TARGET""headless";Preview.start~width:4~height:3();ignore(Preview.step scene);Preview.stop();if Preview.is_open()then failwith"preview teardown";
+  let stopped=ref false in let config={Sketch.default_config with width=4;height=3;clock=Sketch.Fixed(1./.60.)}in
+  let result=Sketch.run_state~config~init:(fun _->0)~update:(fun model _->model+1)~view:(fun _ _->scene)~on_stop:(fun _->stopped:=true)()in
+  if result<>1||not !stopped then failwith"sketch finite lifecycle";
   print_endline"prismel_next_api batch C: Event/Input/Frame/Time semantic fixtures passed"
