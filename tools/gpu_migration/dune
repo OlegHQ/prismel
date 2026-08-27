@@ -75,3 +75,22 @@
   (source_tree ../../lib/prismel)
   (source_tree ../../lib/runtime))
  (action (chdir %{workspace_root} (run %{test} --root %{workspace_root}))))
+
+(test
+ (name phase5_b0_freeze)
+ (modules phase5_b0_freeze)
+ (libraries gpu_migration_support yojson)
+ (deps
+  ../../NEW_GPU_STUFF.md
+  ../../specification/evidence/gpu_migration/api_stable.json
+  ../../specification/evidence/gpu_migration/phase5_b0_freeze_2026-08-27.json
+  (source_tree ../../examples/basic)
+  (source_tree ../../examples/pxui)
+  (source_tree ../../examples/canvas)
+  (source_tree ../../sketches/shattered_cube))
+ (action (chdir %{workspace_root} (run %{test} --root %{workspace_root}))))
+
+(test
+ (name phase5_b0_snapshot_freeze)
+ (modules phase5_b0_snapshot_freeze)
+ (libraries raster2))
