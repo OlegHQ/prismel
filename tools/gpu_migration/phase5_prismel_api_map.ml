@@ -8,7 +8,34 @@ let set values = List.fold_left (fun result value -> Strings.add value result)
 let require condition format =
   Printf.ksprintf (fun message -> if not condition then fail "%s" message) format
 
+let legacy_dependency_tokens = [ "tsdl"; "sdl2"; "tsdl_gfx"; "opengl" ]
+
+let legacy_dependencies contents =
+  let contents = String.lowercase_ascii contents in
+  List.filter (fun token -> contains ~needle:token contents) legacy_dependency_tokens
+
+let implementation_path interface_path =
+  if Filename.check_suffix interface_path ".mli" then
+    Filename.chop_suffix interface_path ".mli" ^ ".ml"
+  else fail "direct target is not an interface: %s" interface_path
+
+let verify_direct_source ~root ~name ~target =
+  require (String.starts_with ~prefix:"lib/prismel_next_api/" target)
+    "%s direct target must be staged under lib/prismel_next_api: %s" name target;
+  let interface_path = Filename.concat root target in
+  let source_path = implementation_path interface_path in
+  require (Sys.file_exists source_path) "%s direct implementation missing: %s" name source_path;
+  [ interface_path; source_path ]
+  |> List.iter (fun path ->
+    let dependencies = legacy_dependencies (read_file path) in
+    require (dependencies = []) "%s direct source has legacy dependencies in %s: [%s]"
+      name path (String.concat "," dependencies))
+
 let () =
+  require (legacy_dependencies "open Vec3\nlet x = 1" = [])
+    "legacy dependency scanner rejected target-neutral source";
+  require (legacy_dependencies "open Tsdl\nlet backend = `SDL2" = [ "tsdl"; "sdl2" ])
+    "legacy dependency scanner failed its exact rejection self-test";
   let root=ref "." in
   Arg.parse ["--root",Arg.Set_string root,"repository root"]
     (fun value->raise(Arg.Bad value)) "phase5_prismel_api_map";
@@ -43,7 +70,8 @@ let () =
           ("lib/prismel/"^String.lowercase_ascii name^".mli") in
         require(Sys.file_exists old_path)"%s direct baseline source missing" name;
         require(read_file old_path=read_file(Filename.concat root target))
-          "%s direct interface is not byte-identical" name
+          "%s direct interface is not byte-identical" name;
+        verify_direct_source ~root ~name ~target
     | "adapted" -> incr adapted
     | "implemented" -> incr implemented
     | "raw_only" -> incr raw
