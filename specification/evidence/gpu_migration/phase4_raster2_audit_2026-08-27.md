@@ -96,8 +96,8 @@ fields are ignored or not integrated and therefore cannot count as parity.
 | Public Scene3 surface | Status | Exact implementation / fixture evidence |
 | --- | --- | --- |
 | `empty`, `create`, draw ordering | I/T | Flattened order and colored/textured two-draw mock state order (`e813369`, `d199322`). No empty presented-frame golden. |
-| `mesh` Faces; triangle list/strip/fan | I/T | Vertices/normals/UV/indices prepare draws; list framebuffer and authored-normal fixtures (`e813369`). Strip/fan mapping lacks constructor-specific goldens. |
-| Public Faces/Wireframe/Vertices render modes | I/T | Faces retain the top-left triangle rule; Wireframe emits stable unique shared edges and Vertices emits stable unique projected points. Public line width/point size, clip, depth/stencil, cull and blend are exercised through frame 600 and four domains. Non-triangle source mesh topologies remain explicitly unsupported. |
+| `mesh` Faces; triangle list/strip/fan | I/T | Vertices/normals/UV/indices prepare draws; list framebuffer and authored-normal fixtures (`e813369`). Public strip/fan constructors now have exact stable-expansion, framebuffer, winding and one/four-domain goldens. |
+| Public Faces/Wireframe/Vertices render modes | I/T | Faces retain the top-left triangle rule; Wireframe emits stable unique shared edges and Vertices emits stable unique projected points for triangle lists, strips and fans. Public line width/point size, clip, depth/stencil, cull and blend are exercised through frame 600 and four domains. Only point/line source mesh topologies remain explicitly unsupported. |
 | Per-vertex mesh colors | R/U | Explicit `Invalid_mesh`, without a focused rejection fixture; material color is used instead. |
 | `instances`, `instances_array` | I/U | Flattened per copied transform; geometry cache ignores transforms. No exact public 600-instance ordering fixture. |
 | `group`, `transform`, `translate`, `rotate`, `scale`, `at_node` | I/T | Flattened matrices; camera-only frames 2–600 produce zero replacement upload bytes (`e813369`, `d199322`). Convenience-specific pixels remain open. |

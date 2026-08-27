@@ -140,6 +140,62 @@ let self_test () =
     {mode=Vertices;point_size=5.;_}->()
   | _->failwith"polygon mode/raster size lost"
   end;
+  let quad_vertices =
+    [
+      Vec3.create (-0.5) (-0.5) 0.;
+      Vec3.create 0.5 (-0.5) 0.;
+      Vec3.create (-0.5) 0.5 0.;
+      Vec3.create 0.5 0.5 0.;
+    ]
+  in
+  let quad_normals = List.map (fun _ -> Vec3.unit_z) quad_vertices in
+  let strip =
+    Mesh.create_exn ~mode:Mesh.Triangle_strip ~indices:[ 0; 1; 2; 3 ]
+      ~normals:quad_normals quad_vertices
+  in
+  let fan =
+    Mesh.create_exn ~mode:Mesh.Triangle_fan ~indices:[ 0; 1; 3; 2 ]
+      ~normals:quad_normals quad_vertices
+  in
+  let topology_scene =
+    Scene3.create
+      [
+        Scene3.with_raster custom_raster
+          [ Scene3.mesh ~material ~mode:Wireframe strip ];
+        Scene3.with_raster custom_raster
+          [ Scene3.mesh ~material ~mode:Vertices fan ];
+      ]
+  in
+  let topology_prepared =
+    match
+      lower_view3d ~resources ~default_viewport:(0, 0, 16, 16)
+        (View3d (camera, topology_scene, None))
+    with
+    | Ok value -> value
+    | Error _ -> failwith "strip/fan topology lowering"
+  in
+  begin
+    match topology_prepared.draws.(0), topology_prepared.draws.(1) with
+    | ( { topology = Raster2.Scene3.Triangle_strip; mode = Wireframe;
+          line_width = 3.; _ },
+        { topology = Raster2.Scene3.Triangle_fan; mode = Vertices;
+          point_size = 5.; _ } ) -> ()
+    | _ -> failwith "public strip/fan polygon mode lost"
+  end;
+  let topology_snapshot () = Marshal.to_bytes topology_prepared [] in
+  let expected_topology = topology_snapshot () in
+  for _frame = 1 to 600 do
+    if topology_snapshot () <> expected_topology then
+      failwith "strip/fan lowering frame drift"
+  done;
+  let topology_workers =
+    Array.init 4 (fun _ -> Domain.spawn topology_snapshot)
+  in
+  Array.iter
+    (fun worker ->
+      if Domain.join worker <> expected_topology then
+        failwith "strip/fan lowering domain drift")
+    topology_workers;
   let state_snapshot()=match lower_view3d~resources~default_viewport:(0,0,16,16)
     (View3d(camera,state_scene,None))with
     | Ok value->Marshal.to_bytes value[]|Error _->Bytes.empty in
