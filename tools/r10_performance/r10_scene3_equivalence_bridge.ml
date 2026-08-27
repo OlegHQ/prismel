@@ -81,18 +81,21 @@ let prove ~width ~height (artifact : R10_scene3_legacy_equivalent.t) =
         let lights = Scene3.Private.lights public.scene in
         (match lights with
         | [ { Light.kind = Light.Directional { direction }; diffuse; _ } ]
-          when direction = Vec3.create (-0.6) (-1.) (-1.4)
+          when direction = Vec3.normalize (Vec3.create (-0.6) (-1.) (-1.4))
                && equal_color diffuse Color.white ->
             let staged = Array.of_list artifact.software_draws in
+            let equal_indices (draw : Scene_execution.draw) =
+              if Array.length mesh.indices <> draw.mesh.index_count then false
+              else
+                let equal = ref true in
+                for index = 0 to Array.length mesh.indices - 1 do
+                  if mesh.indices.(index) <> packed_index draw.mesh.indices index
+                  then equal := false
+                done;
+                !equal
+            in
             let indices_ok =
-              Array.for_all
-                (fun (draw : Scene_execution.draw) ->
-                  Array.length mesh.indices = draw.mesh.index_count
-                  && Array.for_alli
-                       (fun index value ->
-                         value = packed_index draw.mesh.indices index)
-                       mesh.indices)
-                staged
+              Array.for_all equal_indices staged
             in
             if not indices_ok then fail "triangle topology mismatch"
             else

@@ -1,5 +1,16 @@
 let require condition message = if not condition then failwith message
 
+let digest_draws draws =
+  draws
+  |> List.map (fun (draw : Scene_execution.draw) ->
+         Digest.to_hex (Digest.bytes draw.mesh.vertices)
+         ^ Digest.to_hex (Digest.bytes draw.mesh.indices))
+  |> String.concat ":" |> Digest.string |> Digest.to_hex
+
+let signature value =
+  digest_draws value.R10_scene3_legacy_equivalent.software_draws ^ ":"
+  ^ digest_draws value.native_draws
+
 let verify value =
   require (value.R10_scene3_legacy_equivalent.instances = 12) "instance count";
   require (value.vertices_per_instance = 97 * 49) "sphere vertex count";
@@ -50,8 +61,10 @@ let () =
     [ 2; 60; 600 ];
   let domains =
     Array.init 4 (fun _ ->
-      Domain.spawn (fun () ->
-        (R10_scene3_legacy_equivalent.create ~width:64 ~height:64).signature))
+      (* The sphere constructor uses Prismel's shared parallel pool and is an
+         initial-domain preparation boundary. Exercise only the immutable,
+         independently owned packed artifact concurrently. *)
+      Domain.spawn (fun () -> signature first))
   in
   Array.iter
     (fun domain -> require (Domain.join domain = expected) "domain ordering")
