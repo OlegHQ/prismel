@@ -8,6 +8,48 @@ type resource_entry={id:int;identity:identity;value:Raster2.Consumer.resource}
 type plan={ir:Raster2.Render_ir.t;resources:resource_entry array}
 type resolved=Resolved_image of image_snapshot|Resolved_text of text_snapshot
 
+type text_input_region={x:int;y:int;width:int;height:int;focused:bool}
+type matrix={xx:float;xy:float;yx:float;yy:float;tx:float;ty:float}
+
+let identity={xx=1.;xy=0.;yx=0.;yy=1.;tx=0.;ty=0.}
+let compose a b={xx=a.xx*.b.xx+.a.xy*.b.yx;xy=a.xx*.b.xy+.a.xy*.b.yy;
+  yx=a.yx*.b.xx+.a.yy*.b.yx;yy=a.yx*.b.xy+.a.yy*.b.yy;
+  tx=a.xx*.b.tx+.a.xy*.b.ty+.a.tx;ty=a.yx*.b.tx+.a.yy*.b.ty+.a.ty}
+let transform m (x,y)=m.xx*.float x+.m.xy*.float y+.m.tx,
+  m.yx*.float x+.m.yy*.float y+.m.ty
+let bounds m x y width height =
+  let points=[transform m(x,y);transform m(x+width,y);transform m(x,y+height);
+    transform m(x+width,y+height)]in
+  let xs=List.map fst points and ys=List.map snd points in
+  let left=List.fold_left min Float.infinity xs
+  and right=List.fold_left max Float.neg_infinity xs
+  and top=List.fold_left min Float.infinity ys
+  and bottom=List.fold_left max Float.neg_infinity ys in
+  int_of_float(floor left),int_of_float(floor top),
+  int_of_float(ceil right),int_of_float(ceil bottom)
+let intersect (x0,y0,x1,y1)(a0,b0,a1,b1)=max x0 a0,max y0 b0,min x1 a1,min y1 b1
+
+let text_input_regions scene =
+  let output=ref[]in
+  let rec nodes matrix clip values=List.iter(node matrix clip)values
+  and node matrix clip = function
+    | Scene_description.Text_input_region((x,y),width,height,focused)->
+        let region=bounds matrix x y width height in
+        let left,top,right,bottom=Option.fold~none:region~some:(intersect region)clip in
+        if right>left&&bottom>top then output:={x=left;y=top;width=right-left;
+          height=bottom-top;focused}::!output
+    | Group children|Blend(_,children)->nodes matrix clip children
+    | Translate(x,y,children)->nodes(compose matrix{identity with tx=float x;ty=float y})clip children
+    | Rotate(angle,children)->let c=cos angle and s=sin angle in
+        nodes(compose matrix{xx=c;xy=(-.s);yx=s;yy=c;tx=0.;ty=0.})clip children
+    | Scale(x,y,children)->nodes(compose matrix{xx=x;xy=0.;yx=0.;yy=y;tx=0.;ty=0.})clip children
+    | Clip((x,y),width,height,children)->
+        let own=bounds matrix x y width height in
+        let clip=Some(Option.fold~none:own~some:(intersect own)clip)in
+        nodes matrix clip children
+    | _->()in
+  nodes identity None scene;List.rev!output
+
 let packed (color : Color.t) =
   Int32.(logor (shift_left (of_int color.r) 24)
     (logor (shift_left (of_int color.g) 16)
@@ -89,7 +131,7 @@ let lower_internal ~resource_handler scene =
     | Blend(value,children)->let nested=blend value in emit(Set_blend nested);nodes nested children;emit(Set_blend active_blend)
     | (Text _|Debug_text _|Font_text _|Image _)as value->resource_handler emit reject value
     | View3d _->reject View3d
-    | Text_input_region _->reject Metadata
+    | Text_input_region _->()
   in nodes Raster2.Composite.Source_over scene;match !failure with Some error->Error error|None->
   match Raster2.Render_ir.create(Array.of_list(List.rev !commands))with Ok value->Ok value|Error error->Error(Invalid_ir error)
 
@@ -151,6 +193,19 @@ let lower_with_resources callbacks scene =
 
 let self_test () =
   let red=Color.rgba 255 0 0 255 and white=Color.white in
+  let metadata_scene:Scene_description.t=
+    [Text_input_region((1,2),3,4,false);
+     Translate(10,20,[Scale(2.,3.,[Text_input_region((1,2),3,4,true)])]);
+     Clip((0,0),5,5,[Text_input_region((4,4),4,4,false)]);
+     Rotate(Float.pi/.2.,[Text_input_region((0,0),2,1,true)])]in
+  let expected_regions=[{x=1;y=2;width=3;height=4;focused=false};
+    {x=12;y=26;width=6;height=12;focused=true};
+    {x=4;y=4;width=1;height=1;focused=false};
+    {x=(-1);y=0;width=2;height=2;focused=true}]in
+  if text_input_regions metadata_scene<>expected_regions then
+    failwith"text input metadata transform/clip/order drift";
+  begin match lower metadata_scene with Ok _->()|Error _->
+    failwith"text input metadata rejected by draw lowering"end;
   let scene=[Scene_description.Clear red;Blend(Add,[Translate(2,3,[Clip((0,0),8,7,
     [Point((1,1),Some white);Line((0,0),(4,0),Some red,2);
      Rect((1,2),3,4,None,{fill=Some red;stroke=None});

@@ -47,13 +47,20 @@ let () =
       (Web.create ~wap_config ~logical_width:4 ~logical_height:4
          ~drawable_width:4 ~drawable_height:4 ())
   in
+  let text_regions : Wap.text_input_region list =
+    [ { x = 1; y = 2; width = 3; height = 4; focused = false };
+      { x = 8; y = 9; width = 10; height = 11; focused = true } ]
+  in
   for frame = 1 to 600 do
+    get (Web.set_text_input_regions runtime text_regions);
     ignore (get (Web.render runtime [ draw 4 ]));
     if List.mem frame [ 1; 2; 60; 600 ] then begin
       let stats = Web.stats runtime in
       if stats.frames_submitted <> frame then failwith "frame codec order drift";
       if stats.source_bytes_submitted <> Int64.of_int (frame * 64) then
-        failwith "frame codec byte count drift"
+        failwith "frame codec byte count drift";
+      if Web.text_input_regions runtime <> text_regions then
+        failwith "typed text input region order/focus drift"
     end
   done;
   get
@@ -83,6 +90,11 @@ let () =
     match Web.render runtime [] with
     | Error _ -> ()
     | Ok _ -> failwith "destroyed web runtime accepted a frame"
+  end;
+  begin
+    match Web.set_text_input_regions runtime text_regions with
+    | Error _ -> ()
+    | Ok () -> failwith "destroyed web runtime accepted text input regions"
   end;
   print_endline
     "runtime_next web: packed frames1/2/60/600+resize, 100k bounded"

@@ -124,6 +124,11 @@ let capture value ~bytes_per_row =
       Runtime_next_headless.read_pixels runtime ~bytes_per_row
   | Web_runtime runtime -> Runtime_next_web.read_pixels runtime ~bytes_per_row
 
+let set_text_input_regions value regions =
+  match value.implementation with
+  | Web_runtime runtime -> Runtime_next_web.set_text_input_regions runtime regions
+  | Native_runtime _ | Headless_runtime _ -> Ok ()
+
 let destroy value =
   match value.implementation with
   | Native_runtime runtime -> Runtime_next.destroy runtime

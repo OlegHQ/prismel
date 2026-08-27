@@ -54,7 +54,8 @@ let validate configuration =
     Error "dimensions must be positive"
   else Ok ()
 
-let run_state ~configuration ~init ~update ~view ~prepare ?after_frame ?on_stop () =
+let run_state ~configuration ~init ~update ~view ~prepare ?regions ?after_frame
+    ?on_stop () =
   match validate configuration with
   | Error message ->
       Error
@@ -87,7 +88,14 @@ let run_state ~configuration ~init ~update ~view ~prepare ?after_frame ?on_stop 
                 model := Some (update current_model current_frame);
                 last_frame := current_frame;
                 let scene = view (Option.get !model) current_frame in
-                match prepare current_frame scene with
+                let text_input_regions =
+                  Option.fold ~none:[]
+                    ~some:(fun extract -> extract current_frame scene) regions
+                in
+                match Orchestrator.set_text_input_regions runtime
+                    text_input_regions with
+                | Error _ as error -> error
+                | Ok () -> match prepare current_frame scene with
                 | Error _ as error -> error
                 | Ok draws ->
                     match Orchestrator.render runtime draws with
@@ -126,7 +134,7 @@ let run_state ~configuration ~init ~update ~view ~prepare ?after_frame ?on_stop 
 
 let run_selected ~logical_width ~logical_height ~drawable_width
     ~drawable_height ~frames ~dt ?wap_config ~init ~update ~view ~prepare
-    ?after_frame ?on_stop () =
+    ?regions ?after_frame ?on_stop () =
   match Orchestrator.selected () with
   | Error message ->
       Error
@@ -136,7 +144,7 @@ let run_selected ~logical_width ~logical_height ~drawable_width
       run_state
         ~configuration:{ target; logical_width; logical_height; drawable_width;
           drawable_height; frames; dt; wap_config }
-        ~init ~update ~view ~prepare ?after_frame ?on_stop ()
+        ~init ~update ~view ~prepare ?regions ?after_frame ?on_stop ()
 
 let test () =
   let vertices = Bytes.make 48 '\000' in

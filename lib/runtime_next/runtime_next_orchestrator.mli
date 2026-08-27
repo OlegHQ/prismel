@@ -20,4 +20,6 @@ val render : t -> Scene_execution.draw list -> (bool, Ogpu.Error.t) result
 val resize : t -> logical_width:int -> logical_height:int ->
   drawable_width:int -> drawable_height:int -> (unit, Ogpu.Error.t) result
 val capture : t -> bytes_per_row:int -> (bytes, Ogpu.Error.t) result
+val set_text_input_regions : t -> Wap.text_input_region list ->
+  (unit, Ogpu.Error.t) result
 val destroy : t -> (unit, Ogpu.Error.t) result

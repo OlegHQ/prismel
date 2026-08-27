@@ -17,6 +17,9 @@ val resize :
 
 val stats : t -> Wap.stats
 val port : t -> int
+val set_text_input_regions : t -> Wap.text_input_region list ->
+  (unit, Ogpu.Error.t) result
+val text_input_regions : t -> Wap.text_input_region list
 val read_pixels : t -> bytes_per_row:int -> (bytes, Ogpu.Error.t) result
 val backend_live_counts : t -> int * int * int * int * int
 val backend_trace_stats : t -> int * int

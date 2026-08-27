@@ -6,4 +6,6 @@ val create : ?config:Wap.config -> unit -> (t,error) result
 val present : t -> frame -> (unit,error) result
 val stats : t -> Wap.stats
 val port : t -> int
+val set_text_input_regions : t -> Wap.text_input_region list -> (unit,error) result
+val text_input_regions : t -> Wap.text_input_region list
 val destroy : t -> unit

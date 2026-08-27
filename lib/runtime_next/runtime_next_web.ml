@@ -132,6 +132,14 @@ let resize value ~logical_width ~logical_height ~drawable_width
 
 let stats value = Presenter.stats value.presenter
 let port value = Presenter.port value.presenter
+let set_text_input_regions value regions =
+  let operation = "Runtime_next_web.set_text_input_regions" in
+  match ensure_live operation value with
+  | Error _ as error_value -> error_value
+  | Ok () ->
+      Result.map_error (presenter_error operation)
+        (Presenter.set_text_input_regions value.presenter regions)
+let text_input_regions value = Presenter.text_input_regions value.presenter
 let read_pixels value ~bytes_per_row =
   match ensure_live "Runtime_next_web.read_pixels" value with
   | Error _ as error_value -> error_value
