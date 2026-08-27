@@ -1,7 +1,7 @@
 (library
  (name ogpu)
  (public_name prismel.ogpu)
- (modules Error Handle Capabilities Types Command Mock Submission Shader Surface))
+ (modules Error Handle Capabilities Types Command Mock Submission Shader Surface Binding))
 
 (test
  (name test_ogpu_foundation)
@@ -31,4 +31,9 @@
 (test
  (name test_ogpu_surface)
  (modules test_ogpu_surface)
+ (libraries ogpu))
+
+(test
+ (name test_ogpu_binding)
+ (modules test_ogpu_binding)
  (libraries ogpu))
