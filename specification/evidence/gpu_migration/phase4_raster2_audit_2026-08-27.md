@@ -97,7 +97,7 @@ fields are ignored or not integrated and therefore cannot count as parity.
 | --- | --- | --- |
 | `empty`, `create`, draw ordering | I/T | Flattened order and colored/textured two-draw mock state order (`e813369`, `d199322`). No empty presented-frame golden. |
 | `mesh` Faces; triangle list/strip/fan | I/T | Vertices/normals/UV/indices prepare draws; list framebuffer and authored-normal fixtures (`e813369`). Strip/fan mapping lacks constructor-specific goldens. |
-| Wireframe/Vertices and point/line mesh modes | R/U | Explicit `Unsupported_mode`, without a dedicated private-lowering fixture; not parity. |
+| Public Faces/Wireframe/Vertices render modes | I/T | Faces retain the top-left triangle rule; Wireframe emits stable unique shared edges and Vertices emits stable unique projected points. Public line width/point size, clip, depth/stencil, cull and blend are exercised through frame 600 and four domains. Non-triangle source mesh topologies remain explicitly unsupported. |
 | Per-vertex mesh colors | R/U | Explicit `Invalid_mesh`, without a focused rejection fixture; material color is used instead. |
 | `instances`, `instances_array` | I/U | Flattened per copied transform; geometry cache ignores transforms. No exact public 600-instance ordering fixture. |
 | `group`, `transform`, `translate`, `rotate`, `scale`, `at_node` | I/T | Flattened matrices; camera-only frames 2–600 produce zero replacement upload bytes (`e813369`, `d199322`). Convenience-specific pixels remain open. |
@@ -118,12 +118,12 @@ fields are ignored or not integrated and therefore cannot count as parity.
 | `depth_clear` | I/T | Scene3 consumer plus private OGPU draw state (`ba92d55`, `d199322`). |
 | `with_depth` comparison/write | I/T | Every comparison and write flag maps to per-draw packed Depth_stencil state. Nested override/restore plus pass/fail behavior, frame 600 and four-domain snapshots are exercised. |
 | `stencil_clear`, `with_stencil` | I/T | Clear value, comparison, reference/masks and all fail/depth-fail/pass operations map to packed Depth_stencil state; nested restoration and packed pass/fail fixtures are exact. |
-| `with_raster` line width/point size | Partial | Faces preserve winding/cull/scissor and do not consume line/point sizes. Wireframe/Vertices remain explicitly rejected as unsupported polygon modes rather than silently ignoring their raster widths. |
+| `with_raster` line width/point size | I/T | Nested raster scopes preserve and restore finite public widths/sizes. Wireframe/Vertices apply them in bounded depth/stencil-aware loops; Faces preserve winding/cull/scissor. |
 | Samples 1/4/9/16 | Partial | Samples reach preparation and standalone MSAA is tested (`090ffae`), but private consumer/OGPU target integration does not apply every count. |
 | Viewport/scissor | I/T | Default/explicit validation, matrix conversion and ordered state (`e813369`, `d199322`); nested Scene2 clips now intersect View3d viewport/scissor and are exercised through frame 600/four domains. |
 | Private portable draw submission | I/T | Prepared 2D/Scene3 vertex and index bytes are written once, then submitted as exact Backend render bindings. Consecutive pass-compatible draws batch in order; only incompatible pass-level state splits. A 1,000-primitive fixture proves one render submission per frame, zero replacement uploads through frame 600, exact payload order/cardinality, bounded teardown, and one/four-domain equality. Runtime selection and real Metal pixel parity remain missing. |
 
 The smallest local gaps are dedicated fixtures for already-mapped convenience
 constructors. They do not repair the material missing semantics above.
-Texture wrapping, wire/point rasterization and sample integration require typed representation
+Texture wrapping and sample integration require typed representation
 changes and must not be marked complete by expectation-only tests.

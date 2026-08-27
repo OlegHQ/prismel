@@ -12,6 +12,7 @@ let vec (value:Vec3.t)={Raster2.Scene3_lighting.x=value.x;y=value.y;z=value.z}
 let attenuation (value:Light.attenuation)={Raster2.Scene3_lighting.constant=value.constant;linear=value.linear;quadratic=value.quadratic}
 let blend=function Scene3.Replace->Raster2.Composite.Copy|Alpha->Source_over|Add->Add|Multiply->Multiply|Screen->Screen|Subtract->Subtract
 let cull=function Scene3.Cull_none->Raster2.Triangle.Cull_none|Cull_back->Back|Cull_front->Front
+let mode=function Scene3.Faces->Raster2.Scene3_consumer.Faces|Wireframe->Wireframe|Vertices->Vertices
 let comparison=function Scene3.Never->Raster2.Depth_stencil.Never|Less->Less|Equal->Equal|Less_equal->Less_equal|Greater->Greater|Not_equal->Not_equal|Greater_equal->Greater_equal|Always->Always
 let stencil_op=function Scene3.Keep->Raster2.Depth_stencil.Keep|Zero->Zero|Replace->Replace|Increment->Increment_clamp|Decrement->Decrement_clamp|Increment_wrap->Increment_wrap|Decrement_wrap->Decrement_wrap|Invert->Invert
 let depth_stencil (drawing:Scene3.Private.drawing)={Raster2.Depth_stencil.depth_compare=comparison drawing.depth.comparison;depth_write=drawing.depth.write;stencil=Some{compare=comparison drawing.stencil.comparison;fail=stencil_op drawing.stencil.on_stencil_fail;depth_fail=stencil_op drawing.stencil.on_depth_fail;pass=stencil_op drawing.stencil.on_pass;read_mask=drawing.stencil.read_mask;write_mask=drawing.stencil.write_mask;reference=drawing.stencil.reference}}
@@ -46,9 +47,9 @@ let prepare ~resources ~camera ~viewport scene =
     let descriptions=Scene3.Private.drawings scene in
     let preflight=List.find_map(fun(drawing:Scene3.Private.drawing)->
       if drawing.shader<>None then Some Unsupported_shader else
-      match drawing.mode,Mesh.mode drawing.mesh with
-      | (Wireframe|Vertices),_|_,(Mesh.Points|Lines|Line_strip|Line_loop)->Some Unsupported_mode
-      | Faces,(Triangles|Triangle_strip|Triangle_fan)->
+      match Mesh.mode drawing.mesh with
+      | Mesh.Points|Lines|Line_strip|Line_loop->Some Unsupported_mode
+      | Triangles|Triangle_strip|Triangle_fan->
           let mesh=Mesh.Private.view drawing.mesh in
           if mesh.colors<>None then Some Invalid_mesh else None)descriptions in
     match preflight with Some error->Error error|None->
@@ -78,7 +79,7 @@ let prepare ~resources ~camera ~viewport scene =
         begin match Raster2.Scene3_lighting.prepare_with_shadows lighting shadow_values with Error error->failure:=Some(Lighting_error error)|Ok _->
           let camera_matrix=Mat4.mul depth_zero_to_one(Camera.view_projection_matrix~viewport camera)in
           let matrix=matrix_array(Mat4.mul camera_matrix drawing.transform)in
-          draws:={Raster2.Scene3_consumer.matrix;viewport={x=float vx;y=float vy;width=float vw;height=float vh;min_depth=0.;max_depth=1.};scissor={x=vx;y=vy;width=vw;height=vh};topology;vertices;indices=mesh.indices;lighting;shadows=Array.copy shadow_values;shading=shading drawing.shading;texture;cull=cull drawing.cull;blend=blend drawing.blend;depth_stencil=depth_stencil drawing}::!draws
+          draws:={Raster2.Scene3_consumer.matrix;viewport={x=float vx;y=float vy;width=float vw;height=float vh;min_depth=0.;max_depth=1.};scissor={x=vx;y=vy;width=vw;height=vh};topology;vertices;indices=mesh.indices;lighting;shadows=Array.copy shadow_values;shading=shading drawing.shading;texture;cull=cull drawing.cull;blend=blend drawing.blend;depth_stencil=depth_stencil drawing;mode=mode drawing.mode;line_width=drawing.raster.line_width;point_size=drawing.raster.point_size}::!draws
         end)descriptions;
     match !failure with Some error->Error error|None->Ok{draws=Array.of_list(List.rev !draws);clear_depth=Scene3.Private.depth_clear scene;clear_stencil=Scene3.Private.stencil_clear scene;samples=Scene3.Private.samples scene}
 
@@ -115,7 +116,12 @@ let self_test () =
     ~on_depth_fail:Increment~on_pass:Invert()in
   let nested=Scene3.with_depth custom_depth[Scene3.with_stencil custom_stencil
     [Scene3.with_blend Add[Scene3.mesh~material~cull:Cull_front mesh]]]in
-  let state_scene=Scene3.create~stencil_clear:11[nested;node]in
+  let custom_raster=Scene3.raster_state~line_width:3.~point_size:5.()in
+  let wire=Scene3.with_raster custom_raster
+    [Scene3.mesh~material~mode:Wireframe mesh]in
+  let points=Scene3.with_raster custom_raster
+    [Scene3.mesh~material~mode:Vertices mesh]in
+  let state_scene=Scene3.create~stencil_clear:11[nested;node;wire;points]in
   let state_prepared=match lower_view3d~resources~default_viewport:(0,0,16,16)
     (View3d(camera,state_scene,None))with Ok value->value|Error _->failwith"state lowering"in
   let first=state_prepared.draws.(0)and restored=state_prepared.draws.(1)in
@@ -129,6 +135,11 @@ let self_test () =
     restored.depth_stencil.depth_compare<>Raster2.Depth_stencil.Less||
     not restored.depth_stencil.depth_write||state_prepared.clear_stencil<>11 then
     failwith"nested raster/blend state did not restore";
+  begin match state_prepared.draws.(2),state_prepared.draws.(3)with
+  | {mode=Raster2.Scene3_consumer.Wireframe;line_width=3.;_},
+    {mode=Vertices;point_size=5.;_}->()
+  | _->failwith"polygon mode/raster size lost"
+  end;
   let state_snapshot()=match lower_view3d~resources~default_viewport:(0,0,16,16)
     (View3d(camera,state_scene,None))with
     | Ok value->Marshal.to_bytes value[]|Error _->Bytes.empty in
