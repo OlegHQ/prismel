@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 5128,
+    "bound": 5142,
     "scope-excluded": 37,
-    "unreviewed": 120
+    "unreviewed": 106
   },
-  "classification_source_sha256": "ea068d53504403ed848a1694e0f03544ad9ebb12e1722172fa0ef9b4f26a0974",
+  "classification_source_sha256": "a6bd731163f9e68008b4e8b3a573eaacaf101b859a36e357e357822994efe3ca",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -1060,7 +1060,7 @@
           "line": 22
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4MachineLearningPipeline.h",
       "id": "class:MTL4MachineLearningPipelineDescriptor",
       "kind": "class",
@@ -1068,7 +1068,7 @@
       "macos_introduced": "26.0",
       "name": "MTL4MachineLearningPipelineDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned Metal 4 machine-learning pipeline and encoder surfaces plus checked compute acceleration/tensor commands, with device/state/range/cardinality validation, completion retention, and typed macOS 26 availability conformance.",
       "signature": ""
     },
     {
@@ -1082,7 +1082,7 @@
           "line": 64
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4MachineLearningPipeline.h",
       "id": "class:MTL4MachineLearningPipelineReflection",
       "kind": "class",
@@ -1090,7 +1090,7 @@
       "macos_introduced": "26.0",
       "name": "MTL4MachineLearningPipelineReflection",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned Metal 4 machine-learning pipeline and encoder surfaces plus checked compute acceleration/tensor commands, with device/state/range/cardinality validation, completion retention, and typed macOS 26 availability conformance.",
       "signature": ""
     },
     {
@@ -35252,7 +35252,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4ComputeCommandEncoder.h",
       "id": "method:-[MTL4ComputeCommandEncoder buildAccelerationStructure:descriptor:scratchBuffer:]",
       "kind": "method",
@@ -35260,7 +35260,7 @@
       "macos_introduced": "26.0",
       "name": "buildAccelerationStructure:descriptor:scratchBuffer:",
       "owner": "MTL4ComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned Metal 4 machine-learning pipeline and encoder surfaces plus checked compute acceleration/tensor commands, with device/state/range/cardinality validation, completion retention, and typed macOS 26 availability conformance.",
       "signature": "instance (id<MTLAccelerationStructure>  _Nonnull __strong, MTL4AccelerationStructureDescriptor * _Nonnull __strong, MTL4BufferRange) -> void"
     },
     {
@@ -35366,7 +35366,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4ComputeCommandEncoder.h",
       "id": "method:-[MTL4ComputeCommandEncoder copyFromTensor:sourceOrigin:sourceDimensions:toTensor:destinationOrigin:destinationDimensions:]",
       "kind": "method",
@@ -35374,7 +35374,7 @@
       "macos_introduced": "26.0",
       "name": "copyFromTensor:sourceOrigin:sourceDimensions:toTensor:destinationOrigin:destinationDimensions:",
       "owner": "MTL4ComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned Metal 4 machine-learning pipeline and encoder surfaces plus checked compute acceleration/tensor commands, with device/state/range/cardinality validation, completion retention, and typed macOS 26 availability conformance.",
       "signature": "instance (id<MTLTensor>  _Nonnull __strong, MTLTensorExtents * _Nonnull __strong, MTLTensorExtents * _Nonnull __strong, id<MTLTensor>  _Nonnull __strong, MTLTensorExtents * _Nonnull __strong, MTLTensorExtents * _Nonnull __strong) -> void"
     },
     {
@@ -35746,7 +35746,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4ComputeCommandEncoder.h",
       "id": "method:-[MTL4ComputeCommandEncoder refitAccelerationStructure:descriptor:destination:scratchBuffer:]",
       "kind": "method",
@@ -35754,7 +35754,7 @@
       "macos_introduced": "26.0",
       "name": "refitAccelerationStructure:descriptor:destination:scratchBuffer:",
       "owner": "MTL4ComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned Metal 4 machine-learning pipeline and encoder surfaces plus checked compute acceleration/tensor commands, with device/state/range/cardinality validation, completion retention, and typed macOS 26 availability conformance.",
       "signature": "instance (id<MTLAccelerationStructure>  _Nonnull __strong, MTL4AccelerationStructureDescriptor * _Nonnull __strong, id<MTLAccelerationStructure>  _Nullable __strong, MTL4BufferRange) -> void"
     },
     {
@@ -35765,7 +35765,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4ComputeCommandEncoder.h",
       "id": "method:-[MTL4ComputeCommandEncoder refitAccelerationStructure:descriptor:destination:scratchBuffer:options:]",
       "kind": "method",
@@ -35773,7 +35773,7 @@
       "macos_introduced": "26.0",
       "name": "refitAccelerationStructure:descriptor:destination:scratchBuffer:options:",
       "owner": "MTL4ComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned Metal 4 machine-learning pipeline and encoder surfaces plus checked compute acceleration/tensor commands, with device/state/range/cardinality validation, completion retention, and typed macOS 26 availability conformance.",
       "signature": "instance (id<MTLAccelerationStructure>  _Nonnull __strong, MTL4AccelerationStructureDescriptor * _Nonnull __strong, id<MTLAccelerationStructure>  _Nullable __strong, MTL4BufferRange, MTLAccelerationStructureRefitOptions) -> void"
     },
     {
@@ -35898,7 +35898,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4ComputeCommandEncoder.h",
       "id": "method:-[MTL4ComputeCommandEncoder writeCompactedAccelerationStructureSize:toBuffer:]",
       "kind": "method",
@@ -35906,7 +35906,7 @@
       "macos_introduced": "26.0",
       "name": "writeCompactedAccelerationStructureSize:toBuffer:",
       "owner": "MTL4ComputeCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned Metal 4 machine-learning pipeline and encoder surfaces plus checked compute acceleration/tensor commands, with device/state/range/cardinality validation, completion retention, and typed macOS 26 availability conformance.",
       "signature": "instance (id<MTLAccelerationStructure>  _Nonnull __strong, MTL4BufferRange) -> void"
     },
     {
@@ -37361,7 +37361,7 @@
           "line": 23
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4MachineLearningCommandEncoder.h",
       "id": "method:-[MTL4MachineLearningCommandEncoder dispatchNetworkWithIntermediatesHeap:]",
       "kind": "method",
@@ -37369,7 +37369,7 @@
       "macos_introduced": "26.0",
       "name": "dispatchNetworkWithIntermediatesHeap:",
       "owner": "MTL4MachineLearningCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned Metal 4 machine-learning pipeline and encoder surfaces plus checked compute acceleration/tensor commands, with device/state/range/cardinality validation, completion retention, and typed macOS 26 availability conformance.",
       "signature": "instance (id<MTLHeap>  _Nonnull __strong) -> void"
     },
     {
@@ -37380,7 +37380,7 @@
           "line": 23
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4MachineLearningCommandEncoder.h",
       "id": "method:-[MTL4MachineLearningCommandEncoder setArgumentTable:]",
       "kind": "method",
@@ -37388,7 +37388,7 @@
       "macos_introduced": "26.0",
       "name": "setArgumentTable:",
       "owner": "MTL4MachineLearningCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned Metal 4 machine-learning pipeline and encoder surfaces plus checked compute acceleration/tensor commands, with device/state/range/cardinality validation, completion retention, and typed macOS 26 availability conformance.",
       "signature": "instance (id<MTL4ArgumentTable>  _Nullable __strong) -> void"
     },
     {
@@ -37399,7 +37399,7 @@
           "line": 23
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4MachineLearningCommandEncoder.h",
       "id": "method:-[MTL4MachineLearningCommandEncoder setPipelineState:]",
       "kind": "method",
@@ -37407,7 +37407,7 @@
       "macos_introduced": "26.0",
       "name": "setPipelineState:",
       "owner": "MTL4MachineLearningCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned Metal 4 machine-learning pipeline and encoder surfaces plus checked compute acceleration/tensor commands, with device/state/range/cardinality validation, completion retention, and typed macOS 26 availability conformance.",
       "signature": "instance (id<MTL4MachineLearningPipelineState>  _Nonnull __strong) -> void"
     },
     {
@@ -37627,7 +37627,7 @@
           "line": 75
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4MachineLearningPipeline.h",
       "id": "method:-[MTL4MachineLearningPipelineState label]",
       "kind": "method",
@@ -37635,7 +37635,7 @@
       "macos_introduced": "26.0",
       "name": "label",
       "owner": "MTL4MachineLearningPipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned Metal 4 machine-learning pipeline and encoder surfaces plus checked compute acceleration/tensor commands, with device/state/range/cardinality validation, completion retention, and typed macOS 26 availability conformance.",
       "signature": "instance () -> NSString * _Nullable"
     },
     {
@@ -85454,7 +85454,7 @@
           "line": 75
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4MachineLearningPipeline.h",
       "id": "property:MTL4MachineLearningPipelineState:label",
       "kind": "property",
@@ -85462,7 +85462,7 @@
       "macos_introduced": "26.0",
       "name": "label",
       "owner": "MTL4MachineLearningPipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned Metal 4 machine-learning pipeline and encoder surfaces plus checked compute acceleration/tensor commands, with device/state/range/cardinality validation, completion retention, and typed macOS 26 availability conformance.",
       "signature": "NSString * _Nullable"
     },
     {
@@ -104493,7 +104493,7 @@
           "line": 23
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4MachineLearningCommandEncoder.h",
       "id": "protocol:MTL4MachineLearningCommandEncoder",
       "kind": "protocol",
@@ -104501,7 +104501,7 @@
       "macos_introduced": "26.0",
       "name": "MTL4MachineLearningCommandEncoder",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned Metal 4 machine-learning pipeline and encoder surfaces plus checked compute acceleration/tensor commands, with device/state/range/cardinality validation, completion retention, and typed macOS 26 availability conformance.",
       "signature": ""
     },
     {
@@ -104514,7 +104514,7 @@
           "line": 75
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4MachineLearningPipeline.h",
       "id": "protocol:MTL4MachineLearningPipelineState",
       "kind": "protocol",
@@ -104522,7 +104522,7 @@
       "macos_introduced": "26.0",
       "name": "MTL4MachineLearningPipelineState",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned Metal 4 machine-learning pipeline and encoder surfaces plus checked compute acceleration/tensor commands, with device/state/range/cardinality validation, completion retention, and typed macOS 26 availability conformance.",
       "signature": ""
     },
     {

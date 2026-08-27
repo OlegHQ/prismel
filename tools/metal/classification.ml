@@ -1974,6 +1974,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier Binding_stage_compute_type6_safe_closure.promotable_ids then
     Bound,
       "Represented by the safe StageInputOutput and ComputePass descriptor graphs, including checked child arrays, retained resources, exact defaults, and native conformance."
+  else if List.mem identifier Binding_mtl4_tail14_safe_closure.promotable_ids then
+    Bound,
+      "Implemented by the owned Metal 4 machine-learning pipeline and encoder surfaces plus checked compute acceleration/tensor commands, with device/state/range/cardinality validation, completion retention, and typed macOS 26 availability conformance."
   else if List.mem identifier Binding_function_stitching_handoff.callable_ids then
     Bound,
       "Implemented by the FunctionStitching36 safe node/graph/descriptor closure with cycle and device validation, owned edges, atomic replacement, and real native conformance."
