@@ -13,16 +13,32 @@ let render ~width ~height ~camera scene =
     let color=Raster2.Surface.create~width:render_width~height:render_height()|>Result.get_ok
     and depth=Raster2.Depth_stencil.create~width:render_width~height:render_height()|>Result.get_ok in
     let target:Raster2.Scene3_consumer.target={color;depth=Some depth;multisample=None}in
-    Raster2.Scene3_consumer.render~target~clear:0x00000000l
-      ~clear_depth:prepared.clear_depth~clear_stencil:prepared.clear_stencil
-      ~draws:prepared.draws|>Result.get_ok;
-    let rgba=if factor=1 then Bytes.copy(Raster2.Surface.bytes color)else
-      let source=Raster2.Surface.bytes color and output=Bytes.create(width*height*4)and half=samples/2 in
+    let hdr_compatible=Array.for_all(fun(draw:Raster2.Scene3_consumer.draw)->
+      draw.mode=Raster2.Scene3_consumer.Faces&&draw.texture=None&&
+      draw.lighting.material.diffuse.a=1.&&
+      match draw.blend with Raster2.Composite.Copy|Source_over->true|_->false)
+      prepared.draws in
+    let source=if hdr_compatible then `Float(Result.get_ok
+      (Raster2.Scene3_consumer.render_float~target~clear:0x00000000l
+        ~clear_depth:prepared.clear_depth~clear_stencil:prepared.clear_stencil
+        ~draws:prepared.draws))else begin
+      Raster2.Scene3_consumer.render~target~clear:0x00000000l
+        ~clear_depth:prepared.clear_depth~clear_stencil:prepared.clear_stencil
+        ~draws:prepared.draws|>Result.get_ok;
+      `Bytes(Raster2.Surface.bytes color)
+    end in
+    let rgba=match source with
+    |`Bytes source when factor=1->Bytes.copy source
+    |source->
+      let output=Bytes.create(width*height*4)in
       for y=0 to height-1 do for x=0 to width-1 do for channel=0 to 3 do
-        let total=ref 0 in for sy=0 to factor-1 do for sx=0 to factor-1 do
-          total:=!total+Char.code(Bytes.get source((((y*factor+sy)*render_width+(x*factor+sx))*4)+channel))
+        let total=ref 0. in for sy=0 to factor-1 do for sx=0 to factor-1 do
+          let offset=(((y*factor+sy)*render_width+(x*factor+sx))*4)+channel in
+          total:=!total+.(match source with `Bytes bytes->float(Char.code(Bytes.get bytes offset))/.255.|`Float values->values.(offset))
         done done;
-        Bytes.set output((y*width+x)*4+channel)(Char.chr((!total+half)/samples))
+        let average= !total/.float samples in
+        let resolved=int_of_float(max 0.(min 1. average)*.255.+.0.5)in
+        Bytes.set output((y*width+x)*4+channel)(Char.chr resolved)
       done done done;output in
     Prismel_next_resources.Image.create~width~height~rgba|>Result.get_ok
     |>Image.Private.of_resource)

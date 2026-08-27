@@ -97,8 +97,9 @@ let pack r g b a =
   let c x = Int32.of_int (int_of_float ((clamp x *. 255.) +. 0.5)) in
   Int32.(logor (shift_left (c r) 24) (logor (shift_left (c g) 16) (logor (shift_left (c b) 8) (c a))))
 
-let shade prepared ~position ~normal ~view ~front_facing ~texture ~fog_distance =
-  if not (valid_direction normal && valid_direction view && valid_vec position && finite fog_distance) then 0l else
+let shade_color prepared ~position ~normal ~view ~front_facing ~texture ~fog_distance =
+  if not (valid_direction normal && valid_direction view && valid_vec position && finite fog_distance)
+  then {r=0.;g=0.;b=0.;a=0.} else
   let descriptor = prepared.descriptor in
   let nx, ny, nz = normalize normal in
   let nx, ny, nz = if descriptor.two_sided && not front_facing then (-.nx, -.ny, -.nz) else (nx, ny, nz) in
@@ -170,4 +171,8 @@ let shade prepared ~position ~normal ~view ~front_facing ~texture ~fog_distance 
   | Exponential_squared f ->
     let scaled=f.density*.max 0. fog_distance in let visibility=clamp(exp(-.(scaled*.scaled)))in
     (r*.visibility+.f.color.r*.(1.-.visibility),g*.visibility+.f.color.g*.(1.-.visibility),b*.visibility+.f.color.b*.(1.-.visibility)) in
-  pack r g b (material.diffuse.a *. ta)
+  {r;g;b;a=material.diffuse.a *. ta}
+
+let shade prepared ~position ~normal ~view ~front_facing ~texture ~fog_distance =
+  let value=shade_color prepared ~position ~normal ~view ~front_facing ~texture ~fog_distance in
+  pack value.r value.g value.b value.a

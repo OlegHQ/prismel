@@ -40,6 +40,13 @@ let ()=
   begin match prepare{descriptor with fog=Exponential_squared{color=fog_color;density=(-1.)}}with Error Invalid_fog->()|_->failwith"negative exponential fog"end;
   let separate=lit and combined=shade(ok(prepare{descriptor with separate_specular=false}))~position:(v 0. 0. 0.)~normal:(v 0. 0. 1.)~view:(v 0. 0. 1.)~front_facing:true~texture:(Some 0x808080ffl)~fog_distance:0. in
   if separate=combined then failwith"separate specular";
+  let hdr_descriptor={descriptor with material={material with diffuse=white;specular=white;shininess=0.};separate_specular=false;
+    lights=Array.init 4(fun _->Directional{direction=v 0. 0.(-1.);color=white;intensity=2.})}in
+  let overbright=shade_color(ok(prepare hdr_descriptor))~position:(v 0. 0. 0.)
+    ~normal:(v 0. 0. 1.)~view:(v 0. 0. 1.)~front_facing:true
+    ~texture:None~fog_distance:0. in
+  if overbright.r<=8.||overbright.g<=8.||overbright.b<=8. then
+    failwith"HDR lighting was clamped before interpolation";
   begin match prepare{descriptor with material={material with shininess=nan}}with Error Invalid_shininess->()|_->failwith"nonfinite"end;
   let exponent0=ok(prepare(spot_descriptor 0. 1.))
   and exponent1=ok(prepare(spot_descriptor 1. 1.))

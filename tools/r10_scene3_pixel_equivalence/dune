@@ -19,7 +19,7 @@
  (modules r10_scene3_compare r10_scene3_semantics)
  (libraries yojson)
  (deps r10_scene3_legacy_capture.exe r10_scene3_candidate_capture.exe
-  ../r10_performance/r10_existing_adapter.exe current_mismatch.json)
+  ../r10_performance/r10_existing_adapter.exe)
  (action
   (progn
    (setenv R10_SCENE3_RGBA legacy.rgba
@@ -30,5 +30,4 @@
        --target headless --warmup 1 --seconds 1))))
    (setenv SDL_VIDEODRIVER dummy
     (run %{dep:r10_scene3_candidate_capture.exe} candidate.rgba candidate.json))
-   (run %{test} legacy.rgba legacy.json candidate.rgba candidate.json
-    %{dep:current_mismatch.json}))))
+   (run %{test} legacy.rgba legacy.json candidate.rgba candidate.json))))

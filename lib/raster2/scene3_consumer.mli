@@ -5,3 +5,5 @@ type draw={matrix:float array;model_matrix:float array;camera_position:Scene3_li
 type target={color:Surface.t;depth:Depth_stencil.t option;multisample:Multisample.t option}
 type error=Invalid_target|Invalid_vertex|Lighting_error of Scene3_lighting.error|Geometry_error of Scene3.error|Program_error of Scene3_program.error
 val render : target:target -> clear:int32 -> clear_depth:float -> clear_stencil:int -> draws:draw array -> (unit,error) result
+val render_float : target:target -> clear:int32 -> clear_depth:float ->
+  clear_stencil:int -> draws:draw array -> (float array,error) result

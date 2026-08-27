@@ -298,10 +298,35 @@ let test_shading () =
         failwith "flat/smooth domain drift")
     workers
 
+let test_unbounded_hdr () =
+  let color=ok(Surface.create~width:4~height:4())in
+  let normal={Scene3_lighting.x=0.;y=0.;z=1.}in
+  let vertex x y={Scene3_consumer.position={Scene3_lighting.x=x;y;z=0.5};
+    normal;color=0xffffffffl;u=0.;v=0.}in
+  let bright={white with Scene3_lighting.a=1.}in
+  let hdr_lighting={lighting with
+    lights=Array.init 4(fun _->Scene3_lighting.Directional{
+      direction={x=0.;y=0.;z=(-1.)};color=bright;intensity=2.});
+    material={ambient=black;diffuse=bright;specular=bright;emissive=black;shininess=0.}}in
+  let draw:Scene3_consumer.draw={matrix;model_matrix=Array.copy matrix;
+    camera_position={x=0.;y=0.;z=1.};
+    viewport={x=0.;y=0.;width=4.;height=4.;min_depth=0.;max_depth=1.};
+    scissor={x=0;y=0;width=4;height=4};topology=Scene3.Triangle_list;
+    vertices=[|vertex(-1.)(-1.);vertex 1.(-1.);vertex(-1.)1.|];indices=[|0;1;2|];
+    lighting=hdr_lighting;shadows=Array.make 4 None;shading=Smooth;texture=None;
+    cull=Triangle.Cull_none;blend=Composite.Copy;depth_stencil;mode=Faces;
+    line_width=1.;point_size=1.;program=None}in
+  let values=ok(Scene3_consumer.render_float
+    ~target:{color;depth=None;multisample=None}~clear:0x00000000l
+    ~clear_depth:1.~clear_stencil:0~draws:[|draw|])in
+  if not(Array.exists(fun value->value>8.)values)then
+    failwith"multi-light HDR attachment clipped before resolve"
+
 let () =
   List.iter test_case cases;
   List.iter test_non_triangle non_triangle_cases;
   test_shading ();
+  test_unbounded_hdr ();
   let target = ok (Surface.create ~width:2 ~height:2 ()) in
   let before = Bytes.copy (Surface.bytes target) in
   ok

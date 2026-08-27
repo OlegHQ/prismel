@@ -25,3 +25,5 @@ val orient_normal : reversed_winding:bool -> vec3 -> vec3
 (* Returns straight-alpha 0xRRGGBBAA. The hot evaluator allocates no containers. *)
 val shade : prepared -> position:vec3 -> normal:vec3 -> view:vec3 ->
   front_facing:bool -> texture:int32 option -> fog_distance:float -> int32
+val shade_color : prepared -> position:vec3 -> normal:vec3 -> view:vec3 ->
+  front_facing:bool -> texture:int32 option -> fog_distance:float -> color
