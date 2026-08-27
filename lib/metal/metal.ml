@@ -21829,3 +21829,34 @@ module Pipeline_descriptor = struct
         value.raw (fun () -> release_render value; detach value.device.lifetime)
   end
 end
+
+module Device_async = struct
+  type variant = Basic | With_options
+  let flag = function Basic -> false | With_options -> true
+  let native op result = Result.map_error (fun message ->
+    { operation=op; kind=Native_error; message }) result
+  let reflected : Metal_raw.render_pipeline_reflection =
+    { vertex_bindings=[||]; fragment_bindings=[||]; tile_bindings=[||]
+    ; object_bindings=[||]; mesh_bindings=[||] }
+  let library_source ?options (device:Device.t) source =
+    let op="Metal.Device_async.library_source" in on_main op(fun()->
+      Result.bind(ensure_live op device.lifetime)(fun()->
+        if source=""||contains_nul source then error op Invalid_argument "invalid shader source"
+        else match options with
+        |Some(x:library_compile_options)->Result.bind(ensure_live op x.lifetime)(fun()->Result.map(Library.make device)(native op(Metal_raw.device_async_library_source device.raw source(Some x.raw))))
+        |None->Result.map(Library.make device)(native op(Metal_raw.device_async_library_source device.raw source None))))
+  let stitched_library (device:Device.t)(descriptor:stitched_library_descriptor)=
+    let op="Metal.Device_async.stitched_library"in on_main op(fun()->
+      Result.bind(ensure_live op device.lifetime)(fun()->Result.bind(ensure_live op descriptor.lifetime)(fun()->
+        let devices=List.map(fun(x:function_handle)->x.library.device)descriptor.descriptor_functions@List.map(fun(x:binary_archive)->x.device)descriptor.descriptor_archives in
+        if not(List.for_all(same_device device)devices)then error op Device_mismatch "stitched graph belongs to another device"
+        else Result.map(Library.make device)(native op(Metal_raw.device_async_library_stitched device.raw descriptor.raw)))))
+  let compute_function ?(variant=Basic)(device:Device.t)(function_:Function.t)=
+    let op="Metal.Device_async.compute_function"in on_main op(fun()->Result.bind(ensure_live op device.lifetime)(fun()->Result.bind(ensure_live op function_.lifetime)(fun()->Result.bind(ensure_same_device op device function_.library.device)(fun()->Result.map(fun raw->Compute_pipeline.make device~reflection:false raw[||])(native op(Metal_raw.device_async_compute_function device.raw function_.raw(flag variant)0L))))))
+  let compute_descriptor(descriptor:pipeline113_compute_descriptor)=
+    let op="Metal.Device_async.compute_descriptor"in on_main op(fun()->Result.bind(ensure_live op descriptor.lifetime)(fun()->Result.map(fun raw->Compute_pipeline.make descriptor.device~reflection:false raw[||])(native op(Metal_raw.device_async_compute_descriptor descriptor.device.raw descriptor.raw 0L))))
+  let render_descriptor ?(variant=Basic)(descriptor:pipeline113_render_descriptor)=
+    let op="Metal.Device_async.render_descriptor"in on_main op(fun()->Result.bind(ensure_live op descriptor.lifetime)(fun()->Result.bind(native op(Metal_raw.pipeline_render_descriptor_sample_count descriptor.raw))(fun samples->Result.map(fun raw->Render_pipeline.make descriptor.device~kind:Render_pipeline.Render~raster_sample_count:(Int64.to_int samples)~color_formats:[]~reflection:false raw reflected)(native op(Metal_raw.device_async_render_descriptor descriptor.device.raw descriptor.raw(flag variant)0L)))))
+  let mesh(descriptor:Render_pipeline.Mesh_tile.mesh_descriptor)=let op="Metal.Device_async.mesh"in on_main op(fun()->Result.bind(ensure_live op descriptor.lifetime)(fun()->Result.map(fun raw->Render_pipeline.make descriptor.device~kind:Render_pipeline.Mesh~raster_sample_count:1~color_formats:[]~reflection:false raw reflected)(native op(Metal_raw.device_async_mesh_pipeline descriptor.device.raw descriptor.raw 0L))))
+  let tile(descriptor:Render_pipeline.Mesh_tile.tile_descriptor)=let op="Metal.Device_async.tile"in on_main op(fun()->Result.bind(ensure_live op descriptor.lifetime)(fun()->Result.map(fun raw->Render_pipeline.make descriptor.device~kind:Render_pipeline.Tile~raster_sample_count:1~color_formats:[]~reflection:false raw reflected)(native op(Metal_raw.device_async_tile_pipeline descriptor.device.raw descriptor.raw 0L))))
+end
