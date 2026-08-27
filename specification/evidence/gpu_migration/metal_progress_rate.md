@@ -129,6 +129,7 @@ can change the denominator explicitly rather than being hidden.
 | `94307e9` | 2026-08-27 10:32:44 +02:00 | 5,146 | 5,249 | 98.0377% | 4 | 0.028 | 142.6 | 2.72 |
 | `4cfee19` | 2026-08-27 10:35:01 +02:00 | 5,149 | 5,249 | 98.0949% | 3 | 0.038 | 78.8 | 1.50 |
 | `daaf52c` | 2026-08-27 10:41:25 +02:00 | 5,174 | 5,249 | 98.5712% | 25 | 0.107 | 234.4 | 4.47 |
+| `a931f53` | 2026-08-27 10:43:23 +02:00 | 5,202 | 5,249 | 99.1046% | 28 | 0.033 | 854.2 | 16.27 |
 
 ## Current measured rate
 
@@ -294,6 +295,13 @@ declarations map to the checked public argument-encoder descriptor value, and
 five MTLArchitecture/MTLDevice declarations map to a copied immutable
 architecture-name snapshot. The real owned encoder fixture and ARC/Werror SDK
 round-trip prove construction, validation, copying, and lifetime behavior.
+
+The `a931f53` interval contains four final Device constructor declarations
+promoted immediately beforehand and the attributable exact small-header24
+sweep. The latter pins owned public type/protocol metadata and already-safe
+selectors across LogState, Drawable, DepthStencil, Capture, BlitPass,
+ArgumentEncoder, function tables, pools, queues, and Metal 4 linking values;
+the family ownership/native fixtures remain the conformance authority.
 
 The `ec543d9` interval closes the final four synchronous MTLDevice constructor
 selectors from the earlier residual-six partition, moving bound coverage from
