@@ -150,6 +150,8 @@ let normalize ~protocol ~case ~sample_index raw =
       "median_frame_seconds", seconds_metric raw ["median_frame_seconds"] ["median_ms"];
       "p95_frame_seconds", seconds_metric raw ["p95_frame_seconds"] ["p95_ms"];
       "p99_frame_seconds", seconds_metric raw ["p99_frame_seconds"] ["p99_ms"]];
+    "pacing", `Assoc ["scheduling", string_or_null (first ["scheduling"] raw);
+      "scheduled_frame_rate", number_or_null (first ["scheduled_frame_rate"] raw)];
     "memory", `Assoc ["allocated_bytes", metric raw ["allocated_bytes"; "allocated"];
       "promoted_bytes", metric raw ["promoted_bytes"; "promoted"];
       "allocated_bytes_per_frame", (match first ["allocated_bytes_per_frame"] raw with
@@ -247,7 +249,8 @@ let validate_report report =
   let expected = protocol |> member "samples" |> to_int
   and profile = protocol |> member "profile" |> to_string
   and width = protocol |> member "width" |> to_int
-  and height = protocol |> member "height" |> to_int in
+  and height = protocol |> member "height" |> to_int
+  and sample_seconds = protocol |> member "sample_seconds" |> to_float in
   let samples = report |> member "samples" |> to_list in
   let count target scenario = List.filter (fun sample ->
     member "target" sample = `String target && member "scenario" sample = `String scenario) samples in
@@ -262,6 +265,20 @@ let validate_report report =
       let timing = member "timing" sample in
       List.iter (fun key -> if member key timing = `Null then fail "%s/%s missing %s" target scenario key)
         ["wall_seconds"; "median_frame_seconds"; "p95_frame_seconds"; "p99_frame_seconds"]
+      ;
+      let pacing=member "pacing" sample in
+      let scheduling,rate_value=match pacing with `Assoc _->member "scheduling"pacing,member_opt "scheduled_frame_rate"pacing|_->`Null,None in
+      if scheduling<>`String"fixed-rate"then
+        fail "%s/%s does not report fixed-rate scheduling"target scenario;
+      let rate=match numeric_float rate_value with
+        |Some value when Float.is_finite value&&value>0.->value
+        |_->fail "%s/%s lacks a positive scheduled frame rate"target scenario in
+      let expected=max 1(int_of_float(Float.round(sample_seconds*.rate)))
+      and frames=sample|>member "work"|>member "frame_count"|>to_int
+      and wall=timing|>member "wall_seconds"|>to_float in
+      if abs(frames-expected)>1 then fail "%s/%s emitted %d frames, expected %d (+/-1)"target scenario frames expected;
+      if wall<sample_seconds*.0.90||wall>sample_seconds*.1.10 then
+        fail "%s/%s wall interval %.3fs differs from requested %.3fs by more than 10%%"target scenario wall sample_seconds
     ) found
   ) required_scenarios) required_targets;
   List.iter (require_equivalent_work samples) required_scenarios;

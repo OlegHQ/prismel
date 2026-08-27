@@ -11,6 +11,8 @@ let sample ~target ~scenario =
         ; "p95_frame_seconds", `Float 0.011
         ; "p99_frame_seconds", `Float 0.012
         ]
+    ; "pacing", `Assoc ["scheduling",`String"fixed-rate";
+        "scheduled_frame_rate",`Float 100.]
     ; "memory",
       `Assoc
         [ "allocated_bytes_per_frame", `Float 12.
@@ -32,7 +34,7 @@ let report samples =
     [ "protocol",
       `Assoc
         [ "samples", `Int 1; "profile", `String "release"
-        ; "width", `Int 64; "height", `Int 64
+        ; "width", `Int 64; "height", `Int 64; "sample_seconds",`Float 1.
         ]
     ; "samples", `List samples
     ]
@@ -142,5 +144,17 @@ let () =
       write invalid (report scene3_memory);
       if run Sys.argv.(1) invalid = Unix.WEXITED 0 then
         failwith "Scene3 normalized allocation bypassed equivalence validation";
+      let bad_pacing=replace_cell~target:"runtime-next-native"~scenario:"basic"
+        (replace_field "work"(`Assoc["frame_count",`Int 129;"work_units",`Int 42]))samples in
+      write invalid(report bad_pacing);
+      if run Sys.argv.(1) invalid=Unix.WEXITED 0 then
+        failwith"mismatched fixed-rate frame collection accepted";
+      let bad_wall=replace_cell~target:"runtime-next-native"~scenario:"basic"
+        (replace_field "timing"(`Assoc["wall_seconds",`Float 0.7;
+          "median_frame_seconds",`Float 0.01;"p95_frame_seconds",`Float 0.011;
+          "p99_frame_seconds",`Float 0.012]))samples in
+      write invalid(report bad_wall);
+      if run Sys.argv.(1) invalid=Unix.WEXITED 0 then
+        failwith"render-only wall interval accepted as paced wall time";
       print_endline
         "R10 equivalence validator rejects mismatched work including Scene3")
