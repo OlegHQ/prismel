@@ -1962,6 +1962,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier Binding_tensor_safe_handoff.safe47_ids then
     Bound,
       "Implemented by the Tensor47 safe closure with owned extents/descriptor/resource graphs, checked ranges and metadata, device/buffer retention, and real M1 conformance."
+  else if List.mem identifier Binding_tensor3_safe_closure.promotable_ids then
+    Bound,
+      "Represented by the public Tensor descriptor, extents, and resource types backed by the owned Tensor47 graph, exact ABI validation, byte-slice lifetime checks, and real M1 conformance."
   else if List.mem identifier Binding_argument_encoder_handoff.callable_ids then
     Bound,
       "Implemented by the ArgumentEncoder32 safe closure with exact device/kind/range validation, atomic array rejection, nested ownership, bounded replacement retention, and real M1 conformance."

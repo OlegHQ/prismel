@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 5146,
+    "bound": 5149,
     "scope-excluded": 37,
-    "unreviewed": 102
+    "unreviewed": 99
   },
-  "classification_source_sha256": "23e161b0404c904fef7eaae6edb80a74db5f7e36f4ea4d2f9a1f36718d1432ef",
+  "classification_source_sha256": "bffa3194ea75226474e7ccac305cc4c018a0144add2dbccd5f194ce57ad140d3",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -3471,7 +3471,7 @@
           "line": 103
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTensor.h",
       "id": "class:MTLTensorDescriptor",
       "kind": "class",
@@ -3479,7 +3479,7 @@
       "macos_introduced": "26.0",
       "name": "MTLTensorDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by the public Tensor descriptor, extents, and resource types backed by the owned Tensor47 graph, exact ABI validation, byte-slice lifetime checks, and real M1 conformance.",
       "signature": ""
     },
     {
@@ -3493,7 +3493,7 @@
           "line": 41
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTensor.h",
       "id": "class:MTLTensorExtents",
       "kind": "class",
@@ -3501,7 +3501,7 @@
       "macos_introduced": "26.0",
       "name": "MTLTensorExtents",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by the public Tensor descriptor, extents, and resource types backed by the owned Tensor47 graph, exact ABI validation, byte-slice lifetime checks, and real M1 conformance.",
       "signature": ""
     },
     {
@@ -105767,7 +105767,7 @@
           "line": 155
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTensor.h",
       "id": "protocol:MTLTensor",
       "kind": "protocol",
@@ -105775,7 +105775,7 @@
       "macos_introduced": "26.0",
       "name": "MTLTensor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by the public Tensor descriptor, extents, and resource types backed by the owned Tensor47 graph, exact ABI validation, byte-slice lifetime checks, and real M1 conformance.",
       "signature": ""
     },
     {
