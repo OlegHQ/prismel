@@ -58,6 +58,8 @@ type family = Scene2 | Scene3 | Scene3_textured | Scene3_shadow |
   Scene3_stencil | Scene3_textured_stencil | Scene3_shadow_stencil
 type blend = Replace | Alpha | Add | Multiply | Screen | Subtract
 type draw
+type resource = Image of Prismel_next_resources.Image.t |
+  Text of Prismel_next_resources.Text.t | Canvas of Prismel_next_resources.Canvas.t
 
 (** Lower target-neutral geometry commands. Image and glyph commands require
     resource binding and are rejected atomically in this first staging slice. *)
@@ -74,6 +76,9 @@ type t
 val create : configuration -> (t,error) result
 val target : t -> target
 val assets : t -> Prismel_next_resources.Assets.t
+val lower_scene2 : t -> density:int -> resource:(int -> resource option) ->
+  Raster2.Render_ir.t -> (draw list,error) result
+val snapshot_cache_entries : t -> int
 val push_event : t -> event -> (unit,error) result
 val resize : t -> logical_width:int -> logical_height:int ->
   drawable_width:int -> drawable_height:int -> (unit,error) result

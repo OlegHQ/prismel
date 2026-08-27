@@ -1,5 +1,6 @@
 open Prismel_next_execution
 let get=function Ok x->x|Error e->failwith(Format.asprintf "%a"pp_error e)
+let get_resource=function Ok x->x|Error e->failwith(Format.asprintf"%a"Prismel_next_resources.pp_error e)
 let check condition message=if not condition then failwith message
 let geometry = Raster2.Render_ir.Geometry { vertices=[|2.;2.; 30.;2.; 2.;30.|]; indices=[|0;1;2|]; color=0x4080BFFFl }
 let ir=Result.get_ok(Raster2.Render_ir.create[|Raster2.Render_ir.Clear 0x000000FFl;geometry|])
@@ -58,6 +59,33 @@ let () =
   let green=ref 0 in for pixel=0 to Bytes.length shadow_pixels/4-1 do
     if Char.code(Bytes.get shadow_pixels(pixel*4+1))=128 then incr green done;
   check(!green>0)"headless shadow texture4/sampler5 pixels";
+  let image=get_resource(Prismel_next_resources.Image.create~width:2~height:2~rgba:(Bytes.init 16(fun i->match i mod 4 with 0|3->'\255'|_->'\000')))in
+  let image_ir=Result.get_ok(Raster2.Render_ir.create[|Image{resource_id=1;
+    source={x=0.;y=0.;width=2.;height=2.};destination={x=0.;y=0.;width=4.;height=4.}}|])in
+  let image_draws=get(lower_scene2 resource_runtime~density:1~resource:(function 1->Some(Image image)|_->None)image_ir)in
+  ignore(get(step resource_runtime image_draws));let image_pixels=get(capture resource_runtime)in
+  check(Char.code(Bytes.get image_pixels 0)=255)"image snapshot pixel";
+  check(Result.is_error(Prismel_next_resources.Image.replace image~width:0~height:2~rgba:Bytes.empty))"malformed replacement accepted";
+  ignore(get(step resource_runtime(get(lower_scene2 resource_runtime~density:1~resource:(function 1->Some(Image image)|_->None)image_ir))));
+  check(Char.code(Bytes.get(get(capture resource_runtime))0)=255)"failed reload retention";
+  let canvas=get_resource(Prismel_next_resources.Canvas.create~width:2~height:2)in
+  ignore(Prismel_next_resources.Canvas.clear canvas 0x00ff00ffl);
+  let canvas_draws=get(lower_scene2 resource_runtime~density:2~resource:(function 1->Some(Canvas canvas)|_->None)image_ir)in
+  ignore(get(step resource_runtime canvas_draws));let canvas_pixels=get(capture resource_runtime)in
+  check(Char.code(Bytes.get canvas_pixels 1)=255)"canvas dependency pixel";
+  let empty=Result.get_ok(Raster2.Render_ir.create[|Glyphs{resource_id=999;color=Int32.minus_one;glyphs=[||]}|])in
+  check(get(lower_scene2 resource_runtime~density:1~resource:(fun _->None)empty)=[])"empty glyph no-op";
+  let font=get_resource(Prismel_next_resources.Font.open_system~size:12.)in
+  let text=match get_resource(Prismel_next_resources.Font.render font~density:1~color:(255,255,255,255)"A")with Some value->value|None->failwith"non-empty text returned no snapshot"in
+  let glyph_ir=Result.get_ok(Raster2.Render_ir.create[|Glyphs{resource_id=2;color=Int32.minus_one;glyphs=[|{glyph_id=65;x=0.;y=0.}|]}|])in
+  let glyph_draws=get(lower_scene2 resource_runtime~density:1~resource:(function 2->Some(Text text)|_->None)glyph_ir)in
+  ignore(get(step resource_runtime glyph_draws));
+  check(Bytes.exists((<>)'\000')(get(capture resource_runtime)))"text snapshot pixels";
+  ignore(Prismel_next_resources.Text.destroy text);ignore(Prismel_next_resources.Font.destroy font);
+  for index=1 to 300 do let temporary=Result.get_ok(Prismel_next_resources.Image.create~width:1~height:1~rgba:(Bytes.make 4(Char.chr(index land 255))))in
+    ignore(get(lower_scene2 resource_runtime~density:1~resource:(fun _->Some(Image temporary))image_ir));ignore(Prismel_next_resources.Image.destroy temporary)done;
+  check(snapshot_cache_entries resource_runtime<=256)"snapshot LRU bound";
+  ignore(Prismel_next_resources.Image.destroy image);ignore(Prismel_next_resources.Canvas.destroy canvas);
   get(destroy resource_runtime);
   let bounded=get(create{configuration with max_events=64})in
   for index=1 to 100_000 do get(push_event bounded(Pointer_moved(float index,0.)))done;

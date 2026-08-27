@@ -37,6 +37,8 @@ type family = Scene2 | Scene3 | Scene3_textured | Scene3_shadow |
 type blend = Replace | Alpha | Add | Multiply | Screen | Subtract
 type draw = { family:family; blend:blend; texture:Scene_execution.sampled_texture option;
   auxiliary:Scene_execution.auxiliary_resource option;samples:int;value:Scene_execution.draw }
+type resource=Image of Prismel_next_resources.Image.t|Text of Prismel_next_resources.Text.t
+  |Canvas of Prismel_next_resources.Canvas.t
 let prepared_draw ~family ?(blend=Replace) ?texture ?auxiliary ?(samples=1) value =
   {family;blend;texture;auxiliary;samples;value}
 
@@ -88,7 +90,8 @@ let scene2_ir ir =
 
 type t = { runtime:Runtime_next_orchestrator.t; input:Runtime_next_input.t;
   assets:Prismel_next_resources.Assets.t; timing:timing; mutable frame:int64;
-  mutable elapsed:float; mutable last_clock:float; mutable dead:bool }
+  mutable elapsed:float; mutable last_clock:float; mutable dead:bool;
+  mutable snapshots:(string*int*int*Scene_execution.sampled_texture)list }
 let runtime_target=function Native->Runtime_next_orchestrator.Native
   |Headless->Headless|Web->Web
 let create (configuration:configuration) =
@@ -109,10 +112,79 @@ let create (configuration:configuration) =
         ~logical_height:configuration.logical_height with
       |Error message->ignore(Runtime_next_orchestrator.destroy runtime);fail operation Backend message
       |Ok input->Ok{runtime;input;assets=Prismel_next_resources.Assets.create();timing=configuration.timing;
-          frame=0L;elapsed=0.;last_clock=Unix.gettimeofday();dead=false})
+          frame=0L;elapsed=0.;last_clock=Unix.gettimeofday();dead=false;snapshots=[]})
 let target value=match Runtime_next_orchestrator.target value.runtime with Native->Native|Headless->Headless|Web->Web
 let assets value=value.assets
+let snapshot_cache_entries value=List.length value.snapshots
 let ensure operation value=if value.dead then fail operation Destroyed"coordinator is destroyed"else Ok()
+let snapshot value ~density source =
+  let operation="Prismel_next_execution.lower_scene2"in
+  if density<=0 then fail operation Invalid_argument"density must be positive"else
+  let finish key generation width height pixels =
+    match List.find_opt(fun(k,g,d,_)->k=key&&g=generation&&d=density)value.snapshots with
+    |Some(_,_,_,texture)->Ok(width,height,texture)
+    |None->
+        let sampler:Ogpu.Types.sampler_descriptor={label=Some key;min_filter=Linear;mag_filter=Linear;
+          mip_filter=No_mip;address_u=Clamp_to_edge;address_v=Clamp_to_edge;lod_min=0.;lod_max=0.;max_anisotropy=1}in
+        let texture:Scene_execution.sampled_texture={key=key^":"^string_of_int density;
+          levels=[|{width;height;bytes=Bytes.copy pixels}|];sampler}in
+        let others=List.filter(fun(k,_,d,_)->k<>key||d<>density)value.snapshots in
+        value.snapshots<-(key,generation,density,texture)::others;
+        if List.length value.snapshots>256 then value.snapshots<-List.rev(List.tl(List.rev value.snapshots));
+        Ok(width,height,texture)in
+  match source with
+  |Image image->(match Prismel_next_resources.Image.size image,Prismel_next_resources.Image.pixels image with
+      |Ok(width,height),Ok pixels->finish("image:"^string_of_int(Prismel_next_resources.Image.identity image))(Prismel_next_resources.Image.generation image)width height pixels
+      |Error e,_|_,Error e->resource operation e)
+  |Text text->(match Prismel_next_resources.Text.size text,Prismel_next_resources.Text.pixels text with
+      |Ok(width,height),Ok pixels->finish("text:"^Digest.to_hex(Digest.bytes pixels))(Prismel_next_resources.Text.generation text)width height pixels
+      |Error e,_|_,Error e->resource operation e)
+  |Canvas canvas->(match Prismel_next_resources.Canvas.capture canvas with Error e->resource operation e|Ok image->
+      let result=match Prismel_next_resources.Image.size image,Prismel_next_resources.Image.pixels image with
+        |Ok(width,height),Ok pixels->finish("canvas:"^Digest.to_hex(Digest.bytes pixels))(Prismel_next_resources.Canvas.generation canvas)width height pixels
+        |Error e,_|_,Error e->resource operation e in ignore(Prismel_next_resources.Image.destroy image);result)
+let lower_scene2 value ~density ~resource:resolve ir =
+  match ensure"Prismel_next_execution.lower_scene2"value with Error _ as e->e|Ok()->
+  let identity={Raster2.Render_ir.xx=1.;xy=0.;yx=0.;yy=1.;tx=0.;ty=0.}in
+  let transforms=ref[identity]and clips=ref[(0,0,-1,-1)]and draws=ref[]and number=ref 0 and failure=ref None in
+  let point transform x y=transform.Raster2.Render_ir.xx*.x+.transform.yx*.y+.transform.tx,
+    transform.xy*.x+.transform.yy*.y+.transform.ty in
+  let quad texture (destination:Raster2.Render_ir.rect) =
+    let transform=List.hd!transforms in
+    let x0,y0=point transform destination.Raster2.Render_ir.x destination.y
+    and x1,y0'=point transform(destination.x+.destination.width)destination.y
+    and x1',y1=point transform(destination.x+.destination.width)(destination.y+.destination.height)
+    and x0',y1'=point transform destination.x(destination.y+.destination.height)in
+    let vertices=Bytes.make(68*4)'\000'in
+    let source=match texture with _->destination in ignore source;
+    let put index x y u v=let offset=index*68 in put_float vertices offset x;put_float vertices(offset+8)y;
+      put_float vertices(offset+40)1.;Bytes.set_int32_le vertices(offset+48)0xffffffffl;put_float vertices(offset+52)u;put_float vertices(offset+60)v in
+    put 0 x0 y0 0. 0.;put 1 x1 y0' 1. 0.;put 2 x1' y1 1. 1.;put 3 x0' y1' 0. 1.;
+    let indices=Bytes.create 24 in List.iteri(fun i n->Bytes.set_int32_le indices(i*4)(Int32.of_int n))[0;1;2;0;2;3];
+    let x,y,w,h=List.hd!clips in
+    {family=Scene3_textured;blend=Alpha;texture=Some texture;auxiliary=None;samples=1;
+      value={Scene_execution.mesh={key=Printf.sprintf"snapshot-%d"!number;vertices;vertex_count=4;indices;index_count=6};state=default_state(x,y,w,h)(x,y,w,h)}}in
+  let image (command:Raster2.Render_ir.image) = match resolve command.Raster2.Render_ir.resource_id with None->failure:=Some"resource id is unbound"|Some source->
+    match snapshot value~density source with Error e->failure:=Some(Format.asprintf"%a"pp_error e)|Ok(width,height,texture)->
+      let s=command.source in if width<=0||height<=0 then failure:=Some"resource extent is invalid"else
+      let draw=quad texture command.destination in
+      let vertices=Bytes.copy draw.value.mesh.vertices in
+      let u0=s.x/.float width and v0=s.y/.float height and u1=(s.x+.s.width)/.float width and v1=(s.y+.s.height)/.float height in
+      List.iteri(fun index(u,v)->put_float vertices(index*68+52)u;put_float vertices(index*68+60)v)[u0,v0;u1,v0;u1,v1;u0,v1];
+      draws:={draw with value={draw.value with mesh={draw.value.mesh with vertices}}}::!draws;incr number in
+  Array.iter(fun command->if!failure=None then match command with
+    |Raster2.Render_ir.Clear _|Set_blend _->()
+    |Push_transform transform->transforms:=compose(List.hd!transforms)transform::!transforms
+    |Pop_transform->(match!transforms with _::(_::_ as rest)->transforms:=rest|_->())
+    |Push_clip rect->clips:=(int_of_float(floor rect.x),int_of_float(floor rect.y),max 0(int_of_float(ceil rect.width)),max 0(int_of_float(ceil rect.height)))::!clips
+    |Pop_clip->(match!clips with _::(_::_ as rest)->clips:=rest|_->())
+    |Geometry geometry->draws:=mesh_of_geometry!number(List.hd!transforms)(List.hd!clips)geometry::!draws;incr number
+    |Image command->image command
+    |Glyphs glyphs->if Array.length glyphs.glyphs>0 then match resolve glyphs.resource_id with None->failure:=Some"glyph resource id is unbound"|Some source->
+        match snapshot value~density source with Error e->failure:=Some(Format.asprintf"%a"pp_error e)|Ok(width,height,texture)->
+          Array.iter(fun(glyph:Raster2.Render_ir.glyph)->let destination={Raster2.Render_ir.x=glyph.x;y=glyph.y;width=float width;height=float height}in draws:=quad texture destination::!draws;incr number)glyphs.glyphs)
+    (Raster2.Render_ir.commands ir);
+  match!failure with Some message->fail"Prismel_next_execution.lower_scene2"Resource message|None->Ok(List.rev!draws)
 let mb_to_input=function Left->Runtime_next_input.Left|Middle->Middle|Right->Right|X1->X1|X2->X2
 let mb_of_web=function Runtime_next_orchestrator.Left->Left|Middle->Middle|Right->Right|X1->X1|X2->X2
 let mod_to_input=function Shift->Runtime_next_input.Shift|Control->Control|Alt->Alt|Meta->Meta|Num_lock->Num_lock|Caps_lock->Caps_lock|Scroll_lock->Scroll_lock
