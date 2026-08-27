@@ -49,6 +49,14 @@ let () =
   expect Invalid_argument(Metal_layer.set_edr_metadata layer
     (Metal_layer.Hdr10{minimum_luminance=1.;maximum_luminance=0.;optical_output_scale=1.}));
   if Metal_layer.size layer <> (16, 8) then fail "layer resize snapshot drift";
+  (match get (Metal_layer.preferred_device layer) with
+   | Some preferred when preferred == device -> ()
+   | Some _ -> fail "preferred device identity drift"
+   | None -> ());
+  get (Metal_layer.set_developer_hud_properties layer []);
+  if get (Metal_layer.developer_hud_properties layer) <> [] then
+    fail "developer HUD default/reset drift";
+  ignore (get (Metal_layer.has_residency_set layer));
   let drawable =
     match get (Drawable.acquire layer) with
     | Ok drawable -> drawable
