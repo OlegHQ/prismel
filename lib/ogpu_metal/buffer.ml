@@ -40,7 +40,7 @@ let create device ~memory descriptor =
             | Ok metal ->
                 let value = { metal; handle = Ogpu.Handle.create ~device:(Device.Private.handle device);
                   device; descriptor; memory } in
-                Device.Private.attach_buffer device;
+                Device.Private.attach_resource device;
                 Ok value
 
 let id value = Ogpu.Handle.id value.handle
@@ -67,5 +67,5 @@ let destroy value =
     | Error metal -> Error (Adapter.error ~operation metal)
     | Ok () ->
         Ogpu.Handle.destroy value.handle;
-        Device.Private.detach_buffer value.device;
+        Device.Private.detach_resource value.device;
         Ok ()

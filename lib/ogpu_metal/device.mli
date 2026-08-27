@@ -10,6 +10,6 @@ val destroy : t -> (unit, Ogpu.Error.t) result
 module Private : sig
   val metal : t -> Metal.Device.t
   val handle : t -> Ogpu.Handle.device
-  val attach_buffer : t -> unit
-  val detach_buffer : t -> unit
+  val attach_resource : t -> unit
+  val detach_resource : t -> unit
 end

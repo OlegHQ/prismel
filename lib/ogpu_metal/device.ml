@@ -3,7 +3,7 @@ type t =
   ; handle : Ogpu.Handle.device
   ; capabilities : Ogpu.Capabilities.t
   ; mutable generation : int64
-  ; mutable live_buffers : int
+  ; mutable live_resources : int
   }
 
 let error operation kind message = Error (Ogpu.Error.make operation kind message)
@@ -28,7 +28,7 @@ let system_default () =
            | Error _ as failure -> ignore (Metal.Device.destroy metal); failure
            | Ok capabilities ->
                Ok { metal; handle = Ogpu.Handle.create_device (); capabilities;
-                    generation = 1L; live_buffers = 0 })
+                    generation = 1L; live_resources = 0 })
 
 let id value = Ogpu.Handle.device_id value.handle
 let generation value = value.generation
@@ -38,8 +38,8 @@ let destroyed value = Ogpu.Handle.device_destroyed value.handle
 let destroy value =
   let operation = "Ogpu_metal.Device.destroy" in
   if destroyed value then Ok ()
-  else if value.live_buffers <> 0 then
-    error operation Ogpu.Error.Invalid_state "device still owns live buffers"
+  else if value.live_resources <> 0 then
+    error operation Ogpu.Error.Invalid_state "device still owns live resources"
   else
     match Metal.Device.destroy value.metal with
     | Error metal -> Error (Adapter.error ~operation metal)
@@ -51,6 +51,6 @@ let destroy value =
 module Private = struct
   let metal value = value.metal
   let handle value = value.handle
-  let attach_buffer value = value.live_buffers <- value.live_buffers + 1
-  let detach_buffer value = value.live_buffers <- value.live_buffers - 1
+  let attach_resource value = value.live_resources <- value.live_resources + 1
+  let detach_resource value = value.live_resources <- value.live_resources - 1
 end
