@@ -40,7 +40,7 @@ let metadata_ids =
   ; "typedef:MTLDeviceNotificationHandler"
   ; "typedef:MTLDeviceNotificationName" ]
 
-let async10 =
+let async9 =
   List.filter (fun id ->
     String.ends_with ~suffix:"completionHandler:]" id)
     owner_ids
@@ -51,4 +51,4 @@ let validate () =
      || List.length all <> 38
      || List.length (List.sort_uniq String.compare all) <> 38
   then invalid_arg "Device MTLDevice.h tail38 drift";
-  if List.length async10 <> 10 then invalid_arg "Device async10 drift"
+  if List.length async9 <> 9 then invalid_arg "Device async9 drift"
