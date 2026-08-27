@@ -1,9 +1,14 @@
 (library
  (name prismel_next_api)
  (public_name prismel.prismel_next_api)
- (modules vec2 vec3))
+ (modules vec2 vec3 color math mat3 mat4 quat rand noise))
 
 (test
  (name test_prismel_next_api)
  (modules test_prismel_next_api)
+ (libraries prismel_next_api))
+
+(test
+ (name test_prismel_next_api_batch_a)
+ (modules test_prismel_next_api_batch_a)
  (libraries prismel_next_api))
