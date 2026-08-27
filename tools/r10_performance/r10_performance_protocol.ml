@@ -261,7 +261,7 @@ let validate_report report =
         ["wall_seconds"; "median_frame_seconds"; "p95_frame_seconds"; "p99_frame_seconds"]
     ) found
   ) required_scenarios) required_targets;
-  List.iter (require_equivalent_work samples) ["basic"; "pxui"; "canvas"];
+  List.iter (require_equivalent_work samples) required_scenarios;
   print_endline "R10 validation passed"
 
 let () =

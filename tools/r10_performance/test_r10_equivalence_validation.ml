@@ -47,6 +47,22 @@ let run executable path =
       Unix.stdin Unix.stdout Unix.stderr in
   snd (Unix.waitpid [] pid)
 
+let replace_cell ~target ~scenario replace samples =
+  let changed = ref false in
+  let result = List.map (function
+    | `Assoc fields
+      when List.assoc_opt "target" fields = Some (`String target)
+           && List.assoc_opt "scenario" fields = Some (`String scenario) ->
+        changed := true;
+        replace fields
+    | value -> value) samples in
+  if not !changed then failwith "test did not select mismatched cell";
+  result
+
+let replace_field name replacement fields =
+  `Assoc (List.map (fun (field, value) ->
+    if field = name then field, replacement else field, value) fields)
+
 let () =
   if Array.length Sys.argv <> 2 then invalid_arg "protocol executable";
   let targets = [ "runtime-next-native"; "headless"; "web"; "legacy" ]
@@ -97,4 +113,34 @@ let () =
       write invalid(report unsupported);
       if run Sys.argv.(1) invalid=Unix.WEXITED 0 then
         failwith "unsupported descriptor interpreter accepted";
-      print_endline "R10 equivalence validator rejects mismatched work")
+      let scene3_signature = replace_cell ~target:"web" ~scenario:"scene3"
+        (replace_field "equivalence"
+           (`Assoc [ "workload_signature", `String "different-scene3-work";
+             "semantics_supported", `Bool true;
+             "pixel_hash", `String "web-scene3-pixels";
+             "pixel_authority", `String "phase0/web/scene3";
+             "pixel_tolerance", `Int 3 ])) samples in
+      write invalid (report scene3_signature);
+      if run Sys.argv.(1) invalid = Unix.WEXITED 0 then
+        failwith "Scene3 workload mismatch bypassed equivalence validation";
+      let scene3_authority = replace_cell ~target:"legacy" ~scenario:"scene3"
+        (fun fields ->
+          let equivalence = match List.assoc "equivalence" fields with
+            | `Assoc values -> `Assoc (List.map (fun (name, value) ->
+                if name = "pixel_authority" then
+                  name, `String "phase0/headless/scene3"
+                else name, value) values)
+            | _ -> assert false in
+          replace_field "equivalence" equivalence fields) samples in
+      write invalid (report scene3_authority);
+      if run Sys.argv.(1) invalid = Unix.WEXITED 0 then
+        failwith "Scene3 pixel provenance bypassed equivalence validation";
+      let scene3_memory = replace_cell ~target:"headless" ~scenario:"scene3"
+        (replace_field "memory"
+           (`Assoc [ "allocated_bytes_per_frame", `Null;
+             "promoted_bytes_per_frame", `Float 0. ])) samples in
+      write invalid (report scene3_memory);
+      if run Sys.argv.(1) invalid = Unix.WEXITED 0 then
+        failwith "Scene3 normalized allocation bypassed equivalence validation";
+      print_endline
+        "R10 equivalence validator rejects mismatched work including Scene3")
