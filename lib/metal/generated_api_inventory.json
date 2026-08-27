@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 5120,
+    "bound": 5122,
     "scope-excluded": 37,
-    "unreviewed": 128
+    "unreviewed": 126
   },
-  "classification_source_sha256": "a189f5b66c4f85deab1d906c75aa03ed34b0b72cd74a2e8cfc18c3be8d9fdefe",
+  "classification_source_sha256": "c02a3585a7602fb6d32efd94014fa0c65cce49033969329a4aa447c108a35dd2",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -56589,7 +56589,7 @@
           "line": 1070
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newIOHandleWithURL:compressionMethod:error:]",
       "kind": "method",
@@ -56597,7 +56597,7 @@
       "macos_introduced": "13.0",
       "name": "newIOHandleWithURL:compressionMethod:error:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by explicitly named legacy Device IO constructors with copied paths, exact compression mapping, owned device identity, deprecation-scoped native calls, and execute-or-error conformance.",
       "signature": "instance (NSURL * _Nonnull __strong, MTLIOCompressionMethod, NSError *__autoreleasing  _Nullable * _Nullable) -> id<MTLIOFileHandle> _Nullable"
     },
     {
@@ -56615,7 +56615,7 @@
           "line": 1047
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newIOHandleWithURL:error:]",
       "kind": "method",
@@ -56623,7 +56623,7 @@
       "macos_introduced": "13.0",
       "name": "newIOHandleWithURL:error:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by explicitly named legacy Device IO constructors with copied paths, exact compression mapping, owned device identity, deprecation-scoped native calls, and execute-or-error conformance.",
       "signature": "instance (NSURL * _Nonnull __strong, NSError *__autoreleasing  _Nullable * _Nullable) -> id<MTLIOFileHandle> _Nullable"
     },
     {

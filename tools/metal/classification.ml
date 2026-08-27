@@ -1888,6 +1888,7 @@ let metal4_command_encoder_wait_safe1 =
 let device_residual_safe11 = Binding_device_residual_safe_package.already_safe_ids
 let device_library_safe5 = Binding_device_library5_safe_package.ids
 let device_queues_safe3 = Binding_device_queues3_safe_package.ids
+let device_legacy_io_safe2 = Binding_device_remaining6_safe_package.io_alias_ids
 
 let classify ~unavailable ~identifier ~header ~kind ~signature =
   if unavailable then
@@ -1920,6 +1921,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier device_queues_safe3 then
     Bound,
       "Implemented by exact Device queue constructors with positive limits, checked descriptor/log-state device identity, owned queue/device lifetimes, and Metal 4 capability conformance."
+  else if List.mem identifier device_legacy_io_safe2 then
+    Bound,
+      "Implemented by explicitly named legacy Device IO constructors with copied paths, exact compression mapping, owned device identity, deprecation-scoped native calls, and execute-or-error conformance."
   else if acceleration_scalar_identifier ~header ~kind ~signature identifier then
     Bound,
       "Implemented by generated immutable acceleration-structure descriptor values with native execute-or-capability-reject conformance."
