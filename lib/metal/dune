@@ -361,6 +361,11 @@
  (libraries metal unix))
 
 (test
+ (name test_metal_presentation_10k)
+ (modules test_metal_presentation_10k)
+ (libraries metal unix))
+
+(test
  (name test_metal_resource100_safe)
  (modules test_metal_resource100_safe)
  (libraries metal))
