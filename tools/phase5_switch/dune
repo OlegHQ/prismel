@@ -9,3 +9,14 @@
  (libraries yojson)
  (deps ../../specification/evidence/gpu_migration/phase5_atomic_switch_manifest.json)
  (action (run %{test} %{dep:../../specification/evidence/gpu_migration/phase5_atomic_switch_manifest.json})))
+
+(test
+ (name test_prismel_owner_candidate)
+ (modules test_prismel_owner_candidate)
+ (libraries unix yojson)
+ (deps
+  prismel_owner_candidate.dune
+  ../../specification/evidence/gpu_migration/phase5_prismel_api_map.json)
+ (action
+  (run %{test} --root ../.. --candidate prismel_owner_candidate.dune
+   --map ../../specification/evidence/gpu_migration/phase5_prismel_api_map.json)))
