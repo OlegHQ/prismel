@@ -59,10 +59,16 @@ module Canvas=struct
   let surface operation width height=match Raster2.Surface.create~width~height()with Ok x->Ok x|Error _->error operation Invalid_argument"invalid canvas extent"
   let create ~width ~height=main"Canvas.create"(fun()->Result.map(fun surface->{generation=1;surface;dead=false})(surface"Canvas.create"width height))
   let size x=live"Canvas.size"x(fun()->Ok(Raster2.Surface.width x.surface,Raster2.Surface.height x.surface))
-  let clear x color=live"Canvas.clear"x(fun()->Raster2.Surface.clear x.surface color;Ok())
-  let set_pixel x ~x:px ~y color=live"Canvas.set_pixel"x(fun()->match Raster2.Surface.set_rgba x.surface~x:px~y color with Ok()->Ok()|Error _->error"Canvas.set_pixel"Invalid_argument"pixel is out of bounds")
+  let clear x color=live"Canvas.clear"x(fun()->Raster2.Surface.clear x.surface color;x.generation<-x.generation+1;Ok())
+  let set_pixel x ~x:px ~y color=live"Canvas.set_pixel"x(fun()->match Raster2.Surface.set_rgba x.surface~x:px~y color with
+    |Ok()->x.generation<-x.generation+1;Ok()
+    |Error _->error"Canvas.set_pixel"Invalid_argument"pixel is out of bounds")
+  let replace_pixels x pixels=live"Canvas.replace_pixels"x(fun()->
+    let expected=Raster2.Surface.height x.surface*Raster2.Surface.pitch x.surface in
+    if Bytes.length pixels<>expected then error"Canvas.replace_pixels"Invalid_argument"pixel storage length does not match canvas"
+    else(Bytes.blit pixels 0(Raster2.Surface.bytes x.surface)0 expected;x.generation<-x.generation+1;Ok()))
   let draw_image x image ~x:px ~y=live"Canvas.draw_image"x(fun()->match Image.size image,Image.pixels image with
-    |Ok(w,h),Ok bytes->let src=Result.get_ok(Raster2.Surface.of_bytes~width:w~height:h~pitch:(w*4) bytes)in(match Raster2.Composite.blit~src~src_rect:{x=0;y=0;width=w;height=h}~dst:x.surface~dst_x:px~dst_y:y~blend:Raster2.Composite.Copy with Ok()->Ok()|Error _->error"Canvas.draw_image"Invalid_argument"invalid blit")
+    |Ok(w,h),Ok bytes->let src=Result.get_ok(Raster2.Surface.of_bytes~width:w~height:h~pitch:(w*4) bytes)in(match Raster2.Composite.blit~src~src_rect:{x=0;y=0;width=w;height=h}~dst:x.surface~dst_x:px~dst_y:y~blend:Raster2.Composite.Copy with Ok()->x.generation<-x.generation+1;Ok()|Error _->error"Canvas.draw_image"Invalid_argument"invalid blit")
     |Error e,_|_,Error e->Error e)
   let resize x ~width ~height=live"Canvas.resize"x(fun()->match surface"Canvas.resize"width height with Error _ as e->e|Ok s->x.surface<-s;x.generation<-x.generation+1;Ok())
   let capture x=live"Canvas.capture"x(fun()->Image.create~width:(Raster2.Surface.width x.surface)~height:(Raster2.Surface.height x.surface)~rgba:(Raster2.Surface.bytes x.surface))

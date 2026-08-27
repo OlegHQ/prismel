@@ -13,7 +13,7 @@ let create ~target:target_kind ~width ~height scenario =
   let descriptor=R10_scene2_legacy_equivalent.describe scenario~width~height in
   let configuration={Prismel_next_execution.default_configuration with target=target target_kind;
     logical_width=width;logical_height=height;drawable_width=width;drawable_height=height;
-    timing=Fixed(1./.120.);title="R10 candidate"}in
+    timing=Fixed(1./.60.);title="R10 candidate"}in
   let execution=Prismel_next_execution.create configuration|>Result.get_ok in
   match scenario with
   |Basic->Ok{execution;scenario;descriptor;frame=0;image=Some(generated_image());canvas=None;ui=None;last_scene=None}
@@ -31,7 +31,9 @@ let create ~target:target_kind ~width ~height scenario =
 let basic_scene value width height=Scene.[clear(Color.hex_exn"#07111f");rounded_rect~at:(18,18)~w:(width-36)~h:(height-36)~radius:18~fill:(Color.hex_exn"#111827")~stroke:(Color.hex_exn"#475569")();circle~at:(120,150)~radius:72~fill:(Color.hex_exn"#0891b2")();rect~at:(220,74)~w:180~h:120~fill:(Color.rgba 244 63 94 190)();translate 338 292[rotate(float value.frame*.0.01)[polygon[-80,-42;76,-54;98,36;0,74;-88,34]~fill:(Color.hex_exn"#a78bfa")~stroke:Color.white()]];image(Option.get value.image)~at:(470,92)~scale:1.15~angle:(-0.18)~center:(48,48)();bezier[34,404;176,320;282,474;430,382]~steps:48~color:(Color.hex_exn"#fbbf24")();text~at:(32,38)~size:18"Prismel renderer baseline";debug_text~at:(472,430)"FIXED 8x8"]
 let canvas_scene value width height=let canvas=Option.get value.canvas and phase=R10_scene2_legacy_equivalent.phase~frame:value.frame in
   Canvas.render canvas Scene.[clear(Color.hex_exn"#07111f");rect~at:(0,0)~w:width~h:height~fill:(Color.hex_exn"#0f172a")();circle~at:(40+((phase*3)mod max 1(width-80)),height/2)~radius:34~fill:(Color.hex_exn"#22d3ee")();translate(width/2)(height/2)[rotate(float phase*.0.02)[rounded_rect~at:(-90,-28)~w:180~h:56~radius:14~fill:(Color.rgba 244 63 94 210)~stroke:Color.white()]];debug_text~at:(16,16)"CANVAS BASELINE"];
-  Option.iter Image.destroy value.image;value.image<-Some(Result.get_ok(Canvas.to_image canvas));Scene.[clear Color.black;image(Option.get value.image)~at:(0,0)()]
+  let snapshot=Result.get_ok(Canvas.to_image canvas)in
+  (match value.image with None->value.image<-Some snapshot|Some image->Image.Private.replace image snapshot);
+  Scene.[clear Color.black;image(Option.get value.image)~at:(0,0)()]
 let pxui_scene value=Scene.[clear(Color.hex_exn"#07111f");text~at:(24,24)~size:20"PXUI render baseline";rounded_rect~at:(18,62)~w:306~h:382~radius:12~fill:(Color.hex_exn"#111827")~stroke:(Color.hex_exn"#334155")();circle~at:(168,236)~radius:94~fill:(Color.hex_exn"#155e75")();debug_text~at:(88,420)"GRAPH / INSPECTOR"]@Pxui_next.scene(Option.get value.ui)
 let render value ~width ~height =value.frame<-value.frame+1;
   let scene=match value.scenario with Basic->basic_scene value width height|Canvas->canvas_scene value width height|Pxui->pxui_scene value|Scene3->assert false in

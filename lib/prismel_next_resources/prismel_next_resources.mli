@@ -29,6 +29,7 @@ module Canvas : sig
   val size : t -> ((int*int),error) result
   val clear : t -> int32 -> (unit,error) result
   val set_pixel : t -> x:int -> y:int -> int32 -> (unit,error) result
+  val replace_pixels : t -> bytes -> (unit,error) result
   val draw_image : t -> Image.t -> x:int -> y:int -> (unit,error) result
   val resize : t -> width:int -> height:int -> (unit,error) result
   val capture : t -> (Image.t,error) result

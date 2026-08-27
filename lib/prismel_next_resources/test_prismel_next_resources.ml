@@ -8,7 +8,14 @@ let ()=
   if Image.identity image<>identity||Image.generation image<>generation||Bytes.get(get(Image.pixels image))0<>'\x11'then failwith"stable watched image retention";
   get(Image.replace image~width:1~height:1~rgba:(Bytes.of_string"\xff\x00\x00\xff"));
   if Image.identity image<>identity||Image.generation image<>generation+1 then failwith"image identity/generation";
-  let canvas=get(Canvas.create~width:4~height:4)in get(Canvas.clear canvas 0x010203ffl);get(Canvas.draw_image canvas image~x:1~y:1);
+  let canvas=get(Canvas.create~width:4~height:4)in
+  let canvas_generation=Canvas.generation canvas in
+  get(Canvas.clear canvas 0x010203ffl);get(Canvas.draw_image canvas image~x:1~y:1);
+  if Canvas.generation canvas<>canvas_generation+2 then failwith"canvas mutation generation";
+  let replacement=Bytes.make(4*4*4)'\x7f' in
+  get(Canvas.replace_pixels canvas replacement);
+  if Canvas.generation canvas<>canvas_generation+3 then failwith"canvas bulk generation";
+  (match Canvas.replace_pixels canvas Bytes.empty with Error{kind=Invalid_argument;_}->()|_->failwith"canvas accepted malformed bulk pixels");
   List.iter(fun frame->if List.mem frame[1;2;60;600]then let capture=get(Canvas.capture canvas)in if get(Image.size capture)<>(4,4)then failwith"capture";get(Image.destroy capture)) [1;2;60;600];
   get(Canvas.resize canvas~width:8~height:8);if get(Canvas.size canvas)<>(8,8)then failwith"resize";
   let png=Filename.temp_file"prismel-next-"".png"in get(Canvas.save_png canvas png);let input=open_in_bin png in let signature=really_input_string input 8 in close_in input;Sys.remove png;if signature<>"\x89PNG\r\n\x1a\n"then failwith"PNG";
