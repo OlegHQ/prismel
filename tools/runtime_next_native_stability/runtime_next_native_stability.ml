@@ -28,11 +28,11 @@ let () =
       if now-. !last_sample>=1. then begin last_sample:=now;let stats=Runtime_next.stats runtime in samples.(!observations mod 256)<-Some(`Assoc["elapsed",`Float(now-.started);"frame",`Int !frame;"rss_kib",`Int(rss_kib());"mesh_cache",`Int stats.mesh_cache_entries;"pipeline_cache",`Int stats.pipeline_cache_entries]);incr observations end
     end
   done;
-  let live=Runtime_next.stats runtime in if live.mesh_cache_entries>64||live.pipeline_cache_entries<>1 then failwith"native cache bound";
+  let live=Runtime_next.stats runtime in if live.mesh_cache_entries>64||live.pipeline_cache_entries<>6 then failwith"native cache bound";
   get(Runtime_next.destroy runtime);ignore(metal(Metal.Release_queue.drain()));
   let dead=Runtime_next.stats runtime and after=metal(Metal.Release_queue.stats())in
   if dead.mesh_cache_entries<>0||dead.pipeline_cache_entries<>0||after.live_handles<>before.live_handles then failwith(Printf.sprintf"native teardown delta mesh=%d pipeline=%d handles=%d->%d"dead.mesh_cache_entries dead.pipeline_cache_entries before.live_handles after.live_handles);
   let length=min !observations 256 and start=if !observations<=256 then 0 else !observations mod 256 in
   let retained=List.init length(fun offset->match samples.((start+offset)mod 256)with Some value->value|None->assert false)in
-  let json=`Assoc["schema",`Int 1;"minutes",`Float !minutes;"frames",`Int !frame;"hash",`String(Printf.sprintf"%016Lx" !rolling);"observations",`Int !observations;"retained",`Int length;"samples",`List retained;"live_mesh_cache_peak_bound",`Int 64;"live_mesh_cache_final",`Int dead.mesh_cache_entries;"pipeline_cache_final",`Int dead.pipeline_cache_entries;"metal_live_before",`Int before.live_handles;"metal_live_after",`Int after.live_handles]in
+  let json=`Assoc["schema",`Int 1;"minutes",`Float !minutes;"frames",`Int !frame;"hash",`String(Printf.sprintf"%016Lx" !rolling);"observations",`Int !observations;"retained",`Int length;"samples",`List retained;"live_mesh_cache_peak_bound",`Int 64;"pipeline_cache_live_expected",`Int 6;"live_mesh_cache_final",`Int dead.mesh_cache_entries;"pipeline_cache_final",`Int dead.pipeline_cache_entries;"metal_live_before",`Int before.live_handles;"metal_live_after",`Int after.live_handles]in
   let text=Yojson.Safe.pretty_to_string json^"\n"in match !report with None->print_string text|Some path->let channel=open_out_bin path in output_string channel text;close_out channel
