@@ -14,7 +14,7 @@ let load_dpi path size hdpi vdpi=if hdpi<>vdpi then Error(`Msg"Font.load_dpi: no
 let resize font size=match font.source with Some path->load path size|None->system ~size()
 let rgba=function Solid c|Blended c|Shaded(c,_)->c.Color.r,c.g,c.b,c.a
 let image_of_text text=match Prismel_next_resources.Text.size text,Prismel_next_resources.Text.pixels text with
-  |Ok(width,height),Ok rgba->begin match Prismel_next_resources.Image.create ~width ~height ~rgba with Ok image->Ok image|Error error->Error(message"Font.image"error)end
+  |Ok(width,height),Ok rgba->begin match Prismel_next_resources.Image.create ~width ~height ~rgba with Ok image->Ok(Image.Private.of_resource image)|Error error->Error(message"Font.image"error)end
   |Error error,_->Error(message"Font.size"error)|_,Error error->Error(message"Font.pixels"error)
 let render_text font text mode=match Prismel_next_resources.Font.render font.resource ~density:1 ~color:(rgba mode)text with
   |Error error->Error(message"Font.render_text"error)|Ok None->Ok(Image.create ~width:1 ~height:1())

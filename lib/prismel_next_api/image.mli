@@ -1,4 +1,4 @@
-type t = Prismel_next_resources.Image.t
+type t
 val load : string -> (t,string) result
 val load_exn : string -> t
 val create : width:int -> height:int -> ?color:Color.t -> unit -> t
@@ -16,8 +16,10 @@ module Private : sig
   val from_texture : texture -> int -> int -> t
   val load_memory : string -> (t,string) result
   val replace : t -> t -> unit
+  val identity : t -> int
+  val generation : t -> int
+  val reload : t -> string -> (unit,string) result
+  val pixels : t -> (bytes,string) result
+  val of_resource : Prismel_next_resources.Image.t -> t
+  val resource : t -> Prismel_next_resources.Image.t
 end
-val identity : t -> int
-val generation : t -> int
-val reload : t -> string -> (unit,string) result
-val pixels : t -> (bytes,string) result

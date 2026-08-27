@@ -63,7 +63,7 @@ let () =
   List.iter
     (function
       | _, Prismel_next_execution.Image image ->
-          require (Result.is_error (Image.pixels image)) "released staged image"
+          require (Result.is_error (Prismel_next_resources.Image.pixels image)) "released staged image"
       | _, Prismel_next_execution.Text _ | _, Prismel_next_execution.Canvas _ ->
           failwith "unexpected staged resource")
     first_resources;

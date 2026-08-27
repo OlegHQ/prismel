@@ -27,7 +27,7 @@ let image_count value=Hashtbl.length value.images
 let font_count value=Hashtbl.length value.fonts
 let sample_count value=Hashtbl.length value.samples
 let music_count value=Hashtbl.length value.music
-let refresh value=ensure value;if not value.watch then Ok[]else let changed=ref[]and errors=ref[]in Hashtbl.iter(fun path image->try let now=stamp path in match Hashtbl.find_opt value.stamps path with Some old when old=now->()|_->begin match Image.reload image path with Ok()->Hashtbl.replace value.stamps path now;changed:=path::!changed|Error error->errors:=error::!errors end with Sys_error error->errors:=error::!errors)value.images;if!errors=[]then Ok(List.rev!changed)else Error(List.rev!errors)
+let refresh value=ensure value;if not value.watch then Ok[]else let changed=ref[]and errors=ref[]in Hashtbl.iter(fun path image->try let now=stamp path in match Hashtbl.find_opt value.stamps path with Some old when old=now->()|_->begin match Image.Private.reload image path with Ok()->Hashtbl.replace value.stamps path now;changed:=path::!changed|Error error->errors:=error::!errors end with Sys_error error->errors:=error::!errors)value.images;if!errors=[]then Ok(List.rev!changed)else Error(List.rev!errors)
 let clear value=Hashtbl.iter(fun _ item->Image.destroy item)value.images;
   Hashtbl.iter(fun _ item->Font.destroy item)value.fonts;
   Hashtbl.iter(fun _ item->Audio.Sample.destroy item)value.samples;

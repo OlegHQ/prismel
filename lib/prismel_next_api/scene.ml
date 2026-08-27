@@ -86,7 +86,7 @@ module Private=struct
   |Blend(mode,g)::xs->let mode=match mode with Replace->Raster2.Composite.Replace|Alpha->Alpha|Add->Add|Multiply->Multiply in commands(commands(Raster2.Render_ir.Set_blend mode::acc)g)xs
   |Image node::xs->let width,height=Image.get_size node.image in let rect={Raster2.Render_ir.x=0.;y=0.;width=float width;height=float height}in
     let destination={Raster2.Render_ir.x=float node.x;y=float node.y;width=float width*.node.scale;height=float height*.node.scale}in
-    let command=Raster2.Render_ir.Image{resource_id=Image.identity node.image;source=rect;destination}in
+    let command=Raster2.Render_ir.Image{resource_id=Image.Private.identity node.image;source=rect;destination}in
     let transformed=node.angle<>0.||node.flip_x||node.center<>None in
     let acc=if transformed then
       let cx,cy=match node.center with None->destination.width*.0.5,destination.height*.0.5|Some(cx,cy)->float cx,float cy in
@@ -97,7 +97,7 @@ module Private=struct
     commands acc xs
   |(Text _|View3d _|Region _)::xs->commands acc xs
  let rec text_regions scene=List.concat_map(function Region(x,y,w,h,f)->[x,y,w,h,f]|Group g|Translate(_,_,g)|Rotate(_,g)|Scale(_,_,g)|Clip(_,_,_,_,g)|Blend(_,g)->text_regions g|_->[])scene
- let rec image_resources scene=List.concat_map(function Image node->[Image.identity node.image,Prismel_next_execution.Image node.image]|Group g|Translate(_,_,g)|Rotate(_,g)|Scale(_,_,g)|Clip(_,_,_,_,g)|Blend(_,g)->image_resources g|_->[])scene
+ let rec image_resources scene=List.concat_map(function Image node->[Image.Private.identity node.image,Prismel_next_execution.Image(Image.Private.resource node.image)]|Group g|Translate(_,_,g)|Rotate(_,g)|Scale(_,_,g)|Clip(_,_,_,_,g)|Blend(_,g)->image_resources g|_->[])scene
 
  let text_image (node : text_node) =
    match node.rendered with

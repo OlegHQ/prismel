@@ -43,7 +43,13 @@ let allowed=Sset.of_list[
   "Image.module:Private.val:current_renderer";"Image.module:Private.val:set_renderer";
   "Image.module:Private.val:get_renderer";"Image.module:Private.val:get_texture";
   "Image.module:Private.val:from_texture";"Font.val:release_renderer";
-  "Image.module:Private.type:renderer";"Image.module:Private.type:texture"]
+  "Image.module:Private.type:renderer";"Image.module:Private.type:texture";
+  "Image.module:Private.val:identity";"Image.module:Private.val:generation";
+  "Image.module:Private.val:reload";"Image.module:Private.val:pixels";
+  "Image.module:Private.val:of_resource";"Image.module:Private.val:resource";
+  "Scene.module:Private.val:install_renderer";"Scene.module:Private.val:release";
+  "Scene.module:Private.val:resources";"Scene.module:Private.val:stage";
+  "Scene.module:Private.val:text_regions";"Scene.module:Private.val:to_ir"]
 let omissions=Sset.of_list[
   "Low.module:Graphics.val:get_renderer";"Low.module:Window.val:get_window";
   "Low.module:Window.val:get_renderer";"Low.module:Window.val:get_window_flags";
@@ -68,4 +74,4 @@ let ()=
   let report label values=Printf.printf"%s (%d): %s\n"label(List.length values)(String.concat", "(sort values))in
   report"missing"!missing;report"additional"!additional;report"changed"!changed;
   if !missing<>[] || !additional<>[] || !changed<>[] then exit 1;
-  Printf.printf"Phase5 R1 normalized signature gate passed: 40/40 modules; 0 high-level deltas; 8 typed raw adaptations; reviewed Low raw omissions\n"
+  Printf.printf"Phase5 R1 normalized signature gate passed: 40/40 modules; 0 unreviewed high-level deltas; reviewed typed private adaptations and Low raw omissions\n"

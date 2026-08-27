@@ -5,3 +5,9 @@ Image.Private.get_renderer : unit -> (renderer,string) result
 Image.Private.get_texture : Image.t -> texture
 Image.Private.from_texture : texture -> int -> int -> Image.t
 Font.release_renderer : Image.Private.renderer -> unit
+Image.Private.identity : Image.t -> int
+Image.Private.generation : Image.t -> int
+Image.Private.reload : Image.t -> string -> (unit,string) result
+Image.Private.pixels : Image.t -> (bytes,string) result
+Image.Private.of_resource : Prismel_next_resources.Image.t -> Image.t
+Image.Private.resource : Image.t -> Prismel_next_resources.Image.t

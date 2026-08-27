@@ -89,9 +89,9 @@ module Graphics = struct
   let fill_contours contours ~rule ~color =
     let rule = match rule with Path.Even_odd -> Raster2.Path.Even_odd | Non_zero -> Non_zero in
     result (Next.Graphics.fill_contours (state ()) contours ~rule ~color:(packed color))
-  let draw_image image ~pos = result (Next.Graphics.draw_image (state ()) image ~pos)
-  let draw_sub_image image ~src_rect ~dst_rect = result (Next.Graphics.draw_sub_image (state ()) image ~src_rect ~dst_rect)
-  let draw_image_ex image ~pos ?scale ?angle ?center ?flip () = result (Next.Graphics.draw_image_ex (state ()) image ~pos ?scale ?angle ?center ?flip ())
+  let draw_image image ~pos = result (Next.Graphics.draw_image (state ()) (Image.Private.resource image) ~pos)
+  let draw_sub_image image ~src_rect ~dst_rect = result (Next.Graphics.draw_sub_image (state ()) (Image.Private.resource image) ~src_rect ~dst_rect)
+  let draw_image_ex image ~pos ?scale ?angle ?center ?flip () = result (Next.Graphics.draw_image_ex (state ()) (Image.Private.resource image) ~pos ?scale ?angle ?center ?flip ())
   let draw_text font ~pos ~text ?color ?wrap ?align () =
     let color = Option.value color ~default:(get_color ()) in
     match Font.cached_text ?wrap ?align font text (Font.Blended color) with

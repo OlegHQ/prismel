@@ -11,18 +11,14 @@ The only built-in exceptions are the reviewed raw typed adaptations: Low's two
 typed replacements and nine omissions, and Image/Font's opaque renderer and
 texture hooks. No high-level declaration is allowlisted.
 
-At commit-time the gate is intentionally red with these exact remaining deltas:
+The closure makes `Image.t` abstract again and moves migration identity,
+generation, reload, pixel, and resource conversion operations under the
+reviewed `Image.Private` boundary. The six Scene staging operations are
+explicitly reviewed private-only additions. They do not count as high-level API
+surface.
 
-- changed: `Image.type:t`
-- additional: `Image.val:generation`, `Image.val:identity`, `Image.val:pixels`,
-  `Image.val:reload`
-- additional private Scene staging hooks: `install_renderer`, `release`,
-  `resources`, `stage`, `text_regions`, and `to_ir`
-- missing: none
-
-This supersedes fixture-existence as R1 interface evidence. It does not promote
-R1: the public Image representation and additions remain unreviewed, and the
-Scene private additions are outside the current raw-adaptation allowlist.
+Current result: 40/40 modules, zero missing declarations, zero additional
+unreviewed declarations, and zero changed high-level declarations.
 
 Run:
 
@@ -30,4 +26,4 @@ Run:
 opam exec -- dune exec tools/phase5_api_signature_gate/phase5_api_signature_gate.exe -- --root .
 ```
 
-Expected current result: exit 1 with 0 missing, 10 additional, and 1 changed.
+Expected current result: exit 0 with 0 missing, 0 additional, and 0 changed.

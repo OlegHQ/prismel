@@ -5,7 +5,7 @@ let nearly left right = abs_float (left -. right) < 1e-12
 
 let () =
   let rgba = Bytes.of_string "\xff\x00\x00\xff\x00\x00\xff\xff" in
-  let image = Result.get_ok (Prismel_next_resources.Image.create ~width:2 ~height:1 ~rgba) in
+  let image = Result.get_ok (Prismel_next_resources.Image.create ~width:2 ~height:1 ~rgba) |> Image.Private.of_resource in
   let scene =
     [ Scene.clear Color.transparent;
       Scene.clip ~at:(4, 3) ~w:11 ~h:9
@@ -39,7 +39,7 @@ let () =
       match List.assoc_opt id resources with
       | Some (Prismel_next_execution.Image value) ->
           let width, height = Image.get_size value in
-          let pixels = Result.get_ok (Image.pixels value) in
+          let pixels = Result.get_ok (Image.Private.pixels value) in
           let surface = Result.get_ok (Raster2.Surface.of_bytes ~width ~height ~pitch:(width * 4) pixels) in
           owned := surface :: !owned;
           Some (Raster2.Consumer.Image surface)

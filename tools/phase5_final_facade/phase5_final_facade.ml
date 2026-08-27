@@ -76,14 +76,14 @@ let resource_fixture () =
   Canvas.clear canvas Color.black;
   Canvas.set_pixel canvas ~x:1 ~y:1 Color.red;
   let image = Canvas.to_image canvas |> Result.get_ok in
-  let identity = Image.identity image and generation = Image.generation image in
+  let identity = Image.Private.identity image and generation = Image.Private.generation image in
   let scene = [ Scene.image image ~at:(2, 3) () ] in
   let expected = ir_hash scene in
   List.iter
     (fun frame ->
       require (ir_hash scene = expected) "resource IR drift at frame %d" frame;
-      require (Image.identity image = identity) "image identity drift";
-      require (Image.generation image = generation) "stable image generation drift")
+      require (Image.Private.identity image = identity) "image identity drift";
+      require (Image.Private.generation image = generation) "stable image generation drift")
     [ 1; 2; 60; 600 ];
   Image.destroy image;
   Canvas.destroy canvas;
