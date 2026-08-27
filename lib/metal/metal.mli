@@ -2773,6 +2773,7 @@ module Command4 : sig
     type event = Event of Event.t | Shared_event of Shared_event.t
 
     val create : ?label:string -> Device.t -> (t, error) result
+    val create_default : Device.t -> (t, error) result
     val device : t -> Device.t
     val generation : t -> int64
     val destroyed : t -> bool
@@ -3294,6 +3295,8 @@ module Command_queue : sig
   end
 
   val create : Device.t -> (t, error) result
+  val create_with_max : Device.t -> int64 -> (t,error) result
+  val create_from_descriptor : Device.t -> Descriptor.t -> (t,error) result
   val device : t -> Device.t
   val generation : t -> int64
   val label : t -> (string option,error) result

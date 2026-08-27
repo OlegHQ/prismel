@@ -459,6 +459,11 @@
  (modules test_metal_device_library5_safe)
  (libraries metal))
 
+(test
+ (name test_metal_device_queues3_safe)
+ (modules test_metal_device_queues3_safe)
+ (libraries metal))
+
 (rule
  (targets test_metal4_compute_pipeline_reset_native.exe)
  (deps ../../tools/metal/test_metal4_compute_pipeline_reset_native.mm)

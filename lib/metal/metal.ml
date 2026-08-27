@@ -13788,6 +13788,16 @@ module Command4 = struct
   module Queue = struct
     type t = command4_queue
 
+    let make device raw =
+      let value : t =
+        { raw; lifetime = lifetime (); device
+        ; residency_lifetimes = ref []
+        ; synchronization_lifetimes = ref [] }
+      in
+      attach device.lifetime;
+      attach_finalizer value value.lifetime device.lifetime;
+      value
+
     let create ?label (device : Device.t) =
       let operation = "Metal.Command4.Queue.create" in
       on_main operation (fun () ->
@@ -13799,14 +13809,17 @@ module Command4 = struct
             (match Metal_raw.command4_queue_create device.raw label with
              | Error message -> native_error operation message
              | Ok raw ->
-                 let value : t =
-                   { raw; lifetime = lifetime (); device
-                   ; residency_lifetimes = ref []
-                   ; synchronization_lifetimes = ref [] }
-                 in
-                 attach device.lifetime;
-                 attach_finalizer value value.lifetime device.lifetime;
-                 Ok value))
+                 Ok (make device raw)))
+
+    let create_default (device : Device.t) =
+      let operation = "Metal.Command4.Queue.create_default" in
+      on_main operation (fun () ->
+        match ensure_metal4 operation device with
+        | Error _ as failure -> failure
+        | Ok () ->
+            (match Metal_raw.device_queue4_default device.raw with
+             | Error message -> native_error operation message
+             | Ok raw -> Ok (make device raw)))
 
     let device (value : t) = value.device
     let generation (value : t) = Metal_raw.generation value.raw
@@ -16696,6 +16709,33 @@ module Command_queue = struct
                    release_queue_residency_sets residency_sets)
                  value value.lifetime device.lifetime;
                Ok value))
+
+  let make device raw =
+    let residency_sets = ref [] in
+    let value : t = { raw; lifetime=lifetime(); device; residency_sets } in
+    attach device.lifetime;
+    attach_finalizer ~on_finalize:(fun()->release_queue_residency_sets residency_sets)
+      value value.lifetime device.lifetime;
+    value
+
+  let create_with_max (device:Device.t) maximum =
+    let operation="Metal.Command_queue.create_with_max" in
+    on_main operation(fun()->match ensure_live operation device.lifetime with
+    |Error _ as failure->failure
+    |Ok() when maximum<=0L->error operation Invalid_argument "command buffer limit must be positive"
+    |Ok()->match Metal_raw.device_queue_maximum device.raw maximum with
+      |Error message->native_error operation message|Ok raw->Ok(make device raw))
+
+  let create_from_descriptor (device:Device.t) (descriptor:Descriptor.t) =
+    let operation="Metal.Command_queue.create_from_descriptor" in
+    on_main operation(fun()->match ensure_live operation device.lifetime with
+    |Error _ as failure->failure
+    |Ok()->match ensure_live operation descriptor.lifetime with
+      |Error _ as failure->failure
+      |Ok()->match ensure_same_device operation device descriptor.device with
+        |Error _ as failure->failure
+        |Ok()->match Metal_raw.device_queue_descriptor device.raw descriptor.raw with
+          |Error message->native_error operation message|Ok raw->Ok(make device raw))
 
   let device (value : t) = value.device
   let generation (value : t) = Metal_raw.generation value.raw
