@@ -53,3 +53,8 @@
  (name test_ogpu_metal_diagnostics)
  (modules test_ogpu_metal_diagnostics)
  (libraries ogpu_metal metal))
+
+(test
+ (name test_ogpu_metal_capabilities)
+ (modules test_ogpu_metal_capabilities)
+ (libraries ogpu_metal metal))

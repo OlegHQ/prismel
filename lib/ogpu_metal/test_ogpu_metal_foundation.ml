@@ -9,10 +9,10 @@ let descriptor ?(size = 64L) usage : Ogpu.Types.buffer_descriptor =
 
 let () =
   let unsupported = get (Adapter.capabilities
-    { max_buffer_size = 1_024L; ray_tracing = false; metal_fx = false }) in
+    { max_buffer_size = 1_024L; max_texture_dimension_2d=1024;max_bind_groups=4;max_sample_count=4;ray_tracing = false; metal_fx = false }) in
   if unsupported.ray_tracing || unsupported.metal_fx then failwith "unsupported profile drift";
   expect Ogpu.Error.Invalid_argument (Adapter.capabilities
-    { max_buffer_size = 0L; ray_tracing = false; metal_fx = false });
+    { max_buffer_size = 0L;max_texture_dimension_2d=1024;max_bind_groups=4;max_sample_count=4;ray_tracing = false; metal_fx = false });
   match Device.system_default () with
   | Error _ -> print_endline "ogpu_metal foundation: skipped (no Metal device)"
   | Ok device ->
