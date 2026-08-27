@@ -133,6 +133,18 @@ CAMLprim value caml_sdl3_linked_version(value unit)
   return Val_int(SDL_GetVersion());
 }
 
+CAMLprim value caml_sdl3_performance_counter(value unit)
+{
+  CAMLparam1(unit);
+  CAMLreturn(caml_copy_int64((int64_t)SDL_GetPerformanceCounter()));
+}
+
+CAMLprim value caml_sdl3_performance_frequency(value unit)
+{
+  CAMLparam1(unit);
+  CAMLreturn(caml_copy_int64((int64_t)SDL_GetPerformanceFrequency()));
+}
+
 CAMLprim value caml_sdl3_revision(value unit)
 {
   const char *revision;

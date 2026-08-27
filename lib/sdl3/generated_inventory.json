@@ -2,8 +2,8 @@
   "classification_counts": {
     "not-applicable": 0,
     "platform-excluded": 0,
-    "raw-only": 3330,
-    "safe": 73,
+    "raw-only": 3328,
+    "safe": 75,
     "unreviewed": 0
   },
   "compiler": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
@@ -4857,18 +4857,18 @@
       "thread": "raw-only-not-reviewed"
     },
     {
-      "classification": "raw-only",
+      "classification": "safe",
       "header": "SDL3/<clang-elided-source>",
       "name": "SDL_GetPerformanceCounter",
       "signature": "Uint64 (void)",
-      "thread": "raw-only-not-reviewed"
+      "thread": "any-thread"
     },
     {
-      "classification": "raw-only",
+      "classification": "safe",
       "header": "SDL3/<clang-elided-source>",
       "name": "SDL_GetPerformanceFrequency",
       "signature": "Uint64 (void)",
-      "thread": "raw-only-not-reviewed"
+      "thread": "any-thread"
     },
     {
       "classification": "raw-only",

@@ -73,6 +73,14 @@ module Version = struct
   let check ?(release = true) () = validate ~release ~linked:(linked ())
 end
 
+module Time = struct
+  let performance_counter = Private_raw.performance_counter
+  let performance_frequency = Private_raw.performance_frequency
+  let monotonic_seconds () =
+    Int64.to_float (performance_counter ())
+    /. Int64.to_float (performance_frequency ())
+end
+
 module Thread = struct
   let is_initial_domain = Domain.is_main_domain
   let is_sdl_main_thread = Private_raw.is_main_thread

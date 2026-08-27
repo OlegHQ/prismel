@@ -6,6 +6,11 @@ let fail message = failwith ("SDL3 test: " ^ message)
 let get = function Ok value -> value | Error error -> fail (Format.asprintf "%a" pp_error error)
 
 let () =
+  let frequency=Time.performance_frequency()and before=Time.performance_counter()in
+  System_thread.delay 0.001;
+  let after=Time.performance_counter()in
+  if frequency<=0L||before<0L||after<before||not(Float.is_finite(Time.monotonic_seconds()))then
+    fail"SDL3 monotonic performance counter invalid";
   let compiled = Version.compiled and linked = Version.linked () in
   if compiled.major <> 3 || compiled.minor <> 4 || compiled.patch <> 14 then
     fail "generated header version changed without fixture review";

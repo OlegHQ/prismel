@@ -31,6 +31,8 @@ let core_safe_functions =
   ; "SDL_DestroySurface", "owned-surface"
   ; "SDL_DestroyProperties", "owned-properties"
   ; "SDL_GetError", "any-thread"
+  ; "SDL_GetPerformanceCounter", "any-thread"
+  ; "SDL_GetPerformanceFrequency", "any-thread"
   ; "SDL_GetDisplays", "main-thread-owned-result"
   ; "SDL_GetPrimaryDisplay", "main-thread"
   ; "SDL_GetDisplayName", "main-thread-borrowed-string"

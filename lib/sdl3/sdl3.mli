@@ -35,6 +35,12 @@ module Version : sig
   val check : ?release:bool -> unit -> (unit, error) result
 end
 
+module Time : sig
+  val performance_counter : unit -> int64
+  val performance_frequency : unit -> int64
+  val monotonic_seconds : unit -> float
+end
+
 module Thread : sig
   val is_initial_domain : unit -> bool
   val is_sdl_main_thread : unit -> bool
