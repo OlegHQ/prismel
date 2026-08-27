@@ -22,6 +22,11 @@ type shadow_resource = {
   texture : sampled_texture;
   parameters : bytes;
 }
+type auxiliary_resource = {
+  key : string;
+  buffer : bytes;
+  texture : sampled_texture;
+}
 
 (** Packs a software shadow snapshot into a deterministic RGBA8 depth texture
     and a copied float32 parameter block. No backend allocation occurs here. *)
@@ -50,6 +55,10 @@ val render_family : ?clear:(float * float * float * float) -> t ->
   (bool, Ogpu.Error.t) result
 val render_textured : ?clear:(float * float * float * float) -> t ->
   (pipeline_family * Ogpu.Pipeline.blend * sampled_texture option * draw) list ->
+  (bool, Ogpu.Error.t) result
+val render_resources : ?clear:(float * float * float * float) -> t ->
+  (pipeline_family * Ogpu.Pipeline.blend * sampled_texture option *
+    auxiliary_resource option * draw) list ->
   (bool, Ogpu.Error.t) result
 val resize : t -> Ogpu.Surface.configuration -> (unit, Ogpu.Error.t) result
 val upload_bytes : t -> int64
