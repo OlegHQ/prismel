@@ -41,6 +41,7 @@ type result = {
   median_frame_seconds : float;
   p95_frame_seconds : float;
   p99_frame_seconds : float;
+  framebuffer_hash : string;
 }
 
 type model = {
@@ -147,6 +148,19 @@ let percentile values length fraction =
       |> max 0 |> min (length - 1) in
     copy.(index)
   end
+
+let framebuffer_hash () =
+  let canvas = result_exn (Canvas.capture ()) in
+  Fun.protect ~finally:(fun () -> Canvas.destroy canvas) (fun () ->
+    let colors = Canvas.pixels canvas in
+    let bytes = Bytes.create (Array.length colors * 4) in
+    Array.iteri (fun index (color : Color.t) ->
+      let offset = index * 4 in
+      Bytes.set_uint8 bytes offset color.r;
+      Bytes.set_uint8 bytes (offset + 1) color.g;
+      Bytes.set_uint8 bytes (offset + 2) color.b;
+      Bytes.set_uint8 bytes (offset + 3) color.a) colors;
+    Digest.to_hex (Digest.bytes bytes))
 
 let make_image () =
   let canvas = Canvas.create_exn ~width:96 ~height:96 in
@@ -289,6 +303,7 @@ let finish model now =
     median_frame_seconds = percentile model.frame_times model.frame_count 0.5;
     p95_frame_seconds = percentile model.frame_times model.frame_count 0.95;
     p99_frame_seconds = percentile model.frame_times model.frame_count 0.99;
+    framebuffer_hash = framebuffer_hash ();
   } in
   Sketch.quit ();
   { model with result = Some result }
@@ -376,7 +391,7 @@ let print_result model result =
   let profile = Option.value ~default:"unknown"
       (Sys.getenv_opt "PRISMEL_BENCH_PROFILE") in
   Printf.printf
-    "{\"schema\":1,\"benchmark\":\"renderer\",\"scenario\":\"%s\",\"target\":\"%s\",\"profile\":\"%s\",\"width\":%d,\"height\":%d,\"drawable_width\":%d,\"drawable_height\":%d,\"pixel_scale\":[%.6f,%.6f],\"domains\":%d,\"warmup_seconds\":%.6f,\"requested_measure_seconds\":%.6f,\"frames\":%d,\"wall_seconds\":%.9f,\"frames_per_second\":%.6f,\"median_frame_seconds\":%.9f,\"p95_frame_seconds\":%.9f,\"p99_frame_seconds\":%.9f,\"user_seconds\":%.9f,\"system_seconds\":%.9f,\"cpu_percent\":%.6f,\"allocated_bytes\":%.0f,\"minor_bytes\":%.0f,\"promoted_bytes\":%.0f,\"major_bytes\":%.0f,\"major_collections\":%d,\"ending_heap_bytes\":%d,\"peak_heap_bytes\":%d,\"starting_rss_kib\":%s,\"ending_rss_kib\":%s,\"peak_sampled_rss_kib\":%s,\"legacy_gpu_duration_seconds\":null,\"legacy_gpu_utilization_percent\":null,\"legacy_draw_count\":null,\"legacy_upload_bytes\":null}\n%!"
+    "{\"schema\":1,\"benchmark\":\"renderer\",\"scenario\":\"%s\",\"target\":\"%s\",\"profile\":\"%s\",\"width\":%d,\"height\":%d,\"drawable_width\":%d,\"drawable_height\":%d,\"pixel_scale\":[%.6f,%.6f],\"domains\":%d,\"warmup_seconds\":%.6f,\"requested_measure_seconds\":%.6f,\"scheduling\":\"fixed-rate\",\"scheduled_frame_rate\":60.0,\"frames\":%d,\"wall_seconds\":%.9f,\"frames_per_second\":%.6f,\"median_frame_seconds\":%.9f,\"p95_frame_seconds\":%.9f,\"p99_frame_seconds\":%.9f,\"user_seconds\":%.9f,\"system_seconds\":%.9f,\"cpu_percent\":%.6f,\"allocated_bytes\":%.0f,\"allocated_bytes_per_frame\":%.6f,\"minor_bytes\":%.0f,\"promoted_bytes\":%.0f,\"promoted_bytes_per_frame\":%.6f,\"major_bytes\":%.0f,\"major_collections\":%d,\"ending_heap_bytes\":%d,\"peak_heap_bytes\":%d,\"starting_rss_kib\":%s,\"ending_rss_kib\":%s,\"peak_sampled_rss_kib\":%s,\"framebuffer_hash\":\"%s\",\"legacy_gpu_duration_seconds\":null,\"legacy_gpu_utilization_percent\":null,\"legacy_draw_count\":null,\"legacy_upload_bytes\":null}\n%!"
     (scenario_name scenario) (target_name ()) profile width height
     model.drawable_width model.drawable_height model.pixel_scale_x
     model.pixel_scale_y domains warmup_seconds measure_seconds result.frames
@@ -384,12 +399,15 @@ let print_result model result =
     result.median_frame_seconds result.p95_frame_seconds result.p99_frame_seconds
     result.user_seconds result.system_seconds
     ((result.user_seconds +. result.system_seconds) /. result.wall_seconds *. 100.)
-    result.allocated_bytes result.minor_bytes result.promoted_bytes
+    result.allocated_bytes (result.allocated_bytes /. float result.frames)
+    result.minor_bytes result.promoted_bytes
+    (result.promoted_bytes /. float result.frames)
     result.major_bytes result.major_collections result.ending_heap_bytes
     result.peak_heap_bytes
     (Option.fold ~none:"null" ~some:string_of_int result.starting_rss_kib)
     (Option.fold ~none:"null" ~some:string_of_int result.ending_rss_kib)
     (Option.fold ~none:"null" ~some:string_of_int result.peak_sampled_rss_kib)
+    result.framebuffer_hash
 
 let () =
   let final = Sketch.run_state
