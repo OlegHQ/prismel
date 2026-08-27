@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 5226,
+    "bound": 5239,
     "scope-excluded": 37,
-    "unreviewed": 22
+    "unreviewed": 9
   },
-  "classification_source_sha256": "2558b2e6e50807bf174011a16d5a94a3408211f250f3c16a40fc69f39c7a3a97",
+  "classification_source_sha256": "a2eb6a8ebe00255b29283bd6fbc2a83f62d44c97b2e9ce699e8eb1ce31760ab9",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -54917,7 +54917,7 @@
           "line": 615
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice areBarycentricCoordsSupported]",
       "kind": "method",
@@ -54925,7 +54925,7 @@
       "macos_introduced": "10.15",
       "name": "areBarycentricCoordsSupported",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the typed Device capability snapshot and checked scalar query/mutation API, with exact direct selectors, enum/range validation, copied counter metadata, and real mutation-restore conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -55067,7 +55067,7 @@
           "line": 1157
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice counterSets]",
       "kind": "method",
@@ -55075,7 +55075,7 @@
       "macos_introduced": "10.15",
       "name": "counterSets",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the typed Device capability snapshot and checked scalar query/mutation API, with exact direct selectors, enum/range validation, copied counter metadata, and real mutation-restore conformance.",
       "signature": "instance () -> NSArray<id<MTLCounterSet>> * _Nullable"
     },
     {
@@ -55542,7 +55542,7 @@
           "line": 486
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice maxThreadsPerThreadgroup]",
       "kind": "method",
@@ -55550,7 +55550,7 @@
       "macos_introduced": "10.11",
       "name": "maxThreadsPerThreadgroup",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the typed Device capability snapshot and checked scalar query/mutation API, with exact direct selectors, enum/range validation, copied counter metadata, and real mutation-restore conformance.",
       "signature": "instance () -> MTLSize"
     },
     {
@@ -57592,7 +57592,7 @@
           "line": 1313
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice setShouldMaximizeConcurrentCompilation:]",
       "kind": "method",
@@ -57600,7 +57600,7 @@
       "macos_introduced": "13.3",
       "name": "setShouldMaximizeConcurrentCompilation:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the typed Device capability snapshot and checked scalar query/mutation API, with exact direct selectors, enum/range validation, copied counter metadata, and real mutation-restore conformance.",
       "signature": "instance (BOOL) -> void"
     },
     {
@@ -57617,7 +57617,7 @@
           "line": 1313
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice shouldMaximizeConcurrentCompilation]",
       "kind": "method",
@@ -57625,7 +57625,7 @@
       "macos_introduced": "13.3",
       "name": "shouldMaximizeConcurrentCompilation",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the typed Device capability snapshot and checked scalar query/mutation API, with exact direct selectors, enum/range validation, copied counter metadata, and real mutation-restore conformance.",
       "signature": "instance () -> BOOL"
     },
     {
@@ -57842,7 +57842,7 @@
           "line": 1196
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice supportsCounterSampling:]",
       "kind": "method",
@@ -57850,7 +57850,7 @@
       "macos_introduced": "11.0",
       "name": "supportsCounterSampling:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the typed Device capability snapshot and checked scalar query/mutation API, with exact direct selectors, enum/range validation, copied counter metadata, and real mutation-restore conformance.",
       "signature": "instance (MTLCounterSamplingPoint) -> BOOL"
     },
     {
@@ -57917,7 +57917,7 @@
           "line": 876
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice supportsFeatureSet:]",
       "kind": "method",
@@ -57925,7 +57925,7 @@
       "macos_introduced": "10.11",
       "name": "supportsFeatureSet:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the typed Device capability snapshot and checked scalar query/mutation API, with exact direct selectors, enum/range validation, copied counter metadata, and real mutation-restore conformance.",
       "signature": "instance (MTLFeatureSet) -> BOOL"
     },
     {
@@ -58092,7 +58092,7 @@
           "line": 977
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice supportsRasterizationRateMapWithLayerCount:]",
       "kind": "method",
@@ -58100,7 +58100,7 @@
       "macos_introduced": "10.15.4",
       "name": "supportsRasterizationRateMapWithLayerCount:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the typed Device capability snapshot and checked scalar query/mutation API, with exact direct selectors, enum/range validation, copied counter metadata, and real mutation-restore conformance.",
       "signature": "instance (NSUInteger) -> BOOL"
     },
     {
@@ -92609,7 +92609,7 @@
           "line": 615
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "property:MTLDevice:barycentricCoordsSupported",
       "kind": "property",
@@ -92617,7 +92617,7 @@
       "macos_introduced": "10.15",
       "name": "barycentricCoordsSupported",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the typed Device capability snapshot and checked scalar query/mutation API, with exact direct selectors, enum/range validation, copied counter metadata, and real mutation-restore conformance.",
       "signature": "BOOL"
     },
     {
@@ -92634,7 +92634,7 @@
           "line": 1157
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "property:MTLDevice:counterSets",
       "kind": "property",
@@ -92642,7 +92642,7 @@
       "macos_introduced": "10.15",
       "name": "counterSets",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the typed Device capability snapshot and checked scalar query/mutation API, with exact direct selectors, enum/range validation, copied counter metadata, and real mutation-restore conformance.",
       "signature": "NSArray<id<MTLCounterSet>> * _Nullable"
     },
     {
@@ -92909,7 +92909,7 @@
           "line": 486
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "property:MTLDevice:maxThreadsPerThreadgroup",
       "kind": "property",
@@ -92917,7 +92917,7 @@
       "macos_introduced": "10.11",
       "name": "maxThreadsPerThreadgroup",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the typed Device capability snapshot and checked scalar query/mutation API, with exact direct selectors, enum/range validation, copied counter metadata, and real mutation-restore conformance.",
       "signature": "MTLSize"
     },
     {
@@ -93228,7 +93228,7 @@
           "line": 1313
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "property:MTLDevice:shouldMaximizeConcurrentCompilation",
       "kind": "property",
@@ -93236,7 +93236,7 @@
       "macos_introduced": "13.3",
       "name": "shouldMaximizeConcurrentCompilation",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the typed Device capability snapshot and checked scalar query/mutation API, with exact direct selectors, enum/range validation, copied counter metadata, and real mutation-restore conformance.",
       "signature": "BOOL"
     },
     {
@@ -93328,7 +93328,7 @@
           "line": 601
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "property:MTLDevice:supportsBCTextureCompression",
       "kind": "property",
@@ -93336,7 +93336,7 @@
       "macos_introduced": "11.0",
       "name": "supportsBCTextureCompression",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the typed Device capability snapshot and checked scalar query/mutation API, with exact direct selectors, enum/range validation, copied counter metadata, and real mutation-restore conformance.",
       "signature": "BOOL"
     },
     {

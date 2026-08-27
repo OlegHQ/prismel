@@ -129,6 +129,7 @@
   binding_function_stitching7_safe_package
   binding_device_descriptor_value_safe_package
   binding_device_metadata7_safe_plan
+  binding_device_capability13_safe_package
   binding_device_tail38_plan
   binding_small_header_safe24
   binding_capture_scope_tail_handoff
@@ -875,6 +876,11 @@
 (test
  (name test_binding_device_metadata7_safe_plan)
  (modules test_binding_device_metadata7_safe_plan)
+ (libraries metal_inventory_classification))
+
+(test
+ (name test_binding_device_capability13_safe_package)
+ (modules test_binding_device_capability13_safe_package)
  (libraries metal_inventory_classification))
 
 (test

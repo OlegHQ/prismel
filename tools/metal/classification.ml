@@ -2132,6 +2132,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier Binding_device_metadata7_safe_plan.observer_ids then
     Bound,
       "Implemented by the public owned multi-shot Device observer token with copied notification names, owned initial/callback devices, exact cancellation/root teardown, and real enumeration/removal conformance."
+  else if List.mem identifier Binding_device_capability13_safe_package.ids then
+    Bound,
+      "Implemented by the typed Device capability snapshot and checked scalar query/mutation API, with exact direct selectors, enum/range validation, copied counter metadata, and real mutation-restore conformance."
   else if List.mem identifier small_header_safe24 then
     Bound,
       "Represented by the existing public owned safe API for this exact small-header type or selector, with copied metadata, checked device/lifetime/range semantics, and its family native conformance fixture."
