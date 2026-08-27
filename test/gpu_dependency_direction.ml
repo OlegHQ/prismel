@@ -168,11 +168,12 @@ let verify_negative_test graph =
   check "sdl3" "prismel";
   check "metal" "sdl3";
   check "ogpu" "metal";
-  check "ogpu_metal" "runtime"
+  check "ogpu_metal" "runtime";
+  check "raster2" "prismel"
 
 let require_current_foundations graph =
   [ "sdl3"; "sdl3_image"; "sdl3_ttf"; "sdl3_mixer"; "metal"; "ogpu"; "runtime"
-  ; "wap"
+  ; "wap"; "raster2"
   ]
   |> List.iter (fun required ->
     if not (List.exists (fun (name, _) -> name = required) graph) then
