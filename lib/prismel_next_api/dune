@@ -36,6 +36,11 @@
  (libraries prismel_next_api runtime_next_input unix))
 
 (test
+ (name test_prismel_next_api_batch_c_scene_parity)
+ (modules test_prismel_next_api_batch_c_scene_parity)
+ (libraries prismel_next_api))
+
+(test
  (name test_prismel_next_api_batch_e)
  (modules test_prismel_next_api_batch_e)
  (libraries prismel_next_api)

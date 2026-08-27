@@ -29,7 +29,10 @@ val blend : blend -> t -> node
 val render : t -> unit
 module Private : sig
   val to_ir : t -> (Raster2.Render_ir.t,string) result
+  val stage : width:int -> height:int -> t ->
+    (Raster2.Render_ir.t * (int * Prismel_next_execution.resource) list, string) result
   val install_renderer : (t -> unit) -> unit
   val text_regions : t -> (int*int*int*int*bool) list
   val resources : t -> (int * Prismel_next_execution.resource) list
+  val release : t -> unit
 end

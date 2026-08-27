@@ -12,8 +12,8 @@ let run_state ?(config=default_config)~init~update~view ?(on_stop=fun _->())()=
   let configuration={Prismel_next_execution.default_configuration with target;logical_width=config.width;logical_height=config.height;drawable_width=config.width;drawable_height=config.height;title=config.title;timing}in
   let get=function Ok x->x|Error e->failwith(Format.asprintf"%a"Prismel_next_execution.pp_error e)in
   let coordinator=get(Prismel_next_execution.create configuration)in
-  let latest=ref None in Scene.Private.install_renderer(fun scene->let ir=Result.get_ok(Scene.Private.to_ir scene)in let resources=Scene.Private.resources scene in latest:=Some(get(Prismel_next_execution.lower_scene2 coordinator~density:1~resource:(fun id->List.assoc_opt id resources)ir)));
-  Fun.protect~finally:(fun()->on_stop!model;ignore(Prismel_next_execution.destroy coordinator))(fun()->
+  let latest=ref None and last_scene=ref None in Scene.Private.install_renderer(fun scene->last_scene:=Some scene;let ir,resources=Result.get_ok(Scene.Private.stage~width:config.width~height:config.height scene)in latest:=Some(get(Prismel_next_execution.lower_scene2 coordinator~density:1~resource:(fun id->List.assoc_opt id resources)ir)));
+  Fun.protect~finally:(fun()->on_stop!model;Option.iter Scene.Private.release !last_scene;ignore(Prismel_next_execution.destroy coordinator))(fun()->
     let finite=is_headless()||is_web()in let count=ref 0 in while not !stopped&&(not finite|| !count<1)do
       Time.update();let events=Event.poll_events()in incr count;let dt=match config.clock with Realtime->Time.get_delta_time()|Fixed value->value in
       let facts=frame config !count(match config.clock with Realtime->Time.now()|Fixed _->float !count*.dt)dt events in model:=update !model facts;Scene.render(view !model facts);ignore(get(Prismel_next_execution.step coordinator(Option.value!latest~default:[])));Time.limit_frame_rate()done;!model)

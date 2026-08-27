@@ -1,7 +1,9 @@
 type blend=Replace|Alpha|Add|Multiply
 type primitive={points:(int*int)list;closed:bool;fill:Color.t option;stroke:Color.t option}
-type node=Group of t|Clear of Color.t|Primitive of primitive|Text of int*int*string|Image of Image.t*(int*int)
- |View3d of (int*int*int*int)option*Camera.t*Scene3.t|Region of int*int*int*int*bool
+type text_node={x:int;y:int;value:string;color:Color.t;size:int;wrap:int option;align:Font.alignment;provided_font:Font.t option;mutable owned_font:Font.t option;mutable rendered:Image.t option}
+and view3d_node={viewport:(int*int*int*int)option;camera:Camera.t;scene:Scene3.t;mutable rendered3d:Image.t option}
+and node=Group of t|Clear of Color.t|Primitive of primitive|Text of text_node|Image of Image.t*(int*int)
+ |View3d of view3d_node|Region of int*int*int*int*bool
  |Translate of int*int*t|Rotate of float*t|Scale of float*float*t|Clip of int*int*int*int*t|Blend of blend*t
 and t=node list
 let empty=[]let one n=[n]let group x=Group x let clear c=Clear c
@@ -22,10 +24,11 @@ let arc ~at:(cx,cy)~radius~from_~to_ ?(color=default_color)()=let points=List.in
 let pie ~at ~radius ~from_ ~to_ ?fill ?stroke()=match arc~at~radius~from_~to_()with Primitive p->polygon(at::p.points)?fill?stroke()|_->assert false
 let bezier points ?(steps=20)?(color=default_color)()=ignore steps;polyline points~color()
 let path ?(steps=20)?(fill_rule=Path.Non_zero)?fill?stroke value=ignore fill_rule;Primitive{points=Path.points~steps value;closed=Path.is_closed value;fill;stroke}
-let text ~at:(x,y) ?color ?size value=ignore(color,size);Text(x,y,value)let debug_text ~at ?color value=text~at?color value
-let font_text font ~at:(x,y) ?color ?wrap ?align value=ignore(font,color,wrap,align);Text(x,y,value)
+let text ~at:(x,y) ?(color=default_color) ?(size=16) value=Text{x;y;value;color;size;wrap=None;align=Font.Left;provided_font=None;owned_font=None;rendered=None}
+let debug_text ~at ?color value=text~at?color~size:8 value
+let font_text font ~at:(x,y) ?(color=default_color) ?wrap ?(align=Font.Left) value=Text{x;y;value;color;size=Font.get_size font;wrap;align;provided_font=Some font;owned_font=None;rendered=None}
 let image image ~at ?scale ?angle ?center ?flip_x()=ignore(scale,angle,center,flip_x);Image(image,at)
-let view3d ?viewport ~camera scene=View3d(viewport,camera,scene)
+let view3d ?viewport ~camera scene=View3d{viewport;camera;scene;rendered3d=None}
 let text_input_region ~at:(x,y)~w~h ?(focused=false)()=Region(x,y,w,h,focused)
 let translate x y nodes=Translate(x,y,nodes)let rotate a nodes=Rotate(a,nodes)let scale x y nodes=Scale(x,y,nodes)
 let clip ~at:(x,y)~w~h nodes=Clip(x,y,w,h,nodes)let blend mode nodes=Blend(mode,nodes)
@@ -44,8 +47,111 @@ module Private=struct
   |Image(image,(x,y))::xs->let width,height=Image.get_size image in let rect={Raster2.Render_ir.x=0.;y=0.;width=float width;height=float height}in
     let destination={rect with Raster2.Render_ir.x=float x;y=float y}in commands(Raster2.Render_ir.Image{resource_id=Image.identity image;source=rect;destination}::acc)xs
   |(Text _|View3d _|Region _)::xs->commands acc xs
- let to_ir scene=match Raster2.Render_ir.create(Array.of_list(List.rev(commands[]scene)))with Ok value->Ok value|Error _->Error"invalid scene description"
  let rec text_regions scene=List.concat_map(function Region(x,y,w,h,f)->[x,y,w,h,f]|Group g|Translate(_,_,g)|Rotate(_,g)|Scale(_,_,g)|Clip(_,_,_,_,g)|Blend(_,g)->text_regions g|_->[])scene
- let rec resources scene=List.concat_map(function Image(image,_)->[Image.identity image,Prismel_next_execution.Image image]|Group g|Translate(_,_,g)|Rotate(_,g)|Scale(_,_,g)|Clip(_,_,_,_,g)|Blend(_,g)->resources g|_->[])scene
+ let rec image_resources scene=List.concat_map(function Image(image,_)->[Image.identity image,Prismel_next_execution.Image image]|Group g|Translate(_,_,g)|Rotate(_,g)|Scale(_,_,g)|Clip(_,_,_,_,g)|Blend(_,g)->image_resources g|_->[])scene
+
+ let text_image (node : text_node) =
+   match node.rendered with
+   | Some image -> image
+   | None ->
+       let font =
+         match node.provided_font, node.owned_font with
+         | Some font, _ -> font
+         | None, Some font -> font
+         | None, None ->
+             let font = Result.get_ok (Font.system ~size:node.size ()) in
+             node.owned_font <- Some font;
+             font
+       in
+       let image =
+         Result.get_ok
+           (Font.cached_text ?wrap:node.wrap ~align:node.align font node.value
+              (Font.Solid node.color))
+       in
+       node.rendered <- Some image;
+       image
+
+ let view_image ~width ~height (node : view3d_node) =
+   match node.rendered3d with
+   | Some image -> image
+   | None ->
+       let x, y, view_width, view_height =
+         Option.value node.viewport ~default:(0, 0, width, height)
+       in
+       let framebuffer =
+         Framebuffer3.render ~width:view_width ~height:view_height
+           ~camera:node.camera node.scene
+       in
+       let image = Result.get_ok (Framebuffer3.to_image framebuffer) in
+       node.rendered3d <- Some image;
+       ignore (x, y);
+       image
+
+ let rec materialize ~width ~height = function
+   | [] -> []
+   | Text node :: rest ->
+       Image (text_image node, (node.x, node.y))
+       :: materialize ~width ~height rest
+   | View3d node :: rest ->
+       let x, y, _, _ =
+         Option.value node.viewport ~default:(0, 0, width, height)
+       in
+       Image (view_image ~width ~height node, (x, y))
+       :: materialize ~width ~height rest
+   | Group nodes :: rest ->
+       Group (materialize ~width ~height nodes)
+       :: materialize ~width ~height rest
+   | Translate (x, y, nodes) :: rest ->
+       Translate (x, y, materialize ~width ~height nodes)
+       :: materialize ~width ~height rest
+   | Rotate (angle, nodes) :: rest ->
+       Rotate (angle, materialize ~width ~height nodes)
+       :: materialize ~width ~height rest
+   | Scale (x, y, nodes) :: rest ->
+       Scale (x, y, materialize ~width ~height nodes)
+       :: materialize ~width ~height rest
+   | Clip (x, y, w, h, nodes) :: rest ->
+       Clip (x, y, w, h, materialize ~width ~height nodes)
+       :: materialize ~width ~height rest
+   | Blend (mode, nodes) :: rest ->
+       Blend (mode, materialize ~width ~height nodes)
+       :: materialize ~width ~height rest
+   | node :: rest -> node :: materialize ~width ~height rest
+
+ let stage ~width ~height scene =
+   if width <= 0 || height <= 0 then Error "invalid scene extent"
+   else
+     try
+       let scene = materialize ~width ~height scene in
+       match Raster2.Render_ir.create (Array.of_list (List.rev (commands [] scene))) with
+       | Error _ -> Error "invalid scene description"
+       | Ok ir -> Ok (ir, image_resources scene)
+     with
+     | Failure message -> Error message
+     | Invalid_argument message -> Error message
+
+ let to_ir scene = Result.map fst (stage ~width:640 ~height:480 scene)
+ let resources scene =
+   match stage ~width:640 ~height:480 scene with
+   | Ok (_, resources) -> resources
+   | Error _ -> []
+
+ let rec release scene =
+   List.iter
+     (function
+       | Text node ->
+           (match node.owned_font with
+           | Some font -> Font.destroy font
+           | None -> ());
+           node.owned_font <- None;
+           node.rendered <- None
+       | View3d node ->
+           Option.iter Image.destroy node.rendered3d;
+           node.rendered3d <- None
+       | Group nodes | Translate (_, _, nodes) | Rotate (_, nodes)
+       | Scale (_, _, nodes) | Clip (_, _, _, _, nodes) | Blend (_, nodes) ->
+           release nodes
+       | Clear _ | Primitive _ | Image _ | Region _ -> ())
+     scene
 end
 let render scene=(!Private.renderer) scene
