@@ -36,6 +36,7 @@ type t = {
   mutable destroyed : bool;
   mutable images : image_cache_entry list;
   image_capacity : int;
+  scene3_resources : Scene3_raster2_resources.t;
 }
 
 type callbacks = {
@@ -63,7 +64,7 @@ let create ~logical_width ~logical_height ~drawable_width ~drawable_height =
     | Ok target, Ok color3, Ok depth3 -> Ok {
         target; color3; depth3; logical_width; logical_height; drawable_width;
         drawable_height; generation = 1; destroyed = false; images = [];
-        image_capacity = 256;
+        image_capacity = 256;scene3_resources=Scene3_raster2_resources.create();
       }
     | Error error, _, _ -> Error (Offscreen error)
     | _, Error error, _ | _, _, Error error -> Error error
@@ -188,7 +189,8 @@ let render_ir value ir resources =
       | Ok (), Ok () -> Ok ()
       end
 
-let render_scene3 value callbacks node =
+let render_scene3 value _callbacks node =
+  let callbacks=Scene3_raster2_resources.callbacks value.scene3_resources in
   match Scene3_raster2_lowering.lower_view3d ~resources:callbacks
       ~default_viewport:(0, 0, value.drawable_width, value.drawable_height) node with
   | Error error -> Error (Scene3 error)
@@ -264,7 +266,8 @@ let destroy value =
   if value.destroyed then Ok ()
   else match Raster2.Offscreen.destroy value.target with
   | Error error -> Error (Offscreen error)
-  | Ok () -> value.destroyed <- true; value.images <- []; Ok ()
+  | Ok () -> value.destroyed <- true; value.images <- [];
+      Scene3_raster2_resources.destroy value.scene3_resources;Ok ()
 
 let self_test () =
   let ok = function Ok value -> value | Error _ -> failwith "renderer error" in
@@ -312,6 +315,43 @@ let self_test () =
       failwith"sampled renderer frame drift")[1;2;60;600];first)[1;4;9;16]in
   if List.nth sampled_pixels 1=List.nth sampled_pixels 2 then
     failwith"sample count did not change edge resolve";
+  let texture_scene texture=
+    let textured=Scene3.textured~filter:Texture.Nearest texture in
+    [Scene_description.Clear Color.black;
+     Scene_description.View3d(camera,Scene3.create[Scene3.mesh
+       ~material:(Material.unlit Color.white)~texture:textured
+       ~cull:Scene3.Cull_none mesh],None)]in
+  let green_texture=Texture.create_exn~width:1~height:1[Color.green]in
+  let green_frame=(ok(render renderer callbacks(texture_scene green_texture))).rgba in
+  let contains bytes color=let target=Int32.to_int color in let found=ref false in
+    for offset=0 to Bytes.length bytes/4-1 do
+      let index=offset*4 in let value=(Char.code(Bytes.get bytes index)lsl 24)
+        lor(Char.code(Bytes.get bytes(index+1))lsl 16)
+        lor(Char.code(Bytes.get bytes(index+2))lsl 8)
+        lor Char.code(Bytes.get bytes(index+3))in if value=target then found:=true
+    done;!found in
+  if not(contains green_frame 0x00ff00ffl)then failwith"owned Scene3 texture was not sampled";
+  if(ok(render renderer callbacks(texture_scene green_texture))).rgba<>green_frame then
+    failwith"owned texture identity drift";
+  let blue_texture=Texture.create_exn~width:1~height:1[Color.blue]in
+  let blue_frame=(ok(render renderer callbacks(texture_scene blue_texture))).rgba in
+  if blue_frame=green_frame||not(contains blue_frame 0x0000ffffl)then
+    failwith"texture reload identity was stale";
+  let shadow_light=Light.directional~direction:(Vec3.create 0. 0.(-1.))()in
+  let shadow_depths=Array.init 25(fun index->if index=12 then 0. else 1.)in
+  let shadow_frame filter=let shadow=Shadow3.create~filter~light:shadow_light
+      ~camera~width:5~height:5~depths:shadow_depths()in
+    let scene=Scene3.create~lights:[shadow_light]~shadows:[shadow]
+      [Scene3.mesh~material:(Material.matte Color.white)~cull:Scene3.Cull_none mesh]in
+    (ok(render renderer callbacks[Scene_description.Clear Color.black;
+       Scene_description.View3d(camera,scene,None)])).rgba in
+  let shadow_frames=List.map shadow_frame[Shadow3.Hard;Pcf_3x3;Pcf_5x5]in
+  if List.exists(fun frame->not(contains frame 0x000000ffl))shadow_frames then
+    failwith"shadow renderer lost clear ordering";
+  List.iter(fun filter->let expected=shadow_frame filter in
+    List.iter(fun _frame->if shadow_frame filter<>expected then
+      failwith"shadow renderer frame drift")[1;2;60;600])
+    [Shadow3.Hard;Pcf_3x3;Pcf_5x5];
   fail := true;
   if draw () <> expected then failwith "failed reload identity";
   ok (resize renderer ~logical_width:9 ~logical_height:7

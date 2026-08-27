@@ -62,4 +62,5 @@ module Private : sig
     ?wrap_u:wrap ->
     ?wrap_v:wrap ->
     t -> lod:float -> u:float -> v:float -> int
+  val levels : t -> (int * int * Color.t array) array
 end

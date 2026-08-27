@@ -15,7 +15,15 @@ let fixture frame =
  let pcf=ok(Shadow_map.prepare map~light_kind:Spot~matrix~bias:{constant=0.;slope=0.}~kernel:Tap9)in
  let edge=Shadow_map.visibility pcf~position:{Shadow_map.x=0.;y=0.;z=0.6}~normal_dot_light:1. in
  if edge<=0.||edge>=1. then failwith"pcf edge";
- (a,b,edge)
+ let pcf5=ok(Shadow_map.prepare~strength:0.5 map~light_kind:Spot~matrix
+   ~bias:{constant=0.;slope=0.}~kernel:Tap25)in
+ let edge5=Shadow_map.visibility pcf5~position:{Shadow_map.x=0.;y=0.;z=0.6}~normal_dot_light:1. in
+ if edge5<=0.5||edge5>=1. then failwith"pcf5 strength/edge";
+ let biased=ok(Shadow_map.prepare map~light_kind:Directional~matrix
+   ~bias:{constant=0.3;slope=0.}~kernel:Tap1)in
+ if Shadow_map.visibility biased~position:{Shadow_map.x=0.;y=0.;z=0.6}
+      ~normal_dot_light:1.<>1. then failwith"shadow constant bias";
+ (a,b,edge,edge5)
 let ()=
  let expected=Array.init 600 fixture in
  let workers=Array.init 4(fun _->Domain.spawn(fun()->Array.init 600 fixture))in

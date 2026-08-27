@@ -21,6 +21,17 @@ val filter : t -> filter
 val size : t -> int * int
 
 module Private : sig
+  type snapshot = {
+    view_projection : Mat4.t;
+    width : int;
+    height : int;
+    depths : float array;
+    bias : float;
+    normal_bias : float;
+    filter : filter;
+    strength : float;
+  }
   val affects : t -> Light.t -> bool
   val visibility : t -> world:Vec3.t -> normal:Vec3.t -> float
+  val snapshot : t -> snapshot
 end

@@ -147,6 +147,14 @@
   (setenv PRISMEL_TEST_SCENE_RASTER2_LOWERING 1 (run %{test}))))
 
 (test
+ (name scene3_raster2_resources)
+ (modules scene3_raster2_resources)
+ (libraries prismel raster2)
+ (link_flags -linkall)
+ (action
+  (setenv PRISMEL_TEST_SCENE3_RASTER2_RESOURCES 1 (run %{test}))))
+
+(test
  (name raster2_renderer)
  (modules raster2_renderer)
  (libraries prismel raster2)

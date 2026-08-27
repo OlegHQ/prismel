@@ -1,10 +1,10 @@
 type vec3 = { x : float; y : float; z : float }
-type kernel = Tap1 | Tap4 | Tap9
+type kernel = Tap1 | Tap4 | Tap9 | Tap25
 type bias = { constant : float; slope : float }
 type light_kind = Directional | Spot
 type error = Invalid_size | Invalid_matrix | Non_finite | Invalid_bias | Out_of_bounds
 type t = { depth : Depth_stencil.t; width : int; height : int }
-type prepared = { map : t; matrix : float array; bias : bias; kernel : kernel }
+type prepared = { map : t; matrix : float array; bias : bias; kernel : kernel; strength : float }
 
 let finite = Float.is_finite
 let create ~width ~height =
@@ -18,12 +18,12 @@ let write t ~x ~y ~depth =
   else
     let state = Depth_stencil.{ depth_compare = Always; depth_write = true; stencil = None } in
     match Depth_stencil.test_and_update t.depth state ~x ~y ~depth with Ok _ -> Ok () | Error _ -> Error Out_of_bounds
-let prepare map ~light_kind ~matrix ~bias ~kernel =
+let prepare ?(strength=1.) map ~light_kind ~matrix ~bias ~kernel =
   if Array.length matrix <> 16 then Error Invalid_matrix
   else if not (Array.for_all finite matrix) then Error Non_finite
-  else if not (finite bias.constant && finite bias.slope) || bias.constant < 0. || bias.slope < 0. || bias.constant > 1. || bias.slope > 1.
+  else if not (finite bias.constant && finite bias.slope && finite strength) || bias.constant < 0. || bias.slope < 0. || bias.constant > 1. || bias.slope > 1. || strength<0. || strength>1.
   then Error Invalid_bias
-  else match light_kind with Directional | Spot -> Ok { map; matrix = Array.copy matrix; bias; kernel }
+  else match light_kind with Directional | Spot -> Ok { map; matrix = Array.copy matrix; bias; kernel; strength }
 
 let get_depth map x y =
   let offset = (y * Depth_stencil.pitch map.depth) + (x * 8) in
@@ -47,7 +47,7 @@ let visibility prepared ~position ~normal_dot_light =
   and py = int_of_float (floor (y *. float prepared.map.height)) in
   let bias = prepared.bias.constant +. prepared.bias.slope *. (1. -. max 0. (min 1. normal_dot_light)) in
   let depth = z -. bias in
-  match prepared.kernel with
+  let raw=match prepared.kernel with
   | Tap1 -> compare prepared.map px py depth
   | Tap4 ->
       (compare prepared.map px py depth +. compare prepared.map (px+1) py depth +.
@@ -58,3 +58,8 @@ let visibility prepared ~position ~normal_dot_light =
        compare prepared.map px py depth +. compare prepared.map (px+1) py depth +.
        compare prepared.map (px-1) (py+1) depth +. compare prepared.map px (py+1) depth +.
        compare prepared.map (px+1) (py+1) depth) /. 9.
+  | Tap25 ->
+      let visible=ref 0. in for y=py-2 to py+2 do for x=px-2 to px+2 do
+        visible:=!visible+.compare prepared.map x y depth
+      done done;!visible/.25. in
+  (1.-.prepared.strength)+.prepared.strength*.raw

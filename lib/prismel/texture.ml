@@ -286,4 +286,8 @@ let sample ?(filter = Bilinear) ?(wrap_u = Clamp) ?(wrap_v = Clamp)
 module Private = struct
   let create_owned = create_owned
   let sample_lod_packed = sample_lod_packed
+  let levels texture =
+    Array.append [|texture.width,texture.height,Array.copy texture.pixels|]
+      (Array.map(fun (level:level)->level.width,level.height,Array.copy level.pixels)
+         texture.mipmaps)
 end
