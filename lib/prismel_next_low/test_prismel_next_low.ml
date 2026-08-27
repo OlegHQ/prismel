@@ -59,6 +59,27 @@ let () =
      commands have their own stable whole-stream hash below. *)
   ignore (ok (G.flush replay));
   if Bytes.length frozen < 100 then failwith "advanced stream too small";
+  let pixels = Bytes.of_string
+      "\255\000\000\255\000\255\000\255\000\000\255\255\255\255\255\255" in
+  let image = match Prismel_next_resources.Image.create ~width:2 ~height:2
+      ~rgba:pixels with Ok value -> value | Error _ -> failwith "image create" in
+  let image_recorder = ok (G.create ~capacity:8 ()) in
+  ok (G.draw_sub_image image_recorder image ~src_rect:(0,0,1,2)
+    ~dst_rect:(2,3,4,5));
+  ok (G.draw_image_ex image_recorder image ~pos:(7,8) ~scale:2.
+    ~angle:(Float.pi /. 2.) ~center:(1,1) ~flip:true ());
+  let image_stream = ok (G.flush image_recorder) in
+  let image_commands = Raster2.Render_ir.commands image_stream in
+  let identity = Prismel_next_resources.Image.identity image in
+  let image_ids = Array.to_list image_commands |> List.filter_map (function
+    | Raster2.Render_ir.Image value -> Some value.resource_id | _ -> None) in
+  if image_ids <> [identity; identity] then failwith "image identity drift";
+  if Raster2.Render_ir.hash image_stream <> 0xdf75694ab73e182fL then
+    failwith "image stream hash drift";
+  G.destroy image_recorder;
+  begin match Prismel_next_resources.Image.destroy image with
+  | Ok () -> () | Error _ -> failwith "image destroy"
+  end;
   G.destroy recorder; G.destroy replay;
   let window = expect "window create" (Prismel_next_low.Window.create ()) in
   let frame_recorder = ok (G.create ~capacity:8 ()) in
