@@ -67,6 +67,24 @@ module Canvas=struct
     let expected=Raster2.Surface.height x.surface*Raster2.Surface.pitch x.surface in
     if Bytes.length pixels<>expected then error"Canvas.replace_pixels"Invalid_argument"pixel storage length does not match canvas"
     else(Bytes.blit pixels 0(Raster2.Surface.bytes x.surface)0 expected;x.generation<-x.generation+1;Ok()))
+  let copy_to_image x image=main"Canvas.copy_to_image"(fun()->
+    if x.dead then error"Canvas.copy_to_image"Destroyed"canvas is destroyed"
+    else if image.Image.dead then error"Canvas.copy_to_image"Destroyed"image is destroyed"
+    else
+      let width=Raster2.Surface.width x.surface
+      and height=Raster2.Surface.height x.surface
+      and source=Raster2.Surface.bytes x.surface in
+      if image.width=width&&image.height=height&&Bytes.length image.rgba=Bytes.length source
+      then(Bytes.blit source 0 image.rgba 0(Bytes.length source);
+        image.generation<-image.generation+1;Ok())
+      else
+        let replacement=Bytes.copy source in
+        image.width<-width;image.height<-height;image.rgba<-replacement;
+        image.generation<-image.generation+1;Ok())
+  let render_ir x ~lookup ir=live"Canvas.render_ir"x(fun()->
+    match Raster2.Consumer.execute~lookup~target:x.surface ir with
+    |Error _->error"Canvas.render_ir"Invalid_argument"invalid render command stream"
+    |Ok()->x.generation<-x.generation+1;Ok())
   let draw_image x image ~x:px ~y=live"Canvas.draw_image"x(fun()->match Image.size image,Image.pixels image with
     |Ok(w,h),Ok bytes->let src=Result.get_ok(Raster2.Surface.of_bytes~width:w~height:h~pitch:(w*4) bytes)in(match Raster2.Composite.blit~src~src_rect:{x=0;y=0;width=w;height=h}~dst:x.surface~dst_x:px~dst_y:y~blend:Raster2.Composite.Copy with Ok()->x.generation<-x.generation+1;Ok()|Error _->error"Canvas.draw_image"Invalid_argument"invalid blit")
     |Error e,_|_,Error e->Error e)

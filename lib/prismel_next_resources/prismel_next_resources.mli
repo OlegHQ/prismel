@@ -30,6 +30,13 @@ module Canvas : sig
   val clear : t -> int32 -> (unit,error) result
   val set_pixel : t -> x:int -> y:int -> int32 -> (unit,error) result
   val replace_pixels : t -> bytes -> (unit,error) result
+  (* Atomically replace [image] with the current canvas pixels while retaining
+     the image identity. Equal extents reuse the image's owned storage. *)
+  val copy_to_image : t -> Image.t -> (unit,error) result
+  (* Execute directly against the canvas's authoritative surface. Consumer
+     execution is transactional, so rejection leaves pixels/generation unchanged. *)
+  val render_ir : t -> lookup:(int -> Raster2.Consumer.resource option) ->
+    Raster2.Render_ir.t -> (unit,error) result
   val draw_image : t -> Image.t -> x:int -> y:int -> (unit,error) result
   val resize : t -> width:int -> height:int -> (unit,error) result
   val capture : t -> (Image.t,error) result

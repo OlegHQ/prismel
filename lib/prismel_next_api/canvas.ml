@@ -41,17 +41,9 @@ let render value scene=
       |Ok result->result|Error error->failwith("Canvas.render: "^error)in
     let table=Hashtbl.create(List.length resources)in
     List.iter(fun(id,resource)->Option.iter(Hashtbl.replace table id)(consumer_resource resource))resources;
-    let target=match Raster2.Offscreen.create~width~height()with
-      |Ok target->target|Error _->failwith"Canvas.render: offscreen target creation failed"in
-    Fun.protect~finally:(fun()->ignore(Raster2.Offscreen.destroy target))(fun()->
-      let view=match Raster2.Offscreen.view target with
-        |Ok view->view|Error _->failwith"Canvas.render: offscreen view creation failed"in
-      Fun.protect~finally:(fun()->ignore(Raster2.Offscreen.release_view view))(fun()->
-        (match Raster2.Offscreen.render view~lookup:(Hashtbl.find_opt table)ir with
-         |Ok()->()|Error _->failwith"Canvas.render: offscreen rendering failed");
-        let capture=match Raster2.Offscreen.capture view with
-          |Ok capture->capture|Error _->failwith"Canvas.render: offscreen capture failed"in
-        write_bytes value capture.pixels)))
+    match Prismel_next_resources.Canvas.render_ir value.resource
+      ~lookup:(Hashtbl.find_opt table)ir with
+    |Ok()->()|Error error->failwith(message"Canvas.render"error))
 let capture()=match Canvas_runtime.capture()with Error _ as error->error|Ok(w,h,bytes)->let value=create_exn~width:w~height:h in(try write_bytes value bytes;Ok value with exn->ignore(Prismel_next_resources.Canvas.destroy value.resource);Error(Printexc.to_string exn))
 let save_screen_png=Canvas_runtime.save
 let destroy value=if not value.destroyed then(ignore(Prismel_next_resources.Canvas.destroy value.resource);value.destroyed<-true)
