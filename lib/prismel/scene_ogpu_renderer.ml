@@ -75,12 +75,13 @@ let native_triangles(draw:Raster2.Scene3_consumer.draw)=
     |Vertices->Array.iter(fun(a,b,c)->add_point a;add_point b;add_point c)triangles
     |Wireframe->Array.iter(fun(a,b,c)->add_line a b;add_line b c;add_line c a)triangles
     |Faces->());
-    (match draw.topology with
-    |Point_list->Array.iter add_point source
-    |Line_list->for i=0 to Array.length source/2-1 do add_line source.(2*i)source.(2*i+1)done
-    |Line_strip->for i=0 to Array.length source-2 do add_line source.(i)source.(i+1)done
-    |Line_loop when Array.length source>1->for i=0 to Array.length source-1 do add_line source.(i)source.((i+1)mod Array.length source)done
-    |Line_loop|Triangle_list|Triangle_strip|Triangle_fan->());
+    (match draw.topology, draw.mode with
+    |Point_list, _->Array.iter add_point source
+    |(Line_list|Line_strip|Line_loop), Vertices->Array.iter add_point source
+    |Line_list, _->for i=0 to Array.length source/2-1 do add_line source.(2*i)source.(2*i+1)done
+    |Line_strip, _->for i=0 to Array.length source-2 do add_line source.(i)source.(i+1)done
+    |Line_loop, _ when Array.length source>1->for i=0 to Array.length source-1 do add_line source.(i)source.((i+1)mod Array.length source)done
+    |Line_loop, _|Triangle_list, _|Triangle_strip, _|Triangle_fan, _->());
     let unique values key=let seen=Hashtbl.create 32 in List.filter(fun value->let key=key value in if Hashtbl.mem seen key then false else(Hashtbl.add seen key();true))values in
     let points=unique(List.rev!points)Fun.id and lines=unique(List.rev!lines)(fun(a,b)->if a<=b then a,b else b,a)in
     let matrix values=Mat4.of_rows(values.(0),values.(1),values.(2),values.(3))(values.(4),values.(5),values.(6),values.(7))(values.(8),values.(9),values.(10),values.(11))(values.(12),values.(13),values.(14),values.(15))in
@@ -123,9 +124,77 @@ let native_triangles(draw:Raster2.Scene3_consumer.draw)=
           };
       }
     in
-    let vertices=ref[]and indices=ref[]in let emit values=let base=List.length!vertices in vertices:=!vertices@values;indices:=!indices@[base;base+1;base+2;base;base+2;base+3]in
-    List.iter(fun index->let v=draw.vertices.(index)and h=draw.point_size/.2. in emit[moved v(-.h)(-.h);moved v h(-.h);moved v h h;moved v(-.h)h])points;
-    List.iter(fun(a,b)->let va=draw.vertices.(a)and vb=draw.vertices.(b)in let cax,cay,_,caw=clip va.position and cbx,cby,_,cbw=clip vb.position in let ax=cax/.caw and ay=cay/.caw and bx=cbx/.cbw and by=cby/.cbw in let dx=(bx-.ax)*.draw.viewport.width/.2. and dy=(ay-.by)*.draw.viewport.height/.2. in let length=sqrt(dx*.dx+.dy*.dy)in if length>0. then let h=draw.line_width/.2. and nx=(-.dy)/.length and ny=dx/.length in emit[moved va(nx*.h)(ny*.h);moved vb(nx*.h)(ny*.h);moved vb(-.nx*.h)(-.ny*.h);moved va(-.nx*.h)(-.ny*.h)])lines;
+    let vertices=ref[]and indices=ref[]in
+    let emit values=let base=List.length!vertices in vertices:=!vertices@values;indices:=!indices@[base;base+1;base+2;base;base+2;base+3]in
+    List.iter(fun index->let v=draw.vertices.(index)and h=(draw.point_size+.1.)/.2. in emit[moved v(-.h)(-.h);moved v h(-.h);moved v h h;moved v(-.h)h])points;
+    let interpolate (a : Raster2.Scene3_consumer.vertex)
+        (b : Raster2.Scene3_consumer.vertex) t =
+      let scalar x y = x +. (t *. (y -. x)) in
+      let vector (x : Raster2.Scene3_lighting.vec3)
+          (y : Raster2.Scene3_lighting.vec3) =
+        {
+          Raster2.Scene3_lighting.x = scalar x.x y.x;
+          y = scalar x.y y.y;
+          z = scalar x.z y.z;
+        }
+      in
+      let channel color shift =
+        Int32.(to_int (logand (shift_right_logical color shift) 0xffl))
+      in
+      let color =
+        List.fold_left
+          (fun result shift ->
+            let value =
+              int_of_float
+                (scalar (float (channel a.color shift))
+                   (float (channel b.color shift))
+                +. 0.5)
+            in
+            Int32.logor result (Int32.shift_left (Int32.of_int value) shift))
+          0l [ 24; 16; 8; 0 ]
+      in
+      {
+        Raster2.Scene3_consumer.position = vector a.position b.position;
+        normal = vector a.normal b.normal;
+        color;
+        u = scalar a.u b.u;
+        v = scalar a.v b.v;
+      }
+    in
+    List.iter
+      (fun (a, b) ->
+        let va = draw.vertices.(a) and vb = draw.vertices.(b) in
+        let cax, cay, _, caw = clip va.position
+        and cbx, cby, _, cbw = clip vb.position in
+        let ax = draw.viewport.x +. ((cax /. caw +. 1.) *. draw.viewport.width /. 2.)
+        and ay = draw.viewport.y +. ((1. -. (cay /. caw +. 1.) /. 2.) *. draw.viewport.height)
+        and bx = draw.viewport.x +. ((cbx /. cbw +. 1.) *. draw.viewport.width /. 2.)
+        and by = draw.viewport.y +. ((1. -. (cby /. cbw +. 1.) /. 2.) *. draw.viewport.height) in
+        let dx = bx -. ax and dy = by -. ay and half = draw.line_width /. 2. in
+        let length2 = (dx *. dx) +. (dy *. dy) in
+        let xmin = int_of_float (floor (min ax bx -. half))
+        and xmax = int_of_float (ceil (max ax bx +. half))
+        and ymin = int_of_float (floor (min ay by -. half))
+        and ymax = int_of_float (ceil (max ay by +. half)) in
+        for y = ymin to ymax do
+          for x = xmin to xmax do
+            let px = float x +. 0.5 and py = float y +. 0.5 in
+            let t =
+              if length2 = 0. then 0.
+              else max 0. (min 1. (((px -. ax) *. dx +. (py -. ay) *. dy) /. length2))
+            in
+            let qx = ax +. (t *. dx) and qy = ay +. (t *. dy) in
+            if ((px -. qx) ** 2.) +. ((py -. qy) ** 2.) <= half *. half then
+              let vertex = interpolate va vb t in
+              let vx = ax +. (t *. dx) and vy = ay +. (t *. dy) in
+              emit
+                [ moved vertex (float x -. vx) (float y -. vy);
+                  moved vertex (float (x + 1) -. vx) (float y -. vy);
+                  moved vertex (float (x + 1) -. vx) (float (y + 1) -. vy);
+                  moved vertex (float x -. vx) (float (y + 1) -. vy) ]
+          done
+        done)
+      lines;
     {draw with topology=Raster2.Scene3.Triangle_list;vertices=Array.of_list!vertices;indices=Array.of_list!indices;mode=Raster2.Scene3_consumer.Faces}
 let draw3 (source : Raster2.Scene3_consumer.draw) =
   let draw = native_triangles source in
