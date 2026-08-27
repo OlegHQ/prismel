@@ -12,8 +12,11 @@ and deterministic headless execution.
 - `lib/runtime/` owns target selection, SDL lifecycle, and frame presentation.
 - `lib/wap/` is the standalone browser transport imported by `runtime`; it
   must not depend on `runtime` or `prismel`.
-- `lib/<name>/` contains sibling libraries. A sibling library may depend on
-  `prismel`; `prismel` must never depend on a sibling library.
+- `lib/<name>/` contains sibling feature libraries. An ordinary sibling may
+  depend on `prismel`; `prismel` must never depend on one. The frozen GPU graph
+  deliberately exempts the foundational `sdl3`, `metal`, `ogpu`, `ogpu_metal`,
+  and `raster2` libraries described below: `prismel` may depend on `ogpu` and
+  `raster2`, and `runtime` may combine SDL3 with `ogpu_metal`.
 - `lib/pxui/` is the UI toolkit inspired by ofxUI.
 - `lib/sop_ui/` is the one-way adapter that renders typed `procedural`
   parameter templates through PXUI; neither underlying library imports it.
@@ -99,6 +102,18 @@ OGPU, Runtime, Prismel, and PXUI. Wap remains independent of every platform and
 renderer library. Runtime alone combines the SDL3 Metal view with an
 `ogpu_metal` surface, while Prismel records through `ogpu` and renders the
 deterministic targets through `raster2` without receiving raw native pointers.
+These exceptions do not permit reverse edges: SDL3/Metal/OGPU/Raster2 never
+import Runtime or Prismel, `ogpu_metal` never imports Runtime or SDL3, and no
+foundational library imports PXUI or Wap. The dependency-direction gate must
+check both the required final edges and injected forbidden reversals.
+
+During side-by-side qualification, private `Scene_description` values lower to
+shared Raster2 IR/resource snapshots while the legacy Scene renderer remains
+selectable for comparison. Keep this pivot private until the frozen atomic
+switch, parity, target, and long-run gates pass; do not fork public Scene
+semantics. Binding generation and migration orchestration remain OCaml/Dune
+native: the GPU migration has no Python glue and must not acquire any. This does
+not change the separately documented, isolated SideFX `hython` reference use.
 
 ## Metal binding generation
 
@@ -665,12 +680,13 @@ frame count for smoke testing.
   press/drag/release behavior at simulated backing scales.
 - Treat compiler warnings as errors and run `git diff --check`.
 
-## Adding a sibling library
+## Adding an ordinary sibling library
 
 Create `lib/<name>/dune` with a wrapped library named `<name>` and declare
 `(libraries prismel ...)`. Add its tests under `test/` or beside the library
 only when they are genuinely library-specific. Document the library in the
-README.
+README. Foundational GPU libraries instead follow the frozen dependency graph
+above and must not use this ordinary-sibling template.
 
 For `pxui`, prefer the functional builder, `Pxui.update_frame`, and `Pxui.scene` in
 new code. UI values belong in the immutable sketch model. Keep `add_*`,
