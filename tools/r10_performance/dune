@@ -1,26 +1,33 @@
+(library
+ (name r10_workload_descriptor)
+ (wrapped false)
+ (modules r10_scene2_legacy_equivalent))
+
 (executable
  (name r10_performance_protocol)
+ (modules r10_performance_protocol)
  (libraries unix yojson))
 
 (executable
  (name r10_existing_adapter)
+ (modules r10_existing_adapter)
  (libraries unix))
 
 (executable
  (name r10_runtime_next_target_benchmark)
- (modules r10_runtime_next_target_benchmark r10_scene2_legacy_equivalent
-  r10_scene2_candidate
+ (modules r10_runtime_next_target_benchmark r10_scene2_candidate
   r10_scene3_legacy_equivalent r10_scene3_equivalence_bridge)
  (libraries runtime_next_headless runtime_next_web prismel_next_api
-  pxui_next scene_execution ogpu wap unix yojson))
+  pxui_next r10_workload_descriptor scene_execution ogpu wap unix yojson))
 
 (test
  (name test_r10_scene2_legacy_equivalent)
- (modules test_r10_scene2_legacy_equivalent r10_scene2_legacy_equivalent)
- (libraries))
+ (modules test_r10_scene2_legacy_equivalent)
+ (libraries r10_workload_descriptor))
 
 (test
  (name test_r10_equivalence_validation)
+ (modules test_r10_equivalence_validation)
  (libraries unix yojson)
  (deps r10_performance_protocol.exe)
  (action (run %{test} ./%{dep:r10_performance_protocol.exe})))

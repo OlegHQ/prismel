@@ -162,6 +162,16 @@ let framebuffer_hash () =
       Bytes.set_uint8 bytes (offset + 3) color.a) colors;
     Digest.to_hex (Digest.bytes bytes))
 
+let descriptor resources =
+  let descriptor_scenario,actual=match resources with
+    |Basic_resources _->R10_scene2_legacy_equivalent.Basic,9
+    |Pxui_resources _->Pxui,21|Canvas_resources _->Canvas,5
+    |Scene3_resources(_,scene)->Scene3,(Scene3.Private.drawings scene|>List.fold_left
+        (fun total drawing->total+(Mesh.index_count drawing.Scene3.Private.mesh/3))0)in
+  let value=R10_scene2_legacy_equivalent.describe descriptor_scenario~width~height in
+  if actual<>value.work_units then failwith"R10 legacy descriptor cardinality drift";
+  value
+
 let make_image () =
   let canvas = Canvas.create_exn ~width:96 ~height:96 in
   Canvas.render canvas Scene.[
@@ -390,8 +400,9 @@ let view model frame = match model.resources with
 let print_result model result =
   let profile = Option.value ~default:"unknown"
       (Sys.getenv_opt "PRISMEL_BENCH_PROFILE") in
+  let descriptor=descriptor model.resources in
   Printf.printf
-    "{\"schema\":1,\"benchmark\":\"renderer\",\"scenario\":\"%s\",\"target\":\"%s\",\"profile\":\"%s\",\"width\":%d,\"height\":%d,\"drawable_width\":%d,\"drawable_height\":%d,\"pixel_scale\":[%.6f,%.6f],\"domains\":%d,\"warmup_seconds\":%.6f,\"requested_measure_seconds\":%.6f,\"scheduling\":\"fixed-rate\",\"scheduled_frame_rate\":60.0,\"frames\":%d,\"wall_seconds\":%.9f,\"frames_per_second\":%.6f,\"median_frame_seconds\":%.9f,\"p95_frame_seconds\":%.9f,\"p99_frame_seconds\":%.9f,\"user_seconds\":%.9f,\"system_seconds\":%.9f,\"cpu_percent\":%.6f,\"allocated_bytes\":%.0f,\"allocated_bytes_per_frame\":%.6f,\"minor_bytes\":%.0f,\"promoted_bytes\":%.0f,\"promoted_bytes_per_frame\":%.6f,\"major_bytes\":%.0f,\"major_collections\":%d,\"ending_heap_bytes\":%d,\"peak_heap_bytes\":%d,\"starting_rss_kib\":%s,\"ending_rss_kib\":%s,\"peak_sampled_rss_kib\":%s,\"framebuffer_hash\":\"%s\",\"legacy_gpu_duration_seconds\":null,\"legacy_gpu_utilization_percent\":null,\"legacy_draw_count\":null,\"legacy_upload_bytes\":null}\n%!"
+    "{\"schema\":1,\"benchmark\":\"renderer\",\"scenario\":\"%s\",\"target\":\"%s\",\"profile\":\"%s\",\"width\":%d,\"height\":%d,\"drawable_width\":%d,\"drawable_height\":%d,\"pixel_scale\":[%.6f,%.6f],\"domains\":%d,\"warmup_seconds\":%.6f,\"requested_measure_seconds\":%.6f,\"scheduling\":\"fixed-rate\",\"scheduled_frame_rate\":60.0,\"frames\":%d,\"wall_seconds\":%.9f,\"frames_per_second\":%.6f,\"median_frame_seconds\":%.9f,\"p95_frame_seconds\":%.9f,\"p99_frame_seconds\":%.9f,\"user_seconds\":%.9f,\"system_seconds\":%.9f,\"cpu_percent\":%.6f,\"allocated_bytes\":%.0f,\"allocated_bytes_per_frame\":%.6f,\"minor_bytes\":%.0f,\"promoted_bytes\":%.0f,\"promoted_bytes_per_frame\":%.6f,\"major_bytes\":%.0f,\"major_collections\":%d,\"ending_heap_bytes\":%d,\"peak_heap_bytes\":%d,\"starting_rss_kib\":%s,\"ending_rss_kib\":%s,\"peak_sampled_rss_kib\":%s,\"workload_signature\":\"%s\",\"work_units\":%d,\"semantics_supported\":true,\"pixel_authority\":\"phase0/legacy/%s\",\"pixel_tolerance\":0,\"framebuffer_hash\":\"%s\",\"legacy_gpu_duration_seconds\":null,\"legacy_gpu_utilization_percent\":null,\"legacy_draw_count\":null,\"legacy_upload_bytes\":null}\n%!"
     (scenario_name scenario) (target_name ()) profile width height
     model.drawable_width model.drawable_height model.pixel_scale_x
     model.pixel_scale_y domains warmup_seconds measure_seconds result.frames
@@ -407,6 +418,7 @@ let print_result model result =
     (Option.fold ~none:"null" ~some:string_of_int result.starting_rss_kib)
     (Option.fold ~none:"null" ~some:string_of_int result.ending_rss_kib)
     (Option.fold ~none:"null" ~some:string_of_int result.peak_sampled_rss_kib)
+    descriptor.semantic_signature descriptor.work_units (scenario_name scenario)
     result.framebuffer_hash
 
 let () =

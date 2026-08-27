@@ -1,4 +1,4 @@
-type scenario = Basic | Pxui | Canvas
+type scenario = Basic | Pxui | Canvas | Scene3
 type descriptor = { scenario : scenario; semantic_signature : string;
   work_units : int; required_features : string list;
   canonical_parameters : string }

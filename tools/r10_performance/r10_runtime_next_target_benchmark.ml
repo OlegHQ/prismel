@@ -23,8 +23,9 @@ let artifact scenario width height =
         | Error message ->
             invalid_arg ("non-equivalent canonical Scene3 artifact: " ^ message)
       in
+      let descriptor=R10_scene2_legacy_equivalent.describe Scene3~width~height in
       { draws = canonical.software_draws;
-        workload_signature = "scene3-canonical:" ^ proof.semantic_signature;
+        workload_signature = descriptor.semantic_signature;
         work_units = proof.triangles }
   | value -> invalid_arg ("unknown scenario " ^ value)
 

@@ -27,7 +27,7 @@
 
 (executable
  (name bench_renderer)
- (libraries prismel pxui unix))
+ (libraries prismel pxui r10_workload_descriptor unix))
 
 (executable
  (name bench_raster2_renderer)
