@@ -131,7 +131,10 @@ can change the denominator explicitly rather than being hidden.
 | `daaf52c` | 2026-08-27 10:41:25 +02:00 | 5,174 | 5,249 | 98.5712% | 25 | 0.107 | 234.4 | 4.47 |
 | `a931f53` | 2026-08-27 10:43:23 +02:00 | 5,202 | 5,249 | 99.1046% | 28 | 0.033 | 854.2 | 16.27 |
 | `78a4724` | 2026-08-27 10:49:33 +02:00 | 5,205 | 5,249 | 99.1617% | 3 | 0.103 | 29.2 | 0.56 |
-| `ac089f2` | 2026-08-27 10:50:04 +02:00 | 5,207 | 5,249 | 99.1998% | 2 | 0.009 | 232.3 | 4.43 |
+| `ac089f2` | 2026-08-27 10:50:04 +02:00 | 5,207 | 5,249 | 99.1998% | 2 | 0.009 | 232.3 | 4.42 |
+| `daee7a1` | 2026-08-27 10:54:30 +02:00 | 5,210 | 5,249 | 99.2570% | 3 | 0.074 | 40.6 | 0.77 |
+| `1a13948` | 2026-08-27 10:55:08 +02:00 | 5,213 | 5,249 | 99.3142% | 3 | 0.011 | 284.2 | 5.41 |
+| `076b45c` | 2026-08-27 10:56:24 +02:00 | 5,226 | 5,249 | 99.5618% | 13 | 0.021 | 615.8 | 11.73 |
 
 ## Current measured rate
 
@@ -311,6 +314,13 @@ its completion typedef. The public bounded compiler task validates ownership
 and device identity, stores completion exactly once without calling OCaml from
 Metal's worker queue, and materializes copied pipeline metadata on polling.
 
+The `076b45c` interval intentionally combines nine concurrently prepared
+Device asynchronous constructor selectors with the attributable Device
+observer metadata4. The observer API owns a multi-shot registration token,
+copies notification names, returns owned initial and callback device handles,
+rejects double cancellation, and releases its OCaml root exactly once after
+native observer removal; focused safe and native enumeration fixtures pass.
+
 The `ec543d9` interval closes the final four synchronous MTLDevice constructor
 selectors from the earlier residual-six partition, moving bound coverage from
 5,174 to 5,178. Typed function handles, immutable argument descriptors, and
@@ -323,5 +333,20 @@ live function kinds and device graphs before typed native mutation, propagates
 NSError failures, retains only successful descriptor/function/library edges,
 and is covered by real archive addition, serialization, and reopen conformance.
 
+The `ac089f2` interval closes two bounded asynchronous compiler callback
+declarations. The `daee7a1` interval closes three owned Device metadata
+declarations. The `1a13948` interval then closes
+MTL4StitchedFunctionDescriptor3: its public class and function-graph
+method/property use atomic paired native replacement, exact round-trip
+verification, retained function/graph ownership, nullable reset, and macOS 26
+capability conformance.
+
 Rates describe completed commits, not forecasts. Hardware-only gates and
 complex ownership features will vary materially from pure-value batches.
+
+The `076b45c`/`406905a` checkpoint also closes the exact Device async9 slice.
+The safe API executes all nine classic completion-handler selectors through a
+bounded native Result contract, retaining inputs through completion without
+escaping OCaml roots. Real fixtures cover library, compute, render, stitched,
+mesh, and tile execution or capability rejection; async9 contributes nine of
+the checkpoint's bound declarations.
