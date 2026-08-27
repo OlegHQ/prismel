@@ -501,6 +501,9 @@ let validate_plan inventory =
     (count_semantics standalone Binding_direct_spec.Blocking);
   require_count "standalone Process_identity" 1
     (count_semantics standalone Binding_direct_spec.Process_identity);
+  if Binding_direct_plan.capability13_identifiers <>
+       Binding_direct_plan.expected_capability13_identifiers then
+    fail "Device capability13 direct intersection drift";
   let derived_methods = standalone @ property_methods in
   if
     List.map (fun (entry : Binding_direct_spec.method_entry) -> entry.sdk_id)

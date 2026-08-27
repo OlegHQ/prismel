@@ -27,6 +27,22 @@ let safe_device_identifiers =
 let is_safe_device_identifier identifier =
   List.mem identifier safe_device_identifiers
 
+let capability13_identifiers =
+  inventory_ids
+  |> List.filter (fun id ->
+       List.mem id Binding_device_capability13_safe_package.ids)
+  |> List.sort_uniq String.compare
+
+let expected_capability13_identifiers =
+  [ "method:-[MTLDevice setShouldMaximizeConcurrentCompilation:]"
+  ; "method:-[MTLDevice shouldMaximizeConcurrentCompilation]"
+  ; "method:-[MTLDevice supportsCounterSampling:]"
+  ; "method:-[MTLDevice supportsRasterizationRateMapWithLayerCount:]"
+  ; "property:MTLDevice:shouldMaximizeConcurrentCompilation" ]
+
+let is_capability13_identifier identifier =
+  List.mem identifier capability13_identifiers
+
 let expected_method_count = 59
 let expected_property_count = 40
 let expected_declaration_count = 99
@@ -72,6 +88,10 @@ let validate () =
   if List.length safe_device_properties <> 19
      || List.length safe_device_identifiers <> 38
   then fail "expected 19 safe Device properties and 38 identifiers";
+  if capability13_identifiers <> expected_capability13_identifiers then
+    fail "promoted Device capability13 direct intersection drift: expected [%s], got [%s]"
+      (String.concat "; " expected_capability13_identifiers)
+      (String.concat "; " capability13_identifiers);
   reject_duplicates "inventory identifier" inventory_ids;
   let presentation_promotable =
     Binding_presentation_public_audit.safe_reachable
