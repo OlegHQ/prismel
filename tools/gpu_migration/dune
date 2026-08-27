@@ -50,3 +50,9 @@
   ../../tools/packaging/check_installed_consumer.ml
   ../../tools/packaging/sdl3_asan.supp)
  (action (run %{test} --root %{workspace_root})))
+
+(test
+ (name test_sdl3_no_dynamic_ffi)
+ (modules test_sdl3_no_dynamic_ffi)
+ (libraries unix)
+ (action (chdir %{workspace_root} (run %{test}))))
