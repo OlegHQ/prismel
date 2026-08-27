@@ -72,11 +72,11 @@ fixture; **M** means missing. These are not legacy pixel-parity claims.
 | `clear` | I/T | `Render_ir.Clear`; private lowerer and Backend-mock frame order (`b9f9f28`, `40bad9a`). |
 | `point`, `line` including width | I/T | Point quad and deterministic widened-line geometry in the initial exact-order fixture (`b9f9f28`). |
 | `rect` | I/T | Fill quad plus optional Path stroke; fill/stroke exercised (`b9f9f28`). |
-| `square` | I/U | Public convenience maps to `Rect`; no dedicated square lowering/pixel fixture. |
+| `square` | I/T | Public constructor is table-compared with canonical `Rect` for exact IR and framebuffer bytes through frame 600 and one/four domains. |
 | `rounded_rect` | I/T | Rounded Path tessellation is directly included in the constructor fixture (`59ae442`). |
 | `circle`, `ellipse` | I/T | Deterministic sampled closed Paths, fill/stroke exercised (`59ae442`). |
 | `triangle` | I/T | Path triangle plus OGPU stable prepared-mesh/upload fixture (`b9f9f28`, `40bad9a`). |
-| `quad` | I/U | Public convenience maps to `Polygon`; polygon is tested, but no dedicated quad pixel fixture. |
+| `quad` | I/T | Public constructor is table-compared with canonical `Polygon` for exact IR and framebuffer bytes through frame 600 and one/four domains. |
 | `polygon`, `polyline` | I/T | Closed fill/stroke and open stroke fixtures (`59ae442`). |
 | `arc`, `pie`, `bezier` | I/T | Sampled open/closed Path fixtures (`59ae442`). |
 | `path` rules/contours/fill/stroke | I/T | Separate contours, transparent holes, ordering, frame-600 and four-domain fixtures (`59ae442`, `3d1c2c1`). |
@@ -103,9 +103,9 @@ fields are ignored or not integrated and therefore cannot count as parity.
 | `mesh` Faces; triangle list/strip/fan | I/T | Vertices/normals/UV/indices prepare draws; list framebuffer and authored-normal fixtures (`e813369`). Public strip/fan constructors now have exact stable-expansion, framebuffer, winding and one/four-domain goldens. |
 | Public Faces/Wireframe/Vertices render modes | I/T | Faces retain the top-left triangle rule; Wireframe emits stable unique shared edges and Vertices emits stable unique projected points for triangle lists, strips and fans. Point sources render as points in all three modes; line list/strip/loop sources render lines for Faces/Wireframe and deduplicated endpoints for Vertices. Public line width/point size, homogeneous/scissor clipping, depth/stencil, cull and blend are exercised through frame 600 and four domains. No public `Mesh.mode` remains rejected. |
 | Per-vertex mesh colors | R/U | Explicit `Invalid_mesh`, without a focused rejection fixture; material color is used instead. |
-| `instances`, `instances_array` | I/U | Flattened per copied transform; geometry cache ignores transforms. No exact public 600-instance ordering fixture. |
+| `instances`, `instances_array` | I/T | Public list/array constructors flatten in stable identical transform order, preserve six exact draws, and retain geometry/material state. Prepared values and pixels are exact through frame 600 and one/four domains. |
 | `group`, `transform`, `translate`, `rotate`, `scale`, `at_node` | I/T | Flattened matrices; camera-only frames 2–600 produce zero replacement upload bytes (`e813369`, `d199322`). Convenience-specific pixels remain open. |
-| `box`, `plane`, `sphere`, `icosphere`, `cylinder`, `cone` | I/U | Convenience constructors produce ordinary Mesh values. No per-primitive lowering pixel matrix. |
+| `box`, `plane`, `sphere`, `icosphere`, `cylinder`, `cone` | I/T | One public table checks each against its canonical Mesh vertex/index cardinality, topology, material/raster state and a non-empty deterministic framebuffer. Every constructor has its own exact prepared hash through frame 600 and one/four domains. |
 | Material ambient/diffuse/specular/emissive/shininess | I/T | Copied into prepared lighting (`51128b0`, `e813369`). |
 | Ambient/directional/point/spot lights | I/T | Raster2 carries validated spot concentration and applies the public cutoff/exponent rule exactly. Exponents 0/1/high, high cutoff, non-finite rejection, frame 600 and four-domain equality are direct fixtures. |
 | Area lights | R/U | Explicit `Unsupported_area_light`; no focused lowerer fixture. |
@@ -127,8 +127,7 @@ fields are ignored or not integrated and therefore cannot count as parity.
 | Viewport/scissor | I/T | Default/explicit validation, matrix conversion and ordered state (`e813369`, `d199322`); nested Scene2 clips now intersect View3d viewport/scissor and are exercised through frame 600/four domains. |
 | Private portable draw submission | I/T | Prepared 2D/Scene3 vertex and index bytes are written once, then submitted as exact Backend render bindings. Consecutive pass-compatible draws batch in order; only incompatible pass-level state splits. A 1,000-primitive fixture proves one render submission per frame, zero replacement uploads through frame 600, exact payload order/cardinality, bounded teardown, and one/four-domain equality. Runtime selection and real Metal pixel parity remain missing. |
 
-The remaining local gaps are dedicated fixtures for already-mapped convenience
-constructors, per-vertex color policy, and focused rejection
+The remaining local gaps are per-vertex color policy and focused rejection
 tests for area lights/metadata. They do not repair the material external gates
 above.
 The public Scene3 sampling surface is fully represented. Explicit user-selected

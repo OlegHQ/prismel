@@ -397,6 +397,82 @@ let self_test () =
     texture_workers;
   let rejecting={resources with texture=(fun _->Error Texture_error)}in
   begin match lower_view3d~resources:rejecting~default_viewport:(0,0,16,16)(View3d(camera,textured,None))with Error Texture_error->()|_->failwith"SDL texture not rejected atomically"end;
+  let convenience_material = Material.create ~diffuse:(Color.rgb 210 130 40)
+      ~ambient:(Color.rgb 30 20 10) ~shininess:7. () in
+  let conveniences =
+    [
+      ("box", Scene3.box ~material:convenience_material ~mode:Wireframe
+          ~cull:Cull_none ~shading:Flat ~width:1. ~height:1.2 ~depth:0.8 (),
+        Mesh.box ~width:1. ~height:1.2 ~depth:0.8 ());
+      ("plane", Scene3.plane ~material:convenience_material ~mode:Wireframe
+          ~cull:Cull_none ~shading:Flat ~width:1.4 ~height:1.1 (),
+        Mesh.plane ~width:1.4 ~height:1.1 ());
+      ("sphere", Scene3.sphere ~material:convenience_material ~mode:Wireframe
+          ~cull:Cull_none ~shading:Flat ~radius:0.7 (), Mesh.sphere ~radius:0.7 ());
+      ("icosphere", Scene3.icosphere ~material:convenience_material ~mode:Wireframe
+          ~cull:Cull_none ~shading:Flat ~radius:0.7 (), Mesh.icosphere ~radius:0.7 ());
+      ("cylinder", Scene3.cylinder ~material:convenience_material ~mode:Wireframe
+          ~cull:Cull_none ~shading:Flat ~radius:0.6 ~height:1.2 (),
+        Mesh.cylinder ~radius:0.6 ~height:1.2 ());
+      ("cone", Scene3.cone ~material:convenience_material ~mode:Wireframe
+          ~cull:Cull_none ~shading:Flat ~radius:0.6 ~height:1.2 (),
+        Mesh.cone ~radius:0.6 ~height:1.2 ());
+    ]
+  in
+  List.iter
+    (fun (name,node,canonical) ->
+      let value = match lower_view3d ~resources ~default_viewport:(0,0,32,32)
+          (View3d(camera,Scene3.create[node],None)) with
+        | Ok value -> value | Error _ -> failwith(name^" convenience lowering") in
+      let draw=value.draws.(0)in
+      if Array.length value.draws<>1||Array.length draw.vertices<>Mesh.vertex_count canonical||
+        Array.length draw.indices<>Mesh.index_count canonical||draw.mode<>Raster2.Scene3_consumer.Wireframe||
+        draw.shading<>Flat||draw.cull<>Raster2.Triangle.Cull_none then
+        failwith(name^" convenience topology/state");
+      let color_target=match Raster2.Surface.create~width:32~height:32()with
+        Ok target->target|Error _->failwith(name^" target")in
+      let depth_target=match Raster2.Depth_stencil.create~width:32~height:32()with
+        Ok target->target|Error _->failwith(name^" depth")in
+      begin match Raster2.Scene3_consumer.render
+          ~target:{color=color_target;depth=Some depth_target;multisample=None}
+          ~clear:0x000000ffl~clear_depth:value.clear_depth
+          ~clear_stencil:value.clear_stencil~draws:value.draws with
+      | Ok()->()|Error _->failwith(name^" consumer")end;
+      let changed=ref false in
+      for offset=0 to(32*32)-1 do if Bytes.get_int32_le
+        (Raster2.Surface.bytes color_target)(offset*4)<>0xff000000l then
+        changed:=true done;
+      if not !changed then failwith(name^" empty framebuffer");
+      let snapshot()=match lower_view3d~resources~default_viewport:(0,0,32,32)
+          (View3d(camera,Scene3.create[node],None))with
+        | Ok current->Marshal.to_bytes current[]|Error _->Bytes.empty in
+      let expected=snapshot()in
+      for _frame=1 to 600 do if snapshot()<>expected then
+        failwith(name^" frame drift")done;
+      let workers=Array.init 4(fun _->Domain.spawn snapshot)in
+      Array.iter(fun worker->if Domain.join worker<>expected then
+        failwith(name^" domain drift"))workers) conveniences;
+  let instance_mesh=Mesh.plane~width:0.5~height:0.5()in
+  let transforms=[Mat4.translation(Vec3.create(-1.)0. 0.);Mat4.identity;
+    Mat4.translation(Vec3.create 1. 0. 0.)]in
+  let instance_scene=Scene3.create[
+    Scene3.instances~material:convenience_material~cull:Cull_none instance_mesh transforms;
+    Scene3.instances_array~material:convenience_material~cull:Cull_none instance_mesh(Array.of_list transforms)]in
+  let instance_prepared=match lower_view3d~resources~default_viewport:(0,0,32,32)
+      (View3d(camera,instance_scene,None))with Ok value->value|Error _->failwith"instances lowering"in
+  if Array.length instance_prepared.draws<>6 then failwith"instances cardinality";
+  for index=0 to 2 do if instance_prepared.draws.(index).matrix<>
+    instance_prepared.draws.(index+3).matrix then failwith"instances list/array order"done;
+  if instance_prepared.draws.(0).matrix=instance_prepared.draws.(1).matrix||
+    instance_prepared.draws.(1).matrix=instance_prepared.draws.(2).matrix then
+    failwith"instance transform collapsed";
+  let instance_snapshot()=Marshal.to_bytes instance_prepared[]in
+  let expected_instances=instance_snapshot()in
+  for _frame=1 to 600 do if instance_snapshot()<>expected_instances then
+    failwith"instances frame drift"done;
+  let instance_workers=Array.init 4(fun _->Domain.spawn instance_snapshot)in
+  Array.iter(fun worker->if Domain.join worker<>expected_instances then
+    failwith"instances domain drift")instance_workers;
   let shader=Scene3.create[Scene3.mesh~material~cull:Scene3.Cull_none~shader:(Obj.magic 0)mesh]in
   match lower_view3d~resources~default_viewport:(0,0,16,16)(View3d(camera,shader,None))with Error Unsupported_shader->()|_->failwith"functional shader not rejected"
 
