@@ -14,7 +14,8 @@ The currently installed side-by-side surfaces are:
   `prismel.ogpu_raster2`, and `prismel.scene_execution`;
 - target qualification: `prismel.runtime_next`,
   `prismel.runtime_next_headless`, `prismel.runtime_next_web`,
-  `prismel.runtime_next_orchestrator`, and `prismel.runtime_next_input`.
+  `prismel.runtime_next_orchestrator`, `prismel.runtime_next_input`, and the
+  SDL2-free high-level staging facade `prismel.runtime_next_compat`.
 
 All are emitted by the root `prismel` package. The only additional opam files
 are the four existing `packaging/conf-sdl3*` system probes. They test headers,
@@ -49,7 +50,7 @@ OCAMLPATH="$prefix/lib" opam exec -- ocamlfind query \
   prismel.sdl3 prismel.metal prismel.ogpu prismel.ogpu_metal \
   prismel.ogpu_raster2 prismel.raster2 prismel.runtime_next \
   prismel.runtime_next_headless prismel.runtime_next_web \
-  prismel.scene_execution
+  prismel.runtime_next_compat prismel.scene_execution
 ```
 
 The temporary prefix contained 2,270 installed files and every queried package
@@ -62,3 +63,12 @@ Do not publish or split migration subpackages until the atomic selection and
 deletion gates pass. Installed comparison libraries may evolve during
 qualification, but the public high-level Prismel API remains the compatibility
 authority.
+
+The `phase5_runtime_compat_packaging` gate mechanically checks the staging
+facade's public name, exact direct dependencies, absence of legacy Runtime,
+Prismel, Wap, Tsdl, and tsdl_gfx edges, SDL3 discovery declarations, public
+coverage values, documentation, and absence of a reverse edge from
+Runtime-next. On 2026-08-27 that focused gate passed. A contemporaneous full
+`dune build @install` was blocked outside this slice by uncommitted
+`prismel_next_execution.ml` warning-27 failures for unused `width` and `height`;
+therefore this refresh does not claim a new full-install qualification.

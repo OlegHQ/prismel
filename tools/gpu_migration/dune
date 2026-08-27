@@ -94,3 +94,15 @@
  (name phase5_b0_snapshot_freeze)
  (modules phase5_b0_snapshot_freeze)
  (libraries raster2))
+
+(test
+ (name phase5_runtime_compat_packaging)
+ (modules phase5_runtime_compat_packaging)
+ (libraries gpu_migration_support)
+ (deps
+  ../../lib/runtime_next_compat/dune
+  ../../lib/runtime_next_compat/runtime_next_compat.mli
+  ../../lib/runtime_next/dune
+  ../../dune-project
+  ../../specification/packaging.md)
+ (action (run %{test} --root %{workspace_root})))
