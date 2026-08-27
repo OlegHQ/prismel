@@ -4,6 +4,14 @@
  (libraries prismel pxui))
 
 (test
+ (name test_prismel_runtime_next_input_compat)
+ (modules test_prismel_runtime_next_input_compat)
+ (libraries prismel runtime_next_input)
+ (link_flags -linkall)
+ (action
+  (setenv PRISMEL_TEST_RUNTIME_NEXT_INPUT_COMPAT 1 (run %{test}))))
+
+(test
  (name test_easy_camera2)
  (modules test_easy_camera2)
  (libraries prismel pxui))
