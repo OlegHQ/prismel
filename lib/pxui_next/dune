@@ -1,0 +1,18 @@
+(rule
+ (targets pxui_next.ml pxui_next.mli)
+ (deps ../pxui/pxui.ml ../pxui/pxui.mli)
+ (action
+  (progn
+   (copy %{dep:../pxui/pxui.ml} pxui_next.ml)
+   (copy %{dep:../pxui/pxui.mli} pxui_next.mli))))
+
+(library
+ (name pxui_next)
+ (public_name prismel.pxui_next)
+ (modules prismel pxui_next)
+ (libraries prismel_next_api))
+
+(test
+ (name test_pxui_next)
+ (modules test_pxui_next)
+ (libraries pxui_next prismel_next_api raster2))
