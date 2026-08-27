@@ -16,3 +16,4 @@ val declare_resource : t -> resource_id:int64 -> access:access -> stages:stage l
 val end_encoder : t -> (unit,Error.t) result
 val present : t -> (unit,Error.t) result
 val descriptions : t -> description array
+val take_for_submission : t -> (description array,Error.t) result
