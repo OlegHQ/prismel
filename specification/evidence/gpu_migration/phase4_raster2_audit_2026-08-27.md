@@ -9,18 +9,18 @@ integration evidence.
 
 | Gate | Implemented and directly exercised | Honest status and missing gate |
 | --- | --- | --- |
-| R1 Stable API | Private lowering commits (`b9f9f28`, `59ae442`, `e813369`, `132892f`) preserve the public `Scene` interface and leave examples/sketches unchanged. | **Partial.** The atomic renderer migration has not happened. A clean-tree API-manifest gate remains required after the concurrent private renderer test is registered without becoming public, plus the SDL major-version review. |
-| R2 Scene2/PXUI parity | Surfaces (`5f88b3f`), compositing (`daf9b6f`, `81fe03d`), path tessellation (`f77acd6`, `286e6cd`), primitives (`f43fb1f`), image sampling (`32bf5a6`), shared IR/consumer (`880e6aa`, `4bcc4b1`), and path consumer (`3d1c2c1`) exist. Private lowering covers pure Scene2 nodes, ordering, transforms, clips, blends and contours (`b9f9f28`, `59ae442`) with frame-600 and one/four-domain fixtures. | **Partial.** PXUI and Runtime do not yet select this lowering; Metal does not consume the same IR. Legacy-vs-Raster2 pixels for every rounded/curve/pie/text/widget fixture remain open. |
-| R3 Scene3 parity | Preparation (`a298038`), triangles (`313b8c6`), depth/stencil (`01e658a`), MSAA (`090ffae`), lighting (`51128b0`), textures (`4547b98`, `4946843`), shadows (`787e72c`, `2efa392`), execution (`ba92d55`), and every public point/line/triangle source topology (`29bb987`) have exact fixtures. Private `Scene.view3d` lowering crosses a typed callback boundary and atomically rejects unresolved SDL-only resources (`e813369`). | **Partial.** The selected renderer, Canvas/capture, functional `Shader3`, and Metal consumer remain unwired. Textured Scene3 needs a real owned Prismel-resource adapter, and authored Boolean normals lack terminal upload evidence. |
-| R4 Resource parity | Bounded cache (`31a6cc5`), atlas (`bf9c384`), texture mips (`4547b98`), glyph preparation (`991047a`), offscreen lifecycle (`b8754b5`), and readback (`f9629c7`) have bounded fixtures. Private Image/Text/Font callbacks snapshot Raster2 resources, preserve watched generation and density identity, make empty text a no-op, stop atomically on failure, execute through the real consumer, and remain exact through frame 600/four domains (`132892f`). | **Partial.** Production Image/Font/Assets adapters, failed-decode retention, Canvas ownership, on-stop ordering, audio, and renderer/device teardown remain unintegrated; current proof uses private deterministic callbacks rather than live SDL resources. |
-| R5 Target parity | Raster2 is platform-independent and its tests require no SDL, Metal, display, or GPU. | **Missing integration.** Runtime still selects the legacy renderer; native/headless/web do not yet consume a common Scene/Frame/Event stream or authoritative Raster2 framebuffer. |
-| R6 Coordinate/DPI parity | Packed pitch, clipping, viewport/scissor, transforms, and readback orientation have exact unit fixtures. | **Partial.** There is no 1x/Retina Prismel-to-Raster2 lowering, physical drawable conversion, pointer mapping, font-density rerasterization, browser mapping, or native capture fixture. |
-| R7 Deterministic pixels | Raster2 focused tests compare exact bytes across independently owned one/four-domain preparations. Aligned copies and exact-format readback are covered. | **Partial.** Phase-0 frozen PNG/tolerance fixtures are not driven through Raster2, and native Metal exact/tolerance comparisons have not run. No tolerance has been changed. |
-| R8 Multi-frame correctness | Scene3 point/line/triangle modes, texture filter/wrap/mips, path, text, readback, offscreen, multisample, lighting/fog, and cache fixtures include frame 600 or 100k churn; several include frames 1/2/60/600. | **Partial.** Every frozen application fixture must cover exactly frames 1, 2, 60, 600 and post-resize. Current module tests are not a complete application/target matrix. |
-| R9 Upload/batching structure | Stable prepared mesh identity plus zero preparation/upload-intent byte increase for 600 camera-only frames and 100k bounded churn is tested (`392f4cc`). Atlas/resource-cache bounds and stable IR batches are tested. | **Partial.** The cache is not connected to Prismel or OGPU/Metal uploads; zero native vertex/index replacement bytes and UI draw/FFI batch scaling remain unproved. |
+| R1 Stable API | Private lowering and snapshot work through `434cf02` preserve the public `Scene`/`Scene3` interfaces and leave the legacy renderer and examples selectable. `scene_execution` is a separate neutral boundary (`36e0080`, `6827998`). | **Partial.** The atomic selected-renderer migration has not happened. A current clean-tree API-manifest run and the SDL major-version review are still required before selection changes. |
+| R2 Scene2/PXUI parity | Surfaces, compositing, paths, primitives, sampling, shared IR/consumer and private lowering cover pure Scene2 state, resources and convenience constructors through frame 600/four domains. Prepared Prismel draws now feed neutral `scene_execution`, and that boundary has both mock and Metal consumers (`36e0080`, `2a29193`, `6827998`). | **Partial.** PXUI and the selected Runtime path still use the legacy renderer. Frozen legacy-vs-Raster2 pixels for every rounded/curve/pie/text/widget fixture remain open; a neutral draw path is not itself full Scene parity. |
+| R3 Scene3 parity | Every public point/line/triangle topology and Faces/Wireframe/Vertices mode (`29bb987`, `423fe22`, `663fa4c`), depth/stencil (`1e128a3`), sampling (`4946843`), fog (`a250fc4`), Smooth/Flat authored normals (`b3975f3`) and convenience/instance constructors (`434cf02`) have direct exact fixtures. Portable draws execute through neutral `scene_execution`. | **Partial.** Selected-renderer parity, functional `Shader3`, all-sample-count integration, live owned texture/shadow adapters, frozen native Metal pixels, and terminal Boolean-normal upload evidence remain open. |
+| R4 Resource parity | Bounded cache/atlas/mips/offscreen/readback are joined by retained CPU Image (`671a412`), Font (`da05475`), Canvas (`0ac1361`) and Audio (`926ced7`) snapshots. Private callbacks retain generation/density identity, reject atomically and run through real Raster2 consumers. | **Partial.** Production Assets/watched-failure/on-stop integration and selected Runtime ownership ordering remain open. Snapshot availability is not evidence that the legacy resource lifecycle has switched. |
+| R5 Target parity | Raster2 remains platform-independent; an SDL-free bounded Wap framebuffer presenter exists (`bd34262`), neutral scene execution reaches Metal (`2a29193`), and opt-in `runtime_next` now composes SDL3 Metal-view ownership with `ogpu_metal` (`6623507`). | **Partial integration.** Runtime still selects the legacy renderer. `runtime_next` is an opt-in composition fixture, may skip without a device, and there is no committed genuine software OGPU backend joining headless/web to the same execution path. |
+| R6 Coordinate/DPI parity | Packed pitch, clipping, nested View3d scissor, transforms, readback orientation, and separate logical/drawable Wap presenter dimensions have exact fixtures. `runtime_next` carries logical/physical surface fields and exercises resize. | **Partial.** Runtime-next currently initializes logical and physical sizes from the same requested dimensions; authoritative Retina drawable querying, pointer mapping, font-density rerasterization, selected browser mapping and native capture parity remain open. |
+| R7 Deterministic pixels | Raster2 modules compare exact bytes across independently owned one/four-domain work. Wap presentation proves pitch-safe exact packing; runtime-next conditionally checks exact readback bytes on real Metal. | **Partial.** Phase-0 frozen PNG/tolerance fixtures are not driven through every target. The Metal fixture can skip without hardware and is not a recorded native exact/tolerance qualification run. No tolerance has changed. |
+| R8 Multi-frame correctness | Topology/state/sampling/fog/shading/convenience fixtures reach frame 600/four domains. Neutral execution covers 1,000 stable frames; Wap covers frames 1/2/60/600 plus resize-like extent change; runtime-next conditionally covers frames 1/2/60/600 and resize. | **Partial.** The complete frozen application matrix, selected native/headless/web paths, post-resize resources, reload, Canvas and audio must all cover the required checkpoints. Module and conditional fixtures do not substitute for it. |
+| R9 Upload/batching structure | Prepared mesh caching is connected to Prismel's neutral `scene_execution`; its 1,000-frame fixture holds upload bytes at the first 60-byte upload and drains live objects. Compatible Prismel draws batch (`a654322`), and Metal batches portable draws (`68a6db0`). | **Partial.** Frozen real-scene native upload/FFI/pass counters, especially PXUI and shattered-cube scale, have not been recorded. Mock counters and code structure are not native performance evidence. |
 | R10 Performance non-regression | Hot loops use packed bytes/fixed loops and bounded containers; deterministic scale tests exist. | **Missing external gate.** No Phase-0 M1 release median/p95 comparison for Basic, PXUI, Canvas, Scene3, hidden/visible UI, headless, or web has been recorded. Functional tests are not performance evidence. |
 | R11 Shattered-cube performance | The prepared-mesh cache supplies the intended stable identity/version/layout and upload-intent counters. | **Missing external gate.** The 18,278-piece/278,368-triangle sketch has not run through Raster2/OGPU/Metal; residency, draw count, timing, RSS, allocation, and frame pacing are unmeasured. |
-| R12 Long-run stability | Individual caches/arenas/rings use explicit capacities; 100k churn/lifecycle tests cover atlas, resource cache, scratch, offscreen, and prepared mesh state. | **Missing external gate.** There is no 30-minute native/headless/web run with resize, reload, Canvas and audio lifecycle, nor final RSS/live-handle/queue plateau evidence. |
+| R12 Long-run stability | Individual caches/arenas/rings are bounded. The deterministic stability harness (`1b32cf9`, `7285bc5`) combines changing scene uploads, resize, image-generation invalidation, transient offscreen ownership and bounded Wap presentation, sampling RSS/heap/cache/live counters into JSON. | **Partial; external gate missing.** The short deterministic harness is evidence. The documented 30-minute release command has not run, and native/headless/web resize/reload/Canvas/audio final RSS, live-handle and queue plateaus remain unrecorded. |
 
 ## Commands run for this audit
 
@@ -35,10 +35,18 @@ integration evidence.
   consumer, texture sampling, `prismel.cma`, full Raster2 suite and dependency
   targets were green. The topology fixtures cover every public `Mesh.mode`;
   the texture fixtures cover every public filter and independent U/V wrap.
-- The API-manifest run at that checkpoint was blocked by a concurrent untracked
-  private renderer test under `lib/prismel/` being discovered as a public module
-  without an `.mli`. That integration issue is not counted as a pass and must be
-  resolved and rerun on a clean tree.
+- `a250fc4`, `b3975f3`, and `434cf02` add direct exponential-fog,
+  shared-vertex Smooth/Flat, public convenience-constructor and instance
+  fixtures through frame 600/four domains; focused lowering, `prismel.cma`,
+  full Raster2 and dependency targets were green at those checkpoints.
+- Neutral `scene_execution` has a 1,000-frame stable-upload/live-delta fixture;
+  the Wap presenter has exact pitched packing, frames 1/2/60/600, 100,000
+  duplicate submissions and bounded suppression; runtime-next has a conditional
+  real-Metal frames/resize/readback/live-handle fixture.
+- The deterministic stability smoke and its bounded-diagnostics fix are
+  committed. The documented 30-minute release command was not run. A current
+  clean-tree API-manifest result was also not recorded in this audit, so neither
+  is counted as passed.
 
 ## Implemented private comparison pivot
 
@@ -50,13 +58,45 @@ Image, and Text paths lower without raw native pointers. Unsupported SDL-only
 resources reject explicitly rather than being skipped; representable image
 affine transforms now lower directly.
 
-The next smallest safe integration step is the private renderer comparison
-pivot: register its test without expanding the public module manifest, feed the
-same immutable Scene to legacy and Raster2 consumers, and record exact command
-ordering/pixel differences. Only after those comparisons, Runtime target
-fixtures, resource lifecycle tests, and R1-R12 external gates pass may target
-selection switch atomically. No public `.mli`, example, or legacy-render path
-should be removed during this side-by-side phase.
+The private renderer pivot now feeds prepared Scene2/Scene3 draws into neutral
+`scene_execution`; mock and Metal implementations share that boundary, and
+runtime-next demonstrates the intended SDL3 Metal-view composition. This is
+still side-by-side evidence, not authorization to switch `Scene.render`.
+Frozen legacy/Raster2 comparisons, selected Runtime target fixtures, resource
+lifecycle tests and the remaining R1-R12 external gates must pass before an
+atomic selection change. No public `.mli`, example, or legacy-render path
+should be removed during qualification.
+
+## Read-only review of the proposed `ogpu_raster2` backend
+
+The current untracked directory contains a Dune declaration, interface and
+test, but no `ogpu_raster2.ml`; it is therefore a design draft, not implemented
+evidence and is not counted in any gate above. A genuine software
+`Ogpu.Backend` must meet these minimum requirements:
+
+- own deterministic device/queue/surface/buffer/texture/pipeline/frame state,
+  enforce stale and cross-device validation, preserve acquire/configure/
+  present/device-loss semantics, and release every partial allocation;
+- implement exact buffer and pitched texture writes/reads, render attachment
+  load/store, draw order, vertex/index offsets and index types, viewport,
+  scissor, resize and actual presented/readback pixels;
+- rasterize the submitted geometry through Raster2. Filling a scissor rectangle
+  with a fixed color, keying behavior on a label/pipeline hash, or returning a
+  canned readback is not a backend implementation;
+- define a typed backend-neutral software pipeline/vertex contract. The draft
+  test supplies zeroed, degenerate vertex bytes yet expects `0x4080BFFF`, while
+  portable shader artifacts contain provenance bytes rather than executable
+  software shader semantics. The fixture must instead encode non-degenerate
+  vertices and obtain color from an explicit portable software pipeline or
+  shared Render IR contract;
+- prove exact frames 1/2/60/600 plus resize, independent one/four-domain runs,
+  device loss, pitch/padding, clipping outside the scissor, overlapping ordered
+  draws, and 100,000 create/destroy cycles with flat live counts and bounded
+  metadata.
+
+Until those conditions are implemented and the test observes real rasterized
+geometry, `ogpu_raster2` cannot close headless/web target parity or contribute
+R7/R9/R12 evidence.
 
 ## R2 public Scene constructor audit after `4946843`
 
@@ -72,11 +112,11 @@ fixture; **M** means missing. These are not legacy pixel-parity claims.
 | `clear` | I/T | `Render_ir.Clear`; private lowerer and Backend-mock frame order (`b9f9f28`, `40bad9a`). |
 | `point`, `line` including width | I/T | Point quad and deterministic widened-line geometry in the initial exact-order fixture (`b9f9f28`). |
 | `rect` | I/T | Fill quad plus optional Path stroke; fill/stroke exercised (`b9f9f28`). |
-| `square` | I/T | Public constructor is table-compared with canonical `Rect` for exact IR and framebuffer bytes through frame 600 and one/four domains. |
+| `square` | I/T | The public value is compared directly with canonical `Rect` and remains byte-stable through frame 600/one-four domains; canonical Rect lowering/consumer pixels are covered separately. |
 | `rounded_rect` | I/T | Rounded Path tessellation is directly included in the constructor fixture (`59ae442`). |
 | `circle`, `ellipse` | I/T | Deterministic sampled closed Paths, fill/stroke exercised (`59ae442`). |
 | `triangle` | I/T | Path triangle plus OGPU stable prepared-mesh/upload fixture (`b9f9f28`, `40bad9a`). |
-| `quad` | I/T | Public constructor is table-compared with canonical `Polygon` for exact IR and framebuffer bytes through frame 600 and one/four domains. |
+| `quad` | I/T | The public value is compared directly with canonical `Polygon` and remains byte-stable through frame 600/one-four domains; canonical polygon lowering/consumer pixels are covered separately. |
 | `polygon`, `polyline` | I/T | Closed fill/stroke and open stroke fixtures (`59ae442`). |
 | `arc`, `pie`, `bezier` | I/T | Sampled open/closed Path fixtures (`59ae442`). |
 | `path` rules/contours/fill/stroke | I/T | Separate contours, transparent holes, ordering, frame-600 and four-domain fixtures (`59ae442`, `3d1c2c1`). |
@@ -103,7 +143,7 @@ fields are ignored or not integrated and therefore cannot count as parity.
 | `mesh` Faces; triangle list/strip/fan | I/T | Vertices/normals/UV/indices prepare draws; list framebuffer and authored-normal fixtures (`e813369`). Public strip/fan constructors now have exact stable-expansion, framebuffer, winding and one/four-domain goldens. |
 | Public Faces/Wireframe/Vertices render modes | I/T | Faces retain the top-left triangle rule; Wireframe emits stable unique shared edges and Vertices emits stable unique projected points for triangle lists, strips and fans. Point sources render as points in all three modes; line list/strip/loop sources render lines for Faces/Wireframe and deduplicated endpoints for Vertices. Public line width/point size, homogeneous/scissor clipping, depth/stencil, cull and blend are exercised through frame 600 and four domains. No public `Mesh.mode` remains rejected. |
 | Per-vertex mesh colors | R/U | Explicit `Invalid_mesh`, without a focused rejection fixture; material color is used instead. |
-| `instances`, `instances_array` | I/T | Public list/array constructors flatten in stable identical transform order, preserve six exact draws, and retain geometry/material state. Prepared values and pixels are exact through frame 600 and one/four domains. |
+| `instances`, `instances_array` | I/T | Public list/array constructors flatten in stable identical transform order, preserve six exact draws, and retain geometry/material state. Prepared values are exact through frame 600 and one/four domains; convenience meshes have separate framebuffer checks. |
 | `group`, `transform`, `translate`, `rotate`, `scale`, `at_node` | I/T | Flattened matrices; camera-only frames 2–600 produce zero replacement upload bytes (`e813369`, `d199322`). Convenience-specific pixels remain open. |
 | `box`, `plane`, `sphere`, `icosphere`, `cylinder`, `cone` | I/T | One public table checks each against its canonical Mesh vertex/index cardinality, topology, material/raster state and a non-empty deterministic framebuffer. Every constructor has its own exact prepared hash through frame 600 and one/four domains. |
 | Material ambient/diffuse/specular/emissive/shininess | I/T | Copied into prepared lighting (`51128b0`, `e813369`). |
