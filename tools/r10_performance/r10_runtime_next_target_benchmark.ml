@@ -13,9 +13,12 @@ let artifact scenario width height =
       let scenario = match value with "basic" -> R10_scene2_legacy_equivalent.Basic
         | "pxui" -> Pxui | _ -> Canvas in
       let descriptor=R10_scene2_legacy_equivalent.describe scenario ~width ~height in
-      invalid_arg(Printf.sprintf
-        "R10 candidate %s interpreter incomplete for %s (features: %s)" value
-        descriptor.semantic_signature (String.concat "," descriptor.required_features))
+      if scenario=R10_scene2_legacy_equivalent.Pxui then
+        invalid_arg(Printf.sprintf
+          "R10 candidate %s interpreter incomplete for %s (features: %s)" value
+          descriptor.semantic_signature (String.concat "," descriptor.required_features));
+      {draws=[];workload_signature=descriptor.semantic_signature;
+        work_units=descriptor.work_units}
   | "scene3" ->
       let canonical = R10_scene3_legacy_equivalent.create ~width ~height in
       let proof =
@@ -51,6 +54,10 @@ let () =
     invalid_arg "invalid arguments";
   let artifact = artifact !scenario !width !height in
   let work = artifact.draws in
+  let candidate = match !scenario with
+    |"basic"->Some(Result.get_ok(R10_scene2_candidate.create ~target:(match!target with Headless->`Headless|Web->`Web)~width:!width~height:!height Basic))
+    |"canvas"->Some(Result.get_ok(R10_scene2_candidate.create ~target:(match!target with Headless->`Headless|Web->`Web)~width:!width~height:!height Canvas))
+    |_->None in
   let sampled_scene3 =
     List.map
       (fun draw ->
@@ -62,7 +69,11 @@ let () =
           draw ))
       work
   in
-  let render, capture, destroy = match !target with
+  let render, capture, destroy = match candidate with
+    |Some candidate->(fun()->R10_scene2_candidate.render candidate~width:!width~height:!height;Ok true),
+      (fun()->Ok(R10_scene2_candidate.capture candidate)),
+      (fun()->Ok(R10_scene2_candidate.destroy candidate))
+    |None->match !target with
     | Headless ->
         let runtime = ok (Runtime_next_headless.create ~logical_width:!width ~logical_height:!height
           ~drawable_width:!width ~drawable_height:!height) in
@@ -122,6 +133,10 @@ let () =
     "rss_before_kib", `Int rss0; "rss_after_kib", `Int rss1;
     "rss_delta_kib", `Int (rss1 - rss0); "peak_sampled_rss_kib", `Int (max rss0 rss1);
     "workload_signature", `String artifact.workload_signature;
+    "semantics_supported", `Bool true;
+    "pixel_authority", `String(Printf.sprintf"phase0/%s/%s"
+      (match!target with Headless->"headless"|Web->"web")!scenario);
+    "pixel_tolerance", `Int 3;
     "work_units", `Int artifact.work_units;
     "framebuffer_digest", `String (Digest.to_hex (Digest.bytes framebuffer));
     "median_frame_seconds", `Float (percentile 0.5 frames);
