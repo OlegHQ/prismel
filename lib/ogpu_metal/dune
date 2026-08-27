@@ -1,7 +1,7 @@
 (library
  (name ogpu_metal)
  (public_name prismel.ogpu_metal)
- (modules Adapter Device Buffer Texture Sampler Pipeline Command Render_pass Transfer_pass Compute_pass Queue Surface Native_pass Sync Memory Acceleration Diagnostics)
+ (modules Adapter Device Buffer Texture Sampler Shader_artifact Pipeline Command Render_pass Transfer_pass Compute_pass Queue Surface Native_pass Sync Memory Acceleration Diagnostics)
  (libraries ogpu metal))
 
 (test
@@ -68,3 +68,18 @@
  (name test_ogpu_metal_portable_passes)
  (modules test_ogpu_metal_portable_passes)
  (libraries ogpu_metal metal))
+
+(test
+ (name test_ogpu_metal_shader_artifact)
+ (modules test_ogpu_metal_shader_artifact)
+ (libraries ogpu_metal metal))
+
+(rule
+ (alias offline_shader_artifacts)
+ (targets offline_parity.air offline_parity.metallib offline_parity.metadata)
+ (deps offline_parity.metal ../../tools/gpu_migration/metal_shader_artifact.exe)
+ (action
+  (run ../../tools/gpu_migration/metal_shader_artifact.exe
+   --source %{dep:offline_parity.metal} --air offline_parity.air
+   --metallib offline_parity.metallib
+   --metadata offline_parity.metadata --deployment 13.0)))

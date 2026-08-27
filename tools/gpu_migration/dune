@@ -24,6 +24,11 @@
  (modules run_baseline_benchmarks)
  (libraries gpu_migration_support threads))
 
+(executable
+ (name metal_shader_artifact)
+ (modules metal_shader_artifact)
+ (libraries unix))
+
 (test
  (name phase1_evidence)
  (modules phase1_evidence)

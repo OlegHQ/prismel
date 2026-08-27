@@ -21,7 +21,7 @@ let ()=match Device.system_default()with Error _->print_endline"ogpu_metal pipel
   let compute_shader=shader~label:"mapped-compute"~bytes:compute_source~entries:[{name="mapped_compute";stage=Compute}]~bindings:[compute_binding]in
   let compute_layout=layout device[{binding=0;kind=Ogpu.Binding.Buffer;visibility=[Ogpu.Binding.Compute]}]in
   let compute_descriptor : Ogpu.Pipeline.compute_descriptor={backend="metal";label=Some"mapped-compute";layout=compute_layout;shader=compute_shader;entry="mapped_compute"}in
-  let compute=get(Pipeline.create_compute cache device compute_descriptor)in if get(Pipeline.create_compute cache device compute_descriptor)!=compute||Pipeline.cache_length cache<>1 then failwith"pipeline cache miss on canonical hit";
+  let compute=get(Pipeline.create_compute_runtime_msl cache device compute_descriptor)in if get(Pipeline.create_compute_runtime_msl cache device compute_descriptor)!=compute||Pipeline.cache_length cache<>1 then failwith"pipeline cache miss on canonical hit";
   expect Ogpu.Error.Cross_device(Pipeline.validate other compute);
   let buffer_descriptor : Ogpu.Types.buffer_descriptor={label=None;size=16L;usage=[Storage;Copy_src;Copy_dst]}in let buffer=get(Buffer.create device~memory:Buffer.Shared buffer_descriptor)in
   let input=Bytes.make 16 '\000'in for i=0 to 3 do Bytes.set_int32_le input(i*4)(Int32.of_int i)done;get(Buffer.write_bytes device buffer~dst_offset:0L input);
@@ -29,7 +29,7 @@ let ()=match Device.system_default()with Error _->print_endline"ogpu_metal pipel
   let output=get(Buffer.read_bytes device buffer~offset:0L~length:16)in for i=0 to 3 do if Bytes.get_int32_le output(i*4)<>Int32.of_int(i*2+3)then failwith"mapped compute output mismatch"done;
   let render_shader=shader~label:"mapped-render"~bytes:render_source~entries:[{name="mapped_vertex";stage=Vertex};{name="mapped_fragment";stage=Fragment}]~bindings:[]in
   let render_layout=layout device[]in let render_descriptor : Ogpu.Pipeline.render_descriptor={backend="metal";label=Some"mapped-render";layout=render_layout;vertex=render_shader;vertex_entry="mapped_vertex";fragment=Some render_shader;fragment_entry=Some"mapped_fragment";color_format=Rgba8_unorm;depth_format=No_depth;sample_count=1}in
-  let render=get(Pipeline.create_render cache device render_descriptor)in
+  let render=get(Pipeline.create_render_runtime_msl cache device render_descriptor)in
   let target_descriptor : Ogpu.Types.texture_descriptor={label=None;width=2;height=2;depth=1;mip_levels=1;sample_count=1;usage=[Render_attachment;Texture_copy_src]}in let target=get(Texture.create device~memory:Texture.Shared~format:Texture.Rgba8_unorm target_descriptor)in
   let draw=ended(fun c->Command.draw_triangle c~pipeline:render~target)in let drawn=get(Queue.submit queue draw)in get(Queue.wait_through queue drawn.epoch);
   let pixels=get(Texture.read_bytes device target~mip_level:0~bytes_per_row:8)in if Char.code(Bytes.get pixels 0)<>32||Char.code(Bytes.get pixels 1)<>128||Char.code(Bytes.get pixels 2)<>223||Char.code(Bytes.get pixels 3)<>255 then failwith"mapped render output mismatch";
