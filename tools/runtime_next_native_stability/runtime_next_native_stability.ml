@@ -32,7 +32,8 @@ let () =
       end
     end
   done;
-  let live=Runtime_next.stats runtime in if live.mesh_cache_entries>64||live.pipeline_cache_entries<>18 then failwith"native cache bound";
+  let expected_mesh_cache=if !changing_payload then 64 else 1 in
+  let live=Runtime_next.stats runtime in if live.mesh_cache_entries<>expected_mesh_cache||live.pipeline_cache_entries<>18 then failwith"native cache bound";
   get(Runtime_next.destroy runtime);ignore(metal(Metal.Release_queue.drain()));
   let dead=Runtime_next.stats runtime and after=metal(Metal.Release_queue.stats())in
   if dead.mesh_cache_entries<>0||dead.pipeline_cache_entries<>0||after.live_handles<>before.live_handles then failwith(Printf.sprintf"native teardown delta mesh=%d pipeline=%d handles=%d->%d"dead.mesh_cache_entries dead.pipeline_cache_entries before.live_handles after.live_handles);
@@ -44,5 +45,5 @@ let () =
   let first_high=maximum first_half and second_high=maximum second_half in
   let plateau_slack_kib=8192 in
   if length=256&&second_high>first_high+plateau_slack_kib then failwith(Printf.sprintf"native settled RSS high-water grew: %d -> %d KiB"first_high second_high);
-  let json=`Assoc["schema",`Int 3;"minutes",`Float !minutes;"changing_payload",`Bool !changing_payload;"resizing",`Bool !resizing;"capturing",`Bool !capturing;"frames",`Int !frame;"hash",`String(Printf.sprintf"%016Lx" !rolling);"observations",`Int !observations;"retained",`Int length;"samples",`List retained;"settled_rss_first_half_high_kib",`Int first_high;"settled_rss_second_half_high_kib",`Int second_high;"settled_rss_plateau_slack_kib",`Int plateau_slack_kib;"live_mesh_cache_peak_bound",`Int 64;"pipeline_cache_live_expected",`Int 18;"live_mesh_cache_final",`Int dead.mesh_cache_entries;"pipeline_cache_final",`Int dead.pipeline_cache_entries;"metal_live_before",`Int before.live_handles;"metal_live_after",`Int after.live_handles]in
+  let json=`Assoc["schema",`Int 3;"minutes",`Float !minutes;"changing_payload",`Bool !changing_payload;"resizing",`Bool !resizing;"capturing",`Bool !capturing;"frames",`Int !frame;"hash",`String(Printf.sprintf"%016Lx" !rolling);"observations",`Int !observations;"retained",`Int length;"samples",`List retained;"settled_rss_first_half_high_kib",`Int first_high;"settled_rss_second_half_high_kib",`Int second_high;"settled_rss_plateau_slack_kib",`Int plateau_slack_kib;"live_mesh_cache_peak_bound",`Int expected_mesh_cache;"pipeline_cache_live_expected",`Int 18;"live_mesh_cache_final",`Int dead.mesh_cache_entries;"pipeline_cache_final",`Int dead.pipeline_cache_entries;"metal_live_before",`Int before.live_handles;"metal_live_after",`Int after.live_handles]in
   let text=Yojson.Safe.pretty_to_string json^"\n"in match !report with None->print_string text|Some path->let channel=open_out_bin path in output_string channel text;close_out channel
