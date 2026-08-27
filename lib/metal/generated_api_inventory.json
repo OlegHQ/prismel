@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 5088,
+    "bound": 5095,
     "scope-excluded": 37,
-    "unreviewed": 160
+    "unreviewed": 153
   },
-  "classification_source_sha256": "2810afd5432c67b52cc0a680bb35ff512c2db470de341733401d66e24d54d2cc",
+  "classification_source_sha256": "d410f94a0dd7f200f54dbe506fdc63c5230aef646630f8a879ff45393930fe61",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -64422,7 +64422,7 @@
           "line": 125
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIntersectionFunctionTable.h",
       "id": "method:-[MTLIntersectionFunctionTable setBuffers:offsets:withRange:]",
       "kind": "method",
@@ -64430,7 +64430,7 @@
       "macos_introduced": "11.0",
       "name": "setBuffers:offsets:withRange:",
       "owner": "MTLIntersectionFunctionTable",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned intersection-function table graph with atomic nullable buffer/function/visible-table arrays, checked offsets/devices/capacity, retained replacements, and capability-gated opaque triangle/curve signatures with real Metal conformance.",
       "signature": "instance (id<MTLBuffer>  _Nullable const __unsafe_unretained * _Nonnull, const NSUInteger * _Nonnull, NSRange) -> void"
     },
     {
@@ -64460,7 +64460,7 @@
           "line": 125
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIntersectionFunctionTable.h",
       "id": "method:-[MTLIntersectionFunctionTable setFunctions:withRange:]",
       "kind": "method",
@@ -64468,7 +64468,7 @@
       "macos_introduced": "11.0",
       "name": "setFunctions:withRange:",
       "owner": "MTLIntersectionFunctionTable",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned intersection-function table graph with atomic nullable buffer/function/visible-table arrays, checked offsets/devices/capacity, retained replacements, and capability-gated opaque triangle/curve signatures with real Metal conformance.",
       "signature": "instance (id<MTLFunctionHandle>  _Nullable const __unsafe_unretained * _Nonnull, NSRange) -> void"
     },
     {
@@ -64479,7 +64479,7 @@
           "line": 125
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIntersectionFunctionTable.h",
       "id": "method:-[MTLIntersectionFunctionTable setOpaqueCurveIntersectionFunctionWithSignature:atIndex:]",
       "kind": "method",
@@ -64487,7 +64487,7 @@
       "macos_introduced": "11.0",
       "name": "setOpaqueCurveIntersectionFunctionWithSignature:atIndex:",
       "owner": "MTLIntersectionFunctionTable",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned intersection-function table graph with atomic nullable buffer/function/visible-table arrays, checked offsets/devices/capacity, retained replacements, and capability-gated opaque triangle/curve signatures with real Metal conformance.",
       "signature": "instance (MTLIntersectionFunctionSignature, NSUInteger) -> void"
     },
     {
@@ -64498,7 +64498,7 @@
           "line": 125
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIntersectionFunctionTable.h",
       "id": "method:-[MTLIntersectionFunctionTable setOpaqueCurveIntersectionFunctionWithSignature:withRange:]",
       "kind": "method",
@@ -64506,7 +64506,7 @@
       "macos_introduced": "11.0",
       "name": "setOpaqueCurveIntersectionFunctionWithSignature:withRange:",
       "owner": "MTLIntersectionFunctionTable",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned intersection-function table graph with atomic nullable buffer/function/visible-table arrays, checked offsets/devices/capacity, retained replacements, and capability-gated opaque triangle/curve signatures with real Metal conformance.",
       "signature": "instance (MTLIntersectionFunctionSignature, NSRange) -> void"
     },
     {
@@ -64517,7 +64517,7 @@
           "line": 125
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIntersectionFunctionTable.h",
       "id": "method:-[MTLIntersectionFunctionTable setOpaqueTriangleIntersectionFunctionWithSignature:atIndex:]",
       "kind": "method",
@@ -64525,7 +64525,7 @@
       "macos_introduced": "11.0",
       "name": "setOpaqueTriangleIntersectionFunctionWithSignature:atIndex:",
       "owner": "MTLIntersectionFunctionTable",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned intersection-function table graph with atomic nullable buffer/function/visible-table arrays, checked offsets/devices/capacity, retained replacements, and capability-gated opaque triangle/curve signatures with real Metal conformance.",
       "signature": "instance (MTLIntersectionFunctionSignature, NSUInteger) -> void"
     },
     {
@@ -64536,7 +64536,7 @@
           "line": 125
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIntersectionFunctionTable.h",
       "id": "method:-[MTLIntersectionFunctionTable setOpaqueTriangleIntersectionFunctionWithSignature:withRange:]",
       "kind": "method",
@@ -64544,7 +64544,7 @@
       "macos_introduced": "11.0",
       "name": "setOpaqueTriangleIntersectionFunctionWithSignature:withRange:",
       "owner": "MTLIntersectionFunctionTable",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned intersection-function table graph with atomic nullable buffer/function/visible-table arrays, checked offsets/devices/capacity, retained replacements, and capability-gated opaque triangle/curve signatures with real Metal conformance.",
       "signature": "instance (MTLIntersectionFunctionSignature, NSRange) -> void"
     },
     {
@@ -64574,7 +64574,7 @@
           "line": 125
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLIntersectionFunctionTable.h",
       "id": "method:-[MTLIntersectionFunctionTable setVisibleFunctionTables:withBufferRange:]",
       "kind": "method",
@@ -64582,7 +64582,7 @@
       "macos_introduced": "11.0",
       "name": "setVisibleFunctionTables:withBufferRange:",
       "owner": "MTLIntersectionFunctionTable",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned intersection-function table graph with atomic nullable buffer/function/visible-table arrays, checked offsets/devices/capacity, retained replacements, and capability-gated opaque triangle/curve signatures with real Metal conformance.",
       "signature": "instance (id<MTLVisibleFunctionTable>  _Nullable const __unsafe_unretained * _Nonnull, NSRange) -> void"
     },
     {

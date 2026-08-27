@@ -94,6 +94,7 @@
   binding_render_encoder33_native_closure
   binding_render_encoder33_safe_package
   binding_render_pass24_safe_closure
+  binding_layer10_safe_closure
   binding_render_pipeline93_native_closure
   binding_acceleration_command32_native_closure
   binding_argument_encoder_handoff
@@ -116,6 +117,8 @@
   binding_indirect_command14_safe_plan
   binding_indirect_command14_safe_contract
   binding_indirect_command14_safe_package
+  binding_intersection_table8_native_closure
+  binding_intersection_table7_safe_package
   binding_capture_scope_tail_handoff
   binding_event_tail_handoff
   binding_acceleration_value_tail_handoff
@@ -606,6 +609,11 @@
  (libraries metal_inventory_classification))
 
 (test
+ (name test_binding_layer10_safe_closure)
+ (modules test_binding_layer10_safe_closure)
+ (libraries metal_inventory_classification))
+
+(test
  (name test_binding_render_pipeline93_native_closure)
  (modules test_binding_render_pipeline93_native_closure)
  (libraries metal_inventory_classification))
@@ -804,6 +812,11 @@
 (test
  (name test_binding_indirect_command14_safe_package)
  (modules test_binding_indirect_command14_safe_package)
+ (libraries metal_inventory_classification))
+
+(test
+ (name test_binding_intersection_table7_safe_package)
+ (modules test_binding_intersection_table7_safe_package)
  (libraries metal_inventory_classification))
 
 (test
