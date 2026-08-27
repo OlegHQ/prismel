@@ -73,6 +73,10 @@ let create_batch ?(owned_samplers=[]) device pass ~attachments draws =
     in validate None [] draws
 let retain_one retained retain release=match retain()with Error _ as e->e|Ok()->retained:=release::!retained;Ok()
 module Private=struct
+  let requires_command4 value=
+    let descriptor=Ogpu.Render_pass.descriptor value.pass in
+    Option.is_some descriptor.stencil||
+    Option.fold~none:false~some:(fun(d:Ogpu.Render_pass.depth)->d.load<>Clear||d.store<>Store||d.clear<>1.)descriptor.depth
   let encode_portable value command=Ogpu.Render_pass.encode value.pass command
   let retain value=let retained=ref[]and seen=Hashtbl.create 32 in let keep retain release=retain_one retained retain release in let once key f=if Hashtbl.mem seen key then(fun()->Ok())else(Hashtbl.add seen key();f)in
     let texture t=once("t:"^Int64.to_string(Texture.id t))(fun()->keep(fun()->Texture.Private.retain_submission t)(fun()->Texture.Private.release_submission t))and buffer b=once("b:"^Int64.to_string(Buffer.id b))(fun()->keep(fun()->Buffer.Private.retain_submission b)(fun()->Buffer.Private.release_submission b))and pipeline p=once("p:"^Pipeline.key p)(fun()->keep(fun()->Pipeline.Private.retain_submission p)(fun()->Pipeline.Private.release_submission p))in
@@ -99,4 +103,39 @@ module Private=struct
     let encode_draw draw=let native=match Pipeline.Private.native draw.pipeline with Render p->p|Compute _->assert false in let primitive=match draw.primitive with Triangle_list->Metal.Render_encoder.Triangle|Triangle_strip->Triangle_strip in let issue()=match draw.index with None->Metal.Render_encoder.draw_triangles encoder~first:draw.vertex_start~count:draw.vertex_count()|Some(kind,buffer,offset,count)->Metal.Render_encoder.draw_indexed encoder~primitive~index_type:(match kind with Uint16->Metal.Render_encoder.Uint16|Uint32->Uint32)~index_buffer:(Buffer.Private.metal buffer)~index_offset:offset~index_count:(Int64.of_int count)()in match Metal.Render_encoder.set_pipeline encoder native with Error e->Error(Adapter.error~operation:op e)|Ok()->match all bind_buffer draw.buffers with Error _ as e->e|Ok()->match all bind_texture draw.textures with Error _ as e->e|Ok()->match all bind_sampler draw.samplers with Error _ as e->e|Ok()->Result.map_error(Adapter.error~operation:op)(issue())in
     let rec all_draws=function []->Ok()|draw::draws->match encode_draw draw with Error _ as e->e|Ok()->all_draws draws in
     match references with Error _ as e->ignore(Metal.Render_pass_descriptor.destroy native_pass);e|Ok()->match Metal.Render_encoder.set_viewport encoder{x=float descriptor.viewport.x;y=float descriptor.viewport.y;width=float descriptor.viewport.width;height=float descriptor.viewport.height;znear=0.;zfar=1.}with Error e->ignore(Metal.Render_pass_descriptor.destroy native_pass);Error(Adapter.error~operation:op e)|Ok()->match Metal.Render_encoder.set_scissor encoder{x=descriptor.scissor.x;y=descriptor.scissor.y;width=descriptor.scissor.width;height=descriptor.scissor.height}with Error e->ignore(Metal.Render_pass_descriptor.destroy native_pass);Error(Adapter.error~operation:op e)|Ok()->match all_draws value.draws with Error _ as e->ignore(Metal.Render_pass_descriptor.destroy native_pass);e|Ok()->match Metal.Render_encoder.end_encoding encoder with Error e->ignore(Metal.Render_pass_descriptor.destroy native_pass);Error(Adapter.error~operation:op e)|Ok()->Ok((fun()->ignore(Metal.Render_pass_descriptor.destroy native_pass))::(match depth_state with None->[]|Some state->[fun()->ignore(Metal.Depth_stencil.destroy state)])@List.map(fun sampler->fun()->ignore(Sampler.destroy sampler))value.owned_samplers)
+
+  let encode_command4 command value =
+    let op="Ogpu_metal.Render_pass.encode_command4" in
+    let descriptor=Ogpu.Render_pass.descriptor value.pass in
+    let color=List.hd(Array.to_list descriptor.colors|>List.filter_map Fun.id)in
+    let c=Metal.Command4.Render_encoder.color~red:(let r,_,_,_=color.clear in r)~green:(let _,g,_,_=color.clear in g)~blue:(let _,_,b,_=color.clear in b)~alpha:(let _,_,_,a=color.clear in a)in
+    let load=match color.load with Ogpu.Render_pass.Clear->Metal.Command4.Render_encoder.Clear c|Load->Load|Dont_care->Load_dont_care
+    and store=match color.store with Ogpu.Render_pass.Store->Metal.Command4.Render_encoder.Store|Discard->Store_dont_care|Resolve->Store_deferred in
+    let colors=[Metal.Command4.Render_encoder.color_attachment~load_action:load~store_action:store(Texture.Private.metal value.color)]in
+    let depth_attachment=Option.map(fun texture->let d=Option.get descriptor.depth in Metal.Command4.Render_encoder.depth_attachment~load_action:(match d.load with Clear->Depth_clear|Load->Depth_load|Dont_care->Depth_load_dont_care)~store_action:(match d.store with Store->Store|Discard->Store_dont_care|Resolve->Store_deferred)~clear_depth:d.clear(Texture.Private.metal texture))value.depth in
+    let stencil_attachment=Option.map(fun texture->let s=Option.get descriptor.stencil in Metal.Command4.Render_encoder.stencil_attachment~load_action:(match s.load with Clear->Stencil_clear|Load->Stencil_load|Dont_care->Stencil_load_dont_care)~store_action:(match s.store with Store->Store|Discard->Store_dont_care|Resolve->Store_deferred)~clear_stencil:(Int32.of_int s.clear)(Texture.Private.metal texture))value.stencil in
+    match Metal.Command4.Render_encoder.create ?depth_attachment ?stencil_attachment command~color_attachments:colors with
+    |Error e->Error(Adapter.error~operation:op e)
+    |Ok encoder->
+      let cleanup=ref[]in
+      let fail e=List.iter(fun f->f())!cleanup;Error(Adapter.error~operation:op e)in
+      let raster=Ogpu.Render_pass.raster_state value.pass and stencil=Ogpu.Render_pass.stencil_state value.pass in
+      (match Metal.Depth_stencil.create~label:"ogpu-metal-command4-pass"~depth_compare:(metal_compare raster.depth_compare)~depth_write:raster.depth_write?front_face:(Option.map(fun s->metal_face s.Ogpu.Render_pass.front)stencil)?back_face:(Option.map(fun s->metal_face s.Ogpu.Render_pass.back)stencil)(Metal.Command4.Command_buffer.device command)()with
+      |Error e->fail e
+      |Ok depth_state->cleanup:=(fun()->ignore(Metal.Depth_stencil.destroy depth_state))::!cleanup;
+        let ( let* ) result f=match result with Ok value->f value|Error e->fail e in
+        let* ()=Metal.Command4.Render_encoder.set_depth_stencil_state encoder(Some depth_state)in
+        let* ()=match stencil with None->Ok()|Some s->Metal.Command4.Render_encoder.set_stencil_references encoder~front:s.front_reference~back:s.back_reference in
+        let* ()=Metal.Command4.Render_encoder.set_cull_mode encoder(match raster.cull with Ogpu.Render_pass.Cull_none->Cull_none|Cull_front->Cull_front|Cull_back->Cull_back)in
+        let* ()=Metal.Command4.Render_encoder.set_viewport encoder(Metal.Command4.Render_encoder.viewport~x:(float descriptor.viewport.x)~y:(float descriptor.viewport.y)~width:(float descriptor.viewport.width)~height:(float descriptor.viewport.height)~z_near:0.~z_far:1.)in
+        let* ()=Metal.Command4.Render_encoder.set_scissor_rect encoder(Metal.Command4.Render_encoder.scissor_rect~x:descriptor.scissor.x~y:descriptor.scissor.y~width:descriptor.scissor.width~height:descriptor.scissor.height)in
+        let rec draws=function
+          |[]->(match Metal.Command4.Render_encoder.end_encoding encoder with Error e->fail e|Ok()->Ok(List.rev!cleanup))
+          |draw::_ when draw.buffers<>[]||draw.textures<>[]||draw.samplers<>[]->Error(Ogpu.Error.make op Ogpu.Error.Unsupported"Command4 argument-table resource binding is not yet representable")
+          |draw::rest->let native=match Pipeline.Private.native draw.pipeline with Render p->p|Compute _->assert false in
+            let* ()=Metal.Command4.Render_encoder.set_pipeline encoder native in
+            let primitive=match draw.primitive with Triangle_list->Metal.Command4.Render_encoder.Triangle|Triangle_strip->Triangle_strip in
+            let issued=match draw.index with None->Metal.Command4.Render_encoder.draw_primitives encoder primitive~vertex_start:draw.vertex_start~vertex_count:draw.vertex_count|Some(kind,buffer,offset,count)->Metal.Command4.Render_encoder.draw_indexed_primitives encoder primitive(match kind with Uint16->Metal.Command4.Render_encoder.Uint16|Uint32->Uint32)~index_buffer:(Buffer.Private.metal buffer)~index_offset:offset~index_count:count in
+            let* ()=issued in draws rest
+        in draws value.draws)
 end
