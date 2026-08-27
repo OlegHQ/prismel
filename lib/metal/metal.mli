@@ -1498,6 +1498,14 @@ end
 
 and Shader_argument_encoder : sig
   type t
+  type access = Read_only | Read_write | Write_only
+  type descriptor =
+    { data_type : Data_type.t
+    ; index : int64
+    ; array_length : int64
+    ; access : access
+    ; texture_kind : Texture.kind
+    ; constant_block_alignment : int64 }
   type resource =
     | Buffer of Buffer.t | Texture of Texture.t | Sampler of Sampler.t
     | Acceleration_structure of acceleration_structure
@@ -1506,6 +1514,7 @@ and Shader_argument_encoder : sig
     | Intersection_function_table of intersection_function_table
     | Render_pipeline of render_pipeline
     | Compute_pipeline of compute_pipeline | Depth_stencil of depth_stencil
+  val create : Device.t -> descriptor list -> (t,error) result
   val snapshot : t -> string option * int64 * int64 * Device.t
   val label : t -> string option
   val set_label : t -> string option -> (unit,error) result
@@ -2185,6 +2194,15 @@ module Binary_function : sig
     val relink_render_pipeline : t -> Render_pipeline.t -> (Render_pipeline.t,error) result
     val destroy : t -> (unit, error) result
   end
+end
+
+module Device_function_handle : sig
+  type t
+  val of_function : Device.t -> Function.t -> (t,error) result
+  val of_binary_function : Device.t -> Binary_function.t -> (t,error) result
+  val device : t -> Device.t
+  val destroyed : t -> bool
+  val destroy : t -> (unit,error) result
 end
 
 module Function_specialization : sig
@@ -4151,6 +4169,7 @@ module Pipeline_descriptor : sig
     val tessellation_winding : t -> (winding, error) result
     val set_tessellation_winding : t -> winding -> (unit, error) result
     val compile : ?reflection:bool -> t -> (Render_pipeline.t, error) result
+    val compile_simple : t -> (Render_pipeline.t,error) result
     val reset : t -> (unit, error) result
     val destroyed : t -> bool
     val destroy : t -> (unit, error) result

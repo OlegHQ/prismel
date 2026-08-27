@@ -1910,6 +1910,14 @@ external device_io_handle_legacy : handle -> string -> ((handle*int64),string) r
   "caml_prismel_metal_device_io_handle_legacy"
 external device_io_handle_compressed_legacy : handle -> string -> int -> ((handle*int64),string) result =
   "caml_prismel_metal_device_io_handle_compressed_legacy"
+external device_function_handle : handle -> handle -> bool -> (handle option,string) result =
+  "caml_prismel_metal_device_function_handle"
+external device_argument_encoder :
+  handle -> (int64 * int64 * int64 * int64 * int64 * int64) array ->
+  ((handle * int64 * int64 * int64),string) result =
+  "caml_prismel_metal_device_argument_encoder"
+external device_render_pipeline_simple : handle -> handle -> (handle,string) result =
+  "caml_prismel_metal_device_render_pipeline_simple"
 
 (** Exact callable subset of the prepared authoritative Metal4 shards. *)
 external metal4_command_buffer_begin :

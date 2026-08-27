@@ -1933,6 +1933,14 @@ external device_io_handle_legacy : handle -> string -> ((handle*int64),string) r
   "caml_prismel_metal_device_io_handle_legacy"
 external device_io_handle_compressed_legacy : handle -> string -> int -> ((handle*int64),string) result =
   "caml_prismel_metal_device_io_handle_compressed_legacy"
+external device_function_handle : handle -> handle -> bool -> (handle option,string) result =
+  "caml_prismel_metal_device_function_handle"
+external device_argument_encoder :
+  handle -> (int64 * int64 * int64 * int64 * int64 * int64) array ->
+  ((handle * int64 * int64 * int64),string) result =
+  "caml_prismel_metal_device_argument_encoder"
+external device_render_pipeline_simple : handle -> handle -> (handle,string) result =
+  "caml_prismel_metal_device_render_pipeline_simple"
 
 (** Authoritative Metal4 lifecycle190 prepared CAML subset. The resource and
     compute-owner shards currently contain typed native helpers only, not OCaml

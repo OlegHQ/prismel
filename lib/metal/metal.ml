@@ -1136,7 +1136,7 @@ type shader_attribute =
   ; vertex : bool }
 
 type shader_argument_encoder =
-  { raw : Metal_raw.handle; lifetime : lifetime; function_ : function_handle
+  { raw : Metal_raw.handle; lifetime : lifetime; function_ : function_handle option
   ; buffer_index : int64; device:device; mutable argument_label:string option
   ; encoded_length:int64; alignment:int64
   ; retained:(int64,lifetime)Hashtbl.t; parent_encoder:shader_argument_encoder option }
@@ -1255,6 +1255,9 @@ type compute_pipeline =
 type linked_function_handle =
   { raw : Metal_raw.handle; lifetime : lifetime; pipeline : compute_pipeline
   ; function_ : function_handle }
+
+type device_function_handle =
+  { raw:Metal_raw.handle; lifetime:lifetime; device:device; source_lifetime:lifetime }
 
 type visible_function_table =
   { raw : Metal_raw.handle; lifetime : lifetime; pipeline : compute_pipeline
@@ -9294,7 +9297,7 @@ module Function = struct
     let operation="Metal.Function.argument_encoder" in
     if buffer_index<0L then error operation Invalid_argument "buffer index must be nonnegative" else
     Result.bind(query operation(fun raw->Metal_raw.shader_function_argument_encoder raw buffer_index)value)(fun raw->
-      match Metal_raw.argument_encoder_snapshot raw with Error m->ignore(Metal_raw.destroy raw);native_error operation m|Ok(_,_,_,registry)when registry<>value.library.device.registry_id->ignore(Metal_raw.destroy raw);error operation Device_mismatch "argument encoder device disagrees with function"|Ok(argument_label,encoded_length,alignment,_)->let x:shader_argument_encoder={raw;lifetime=lifetime();function_=value;buffer_index;device=value.library.device;argument_label;encoded_length;alignment;retained=Hashtbl.create 17;parent_encoder=None}in attach value.lifetime;attach_finalizer~on_finalize:(fun()->Hashtbl.iter(fun _ lifetime->detach lifetime)x.retained;Hashtbl.clear x.retained)x x.lifetime value.lifetime;Ok x)
+      match Metal_raw.argument_encoder_snapshot raw with Error m->ignore(Metal_raw.destroy raw);native_error operation m|Ok(_,_,_,registry)when registry<>value.library.device.registry_id->ignore(Metal_raw.destroy raw);error operation Device_mismatch "argument encoder device disagrees with function"|Ok(argument_label,encoded_length,alignment,_)->let x:shader_argument_encoder={raw;lifetime=lifetime();function_=Some value;buffer_index;device=value.library.device;argument_label;encoded_length;alignment;retained=Hashtbl.create 17;parent_encoder=None}in attach value.lifetime;attach_finalizer~on_finalize:(fun()->Hashtbl.iter(fun _ lifetime->detach lifetime)x.retained;Hashtbl.clear x.retained)x x.lifetime value.lifetime;Ok x)
 
   let argument_encoder_with_reflection (value:t) ~buffer_index =
     let operation = "Metal.Function.argument_encoder_with_reflection" in
@@ -9316,7 +9319,7 @@ module Function = struct
                 "argument encoder device disagrees with function"
           | Ok (argument_label, encoded_length, alignment, _) ->
               let encoder : shader_argument_encoder =
-                { raw; lifetime=lifetime (); function_=value; buffer_index
+                { raw; lifetime=lifetime (); function_=Some value; buffer_index
                 ; device=value.library.device; argument_label; encoded_length
                 ; alignment; retained=Hashtbl.create 17; parent_encoder=None }
               in
@@ -9513,6 +9516,10 @@ module Shader_argument_encoder = struct
     | Intersection_function_table of intersection_function_table
     | Render_pipeline of render_pipeline | Compute_pipeline of compute_pipeline
     | Depth_stencil of depth_stencil
+  type access=Read_only|Read_write|Write_only
+  type descriptor={data_type:Data_type.t;index:int64;array_length:int64;access:access;texture_kind:Texture.kind;constant_block_alignment:int64}
+  let access_code=function Read_only->0L|Read_write->1L|Write_only->2L
+  let create (device:Device.t) descriptors=let op="Metal.Shader_argument_encoder.create"in on_main op(fun()->match ensure_live op device.lifetime with Error _ as e->e|Ok()when descriptors=[]->error op Invalid_argument "argument descriptor list is empty"|Ok()->let values=Array.of_list(List.map(fun d->(Data_type.to_int64 d.data_type,d.index,d.array_length,access_code d.access,Int64.of_int(Texture.kind_code d.texture_kind),d.constant_block_alignment))descriptors)in if Array.exists(fun(_,index,length,_,_,alignment)->index<0L||length<=0L||alignment<0L)values then error op Invalid_argument "argument descriptor metadata is invalid"else match Metal_raw.device_argument_encoder device.raw values with Error m->native_error op m|Ok(raw,_,_,registry)when registry<>device.registry_id->ignore(Metal_raw.destroy raw);error op Device_mismatch "argument encoder returned another device"|Ok(raw,encoded_length,alignment,_)->let value:t={raw;lifetime=lifetime();function_=None;buffer_index=0L;device;argument_label=None;encoded_length;alignment;retained=Hashtbl.create 17;parent_encoder=None}in attach device.lifetime;attach_finalizer value value.lifetime device.lifetime;Ok value)
   let snapshot(value:t)=value.argument_label,value.encoded_length,value.alignment,value.device
   let label(value:t)=value.argument_label
   let set_label(value:t)label=let op="Metal.Shader_argument_encoder.set_label"in on_main op(fun()->match ensure_live op value.lifetime with Error _ as e->e|Ok()when option_exists contains_nul label->error op Invalid_argument "argument encoder label contains a NUL byte"|Ok()->match Metal_raw.argument_encoder_set_label value.raw label with Error m->native_error op m|Ok()->value.argument_label<-label;Ok())
@@ -9528,7 +9535,7 @@ module Shader_argument_encoder = struct
   let constant_available (value:t) ~index=let op="Metal.Shader_argument_encoder.constant_available"in on_main op(fun()->match ensure_live op value.lifetime with Error _ as e->e|Ok()when index<0L->error op Invalid_argument "constant index is negative"|Ok()->match Metal_raw.argument_encoder_constant_available value.raw index with Error m->native_error op m|Ok x->Ok x)
   let buffer_index (value:t)=value.buffer_index
   let destroyed (value:t)=is_destroyed value.lifetime
-  let destroy (value:t)=destroy_parent "Metal.Shader_argument_encoder.destroy" value.lifetime value.raw(fun()->Hashtbl.iter(fun _ lifetime->detach lifetime)value.retained;Hashtbl.clear value.retained;match value.parent_encoder with Some parent->detach parent.lifetime|None->detach value.function_.lifetime)
+  let destroy (value:t)=destroy_parent "Metal.Shader_argument_encoder.destroy" value.lifetime value.raw(fun()->Hashtbl.iter(fun _ lifetime->detach lifetime)value.retained;Hashtbl.clear value.retained;match value.parent_encoder with Some parent->detach parent.lifetime|None->Option.iter(fun (f:function_handle)->detach f.lifetime)value.function_;if Option.is_none value.function_ then detach value.device.lifetime)
 end
 
 module Shader_stage_descriptor = struct
@@ -11097,6 +11104,16 @@ module Binary_function = struct
     let relink_render_pipeline(value:t) (pipeline:render_pipeline)=let operation="Metal.Binary_function.Descriptor.relink_render_pipeline"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match ensure_live operation pipeline.lifetime with Error _ as e->e|Ok()->(match value.descriptor_device with Some device->Result.bind(ensure_same_device operation pipeline.device device)(fun()->Render_pipeline.clone_relinked operation pipeline(Metal_raw.render93_relink pipeline.raw 1 value.raw))|None->Render_pipeline.clone_relinked operation pipeline(Metal_raw.render93_relink pipeline.raw 1 value.raw)))
     let destroy (value:t)=destroy_leaf "Metal.Binary_function.Descriptor.destroy" value.lifetime value.raw(fun()->Array.iter(List.iter(fun(function_:binary_function)->detach function_.lifetime))value.descriptor_stages)
   end
+end
+
+module Device_function_handle = struct
+  type t=device_function_handle
+  let make op (device:device) source_lifetime result=match result with Error m->native_error op m|Ok None->error op Unsupported "device returned no function handle"|Ok(Some raw)->attach source_lifetime;attach device.lifetime;let value:device_function_handle={raw;lifetime=lifetime();device;source_lifetime}in attach_finalizer~on_finalize:(fun()->detach source_lifetime)value value.lifetime device.lifetime;Ok value
+  let of_function (device:Device.t)(function_:Function.t)=let op="Metal.Device_function_handle.of_function"in on_main op(fun()->Result.bind(ensure_live op device.lifetime)(fun()->Result.bind(ensure_live op function_.lifetime)(fun()->Result.bind(ensure_same_device op device function_.library.device)(fun()->make op device function_.lifetime(Metal_raw.device_function_handle device.raw function_.raw false)))))
+  let of_binary_function (device:Device.t)(function_:Binary_function.t)=let op="Metal.Device_function_handle.of_binary_function"in on_main op(fun()->Result.bind(ensure_live op device.lifetime)(fun()->Result.bind(ensure_live op function_.lifetime)(fun()->Result.bind(ensure_same_device op device function_.device)(fun()->make op device function_.lifetime(Metal_raw.device_function_handle device.raw function_.raw true)))))
+  let device (value:device_function_handle)=value.device
+  let destroyed (value:device_function_handle)=is_destroyed value.lifetime
+  let destroy (value:device_function_handle)=destroy_leaf "Metal.Device_function_handle.destroy" value.lifetime value.raw(fun()->detach value.source_lifetime;detach value.device.lifetime)
 end
 
 let validate_binary_function_source operation device
@@ -21675,6 +21692,29 @@ module Pipeline_descriptor = struct
                     Ok (Render_pipeline.make value.device ~kind:Render_pipeline.Render
                       ~raster_sample_count:(Int64.to_int sample_count)
                       ~color_formats:[] ~reflection raw raw_reflection))
+    let compile_simple (value : t) =
+      let operation = "Metal.Pipeline_descriptor.Render.compile_simple" in
+      on_main operation (fun () ->
+        match ensure_live operation value.lifetime with
+        | Error _ as failure -> failure
+        | Ok () when not value.pipeline113_valid ->
+            error operation Invalid_state "render descriptor was reset"
+        | Ok () ->
+            match Metal_raw.pipeline_render_descriptor_sample_count value.raw with
+            | Error message -> native_error operation message
+            | Ok sample_count ->
+                match Metal_raw.device_render_pipeline_simple value.device.raw value.raw with
+                | Error message -> native_error operation message
+                | Ok raw ->
+                    let reflected : Metal_raw.render_pipeline_reflection =
+                      { vertex_bindings=[||]; fragment_bindings=[||]
+                      ; tile_bindings=[||]; object_bindings=[||]
+                      ; mesh_bindings=[||] }
+                    in
+                    Ok (Render_pipeline.make value.device
+                      ~kind:Render_pipeline.Render
+                      ~raster_sample_count:(Int64.to_int sample_count)
+                      ~color_formats:[] ~reflection:false raw reflected))
     let reset (value : t) =
       let operation = "Metal.Pipeline_descriptor.Render.reset" in
       on_main operation (fun () ->

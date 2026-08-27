@@ -239,6 +239,7 @@
   ../../tools/metal/metal_compute_encoder35_bindings.inc
   ../../tools/metal/metal_compute_encoder35_commands.inc
   ../../tools/metal/metal_device_residual_io2_bridge.inc
+  ../../tools/metal/metal_device_residual_final4_bridge.inc
   ../../tools/metal/metal_rasterization_rate_callable_bridge.inc
   ../../tools/metal/metal_function_stitching_callable_bridge.inc
   ../../tools/metal/metal_library42_callable_bridge.inc
