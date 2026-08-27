@@ -13,3 +13,11 @@
  (link_flags -linkall)
  (action
   (setenv PRISMEL_TEST_RUNTIME_NEXT_RESOURCES 1 (run %{test}))))
+
+(test
+ (name test_runtime_next_canvas)
+ (modules test_runtime_next_canvas)
+ (libraries prismel_runtime_next_sketch)
+ (link_flags -linkall)
+ (action
+  (setenv PRISMEL_TEST_RUNTIME_NEXT_CANVAS 1 (run %{test}))))
