@@ -126,6 +126,7 @@ can change the denominator explicitly rather than being hidden.
 | `ea48261` | 2026-08-27 10:28:05 +02:00 | 5,122 | 5,249 | 97.5805% | 2 | 0.038 | 53.3 | 1.02 |
 | `6ef8001` | 2026-08-27 10:30:12 +02:00 | 5,128 | 5,249 | 97.6948% | 6 | 0.035 | 170.1 | 3.24 |
 | `ef44024` | 2026-08-27 10:31:03 +02:00 | 5,142 | 5,249 | 97.9615% | 14 | 0.014 | 988.2 | 18.83 |
+| `94307e9` | 2026-08-27 10:32:44 +02:00 | 5,146 | 5,249 | 98.0377% | 4 | 0.028 | 142.6 | 2.72 |
 
 ## Current measured rate
 
@@ -273,6 +274,12 @@ identity, acceleration scratch ranges, tensor ranks/cardinality, argument
 tables, heaps, and completion retention. The exact closure, safe callable
 fixture, and typed native macOS 26 availability fixture prove five, five, and
 four declarations respectively without claiming unavailable execution.
+
+The `94307e9` interval closes the exact Event4 residual type surface: shared
+event handle and listener classes, the notification block typedef, and opaque
+private handle storage. These map to the existing exported-handle ownership and
+bounded exactly-once listener callback API, backed by the Event14 native and
+callback-stress fixtures.
 
 Rates describe completed commits, not forecasts. Hardware-only gates and
 complex ownership features will vary materially from pure-value batches.
