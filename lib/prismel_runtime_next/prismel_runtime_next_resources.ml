@@ -100,7 +100,10 @@ let test () =
   Bytes.set_int32_le indices 8 2l;
   let draw:Scene_execution.draw={mesh={key="resources";vertices;
     vertex_count=3;indices;index_count=3};state={viewport=(0,0,4,4);
-    scissor=(0,0,4,4)}}in
+    scissor=(0,0,4,4);cull=Ogpu.Render_pass.Cull_none;
+    depth_compare=Ogpu.Render_pass.Always;depth_write=false;
+    depth_load=Ogpu.Render_pass.Clear;depth_clear=1.;transform_uniforms=None;
+    stencil_state=None;stencil_load=Ogpu.Render_pass.Clear;stencil_clear=0}}in
   let result = run_assets_state ~configuration ~watch:false
       ~resources:[lifecycle] ~init:(fun assets _ -> assets,0)
       ~update:(fun assets (borrowed,count) frame ->

@@ -40,7 +40,12 @@ let draw fixture extent =
   in
   { Scene_execution.mesh;
     state = { viewport = (0, 0, extent, extent);
-      scissor = (0, 0, extent, extent) } }
+      scissor = (0, 0, extent, extent);
+      cull = Ogpu.Render_pass.Cull_none;
+      depth_compare = Ogpu.Render_pass.Always; depth_write = false;
+      depth_load = Ogpu.Render_pass.Clear; depth_clear = 1.;
+      transform_uniforms = None; stencil_state = None;
+      stencil_load = Ogpu.Render_pass.Clear; stencil_clear = 0 } }
 
 let scene = function
   | Basic -> [ Scene.clear Color.black;

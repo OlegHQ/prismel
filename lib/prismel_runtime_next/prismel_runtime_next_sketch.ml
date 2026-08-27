@@ -168,7 +168,12 @@ let test () =
       index_count = 3 }
   in
   let draw : Scene_execution.draw =
-    { mesh; state = { viewport = (0, 0, 4, 4); scissor = (0, 0, 4, 4) } }
+    { mesh; state = { viewport = (0, 0, 4, 4); scissor = (0, 0, 4, 4);
+        cull = Ogpu.Render_pass.Cull_none;
+        depth_compare = Ogpu.Render_pass.Always; depth_write = false;
+        depth_load = Ogpu.Render_pass.Clear; depth_clear = 1.;
+        transform_uniforms = None; stencil_state = None;
+        stencil_load = Ogpu.Render_pass.Clear; stencil_clear = 0 } }
   in
   let stopped = ref None in
   let configuration =

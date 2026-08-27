@@ -114,6 +114,7 @@ let wait_events runtime expected =
     else (Thread.delay 0.002; loop acc) in loop []
 
 let () =
+  Sys.set_signal Sys.sigpipe Sys.Signal_ignore;
   let config={Wap.default_config with interface="127.0.0.1";port=0;max_events=64;
     max_clients=2;max_connections=4;max_queued_event_bytes=4096;max_frame_pool_bytes=4096;
     compress_frames=false} in
