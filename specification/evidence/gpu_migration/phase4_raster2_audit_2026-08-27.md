@@ -9,7 +9,7 @@ integration evidence.
 
 | Gate | Implemented and directly exercised | Honest status and missing gate |
 | --- | --- | --- |
-| R1 Stable API | Private Scene lowering, selected-sketch adapters, resource execution and target orchestration preserve the public API and legacy selection (`4db9d2f`, `a500435`, `ac4e893` through `250cee2`). | **Partial.** Side-by-side qualification is substantially implemented, but the atomic default switch has deliberately not happened. Final clean API-manifest and unchanged-example gates must be rerun at the selection commit. |
+| R1 Stable API | Private Scene lowering, selected-sketch adapters, resource execution and target orchestration preserve the public API and legacy selection (`4db9d2f`, `a500435`, `ac4e893` through `250cee2`). The reproducible `phase4_r1_freeze` gate pins the frozen-plan/API hashes, baseline ancestry, all eight unchanged acceptance source trees, absence of public migration toggles, and both comparison paths. | **Local freeze facts proven; final selection still partial.** Current-tree manifest and dependency-direction checks pass, but the atomic default switch has deliberately not happened. Rerun the same gate on the final clean selection commit. |
 | R2 Scene2/PXUI parity | Pure constructors, affine state, clips/blends, Image/Text/Canvas execution, text-input regions and representative Basic/PXUI-like/Canvas application parity have direct frame 1/2/60/600 fixtures (`a500435`, `a6ea3b5`, `4df9972`, `e0a3340`). | **Partial.** Private runtime-next evidence is green; public/default Runtime still selects legacy. The full frozen native/headless/web application pixel corpus and actual PXUI acceptance executable remain final integration gates. |
 | R3 Scene3 parity | Public topology/raster/depth/stencil/sampling/fog/lighting/material/normal/convenience coverage is joined by area lights, per-vertex colors and functional deterministic Shader3 execution (`6e07cd3`, `34facc3`, `4bef806`, `38dc4c9`, `8648d38`). | **Partial.** Functional software Shader3 is no longer a gap. Default selection, frozen native Metal tolerance images, all required MSAA target combinations, live shadow ownership and production Boolean-terminal native upload evidence remain. |
 | R4 Resource parity | Runtime-next now executes owned watched Image and density-keyed Text snapshots, offscreen Canvas dependency ordering, Assets borrowing, and SDL3_mixer/dummy Audio lifecycle through on-stop (`ac4e893`, `4df9972`, `e0a3340`, `250cee2`). | **Partial.** Focused lifecycle evidence is real, not snapshot-only. Final selected examples, native extension availability matrix, packaging and cross-target teardown qualification remain. |
@@ -21,6 +21,42 @@ integration evidence.
 | R10 Performance non-regression | `62447a5` records release median/p95/FPS/CPU/allocation/RSS and structural counters for Basic, PXUI-like, Canvas, Scene3, hidden scheduling and shattered preparation on the M1. | **Not passed.** Legacy SDL2 could not initialize under the local dummy-video environment, so there is no interleaved same-protocol comparison, five warmed 30-second samples, native GPU timing, or independent native/headless/web R10 result. |
 | R11 Shattered-cube performance | The prepared OGPU batching harness pins 18,278 pieces/278,368 triangles, prepares 4,217,760 bytes once and measures zero replacement upload, 18,278 draws/one pass/one backend call per frame (`62447a5`). | **Partial structural evidence only.** It is a synthetic prepared graph on `Backend_mock`, not `sketches/shattered_cube/main.exe`; 835,104 render vertices, cook invariants and visible/hidden native Metal timing/residency remain required. |
 | R12 Long-run stability | The fixed-ring release harness covers changing meshes, resize, reload, Canvas/offscreen ownership and bounded Wap state. The final 30-minute M1 run passed in `51cc55d`: 23,464,561 rendered/presented frames, deterministic hash `ef98c79010144e39`, final-window RSS 15,744–16,016 KiB (1.73%), bounded live maxima 1/0/1 and target/view teardown 0/0. | **Partial; one qualification lane passed.** The SDL-free combined Raster2/Wap lane is now genuine 30-minute evidence. Separate selected native, headless and web 30-minute lanes including SDL/audio ownership are still required by frozen R12. |
+
+## R1 reproducible freeze evidence
+
+`tools/gpu_migration/phase4_r1_freeze.ml` verifies the local facts directly
+from Git and committed evidence rather than relying on a prose assertion:
+
+- `NEW_GPU_STUFF.md` remains byte-identical at SHA-256
+  `75cb47632aa2b26199677560c6382b8b94786af5f704867b40d306ccefbe19d3`;
+- Phase-0 commit `4622091a65bc9a8816a1f10bcc83c1a625ca7522` is the exact
+  merge-base ancestor;
+- `examples/basic`, `particles`, `noise`, `canvas`, `audio`, `pxui`,
+  `generative`, and `sketches/shattered_cube` have no changed source path
+  relative to that baseline;
+- the checked stable API manifest is byte-pinned at SHA-256
+  `ca6861c5dfbfafd6ea64d1c9837bc218e2af0dfe83a5b9589183384ffefcb7e2`,
+  and its generator check passes;
+- public Prismel/Runtime interfaces expose none of the private migration-toggle
+  spellings checked by the gate; and
+- legacy `Sketch` still selects `Scene.render`, while private
+  `Scene_raster2_lowering` and `Scene_ogpu_renderer` remain registered for
+  side-by-side qualification rather than default selection.
+
+The focused commands passed on 2026-08-27:
+
+```text
+opam exec -- dune build --force tools/gpu_migration/phase4_r1_freeze.exe
+_build/default/tools/gpu_migration/phase4_r1_freeze.exe --root .
+opam exec -- dune exec tools/gpu_migration/api_manifest.exe -- --root . --check
+_build/default/test/gpu_dependency_direction.exe lib/prismel/dune lib/runtime/dune \
+  lib/wap/dune lib/sdl3/dune lib/sdl3_image/dune lib/sdl3_ttf/dune \
+  lib/sdl3_mixer/dune lib/metal/dune lib/ogpu/dune lib/ogpu_metal/dune \
+  lib/raster2/dune
+```
+
+These facts close the locally reproducible freeze portion only. They do not
+authorize the default switch or change any R3/R12 qualification status.
 
 ## Commands run for this audit
 
