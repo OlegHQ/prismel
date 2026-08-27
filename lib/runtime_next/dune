@@ -1,0 +1,10 @@
+(library
+ (name runtime_next)
+ (public_name prismel.runtime_next)
+ (modules runtime_next)
+ (libraries sdl3 metal ogpu ogpu_metal scene_execution))
+
+(test
+ (name test_runtime_next)
+ (modules test_runtime_next)
+ (libraries runtime_next scene_execution metal))

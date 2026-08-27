@@ -31,6 +31,7 @@
 #import <IOSurface/IOSurfaceObjC.h>
 #import <Metal/Metal.h>
 #import <QuartzCore/CAMetalLayer.h>
+// The shared token header supplies C linkage when included from Objective-C++.
 #include "../native_layer_token/native_layer_token.h"
 
 @interface PrismelMetalExternalMemory : NSObject

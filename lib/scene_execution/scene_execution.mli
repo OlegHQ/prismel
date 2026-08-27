@@ -15,6 +15,7 @@ type draw = { mesh : mesh; state : state }
 val create : Ogpu.Backend.driver -> Ogpu.Surface.configuration ->
   (t, Ogpu.Error.t) result
 val create_with_pipeline : Ogpu.Backend.driver -> Ogpu.Surface.configuration ->
+  ?before_device_destroy:(unit -> (unit, Ogpu.Error.t) result) ->
   (Ogpu.Backend.device -> (Ogpu.Pipeline.t, Ogpu.Error.t) result) ->
   (t, Ogpu.Error.t) result
 val render : t -> draw list -> (bool, Ogpu.Error.t) result
