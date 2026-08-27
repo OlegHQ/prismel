@@ -48,7 +48,7 @@ let packed_pixel bytes index =
 
 let milli value = int_of_float ((value *. 1000.) +. 0.5)
 
-let prove ~width ~height artifact =
+let prove ~width ~height (artifact : R10_scene3_legacy_equivalent.t) =
   let public = public_workload () in
   let drawings = ref [] in
   Scene3.Private.iter_batches
