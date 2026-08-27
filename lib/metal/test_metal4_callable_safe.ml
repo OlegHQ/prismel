@@ -35,7 +35,11 @@ let ()=match Device.system_default()with
   get(Binary_function.Descriptor.reset binary_descriptor);
   let source=get(Buffer.create~device~length:1024L~storage:Buffer.Shared())in
   let destination=get(Buffer.create~device~length:1024L~storage:Buffer.Shared())in
-  let counter=get(Command4.Counter_heap.create device~kind:Command4.Counter_heap.Timestamp~count:8L)in
+  let descriptor = get (Command4.Counter_heap.Descriptor.create
+    ~kind:Command4.Counter_heap.Timestamp ~count:8L) in
+  if Command4.Counter_heap.Descriptor.count descriptor <> 8L then
+    failwith "counter descriptor copy drift";
+  let counter=get(Command4.Counter_heap.create_from_descriptor device descriptor)in
   let kind,count,_=get(Command4.Counter_heap.info counter)in
   if kind<>Command4.Counter_heap.Timestamp||count<>8L then failwith"counter enum mapping drift";
   let commands=get(Command4.Command_buffer.create allocator())in

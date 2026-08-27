@@ -12833,8 +12833,21 @@ module Command4 = struct
     type kind = Timestamp
     let kind_code Timestamp = 1
     let kind_of_code = function 1 -> Some Timestamp | _ -> None
-    let create ?label (device : Device.t) ~kind ~count =
+    module Descriptor = struct
+      type t = { kind : kind; count : int64 }
+      let create ~kind ~count =
+        let operation = "Metal.Command4.Counter_heap.Descriptor.create" in
+        if count <= 0L then
+          error operation Invalid_argument "counter count must be positive"
+        else Ok { kind; count }
+      let kind value = value.kind
+      let count value = value.count
+    end
+    let create_from_descriptor ?label (device : Device.t)
+        (descriptor : Descriptor.t) =
       let operation = "Metal.Command4.Counter_heap.create" in
+      let kind = Descriptor.kind descriptor in
+      let count = Descriptor.count descriptor in
       on_main operation (fun () ->
         match ensure_metal4 operation device with
         | Error _ as failure -> failure
@@ -12860,6 +12873,9 @@ module Command4 = struct
                     attach device.lifetime;
                     attach_finalizer value value.lifetime device.lifetime;
                     Ok value)
+    let create ?label device ~kind ~count =
+      Result.bind (Descriptor.create ~kind ~count)
+        (create_from_descriptor ?label device)
     let info (value : t) =
       let operation = "Metal.Command4.Counter_heap.info" in
       on_main operation (fun () -> match ensure_live operation value.lifetime with

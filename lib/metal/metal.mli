@@ -2576,6 +2576,13 @@ module Command4 : sig
   module Counter_heap : sig
     type t
     type kind = Timestamp
+    module Descriptor : sig
+      type t
+      val create : kind:kind -> count:int64 -> (t,error) result
+      val kind : t -> kind
+      val count : t -> int64
+    end
+    val create_from_descriptor : ?label:string -> Device.t -> Descriptor.t -> (t,error) result
     val create : ?label:string -> Device.t -> kind:kind -> count:int64 -> (t,error) result
     val info : t -> (kind * int64 * string option,error) result
     val set_label : t -> string option -> (unit,error) result
