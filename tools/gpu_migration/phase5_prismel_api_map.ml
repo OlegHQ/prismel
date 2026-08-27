@@ -28,7 +28,7 @@ let () =
   and extra=Strings.diff(set mapped_names)(set baseline_modules)|>Strings.elements in
   require(missing=[]&&extra=[])"module map drift: missing=[%s] extra=[%s]"
     (String.concat "," missing)(String.concat "," extra);
-  let direct=ref 0 and adapted=ref 0 and raw=ref 0 in
+  let direct=ref 0 and implemented=ref 0 and adapted=ref 0 and raw=ref 0 in
   List.iter(fun row->
     let name=row|>member "module"|>to_string
     and status=row|>member "status"|>to_string
@@ -45,6 +45,7 @@ let () =
         require(read_file old_path=read_file(Filename.concat root target))
           "%s direct interface is not byte-identical" name
     | "adapted" -> incr adapted
+    | "implemented" -> incr implemented
     | "raw_only" -> incr raw
     | value -> fail "%s has unknown status %s" name value)rows;
   let omissions=mapping|>member "raw_only_omissions"|>to_list|>List.map to_string in
@@ -62,5 +63,5 @@ let () =
     "Prismel.Low.Window.t.renderer_context"])
     "raw-only omission allowlist drift";
   Printf.printf
-    "Phase5 Prismel API map passed: %d baseline modules = %d direct + %d adapted + %d raw-only; %d exact Low omissions\n"
-    (List.length rows)!direct !adapted !raw (List.length omissions)
+    "Phase5 Prismel API map passed: %d baseline modules = %d direct + %d implemented-adapted + %d pending-adapted + %d raw-only; %d exact Low omissions\n"
+    (List.length rows)!direct !implemented !adapted !raw (List.length omissions)
