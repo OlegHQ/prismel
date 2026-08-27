@@ -1,8 +1,8 @@
 {
   "profile": "release",
   "performance_baseline": "specification/evidence/gpu_migration/phase0_performance.json",
-  "width": 64,
-  "height": 64,
+  "width": 640,
+  "height": 480,
   "samples": 5,
   "warmup_seconds": 3.0,
   "sample_seconds": 30.0,
