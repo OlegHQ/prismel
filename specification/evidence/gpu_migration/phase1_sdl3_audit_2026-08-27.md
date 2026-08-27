@@ -26,3 +26,25 @@ Additional Phase 1 completion conditions:
 The largest gaps are therefore evidence-renewal tasks requiring a clean host,
 sanitizers, Instruments, display hardware, or packaging installation. They are
 not missing binding implementation on the audited tree.
+
+## Current-tree rerun
+
+At `2026-08-27T14:27:52Z`, commit `dd4a8fb`, the complete locally executable
+SDL gate alias was rerun on the Apple M1 audit host:
+
+```text
+opam exec -- dune runtest lib/sdl3 lib/sdl3_image lib/sdl3_ttf lib/sdl3_mixer --force
+```
+
+It passed the core 1,246-function ownership/failure suite, the typed 33-event
+trace, CAMetalLayer ownership, all three extension inventories and real linked
+versions, and the 100,000-cycle surface/window lifecycle fixture. The current
+core inventory/layout/ABI SHA-256 values are respectively
+`2f0a3386171209a39b0836d8a4a4712fc20e68fbd7e8f74978f3b23f5ebe6627`,
+`52f1e8361d07b67fad925c1b7aee9303e50fd195a6673944a298249bda23d2b0`,
+and `c2f13b2c39c54d6b7151322bb80c7a261aac327e240dcbc16e0837482cff10b3`.
+Image, TTF, and mixer inventory hashes are `83c7844f…151c6`,
+`0487a9d9…a4a6`, and `5461469b…ed8c0`.
+
+This rerun does not renew the historical sanitizer, Instruments, external
+display, fresh-switch, or alternate-OS evidence described above.

@@ -20,8 +20,8 @@ evidence. `Partial` is intentionally not release-green.
 
 - Full Xcode validation: missing on this Command Line Tools host.
 - Runtime/offline shader parity: missing because offline Metal tools are absent.
-- M1 ray-tracing lane: resource operations exist; required deterministic
-  compute ray-query image is not yet evidenced.
+- M1 ray-tracing lane: the deterministic compute ray-query fixture is green
+  with hash `cc2679258ea31e7d`; M3+ render-pipeline qualification remains absent.
 - M3+ hardware-ray-tracing lane: missing; no M3+ result was fabricated.
 - Unsupported simulations: many M1 capability/no-handle-delta regressions are
   green, but the complete simulated missing-RT and missing-MetalFX profiles do
@@ -77,3 +77,33 @@ device, drains the release queue, and requires exact zero handle delta. That
 unsupported branch is committed but was not fabricated as executed on this
 ray-tracing-capable M1. This proves deterministic compute ray queries only; it
 does not claim the M3+ or hardware render-pipeline ray-tracing lanes.
+
+## Current-tree full gate rerun
+
+At `2026-08-27T14:27:52Z`, commits `71386f5` and `dd4a8fb`, the audit host ran:
+
+```text
+opam exec -- dune runtest lib/metal --force
+opam exec -- dune exec tools/metal/generate_inventory.exe -- --root . --check
+opam exec -- dune build @tools/metal/runtest --force
+opam exec -- dune exec tools/gpu_migration/api_manifest.exe -- --root . --check
+```
+
+All commands passed. The full library gate included real M1 command, resource,
+pipeline, acceleration/ray-query and presentation work; all safe/native closure
+fixtures; 13 isolated ownership lanes (including 100,000 buffers and 100,000
+Metal 4 argument tables); and the 10,000-frame presentation lifecycle. The
+tooling alias passed generator goldens, deterministic regeneration, collision,
+SDK-drift, structural-safe-evidence, classification, and inventory checks.
+
+Inventory remains exactly 5,286 SDK declarations: 5,248 bound, 37 deliberately
+scope-excluded, and one availability-gated (5,249 qualified), with zero
+unreviewed. Its SHA-256 is `78c0ec7d09e936c95365c3da2a95a98c193aa36b4b502b0f6c593efe08c9300a`;
+generated provenance is `f7f80e87fb200240c5195b733a5c7052a0b6617291ed8cd962ded8948e51e9e2`.
+The API-manifest review found only the intentional `7062595` private snapshot
+additions (`Shadow3.Private.snapshot`, `Texture.Private.levels`) and regenerated
+their exact hashes in `dd4a8fb`.
+
+These local results do not supply current ASan/UBSan/TSan, Guard Malloc/Leaks,
+full-Xcode offline shader, alternate-OS, or M3+ qualification evidence; M2–M10
+therefore retain their partial/missing status above.

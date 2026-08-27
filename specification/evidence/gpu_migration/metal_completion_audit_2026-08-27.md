@@ -54,3 +54,18 @@ No new ownership, ABI, or availability defect was found in this pass. The
 inventory check, final Device constructor/async/capability fixtures, and the
 full `lib/metal/test_metal.exe` conformance executable passed after concurrent
 Dune validation released the build lock.
+
+The later full-suite rerun at `2026-08-27T14:27:52Z` repaired and revalidated
+four audit drifts in `71386f5`: immutable pipeline-buffer descriptor mutation
+is rejected without state change, GPU-trace capture uses an atomic descriptor
+with a valid output path, command-buffer options retain `Log_state` through the
+dependent-count lifetime, and the native fence fixture keeps application-owned
+unretained command metadata alive through encoder finalization. Focused tests,
+`dune runtest lib/metal --force`, the exact inventory check, and
+`dune build @tools/metal/runtest --force` all passed afterward.
+
+The resulting inventory/provenance hashes are
+`78c0ec7d09e936c95365c3da2a95a98c193aa36b4b502b0f6c593efe08c9300a`
+and `f7f80e87fb200240c5195b733a5c7052a0b6617291ed8cd962ded8948e51e9e2`.
+This is local Apple M1 evidence only and does not replace outstanding M3+,
+full-Xcode/offline, sanitizer, Guard Malloc, or Leaks qualification.
