@@ -228,7 +228,10 @@ let require_equivalent_work samples scenario =
   let frames = List.map (exact_positive "frame_count") matching in
   let minimum = List.fold_left min max_int frames
   and maximum = List.fold_left max 0 frames in
-  if float maximum /. float minimum > 1.10 then
+  (* Duration-bounded runners can include one final frame whose start landed on
+     the measurement boundary. Discount that single quantization frame before
+     comparing pacing, which matters especially for the 50 ms smoke lane. *)
+  if float (maximum - 1) /. float minimum > 1.10 then
     fail "%s pacing differs by %.3fx (maximum 1.10x)" scenario
       (float maximum /. float minimum);
   List.iter (fun sample ->

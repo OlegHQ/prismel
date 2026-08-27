@@ -19,6 +19,7 @@ let sdl operation = function Ok value -> value | Error error ->
   failwith (operation ^ ": " ^ Format.asprintf "%a" Sdl3.pp_error error)
 
 let scenario_name = function Basic->"basic"|Pxui->"pxui-like"|Canvas->"canvas-like"|Scene3->"scene3-double68"|Shattered->"shattered-cube"
+let protocol_scenario_name = function Basic->"basic"|Pxui->"pxui"|Canvas->"canvas"|Scene3->"scene3"|Shattered->"shattered"
 let parse = function "basic"->Basic|"pxui"->Pxui|"canvas"->Canvas|"scene3"->Scene3|"shattered"->Shattered|value->invalid_arg("unknown scenario: "^value)
 let percentile p values=let copy=Array.copy values in Array.sort Float.compare copy;copy.(max 0(min(Array.length copy-1)(int_of_float(Float.ceil(p*.float(Array.length copy)))-1)))
 let rss_kib()=let argv=[|"/bin/ps";"-o";"rss=";"-p";string_of_int(Unix.getpid())|]in let input=Unix.open_process_args_in argv.(0)argv in Fun.protect~finally:(fun()->ignore(Unix.close_process_in input))(fun()->int_of_string(String.trim(input_line input)))
@@ -97,7 +98,7 @@ let run_public selected warmup samples sample_seconds visibility =
   |Scene3->
       let configuration={Prismel_next_execution.default_configuration with target=Native;
         logical_width=64;logical_height=64;drawable_width=64;drawable_height=64;
-        timing=Fixed(1./.120.);title="R10 exact native Scene3"}in
+        timing=Fixed(1./.60.);title="R10 exact native Scene3"}in
       let execution=Result.get_ok(Prismel_next_execution.create configuration)in
       let canonical=R10_scene3_legacy_equivalent.create~width:64~height:64 in
       ignore(Result.get_ok(R10_scene3_equivalence_bridge.prove~width:64~height:64 canonical));
@@ -109,7 +110,19 @@ let run_public selected warmup samples sample_seconds visibility =
   |Shattered->assert false in
   for _=1 to warmup do ignore(Result.get_ok(render()))done;
   let before=Result.get_ok(stats())in Gc.full_major();let gc0=Gc.quick_stat()and allocated0=Gc.allocated_bytes()and cpu0=Unix.times()in
-  let measure count seconds=match seconds with None->Array.init count(fun _->let started=Unix.gettimeofday()in ignore(Result.get_ok(render()));Unix.gettimeofday()-.started)|Some duration->let deadline=Unix.gettimeofday()+.duration in let rec loop acc=let started=Unix.gettimeofday()in if started>=deadline then Array.of_list(List.rev acc)else(ignore(Result.get_ok(render()));loop((Unix.gettimeofday()-.started)::acc))in loop[]in
+  let measure count seconds=match seconds with
+  |None->Array.init count(fun _->let started=Unix.gettimeofday()in ignore(Result.get_ok(render()));Unix.gettimeofday()-.started)
+  |Some duration->
+      let count=max 1(int_of_float(Float.round(duration*.60.)))in
+      let epoch=Unix.gettimeofday()and values=Array.make count 0. in
+      for index=0 to count-1 do
+        let started=Unix.gettimeofday()in
+        ignore(Result.get_ok(render()));
+        values.(index)<-Unix.gettimeofday()-.started;
+        let remaining=epoch+.(float(index+1)/.60.)-.Unix.gettimeofday()in
+        if remaining>0. then Unix.sleepf remaining
+      done;
+      values in
   let walls=measure samples sample_seconds in let measured=Array.length walls in
   let after=Result.get_ok(stats())and gc1=Gc.quick_stat()and cpu1=Unix.times()and allocated=Gc.allocated_bytes()-.allocated0 in
   let framebuffer=Result.get_ok(capture())and rss=rss_kib()in ignore(Result.get_ok(destroy()));
@@ -127,8 +140,9 @@ let run_public selected warmup samples sample_seconds visibility =
     "prepared_upload_bytes",`String(Int64.to_string before.uploaded_bytes);"measurement_upload_bytes",`String(Int64.to_string(Int64.sub after.uploaded_bytes before.uploaded_bytes));
     "draws",`Int(delta after.logical_draws before.logical_draws);"passes",`Int(delta after.logical_passes before.logical_passes);"backend_calls",`Int(delta after.logical_submissions before.logical_submissions);
     "cache_entries",`Int after.cache_entries;"cache_hits_inferred",`Int 0;"cache_misses_observed",`Int 0;"workload_signature",`String descriptor.semantic_signature;
-    "work_units",`Int descriptor.work_units;"semantics_supported",`Bool true;"scheduling",`String"unpaced-fixed-time-facts";
-    "framebuffer_digest",`String(Digest.to_hex(Digest.bytes framebuffer));"pixel_authority",`String("runtime-next-native/canonical/"^scenario_name selected);"pixel_tolerance",`Int 3;
+    "work_units",`Int descriptor.work_units;"semantics_supported",`Bool true;"scheduling",`String"fixed-rate";
+    "scheduled_frame_rate",`Float 60.;
+    "framebuffer_digest",`String(Digest.to_hex(Digest.bytes framebuffer));"pixel_authority",`String("phase0/runtime-next-native/"^protocol_scenario_name selected);"pixel_tolerance",`Int 3;
     "native_gpu_counters",`Null;"machine",`Assoc["arch",`String(Sys.getenv_opt"HOSTTYPE"|>Option.value~default:"arm64");"ocaml",`String Sys.ocaml_version]]in
   Yojson.Safe.pretty_to_string json^"\n"
 

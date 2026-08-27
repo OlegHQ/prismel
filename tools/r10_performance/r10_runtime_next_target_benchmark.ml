@@ -38,13 +38,13 @@ let rss_kib () =
 let () =
   let target = ref Headless and scenario = ref "" and profile = ref "release"
   and width = ref 64 and height = ref 64 and warmup = ref 3. and seconds = ref 30.
-  and frame_rate = ref 120. in
+  and frame_rate = ref 60. in
   Arg.parse [
     "--target", Arg.Symbol (["headless"; "web"], fun x -> target := if x = "headless" then Headless else Web), "target";
     "--scenario", Arg.Set_string scenario, "scenario"; "--profile", Arg.Set_string profile, "profile";
     "--width", Arg.Set_int width, "logical width"; "--height", Arg.Set_int height, "logical height";
     "--warmup", Arg.Set_float warmup, "warmup seconds"; "--seconds", Arg.Set_float seconds, "measurement seconds";
-    "--frame-rate", Arg.Set_float frame_rate, "fixed frame scheduling rate (default 120 Hz)" ]
+    "--frame-rate", Arg.Set_float frame_rate, "fixed frame scheduling rate (default 60 Hz)" ]
     (fun value -> raise (Arg.Bad ("unexpected argument " ^ value))) "R10 runtime-next target benchmark";
   if !scenario = "" || !width <= 0 || !height <= 0 || !warmup <= 0.
      || !seconds <= 0. || !frame_rate <= 0. || not (Float.is_finite !frame_rate) then
