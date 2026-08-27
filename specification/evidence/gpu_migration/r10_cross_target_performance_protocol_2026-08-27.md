@@ -1,8 +1,9 @@
 # R10 reproducible cross-target performance protocol — 2026-08-27
 
-Status: harness-ready and 16-cell smoke attempted; full qualification is
-blocked on legacy SDL2 initialization. Smoke results are plumbing checks and
-are not performance evidence. See `r10_cross_target_smoke_2026-08-27.md`.
+Status: the exact full protocol has run and its structural validator passes,
+but R10 performance acceptance fails. See
+`r10_cross_target_full_2026-08-27.md`. Smoke results remain plumbing checks and
+are not performance evidence.
 
 ## Matrix and process isolation
 
