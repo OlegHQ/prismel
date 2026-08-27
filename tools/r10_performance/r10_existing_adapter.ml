@@ -60,10 +60,9 @@ let () =
      || !width <= 0 || !height <= 0 then fail "invalid or missing arguments";
   let argv = match !kind with
     | "native-next" ->
-        if !width <> 64 || !height <> 64 then
-          fail "runtime-next native benchmark currently requires 64x64";
         [| !executable; !scenario; "--visibility"; "visible"; "--warmup"; "5";
-           "--sample-seconds"; string_of_float !seconds |]
+           "--sample-seconds"; string_of_float !seconds;
+           "--width";string_of_int!width;"--height";string_of_int!height |]
     | "legacy" ->
         prepare_legacy_linkage !executable;
         Unix.putenv "PRISMEL_RENDER_TARGET" !target;

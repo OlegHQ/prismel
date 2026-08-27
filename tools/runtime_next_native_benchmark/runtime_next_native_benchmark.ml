@@ -85,23 +85,23 @@ let create_renderer counters visibility =
   let renderer=get(Scene_execution.create_with_pipeline_variants driver config~before_device_destroy:(fun()->Ogpu_metal.Pipeline.clear_cache cache;Result.map_error(fun e->Ogpu.Error.make"native-benchmark"Ogpu.Error.Invalid_state(Format.asprintf"%a"Metal.pp_error e))(Metal.Metal_layer.destroy layer))make)in
   renderer,{pixel_density;display_scale;drawable_width;drawable_height},(fun()->get(Scene_execution.destroy renderer);sdl"view destroy"(Sdl3.Metal_view.destroy view);sdl"window destroy"(Sdl3.Window.destroy window);sdl"quit"(Sdl3.Init.quit_subsystems[Sdl3.Init.Video]))
 
-let run_public selected warmup samples sample_seconds visibility =
+let run_public selected warmup samples sample_seconds visibility width height =
   let public=match selected with Basic->R10_scene2_legacy_equivalent.Basic|Pxui->Pxui|Canvas->Canvas|Scene3->Scene3|Shattered->assert false in
-  let descriptor=R10_scene2_legacy_equivalent.describe public~width:64~height:64 in
+  let descriptor=R10_scene2_legacy_equivalent.describe public~width~height in
   let render,capture,stats,destroy=match selected with
   |Basic|Pxui|Canvas->
-      let candidate=Result.get_ok(R10_scene2_candidate.create~target:`Native~width:64~height:64 public)in
-      (fun()->R10_scene2_candidate.render candidate~width:64~height:64;Ok true),
+      let candidate=Result.get_ok(R10_scene2_candidate.create~target:`Native~width~height public)in
+      (fun()->R10_scene2_candidate.render candidate~width~height;Ok true),
       (fun()->Ok(R10_scene2_candidate.capture candidate)),
       (fun()->Ok(R10_scene2_candidate.stats candidate)),
       (fun()->Ok(R10_scene2_candidate.destroy candidate))
   |Scene3->
       let configuration={Prismel_next_execution.default_configuration with target=Native;
-        logical_width=64;logical_height=64;drawable_width=64;drawable_height=64;
+        logical_width=width;logical_height=height;drawable_width=width;drawable_height=height;
         timing=Fixed(1./.60.);title="R10 exact native Scene3"}in
       let execution=Result.get_ok(Prismel_next_execution.create configuration)in
-      let canonical=R10_scene3_legacy_equivalent.create~width:64~height:64 in
-      ignore(Result.get_ok(R10_scene3_equivalence_bridge.prove~width:64~height:64 canonical));
+      let canonical=R10_scene3_legacy_equivalent.create~width~height in
+      ignore(Result.get_ok(R10_scene3_equivalence_bridge.prove~width~height canonical));
       let draws=List.map(fun draw->Prismel_next_execution.prepared_draw~family:Scene3~samples:4 draw)canonical.software_draws in
       (fun()->Result.map(fun _->true)(Prismel_next_execution.step execution draws)),
       (fun()->Prismel_next_execution.capture execution),
@@ -132,7 +132,8 @@ let run_public selected warmup samples sample_seconds visibility =
   let delta x y=Int64.to_int(Int64.sub x y)in
   let json=`Assoc["schema",`Int 1;"scenario",`String(scenario_name selected);"backend",`String"real-m1-runtime-next-metal";"profile",`String"release";
     "visibility",`String(match visibility with Visible->"visible"|Hidden->"hidden");"protocol_r11_requested",`Bool(sample_seconds=Some 30.);
-    "window",`Assoc["pixel_density",`Float 1.;"display_scale",`Float 1.;"drawable_width",`Int 64;"drawable_height",`Int 64;"refresh_hz",`Null;"power_state",`Null;"thermal_state",`Null];
+    "width",`Int width;"height",`Int height;
+    "window",`Assoc["pixel_density",`Float 1.;"display_scale",`Float 1.;"drawable_width",`Int width;"drawable_height",`Int height;"refresh_hz",`Null;"power_state",`Null;"thermal_state",`Null];
     "warmup_frames",`Int warmup;"sample_frames",`Int measured;"pieces",`Int descriptor.work_units;"triangles",`Int descriptor.work_units;"acceptance_cook",`Null;
     "wall_seconds",`Float total;"user_seconds",`Float(cpu1.tms_utime-.cpu0.tms_utime);"system_seconds",`Float(cpu1.tms_stime-.cpu0.tms_stime);
     "median_ms",`Float(1000.*.percentile 0.5 walls);"p95_ms",`Float(1000.*.percentile 0.95 walls);"p99_ms",`Float(1000.*.percentile 0.99 walls);
@@ -147,8 +148,8 @@ let run_public selected warmup samples sample_seconds visibility =
     "native_gpu_counters",`Null;"machine",`Assoc["arch",`String(Sys.getenv_opt"HOSTTYPE"|>Option.value~default:"arm64");"ocaml",`String Sys.ocaml_version]]in
   Yojson.Safe.pretty_to_string json^"\n"
 
-let ()=let selected=ref Basic and warmup=ref 5 and samples=ref 30 and sample_seconds=ref None and report=ref None and artifact_path=ref None and visibility=ref Hidden in Arg.parse["--warmup",Arg.Set_int warmup,"frames";"--samples",Arg.Set_int samples,"frames";"--sample-seconds",Arg.Float(fun x->sample_seconds:=Some x),"duration";"--report",Arg.String(fun x->report:=Some x),"path";"--acceptance-artifact",Arg.String(fun x->artifact_path:=Some x),"cooked shattered artifact";"--visibility",Arg.Symbol(["visible";"hidden"],fun x->visibility:=if x="visible"then Visible else Hidden),"window visibility"](fun x->selected:=parse x)"runtime_next_native_benchmark scenario";if !warmup<1|| !samples<1||Option.fold~none:false~some:(fun x->x<=0.)!sample_seconds then invalid_arg"counts";
-  if !selected<>Shattered then(let text=run_public!selected!warmup!samples!sample_seconds!visibility in (match!report with None->print_string text|Some path->let out=open_out_bin path in output_string out text;close_out out);exit 0);
+let ()=let selected=ref Basic and warmup=ref 5 and samples=ref 30 and sample_seconds=ref None and report=ref None and artifact_path=ref None and visibility=ref Hidden and width=ref 64 and height=ref 64 in Arg.parse["--warmup",Arg.Set_int warmup,"frames";"--samples",Arg.Set_int samples,"frames";"--sample-seconds",Arg.Float(fun x->sample_seconds:=Some x),"duration";"--width",Arg.Set_int width,"logical width";"--height",Arg.Set_int height,"logical height";"--report",Arg.String(fun x->report:=Some x),"path";"--acceptance-artifact",Arg.String(fun x->artifact_path:=Some x),"cooked shattered artifact";"--visibility",Arg.Symbol(["visible";"hidden"],fun x->visibility:=if x="visible"then Visible else Hidden),"window visibility"](fun x->selected:=parse x)"runtime_next_native_benchmark scenario";if !warmup<1|| !samples<1|| !width<=0|| !height<=0||Option.fold~none:false~some:(fun x->x<=0.)!sample_seconds then invalid_arg"counts or dimensions";
+  if !selected<>Shattered then(let text=run_public!selected!warmup!samples!sample_seconds!visibility!width!height in (match!report with None->print_string text|Some path->let out=open_out_bin path in output_string out text;close_out out);exit 0);
   let protocol_r11=ref(!sample_seconds=Some 30.)in
   let counters={buffer_creates=0;buffer_bytes=0L;submissions=0;render_passes=0;draws=0}in
   let renderer,window,cleanup=create_renderer counters!visibility in

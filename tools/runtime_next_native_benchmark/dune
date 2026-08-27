@@ -14,3 +14,9 @@
  (name runtime_next_native_r11_protocol)
  (modules runtime_next_native_r11_protocol)
  (libraries unix))
+
+(test
+ (name test_runtime_next_native_dimensions)
+ (modules test_runtime_next_native_dimensions)
+ (libraries unix yojson)
+ (action (run %{test} %{exe:./runtime_next_native_benchmark.exe})))
