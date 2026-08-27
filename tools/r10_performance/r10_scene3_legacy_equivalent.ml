@@ -1,5 +1,19 @@
 open Prismel_next_api
 
+type t = {
+  software_draws : Scene_execution.draw list;
+  native_draws : Scene_execution.draw list;
+  instances : int;
+  vertices_per_instance : int;
+  indices_per_instance : int;
+  triangles : int;
+  samples : int;
+  diffuse_rgb : int * int * int;
+  ambient_rgb : int * int * int;
+  light_direction : float * float * float;
+  signature : string;
+}
+
 let put_f64 bytes offset value =
   Bytes.set_int64_le bytes offset (Int64.bits_of_float value)
 
