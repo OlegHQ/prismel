@@ -1,7 +1,7 @@
 (library
  (name raster2)
  (public_name prismel.raster2)
- (modules Surface Composite Path Primitive Image Depth_stencil))
+ (modules Surface Composite Path Primitive Image Depth_stencil Scratch))
 
 (test
  (name test_raster2_surface)
@@ -36,4 +36,9 @@
 (test
  (name test_raster2_depth_stencil)
  (modules test_raster2_depth_stencil)
+ (libraries raster2))
+
+(test
+ (name test_raster2_scratch)
+ (modules test_raster2_scratch)
  (libraries raster2))
