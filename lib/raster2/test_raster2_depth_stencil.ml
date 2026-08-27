@@ -30,4 +30,20 @@ let () =
   let expected = render () in
   let workers = Array.init 4 (fun _ -> Domain.spawn render) in
   Array.iter (fun worker -> assert (Domain.join worker = expected)) workers;
+  let checked=ok(create~width:1~height:1())and direct=ok(create~width:1~height:1())in
+  ok(clear checked~depth:1.~stencil:3);ok(clear direct~depth:1.~stencil:3);
+  let hot_state=state Less in
+  List.iter(fun depth->
+    let expected=ok(test_and_update checked hot_state~x:0~y:0~depth)in
+    let actual=Private.test_and_update_unchecked direct hot_state~x:0~y:0~depth in
+    assert(expected=actual&&bytes checked=bytes direct))[0.75;0.8;0.5;0.25];
+  ok(clear direct~depth:1.~stencil:3);Gc.full_major();
+  let allocated=Gc.allocated_bytes()in
+  for _=1 to 100_000 do
+    ignore(Private.test_and_update_unchecked direct hot_state~x:0~y:0~depth:0.5)
+  done;
+  let per_test=(Gc.allocated_bytes()-.allocated)/.100_000. in
+  (* The stored binary32 conversion retains one boxed float word on OCaml 5;
+     the primitive allocates no Result/error container on the valid path. *)
+  if per_test>8.1 then failwith(Printf.sprintf"private depth test allocated %.2f bytes/call"per_test);
   print_endline "Raster2 deterministic packed depth/stencil passed"

@@ -16,3 +16,8 @@ val clear : t -> depth:float -> stencil:int -> (unit,error) result
 val get : t -> x:int -> y:int -> (float * int,error) result
 (* The successful hot path creates no temporary records or containers. *)
 val test_and_update : t -> state -> x:int -> y:int -> depth:float -> (bool,error) result
+module Private : sig
+  (** Allocation-free depth/stencil testing for audited raster loops. The
+      caller must provide in-bounds coordinates and a finite depth in [0,1]. *)
+  val test_and_update_unchecked : t -> state -> x:int -> y:int -> depth:float -> bool
+end

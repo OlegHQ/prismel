@@ -322,11 +322,39 @@ let test_unbounded_hdr () =
   if not(Array.exists(fun value->value>8.)values)then
     failwith"multi-light HDR attachment clipped before resolve"
 
+let test_large_allocation () =
+  let width=640 and height=480 in
+  let color=ok(Surface.create~width~height())
+  and depth=ok(Depth_stencil.create~width~height())
+  and multisample=ok(Multisample.create~width~height~samples:4())in
+  let normal={Scene3_lighting.x=0.;y=0.;z=1.}in
+  let vertex x y={Scene3_consumer.position={Scene3_lighting.x=x;y;z=0.5};
+    normal;color=0xffffffffl;u=0.;v=0.}in
+  let draw:Scene3_consumer.draw={matrix;model_matrix=Array.copy matrix;
+    camera_position={x=0.;y=0.;z=1.};
+    viewport={x=0.;y=0.;width=float width;height=float height;min_depth=0.;max_depth=1.};
+    scissor={x=0;y=0;width;height};topology=Scene3.Triangle_list;
+    vertices=[|vertex(-1.)(-1.);vertex 1.(-1.);vertex(-1.)1.|];indices=[|0;1;2|];
+    lighting;shadows=[|None|];shading=Smooth;texture=None;cull=Triangle.Cull_none;
+    blend=Composite.Copy;depth_stencil;mode=Faces;line_width=1.;point_size=1.;program=None}in
+  let render()=match Scene3_consumer.render~target:{color;depth=Some depth;multisample=Some multisample}
+    ~clear:0x000000ffl~clear_depth:1.~clear_stencil:0~draws:[|draw|]with
+    |Ok()->()|Error Invalid_target->failwith"large invalid target"
+    |Error Invalid_vertex->failwith"large invalid vertex"
+    |Error(Lighting_error _)->failwith"large lighting"
+    |Error(Geometry_error _)->failwith"large geometry"
+    |Error(Program_error _)->failwith"large program"in
+  render();Gc.full_major();let before=Gc.allocated_bytes()in render();
+  let allocated=Gc.allocated_bytes()-.before in
+  Printf.printf"Raster2 Scene3 640x480 4x allocation: %.0f bytes/frame\n"allocated;
+  if allocated>80_000_000. then failwith"Scene3 fragment allocation regression"
+
 let () =
   List.iter test_case cases;
   List.iter test_non_triangle non_triangle_cases;
   test_shading ();
   test_unbounded_hdr ();
+  test_large_allocation ();
   let target = ok (Surface.create ~width:2 ~height:2 ()) in
   let before = Bytes.copy (Surface.bytes target) in
   ok

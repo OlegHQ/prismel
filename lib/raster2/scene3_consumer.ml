@@ -87,54 +87,70 @@ let pack_color (value:Scene3_lighting.color)=
       (logor(shift_left(of_int(byte value.b))8)(of_int(byte value.a)))))
 let draw_hdr ~hdr ~surface ~depth ~depth_state ~blend ~cull ~clip ~texture
     (a:hdr_vertex)(b:hdr_vertex)(c:hdr_vertex)=
-  let edge a b x y=(x-.a.x)*.(b.y-.a.y)-.(y-.a.y)*.(b.x-.a.x)in
-  let area=edge a b c.x c.y in
+  let area=(c.x-.a.x)*.(b.y-.a.y)-.(c.y-.a.y)*.(b.x-.a.x)in
   let rejected=area=0.||match cull with Triangle.Back->area<=0.|Front->area>=0.|Cull_none->false in
   if not rejected then begin
     let a,b,area=if area<0. then b,a,-.area else a,b,area in
+    let texture_coordinates=match texture with None->None|Some _->Some[|0.;0.;0.|]in
     let xmin=max clip.Triangle.x(max 0(int_of_float(floor(min a.x(min b.x c.x)))))
     and ymin=max clip.y(max 0(int_of_float(floor(min a.y(min b.y c.y)))))
     and xmax=min(clip.x+clip.width-1)(min(Surface.width surface-1)(int_of_float(ceil(max a.x(max b.x c.x)))))
     and ymax=min(clip.y+clip.height-1)(min(Surface.height surface-1)(int_of_float(ceil(max a.y(max b.y c.y)))))in
     for y=ymin to ymax do for x=xmin to xmax do
       let px=float x+.0.5 and py=float y+.0.5 in
-      let w0=edge b c px py and w1=edge c a px py and w2=edge a b px py in
+      let w0=(px-.b.x)*.(c.y-.b.y)-.(py-.b.y)*.(c.x-.b.x)
+      and w1=(px-.c.x)*.(a.y-.c.y)-.(py-.c.y)*.(a.x-.c.x)
+      and w2=(px-.a.x)*.(b.y-.a.y)-.(py-.a.y)*.(b.x-.a.x)in
       if w0>=(-1e-9)&&w1>=(-1e-9)&&w2>=(-1e-9) then begin
         let w0=w0/.area and w1=w1/.area and w2=w2/.area in
         let z=w0*.a.depth+.w1*.b.depth+.w2*.c.depth in
         let pass=match depth with None->true|Some value->
-          match Depth_stencil.test_and_update value depth_state~x~y~depth:z with Ok value->value|Error _->false in
+          Depth_stencil.Private.test_and_update_unchecked value depth_state~x~y~depth:z in
         if pass then begin
           let denominator=w0*.a.inv_w+.w1*.b.inv_w+.w2*.c.inv_w in
-          let p0,p1,p2=if abs_float denominator<=1e-12 then w0,w1,w2 else
-            w0*.a.inv_w/.denominator,w1*.b.inv_w/.denominator,w2*.c.inv_w/.denominator in
-          let mix field=p0*.field a.color+.p1*.field b.color+.p2*.field c.color in
-          let color={Scene3_lighting.r=mix(fun value->value.Scene3_lighting.r);
-            g=mix(fun value->value.Scene3_lighting.g);b=mix(fun value->value.Scene3_lighting.b);
-            a=mix(fun value->value.Scene3_lighting.a)}in
-          let color=match texture with None->color|Some value->
+          let affine=abs_float denominator<=1e-12 in
+          let p0=if affine then w0 else w0*.a.inv_w/.denominator
+          and p1=if affine then w1 else w1*.b.inv_w/.denominator
+          and p2=if affine then w2 else w2*.c.inv_w/.denominator in
+          let red=p0*.a.color.r+.p1*.b.color.r+.p2*.c.color.r
+          and green=p0*.a.color.g+.p1*.b.color.g+.p2*.c.color.g
+          and blue=p0*.a.color.b+.p1*.b.color.b+.p2*.c.color.b
+          and alpha=p0*.a.color.a+.p1*.b.color.a+.p2*.c.color.a in
+          let sampled=match texture,texture_coordinates with
+          |None,None->0
+          |Some value,Some coordinates->
             let u=(w0*.a.u*.a.inv_w+.w1*.b.u*.b.inv_w+.w2*.c.u*.c.inv_w)/.denominator
             and v=(w0*.a.v*.a.inv_w+.w1*.b.v*.b.inv_w+.w2*.c.v*.c.inv_w)/.denominator in
-            let sampled=match Texture.sample value.Triangle.texture
-              ~address_u:value.address_u~address_v:value.address_v~filter:value.filter~u~v~lod:0. with
-              Ok sample->sample|Error _->0xffffffffl in
-            modulate_color color sampled in
+            Array.unsafe_set coordinates 0 u;Array.unsafe_set coordinates 1 v;
+            Texture.Private.sample_int_unchecked value.Triangle.texture
+              ~address_u:value.address_u~address_v:value.address_v~filter:value.filter coordinates
+          |_->assert false in
+          let red=match texture with None->red|Some _->red*.float((sampled lsr 24)land 255)/.255.
+          and green=match texture with None->green|Some _->green*.float((sampled lsr 16)land 255)/.255.
+          and blue=match texture with None->blue|Some _->blue*.float((sampled lsr 8)land 255)/.255.
+          and alpha=match texture with None->alpha|Some _->alpha*.float(sampled land 255)/.255. in
           match hdr with
-          |None->Composite.pixel surface~blend~x~y(pack_color color)
+          |None->
+            let byte value=int_of_float(max 0.(min 1. value)*.255.+.0.5)in
+            Composite.pixel_int surface~blend~x~y
+              ((byte red lsl 24)lor(byte green lsl 16)lor(byte blue lsl 8)lor byte alpha)
           |Some values->
             let offset=(y*Surface.width surface+x)*4 in
-            if blend=Composite.Copy||blend=Replace||color.a>=1. then begin
-              values.(offset)<-color.r;values.(offset+1)<-color.g;
-              values.(offset+2)<-color.b;values.(offset+3)<-color.a
+            if blend=Composite.Copy||blend=Replace||alpha>=1. then begin
+              values.(offset)<-red;values.(offset+1)<-green;
+              values.(offset+2)<-blue;values.(offset+3)<-alpha
             end else begin
               let destination_alpha=values.(offset+3)in
-              let alpha=color.a+.destination_alpha*.(1.-.color.a)in
-              let channel source destination=if alpha=0. then 0. else
-                (source*.color.a+.destination*.destination_alpha*.(1.-.color.a))/.alpha in
-              values.(offset)<-channel color.r values.(offset);
-              values.(offset+1)<-channel color.g values.(offset+1);
-              values.(offset+2)<-channel color.b values.(offset+2);
-              values.(offset+3)<-alpha
+              let output_alpha=alpha+.destination_alpha*.(1.-.alpha)in
+              if output_alpha=0. then begin
+                values.(offset)<-0.;values.(offset+1)<-0.;values.(offset+2)<-0.
+              end else begin
+                let retained=destination_alpha*.(1.-.alpha)in
+                values.(offset)<-(red*.alpha+.values.(offset)*.retained)/.output_alpha;
+                values.(offset+1)<-(green*.alpha+.values.(offset+1)*.retained)/.output_alpha;
+                values.(offset+2)<-(blue*.alpha+.values.(offset+2)*.retained)/.output_alpha
+              end;
+              values.(offset+3)<-output_alpha
             end
         end
       end
@@ -150,7 +166,13 @@ let rec render_offset ~hdr ~sample_offset ~(target:target) ~clear ~clear_depth ~
    let samples=Multisample.samples destination in
    begin match Multisample.create~width~height~samples()with Error _->Error Invalid_target|Ok staged->
    let failure=ref None and first_depth=ref None in
-   ignore(Multisample.clear staged~color:clear~depth:clear_depth);
+   let staged_bytes=Multisample.bytes staged and staged_pitch=Multisample.pitch staged
+   and clear_bits=Int32.bits_of_float clear_depth in
+   for y=0 to height-1 do for x=0 to width-1 do for sample=0 to samples-1 do
+     let offset=y*staged_pitch+(x*samples+sample)*8 in
+     Bytes.set_int32_le staged_bytes offset clear;
+     Bytes.set_int32_le staged_bytes(offset+4)clear_bits
+   done done done;
    for sample=0 to samples-1 do if !failure=None then
      match Multisample.sample_position~samples sample with Error _->failure:=Some Invalid_target|Ok(sample_x,sample_y)->
      match Surface.create~width~height()with Error _->failure:=Some Invalid_target|Ok sample_color->
@@ -160,15 +182,37 @@ let rec render_offset ~hdr ~sample_offset ~(target:target) ~clear ~clear_depth ~
      | Error error->failure:=Some error
      | Ok()->
        if sample=0 then first_depth:=Option.map(fun value->Bytes.copy(Depth_stencil.bytes value))sample_depth;
+       let sample_pitch=Surface.pitch sample_color in
        for y=0 to height-1 do for x=0 to width-1 do
-         match Surface.get_rgba sample_color~x~y with Error _->failure:=Some Invalid_target|Ok color->
-         let depth=match sample_depth with None->clear_depth|Some value->(match Depth_stencil.get value~x~y with Ok(depth,_)->depth|Error _->clear_depth)in
-         ignore(Multisample.test_and_write staged~compare:Multisample.Always~depth_write:true~x~y~sample~depth~color)
+         let color=Surface.Private.get_rgba_int_at_unchecked sample_color
+           (y*sample_pitch+x*4)in
+         let destination=y*staged_pitch+(x*samples+sample)*8 in
+         Bytes.set_int32_le staged_bytes destination(Int32.of_int color);
+         (match sample_depth with
+          |None->Bytes.set_int32_le staged_bytes(destination+4)(Int32.bits_of_float clear_depth)
+          |Some value->Bytes.blit(Depth_stencil.bytes value)
+             (y*Depth_stencil.pitch value+x*8)staged_bytes(destination+4)4)
        done done
      end
    done;
    match !failure with Some error->Error error|None->
-     begin match Multisample.resolve staged target.color with Error _->Error Invalid_target|Ok()->
+     begin
+       let half=samples/2 and target_pitch=Surface.pitch target.color
+       and sums=Array.make 4 0 in
+       for y=0 to height-1 do for x=0 to width-1 do
+         Array.fill sums 0 4 0;
+         for sample=0 to samples-1 do
+           let packed=Int32.to_int(Bytes.get_int32_le staged_bytes
+             (y*staged_pitch+(x*samples+sample)*8))in
+           sums.(0)<-sums.(0)+((packed lsr 24)land 255);
+           sums.(1)<-sums.(1)+((packed lsr 16)land 255);
+           sums.(2)<-sums.(2)+((packed lsr 8)land 255);
+           sums.(3)<-sums.(3)+(packed land 255)
+         done;
+         Surface.Private.set_rgba_int_at_unchecked target.color(y*target_pitch+x*4)
+           ((((sums.(0)+half)/samples)lsl 24)lor(((sums.(1)+half)/samples)lsl 16)
+             lor(((sums.(2)+half)/samples)lsl 8)lor((sums.(3)+half)/samples))
+       done done;
        Bytes.blit(Multisample.bytes staged)0(Multisample.bytes destination)0(Bytes.length(Multisample.bytes staged));
        begin match target.depth,!first_depth with Some depth,Some bytes->Bytes.blit bytes 0(Depth_stencil.bytes depth)0(Bytes.length bytes)|_->()end;
        Ok()
