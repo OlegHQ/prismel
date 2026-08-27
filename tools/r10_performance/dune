@@ -10,3 +10,20 @@
  (name r10_runtime_next_target_benchmark)
  (libraries runtime_next_headless runtime_next_web scene_execution ogpu wap unix
   yojson))
+
+(test
+ (name test_r10_equivalence_validation)
+ (libraries unix yojson)
+ (deps r10_performance_protocol.exe)
+ (action (run %{test} ./%{dep:r10_performance_protocol.exe})))
+
+(test
+ (name test_r10_scene3_legacy_equivalent)
+ (modules test_r10_scene3_legacy_equivalent r10_scene3_legacy_equivalent)
+ (libraries prismel_next_api scene_execution ogpu))
+
+(test
+ (name test_r10_scene3_equivalence_bridge)
+ (modules test_r10_scene3_equivalence_bridge r10_scene3_equivalence_bridge
+  r10_scene3_legacy_equivalent)
+ (libraries prismel_next_api scene_execution ogpu))

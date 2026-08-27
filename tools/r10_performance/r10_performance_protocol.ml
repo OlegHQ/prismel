@@ -99,6 +99,10 @@ let seconds_metric raw seconds_names millisecond_names =
       | Some (`Float value) -> `Float (value /. 1000.)
       | Some (`Int value) -> `Float (float value /. 1000.)
       | _ -> `Null)
+let divided_metric raw names denominator =
+  match numeric_float (first names raw), denominator with
+  | Some value, Some count when count > 0 -> `Float (value /. float count)
+  | _ -> `Null
 let normalize ~protocol ~case ~sample_index raw =
   let get_string key = case |> member key |> to_string in
   let case_profile = get_string "profile" in
@@ -124,6 +128,7 @@ let normalize ~protocol ~case ~sample_index raw =
   let measured_width = measured_logical "width" "drawable_width"
   and measured_height = measured_logical "height" "drawable_height" in
   let user = first ["user_seconds"] raw and system = first ["system_seconds"] raw in
+  let frame_count = numeric_int (first ["frames"; "sample_frames"] raw) in
   let cpu_seconds = match user, system with
     | Some (`Float u), Some (`Float s) -> `Float (u +. s)
     | Some (`Int u), Some (`Int s) -> `Int (u + s)
@@ -147,11 +152,22 @@ let normalize ~protocol ~case ~sample_index raw =
       "p99_frame_seconds", seconds_metric raw ["p99_frame_seconds"] ["p99_ms"]];
     "memory", `Assoc ["allocated_bytes", metric raw ["allocated_bytes"; "allocated"];
       "promoted_bytes", metric raw ["promoted_bytes"; "promoted"];
+      "allocated_bytes_per_frame", (match first ["allocated_bytes_per_frame"] raw with
+        | Some value -> number_or_null (Some value)
+        | None -> divided_metric raw ["allocated_bytes"; "allocated"] frame_count);
+      "promoted_bytes_per_frame", (match first ["promoted_bytes_per_frame"] raw with
+        | Some value -> number_or_null (Some value)
+        | None -> divided_metric raw ["promoted_bytes"; "promoted"] frame_count);
       "peak_rss_kib", metric raw ["peak_sampled_rss_kib"; "rss_kib"; "rss"]];
     "work", `Assoc ["upload_bytes", (match first ["measurement_upload_bytes"; "upload_bytes_during_measurement"; "legacy_upload_bytes"] raw with Some value -> value | None -> `Null);
+      "frame_count", (match frame_count with Some value -> `Int value | None -> `Null);
+      "work_units", int_or_null (first ["work_units"; "triangles"; "legacy_work_units"] raw);
       "draw_count", int_or_null (first ["draw_count"; "draws"; "legacy_draw_count"] raw);
       "pass_count", int_or_null (first ["pass_count"; "passes"] raw);
       "backend_calls", int_or_null (first ["backend_calls"; "ffi_boundary_calls"] raw)];
+    "equivalence", `Assoc [
+      "workload_signature", string_or_null (first ["workload_signature"] raw);
+      "pixel_hash", string_or_null (first ["pixel_hash"; "framebuffer_hash"; "framebuffer_digest"] raw)];
     "gpu", `Assoc ["duration_seconds", number_or_null (first ["gpu_duration_seconds"; "legacy_gpu_duration_seconds"] raw);
       "utilization_percent", number_or_null (first ["gpu_utilization_percent"; "legacy_gpu_utilization_percent"] raw);
       "counters", (match first ["native_gpu_counters"] raw with Some value -> value | None -> `Null)];
@@ -161,6 +177,44 @@ let normalize ~protocol ~case ~sample_index raw =
 
 let required_scenarios = ["basic"; "pxui"; "canvas"; "scene3"]
 let required_targets = ["runtime-next-native"; "headless"; "web"; "legacy"]
+
+let require_equivalent_work samples scenario =
+  let matching = List.filter (fun sample -> member "scenario" sample = `String scenario) samples in
+  let exact_string field sample =
+    let value = match member "equivalence" sample with
+      | `Assoc _ as equivalence -> member field equivalence
+      | _ -> `Null in
+    match value with
+    | `String value when value <> "" -> value
+    | _ -> fail "%s/%s lacks required equivalence %s"
+        (sample |> member "target" |> to_string) scenario field
+  in
+  let exact_positive field sample =
+    match sample |> member "work" |> member field with
+    | `Int value when value > 0 -> value
+    | _ -> fail "%s/%s lacks positive %s"
+        (sample |> member "target" |> to_string) scenario field
+  in
+  let unique values = List.sort_uniq String.compare values in
+  let signatures = unique (List.map (exact_string "workload_signature") matching)
+  and pixels = unique (List.map (exact_string "pixel_hash") matching)
+  and work_units = List.map (exact_positive "work_units") matching |> List.sort_uniq Int.compare in
+  if List.length signatures <> 1 then fail "%s workload signatures differ" scenario;
+  if List.length pixels <> 1 then fail "%s pixel hashes differ" scenario;
+  if List.length work_units <> 1 then fail "%s work cardinality differs" scenario;
+  let frames = List.map (exact_positive "frame_count") matching in
+  let minimum = List.fold_left min max_int frames
+  and maximum = List.fold_left max 0 frames in
+  if float maximum /. float minimum > 1.10 then
+    fail "%s pacing differs by %.3fx (maximum 1.10x)" scenario
+      (float maximum /. float minimum);
+  List.iter (fun sample ->
+    let target = sample |> member "target" |> to_string in
+    let memory = member "memory" sample in
+    List.iter (fun field -> if member field memory = `Null then
+      fail "%s/%s missing normalized %s" target scenario field)
+      ["allocated_bytes_per_frame"; "promoted_bytes_per_frame"])
+    matching
 
 let validate_report report =
   let protocol = member "protocol" report in
@@ -184,6 +238,7 @@ let validate_report report =
         ["wall_seconds"; "median_frame_seconds"; "p95_frame_seconds"; "p99_frame_seconds"]
     ) found
   ) required_scenarios) required_targets;
+  List.iter (require_equivalent_work samples) ["basic"; "pxui"; "canvas"];
   print_endline "R10 validation passed"
 
 let () =
