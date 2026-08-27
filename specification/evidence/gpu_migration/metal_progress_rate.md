@@ -343,10 +343,3 @@ capability conformance.
 
 Rates describe completed commits, not forecasts. Hardware-only gates and
 complex ownership features will vary materially from pure-value batches.
-
-The `076b45c`/`406905a` checkpoint also closes the exact Device async9 slice.
-The safe API executes all nine classic completion-handler selectors through a
-bounded native Result contract, retaining inputs through completion without
-escaping OCaml roots. Real fixtures cover library, compute, render, stitched,
-mesh, and tile execution or capability rejection; async9 contributes nine of
-the checkpoint's bound declarations.
