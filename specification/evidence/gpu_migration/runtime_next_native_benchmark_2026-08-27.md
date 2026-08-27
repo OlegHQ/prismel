@@ -19,21 +19,24 @@ frames. One compatible render pass and one backend submission are emitted per
 frame; draw order remains explicit inside that pass. The committed JSON records
 the SHA-256 of each raw result file.
 
-## Full shattered-cube result: blocked, not measured
+## Full shattered-cube result
 
-The exact 18,278-piece/278,368-triangle native workload exposed a correctness
-blocker before timing could begin:
+After `57a0ffd`, the exact 18,278-piece/278,368-triangle native workload
+completes without destroying resources referenced by the current submission.
+Three measured frames produced:
 
-```text
-Backend.submit: submitted graph contains a destroyed object
-```
+| Median | p95 / p99 | FPS | CPU | Allocated | RSS | Upload after warmup | Draws / passes / backend calls |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 3473.148 ms | 3482.676 / 3482.676 ms | 0.289 | 99.94% | 999.82 MB | 290,864 KiB | 21,207,384 B | 54,834 / 3 / 3 |
 
-`Scene_execution` prepares the complete draw list before submission but keeps
-only 64 mesh-cache entries. Preparing item 65 evicts an earlier buffer that the
-same pending submission still references. Thus the full workload cannot be
-honestly timed on the current native path. Chunking it in the benchmark would
-hide the required one-graph ownership/caching defect, so this evidence leaves
-R11 open and reports no fabricated latency, cache-hit rate, or upload count.
+The persistent cache remains deliberately bounded at 64 entries. Current-frame
+resources are retained separately until command completion/presentation, so
+eviction is safe, but this all-unique 18,278-piece stream cannot remain warm in
+that cache: all measured draws are observed misses and re-upload 7,069,128 bytes
+per frame. Smaller stable workloads at or below the cache capacity retain the
+zero replacement-upload result above. This is correctness and diagnostic
+throughput evidence, not an R11 performance pass: CPU preparation, allocation,
+and re-upload remain far too expensive for the production target.
 
 ## Reproduction and limits
 
@@ -43,7 +46,8 @@ opam exec -- dune build --profile release \
 _build/default/tools/runtime_next_native_benchmark/runtime_next_native_benchmark.exe \
   basic --warmup 3 --samples 20 --report _build/native-basic.json
 _build/default/tools/runtime_next_native_benchmark/runtime_next_native_benchmark.exe \
-  shattered --warmup 1 --samples 3
+  shattered --warmup 1 --samples 3 \
+  --report _build/native-bench-results/shattered-fixed.json
 ```
 
 Host: Macmini9,1, Apple M1, 16 GiB, macOS 26.4.1 (25E253), OCaml 5.3.0.

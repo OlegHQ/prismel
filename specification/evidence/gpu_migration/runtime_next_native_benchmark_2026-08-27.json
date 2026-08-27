@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "commit": "a7d1c01",
+  "commit": "57a0ffd",
   "machine": {"model":"Macmini9,1","cpu":"Apple M1","memory_bytes":17179869184,"macos":"26.4.1 (25E253)","ocaml":"5.3.0"},
   "profile": "release",
   "protocol": {"ordinary_warmup_frames":3,"ordinary_sample_frames":20,"presentation_mode":"fifo","extent":"64x64"},
@@ -10,6 +10,6 @@
     {"scenario":"canvas-like","pieces":8,"triangles":256,"median_ms":8.201122283935547,"p95_ms":9.187936782836914,"p99_ms":9.624004364013672,"fps":120.14121441532792,"cpu_percent":2.870173612382185,"allocated_bytes":1078304.0,"rss_kib":81952,"prepared_upload_bytes":"3456","measurement_upload_bytes":"0","draws":160,"passes":20,"backend_calls":20,"cache_entries":8,"cache_hits_inferred":160,"cache_misses_observed":0,"raw_json_sha256":"30872e48ccf46e150cf22766eb16a7602c962339f0ba2ac4f9b2fcb35dc98359"},
     {"scenario":"scene3-double68","pieces":12,"triangles":110592,"median_ms":8.319854736328125,"p95_ms":9.297847747802734,"p99_ms":9.508132934570312,"fps":120.12882696716746,"cpu_percent":38.279651357222725,"allocated_bytes":54479904.0,"rss_kib":92224,"prepared_upload_bytes":"1329552","measurement_upload_bytes":"0","draws":240,"passes":20,"backend_calls":20,"cache_entries":12,"cache_hits_inferred":240,"cache_misses_observed":0,"raw_json_sha256":"6171bd8c11342c9f50d74340def87236e21f8941336ad0bd19de6380cff25f20"}
   ],
-  "shattered_cube": {"pieces":18278,"triangles":278368,"result":"blocked","error":"Backend.submit: submitted graph contains a destroyed object","cause":"Scene_execution prepares all 18,278 resources while its cache capacity is 64; early prepared buffers are evicted before the single submission validates them."},
+  "shattered_cube": {"pieces":18278,"triangles":278368,"result":"completed","warmup_frames":1,"sample_frames":3,"median_ms":3473.1481075286865,"p95_ms":3482.6760292053223,"p99_ms":3482.6760292053223,"fps":0.2885682751053002,"cpu_percent":99.94428504971273,"allocated_bytes":999823392.0,"rss_kib":290864,"prepared_upload_bytes":"7069128","measurement_upload_bytes":"21207384","draws":54834,"passes":3,"backend_calls":3,"cache_entries":64,"cache_hits_inferred":0,"cache_misses_observed":54834,"raw_json_sha256":"e3bbb3d6153e9ee96c17c1e3aecbd2c5e5c6e76511e9f426e83fe0610d071c51","qualification":"Correctness blocker fixed; bounded cache forces full re-upload and this is not an R11 performance pass."},
   "native_gpu_counters": null
 }
