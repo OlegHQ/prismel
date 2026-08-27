@@ -2984,6 +2984,23 @@ module Device = struct
           Ok
             (Metal_raw.device_supports_lossy_texture_compression value.raw))
 
+  type sparse_region = { x:int64; y:int64; z:int64; width:int64; height:int64; depth:int64 }
+  type sparse_alignment = Outward | Inward
+  let raw_region r : Metal_raw.device_region = (r.x,r.y,r.z,r.width,r.height,r.depth)
+  let region_of_raw (x,y,z,width,height,depth) = {x;y;z;width;height;depth}
+  let convert_sparse operation (value:t) ~tile_size ~alignment ~reverse regions =
+    on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->
+      let tw,th,td=tile_size in
+      if Array.length regions=0||tw<=0L||th<=0L||td<=0L then error operation Invalid_argument "regions and tile dimensions must be positive"
+      else if Array.exists(fun r->r.x<0L||r.y<0L||r.z<0L||r.width<=0L||r.height<=0L||r.depth<=0L)regions then error operation Invalid_argument "sparse region is invalid"
+      else match Metal_raw.device_convert_sparse_regions value.raw(Array.map raw_region regions)(tw,th,td)(match alignment with Outward->0|Inward->1)reverse with Error m->native_error operation m|Ok rs->Ok(Array.map region_of_raw rs))
+  let sparse_pixel_regions_to_tiles value ~tile_size ~alignment regions=convert_sparse "Metal.Device.sparse_pixel_regions_to_tiles" value ~tile_size ~alignment ~reverse:false regions
+  let sparse_tile_regions_to_pixels value ~tile_size regions=convert_sparse "Metal.Device.sparse_tile_regions_to_pixels" value ~tile_size ~alignment:Outward ~reverse:true regions
+  let default_sample_positions (value:t) ~count=let operation="Metal.Device.default_sample_positions"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()when count<=0||count>32->error operation Invalid_argument "sample count must be between 1 and 32"|Ok()->match Metal_raw.device_default_sample_positions value.raw(Int64.of_int count)with Error m->native_error operation m|Ok p->Ok(Array.copy p))
+  let sample_timestamps (value:t)=let operation="Metal.Device.sample_timestamps"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.device_sample_timestamps value.raw with Error m->native_error operation m|Ok(cpu,gpu)when cpu<0L||gpu<0L->native_error operation "Metal returned a negative timestamp"|Ok pair->Ok pair)
+  let timestamp_frequency (value:t)=let operation="Metal.Device.timestamp_frequency"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.device_timestamp_frequency value.raw with Error m->error operation Unsupported m|Ok n when n<=0L->native_error operation "Metal returned a zero timestamp frequency"|Ok n->Ok n)
+  let counter_heap_entry_size (value:t)=let operation="Metal.Device.counter_heap_entry_size"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.device_counter_heap_entry_size value.raw with Error m->error operation Unsupported m|Ok n when n<=0L->native_error operation "Metal returned a zero counter entry size"|Ok n->Ok n)
+
   let destroy (value : t) =
     destroy_parent "Metal.Device.destroy" value.lifetime value.raw (fun () -> ())
 end

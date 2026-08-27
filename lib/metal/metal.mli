@@ -277,6 +277,14 @@ module Device : sig
 
   (** Runtime- and Apple-GPU-family-8-gated lossy texture compression. *)
   val supports_lossy_texture_compression : t -> (bool, error) result
+  type sparse_region = { x:int64; y:int64; z:int64; width:int64; height:int64; depth:int64 }
+  type sparse_alignment = Outward | Inward
+  val sparse_pixel_regions_to_tiles : t -> tile_size:(int64*int64*int64) -> alignment:sparse_alignment -> sparse_region array -> (sparse_region array,error) result
+  val sparse_tile_regions_to_pixels : t -> tile_size:(int64*int64*int64) -> sparse_region array -> (sparse_region array,error) result
+  val default_sample_positions : t -> count:int -> ((float*float) array,error) result
+  val sample_timestamps : t -> ((int64*int64),error) result
+  val timestamp_frequency : t -> (int64,error) result
+  val counter_heap_entry_size : t -> (int64,error) result
   val destroy : t -> (unit, error) result
 end
 

@@ -1,4 +1,5 @@
 type handle
+type device_region = int64 * int64 * int64 * int64 * int64 * int64
 
 include
   module type of
@@ -2876,3 +2877,8 @@ external device_set_maximize_compilation : handle -> bool -> (unit,string) resul
 external device_supports_counter_sampling_exact : handle -> int64 -> (bool,string) result = "caml_prismel_metal_device_supports_counter_sampling_exact"
 external device_supports_feature_set_exact : handle -> int64 -> (bool,string) result = "caml_prismel_metal_device_supports_feature_set_exact"
 external device_supports_rate_layers : handle -> int64 -> (bool,string) result = "caml_prismel_metal_device_supports_rate_layers"
+external device_convert_sparse_regions : handle -> device_region array -> (int64*int64*int64) -> int -> bool -> (device_region array,string) result = "caml_prismel_metal_device_convert_sparse_regions"
+external device_default_sample_positions : handle -> int64 -> ((float*float) array,string) result = "caml_prismel_metal_device_default_sample_positions"
+external device_sample_timestamps : handle -> ((int64*int64),string) result = "caml_prismel_metal_device_sample_timestamps"
+external device_timestamp_frequency : handle -> (int64,string) result = "caml_prismel_metal_device_timestamp_frequency"
+external device_counter_heap_entry_size : handle -> (int64,string) result = "caml_prismel_metal_device_counter_heap_entry_size"
