@@ -1,7 +1,7 @@
 (library
  (name raster2)
  (public_name prismel.raster2)
- (modules Surface Composite Path))
+ (modules Surface Composite Path Primitive))
 
 (test
  (name test_raster2_surface)
@@ -16,4 +16,14 @@
 (test
  (name test_raster2_path)
  (modules test_raster2_path)
+ (libraries raster2))
+
+(test
+ (name test_raster2_stroke)
+ (modules test_raster2_stroke)
+ (libraries raster2))
+
+(test
+ (name test_raster2_primitive)
+ (modules test_raster2_primitive)
  (libraries raster2))
