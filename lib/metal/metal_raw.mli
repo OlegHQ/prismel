@@ -2844,3 +2844,6 @@ external binary_archive5_add :
 external metal4_ml_pipeline5_label :
   handle -> (string option, string) result =
   "caml_prismel_metal4_ml_pipeline5_label"
+
+external device_architecture_name : handle -> (string,string) result =
+  "caml_prismel_metal_device_architecture_name"

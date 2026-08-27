@@ -2552,10 +2552,24 @@ module Shared_event = struct
   let destroy(value:t)=destroy_parent "Metal.Shared_event.destroy" value.lifetime value.raw(fun()->detach value.device.lifetime)
 end
 
+type architecture = { name : string }
+module Architecture = struct
+  type t = architecture
+  let name value = value.name
+end
+
 module Device = struct
   type io_compression_method = Io_zlib | Io_lzfse | Io_lz4 | Io_lzma | Io_lz_bitmap
   let io_compression_code=function Io_zlib->0|Io_lzfse->1|Io_lz4->2|Io_lzma->3|Io_lz_bitmap->4
   type t = device
+  let architecture (value:t) =
+    let operation="Metal.Device.architecture" in
+    on_main operation(fun()->match ensure_live operation value.lifetime with
+    | Error _ as e->e
+    | Ok()->match Metal_raw.device_architecture_name value.raw with
+      | Error message->error operation Unsupported message
+      | Ok name when name=""||contains_nul name->native_error operation "Metal returned an invalid architecture name"
+      | Ok name->Ok({name=String.sub name 0(String.length name)}:architecture))
 
   let new_fence (value:t) =
     let operation = "Metal.Device.new_fence" in
@@ -9519,6 +9533,17 @@ module Shader_argument_encoder = struct
   type access=Read_only|Read_write|Write_only
   type descriptor={data_type:Data_type.t;index:int64;array_length:int64;access:access;texture_kind:Texture.kind;constant_block_alignment:int64}
   let access_code=function Read_only->0L|Read_write->1L|Write_only->2L
+  let descriptor ~data_type ~index ~array_length ~access ~texture_kind
+      ~constant_block_alignment () =
+    let operation="Metal.Shader_argument_encoder.descriptor" in
+    let aligned=constant_block_alignment=0L||
+      (constant_block_alignment>0L&&Int64.logand constant_block_alignment(Int64.pred constant_block_alignment)=0L)in
+    if index<0L||array_length<=0L||not aligned||constant_block_alignment>4096L then
+      error operation Invalid_argument "argument descriptor index, array length, or alignment is invalid"
+    else Ok {data_type;index;array_length;access;texture_kind;constant_block_alignment}
+  let descriptor_snapshot value={data_type=value.data_type;index=value.index;
+    array_length=value.array_length;access=value.access;texture_kind=value.texture_kind;
+    constant_block_alignment=value.constant_block_alignment}
   let create (device:Device.t) descriptors=let op="Metal.Shader_argument_encoder.create"in on_main op(fun()->match ensure_live op device.lifetime with Error _ as e->e|Ok()when descriptors=[]->error op Invalid_argument "argument descriptor list is empty"|Ok()->let values=Array.of_list(List.map(fun d->(Data_type.to_int64 d.data_type,d.index,d.array_length,access_code d.access,Int64.of_int(Texture.kind_code d.texture_kind),d.constant_block_alignment))descriptors)in if Array.exists(fun(_,index,length,_,_,alignment)->index<0L||length<=0L||alignment<0L)values then error op Invalid_argument "argument descriptor metadata is invalid"else match Metal_raw.device_argument_encoder device.raw values with Error m->native_error op m|Ok(raw,_,_,registry)when registry<>device.registry_id->ignore(Metal_raw.destroy raw);error op Device_mismatch "argument encoder returned another device"|Ok(raw,encoded_length,alignment,_)->let value:t={raw;lifetime=lifetime();function_=None;buffer_index=0L;device;argument_label=None;encoded_length;alignment;retained=Hashtbl.create 17;parent_encoder=None}in attach device.lifetime;attach_finalizer value value.lifetime device.lifetime;Ok value)
   let snapshot(value:t)=value.argument_label,value.encoded_length,value.alignment,value.device
   let label(value:t)=value.argument_label

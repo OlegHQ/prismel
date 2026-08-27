@@ -240,6 +240,7 @@
   ../../tools/metal/metal_compute_encoder35_commands.inc
   ../../tools/metal/metal_device_residual_io2_bridge.inc
   ../../tools/metal/metal_device_residual_final4_bridge.inc
+  ../../tools/metal/metal_device_architecture5_bridge.inc
   ../../tools/metal/metal_rasterization_rate_callable_bridge.inc
   ../../tools/metal/metal_function_stitching_callable_bridge.inc
   ../../tools/metal/metal_library42_callable_bridge.inc
@@ -1513,3 +1514,8 @@
  (alias runtest)
  (deps test_render_pipeline93_vertex_reflection_native.exe)
  (action (run ./test_render_pipeline93_vertex_reflection_native.exe)))
+
+(executable
+ (name test_metal_device_value25_safe)
+ (modules test_metal_device_value25_safe)
+ (libraries metal))

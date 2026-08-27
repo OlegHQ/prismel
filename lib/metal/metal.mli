@@ -149,9 +149,16 @@ type resource_state_encoder
 type command_queue
 type command4_queue
 type fence
+type architecture = private { name : string }
+
+module Architecture : sig
+  type t = architecture
+  val name : t -> string
+end
 
 module Device : sig
   type t
+  val architecture : t -> (Architecture.t,error) result
   type io_compression_method = Io_zlib | Io_lzfse | Io_lz4 | Io_lzma | Io_lz_bitmap
 
   type family =
@@ -1506,6 +1513,10 @@ and Shader_argument_encoder : sig
     ; access : access
     ; texture_kind : Texture.kind
     ; constant_block_alignment : int64 }
+  val descriptor : data_type:Data_type.t -> index:int64 -> array_length:int64 ->
+    access:access -> texture_kind:Texture.kind ->
+    constant_block_alignment:int64 -> unit -> (descriptor,error) result
+  val descriptor_snapshot : descriptor -> descriptor
   type resource =
     | Buffer of Buffer.t | Texture of Texture.t | Sampler of Sampler.t
     | Acceleration_structure of acceleration_structure
