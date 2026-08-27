@@ -1,0 +1,85 @@
+{
+  "schema": "prismel-r11-native-shattered/v1",
+  "date": "2026-08-27",
+  "built_checkpoint": "c383bea",
+  "binary_built_at_utc": "2026-08-27T20:29:07Z",
+  "checkout_caveat": "The binary timestamp pins HEAD c383bea before the next commit, but this shared multi-agent worktree was not recorded globally clean at build time; unrelated uncommitted lanes may have been present.",
+  "machine": {
+    "model": "Macmini9,1",
+    "chip": "Apple M1",
+    "cores": 8,
+    "memory_gib": 16,
+    "arch": "arm64",
+    "ocaml": "5.3.0",
+    "profile": "release"
+  },
+  "protocol": {
+    "runs_per_visibility": 5,
+    "seconds_per_run": 30,
+    "warmup_frames_per_run": 5,
+    "visibility": ["visible", "hidden"],
+    "backend": "real-m1-runtime-next-metal",
+    "window": {"logical_width":64,"logical_height":64,"drawable_width":64,"drawable_height":64,"pixel_density":1.0,"display_scale":1.0},
+    "native_gpu_counters": null,
+    "power_state": null,
+    "thermal_state": null,
+    "refresh_hz": null
+  },
+  "artifact": {
+    "sha256": "e635cbe84c566db90792b7e1c0aa7e4125da6f664fa37015718e85aeed1f3119",
+    "pieces": 18278,
+    "triangles": 278368,
+    "render_vertices": 835104,
+    "one_four_domain_exact": true,
+    "topology_hash": "f7df96ba5de50db4f964caa418ac4a90",
+    "attribute_hash": "a34503939b89dcd5f6d8503f58b3fd8d",
+    "order_hash": "2a4f0c8756d6abc4c0f8cec85c10dc10",
+    "render_hash": "681eacdabdce457de462c3f4fc01a761"
+  },
+  "visible": {
+    "total_frames": 17976,
+    "median_of_run_medians_ms": 8.483171463012695,
+    "median_run_p95_ms": 9.519815444946289,
+    "median_run_p99_ms": 10.024070739746094,
+    "median_run_fps": 119.90266526345206,
+    "median_run_cpu_percent": 10.208283582099112,
+    "median_run_allocated_bytes": 75767720.0,
+    "median_run_promoted_bytes": 5462784.0,
+    "rss_kib_endpoints": [155760,331840,331824,273120,167104],
+    "runs": [
+      {"frames":3591,"wall_seconds":30.001619815826416,"user_seconds":1.643682,"system_seconds":1.168772,"median_ms":8.506059646606445,"p95_ms":9.580850601196289,"p99_ms":10.67209243774414,"fps":119.6935372837996,"cpu_percent":9.374340509829331,"allocated_bytes":75641336.0,"promoted_bytes":5462784.0,"rss_kib":155760,"raw_sha256":"15e5a0146c6765e36104203bc53204faaeb6b1961a2cf4b3c0ec1a69a4f15808"},
+      {"frames":3599,"wall_seconds":30.00244426727295,"user_seconds":1.8413439999999999,"system_seconds":1.407195,"median_ms":8.483171463012695,"p95_ms":9.522199630737305,"p99_ms":9.968042373657227,"fps":119.95689310973357,"cpu_percent":10.827581149925,"allocated_bytes":75809848.0,"promoted_bytes":5462784.0,"rss_kib":331840,"raw_sha256":"2a9aa3a2f698b96ea92dd76077e6c46105b2c9bde9a60a94fffb9c3afb4cebff"},
+      {"frames":3600,"wall_seconds":30.004682064056396,"user_seconds":1.904397,"system_seconds":1.4055170000000001,"median_ms":7.833003997802734,"p95_ms":9.519815444946289,"p99_ms":10.024070739746094,"fps":119.98127466621482,"cpu_percent":11.031325020987493,"allocated_bytes":75830912.0,"promoted_bytes":5462784.0,"rss_kib":331824,"raw_sha256":"85a386ea970dea16f99b058a9c3b56a51c96e061586b102e49f4e75b0e5790c2"},
+      {"frames":3597,"wall_seconds":29.999333143234253,"user_seconds":1.735519,"system_seconds":1.326898,"median_ms":8.572816848754883,"p95_ms":9.432077407836914,"p99_ms":9.813070297241211,"fps":119.90266526345206,"cpu_percent":10.208283582099112,"allocated_bytes":75767720.0,"promoted_bytes":5462784.0,"rss_kib":273120,"raw_sha256":"4d8a320367a06c5539c6682527a5e9ed8470479867a901c72dd42eef60338703"},
+      {"frames":3589,"wall_seconds":30.002314567565918,"user_seconds":1.666047,"system_seconds":1.224466,"median_ms":8.476018905639648,"p95_ms":9.498119354248047,"p99_ms":10.04481315612793,"fps":119.62410406428769,"cpu_percent":9.634300025388031,"allocated_bytes":75599208.0,"promoted_bytes":5467832.0,"rss_kib":167104,"raw_sha256":"4ea79c1bc1994f1c4a5a666ba9af085b94ef8762491e6436929193e1d876b87d"}
+    ]
+  },
+  "hidden": {
+    "total_frames": 17987,
+    "median_of_run_medians_ms": 8.528947830200195,
+    "median_run_p95_ms": 9.470939636230469,
+    "median_run_p99_ms": 9.725093841552734,
+    "median_run_fps": 119.94973364576697,
+    "median_run_cpu_percent": 9.422007182306434,
+    "median_run_allocated_bytes": 75809848.0,
+    "median_run_promoted_bytes": 5462784.0,
+    "rss_kib_endpoints": [331520,210448,154160,210432,331440],
+    "runs": [
+      {"frames":3599,"wall_seconds":30.00423502922058,"user_seconds":1.8095160000000001,"system_seconds":1.36707,"median_ms":8.528947830200195,"p95_ms":9.470939636230469,"p99_ms":9.725093841552734,"fps":119.94973364576697,"cpu_percent":10.58712544047992,"allocated_bytes":75809848.0,"promoted_bytes":5462784.0,"rss_kib":331520,"raw_sha256":"3078603804f3d0fea3cebb5a4312f6d75a3123c7ba8311cd38b04facc91e2f3f"},
+      {"frames":3600,"wall_seconds":30.005797147750854,"user_seconds":1.5263200000000001,"system_seconds":1.1329879999999999,"median_ms":8.484840393066406,"p95_ms":9.435892105102539,"p99_ms":9.630203247070312,"fps":119.9768158890538,"cpu_percent":8.86264739745244,"allocated_bytes":75830912.0,"promoted_bytes":5462784.0,"rss_kib":210448,"raw_sha256":"14fccfbe83464b23dbd0c0702d4ee4584c6a6caa37c4440237b4a43a7917c36b"},
+      {"frames":3592,"wall_seconds":30.002717971801758,"user_seconds":1.2695130000000001,"system_seconds":0.925295,"median_ms":8.562803268432617,"p95_ms":9.464025497436523,"p99_ms":10.24484634399414,"fps":119.72248658858054,"cpu_percent":7.315363901573199,"allocated_bytes":75662400.0,"promoted_bytes":5462784.0,"rss_kib":154160,"raw_sha256":"88b473f6aa0b0739841c7679fe46c06353c433b76063dbf012d23b6ba7ed812a"},
+      {"frames":3600,"wall_seconds":30.001908779144287,"user_seconds":1.643145,"system_seconds":1.183637,"median_ms":8.553981781005859,"p95_ms":9.500980377197266,"p99_ms":9.860038757324219,"fps":119.99236536918366,"cpu_percent":9.422007182306434,"allocated_bytes":75830912.0,"promoted_bytes":5462784.0,"rss_kib":210432,"raw_sha256":"08e4eec570bdbb80f42a907c21c3cb16c5a4f7862899a0cbda147495c18cd831"},
+      {"frames":3596,"wall_seconds":30.0025851726532,"user_seconds":1.8452650000000002,"system_seconds":1.3770660000000001,"median_ms":8.369922637939453,"p95_ms":9.515047073364258,"p99_ms":9.710073471069336,"fps":119.85633835572568,"cpu_percent":10.740177826199773,"allocated_bytes":75746656.0,"promoted_bytes":5462784.0,"rss_kib":331440,"raw_sha256":"23e707c40a29e4243054401534173f9114d53e9b8a659d1637b6d344084dc1d4"}
+    ]
+  },
+  "invariants": {
+    "prepared_upload_bytes_each_run": "60127488",
+    "measurement_upload_bytes_each_run": "0",
+    "cache_entries_each_run": 1,
+    "cache_misses_during_measurement_each_run": 0,
+    "draws_equal_frames": true,
+    "passes_equal_frames": true,
+    "backend_calls_equal_frames": true,
+    "all_children_exited_successfully": true
+  }
+}
