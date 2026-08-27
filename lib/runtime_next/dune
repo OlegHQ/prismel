@@ -10,6 +10,12 @@
  (modules runtime_next_headless)
  (libraries sdl3 ogpu ogpu_raster2 scene_execution))
 
+(library
+ (name runtime_next_web)
+ (public_name prismel.runtime_next_web)
+ (modules runtime_next_web)
+ (libraries ogpu ogpu_raster2 scene_execution runtime_wap_raster2_presenter wap))
+
 (test
  (name test_runtime_next)
  (modules test_runtime_next)
@@ -21,3 +27,8 @@
  (libraries runtime_next_headless scene_execution ogpu)
  (action
   (setenv SDL_VIDEODRIVER dummy (run %{test}))))
+
+(test
+ (name test_runtime_next_web)
+ (modules test_runtime_next_web)
+ (libraries runtime_next_web scene_execution ogpu wap))
