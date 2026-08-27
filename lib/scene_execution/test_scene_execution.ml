@@ -13,7 +13,7 @@ let shadow_payload () =
 let auxiliary_lifecycle renderer control mesh state =
   let sampler:Ogpu.Types.sampler_descriptor={label=Some"auxiliary-test";min_filter=Nearest;mag_filter=Nearest;mip_filter=No_mip;address_u=Clamp_to_edge;address_v=Clamp_to_edge;lod_min=0.;lod_max=0.;max_anisotropy=1}in
   let texture key color:Scene_execution.sampled_texture={key;levels=[|{width=1;height=1;bytes=Bytes.of_string color}|];sampler}in
-  let primary=texture"primary""\255\255\255\255"in
+  let primary=texture"canvas:test-primary""\255\255\255\255"in
   let auxiliary key:Scene_execution.auxiliary_resource={key;buffer=Bytes.make 84 '\001';texture=texture("texture-"^key)"\128\128\128\255"}in
   let draw={Scene_execution.mesh;state}in
   Ogpu.Backend_mock.clear_trace control;
@@ -25,7 +25,7 @@ let auxiliary_lifecycle renderer control mesh state =
   let uploaded=Scene_execution.upload_bytes renderer in
   ignore(get(Scene_execution.render_resources renderer[Scene2,Ogpu.Pipeline.Replace,Some primary,Some first,draw]));
   if Scene_execution.upload_bytes renderer<>uploaded then failwith"retained auxiliary resources reuploaded";
-  let changed=texture"primary""\000\255\000\255"in
+  let changed=texture"canvas:test-primary""\000\255\000\255"in
   Ogpu.Backend_mock.clear_trace control;
   ignore(get(Scene_execution.render_resources renderer[Scene2,Ogpu.Pipeline.Replace,Some changed,Some first,draw]));
   if Scene_execution.upload_bytes renderer<>Int64.add uploaded 256L then failwith"changed texture upload cardinality";

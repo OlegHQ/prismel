@@ -118,7 +118,13 @@ let prepare_texture value ~defer(source:sampled_texture)=
   |None->
     if not(valid_texture source)then error"Scene_execution.prepare_texture"Ogpu.Error.Invalid_argument"texture or sampler is malformed"else
     let shape=Array.to_list source.levels|>List.map(fun level->Printf.sprintf"%dx%d"level.width level.height)|>String.concat"/"in
-    let reusable=List.find_opt(fun item->item.texture_key=source.key&&item.texture_shape=shape)value.texture_cache in
+    (* Canvas identities are unique and lower to one sampled draw per frame, so
+       their same-shape storage can be updated safely between submissions.
+       General sampled keys may occur with multiple payloads in one submission
+       (for example shadow fixtures) and must retain distinct textures. *)
+    let reusable=if String.starts_with~prefix:"canvas:"source.key then
+      List.find_opt(fun item->item.texture_key=source.key&&item.texture_shape=shape)value.texture_cache
+      else None in
     let descriptor:Ogpu.Types.texture_descriptor={label=Some("scene-texture-"^source.key);width=source.levels.(0).width;height=source.levels.(0).height;depth=1;mip_levels=Array.length source.levels;sample_count=1;usage=[Texture_binding;Texture_copy_dst]}in
     let rows=Array.map(fun level->align256(level.width*4))source.levels in
     let offsets=Array.make(Array.length source.levels)0 in
