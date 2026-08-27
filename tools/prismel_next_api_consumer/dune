@@ -1,0 +1,14 @@
+(rule
+ (target resolved_deps.txt)
+ (deps (package prismel))
+ (action
+  (with-stdout-to %{target}
+   (run %{bin:ocamlobjinfo}
+    %{lib:prismel.prismel_next_api:prismel_next_api.cmxa}))))
+
+(test
+ (name prismel_next_api_installed_consumer)
+ (modules prismel_next_api_installed_consumer)
+ (libraries prismel.prismel_next_api)
+ (deps resolved_deps.txt)
+ (action (run %{test} %{dep:resolved_deps.txt})))
