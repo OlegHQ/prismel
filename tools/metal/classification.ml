@@ -1879,6 +1879,8 @@ let metal4_render_pipeline_reset_safe2 =
   Binding_metal4_render_pipeline_safe_package.callable_ids
 let metal4_compute_pipeline_reset_safe1 =
   Binding_metal4_compute_pipeline_safe_package.callable_ids
+let metal4_command_encoder_wait_safe1 =
+  Binding_metal4_command_encoder_safe_package.callable_ids
 
 let classify ~unavailable ~identifier ~header ~kind ~signature =
   if unavailable then
@@ -1899,6 +1901,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier metal4_compute_pipeline_reset_safe1 then
     Bound,
       "Implemented by a distinct owned Metal 4 compute descriptor with typed native reset, native-first child replacement, exact default checks, idempotence, and destroyed/availability conformance."
+  else if List.mem identifier metal4_command_encoder_wait_safe1 then
+    Bound,
+      "Implemented by the active Metal 4 encoder path with live same-device fence and nonempty known-stage validation, native-first command retention, and real producer/consumer conformance."
   else if acceleration_scalar_identifier ~header ~kind ~signature identifier then
     Bound,
       "Implemented by generated immutable acceleration-structure descriptor values with native execute-or-capability-reject conformance."
