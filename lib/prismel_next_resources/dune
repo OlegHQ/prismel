@@ -1,0 +1,10 @@
+(library
+ (name prismel_next_resources)
+ (public_name prismel.prismel_next_resources)
+ (modules prismel_next_resources)
+ (libraries sdl3 sdl3_image sdl3_ttf sdl3_mixer raster2 unix))
+
+(test
+ (name test_prismel_next_resources)
+ (modules test_prismel_next_resources)
+ (libraries prismel_next_resources unix))
