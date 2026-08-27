@@ -20,6 +20,18 @@ let () =
   get (Intersection_function_table.set_visible_table intersection ~buffer_index:0 (Some visible));
   let buffer = get (Buffer.create ~device ~length:64L ~storage:Buffer.Shared ()) in
   get (Intersection_function_table.set_buffer intersection ~index:0 ~offset:16L (Some buffer));
+  get (Intersection_function_table.set_buffers intersection ~start:1
+    [Some (buffer, 8L); None]);
+  get (Intersection_function_table.set_functions intersection ~start:0
+    [None; None]);
+  get (Intersection_function_table.set_visible_tables intersection ~start:1
+    [Some visible; None]);
+  get (Intersection_function_table.set_opaque_signature intersection
+    ~shape:Intersection_function_table.Triangle ~start:0 ~length:1 []);
+  check (Result.is_error (Intersection_function_table.set_buffers intersection
+    ~start:3 [None; None])) "out-of-range buffer array accepted";
+  check (Result.is_error (Intersection_function_table.set_functions intersection
+    ~start:0 [])) "empty function array accepted";
   check (Visible_function_table.resource_id visible <> 0L) "visible resource ID empty";
   check (Intersection_function_table.resource_id intersection <> 0L) "intersection resource ID empty";
   check

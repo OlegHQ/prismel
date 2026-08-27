@@ -10462,15 +10462,23 @@ module Intersection_function_table = struct
     on_main operation(fun()->Result.bind(validate_range value operation ~start ~length)(fun()->
     let rec valid=function []->Ok()|None::xs->valid xs|Some((b:Buffer.t),offset)::xs->Result.bind(ensure_buffer_usable operation b)(fun()->if offset<0L||offset>b.length then error operation Invalid_argument "intersection buffer offset is out of bounds" else Result.bind(ensure_same_device operation value.pipeline.device b.device)(fun()->valid xs))in
     Result.bind(valid items)(fun()->let objects=Array.of_list(List.map(Option.map(fun((b:Buffer.t),_)->b.raw))items)and offsets=Array.of_list(List.map(function None->0L|Some(_,offset)->offset)items)in
-    match Metal_raw.intersection_table_array value.raw 0 objects offsets[||](Int64.of_int start,Int64.of_int length)(Int64.of_int value.capacity)value.pipeline.device.registry_id with Error m->native_error operation m|Ok()->List.iteri(fun i item->replace value.buffers(start+i)(fun(b:buffer)->b.lifetime)(Option.map fst item))items;Ok()))
+    match Metal_raw.intersection_table_array value.raw 0 objects offsets[||](Int64.of_int start,Int64.of_int length)(Int64.of_int value.capacity)value.pipeline.device.registry_id with Error m->native_error operation m|Ok()->List.iteri(fun i item->replace value.buffers(start+i)(fun(b:buffer)->b.lifetime)(Option.map fst item))items;Ok())))
   let set_functions (value:t) ~start items =
     let operation="Metal.Intersection_function_table.set_functions" and length=List.length items in on_main operation(fun()->Result.bind(validate_range value operation ~start ~length)(fun()->
     let rec valid=function []->Ok()|None::xs->valid xs|Some(h:linked_function_handle)::xs->Result.bind(ensure_live operation h.lifetime)(fun()->Result.bind(ensure_same_device operation value.pipeline.device h.pipeline.device)(fun()->valid xs))in Result.bind(valid items)(fun()->
-    match Metal_raw.intersection_table_array value.raw 1(Array.of_list(List.map(Option.map(fun(h:linked_function_handle)->h.raw))items)[||](Array.of_list(List.map(function None->0L|Some(h:linked_function_handle)->h.pipeline.device.registry_id)items))(Int64.of_int start,Int64.of_int length)(Int64.of_int value.capacity)value.pipeline.device.registry_id with Error m->native_error operation m|Ok()->List.iteri(fun i item->replace value.functions(start+i)(fun(h:linked_function_handle)->h.lifetime)item)items;Ok()))
+    match Metal_raw.intersection_table_array value.raw 1
+      (Array.of_list(List.map(Option.map(fun(h:linked_function_handle)->h.raw))items))
+      [||]
+      (Array.of_list(List.map(function None->0L|Some(h:linked_function_handle)->h.pipeline.device.registry_id)items))
+      (Int64.of_int start,Int64.of_int length) (Int64.of_int value.capacity)
+      value.pipeline.device.registry_id with Error m->native_error operation m|Ok()->List.iteri(fun i item->replace value.functions(start+i)(fun(h:linked_function_handle)->h.lifetime)item)items;Ok())))
   let set_visible_tables (value:t) ~start items =
     let operation="Metal.Intersection_function_table.set_visible_tables" and length=List.length items in on_main operation(fun()->Result.bind(validate_range value operation ~start ~length)(fun()->
     let rec valid=function []->Ok()|None::xs->valid xs|Some(t:visible_function_table)::xs->Result.bind(ensure_live operation t.lifetime)(fun()->Result.bind(ensure_same_device operation value.pipeline.device t.pipeline.device)(fun()->valid xs))in Result.bind(valid items)(fun()->
-    match Metal_raw.intersection_table_array value.raw 2(Array.of_list(List.map(Option.map(fun(t:visible_function_table)->t.raw))items)[||][||](Int64.of_int start,Int64.of_int length)(Int64.of_int value.capacity)value.pipeline.device.registry_id with Error m->native_error operation m|Ok()->List.iteri(fun i item->replace value.visible_tables(start+i)(fun(t:visible_function_table)->t.lifetime)item)items;Ok()))
+    match Metal_raw.intersection_table_array value.raw 2
+      (Array.of_list(List.map(Option.map(fun(t:visible_function_table)->t.raw))items))
+      [||] [||] (Int64.of_int start,Int64.of_int length)
+      (Int64.of_int value.capacity) value.pipeline.device.registry_id with Error m->native_error operation m|Ok()->List.iteri(fun i item->replace value.visible_tables(start+i)(fun(t:visible_function_table)->t.lifetime)item)items;Ok())))
   let set_opaque_signature (value:t) ~shape ~start ~length signatures =
     let operation="Metal.Intersection_function_table.set_opaque_signature" in on_main operation(fun()->Result.bind(validate_range value operation ~start ~length)(fun()->
     let bits=List.fold_left(fun bits signature->Int64.logor bits(Enum.Mtl_intersection_function_signature.to_int64 signature))0L signatures in
