@@ -7,14 +7,20 @@ struct V { float4 position [[position]]; };
 vertex V scene_vertex(uint i [[vertex_id]]) { constexpr float2 p[3]={{-1.,-1.},{3.,-1.},{-1.,3.}}; V v;v.position=float4(p[i],0.,1.);return v; }
 fragment float4 scene_fragment(){return float4(1.,0.,0.5,1.);}
 |}
+let source3={|#include <metal_stdlib>
+using namespace metal;
+struct Out { float4 position [[position]]; };
+inline float scene_double(const device uchar *p){uint lo=*reinterpret_cast<const device uint*>(p);uint hi=*reinterpret_cast<const device uint*>(p+4);ulong bits=(ulong(hi)<<32)|ulong(lo);float sign=(hi>>31)==0?1.:-1.;int exponent=int((bits>>52)&0x7fful);ulong fraction=bits&0xffffffffffffful;if(exponent==0)return sign*ldexp(float(fraction)/4503599627370496.,-1022);return sign*ldexp(1.+float(fraction)/4503599627370496.,exponent-1023);}
+vertex Out scene_vertex(uint i [[vertex_id]],const device uchar *input [[buffer(0)]]){const device uchar*p=input+i*68;Out v;v.position=float4(scene_double(p),scene_double(p+8),scene_double(p+16),1.);return v;}
+fragment float4 scene_fragment(){return float4(1.,0.,0.5,1.);}
+|}
 let ()=match Device.system_default()with Error _->print_endline"scene execution Metal: skipped (no M1 device)"|Ok native_device->
   let before=metal(Metal.Release_queue.stats())in
   let layer=metal(Metal.Metal_layer.create(Device.Private.metal native_device)(Metal.Metal_layer.default~width:4~height:4))in
   let driver,control=Backend.create~device:native_device~layer()in
-  let shader=get(Ogpu.Shader.create{backend="metal";label=Some"scene-execution-metal";bytes=Bytes.of_string source;entry_points=[{name="scene_vertex";stage=Vertex};{name="scene_fragment";stage=Fragment}];bindings=[]})in
-  let cache=get(Pipeline.create_cache~capacity:6)in
+  let cache=get(Pipeline.create_cache~capacity:18)in
   let configuration:Ogpu.Surface.configuration={logical_width=4;logical_height=4;physical_width=4;physical_height=4;format=Bgra8_unorm;present_mode=Fifo;max_acquired=2}in
-  let renderer=get(Scene_execution.create_with_pipeline_variants driver configuration(fun device blend->let empty=get(Ogpu.Binding.create_layout[])in let layout=get(Ogpu.Binding.create_pipeline_layout~device:(Ogpu.Backend.device_handle device)~capabilities:(Ogpu.Backend.capabilities device)[0,empty])in let descriptor:Ogpu.Pipeline.render_descriptor={backend="metal";label=Some"scene-execution-metal";layout;vertex=shader;vertex_entry="scene_vertex";fragment=Some shader;fragment_entry=Some"scene_fragment";color_format=Rgba8_unorm;depth_format=No_depth;sample_count=1}in let native=get(Pipeline.create_render_runtime_msl~blend cache native_device descriptor)in Backend.register_pipeline control native;Ok(Pipeline.Private.portable native)))in
+  let renderer=get(Scene_execution.create_with_pipeline_variants driver configuration(fun device family blend->let bytes,uses_buffer=match family with Scene_execution.Scene2->source,false|Scene3|Scene3_textured->source3,true in let reflected=if uses_buffer then[{Ogpu.Shader.group=0;binding=0;kind=Storage_buffer;visibility=[Vertex;Fragment]}]else[]in let shader=get(Ogpu.Shader.create{backend="metal";label=Some"scene-execution-metal";bytes=Bytes.of_string bytes;entry_points=[{name="scene_vertex";stage=Vertex};{name="scene_fragment";stage=Fragment}];bindings=reflected})in let entries=if uses_buffer then[{Ogpu.Binding.binding=0;kind=Buffer;visibility=[Vertex;Fragment]}]else[]in let group=get(Ogpu.Binding.create_layout entries)in let layout=get(Ogpu.Binding.create_pipeline_layout~device:(Ogpu.Backend.device_handle device)~capabilities:(Ogpu.Backend.capabilities device)[0,group])in let descriptor:Ogpu.Pipeline.render_descriptor={backend="metal";label=Some"scene-execution-metal";layout;vertex=shader;vertex_entry="scene_vertex";fragment=Some shader;fragment_entry=Some"scene_fragment";color_format=Rgba8_unorm;depth_format=No_depth;sample_count=1}in let native=get(Pipeline.create_render_runtime_msl~blend cache native_device descriptor)in Backend.register_pipeline control native;Ok(Pipeline.Private.portable native)))in
   let indices=Bytes.make 12 '\000'in Bytes.set_int32_le indices 4 1l;Bytes.set_int32_le indices 8 2l;let mesh:Scene_execution.mesh={key="fullscreen";vertices=Bytes.make 48 '\000';vertex_count=3;indices;index_count=3}and state:Scene_execution.state={viewport=(0,0,4,4);scissor=(0,0,4,4)}in
   ignore(get(Scene_execution.render renderer[{mesh;state};{mesh;state}]));let pixels=get(Scene_execution.read_pixels renderer~bytes_per_row:16)in
   let r=Char.code(Bytes.get pixels 0)and g=Char.code(Bytes.get pixels 1)and b=Char.code(Bytes.get pixels 2)in if r<>255||g<>0||b<>128 then failwith(Printf.sprintf"scene execution Metal pixel mismatch %d,%d,%d"r g b);
@@ -25,5 +31,9 @@ let ()=match Device.system_default()with Error _->print_endline"scene execution 
     if actual<>expected then failwith"scene execution Metal blend pixel") [1;2;60;600])
     [Ogpu.Pipeline.Replace,(255,0,128);Alpha,(255,0,128);Add,(255,0,128);
      Multiply,(0,0,0);Screen,(255,0,128);Subtract,(0,0,0)];
+  let vertices3=Bytes.make(68*3)'\000'in
+  List.iteri(fun index(x,y)->let offset=index*68 in Bytes.set_int64_le vertices3 offset(Int64.bits_of_float x);Bytes.set_int64_le vertices3(offset+8)(Int64.bits_of_float y);Bytes.set_int64_le vertices3(offset+16)(Int64.bits_of_float 0.))[-1.,-1.;3.,-1.;-1.,3.];
+  let mesh3:Scene_execution.mesh={key="fullscreen-scene3-double68";vertices=vertices3;vertex_count=3;indices;index_count=3}in
+  List.iter(fun _frame->ignore(get(Scene_execution.render_family renderer[Scene_execution.Scene3,Ogpu.Pipeline.Replace,{mesh=mesh3;state}]));let bytes=get(Scene_execution.read_pixels renderer~bytes_per_row:16)in if Char.code(Bytes.get bytes 0)<>255||Char.code(Bytes.get bytes 2)<>128 then failwith"scene execution Metal Scene3 double68 pixel")[1;2;60;600];
   get(Scene_execution.resize renderer{configuration with physical_width=8;physical_height=8});ignore(get(Scene_execution.render renderer[{mesh;state={viewport=(0,0,8,8);scissor=(0,0,8,8)}}]));
   metal(Metal.Metal_layer.destroy layer);get(Scene_execution.destroy renderer);ignore(metal(Metal.Release_queue.drain()));let after=metal(Metal.Release_queue.stats())in if after.live_handles<>before.live_handles-1 then failwith"scene execution Metal live delta";print_endline"scene execution Metal: SDL-free draw/resize, exact pixel, zero delta"
