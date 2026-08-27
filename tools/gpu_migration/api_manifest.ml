@@ -22,6 +22,13 @@ let mixed_legacy library module_name =
   | "prismel", "Image" -> [ "module:Private" ]
   | _ -> []
 
+(* Additive staging boundaries are reviewed separately from the frozen API.
+   Removing or changing an old declaration still changes [api_sha256]. *)
+let approved_additions library module_name =
+  match library, module_name with
+  | "wap", "Wap" -> [ "value:send_audio"; "value:remove_asset_checked" ]
+  | _ -> []
+
 type sexp =
   | Atom of string
   | List of sexp list
@@ -336,7 +343,8 @@ let string_list values = `List (List.map (fun value -> `String value) values)
 
 let source_entry root library module_name path selectors =
   let source = read_file path in
-  let ranges = List.map (selected_range source) selectors in
+  let ranges = List.map (selected_range source)
+      (selectors @ approved_additions library module_name) in
   let filtered = without_ranges source ranges in
   `Assoc
     [ "library", `String library
@@ -433,21 +441,131 @@ let generate root =
          ; "surfaces", `List legacy_entries
          ]) )
 
+let entry_key kind entry =
+  match kind with
+  | "stable_high_level" ->
+      Printf.sprintf "%s.%s"
+        (Option.value (member_string "library" entry) ~default:"?")
+        (Option.value (member_string "module" entry) ~default:"?")
+  | "declared_legacy_sdl" ->
+      Option.value (member_string "surface" entry) ~default:"?"
+  | _ -> "?"
+
+let manifest_entries manifest =
+  let kind = Option.value (member_string "kind" manifest) ~default:"?" in
+  let field = if kind = "stable_high_level" then "modules" else "surfaces" in
+  let values = Option.value (member_list field manifest) ~default:[] in
+  kind, List.map (fun entry -> entry_key kind entry, entry) values
+
+let stable_semantic_entry entry =
+  `Assoc [
+    "library", member_exn "library" entry;
+    "module", member_exn "module" entry;
+    "api_sha256", member_exn "api_sha256" entry;
+    "excluded_legacy_symbols", member_exn "excluded_legacy_symbols" entry;
+  ]
+
+let report_manifest_delta path actual expected =
+  let actual = Yojson.Safe.from_string actual in
+  let actual_kind, actual_entries = manifest_entries actual
+  and expected_kind, expected_entries = manifest_entries expected in
+  if actual_kind <> expected_kind then
+    Printf.eprintf "  kind changed: %s -> %s\n" actual_kind expected_kind
+  else begin
+    let table entries =
+      let values = Hashtbl.create (List.length entries) in
+      List.iter (fun (key, entry) -> Hashtbl.replace values key entry) entries;
+      values
+    in
+    let old_values = table actual_entries and new_values = table expected_entries in
+    let removed = actual_entries |> List.filter_map (fun (key, _) ->
+      if Hashtbl.mem new_values key then None else Some key) in
+    let added = expected_entries |> List.filter_map (fun (key, _) ->
+      if Hashtbl.mem old_values key then None else Some key) in
+    let changed = expected_entries |> List.filter_map (fun (key, value) ->
+      match Hashtbl.find_opt old_values key with
+      | Some old when
+          (if actual_kind = "stable_high_level" then
+             stable_semantic_entry old <> stable_semantic_entry value
+           else old <> value) -> Some key
+      | _ -> None) in
+    let print label values = match values with
+      | [] -> ()
+      | values -> Printf.eprintf "  %s (%d): %s\n" label
+          (List.length values) (String.concat ", " values)
+    in
+    Printf.eprintf "manifest structural delta for %s:\n" path;
+    print "removed" removed;
+    print "added" added;
+    print "changed" changed;
+    if removed <> [] then
+      Printf.eprintf
+        "  refusing silent contraction: restore the public modules or review the final B5 API gate\n"
+  end
+
+let manifests_equivalent actual expected =
+  match member_string "kind" actual, member_string "kind" expected with
+  | Some "stable_high_level", Some "stable_high_level" ->
+      let normalize manifest =
+        Option.value (member_list "modules" manifest) ~default:[]
+        |> List.map stable_semantic_entry
+      in
+      normalize actual = normalize expected
+  | _ -> actual = expected
+
+let self_test_manifest_comparison () =
+  let entry ?(api="api") ?(source="source") module_name = `Assoc [
+    "library", `String "prismel"; "module", `String module_name;
+    "api_sha256", `String api; "source_sha256", `String source;
+    "excluded_legacy_symbols", `List [] ] in
+  let manifest entries = `Assoc [ "kind", `String "stable_high_level";
+    "modules", `List entries ] in
+  let baseline = manifest [entry "Scene"] in
+  if not (manifests_equivalent baseline
+      (manifest [entry ~source:"comment-only" "Scene"])) then
+    fail "API manifest comparison treated source-only drift as API drift";
+  if manifests_equivalent baseline (manifest []) then
+    fail "API manifest comparison accepted a removed module";
+  if manifests_equivalent baseline (manifest [entry ~api:"changed" "Scene"])
+  then fail "API manifest comparison accepted a changed signature"
+
+let refuse_stable_contraction path expected =
+  if Sys.file_exists path then begin
+    let actual = read_file path |> Yojson.Safe.from_string in
+    let actual_kind, actual_entries = manifest_entries actual
+    and expected_kind, expected_entries = manifest_entries expected in
+    if actual_kind = "stable_high_level" && expected_kind = actual_kind then begin
+      let expected_keys = Hashtbl.create (List.length expected_entries) in
+      List.iter (fun (key, _) -> Hashtbl.replace expected_keys key ())
+        expected_entries;
+      let removed = actual_entries |> List.filter_map (fun (key, _) ->
+        if Hashtbl.mem expected_keys key then None else Some key) in
+      if removed <> [] then
+        fail "refusing to write a contracted stable API manifest (%d removed): %s"
+          (List.length removed) (String.concat ", " removed)
+    end
+  end
+
 let check path expected =
   if not (Sys.file_exists path) then begin
     Printf.eprintf "missing generated manifest: %s\n%!" path;
     false
   end
-  else if read_file path <> expected then begin
+  else
+    let actual_text = read_file path in
+    let actual = Yojson.Safe.from_string actual_text
+    and expected_json = Yojson.Safe.from_string expected in
+    if not (manifests_equivalent actual expected_json) then begin
+    report_manifest_delta path actual_text expected_json;
     Printf.eprintf
       "stale generated manifest: %s\nrun dune exec \
        tools/gpu_migration/api_manifest.exe -- --write\n%!"
       path;
     false
-  end
-  else true
+  end else true
 
 let main () =
+  self_test_manifest_comparison ();
   let root, mode = root_and_mode () in
   let stable, legacy = generate root in
   let outputs =
@@ -457,6 +575,7 @@ let main () =
   in
   match mode with
   | Write ->
+      refuse_stable_contraction (Filename.concat root stable_relative) stable;
       List.iter
         (fun (path, value) ->
           ensure_directory (Filename.dirname path);
