@@ -120,6 +120,8 @@ can change the denominator explicitly rather than being hidden.
 | `be44eaf` | 2026-08-27 10:20:55 +02:00 | 5,088 | 5,249 | 96.9327% | 5 | 0.068 | 73.2 | 1.39 |
 | `7ca877f` | 2026-08-27 10:21:52 +02:00 | 5,095 | 5,249 | 97.0661% | 7 | 0.016 | 442.1 | 8.42 |
 | `cccf729` | 2026-08-27 10:22:53 +02:00 | 5,105 | 5,249 | 97.2566% | 10 | 0.017 | 590.2 | 11.24 |
+| `0dfc9ce` | 2026-08-27 10:24:40 +02:00 | 5,108 | 5,249 | 97.3138% | 3 | 0.030 | 100.9 | 1.92 |
+| `813e1da` | 2026-08-27 10:25:05 +02:00 | 5,115 | 5,249 | 97.4471% | 7 | 0.007 | 1,008.0 | 19.20 |
 
 ## Current measured rate
 
@@ -241,6 +243,12 @@ keeps device identity and layer configuration on the main domain, copies and
 round-trips developer-HUD string properties, capability-gates residency state,
 and proves real NSWindow-attached layer configuration without exposing private
 storage.
+
+The `813e1da` interval moves the exact seven residual FunctionStitching class
+and protocol declarations. Public input, function-node, graph, inline-attribute,
+and stitched-descriptor values retain their owned graph, reject invalid names,
+indices, cycles, membership, devices, and lifetimes, and are proven by a real
+`[[stitchable]]` library compile fixture with explicit capability rejection.
 
 Rates describe completed commits, not forecasts. Hardware-only gates and
 complex ownership features will vary materially from pure-value batches.
