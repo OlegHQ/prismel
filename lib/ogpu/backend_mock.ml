@@ -29,4 +29,5 @@ let create ?(capabilities=Capabilities.minimum_m1)()=
   {Backend.create_device},c
 let inject_device_loss c=c.lost<-true
 let trace c=List.rev c.trace
+let clear_trace c=c.trace<-[]
 let live_counts c=c.buffers,c.textures,c.pipelines,c.queues,c.surfaces

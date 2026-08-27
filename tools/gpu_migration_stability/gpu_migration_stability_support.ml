@@ -77,6 +77,7 @@ let run config =
       samples := (`Assoc [ "frame", `Int !frame; "rss_kib", `Int (rss_kib ());
         "heap_words", `Int gc.heap_words; "live_targets", `Int counters.targets;
         "live_views", `Int counters.views; "cache_entries", `Int (Raster2.Resource_cache.length cache) ]) :: !samples
+      ; Ogpu.Backend_mock.clear_trace control
     end
   done;
   let wap_stats = Runtime_wap_raster2_presenter.Wap_raster2_presenter.stats presenter in
