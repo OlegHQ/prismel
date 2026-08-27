@@ -6479,6 +6479,47 @@ module Metal_layer = struct
     ; presents_with_transaction=value.presents_with_transaction }
   let configure (value:t) config = let operation="Metal.Metal_layer.configure" in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->if config.width<=0||config.height<=0||config.maximum_drawables<2||config.maximum_drawables>3 then error operation Invalid_argument "invalid drawable size or maximum count" else if not (List.mem config.format [Texture.Bgra8_unorm;Texture.Bgra8_unorm_srgb;Texture.Rgba16_float]) then error operation Unsupported "pixel format is not supported by CAMetalLayer" else match Metal_raw.layer_configure value.raw config.width config.height(Metal_format.code config.format)(config.framebuffer_only,config.maximum_drawables,config.allows_timeout,config.display_sync,config.presents_with_transaction)with Error m->native_error operation m|Ok()->value.layer_width<-config.width;value.layer_height<-config.height;value.layer_format<-config.format;value.framebuffer_only<-config.framebuffer_only;value.maximum_drawables<-config.maximum_drawables;value.allows_timeout<-config.allows_timeout;value.display_sync<-config.display_sync;value.presents_with_transaction<-config.presents_with_transaction;Ok())
   let checked_config(value:t)=let operation="Metal.Metal_layer.checked_config"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.layer_native_snapshot value.raw with Error m->native_error operation m|Ok(registry,width,height,format,framebuffer,maximum,timeout,display,transaction,extended)when registry=value.device.registry_id&&width=float value.layer_width&&height=float value.layer_height&&format=Int64.of_int(Metal_format.code value.layer_format)&&framebuffer=value.framebuffer_only&&maximum=Int64.of_int value.maximum_drawables&&timeout=value.allows_timeout&&display=value.display_sync&&transaction=value.presents_with_transaction&&extended=value.wants_extended_range->Ok(config value)|Ok _->error operation Native_error "native layer configuration disagrees with safe metadata")
+  let residual_snapshot operation (value : t) =
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () ->
+          (match Metal_raw.layer10_snapshot value.raw with
+           | Error message -> native_error operation message
+           | Ok snapshot -> Ok snapshot))
+  let preferred_device (value : t) =
+    let operation = "Metal.Metal_layer.preferred_device" in
+    match residual_snapshot operation value with
+    | Error _ as failure -> failure
+    | Ok (None, _, _) -> Ok None
+    | Ok (Some registry, _, _) when registry = value.device.registry_id ->
+        Ok (Some value.device)
+    | Ok _ -> error operation Device_mismatch
+        "CAMetalLayer preferred device differs from its retained device"
+  let developer_hud_properties (value : t) =
+    Result.map (fun (_, properties, _) -> properties)
+      (residual_snapshot "Metal.Metal_layer.developer_hud_properties" value)
+  let set_developer_hud_properties (value : t) properties =
+    let operation = "Metal.Metal_layer.set_developer_hud_properties" in
+    on_main operation (fun () ->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure -> failure
+      | Ok () when List.exists (fun (key, text) ->
+          key = "" || contains_nul key || contains_nul text) properties ->
+          error operation Invalid_argument
+            "developer HUD keys must be nonempty UTF-8 strings without NUL bytes"
+      | Ok () ->
+          (match Metal_raw.layer10_set_hud value.raw properties with
+           | Error message -> native_error operation message
+           | Ok () ->
+               (match developer_hud_properties value with
+                | Ok actual when actual = List.sort compare properties -> Ok ()
+                | Ok _ -> error operation Native_error
+                    "developer HUD properties failed to round trip"
+                | Error _ as failure -> failure)))
+  let has_residency_set (value : t) =
+    Result.map (fun (_, _, present) -> present)
+      (residual_snapshot "Metal.Metal_layer.has_residency_set" value)
   let wants_extended_range(value:t)=value.wants_extended_range
   let set_wants_extended_range(value:t) enabled=let operation="Metal.Metal_layer.set_wants_extended_range"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.layer_set_extended_range value.raw enabled with Error m->native_error operation m|Ok()->value.wants_extended_range<-enabled;Ok())
   let colorspace(value:t)=let operation="Metal.Metal_layer.colorspace"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.layer_colorspace_name value.raw with Error m->native_error operation m|Ok actual when actual=value.layer_colorspace->Ok actual|Ok _->error operation Native_error "native layer colorspace disagrees with safe metadata")
@@ -16467,7 +16508,7 @@ module Indirect_command_buffer = struct
       let buffers=control_point_buffer::tessellation_buffer::(match patch_index_buffer with None->[]|Some b->[b])in
       if control_points<=0L||patch_start<0L||patch_count<=0L||patch_index_offset<0L||control_point_offset<0L||tessellation_offset<0L||tessellation_stride<=0L||instance_count<=0L||base_instance<0L then error operation Invalid_argument "indirect patch arguments are invalid" else
       let rec valid=function []->Ok()|(b:Buffer.t)::xs->Result.bind(ensure_buffer_usable operation b)(fun()->Result.bind(ensure_same_device operation value.parent.device b.device)(fun()->valid xs))in
-      Result.bind(valid buffers)(fun()->if control_point_offset>control_point_buffer.length||tessellation_offset>tessellation_buffer.length||Option.exists(fun(b:Buffer.t)->patch_index_offset>b.length)patch_index_buffer then error operation Invalid_argument "indirect patch buffer offset is out of range" else
+      Result.bind(valid buffers)(fun()->if control_point_offset>control_point_buffer.length||tessellation_offset>tessellation_buffer.length||option_exists(fun(b:Buffer.t)->patch_index_offset>b.length)patch_index_buffer then error operation Invalid_argument "indirect patch buffer offset is out of range" else
       match Metal_raw.indirect_render_draw_patches value.raw(Option.map(fun(b:Buffer.t)->b.raw)patch_index_buffer)control_point_buffer.raw tessellation_buffer.raw(control_points,patch_start,patch_count,patch_index_offset,control_point_offset,instance_count,base_instance,tessellation_offset,tessellation_stride)value.parent.device.registry_id with Error m->native_error operation m|Ok()->List.iter(fun (b:Buffer.t)->retain value.parent(Indirect_buffer b))buffers;Ok()))
     let draw_primitives (value : t) ~primitive ~vertex_start ~vertex_count ?(instance_count=1) ?(base_instance=0) () =
       let operation="Metal.Indirect_command_buffer.Render_command.draw_primitives" in on_main operation (fun () ->

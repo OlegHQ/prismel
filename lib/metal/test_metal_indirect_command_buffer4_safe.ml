@@ -30,10 +30,12 @@ let () =
       let first = get (Indirect_command_buffer.Render_command.at commands 0) in
       let second = get (Indirect_command_buffer.Render_command.at commands 1) in
       let buffer = get (Buffer.create ~device ~length:64L ~storage:Buffer.Shared ()) in
-      get (Indirect_command_buffer.Render_command.set_object_buffer first
-        ~index:0 ~offset:0L buffer);
-      get (Indirect_command_buffer.Render_command.set_mesh_buffer first
-        ~index:0 ~offset:0L buffer);
+      expect Invalid_argument
+        (Indirect_command_buffer.Render_command.set_object_buffer first
+          ~index:1 ~offset:0L buffer);
+      expect Invalid_argument
+        (Indirect_command_buffer.Render_command.set_mesh_buffer first
+          ~index:1 ~offset:0L buffer);
       get (Indirect_command_buffer.Render_command.set_vertex_buffer_stride first
         ~index:0 ~offset:0L ~stride:4L buffer);
       expect Invalid_argument
