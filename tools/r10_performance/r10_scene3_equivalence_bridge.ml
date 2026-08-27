@@ -132,6 +132,6 @@ let prove ~width ~height artifact =
                   { triangles = Array.length mesh.indices / 3 * artifact.instances;
                     transforms = Array.length public_transforms;
                     representative_pixels_milli = List.rev !pixels;
-                    semantic_signature = artifact.signature })
+                    semantic_signature = artifact.signature }
         | _ -> fail "directional light mismatch")
   | _ -> fail "public Scene3 must contain one instanced batch"
