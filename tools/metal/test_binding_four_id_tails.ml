@@ -8,7 +8,7 @@ let contains haystack needle =
 let () =
   if Array.length Sys.argv <> 2 then fail "usage: %s INVENTORY" Sys.argv.(0);
   let symbols = match member "symbols" (Yojson.Safe.from_file Sys.argv.(1)) with Some (`List xs) -> xs | _ -> fail "symbols" in
-  let ids header = symbols |> List.filter (fun symbol -> string "classification" symbol = "unreviewed" && string "header" symbol = header) |> List.map (string "id") in
+  let ids header = symbols |> List.filter (fun symbol -> string "classification" symbol = "bound" && string "header" symbol = header) |> List.map (string "id") in
   let count needle ids = List.length (List.filter (fun id -> contains (String.lowercase_ascii id) needle) ids) in
   let pipeline = ids "Metal/MTLPipeline.h"
   and function_descriptor = ids "Metal/MTLFunctionDescriptor.h"

@@ -11,7 +11,7 @@ let () =
   let symbols = match member "symbols" (Yojson.Safe.from_file Sys.argv.(1)) with Some (`List xs) -> xs | _ -> fail "symbols" in
   let ids =
     symbols
-    |> List.filter (fun symbol -> string "classification" symbol = "unreviewed" && string "header" symbol = "Metal/MTLLinkedFunctions.h")
+    |> List.filter (fun symbol -> string "classification" symbol = "bound" && string "header" symbol = "Metal/MTLLinkedFunctions.h")
     |> List.map (string "id")
   in
   let count needle = List.length (List.filter (fun id -> contains (String.lowercase_ascii id) needle) ids) in

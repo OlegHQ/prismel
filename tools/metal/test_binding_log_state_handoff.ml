@@ -8,7 +8,7 @@ let () =
   let symbols = match member "symbols" (Yojson.Safe.from_file Sys.argv.(1)) with Some (`List xs) -> xs | _ -> fail "symbols" in
   let items =
     symbols
-    |> List.filter (fun symbol -> string "classification" symbol = "unreviewed" && string "header" symbol = "Metal/MTLLogState.h")
+    |> List.filter (fun symbol -> string "classification" symbol = "bound" && string "header" symbol = "Metal/MTLLogState.h")
     |> List.map (fun symbol -> Binding_log_state_handoff.make ~kind:(string "kind" symbol) (string "id" symbol))
   in
   Binding_log_state_handoff.validate items;

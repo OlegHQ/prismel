@@ -2,7 +2,7 @@ let count inventory header =
   let open Yojson.Safe.Util in
   inventory |> member "symbols" |> to_list
   |> List.filter (fun j ->
-    j |> member "classification" |> to_string = "unreviewed"
+    j |> member "classification" |> to_string = "bound"
     && j |> member "header" |> to_string = header)
 
 let owners items =

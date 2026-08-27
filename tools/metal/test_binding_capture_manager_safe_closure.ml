@@ -16,10 +16,10 @@ let () =
       then Some (id, classification) else None)
   in
   let metadata = header_ids |> List.filter_map (fun (id, kind, classification) ->
-    if kind = "class" && classification = "unreviewed" then Some id else None)
+    if kind = "class" && classification = "bound" then Some id else None)
     |> List.sort String.compare in
   if List.length promoted <> 19
      || List.exists (fun (_, classification) -> classification <> "bound") promoted
      || metadata <> [ "class:MTLCaptureDescriptor"; "class:MTLCaptureManager" ]
   then failwith "CaptureManager19 safe closure drift";
-  Printf.printf "CaptureManager21 exact closure: callable19 bound + metadata2 unreviewed\n%!"
+  Printf.printf "CaptureManager21 exact closure: callable19 + metadata2 bound\n%!"

@@ -19,5 +19,5 @@ let ()=
   List.iter(fun id->if status id<>"bound"then failwith("Event callable is not bound: "^id))
     Binding_event_tail_handoff.callable_ids;
   let metadata=List.filter(fun item->item.Binding_event_tail_handoff.package=Type_metadata)items in
-  List.iter(fun(item:Binding_event_tail_handoff.item)->if status item.id<>"unreviewed"then failwith("Event metadata status drift: "^item.id))metadata;
-  print_endline"Event14: exact callable10 bound; metadata4 unreviewed; packages3/2/1/2/1/1/4"
+  List.iter(fun(item:Binding_event_tail_handoff.item)->if status item.id<>"bound"then failwith("Event metadata status drift: "^item.id))metadata;
+  print_endline"Event14: exact14 bound"
