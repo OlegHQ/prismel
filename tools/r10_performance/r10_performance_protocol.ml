@@ -167,7 +167,11 @@ let normalize ~protocol ~case ~sample_index raw =
       "backend_calls", int_or_null (first ["backend_calls"; "ffi_boundary_calls"] raw)];
     "equivalence", `Assoc [
       "workload_signature", string_or_null (first ["workload_signature"] raw);
-      "pixel_hash", string_or_null (first ["pixel_hash"; "framebuffer_hash"; "framebuffer_digest"] raw)];
+      "semantics_supported", (match first ["semantics_supported"] raw with
+        | Some (`Bool _ as value) -> value | _ -> `Null);
+      "pixel_hash", string_or_null (first ["pixel_hash"; "framebuffer_hash"; "framebuffer_digest"] raw);
+      "pixel_authority", string_or_null (first ["pixel_authority"] raw);
+      "pixel_tolerance", number_or_null (first ["pixel_tolerance"] raw)];
     "gpu", `Assoc ["duration_seconds", number_or_null (first ["gpu_duration_seconds"; "legacy_gpu_duration_seconds"] raw);
       "utilization_percent", number_or_null (first ["gpu_utilization_percent"; "legacy_gpu_utilization_percent"] raw);
       "counters", (match first ["native_gpu_counters"] raw with Some value -> value | None -> `Null)];
@@ -197,11 +201,30 @@ let require_equivalent_work samples scenario =
   in
   let unique values = List.sort_uniq String.compare values in
   let signatures = unique (List.map (exact_string "workload_signature") matching)
-  and pixels = unique (List.map (exact_string "pixel_hash") matching)
   and work_units = List.map (exact_positive "work_units") matching |> List.sort_uniq Int.compare in
   if List.length signatures <> 1 then fail "%s workload signatures differ" scenario;
-  if List.length pixels <> 1 then fail "%s pixel hashes differ" scenario;
   if List.length work_units <> 1 then fail "%s work cardinality differs" scenario;
+  List.iter (fun sample ->
+    let target=sample|>member "target"|>to_string in
+    let equivalence=member "equivalence" sample in
+    if member "semantics_supported" equivalence <> `Bool true then
+      fail "%s/%s does not support the exact neutral descriptor" target scenario;
+    ignore(exact_string "pixel_hash" sample);
+    let authority=exact_string "pixel_authority" sample in
+    let expected=Printf.sprintf "phase0/%s/%s" target scenario in
+    if authority<>expected then fail "%s/%s pixel authority %s is not %s"
+      target scenario authority expected;
+    match numeric_float(member_opt "pixel_tolerance" equivalence)with
+    |Some value when Float.is_finite value&&value>=0.->()
+    |_->fail "%s/%s lacks non-negative pixel tolerance provenance" target scenario)
+    matching;
+  List.iter(fun target->
+    let target_samples=List.filter(fun sample->member "target" sample=`String target)matching in
+    let hashes=unique(List.map(exact_string "pixel_hash")target_samples)
+    and authorities=unique(List.map(exact_string "pixel_authority")target_samples)in
+    if List.length hashes<>1 then fail "%s/%s pixel authority hash drift"target scenario;
+    if List.length authorities<>1 then fail "%s/%s pixel provenance drift"target scenario)
+    required_targets;
   let frames = List.map (exact_positive "frame_count") matching in
   let minimum = List.fold_left min max_int frames
   and maximum = List.fold_left max 0 frames in

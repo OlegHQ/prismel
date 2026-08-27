@@ -16,7 +16,7 @@
 (test
  (name test_r10_scene2_legacy_equivalent)
  (modules test_r10_scene2_legacy_equivalent r10_scene2_legacy_equivalent)
- (libraries scene_execution ogpu))
+ (libraries))
 
 (test
  (name test_r10_equivalence_validation)

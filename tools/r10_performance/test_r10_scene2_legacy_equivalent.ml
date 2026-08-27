@@ -1,52 +1,16 @@
-module Artifact = R10_scene2_legacy_equivalent
-
-let bytes_equal expected actual label =
-  if not (Bytes.equal expected actual) then failwith (label ^ " bytes drift")
-
-let validate scenario ~signature ~vertices ~indices ~work_units =
-  let artifact = Artifact.create scenario ~width:4 ~height:4 in
-  if artifact.workload_signature <> signature then failwith "signature drift";
-  if artifact.work_units <> work_units then failwith "work-unit drift";
-  match artifact.draws with
-  | [ draw ] ->
-      bytes_equal vertices draw.mesh.vertices "vertex";
-      bytes_equal indices draw.mesh.indices "index"
-  | _ -> failwith "canonical artifact must contain exactly one draw"
-
-let vertex_bytes points =
-  let bytes = Bytes.make (List.length points * 16) '\000' in
-  List.iteri
-    (fun index (x, y) ->
-      Bytes.set_int64_le bytes (index * 16) (Int64.bits_of_float x);
-      Bytes.set_int64_le bytes ((index * 16) + 8) (Int64.bits_of_float y))
-    points;
-  bytes
-
-let index_bytes values =
-  let bytes = Bytes.make (List.length values * 4) '\000' in
-  List.iteri
-    (fun index value -> Bytes.set_int32_le bytes (index * 4) (Int32.of_int value))
-    values;
-  bytes
-
-let () =
-  validate Artifact.Basic
-    ~signature:"phase5-b0:basic:v1:4x4:vertices:3:indices:3:triangles:1"
-    ~vertices:(vertex_bytes [ 0., 0.; 4., 0.; 0., 4. ])
-    ~indices:(index_bytes [ 0; 1; 2 ]) ~work_units:1;
-  validate Artifact.Pxui
-    ~signature:"phase5-b0:pxui:v1:4x4:vertices:4:indices:6:triangles:2"
-    ~vertices:(vertex_bytes [ 0., 0.; 4., 0.; 4., 4.; 0., 4. ])
-    ~indices:(index_bytes [ 0; 1; 2; 0; 2; 3 ]) ~work_units:2;
-  validate Artifact.Canvas
-    ~signature:"phase5-b0:canvas:v1:4x4:vertices:3:indices:3:triangles:1"
-    ~vertices:(vertex_bytes [ 0., 0.; 2., 0.; 0., 2. ])
-    ~indices:(index_bytes [ 0; 1; 2 ]) ~work_units:1;
-  let expected = Artifact.create Artifact.Pxui ~width:64 ~height:64 in
-  for _ = 1 to 4 do
-    let actual = Artifact.create Artifact.Pxui ~width:64 ~height:64 in
-    if actual.workload_signature <> expected.workload_signature
-       || actual.work_units <> expected.work_units
-    then failwith "independent-domain artifact drift"
-  done;
-  print_endline "R10 canonical non-Scene artifacts passed"
+module D=R10_scene2_legacy_equivalent
+let contains text fragment =
+  let n=String.length text and m=String.length fragment in
+  let rec loop i=i+m<=n&&(String.sub text i m=fragment||loop(i+1))in loop 0
+let check scenario work_units feature fragments =
+  let value=D.describe scenario ~width:640 ~height:480 in
+  if value.work_units<>work_units||not(List.mem feature value.required_features)
+  then failwith "descriptor cardinality/feature drift";
+  List.iter(fun fragment->if not(contains value.canonical_parameters fragment)
+    then failwith("descriptor missing "^fragment))fragments;
+  if value<>D.describe scenario ~width:640 ~height:480 then failwith "nondeterminism"
+let ()=check Basic 9 "affine-image" ["generated96x96";"bezier="];
+  check Pxui 21 "pxui-four-expanded-accordions" ["sections=0..3";"choice Mode"];
+  check Canvas 5 "offscreen-canvas" ["phase=frame%240";"image-at0,0"];
+  if D.phase ~frame:1<>1||D.phase ~frame:600<>120 then failwith "phase drift";
+  print_endline "R10 exact neutral non-Scene descriptors passed"

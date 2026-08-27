@@ -1,4 +1,6 @@
 type target = Headless | Web
+type artifact = { draws : Scene_execution.draw list; workload_signature : string;
+  work_units : int }
 
 let ok = function Ok value -> value | Error error -> failwith (Ogpu.Error.to_string error)
 let percentile p values =
@@ -7,9 +9,13 @@ let percentile p values =
     (int_of_float (Float.ceil (p *. float (Array.length copy))) - 1)))
 let artifact scenario width height =
   match scenario with
-  | "basic" -> R10_scene2_legacy_equivalent.create Basic ~width ~height
-  | "pxui" -> R10_scene2_legacy_equivalent.create Pxui ~width ~height
-  | "canvas" -> R10_scene2_legacy_equivalent.create Canvas ~width ~height
+  | ("basic" | "pxui" | "canvas") as value ->
+      let scenario = match value with "basic" -> R10_scene2_legacy_equivalent.Basic
+        | "pxui" -> Pxui | _ -> Canvas in
+      let descriptor=R10_scene2_legacy_equivalent.describe scenario ~width ~height in
+      invalid_arg(Printf.sprintf
+        "R10 candidate %s interpreter incomplete for %s (features: %s)" value
+        descriptor.semantic_signature (String.concat "," descriptor.required_features))
   | "scene3" ->
       let canonical = R10_scene3_legacy_equivalent.create ~width ~height in
       let proof =
@@ -18,7 +24,7 @@ let artifact scenario width height =
         | Error message ->
             invalid_arg ("non-equivalent canonical Scene3 artifact: " ^ message)
       in
-      { R10_scene2_legacy_equivalent.draws = canonical.software_draws;
+      { draws = canonical.software_draws;
         workload_signature = "scene3-canonical:" ^ proof.semantic_signature;
         work_units = proof.triangles }
   | value -> invalid_arg ("unknown scenario " ^ value)

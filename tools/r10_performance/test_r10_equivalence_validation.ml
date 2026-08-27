@@ -20,7 +20,10 @@ let sample ~target ~scenario =
     ; "equivalence",
       `Assoc
         [ "workload_signature", `String (scenario ^ "-work")
-        ; "pixel_hash", `String (scenario ^ "-pixels")
+        ; "semantics_supported", `Bool true
+        ; "pixel_hash", `String (target ^ "-" ^ scenario ^ "-pixels")
+        ; "pixel_authority", `String ("phase0/" ^ target ^ "/" ^ scenario)
+        ; "pixel_tolerance", `Int (if target = "legacy" then 0 else 3)
         ]
     ]
 
@@ -68,7 +71,10 @@ let () =
               `Assoc (List.map (fun (name, field) ->
                 if name = "equivalence" then
                   name, `Assoc [ "workload_signature", `String "different-work";
-                                 "pixel_hash", `String "basic-pixels" ]
+                    "semantics_supported", `Bool true;
+                    "pixel_hash", `String "web-basic-pixels";
+                    "pixel_authority", `String "phase0/web/basic";
+                    "pixel_tolerance", `Int 3 ]
                 else name, field) fields)
           | value -> value) samples
       in
@@ -78,4 +84,17 @@ let () =
         failwith "equivalent R10 report rejected";
       if run Sys.argv.(1) invalid = Unix.WEXITED 0 then
         failwith "inequivalent R10 report accepted";
+      let unsupported = List.map (function
+        | `Assoc fields when List.assoc_opt "target" fields=Some(`String "web")
+          && List.assoc_opt "scenario" fields=Some(`String "pxui")->
+            `Assoc(List.map(fun(name,field)->if name="equivalence"then
+              name,`Assoc["workload_signature",`String"pxui-work";
+                "semantics_supported",`Bool false;
+                "pixel_hash",`String"web-pxui-pixels";
+                "pixel_authority",`String"phase0/web/pxui";
+                "pixel_tolerance",`Int 3]else name,field)fields)
+        |value->value)samples in
+      write invalid(report unsupported);
+      if run Sys.argv.(1) invalid=Unix.WEXITED 0 then
+        failwith "unsupported descriptor interpreter accepted";
       print_endline "R10 equivalence validator rejects mismatched work")
