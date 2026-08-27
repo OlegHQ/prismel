@@ -34,7 +34,8 @@ let ()=match Device.system_default()with Error _->print_endline"scene execution 
   let layer=metal(Metal.Metal_layer.create(Device.Private.metal native_device)(Metal.Metal_layer.default~width:4~height:4))in
   let driver,control=Backend.create~device:native_device~layer()in
   let supported=List.filter(fun samples->samples<=(Device.capabilities native_device).Ogpu.Capabilities.limits.max_sample_count)[1;4;9;16]in
-  let cache=get(Pipeline.create_cache~capacity:(42*List.length supported))in
+  if Scene_execution.pipeline_variants_per_sample<>48 then failwith"pipeline family/blend cardinality drift";
+  let cache=get(Pipeline.create_cache~capacity:(Scene_execution.pipeline_variants_per_sample*List.length supported))in
   let configuration:Ogpu.Surface.configuration={logical_width=4;logical_height=4;physical_width=4;physical_height=4;format=Bgra8_unorm;present_mode=Fifo;max_acquired=2}in
   let renderer=get(Scene_execution.create_with_sampled_pipeline_variants driver configuration(fun device family blend samples->let bytes,vertex_bindings,fragment_bindings,groups=match family with
     |Scene_execution.Scene2->source,[],[],[]
@@ -63,6 +64,15 @@ let ()=match Device.system_default()with Error _->print_endline"scene execution 
   let levels=[|{Scene_execution.width=2;height=2;bytes=Bytes.of_string"\255\000\000\255\000\255\000\255\000\000\255\255\255\255\255\255"};{width=1;height=1;bytes=Bytes.of_string"\255\255\000\255"}|]in
   let sampler ?(min_filter=Ogpu.Types.Nearest)?(mag_filter=Ogpu.Types.Nearest)?(mip_filter=Ogpu.Types.No_mip)?(address_u=Ogpu.Types.Clamp_to_edge)?(address_v=Ogpu.Types.Clamp_to_edge)?(lod_min=0.)?(lod_max=1.)() : Ogpu.Types.sampler_descriptor={label=Some"scene-texture-test";min_filter;mag_filter;mip_filter;address_u;address_v;lod_min;lod_max;max_anisotropy=1}in
   let cases=[mesh_uv 0.1 0.1,sampler(),(255,0,0);mesh_uv 0.5 0.5,sampler~min_filter:Linear~mag_filter:Linear(),(128,128,128);mesh_uv 1.1 0.1,sampler~address_u:Repeat(),(255,0,0);mesh_uv 1.9 0.1,sampler~address_u:Mirror_repeat(),(255,0,0);mesh_uv 0.1 0.1,sampler~mip_filter:Nearest_mip~lod_min:1.~lod_max:1.(),(255,255,0)]in
+  let mixed_texture:Scene_execution.sampled_texture={key="native-mixed-scene2";levels;sampler=sampler()}in
+  List.iter(fun _frame->
+    ignore(get(Scene_execution.render_textured renderer[
+      Scene_execution.Scene2,Ogpu.Pipeline.Replace,None,{mesh;state};
+      Scene_execution.Scene2_textured,Ogpu.Pipeline.Replace,Some mixed_texture,{mesh=mesh_uv 0.1 0.1;state}
+    ]));
+    let bytes=get(Scene_execution.read_pixels renderer~bytes_per_row:16)in
+    if Char.code(Bytes.get bytes 0)<>255||Char.code(Bytes.get bytes 1)<>0||Char.code(Bytes.get bytes 2)<>0 then
+      failwith"mixed Scene2/Scene2_textured native pixel") [1;2;60;600];
   List.iteri(fun index(mesh,sampler,expected)->let texture:Scene_execution.sampled_texture={key="native-mip-chain";levels;sampler}and stable=ref None in List.iter(fun _frame->ignore(get(Scene_execution.render_textured renderer[Scene_execution.Scene3_textured,Ogpu.Pipeline.Replace,Some texture,{mesh;state}]));let bytes=get(Scene_execution.read_pixels renderer~bytes_per_row:16)in let actual=Char.code(Bytes.get bytes 0),Char.code(Bytes.get bytes 1),Char.code(Bytes.get bytes 2)in begin if actual<>expected then let r,g,b=actual in failwith(Printf.sprintf"scene execution Metal texture case %d: %d,%d,%d"index r g b)end;let uploaded=Scene_execution.upload_bytes renderer in match !stable with None->stable:=Some uploaded|Some value when value=uploaded->()|Some _->failwith"stable native mip chain reuploaded")[1;2;60;600])cases;
   let replacement=[|{Scene_execution.width=2;height=2;bytes=Bytes.make 16 '\255'};{width=1;height=1;bytes=Bytes.of_string"\000\000\255\255"}|]in let replaced:Scene_execution.sampled_texture={key="native-mip-chain";levels=replacement;sampler=sampler()}in let before_reload=Scene_execution.upload_bytes renderer in ignore(get(Scene_execution.render_textured renderer[Scene_execution.Scene3_textured,Ogpu.Pipeline.Replace,Some replaced,{mesh=mesh_uv 0.1 0.1;state}]));if Scene_execution.upload_bytes renderer<=before_reload then failwith"texture generation replacement was not uploaded";
   let malformed={replaced with Scene_execution.key="malformed";levels=[|{Scene_execution.width=2;height=2;bytes=Bytes.make 15 '\000'}|]}and before_reject=Scene_execution.upload_bytes renderer in begin match Scene_execution.render_textured renderer[Scene_execution.Scene3_textured,Ogpu.Pipeline.Replace,Some malformed,{mesh=mesh_uv 0.1 0.1;state}]with Error _ when Scene_execution.upload_bytes renderer=before_reject->()|_->failwith"malformed texture was not rejected atomically"end;

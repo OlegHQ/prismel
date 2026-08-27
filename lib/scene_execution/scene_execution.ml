@@ -46,6 +46,7 @@ let pipeline device family blend samples=let capabilities=Ogpu.Backend.capabilit
 let texture_descriptor configuration:Ogpu.Types.texture_descriptor={label=Some"scene-execution-target";width=configuration.Ogpu.Surface.physical_width;height=configuration.physical_height;depth=1;mip_levels=1;sample_count=1;usage=[Render_attachment;Texture_copy_src]}
 let blends=[Ogpu.Pipeline.Replace;Alpha;Add;Multiply;Screen;Subtract]
 let families=[Scene2;Scene2_textured;Scene3;Scene3_textured;Scene3_shadow;Scene3_stencil;Scene3_textured_stencil;Scene3_shadow_stencil]
+let pipeline_variants_per_sample=List.length families*List.length blends
 let sample_counts device=List.filter(fun samples->samples<=(Ogpu.Backend.capabilities device).Ogpu.Capabilities.limits.max_sample_count)[1;4;9;16]
 let multisample_descriptor configuration samples:Ogpu.Types.texture_descriptor={label=Some("scene-execution-msaa-"^string_of_int samples);width=configuration.Ogpu.Surface.physical_width;height=configuration.physical_height;depth=1;mip_levels=1;sample_count=samples;usage=[Render_attachment]}
 let depth_descriptor configuration samples:Ogpu.Types.texture_descriptor={label=Some("scene-execution-depth-"^string_of_int samples);width=configuration.Ogpu.Surface.physical_width;height=configuration.physical_height;depth=1;mip_levels=1;sample_count=samples;usage=[Render_attachment]}
