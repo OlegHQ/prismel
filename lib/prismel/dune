@@ -3,6 +3,6 @@
  (public_name prismel)
  (private_modules App Backend Graphics Renderer3d Renderer3d_gpu Sdl_compat
   Window Scene_description Scene_raster2_lowering Scene3_raster2_lowering
-  Image_snapshot Raster2_renderer Raster2_sdl3_comparison Scene_ogpu_renderer)
+  Raster2_renderer Scene_ogpu_renderer)
  (libraries unix domainslib ctypes ctypes.foreign tsdl tsdl-image tsdl-ttf
-  tsdl-mixer tsdl_gfx runtime raster2 ogpu runtime_sdl3_raster2_presenter))
+  tsdl-mixer tsdl_gfx runtime raster2 ogpu))
