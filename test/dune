@@ -12,6 +12,14 @@
   (setenv PRISMEL_TEST_RUNTIME_NEXT_INPUT_COMPAT 1 (run %{test}))))
 
 (test
+ (name test_prismel_runtime_next_sketch)
+ (modules test_prismel_runtime_next_sketch)
+ (libraries prismel_runtime_next_sketch)
+ (link_flags -linkall)
+ (action
+  (setenv PRISMEL_TEST_RUNTIME_NEXT_SKETCH 1 (run %{test}))))
+
+(test
  (name test_easy_camera2)
  (modules test_easy_camera2)
  (libraries prismel pxui))
