@@ -1,3 +1,9 @@
 (executable
  (name runtime_next_native_benchmark)
+ (modules runtime_next_native_benchmark)
  (libraries unix yojson sdl3 metal ogpu ogpu_metal scene_execution))
+
+(executable
+ (name shattered_acceptance_cook)
+ (modules shattered_acceptance_cook shattered_acceptance)
+ (libraries unix prismel pdk procedural sop_catalog sketch_support))
