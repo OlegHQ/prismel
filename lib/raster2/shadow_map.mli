@@ -5,6 +5,15 @@ type light_kind = Directional | Spot
 type error = Invalid_size | Invalid_matrix | Non_finite | Invalid_bias | Out_of_bounds
 type t
 type prepared
+type snapshot = {
+  width : int;
+  height : int;
+  depths : float array;
+  matrix : float array;
+  bias : bias;
+  kernel : kernel;
+  strength : float;
+}
 
 val create : width:int -> height:int -> (t, error) result
 val clear : t -> depth:float -> (unit, error) result
@@ -13,3 +22,4 @@ val prepare : ?strength:float -> t -> light_kind:light_kind -> matrix:float arra
   kernel:kernel -> (prepared, error) result
 (* Returns deterministic visibility in [0,1]. Outside the light frustum is lit. *)
 val visibility : prepared -> position:vec3 -> normal_dot_light:float -> float
+val snapshot : prepared -> snapshot
