@@ -1,5 +1,9 @@
 # Phase 3 OGPU audit — 2026-08-27
 
+> Historical pre-implementation audit. Phase 3 implementation started later
+> the same day; current evidence is recorded in
+> `phase3_ogpu_progress_2026-08-27.md`.
+
 This audit compares the frozen O1–O9 gates in `NEW_GPU_STUFF.md` with the
 current repository. The frozen plan was not modified.
 
