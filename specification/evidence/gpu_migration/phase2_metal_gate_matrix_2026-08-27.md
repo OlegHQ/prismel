@@ -11,7 +11,7 @@ evidence. `Partial` is intentionally not release-green.
 | M4 pipelines/shaders | Partial | Runtime MSL, reflection, constants, archives/datasets, dynamic/linked/mesh/object/render/compute/Metal 4 compiler conformance | Full-Xcode offline `.metallib` build and runtime/offline image parity |
 | M5 commands/sync | Partial | Real render/compute/blit/parallel/resource-state/AS/ICB/Metal 4 work; fences/events/barriers and deferred completion ownership | Explicit three-frames-in-flight + resize/occlusion + injected command-buffer-error matrix |
 | M6 presentation | Partial | Real CAMetalLayer/drawable format, loss/error, resize, scale, HDR/colorspace, callback, presentation and teardown checks; the committed 10,000-frame acquisition/presentation/teardown workload completed with exact zero live-handle delta | Minimize/restore and presentation-specific RSS evidence |
-| M7 ray tracing | Partial | BLAS/TLAS build/refit/copy/compact and geometry/function-table/intersection bindings execute on supported M1 paths | Deterministic compute ray-query image, explicit simulated missing-RT graph rollback, and M3+ hardware/render-pipeline lane |
+| M7 ray tracing | Partial | BLAS/TLAS build/refit/copy/compact and geometry/function-table/intersection bindings execute on supported M1 paths; a fixed M1 compute ray-query scene produces exact hit/miss bytes and FNV-1a `cc2679258ea31e7d` with zero live-handle delta | Explicit simulated missing-RT graph rollback and M3+ hardware/render-pipeline lane |
 | M8 Metal 4/MetalFX | Partial | Broad Metal 4 compiler/pipeline/command/resource/counter/ML/sparse execution with typed M1 capability rejection | M3+ execution matrix and weak-linked MetalFX support/limit/absence evidence |
 | M9 FFI performance | Partial | `phase2_metal_ffi_baseline.json` and direct/batched benchmark tooling record timing, calls and allocations | Fresh release-profile rerun proving the frozen 5% threshold on the final ABI |
 | M10 tooling | Missing | Generator drift checks and ordinary diagnostics are green | Full Xcode offline shaders, validation layers, GPU capture/counter trace, ASan/UBSan/TSan and Guard Malloc/Leaks reports |
@@ -54,3 +54,26 @@ Metal ownership lane buffers passed: 100000 measured handles, 1605632-byte settl
 These executions close the software-verifiable steady-state portions only.
 They do not constitute Leaks/sanitizer evidence, minimize/restore evidence,
 full-Xcode validation, offline shader parity, or M3+ hardware qualification.
+
+## Deterministic M1 compute ray query
+
+`lib/metal/test_metal_m1_ray_query.ml` uses only the public safe Metal API. It
+uploads one fixed triangle, queries and allocates its acceleration-structure
+storage, builds the structure on an acceleration encoder, dispatches four
+fixed compute rays, and compares all 16 readback bytes before hashing them.
+The expected words encode two triangle hits followed by two misses. Three
+consecutive audit-host executions produced the same result:
+
+```text
+$ opam exec -- dune exec lib/metal/test_metal_m1_ray_query.exe
+Metal M1 ray query: hash=cc2679258ea31e7d, no live-handle delta
+Metal M1 ray query: hash=cc2679258ea31e7d, no live-handle delta
+Metal M1 ray query: hash=cc2679258ea31e7d, no live-handle delta
+```
+
+The fixture gates execution on the typed `Device.info.raytracing` capability.
+On an unsupported device it creates no ray-tracing graph, destroys the queried
+device, drains the release queue, and requires exact zero handle delta. That
+unsupported branch is committed but was not fabricated as executed on this
+ray-tracing-capable M1. This proves deterministic compute ray queries only; it
+does not claim the M3+ or hardware render-pipeline ray-tracing lanes.

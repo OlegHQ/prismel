@@ -366,6 +366,11 @@
  (libraries metal unix))
 
 (test
+ (name test_metal_m1_ray_query)
+ (modules test_metal_m1_ray_query)
+ (libraries metal))
+
+(test
  (name test_metal_resource100_safe)
  (modules test_metal_resource100_safe)
  (libraries metal))
