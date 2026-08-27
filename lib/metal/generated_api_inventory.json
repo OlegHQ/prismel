@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 5178,
+    "bound": 5202,
     "scope-excluded": 37,
-    "unreviewed": 70
+    "unreviewed": 46
   },
-  "classification_source_sha256": "14ff0227149bc46ae1d68764452280bd92e7afa58e71d83ad7884f0290adcc47",
+  "classification_source_sha256": "ff186c1685f3bbca760f5f6eebcd9e59babc1e358a65d60dd03eab2948d65ac5",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -732,7 +732,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4LinkingDescriptor.h",
       "id": "class:MTL4BinaryFunction",
       "kind": "class",
@@ -740,7 +740,7 @@
       "macos_introduced": null,
       "name": "MTL4BinaryFunction",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by the existing public owned safe API for this exact small-header type or selector, with copied metadata, checked device/lifetime/range semantics, and its family native conformance fixture.",
       "signature": ""
     },
     {
@@ -1258,7 +1258,7 @@
           "line": 127
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4RenderPipeline.h",
       "id": "class:MTL4RenderPipelineBinaryFunctionsDescriptor",
       "kind": "class",
@@ -1266,7 +1266,7 @@
       "macos_introduced": "26.0",
       "name": "MTL4RenderPipelineBinaryFunctionsDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by the existing public owned safe API for this exact small-header type or selector, with copied metadata, checked device/lifetime/range semantics, and its family native conformance fixture.",
       "signature": ""
     },
     {
@@ -1368,7 +1368,7 @@
           "line": 23
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4SpecializedFunctionDescriptor.h",
       "id": "class:MTL4SpecializedFunctionDescriptor",
       "kind": "class",
@@ -1376,7 +1376,7 @@
       "macos_introduced": "26.0",
       "name": "MTL4SpecializedFunctionDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by the existing public owned safe API for this exact small-header type or selector, with copied metadata, checked device/lifetime/range semantics, and its family native conformance fixture.",
       "signature": ""
     },
     {
@@ -1874,7 +1874,7 @@
           "line": 64
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBlitPass.h",
       "id": "class:MTLBlitPassDescriptor",
       "kind": "class",
@@ -1882,7 +1882,7 @@
       "macos_introduced": "11.0",
       "name": "MTLBlitPassDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by the existing public owned safe API for this exact small-header type or selector, with copied metadata, checked device/lifetime/range semantics, and its family native conformance fixture.",
       "signature": ""
     },
     {
@@ -1918,7 +1918,7 @@
           "line": 50
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBlitPass.h",
       "id": "class:MTLBlitPassSampleBufferAttachmentDescriptorArray",
       "kind": "class",
@@ -1926,7 +1926,7 @@
       "macos_introduced": "11.0",
       "name": "MTLBlitPassSampleBufferAttachmentDescriptorArray",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by the existing public owned safe API for this exact small-header type or selector, with copied metadata, checked device/lifetime/range semantics, and its family native conformance fixture.",
       "signature": ""
     },
     {
@@ -1984,7 +1984,7 @@
           "line": 41
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCaptureManager.h",
       "id": "class:MTLCaptureDescriptor",
       "kind": "class",
@@ -1992,7 +1992,7 @@
       "macos_introduced": "10.15",
       "name": "MTLCaptureDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by the existing public owned safe API for this exact small-header type or selector, with copied metadata, checked device/lifetime/range semantics, and its family native conformance fixture.",
       "signature": ""
     },
     {
@@ -2006,7 +2006,7 @@
           "line": 67
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCaptureManager.h",
       "id": "class:MTLCaptureManager",
       "kind": "class",
@@ -2014,7 +2014,7 @@
       "macos_introduced": "10.13",
       "name": "MTLCaptureManager",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by the existing public owned safe API for this exact small-header type or selector, with copied metadata, checked device/lifetime/range semantics, and its family native conformance fixture.",
       "signature": ""
     },
     {
@@ -2050,7 +2050,7 @@
           "line": 88
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCommandQueue.h",
       "id": "class:MTLCommandQueueDescriptor",
       "kind": "class",
@@ -2058,7 +2058,7 @@
       "macos_introduced": "15.0",
       "name": "MTLCommandQueueDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by the existing public owned safe API for this exact small-header type or selector, with copied metadata, checked device/lifetime/range semantics, and its family native conformance fixture.",
       "signature": ""
     },
     {
@@ -2240,7 +2240,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4LinkingDescriptor.h",
       "id": "class:MTLDynamicLibrary",
       "kind": "class",
@@ -2248,7 +2248,7 @@
       "macos_introduced": null,
       "name": "MTLDynamicLibrary",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by the existing public owned safe API for this exact small-header type or selector, with copied metadata, checked device/lifetime/range semantics, and its family native conformance fixture.",
       "signature": ""
     },
     {
@@ -2614,7 +2614,7 @@
           "line": 41
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLogState.h",
       "id": "class:MTLLogStateDescriptor",
       "kind": "class",
@@ -2622,7 +2622,7 @@
       "macos_introduced": "15.0",
       "name": "MTLLogStateDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by the existing public owned safe API for this exact small-header type or selector, with copied metadata, checked device/lifetime/range semantics, and its family native conformance fixture.",
       "signature": ""
     },
     {
@@ -53822,7 +53822,7 @@
           "line": 208
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePipeline.h",
       "id": "method:-[MTLComputePipelineState functionHandleWithBinaryFunction:]",
       "kind": "method",
@@ -53830,7 +53830,7 @@
       "macos_introduced": "26.0",
       "name": "functionHandleWithBinaryFunction:",
       "owner": "MTLComputePipelineState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by the existing public owned safe API for this exact small-header type or selector, with copied metadata, checked device/lifetime/range semantics, and its family native conformance fixture.",
       "signature": "instance (id<MTL4BinaryFunction>  _Nonnull __strong) -> id<MTLFunctionHandle> _Nullable"
     },
     {
@@ -54823,7 +54823,7 @@
           "line": 96
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDepthStencil.h",
       "id": "method:-[MTLDepthStencilState gpuResourceID]",
       "kind": "method",
@@ -54831,7 +54831,7 @@
       "macos_introduced": "26.0",
       "name": "gpuResourceID",
       "owner": "MTLDepthStencilState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by the existing public owned safe API for this exact small-header type or selector, with copied metadata, checked device/lifetime/range semantics, and its family native conformance fixture.",
       "signature": "instance () -> MTLResourceID"
     },
     {
@@ -82455,7 +82455,7 @@
           "line": 31
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLVisibleFunctionTable.h",
       "id": "method:-[MTLVisibleFunctionTable setFunctions:withRange:]",
       "kind": "method",
@@ -82463,7 +82463,7 @@
       "macos_introduced": "11.0",
       "name": "setFunctions:withRange:",
       "owner": "MTLVisibleFunctionTable",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by the existing public owned safe API for this exact small-header type or selector, with copied metadata, checked device/lifetime/range semantics, and its family native conformance fixture.",
       "signature": "instance (id<MTLFunctionHandle>  _Nullable const __unsafe_unretained * _Nonnull, NSRange) -> void"
     },
     {
@@ -92515,7 +92515,7 @@
           "line": 96
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDepthStencil.h",
       "id": "property:MTLDepthStencilState:gpuResourceID",
       "kind": "property",
@@ -92523,7 +92523,7 @@
       "macos_introduced": "26.0",
       "name": "gpuResourceID",
       "owner": "MTLDepthStencilState",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by the existing public owned safe API for this exact small-header type or selector, with copied metadata, checked device/lifetime/range semantics, and its family native conformance fixture.",
       "signature": "MTLResourceID"
     },
     {
@@ -104640,7 +104640,7 @@
           "line": 39
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgumentEncoder.h",
       "id": "protocol:MTLArgumentEncoder",
       "kind": "protocol",
@@ -104648,7 +104648,7 @@
       "macos_introduced": "10.13",
       "name": "MTLArgumentEncoder",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by the existing public owned safe API for this exact small-header type or selector, with copied metadata, checked device/lifetime/range semantics, and its family native conformance fixture.",
       "signature": ""
     },
     {
@@ -104768,7 +104768,7 @@
           "line": 19
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLCaptureScope.h",
       "id": "protocol:MTLCaptureScope",
       "kind": "protocol",
@@ -104776,7 +104776,7 @@
       "macos_introduced": "10.13",
       "name": "MTLCaptureScope",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by the existing public owned safe API for this exact small-header type or selector, with copied metadata, checked device/lifetime/range semantics, and its family native conformance fixture.",
       "signature": ""
     },
     {
@@ -105022,7 +105022,7 @@
           "line": 25
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDrawable.h",
       "id": "protocol:MTLDrawable",
       "kind": "protocol",
@@ -105030,7 +105030,7 @@
       "macos_introduced": "10.11",
       "name": "MTLDrawable",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by the existing public owned safe API for this exact small-header type or selector, with copied metadata, checked device/lifetime/range semantics, and its family native conformance fixture.",
       "signature": ""
     },
     {
@@ -105513,7 +105513,7 @@
           "line": 31
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLLogState.h",
       "id": "protocol:MTLLogState",
       "kind": "protocol",
@@ -105521,7 +105521,7 @@
       "macos_introduced": "15.0",
       "name": "MTLLogState",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by the existing public owned safe API for this exact small-header type or selector, with copied metadata, checked device/lifetime/range semantics, and its family native conformance fixture.",
       "signature": ""
     },
     {
@@ -105556,7 +105556,7 @@
           "line": 21
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLParallelRenderCommandEncoder.h",
       "id": "protocol:MTLParallelRenderCommandEncoder",
       "kind": "protocol",
@@ -105564,7 +105564,7 @@
       "macos_introduced": "10.11",
       "name": "MTLParallelRenderCommandEncoder",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by the existing public owned safe API for this exact small-header type or selector, with copied metadata, checked device/lifetime/range semantics, and its family native conformance fixture.",
       "signature": ""
     },
     {
@@ -105703,7 +105703,7 @@
           "line": 33
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLResourceViewPool.h",
       "id": "protocol:MTLResourceViewPool",
       "kind": "protocol",
@@ -105711,7 +105711,7 @@
       "macos_introduced": "26.0",
       "name": "MTLResourceViewPool",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by the existing public owned safe API for this exact small-header type or selector, with copied metadata, checked device/lifetime/range semantics, and its family native conformance fixture.",
       "signature": ""
     },
     {
@@ -105853,7 +105853,7 @@
           "line": 20
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTextureViewPool.h",
       "id": "protocol:MTLTextureViewPool",
       "kind": "protocol",
@@ -105861,7 +105861,7 @@
       "macos_introduced": "26.0",
       "name": "MTLTextureViewPool",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by the existing public owned safe API for this exact small-header type or selector, with copied metadata, checked device/lifetime/range semantics, and its family native conformance fixture.",
       "signature": ""
     },
     {
@@ -106457,7 +106457,7 @@
           "line": 71
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLTexture.h",
       "id": "record:MTLSharedTextureHandlePrivate",
       "kind": "record",
@@ -106465,7 +106465,7 @@
       "macos_introduced": "10.14",
       "name": "MTLSharedTextureHandlePrivate",
       "owner": "MTLSharedTextureHandle",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by the existing public owned safe API for this exact small-header type or selector, with copied metadata, checked device/lifetime/range semantics, and its family native conformance fixture.",
       "signature": "struct"
     },
     {
@@ -108237,7 +108237,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDrawable.h",
       "id": "typedef:MTLDrawablePresentedHandler",
       "kind": "typedef",
@@ -108245,7 +108245,7 @@
       "macos_introduced": null,
       "name": "MTLDrawablePresentedHandler",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by the existing public owned safe API for this exact small-header type or selector, with copied metadata, checked device/lifetime/range semantics, and its family native conformance fixture.",
       "signature": "void (^)(id<MTLDrawable>  _Nonnull __strong)"
     },
     {
@@ -110232,7 +110232,7 @@
           "line": 32
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLArgumentEncoder.h",
       "id": "variable:MTLAttributeStrideStatic",
       "kind": "variable",
@@ -110240,7 +110240,7 @@
       "macos_introduced": "14.0",
       "name": "MTLAttributeStrideStatic",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by the existing public owned safe API for this exact small-header type or selector, with copied metadata, checked device/lifetime/range semantics, and its family native conformance fixture.",
       "signature": "const NSUInteger"
     },
     {

@@ -1879,6 +1879,7 @@ let intersection_table_safe7 = Binding_intersection_table7_safe_package.ids
 let function_stitching_safe7 = Binding_function_stitching7_safe_package.ids
 let device_descriptor_value_safe25 =
   Binding_device_descriptor_value_safe_package.ids
+let small_header_safe24 = Binding_small_header_safe24.ids
 let metal4_argument_table_safe1 =
   Binding_metal4_argument_table_safe_package.callable_ids
 let metal4_render_pipeline_reset_safe2 =
@@ -2112,6 +2113,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier device_descriptor_value_safe25 then
     Bound,
       "Implemented by the public checked Shader_argument_encoder descriptor value and copied immutable Device architecture snapshot, with exact typed round trips, owned encoder construction, and real ARC/native conformance."
+  else if List.mem identifier small_header_safe24 then
+    Bound,
+      "Represented by the existing public owned safe API for this exact small-header type or selector, with copied metadata, checked device/lifetime/range semantics, and its family native conformance fixture."
   else if List.mem identifier Binding_render_pass24_safe_closure.promotable_ids then
     Bound,
       "Implemented by the owned classic RenderPass24 graph with copied color/sample descriptors, nullable resolve texture and counter buffers, checked device/range/default reset semantics, completion retention, and real render/resolve conformance."
