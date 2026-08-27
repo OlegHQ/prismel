@@ -1872,6 +1872,7 @@ let fence_safe6 = Binding_fence6_safe_package.ids
 let indirect_command_buffer_safe4 = Binding_indirect_command_buffer4_safe_package.ids
 let argument_safe8 = Binding_argument8_safe_package.ids
 let library_safe8 = Binding_library8_safe_package.ids
+let metal4_counters_safe2 = Binding_metal4_counters2_safe_package.ids
 let metal4_argument_table_safe1 =
   Binding_metal4_argument_table_safe_package.callable_ids
 let metal4_render_pipeline_reset_safe2 =
@@ -2044,6 +2045,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier library_safe8 then
     Bound,
       "Implemented by the Library8 immutable attribute/function-reflection snapshots and private autoreleasing ABI conventions, with bounded exactly-once cancellable tasks, exception capture, and real compute/render callback conformance."
+  else if List.mem identifier metal4_counters_safe2 then
+    Bound,
+      "Implemented by the immutable Metal 4 counter-heap descriptor and owned heap graph, with copied labels, checked ranges, explicit invalidation/resolution, device lifetime retention, and real timestamp-heap conformance."
   else if List.mem identifier Binding_command_buffer19_safe_closure.promotable_ids then
     Bound,
       "Implemented by the CommandBuffer19 safe descriptor/callback closure with retained log-state and resources, exact-once completion, queue ownership, and error-only EncoderInfo snapshots."

@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4996,
+    "bound": 4998,
     "scope-excluded": 37,
-    "unreviewed": 252
+    "unreviewed": 250
   },
-  "classification_source_sha256": "18916bd766662ff72b35111f0d9cc6174afc52975479b8e95068d0a96a77dbc7",
+  "classification_source_sha256": "9bf8aeaa2007cfb0dd6b290c3273ded59e249ab7ebf69b869bd6997ba0a3c16e",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -928,7 +928,7 @@
           "line": 53
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4Counters.h",
       "id": "class:MTL4CounterHeapDescriptor",
       "kind": "class",
@@ -936,7 +936,7 @@
       "macos_introduced": "26.0",
       "name": "MTL4CounterHeapDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the immutable Metal 4 counter-heap descriptor and owned heap graph, with copied labels, checked ranges, explicit invalidation/resolution, device lifetime retention, and real timestamp-heap conformance.",
       "signature": ""
     },
     {
@@ -104472,7 +104472,7 @@
           "line": 69
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4Counters.h",
       "id": "protocol:MTL4CounterHeap",
       "kind": "protocol",
@@ -104480,7 +104480,7 @@
       "macos_introduced": "26.0",
       "name": "MTL4CounterHeap",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the immutable Metal 4 counter-heap descriptor and owned heap graph, with copied labels, checked ranges, explicit invalidation/resolution, device lifetime retention, and real timestamp-heap conformance.",
       "signature": ""
     },
     {
