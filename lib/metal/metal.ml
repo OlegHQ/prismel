@@ -2550,6 +2550,8 @@ module Shared_event = struct
 end
 
 module Device = struct
+  type io_compression_method = Io_zlib | Io_lzfse | Io_lz4 | Io_lzma | Io_lz_bitmap
+  let io_compression_code=function Io_zlib->0|Io_lzfse->1|Io_lz4->2|Io_lzma->3|Io_lz_bitmap->4
   type t = device
 
   let new_fence (value:t) =
@@ -2618,6 +2620,22 @@ module Device = struct
               attach value.lifetime;
               attach_finalizer file file.lifetime value.lifetime;
               Ok file)
+
+  let legacy_io_file_result operation (value:t) = function
+    | Error message -> native_error operation message
+    | Ok (raw,registry_id) when registry_id<>value.registry_id ->
+        ignore(Metal_raw.destroy raw);error operation Device_mismatch "IO handle constructor returned another device identity"
+    | Ok(raw,_)->let file:io_file={raw;lifetime=lifetime();device=value}in attach value.lifetime;attach_finalizer file file.lifetime value.lifetime;Ok file
+
+  let open_io_handle_legacy (value:t) path =
+    let operation="Metal.Device.open_io_handle_legacy"in on_main operation(fun()->match ensure_live operation value.lifetime with
+    |Error _ as failure->failure|Ok()when path=""||contains_nul path->error operation Invalid_argument "IO path is empty or contains NUL"
+    |Ok()->legacy_io_file_result operation value(Metal_raw.device_io_handle_legacy value.raw path))
+
+  let open_compressed_io_handle_legacy (value:t) ~method_ path =
+    let operation="Metal.Device.open_compressed_io_handle_legacy"in on_main operation(fun()->match ensure_live operation value.lifetime with
+    |Error _ as failure->failure|Ok()when path=""||contains_nul path->error operation Invalid_argument "IO path is empty or contains NUL"
+    |Ok()->legacy_io_file_result operation value(Metal_raw.device_io_handle_compressed_legacy value.raw path(io_compression_code method_)))
 
   let new_event(value:t)=let operation="Metal.Device.new_event"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.command_event_create value.raw with Error m->native_error operation m|Ok(raw,registry_id)when registry_id<>value.registry_id->ignore(Metal_raw.destroy raw);error operation Device_mismatch "event constructor returned another device identity"|Ok(raw,registry_id)->let event:command_event={raw;lifetime=lifetime();device=value;registry_id}in attach value.lifetime;attach_finalizer event event.lifetime value.lifetime;Ok event)
   let new_shared_event(value:t)=let operation="Metal.Device.new_shared_event"in on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->match Metal_raw.command_shared_event_create value.raw with Error m->native_error operation m|Ok(raw,registry_id)when registry_id<>value.registry_id->ignore(Metal_raw.destroy raw);error operation Device_mismatch "shared-event constructor returned another device identity"|Ok(raw,registry_id)->match Metal_raw.command_shared_event_value raw with Error m->ignore(Metal_raw.destroy raw);native_error operation m|Ok current->let event:command_shared_event={raw;lifetime=lifetime();device=value;registry_id;value=current}in attach value.lifetime;attach_finalizer event event.lifetime value.lifetime;Ok event)

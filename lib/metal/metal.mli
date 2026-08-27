@@ -152,6 +152,7 @@ type fence
 
 module Device : sig
   type t
+  type io_compression_method = Io_zlib | Io_lzfse | Io_lz4 | Io_lzma | Io_lz_bitmap
 
   type family =
     | Apple1
@@ -230,6 +231,8 @@ module Device : sig
     ?max_commands_in_flight:int64 -> ?label:string -> unit ->
     (io_queue, error) result
   val open_io_file : t -> ?label:string -> string -> (io_file, error) result
+  val open_io_handle_legacy : t -> string -> (io_file,error) result
+  val open_compressed_io_handle_legacy : t -> method_:io_compression_method -> string -> (io_file,error) result
   val all : unit -> (t list, error) result
   val generation : t -> int64
   val registry_id : t -> int64

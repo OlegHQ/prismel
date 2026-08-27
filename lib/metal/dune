@@ -238,6 +238,7 @@
   ../../tools/metal/metal_resource_remaining16_bridge.inc
   ../../tools/metal/metal_compute_encoder35_bindings.inc
   ../../tools/metal/metal_compute_encoder35_commands.inc
+  ../../tools/metal/metal_device_residual_io2_bridge.inc
   ../../tools/metal/metal_rasterization_rate_callable_bridge.inc
   ../../tools/metal/metal_function_stitching_callable_bridge.inc
   ../../tools/metal/metal_library42_callable_bridge.inc
@@ -462,6 +463,11 @@
 (test
  (name test_metal_device_queues3_safe)
  (modules test_metal_device_queues3_safe)
+ (libraries metal))
+
+(test
+ (name test_metal_device_io2_safe)
+ (modules test_metal_device_io2_safe)
  (libraries metal))
 
 (rule

@@ -1906,6 +1906,10 @@ external device_queue_maximum : handle -> int64 -> (handle,string) result =
   "caml_prismel_metal_device_queue_maximum"
 external device_queue4_default : handle -> (handle,string) result =
   "caml_prismel_metal_device_queue4_default"
+external device_io_handle_legacy : handle -> string -> ((handle*int64),string) result =
+  "caml_prismel_metal_device_io_handle_legacy"
+external device_io_handle_compressed_legacy : handle -> string -> int -> ((handle*int64),string) result =
+  "caml_prismel_metal_device_io_handle_compressed_legacy"
 
 (** Exact callable subset of the prepared authoritative Metal4 shards. *)
 external metal4_command_buffer_begin :
