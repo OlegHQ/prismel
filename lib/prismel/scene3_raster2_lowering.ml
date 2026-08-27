@@ -259,6 +259,20 @@ let self_test () =
     restored.depth_stencil.depth_compare<>Raster2.Depth_stencil.Less||
     not restored.depth_stencil.depth_write||state_prepared.clear_stencil<>11 then
     failwith"nested raster/blend state did not restore";
+  let blend_cases =
+    [Scene3.Replace, Raster2.Composite.Copy; Alpha, Source_over; Add, Add;
+     Multiply, Multiply; Screen, Screen; Subtract, Subtract] in
+  let blend_scene = Scene3.create
+    (List.concat_map (fun (mode, _) ->
+       [Scene3.with_blend mode [Scene3.mesh ~material mesh]; node]) blend_cases) in
+  let blend_prepared = match lower_view3d ~resources ~default_viewport:(0,0,16,16)
+      (View3d (camera, blend_scene, None)) with
+    | Ok value -> value | Error _ -> failwith "blend state lowering" in
+  List.iteri (fun index (_, expected) ->
+    let nested = blend_prepared.draws.(index * 2)
+    and restored = blend_prepared.draws.((index * 2) + 1) in
+    if nested.blend <> expected || restored.blend <> Raster2.Composite.Source_over then
+      failwith "Scene3 blend mapping/restoration") blend_cases;
   begin match state_prepared.draws.(2),state_prepared.draws.(3)with
   | {mode=Raster2.Scene3_consumer.Wireframe;line_width=3.;_},
     {mode=Vertices;point_size=5.;_}->()

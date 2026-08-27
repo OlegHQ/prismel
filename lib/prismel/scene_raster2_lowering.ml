@@ -216,6 +216,18 @@ let self_test () =
   begin match commands.(0),commands.(1),commands.(2),commands.(8),commands.(9),commands.(10)with
   | Clear 0xff0000ffl,Set_blend Raster2.Composite.Add,Push_transform _,Pop_clip,Pop_transform,Set_blend Raster2.Composite.Source_over->()
   | _->failwith"private Scene lowering order"end;
+  List.iter (fun (public, expected) ->
+    match lower [Blend (public, [Point ((0, 0), Some white)])] with
+    | Ok value ->
+      let commands = Raster2.Render_ir.commands value in
+      begin match commands.(0), commands.(2) with
+      | Set_blend actual, Set_blend Raster2.Composite.Source_over
+        when actual = expected -> ()
+      | _ -> failwith "Scene2 blend mapping/restoration"
+      end
+    | Error _ -> failwith "Scene2 blend lowering")
+    [Replace, Raster2.Composite.Copy; Alpha, Source_over; Add, Add;
+     Multiply, Multiply];
   let expected=Raster2.Render_ir.serialize lowered in
   let workers=Array.init 4(fun _->Domain.spawn(fun()->match lower scene with Ok value->Raster2.Render_ir.serialize value|Error _->Bytes.empty))in
   Array.iter(fun worker->if Domain.join worker<>expected then failwith"private Scene lowering domain drift")workers;
