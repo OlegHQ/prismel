@@ -24,8 +24,7 @@ let system_default () =
              |sample::rest->(match Metal.Device.supports_texture_sample_count metal sample with
                |Error value->Error(Adapter.error~operation value)
                |Ok true->maximum_sample sample rest|Ok false->maximum_sample current rest)in
-           match maximum_sample 1[2;4;8]with Error _ as failure->ignore(Metal.Device.destroy metal);failure|Ok probed_sample_count->
-           let max_sample_count=min 4 probed_sample_count in
+           match maximum_sample 1[4;9;16]with Error _ as failure->ignore(Metal.Device.destroy metal);failure|Ok max_sample_count->
            match Metal.Counters.supports metal Metal.Counters.Blit_boundary with Error value->ignore(Metal.Device.destroy metal);Error(Adapter.error~operation value)|Ok timestamp_boundary->
            match Metal.Counters.sets metal with Error value->ignore(Metal.Device.destroy metal);Error(Adapter.error~operation value)|Ok counter_sets->
            let timestamp_queries=timestamp_boundary&&counter_sets<>[]in
@@ -40,7 +39,7 @@ let system_default () =
              }
            in
            match Adapter.profile source ~timestamp_queries ~sparse_memory:false
-             ~conservative_limits:["max_texture_dimension_2d=16384";"max_bind_groups=4";"max_sample_count<=4";"metal_fx=false:no backend dependency";"sparse_memory=false:not implemented"] with
+             ~conservative_limits:["max_texture_dimension_2d=16384";"max_bind_groups=4";"max_sample_count=probed(1/4/9/16)";"metal_fx=false:no backend dependency";"sparse_memory=false:not implemented"] with
            | Error _ as failure -> ignore (Metal.Device.destroy metal); failure
            | Ok profile ->
                Ok { metal; handle = Ogpu.Handle.create_device (); capabilities=profile.capabilities;profile;

@@ -18,7 +18,7 @@ let validate_descriptor (value : Ogpu.Types.texture_descriptor) format =
   let operation="Ogpu_metal.Texture.create" in
   let max_mips = 1 + int_of_float (Float.floor (Float.log2 (float_of_int (max value.width (max value.height value.depth))))) in
   if value.mip_levels > max_mips then error operation Ogpu.Error.Invalid_argument "mip count exceeds texture extent"
-  else if not (List.mem value.sample_count [1;2;4]) then error operation Ogpu.Error.Invalid_argument "sample count must be 1, 2, or 4"
+  else if not (List.mem value.sample_count [1;4;9;16]) then error operation Ogpu.Error.Invalid_argument "sample count must be 1, 4, 9, or 16"
   else if value.sample_count > 1 && (value.depth <> 1 || value.mip_levels <> 1) then error operation Ogpu.Error.Invalid_argument "multisample textures are 2D and single-mip"
   else if format=Depth32_float && List.mem Ogpu.Types.Texture_binding value.usage then error operation Ogpu.Error.Invalid_argument "depth sampling is not exposed by this foundation"
   else Ok ()

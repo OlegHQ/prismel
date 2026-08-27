@@ -85,9 +85,8 @@ let create_render ?(blend=Replace) capabilities (descriptor : render_descriptor)
   | Error _ as error -> error
   | Ok () -> match validate_backend operation descriptor.backend shaders with
     | Error _ as error -> error
-    | Ok () when descriptor.sample_count <= 0
-                 || descriptor.sample_count > capabilities.Capabilities.limits.max_sample_count
-                 || descriptor.sample_count land (descriptor.sample_count - 1) <> 0 ->
+    | Ok () when not(List.mem descriptor.sample_count[1;4;9;16])
+                 || descriptor.sample_count > capabilities.Capabilities.limits.max_sample_count ->
         invalid operation "sample count is unsupported"
     | Ok () -> match entry operation descriptor.vertex descriptor.vertex_entry Shader.Vertex with
       | Error _ as error -> error

@@ -6906,6 +6906,12 @@ module Render_pass_descriptor = struct
               value.pass_resolve<-next;
               Ok()
             end)
+  let set_color_store_action(value:t) ~resolve=
+    let operation="Metal.Render_pass_descriptor.set_color_store_action"in
+    on_main operation(fun()->match ensure_live operation value.lifetime with Error _ as e->e|Ok()->
+      let code=if resolve then 2 else 1 in
+      if resolve&&value.pass_sample_count=1 then error operation Invalid_argument"resolve store actions require multisampling"else
+      match Metal_raw.render_pass_color_store_action value.raw code with Ok()->Ok()|Error message->native_error operation message)
   let rasterization_rate_map(value:t)=value.pass_rate_map
   let set_rasterization_rate_map(value:t)(next:Rasterization_rate_map.t option)=
     let operation="Metal.Render_pass_descriptor.set_rasterization_rate_map" in
@@ -17850,7 +17856,7 @@ module Render_encoder = struct
                 | Ok () when pipeline.kind <> Render ->
                     error operation Invalid_argument
                       "classic render encoder requires a render pipeline"
-                | Ok () when pipeline.raster_sample_count <> 1 ->
+                | Ok () when pipeline.raster_sample_count <> value.target.descriptor.sample_count ->
                     error operation Invalid_argument
                       "pipeline sample count differs from the render target"
                 | Ok () when

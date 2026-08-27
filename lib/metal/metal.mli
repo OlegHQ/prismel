@@ -1023,6 +1023,7 @@ module Render_pass_descriptor : sig
   val sample_attachments : t -> (sample_attachment option array,error) result
   val resolve_texture : t -> Texture.t option
   val set_resolve_texture : t -> Texture.t option -> (unit,error) result
+  val set_color_store_action : t -> resolve:bool -> (unit,error) result
   val rasterization_rate_map : t -> Rasterization_rate_map.t option
   val set_rasterization_rate_map :
     t -> Rasterization_rate_map.t option -> (unit,error) result

@@ -70,3 +70,11 @@ extern "C" CAMLprim value caml_prismel_metal_render_pass_resolve_texture(
     result=result_ok(option);CAMLreturn(result);
   }@catch(NSException*x){CAMLreturn(result_error(x.reason));}
 }
+extern "C" CAMLprim value caml_prismel_metal_render_pass_color_store_action(value raw,value action){
+  CAMLparam2(raw,action);
+  @try{
+    MTLRenderPassDescriptor*p=object_of_handle(raw,Handle_kind::Render_pass_descriptor);
+    p.colorAttachments[0].storeAction=(MTLStoreAction)Int_val(action);
+    CAMLreturn(result_unit());
+  }@catch(NSException*x){CAMLreturn(result_error(x.reason));}
+}
