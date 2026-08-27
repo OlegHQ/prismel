@@ -80,6 +80,11 @@
  (libraries ogpu_metal metal))
 
 (test
+ (name test_ogpu_metal_sampler_pixels)
+ (modules test_ogpu_metal_sampler_pixels)
+ (libraries ogpu_metal metal))
+
+(test
  (name test_scene_execution_metal)
  (modules test_scene_execution_metal)
  (libraries scene_execution ogpu_metal metal))

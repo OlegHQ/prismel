@@ -69,6 +69,7 @@ let submit pass draws =
       | [] -> Ok { pass; draws }
       | d :: _ when d.pipeline_key = "" || d.vertex_start < 0 || d.vertex_count <= 0 ->
           invalid "draw pipeline/range is invalid"
+      | d :: _ when d.textures<>[]&&d.samplers=[]->invalid "sampled textures require sampler state"
       | d :: _
         when d.primitive = Triangle_list && Option.is_none d.index
              && d.vertex_count mod 3 <> 0 ->
