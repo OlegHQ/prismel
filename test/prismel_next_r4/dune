@@ -1,0 +1,5 @@
+(test
+ (name test_prismel_next_r4)
+ (modules test_prismel_next_r4)
+ (libraries prismel_next_resources prismel_next_execution raster2 unix)
+ (action (setenv SDL_VIDEODRIVER dummy (run %{test}))))
