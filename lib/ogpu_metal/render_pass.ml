@@ -54,22 +54,41 @@ let create device pass ~attachments draw=let op="Ogpu_metal.Render_pass.create"i
       let stencil=match descriptor.stencil with None->Ok None|Some s when s.store=Resolve->error op Ogpu.Error.Invalid_argument"stencil attachments cannot resolve"|Some s->match List.find_map(find s.texture.id)attachments with None->error op Ogpu.Error.Invalid_argument"stencil attachment texture is absent from the typed texture graph"|Some texture->Result.map(fun _->Some texture)(Texture.descriptor device texture)in
       match depth,stencil with Error e,_->Error e|_,Error e->Error e|Ok depth,Ok stencil->
       match draw.index with None->Ok{pass;color=target;resolve;depth;stencil;draws=[draw];owned_samplers=[]}|Some(kind,buffer,offset,count)->match Buffer.descriptor device buffer with Error _ as e->e|Ok bd->let stride=match kind with Uint16->2L|Uint32->4L in if count<=0||offset<0L||Int64.rem offset stride<>0L||Int64.of_int count>Int64.div(Int64.sub bd.size offset)stride then error op Ogpu.Error.Invalid_argument"index range is invalid"else Ok{pass;color=target;resolve;depth;stencil;draws=[draw];owned_samplers=[]})
+let validate_batch_draw device draw =
+  let op="Ogpu_metal.Render_pass.create_batch"in
+  match Pipeline.validate device draw.pipeline with Error _ as e->e|Ok()->
+  if draw.vertex_start<0||draw.vertex_count<=0 then error op Ogpu.Error.Invalid_argument"draw vertex range is invalid"
+  else if draw.primitive=Triangle_strip&&Option.is_none draw.index then error op Ogpu.Error.Unsupported"classic non-indexed execution currently exposes triangle lists"
+  else if draw.primitive=Triangle_list&&Option.is_none draw.index&&draw.vertex_count mod 3<>0 then error op Ogpu.Error.Invalid_argument"triangle-list vertex count is not divisible by three"
+  else if draw.primitive=Triangle_strip&&draw.vertex_count<3 then error op Ogpu.Error.Invalid_argument"triangle strip requires at least three vertices"
+  else
+    let slots=Array.make 3 0L in
+    let slot kind stage index=
+      if index<0||index>30 then error op Ogpu.Error.Invalid_argument"binding index is outside [0,30]"
+      else let offset=match stage with Vertex->0|Fragment->31 in let bit=Int64.shift_left 1L(offset+index)in
+        if Int64.logand slots.(kind)bit<>0L then error op Ogpu.Error.Invalid_argument"binding stage/index is duplicated"
+        else(slots.(kind)<-Int64.logor slots.(kind)bit;Ok())in
+    let rec buffers=function []->Ok()|(b:buffer_binding)::rest->
+      (match slot 0 b.stage b.index,Buffer.descriptor device b.buffer with Error e,_->Error e|_,Error e->Error e|Ok(),Ok descriptor when b.offset<0L||b.offset>=descriptor.size->error op Ogpu.Error.Invalid_argument"buffer binding offset is outside the buffer"|Ok(),Ok _->buffers rest)
+    and textures=function []->Ok()|(b:texture_binding)::rest->
+      (match slot 1 b.stage b.index,Texture.descriptor device b.texture with Error e,_->Error e|_,Error e->Error e|Ok(),Ok _->textures rest)
+    and samplers=function []->Ok()|(b:sampler_binding)::rest->
+      (match slot 2 b.stage b.index,Sampler.descriptor device b.sampler with Error e,_->Error e|_,Error e->Error e|Ok(),Ok _->samplers rest)in
+    match buffers draw.buffers with Error _ as e->e|Ok()->match textures draw.textures with Error _ as e->e|Ok()->match samplers draw.samplers with Error _ as e->e|Ok()->
+    match draw.index with None->Ok()|Some(kind,buffer,offset,count)->match Buffer.descriptor device buffer with Error _ as e->e|Ok descriptor->let stride=match kind with Uint16->2L|Uint32->4L in if count<=0||offset<0L||Int64.rem offset stride<>0L||Int64.of_int count>Int64.div(Int64.sub descriptor.size offset)stride then error op Ogpu.Error.Invalid_argument"index range is invalid"else Ok()
 let create_batch ?(owned_samplers=[]) device pass ~attachments draws =
   let op="Ogpu_metal.Render_pass.create_batch" in
   let count=List.length draws in
   if count=0 then error op Ogpu.Error.Invalid_argument "render batch is empty"
   else if count>65_536 then error op Ogpu.Error.Invalid_argument "render batch exceeds 65536 draws"
   else
-    let rec validate first rev=function
-      |[]->(match first with None->assert false|Some value->Ok{value with draws=List.rev rev;owned_samplers})
-      |draw::rest->(match create device pass ~attachments draw with
-        |Error _ as e->e
-        |Ok value->
-          (match first with
-          |None->validate(Some value)(draw::rev)rest
-          |Some base when Texture.id base.color<>Texture.id value.color->error op Ogpu.Error.Invalid_argument "render batch attachment identity changed"
-          |Some _->validate first(draw::rev)rest))
-    in validate None [] draws
+    match draws with
+    |[]->assert false
+    |first_draw::rest->match create device pass~attachments first_draw with Error _ as e->e|Ok first->
+      let rec validate rev=function
+        |[]->Ok{first with draws=List.rev rev;owned_samplers}
+        |draw::rest->match validate_batch_draw device draw with Error _ as e->e|Ok()->validate(draw::rev)rest in
+      validate[first_draw]rest
 let retain_one retained retain release=match retain()with Error _ as e->e|Ok()->retained:=release::!retained;Ok()
 module Private=struct
   let requires_command4 value=

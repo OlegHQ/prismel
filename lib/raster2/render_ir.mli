@@ -14,6 +14,11 @@ type error = Non_finite | Invalid_extent | Invalid_cardinality | Invalid_index o
 val create : command array -> (t,error) result
 val commands : t -> command array
 val batches : t -> batch array
+module Private : sig
+  (** Borrowed validated command storage for audited consumers. The array and
+      every nested payload must be treated as read-only. *)
+  val commands_readonly : t -> command array
+end
 (* Stable, explicitly little-endian, versioned encoding. *)
 val serialize : t -> bytes
 val hash : t -> int64

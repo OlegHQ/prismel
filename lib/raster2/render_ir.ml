@@ -38,6 +38,9 @@ let create input=
     Ok{commands;batches=Array.of_list(List.rev !built)}
 let commands t=Array.map copy_command t.commands
 let batches t=Array.copy t.batches
+module Private=struct
+  let commands_readonly t=t.commands
+end
 module Encoder=struct
  type t={mutable bytes:bytes;mutable length:int}
  let create()={bytes=Bytes.create 256;length=0}

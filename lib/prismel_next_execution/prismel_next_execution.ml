@@ -131,7 +131,7 @@ let scene2_ir ir =
           incr number
         end
     |Image _|Glyphs _->failure:=Some"image/glyph resource binding is not available")
-    (Raster2.Render_ir.commands ir);
+    (Raster2.Render_ir.Private.commands_readonly ir);
   match !failure with Some message->fail"Prismel_next_execution.scene2_ir"Unsupported message
   |None->Ok(List.rev!draws)
 
@@ -299,7 +299,7 @@ let lower_scene2 value ~density ~resource:resolve ir =
     |Glyphs glyphs->if clip_live()&&Array.length glyphs.glyphs>0 then match resolve glyphs.resource_id with None->failure:=Some"glyph resource id is unbound"|Some source->
         match snapshot value~density source with Error e->failure:=Some(Format.asprintf"%a"pp_error e)|Ok(width,height,texture)->
           Array.iter(fun(glyph:Raster2.Render_ir.glyph)->let destination={Raster2.Render_ir.x=glyph.x;y=glyph.y;width=float width;height=float height}in draws:=quad texture destination::!draws;incr number)glyphs.glyphs)
-    (Raster2.Render_ir.commands ir);
+    (Raster2.Render_ir.Private.commands_readonly ir);
   match!failure with Some message->fail"Prismel_next_execution.lower_scene2"Resource message
   |None->Ok(batch_scene2_draws(List.rev!draws))
 let mb_to_input=function Left->Runtime_next_input.Left|Middle->Middle|Right->Right|X1->X1|X2->X2
