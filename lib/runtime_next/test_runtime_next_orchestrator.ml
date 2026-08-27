@@ -62,6 +62,24 @@ let exercise_native runtime extent =
   ignore(get(Orchestrator.render runtime[{Scene_execution.mesh;state={viewport=(0,0,extent,extent);scissor=(0,0,extent,extent);cull=Ogpu.Render_pass.Cull_none;depth_compare=Ogpu.Render_pass.Always;depth_write=false;depth_load=Ogpu.Render_pass.Clear;depth_clear=1.;transform_uniforms=None;stencil_state=None;stencil_load=Ogpu.Render_pass.Clear;stencil_clear=0}}]));
   if Bytes.get_int32_be(get(Orchestrator.capture runtime~bytes_per_row:(extent*4)))0<>0x4080bfffl then failwith"native capture did not return rendered pixels"
 
+let expect_unsupported label = function
+  | Error error when error.Ogpu.Error.kind = Ogpu.Error.Unsupported -> ()
+  | Ok () | Error _ -> failwith (label ^ " was not Unsupported")
+
+let unsupported_desktop_operations label runtime =
+  List.iter (fun (name, operation) -> expect_unsupported (label ^ " " ^ name)
+      (operation runtime))
+    [ "title", (fun value -> Orchestrator.set_title value "unsupported");
+      "position", (fun value -> Orchestrator.set_position value ~x:1 ~y:2);
+      "center", Orchestrator.center;
+      "bordered", (fun value -> Orchestrator.set_bordered value true);
+      "resizable", (fun value -> Orchestrator.set_resizable value true);
+      "always-on-top", (fun value -> Orchestrator.set_always_on_top value true);
+      "fullscreen", (fun value -> Orchestrator.set_fullscreen value true);
+      "show", Orchestrator.show; "hide", Orchestrator.hide;
+      "minimize", Orchestrator.minimize; "maximize", Orchestrator.maximize;
+      "restore", Orchestrator.restore ]
+
 let () =
   List.iter (fun (text, target) ->
       match Orchestrator.target_of_string text with
@@ -96,11 +114,24 @@ let () =
   let headless =
     get (Orchestrator.create (configuration Orchestrator.Headless 4))
   in
+  if not (Orchestrator.is_headless headless)
+      || not (Orchestrator.is_displayless headless) then
+    failwith "headless target predicates changed";
+  let headless_facts = get (Orchestrator.facts headless) in
+  if headless_facts.logical_width <> 4 || not headless_facts.vsync then
+    failwith "headless facts changed";
+  unsupported_desktop_operations "headless" headless;
   exercise headless 4;
   get (Orchestrator.resize headless ~logical_width:4 ~logical_height:4
          ~drawable_width:8 ~drawable_height:8);
   exercise headless 8;
+  let pacing = get (Orchestrator.pacing headless) in
+  if pacing.frames <> 1_200L || pacing.presented <> 1_200L
+      || not pacing.last_presented then failwith "headless pacing facts changed";
   get (Orchestrator.destroy headless);
+  (match Orchestrator.facts headless with
+   | Error error when error.Ogpu.Error.kind = Ogpu.Error.Stale_handle -> ()
+   | Ok _ | Error _ -> failwith "destroyed headless facts remained accessible");
   let wap_config =
     { Wap.default_config with interface = "127.0.0.1"; port = 0;
       compress_frames = false }
@@ -108,13 +139,56 @@ let () =
   let web =
     get (Orchestrator.create (configuration ~wap_config Orchestrator.Web 4))
   in
+  if not (Orchestrator.is_web web) || not (Orchestrator.is_displayless web)
+      || get (Orchestrator.web_client_count web) <> 0
+      || get (Orchestrator.drain_web_events web) <> [] then
+    failwith "web target-neutral facts changed";
+  unsupported_desktop_operations "web" web;
+  if get (Orchestrator.web_url web) = "" then failwith "web URL is empty";
+  let asset = get (Orchestrator.register_web_bytes web
+      ~content_type:"application/octet-stream" (Bytes.of_string "asset")) in
+  if not (get (Orchestrator.remove_web_asset web asset)) then
+    failwith "web asset was not removed";
+  get (Orchestrator.send_web_audio web Orchestrator.Audio_stop_all);
+  get (Orchestrator.set_text_input_regions web
+    [{Orchestrator.x=1;y=2;width=3;height=4;focused=true}]);
   exercise web 4;
   get (Orchestrator.destroy web);
   begin
     match Orchestrator.create (configuration Orchestrator.Native 4) with
     | Error _ -> print_endline "runtime_next selector: native smoke skipped"
     | Ok native ->
+        if not (Orchestrator.is_native native)
+            || Orchestrator.is_displayless native then
+          failwith "native target predicates changed";
+        get (Orchestrator.set_title native "orchestrator native renamed");
+        let facts = get (Orchestrator.facts native) in
+        if facts.title <> "orchestrator native renamed" then
+          failwith "native title facts did not refresh";
+        get (Orchestrator.set_bordered native false);
+        get (Orchestrator.set_bordered native true);
+        get (Orchestrator.set_resizable native false);
+        get (Orchestrator.set_resizable native true);
+        get (Orchestrator.set_always_on_top native true);
+        get (Orchestrator.set_always_on_top native false);
+        get (Orchestrator.center native);
+        get (Orchestrator.show native);
+        get (Orchestrator.hide native);
+        get (Orchestrator.set_fullscreen native true);
+        get (Orchestrator.set_fullscreen native false);
+        get (Orchestrator.minimize native);
+        get (Orchestrator.restore native);
+        get (Orchestrator.maximize native);
+        get (Orchestrator.restore native);
         exercise_native native 4;
         get (Orchestrator.destroy native)
   end;
+  let lifecycle_iterations = match Sys.getenv_opt "PRISMEL_RUNTIME_NEXT_STRESS" with
+    | Some "1" -> 10_000 | _ -> 100
+  in
+  for _ = 1 to lifecycle_iterations do
+    let runtime = get (Orchestrator.create
+      (configuration Orchestrator.Headless 1)) in
+    get (Orchestrator.destroy runtime)
+  done;
   print_endline "runtime_next selector: precedence, headless/web facts passed"
