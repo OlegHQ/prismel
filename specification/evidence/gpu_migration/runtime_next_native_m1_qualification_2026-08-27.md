@@ -69,11 +69,12 @@ The R6 coordinate qualification above remains exact: all frozen hashes are
 unchanged, the host supplied authoritative 1× logical/drawable facts, the 1.5×
 synthetic edge fixture maps once, and pointer coordinates remain logical.
 
-The separate native R12 long-run result is not yet qualified. Two real
-30-minute runs completed on this M1. Cache cardinality and Metal ownership were
-bounded with zero teardown delta, but the stricter settled schema-2 run failed
-its RSS gate (118,464→134,656 KiB half-window high-water). Exact commands,
-timestamps, hashes where available, and exclusions are recorded in
-`runtime_next_native_stability_2026-08-27.md`. This distinction prevents the
-exact finite pixel/capture qualification from being mistaken for a passing
-long-run memory plateau.
+The separate native R12 long-run result is now qualified after eliminating
+same-size mesh-buffer replacement churn. The final real 30-minute schema-3 run
+kept its full payload/resize/capture workload, reproduced hash
+`ed1f9fcf05a686c5`, held settled RSS to 80,448–81,904 KiB, decreased retained
+half-window high-water 81,904→80,976 KiB, kept caches/live handles fixed, and
+returned caches and Metal handles to zero. Exact failed precursors, diagnosis,
+commands, timestamps, counters, and exclusions remain recorded in
+`runtime_next_native_stability_2026-08-27.md` rather than being hidden by the
+passing repair.

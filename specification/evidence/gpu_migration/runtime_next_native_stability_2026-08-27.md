@@ -6,9 +6,10 @@ under test is `6f072b3`, `05ab699`, `4e28cbb`, and `2b66c59`.
 
 ## Result
 
-R12 native long-run stability remains **open**. Resource ownership is bounded,
-but the second 30-minute run failed its settled RSS high-water criterion. This
-is not recorded as a passing plateau.
+R12 native long-run stability is **qualified after repair** by the final
+schema-3 run below. The two earlier runs remain recorded because the first was
+not discriminating enough and the second correctly failed its declared RSS
+criterion; neither is retroactively described as passing.
 
 The first release run used schema 1:
 
@@ -104,3 +105,30 @@ cache 64, pipeline cache 48, Metal live handles 165, and pending releases 0;
 created/released deltas matched at +174,232, and teardown returned caches and
 Metal live handles to zero. This short combined run qualifies a fresh
 30-minute attempt; it does not itself close R12.
+
+## Passing 30-minute run after repair
+
+The unchanged full workload was rebuilt in release mode and run with:
+
+```sh
+_build/default/tools/runtime_next_native_stability/runtime_next_native_stability.exe \
+  --minutes 30 --report _build/runtime-next-native-stability-30m-pooled.json
+```
+
+It ran from `2026-08-27T15:50:56Z` through `2026-08-27T16:20:56Z`, rendered
+215,550 frames, and reproduced rolling hash `ed1f9fcf05a686c5` (the same hash as
+the first full run). All payload replacement, resize-every-300, and
+capture-every-600 switches were enabled; the workload was not reduced.
+
+The fixed ring retained 256 of 359 settled observations from elapsed
+520.95–1798.75 s. RSS was 80,448–81,904 KiB, first→last 81,808→80,656 KiB.
+The first-half high-water was 81,904 KiB and the second-half high-water 80,976
+KiB, a 928 KiB decrease and therefore inside the unchanged 8,192 KiB gate.
+OCaml heap words stayed 300,073–345,129 and settled live words
+141,313–159,979.
+
+Every retained sample had mesh cache 64, pipeline cache 48, Metal live handles
+165, and pending releases 0. Metal created and released counters increased by
+the identical 766,020. Teardown returned mesh and pipeline caches to 0 and
+Metal live handles 0→0. These results close the native R12 bounded-memory gate
+for the exercised full workload while preserving the exclusions above.
