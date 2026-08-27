@@ -40,7 +40,7 @@ let run config =
     max_frame_pool_bytes = 2 * 1024 * 1024 } in
   let presenter = get (Runtime_wap_raster2_presenter.Wap_raster2_presenter.create ~config:wap_config ()) in
   let started = Unix.gettimeofday () and frame = ref 0 and generation = ref 0L in
-  let samples = ref [] and rolling = ref 0L in
+  let samples = ref [] and rolling = ref 0L and last_sample = ref (Unix.gettimeofday () -. 1.) in
   let should_continue () = match config.frames with
     | Some limit -> !frame < limit
     | None -> Unix.gettimeofday () -. started < config.minutes *. 60.
@@ -73,11 +73,16 @@ let run config =
         logical_height = !height; drawable_width = capture.width; drawable_height = capture.height });
     rolling := Int64.logxor (Int64.mul !rolling 1099511628211L) (Raster2.Render_ir.hash (ir !frame));
     if !frame mod config.sample_every = 0 then begin
-      let gc = Gc.quick_stat () and counters = Raster2.Offscreen.counters () in
-      samples := (`Assoc [ "frame", `Int !frame; "rss_kib", `Int (rss_kib ());
-        "heap_words", `Int gc.heap_words; "live_targets", `Int counters.targets;
-        "live_views", `Int counters.views; "cache_entries", `Int (Raster2.Resource_cache.length cache) ]) :: !samples
-      ; Ogpu.Backend_mock.clear_trace control
+      Ogpu.Backend_mock.clear_trace control;
+      let now = Unix.gettimeofday () in
+      if now -. !last_sample >= 1. then begin
+        last_sample := now;
+        let gc = Gc.quick_stat () and counters = Raster2.Offscreen.counters () in
+        samples := (`Assoc [ "frame", `Int !frame; "elapsed_seconds", `Float (now -. started);
+          "rss_kib", `Int (rss_kib ()); "heap_words", `Int gc.heap_words;
+          "live_targets", `Int counters.targets; "live_views", `Int counters.views;
+          "cache_entries", `Int (Raster2.Resource_cache.length cache) ]) :: !samples
+      end
     end
   done;
   let wap_stats = Runtime_wap_raster2_presenter.Wap_raster2_presenter.stats presenter in
