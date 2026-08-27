@@ -46,3 +46,33 @@ let remove key =
 let live_bytes () =
   List.fold_left (fun total entry -> total + Bytes.length entry.snapshot.rgba)
     0 !entries
+
+let rgba_of_surface source =
+  let open Tsdl in
+  match Sdl.convert_surface_format source Sdl_compat.format_rgba32 with
+  | Error (`Msg message) -> Error message
+  | Ok surface ->
+      Fun.protect ~finally:(fun () -> Sdl.free_surface surface) (fun () ->
+        let width, height = Sdl.get_surface_size surface in
+        match Sdl.lock_surface surface with
+        | Error (`Msg message) -> Error message
+        | Ok () -> Fun.protect ~finally:(fun () -> Sdl.unlock_surface surface)
+            (fun () ->
+              match Sdl.alloc_format Sdl_compat.format_rgba32 with
+              | Error (`Msg message) -> Error message
+              | Ok format -> Fun.protect ~finally:(fun () -> Sdl.free_format format)
+                  (fun () ->
+                    let values = Sdl.get_surface_pixels surface Bigarray.int32
+                    and stride = Sdl.get_surface_pitch surface / 4 in
+                    let rgba = Bytes.create (width * height * 4) in
+                    for y = 0 to height - 1 do
+                      for x = 0 to width - 1 do
+                        let r, g, b, a = Sdl.get_rgba format values.{y * stride + x} in
+                        let offset = (y * width + x) * 4 in
+                        Bytes.set rgba offset (Char.chr r);
+                        Bytes.set rgba (offset + 1) (Char.chr g);
+                        Bytes.set rgba (offset + 2) (Char.chr b);
+                        Bytes.set rgba (offset + 3) (Char.chr a)
+                      done
+                    done;
+                    Ok (width, height, rgba))))

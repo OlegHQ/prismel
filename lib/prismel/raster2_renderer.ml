@@ -130,8 +130,46 @@ let cached_image value callback source =
       end
 
 let scene2_resources value (callbacks : Scene_raster2_lowering.resources) =
-  { callbacks with Scene_raster2_lowering.image =
-      cached_image value callbacks.image }
+  let text_snapshot font text wrap align =
+    match Font.Private.cached_text ?wrap ?align font text
+        (Font.Blended Color.white) with
+    | Error _ -> Error Scene_raster2_lowering.Resource_failure
+    | Ok image ->
+        begin match Image_snapshot.find (Obj.repr image) with
+        | None -> Error Scene_raster2_lowering.Resource_failure
+        | Some snapshot ->
+            let alpha = Bytes.init (snapshot.width * snapshot.height) (fun index ->
+              Bytes.get snapshot.rgba (index * 4 + 3)) in
+            let logical_width = max 1 (Image.get_width image) in
+            let density = max 1 ((snapshot.width + logical_width - 1) / logical_width) in
+            Ok Scene_raster2_lowering.{
+              resource_id = snapshot.id; generation = snapshot.generation; density;
+              atlas = { Raster2.Consumer.width = snapshot.width;
+                height = snapshot.height; pitch = snapshot.width; bytes = alpha;
+                cell_width = snapshot.width; cell_height = snapshot.height };
+              glyphs = [|{ Raster2.Render_ir.glyph_id = 0; x = 0.; y = 0. }|];
+            }
+        end
+  in
+  let fallback original fallback = match original () with
+    | Ok _ as success -> success
+    | Error _ -> fallback ()
+  in
+  { Scene_raster2_lowering.image = cached_image value callbacks.image;
+    font_text = (fun font text wrap align -> fallback
+      (fun () -> callbacks.font_text font text wrap align)
+      (fun () -> text_snapshot font text wrap align));
+    system_text = (fun size text -> fallback
+      (fun () -> callbacks.system_text size text)
+      (fun () -> match Font.system ~size () with
+        | Error _ -> Error Scene_raster2_lowering.Resource_failure
+        | Ok font -> text_snapshot font text None None));
+    debug_text = (fun text -> fallback
+      (fun () -> callbacks.debug_text text)
+      (fun () -> match Font.system ~size:8 () with
+        | Error _ -> Error Scene_raster2_lowering.Resource_failure
+        | Ok font -> text_snapshot font text None None));
+  }
 
 let lookup resources id =
   Array.find_opt (fun (entry : Scene_raster2_lowering.resource_entry) ->

@@ -243,9 +243,14 @@ let image_from_surface ~density (surf : Sdl.surface) :
       Sdl.destroy_texture tex;
       error
   | Ok (_, _, (w, h)) ->
-      Ok
-        (Image.Private.from_texture tex
-           (logical_pixels density w) (logical_pixels density h))
+      let image = Image.Private.from_texture tex
+          (logical_pixels density w) (logical_pixels density h) in
+      begin match Image_snapshot.rgba_of_surface surf with
+      | Error _ -> Sdl.destroy_texture tex; Error (`Msg "text snapshot failed")
+      | Ok (width, height, rgba) ->
+          Image_snapshot.register (Obj.repr image) ~width ~height rgba;
+          Ok image
+      end
 
 (* -------------------------------------------------------------------------- *)
 (* Render helpers                                                              *)
