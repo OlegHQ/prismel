@@ -62,3 +62,18 @@ fixture proves `(3.25,4.5)` remains in logical coordinates without scaling.
   external qualification even though the synthetic edge contract is green.
 - Canvas behavior is represented by owned prepared geometry and native
   readback; it is not yet the full public Canvas mutation/resource graph.
+
+## Subsequent native stability status
+
+The R6 coordinate qualification above remains exact: all frozen hashes are
+unchanged, the host supplied authoritative 1× logical/drawable facts, the 1.5×
+synthetic edge fixture maps once, and pointer coordinates remain logical.
+
+The separate native R12 long-run result is not yet qualified. Two real
+30-minute runs completed on this M1. Cache cardinality and Metal ownership were
+bounded with zero teardown delta, but the stricter settled schema-2 run failed
+its RSS gate (118,464→134,656 KiB half-window high-water). Exact commands,
+timestamps, hashes where available, and exclusions are recorded in
+`runtime_next_native_stability_2026-08-27.md`. This distinction prevents the
+exact finite pixel/capture qualification from being mistaken for a passing
+long-run memory plateau.
