@@ -3,11 +3,11 @@ type cache
 
 val create_cache : capacity:int -> (cache,Ogpu.Error.t) result
 val create_compute : cache -> Device.t -> Ogpu.Pipeline.compute_descriptor -> (t,Ogpu.Error.t) result
-val create_render : cache -> Device.t -> Ogpu.Pipeline.render_descriptor -> (t,Ogpu.Error.t) result
+val create_render : ?blend:Ogpu.Pipeline.blend -> cache -> Device.t -> Ogpu.Pipeline.render_descriptor -> (t,Ogpu.Error.t) result
 val create_compute_runtime_msl : cache -> Device.t -> Ogpu.Pipeline.compute_descriptor -> (t,Ogpu.Error.t) result
-val create_render_runtime_msl : cache -> Device.t -> Ogpu.Pipeline.render_descriptor -> (t,Ogpu.Error.t) result
+val create_render_runtime_msl : ?blend:Ogpu.Pipeline.blend -> cache -> Device.t -> Ogpu.Pipeline.render_descriptor -> (t,Ogpu.Error.t) result
 val create_compute_offline : cache -> Device.t -> Shader_artifact.t -> Ogpu.Pipeline.compute_descriptor -> (t,Ogpu.Error.t) result
-val create_render_offline : cache -> Device.t -> Shader_artifact.t -> Ogpu.Pipeline.render_descriptor -> (t,Ogpu.Error.t) result
+val create_render_offline : ?blend:Ogpu.Pipeline.blend -> cache -> Device.t -> Shader_artifact.t -> Ogpu.Pipeline.render_descriptor -> (t,Ogpu.Error.t) result
 val key : t -> string
 val label : t -> string option
 val device_id : t -> int64

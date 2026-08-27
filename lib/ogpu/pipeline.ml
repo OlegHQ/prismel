@@ -1,5 +1,6 @@
 type color_format = Rgba8_unorm | Bgra8_unorm
 type depth_format = No_depth | Depth32_float
+type blend = Replace | Alpha | Add | Multiply | Screen | Subtract
 type render_descriptor =
   { backend : string; label : string option; layout : Binding.pipeline_layout
   ; vertex : Shader.t; vertex_entry : string
@@ -74,7 +75,10 @@ let finish kind backend label fields =
   let description = Buffer.contents output in
   { kind; backend; label; description; key = Digest.to_hex (Digest.string description) }
 
-let create_render capabilities (descriptor : render_descriptor) =
+let blend_text = function Replace -> "replace" | Alpha -> "alpha" | Add -> "add"
+  | Multiply -> "multiply" | Screen -> "screen" | Subtract -> "subtract"
+
+let create_render ?(blend=Replace) capabilities (descriptor : render_descriptor) =
   let operation = "Ogpu.Pipeline.create_render" in
   let shaders = descriptor.vertex :: Option.to_list descriptor.fragment in
   match validate_label operation descriptor.label with
@@ -106,7 +110,7 @@ let create_render capabilities (descriptor : render_descriptor) =
                   ; Shader.provenance_hash descriptor.vertex; descriptor.vertex_entry
                   ; Option.fold ~none:"" ~some:Shader.provenance_hash descriptor.fragment
                   ; Option.value descriptor.fragment_entry ~default:""; layout_text descriptor.layout
-                  ; color; depth; string_of_int descriptor.sample_count ])
+                  ; color; depth; string_of_int descriptor.sample_count; blend_text blend ])
 
 let create_compute capabilities (descriptor : compute_descriptor) =
   let operation = "Ogpu.Pipeline.create_compute" in

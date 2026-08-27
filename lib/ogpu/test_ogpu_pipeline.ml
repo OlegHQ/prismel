@@ -44,6 +44,15 @@ let () =
     ; fragment; fragment_entry; color_format = Ogpu.Pipeline.Bgra8_unorm
     ; depth_format = Ogpu.Pipeline.Depth32_float; sample_count } in
   ignore (ok (render 4 (Some fragment) (Some "fs")));
+  let descriptor : Ogpu.Pipeline.render_descriptor =
+    { backend = "mock"; label = None; layout = empty; vertex; vertex_entry = "vs"
+    ; fragment = Some fragment; fragment_entry = Some "fs"; color_format = Ogpu.Pipeline.Bgra8_unorm
+    ; depth_format = Ogpu.Pipeline.Depth32_float; sample_count = 1 } in
+  let blend_keys = List.map (fun blend -> Ogpu.Pipeline.create_render ~blend caps descriptor
+    |> ok |> Ogpu.Pipeline.cache_key)
+    [Ogpu.Pipeline.Replace; Alpha; Add; Multiply; Screen; Subtract] in
+  if List.length (List.sort_uniq String.compare blend_keys) <> 6 then
+    fail "render blend state missing from canonical cache key";
   reject (render 3 (Some fragment) (Some "fs"));
   reject (render max_int (Some fragment) (Some "fs"));
   reject (render 1 (Some fragment) None);

@@ -33,6 +33,24 @@ let ()=match Device.system_default()with Error _->print_endline"ogpu_metal pipel
   let target_descriptor : Ogpu.Types.texture_descriptor={label=None;width=2;height=2;depth=1;mip_levels=1;sample_count=1;usage=[Render_attachment;Texture_copy_src]}in let target=get(Texture.create device~memory:Texture.Shared~format:Texture.Rgba8_unorm target_descriptor)in
   let draw=ended(fun c->Command.draw_triangle c~pipeline:render~target)in let drawn=get(Queue.submit queue draw)in get(Queue.wait_through queue drawn.epoch);
   let pixels=get(Texture.read_bytes device target~mip_level:0~bytes_per_row:8)in if Char.code(Bytes.get pixels 0)<>32||Char.code(Bytes.get pixels 1)<>128||Char.code(Bytes.get pixels 2)<>223||Char.code(Bytes.get pixels 3)<>255 then failwith"mapped render output mismatch";
+  let blend_cache=get(Pipeline.create_cache~capacity:6)in
+  let expected=[
+    Ogpu.Pipeline.Replace,(Metal.Render_pipeline.Blend_disabled,Metal.Render_pipeline.Blend_one,Metal.Render_pipeline.Blend_zero,Metal.Render_pipeline.Blend_add);
+    Alpha,(Metal.Render_pipeline.Blend_enabled,Metal.Render_pipeline.Blend_source_alpha,Metal.Render_pipeline.Blend_one_minus_source_alpha,Metal.Render_pipeline.Blend_add);
+    Add,(Metal.Render_pipeline.Blend_enabled,Metal.Render_pipeline.Blend_one,Metal.Render_pipeline.Blend_one,Metal.Render_pipeline.Blend_add);
+    Multiply,(Metal.Render_pipeline.Blend_enabled,Metal.Render_pipeline.Blend_destination_color,Metal.Render_pipeline.Blend_zero,Metal.Render_pipeline.Blend_add);
+    Screen,(Metal.Render_pipeline.Blend_enabled,Metal.Render_pipeline.Blend_one_minus_destination_color,Metal.Render_pipeline.Blend_one,Metal.Render_pipeline.Blend_add);
+    Subtract,(Metal.Render_pipeline.Blend_enabled,Metal.Render_pipeline.Blend_one,Metal.Render_pipeline.Blend_one,Metal.Render_pipeline.Blend_reverse_subtract)]in
+  List.iter(fun(blend,(enabled,source,destination,operation))->
+    let value=get(Pipeline.create_render_runtime_msl~blend blend_cache device render_descriptor)in
+    match Pipeline.Private.native value with
+    | Pipeline.Private.Render native->begin match Metal.Render_pipeline.color_attachments native with
+      | [{blending;source_rgb;destination_rgb;rgb_operation;_}]
+        when blending=enabled&&source_rgb=source&&destination_rgb=destination&&rgb_operation=operation->()
+      | _->failwith"native render blend attachment mismatch"end
+    | Pipeline.Private.Compute _->failwith"render blend compiled as compute")expected;
+  if Pipeline.cache_length blend_cache<>6 then failwith"blend pipeline cache-key collision";
+  Pipeline.clear_cache blend_cache;
   let mismatch_shader=shader~label:"mismatch"~bytes:compute_source~entries:[{name="mapped_compute";stage=Compute}]~bindings:[{compute_binding with kind=Sampled_texture}]in let mismatch_layout=layout device[{binding=0;kind=Ogpu.Binding.Texture;visibility=[Ogpu.Binding.Compute]}]in
   expect Ogpu.Error.Invalid_argument(Pipeline.create_compute cache device{compute_descriptor with label=Some"mismatch";layout=mismatch_layout;shader=mismatch_shader});
   let invalid_shader=shader~label:"invalid-msl"~bytes:"this is not Metal"~entries:[{name="bad";stage=Compute}]~bindings:[]in let empty_layout=layout device[]in expect Ogpu.Error.Device_lost(Pipeline.create_compute cache device{compute_descriptor with label=Some"invalid";layout=empty_layout;shader=invalid_shader;entry="bad"});

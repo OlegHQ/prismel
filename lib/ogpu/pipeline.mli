@@ -1,5 +1,6 @@
 type color_format = Rgba8_unorm | Bgra8_unorm
 type depth_format = No_depth | Depth32_float
+type blend = Replace | Alpha | Add | Multiply | Screen | Subtract
 type render_descriptor =
   { backend : string; label : string option; layout : Binding.pipeline_layout
   ; vertex : Shader.t; vertex_entry : string
@@ -11,7 +12,7 @@ type compute_descriptor =
 type kind = Render | Compute
 type t
 
-val create_render : Capabilities.t -> render_descriptor -> (t, Error.t) result
+val create_render : ?blend:blend -> Capabilities.t -> render_descriptor -> (t, Error.t) result
 val create_compute : Capabilities.t -> compute_descriptor -> (t, Error.t) result
 val kind : t -> kind
 val backend : t -> string
