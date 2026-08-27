@@ -20,8 +20,9 @@ let clip_plane plane polygon=match polygon with[]->[]|_->let output=ref[]and pre
 let project clip v=let inv_w=1./.v.clip_w in{x=float clip.Triangle.x+.(v.clip_x*.inv_w+.1.)*.0.5*.float clip.width;y=float clip.y+.(1.-.(v.clip_y*.inv_w+.1.)*.0.5)*.float clip.height;depth=v.clip_z*.inv_w;inv_w;world=v.world;normal=v.normal;color=v.color;tex_coord=v.tex_coord;varyings=v.varyings}
 let edge a b x y=(x-.a.x)*.(b.y-.a.y)-.(y-.a.y)*.(b.x-.a.x)
 let top a b=a.y<b.y||(a.y=b.y&&a.x>b.x)
-let render ~color ~depth ~depth_state ~blend ~cull ~clip ~point_size:_ ~line_width:_ ~varying_count ~fragment primitives=
+let render ~color ~depth ~depth_state ~blend ~cull ~clip ~point_size ~line_width ~varying_count ~fragment primitives=
   let vertices=Array.to_list primitives|>List.concat_map(function Point a->[a]|Line(a,b)->[a;b]|Triangle(a,b,c)->[a;b;c])in
+  if not(finite point_size&&finite line_width)||point_size<=0.||line_width<=0. then Error Non_finite else
   if List.exists(fun v->not(valid varying_count v))vertices then Error(if List.exists(fun(v:vertex)->Array.length v.varyings<>varying_count)vertices then Varying_cardinality else Non_finite)else
   let staged_color=Bytes.copy(Surface.bytes color)in match Surface.of_bytes~width:(Surface.width color)~height:(Surface.height color)~pitch:(Surface.pitch color)staged_color with Error _->Error Fragment_failure|Ok output->
   let staged_depth=match depth with None->Ok None|Some source->Result.map(fun copy->Some(source,copy))(Depth_stencil.of_bytes~width:(Depth_stencil.width source)~height:(Depth_stencil.height source)~pitch:(Depth_stencil.pitch source)(Bytes.copy(Depth_stencil.bytes source)))in match staged_depth with Error _->Error Fragment_failure|Ok staged_depth->
@@ -50,5 +51,33 @@ let render ~color ~depth ~depth_state ~blend ~cull ~clip ~point_size:_ ~line_wid
   in
   let triangle a b c=let polygon=Array.fold_left(fun values plane->clip_plane plane values)[a;b;c][|0;1;2;3;4;5|]in match polygon with first::second::rest->let first=project clip first and previous=ref(project clip second)in List.iter(fun value->let current=project clip value and area=edge first !previous (project clip value).x (project clip value).y in let rejected=area=0.||match cull with Triangle.Back->area<=0.|Front->area>=0.|Cull_none->false in if not rejected then let a,b,area=if area<0. then !previous,first,-.area else first,!previous,area in let xmin=max clip.x(max 0(int_of_float(floor(min a.x(min b.x current.x)))))and ymin=max clip.y(max 0(int_of_float(floor(min a.y(min b.y current.y)))))and xmax=min(clip.x+clip.width-1)(min(Surface.width output-1)(int_of_float(ceil(max a.x(max b.x current.x)))))and ymax=min(clip.y+clip.height-1)(min(Surface.height output-1)(int_of_float(ceil(max a.y(max b.y current.y)))))in for y=ymin to ymax do for x=xmin to xmax do let px=float x+.0.5 and py=float y+.0.5 in let w0=edge b current px py and w1=edge current a px py and w2=edge a b px py in if(w0>0.||w0=0.&&top b current)&&(w1>0.||w1=0.&&top current a)&&(w2>0.||w2=0.&&top a b)then shade(area>0.)x y a b current(w0/.area)(w1/.area)(w2/.area)done done;previous:=current)rest|_->()
   in
-  Array.iter(function Triangle(a,b,c)->triangle a b c|Point _|Line _->failure:=Some Fragment_failure)primitives;
+  let point value=
+    if Array.for_all(fun plane->distance plane value>=0.)[|0;1;2;3;4;5|]&&value.clip_w<>0. then
+      let value=project clip value and half=point_size*.0.5 in
+      let xmin=max clip.x(max 0(int_of_float(ceil(value.x-.half-.0.5))))and ymin=max clip.y(max 0(int_of_float(ceil(value.y-.half-.0.5))))and xmax=min(clip.x+clip.width-1)(min(Surface.width output-1)(int_of_float(floor(value.x+.half-.0.5))))and ymax=min(clip.y+clip.height-1)(min(Surface.height output-1)(int_of_float(floor(value.y+.half-.0.5))))in
+      for y=ymin to ymax do for x=xmin to xmax do shade true x y value value value 1. 0. 0. done done
+  in
+  let clip_line a b=
+    let a=ref a and b=ref b and visible=ref true in
+    for plane=0 to 5 do
+      let da=distance plane !a and db=distance plane !b in
+      if da<0.&&db<0. then visible:=false
+      else if da<0. then a:=interpolate !a !b (da/.(da-.db))
+      else if db<0. then b:=interpolate !a !b (da/.(da-.db))
+    done;
+    if !visible then Some(!a,!b)else None
+  in
+  let line a b=match clip_line a b with None->()|Some(a,b)->
+    let a=project clip a and b=project clip b in
+    let half=line_width*.0.5 and dx=b.x-.a.x and dy=b.y-.a.y in
+    let length2=dx*.dx+.dy*.dy in
+    let xmin=max clip.x(max 0(int_of_float(floor(min a.x b.x-.half))))and ymin=max clip.y(max 0(int_of_float(floor(min a.y b.y-.half))))and xmax=min(clip.x+clip.width-1)(min(Surface.width output-1)(int_of_float(ceil(max a.x b.x+.half))))and ymax=min(clip.y+clip.height-1)(min(Surface.height output-1)(int_of_float(ceil(max a.y b.y+.half))))in
+    for y=ymin to ymax do for x=xmin to xmax do
+      let px=float x+.0.5 and py=float y+.0.5 in
+      let t=if length2=0. then 0. else max 0.(min 1.(((px-.a.x)*.dx+.(py-.a.y)*.dy)/.length2))in
+      let qx=a.x+.t*.dx and qy=a.y+.t*.dy in
+      if(px-.qx)*.(px-.qx)+.(py-.qy)*.(py-.qy)<=half*.half then shade true x y a b b (1.-.t) t 0.
+    done done
+  in
+  Array.iter(function Triangle(a,b,c)->triangle a b c|Point a->point a|Line(a,b)->line a b)primitives;
   match!failure with Some error->Error error|None->Bytes.blit staged_color 0(Surface.bytes color)0(Bytes.length staged_color);Option.iter(fun(destination,source)->Bytes.blit(Depth_stencil.bytes source)0(Depth_stencil.bytes destination)0(Bytes.length(Depth_stencil.bytes source)))staged_depth;Ok()
