@@ -53,3 +53,78 @@ ordering/pixel differences. Only after those comparisons, Runtime target
 fixtures, resource lifecycle tests, and R1-R12 external gates pass may target
 selection switch atomically. No public `.mli`, example, or legacy-render path
 should be removed during this side-by-side phase.
+
+## R2 public Scene constructor audit after `d199322`
+
+Status is strict: **I/T** means implemented and directly exercised; **I/U**
+means implemented by an audited representation mapping without a
+constructor-specific parity fixture; **R/T** means explicitly rejected and
+tested; **R/U** means an audited explicit rejection without its own focused
+fixture; **M** means missing. These are not legacy pixel-parity claims.
+
+| Public Scene surface | Status | Exact implementation / fixture evidence |
+| --- | --- | --- |
+| `empty`, `one`, `group` | I/T | Empty lists and recursive `Group` preserve ordering; nested group/state execution is covered by `b9f9f28`/`59ae442`. No standalone empty-frame pixel golden exists. |
+| `clear` | I/T | `Render_ir.Clear`; private lowerer and Backend-mock frame order (`b9f9f28`, `40bad9a`). |
+| `point`, `line` including width | I/T | Point quad and deterministic widened-line geometry in the initial exact-order fixture (`b9f9f28`). |
+| `rect` | I/T | Fill quad plus optional Path stroke; fill/stroke exercised (`b9f9f28`). |
+| `square` | I/U | Public convenience maps to `Rect`; no dedicated square lowering/pixel fixture. |
+| `rounded_rect` | I/T | Rounded Path tessellation is directly included in the constructor fixture (`59ae442`). |
+| `circle`, `ellipse` | I/T | Deterministic sampled closed Paths, fill/stroke exercised (`59ae442`). |
+| `triangle` | I/T | Path triangle plus OGPU stable prepared-mesh/upload fixture (`b9f9f28`, `40bad9a`). |
+| `quad` | I/U | Public convenience maps to `Polygon`; polygon is tested, but no dedicated quad pixel fixture. |
+| `polygon`, `polyline` | I/T | Closed fill/stroke and open stroke fixtures (`59ae442`). |
+| `arc`, `pie`, `bezier` | I/T | Sampled open/closed Path fixtures (`59ae442`). |
+| `path` rules/contours/fill/stroke | I/T | Separate contours, transparent holes, ordering, frame-600 and four-domain fixtures (`59ae442`, `3d1c2c1`). |
+| `text`, `debug_text`, `font_text` | I/T | Typed glyph snapshots; generation+density identity, empty no-op, failure, consumer, frame-600/four-domain (`132892f`). Live SDL font adapters remain missing. |
+| `image` position/scale | I/T | Typed surface snapshot and watched-generation identity (`132892f`). Live SDL adapter and failed-reload retention remain missing. |
+| `image` angle/center/flip | R/U | Atomic `Unsupported Image_transform`; no dedicated rejection fixture. This is a parity gap (`132892f`). |
+| `view3d` default/explicit viewport | I/T | Typed Scene3 lowering and private OGPU resource/state fixture (`e813369`, `d199322`); see R3 gaps. |
+| `text_input_region` | R/U | Explicit `Unsupported Metadata`; no focused rejection fixture, and the Runtime/Wap metadata side channel remains missing. |
+| `translate`, `rotate`, `scale` | I/T | Balanced transform stack/order; resource children retain transforms (`b9f9f28`, `132892f`). |
+| `clip` | I/T | Balanced clip stack/order (`b9f9f28`); nested legacy pixel parity remains open. |
+| `blend` Replace/Alpha/Add/Multiply | I/T | Copy/Source-over/Add/Multiply with scoped restoration (`b9f9f28`, `81fe03d`). |
+| Public `Scene.render` selection | M | Still invokes the legacy boundary; private Raster2/OGPU renderers are side-by-side only. |
+
+## R3 public Scene3 constructor/state audit after `d199322`
+
+`Scene3.Private.drawings` supplies flattened immutable draws;
+`scene3_raster2_lowering.ml` prepares Raster2 values; and the private OGPU
+renderer caches resources and records supported state. **Partial** means public
+fields are ignored or not integrated and therefore cannot count as parity.
+
+| Public Scene3 surface | Status | Exact implementation / fixture evidence |
+| --- | --- | --- |
+| `empty`, `create`, draw ordering | I/T | Flattened order and colored/textured two-draw mock state order (`e813369`, `d199322`). No empty presented-frame golden. |
+| `mesh` Faces; triangle list/strip/fan | I/T | Vertices/normals/UV/indices prepare draws; list framebuffer and authored-normal fixtures (`e813369`). Strip/fan mapping lacks constructor-specific goldens. |
+| Wireframe/Vertices and point/line mesh modes | R/U | Explicit `Unsupported_mode`, without a dedicated private-lowering fixture; not parity. |
+| Per-vertex mesh colors | R/U | Explicit `Invalid_mesh`, without a focused rejection fixture; material color is used instead. |
+| `instances`, `instances_array` | I/U | Flattened per copied transform; geometry cache ignores transforms. No exact public 600-instance ordering fixture. |
+| `group`, `transform`, `translate`, `rotate`, `scale`, `at_node` | I/T | Flattened matrices; camera-only frames 2–600 produce zero replacement upload bytes (`e813369`, `d199322`). Convenience-specific pixels remain open. |
+| `box`, `plane`, `sphere`, `icosphere`, `cylinder`, `cone` | I/U | Convenience constructors produce ordinary Mesh values. No per-primitive lowering pixel matrix. |
+| Material ambient/diffuse/specular/emissive/shininess | I/T | Copied into prepared lighting (`51128b0`, `e813369`). |
+| Ambient/directional/point/spot lights | I/T | Lighting fixtures and lowering mapping (`51128b0`, `e813369`); spot `concentration` is not represented, so spot parity is partial. |
+| Area lights | R/U | Explicit `Unsupported_area_light`; no focused lowerer fixture. |
+| Scene ambient and separate specular | I/T | Immutable lighting preparation (`51128b0`, `e813369`). |
+| Linear fog | I/T | Deterministic linear fog (`51128b0`, `e813369`). |
+| Exponential fog modes | R/U | Explicit `Unsupported_fog`; no focused lowerer fixture. |
+| Shadows Hard/PCF3/PCF5 | I/T | Typed prepared-shadow callback and exact PCF/bias/edge fixtures (`787e72c`, `2efa392`); live resource integration missing. |
+| Texture filter | I/T | Nearest/bilinear callback plus textured portable resource (`e813369`, `d199322`). |
+| Texture wrap U/V | M | Wrap values are not carried into `Raster2.Triangle.texture`. |
+| Functional `Shader3` | R/T | Explicit `Unsupported_shader` (`e813369`, `d199322`). |
+| Cull none/back/front | I/T | Raster2 mapping and ordered portable state (`e813369`, `d199322`). |
+| Smooth/flat shading | I/T | Copied into consumer draws; Smooth authored-normal test direct. Dedicated Flat pixel golden missing. |
+| Blend Replace/Alpha/Add/Multiply/Screen/Subtract | I/T | Complete Raster2 mapping; Alpha checked in ordered state (`e813369`, `d199322`). Per-mode pixels incomplete. |
+| `depth_clear` | I/T | Scene3 consumer plus private OGPU draw state (`ba92d55`, `d199322`). |
+| `with_depth` comparison/write | M | Flattened but ignored by Scene3 lowering/consumer and OGPU state. |
+| `stencil_clear`, `with_stencil` | M | Comparison, masks and operations are not carried into prepared draws. |
+| `with_raster` line width/point size | M | Flattened state is ignored; unsupported wire/vertex modes cannot provide parity. |
+| Samples 1/4/9/16 | Partial | Samples reach preparation and standalone MSAA is tested (`090ffae`), but private consumer/OGPU target integration does not apply every count. |
+| Viewport/scissor | I/T | Default/explicit validation, matrix conversion, ordered state (`e813369`, `d199322`). Nested Scene2 clip does not constrain View3d scissor. |
+| Public Runtime/Metal execution | M | No atomic target selection or Metal draw-command payload; Backend currently proves resource/lifecycle submission only. |
+
+The smallest local gaps are dedicated fixtures for already-mapped convenience
+constructors. They do not repair the material missing semantics above.
+Depth/stencil/raster, texture wrapping, spot concentration, nested View3d clip,
+sample integration and portable draw commands require typed representation
+changes and must not be marked complete by expectation-only tests.
