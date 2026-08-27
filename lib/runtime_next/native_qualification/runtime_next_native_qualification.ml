@@ -52,7 +52,16 @@ let draws scenario extent =
     let inset = 0 in
     { Scene_execution.mesh = mesh scenario index;
       state = { viewport = (0, 0, extent, extent);
-        scissor = (inset, inset, extent - inset, extent - inset) } })
+        scissor = (inset, inset, extent - inset, extent - inset);
+        cull = Ogpu.Render_pass.Cull_none;
+        depth_compare = Ogpu.Render_pass.Always;
+        depth_write = false;
+        depth_load = Ogpu.Render_pass.Clear;
+        depth_clear = 1.;
+        transform_uniforms = None;
+        stencil_state = None;
+        stencil_load = Ogpu.Render_pass.Clear;
+        stencil_clear = 0 } })
 
 let check_pixels extent bytes =
   if Bytes.length bytes <> extent * extent * 4 then failwith "native capture size drift";
