@@ -1,12 +1,15 @@
 type t={width:int;height:int;samples:int;pitch:int;bytes:bytes}
 type compare=Never|Less|Less_equal|Equal|Greater_equal|Greater|Not_equal|Always
 type error=Invalid_sample_count of int|Invalid_size|Invalid_pitch|Storage_too_small|Out_of_bounds|Invalid_depth of float|Surface_error
-let valid_samples=function 1|2|4|8->true|_->false
+let valid_samples=function 1|2|4|8|9|16->true|_->false
 let checked ~width ~height ~samples ~pitch=if not(valid_samples samples)then Error(Invalid_sample_count samples)else if width<0||height<0||width>max_int/(samples*8)then Error Invalid_size else let minimum=width*samples*8 in if pitch<minimum then Error Invalid_pitch else if height<>0&&pitch>max_int/height then Error Invalid_size else Ok(pitch*height)
 let create ?pitch ~width ~height ~samples ()=let pitch=Option.value pitch~default:(if valid_samples samples&&width>=0&&width<=max_int/(samples*8)then width*samples*8 else 0)in match checked~width~height~samples~pitch with Error _ as e->e|Ok length->Ok{width;height;samples;pitch;bytes=Bytes.make length '\000'}
 let of_bytes ~width ~height ~samples ~pitch bytes=match checked~width~height~samples~pitch with Error _ as e->e|Ok required when Bytes.length bytes<required->Error Storage_too_small|Ok _->Ok{width;height;samples;pitch;bytes}
 let width t=t.width and height t=t.height and samples t=t.samples and pitch t=t.pitch and bytes t=t.bytes
-let positions= function 1->[|(0.5,0.5)|]|2->[|(0.25,0.25);(0.75,0.75)|]|4->[|(0.375,0.125);(0.875,0.375);(0.125,0.625);(0.625,0.875)|]|8->[|(0.5625,0.3125);(0.4375,0.6875);(0.8125,0.5625);(0.3125,0.1875);(0.1875,0.8125);(0.0625,0.4375);(0.6875,0.9375);(0.9375,0.0625)|]|_->[||]
+let grid side=Array.init(side*side)(fun index->
+  (float(index mod side)+.0.5)/.float side,
+  (float(index/side)+.0.5)/.float side)
+let positions= function 1->[|(0.5,0.5)|]|2->[|(0.25,0.25);(0.75,0.75)|]|4->[|(0.375,0.125);(0.875,0.375);(0.125,0.625);(0.625,0.875)|]|8->[|(0.5625,0.3125);(0.4375,0.6875);(0.8125,0.5625);(0.3125,0.1875);(0.1875,0.8125);(0.0625,0.4375);(0.6875,0.9375);(0.9375,0.0625)|]|9->grid 3|16->grid 4|_->[||]
 let sample_position ~samples index=if not(valid_samples samples)then Error(Invalid_sample_count samples)else if index<0||index>=samples then Error Out_of_bounds else Ok((positions samples).(index))
 let set32 b o v=for n=0 to 3 do Bytes.set b(o+n)(Char.chr Int32.(to_int(logand(shift_right_logical v(8*n))0xffl)))done
 let get32 b o=let byte n=Int32.of_int(Char.code(Bytes.get b(o+n)))in Int32.logor(byte 0)(Int32.logor(Int32.shift_left(byte 1)8)(Int32.logor(Int32.shift_left(byte 2)16)(Int32.shift_left(byte 3)24)))

@@ -18,10 +18,10 @@ let mix_color a b t=rgba(int_of_float(mix(float(channel a 24))(float(channel b 2
 let interpolate a b t={clip_x=mix a.clip_x b.clip_x t;clip_y=mix a.clip_y b.clip_y t;clip_z=mix a.clip_z b.clip_z t;clip_w=mix a.clip_w b.clip_w t;world=mix3 a.world b.world t;normal=mix3 a.normal b.normal t;color=mix_color a.color b.color t;tex_coord=mix2 a.tex_coord b.tex_coord t;varyings=Array.mapi(fun i x->mix x b.varyings.(i)t)a.varyings}
 let distance plane v=match plane with 0->v.clip_x+.v.clip_w|1->v.clip_w-.v.clip_x|2->v.clip_y+.v.clip_w|3->v.clip_w-.v.clip_y|4->v.clip_z+.v.clip_w|_->v.clip_w-.v.clip_z
 let clip_plane plane polygon=match polygon with[]->[]|_->let output=ref[]and previous=ref(List.hd(List.rev polygon))in List.iter(fun current->let a=distance plane !previous and b=distance plane current in if b>=0. then(if a<0. then output:=interpolate !previous current(a/.(a-.b))::!output;output:=current::!output)else if a>=0. then output:=interpolate !previous current(a/.(a-.b))::!output;previous:=current)polygon;List.rev!output
-let project clip v=let inv_w=1./.v.clip_w in{x=float clip.Triangle.x+.(v.clip_x*.inv_w+.1.)*.0.5*.float clip.width;y=float clip.y+.(1.-.(v.clip_y*.inv_w+.1.)*.0.5)*.float clip.height;depth=(v.clip_z*.inv_w+.1.)*.0.5;inv_w;world=v.world;normal=v.normal;color=v.color;tex_coord=v.tex_coord;varyings=v.varyings}
+let project clip (offset_x,offset_y) v=let inv_w=1./.v.clip_w in{x=float clip.Triangle.x+.offset_x+.(v.clip_x*.inv_w+.1.)*.0.5*.float clip.width;y=float clip.y+.offset_y+.(1.-.(v.clip_y*.inv_w+.1.)*.0.5)*.float clip.height;depth=(v.clip_z*.inv_w+.1.)*.0.5;inv_w;world=v.world;normal=v.normal;color=v.color;tex_coord=v.tex_coord;varyings=v.varyings}
 let edge a b x y=(x-.a.x)*.(b.y-.a.y)-.(y-.a.y)*.(b.x-.a.x)
 let top a b=a.y<b.y||(a.y=b.y&&a.x>b.x)
-let render ~color ~depth ~depth_state ~blend ~cull ~clip ~point_size ~line_width ~varying_count ~fragment primitives=
+let render ?(sample_offset=(0.,0.)) ~color ~depth ~depth_state ~blend ~cull ~clip ~point_size ~line_width ~varying_count ~fragment primitives=
   let vertices=Array.to_list primitives|>List.concat_map(function Point a->[a]|Line(a,b)->[a;b]|Triangle(a,b,c)->[a;b;c])in
   if not(finite point_size&&finite line_width)||point_size<=0.||line_width<=0. then Error Non_finite else
   if List.exists(fun v->not(valid varying_count v))vertices then Error(if List.exists(fun(v:vertex)->Array.length v.varyings<>varying_count)vertices then Varying_cardinality else Non_finite)else
@@ -41,7 +41,8 @@ let render ~color ~depth ~depth_state ~blend ~cull ~clip ~point_size ~line_width
         and varyings=Array.init varying_count(fun i->a0*.a.varyings.(i)+.b0*.b.varyings.(i)+.c0*.c.varyings.(i))
         and base=rgba(int_of_float(a0*.float(channel a.color 24)+.b0*.float(channel b.color 24)+.c0*.float(channel c.color 24)+.0.5))(int_of_float(a0*.float(channel a.color 16)+.b0*.float(channel b.color 16)+.c0*.float(channel c.color 16)+.0.5))(int_of_float(a0*.float(channel a.color 8)+.b0*.float(channel b.color 8)+.c0*.float(channel c.color 8)+.0.5))(int_of_float(a0*.float(channel a.color 0)+.b0*.float(channel b.color 0)+.c0*.float(channel c.color 0)+.0.5))in
         let default_depth=w0*.a.depth+.w1*.b.depth+.w2*.c.depth in
-        try match fragment{screen={x=float x+.0.5;y=float y+.0.5};depth=default_depth;front_facing=front;world;normal;color=base;tex_coord;varyings}with
+        let offset_x,offset_y=sample_offset in
+        try match fragment{screen={x=float x+.0.5-.offset_x;y=float y+.0.5-.offset_y};depth=default_depth;front_facing=front;world;normal;color=base;tex_coord;varyings}with
         |None->()
         |Some(result:fragment_output)->
           let z=Option.value result.depth~default:default_depth in
@@ -50,11 +51,11 @@ let render ~color ~depth ~depth_state ~blend ~cull ~clip ~point_size ~line_width
           if pass then Composite.pixel output~blend~x~y result.color
         with _->failure:=Some Fragment_failure
   in
-  let triangle a b c=let polygon=Array.fold_left(fun values plane->clip_plane plane values)[a;b;c][|0;1;2;3;4;5|]in match polygon with first::second::rest->let first=project clip first and previous=ref(project clip second)in List.iter(fun value->let current=project clip value and signed_area=edge first !previous (project clip value).x (project clip value).y in let rejected=signed_area=0.||match cull with Triangle.Back->signed_area<=0.|Front->signed_area>=0.|Cull_none->false in if not rejected then let front=signed_area>0. in let a,b,area=if signed_area<0. then !previous,first,-.signed_area else first,!previous,signed_area in let xmin=max clip.x(max 0(int_of_float(floor(min a.x(min b.x current.x)))))and ymin=max clip.y(max 0(int_of_float(floor(min a.y(min b.y current.y)))))and xmax=min(clip.x+clip.width-1)(min(Surface.width output-1)(int_of_float(ceil(max a.x(max b.x current.x)))))and ymax=min(clip.y+clip.height-1)(min(Surface.height output-1)(int_of_float(ceil(max a.y(max b.y current.y)))))in for y=ymin to ymax do for x=xmin to xmax do let px=float x+.0.5 and py=float y+.0.5 in let w0=edge b current px py and w1=edge current a px py and w2=edge a b px py in if(w0>0.||w0=0.&&top b current)&&(w1>0.||w1=0.&&top current a)&&(w2>0.||w2=0.&&top a b)then shade front x y a b current(w0/.area)(w1/.area)(w2/.area)done done;previous:=current)rest|_->()
+  let triangle a b c=let polygon=Array.fold_left(fun values plane->clip_plane plane values)[a;b;c][|0;1;2;3;4;5|]in match polygon with first::second::rest->let first=project clip sample_offset first and previous=ref(project clip sample_offset second)in List.iter(fun value->let current=project clip sample_offset value and signed_area=edge first !previous (project clip sample_offset value).x (project clip sample_offset value).y in let rejected=signed_area=0.||match cull with Triangle.Back->signed_area<=0.|Front->signed_area>=0.|Cull_none->false in if not rejected then let front=signed_area>0. in let a,b,area=if signed_area<0. then !previous,first,-.signed_area else first,!previous,signed_area in let xmin=max clip.x(max 0(int_of_float(floor(min a.x(min b.x current.x)))))and ymin=max clip.y(max 0(int_of_float(floor(min a.y(min b.y current.y)))))and xmax=min(clip.x+clip.width-1)(min(Surface.width output-1)(int_of_float(ceil(max a.x(max b.x current.x)))))and ymax=min(clip.y+clip.height-1)(min(Surface.height output-1)(int_of_float(ceil(max a.y(max b.y current.y)))))in for y=ymin to ymax do for x=xmin to xmax do let px=float x+.0.5 and py=float y+.0.5 in let w0=edge b current px py and w1=edge current a px py and w2=edge a b px py in if(w0>0.||w0=0.&&top b current)&&(w1>0.||w1=0.&&top current a)&&(w2>0.||w2=0.&&top a b)then shade front x y a b current(w0/.area)(w1/.area)(w2/.area)done done;previous:=current)rest|_->()
   in
   let point value=
     if Array.for_all(fun plane->distance plane value>=0.)[|0;1;2;3;4;5|]&&value.clip_w<>0. then
-      let value=project clip value and half=point_size*.0.5 in
+      let value=project clip sample_offset value and half=point_size*.0.5 in
       let xmin=max clip.x(max 0(int_of_float(ceil(value.x-.half-.0.5))))and ymin=max clip.y(max 0(int_of_float(ceil(value.y-.half-.0.5))))and xmax=min(clip.x+clip.width-1)(min(Surface.width output-1)(int_of_float(floor(value.x+.half-.0.5))))and ymax=min(clip.y+clip.height-1)(min(Surface.height output-1)(int_of_float(floor(value.y+.half-.0.5))))in
       for y=ymin to ymax do for x=xmin to xmax do shade true x y value value value 1. 0. 0. done done
   in
@@ -69,7 +70,7 @@ let render ~color ~depth ~depth_state ~blend ~cull ~clip ~point_size ~line_width
     if !visible then Some(!a,!b)else None
   in
   let line a b=match clip_line a b with None->()|Some(a,b)->
-    let a=project clip a and b=project clip b in
+    let a=project clip sample_offset a and b=project clip sample_offset b in
     let half=line_width*.0.5 and dx=b.x-.a.x and dy=b.y-.a.y in
     let length2=dx*.dx+.dy*.dy in
     let xmin=max clip.x(max 0(int_of_float(floor(min a.x b.x-.half))))and ymin=max clip.y(max 0(int_of_float(floor(min a.y b.y-.half))))and xmax=min(clip.x+clip.width-1)(min(Surface.width output-1)(int_of_float(ceil(max a.x b.x+.half))))and ymax=min(clip.y+clip.height-1)(min(Surface.height output-1)(int_of_float(ceil(max a.y b.y+.half))))in

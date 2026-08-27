@@ -149,6 +149,13 @@ let self_test () =
   for frame=1 to 600 do if prepare frame<>expected then failwith"Scene3 frame drift"done;
   let workers=Array.init 4(fun _->Domain.spawn(fun()->prepare 1))in Array.iter(fun worker->if Domain.join worker<>expected then failwith"Scene3 domain drift")workers;
   let prepared=match lower_view3d~resources~default_viewport:(0,0,16,16)(View3d(camera,scene,None))with Ok value->value|Error _->failwith"prepared Scene3"in
+  List.iter(fun samples->
+    let sampled=Scene3.create~samples[node]in
+    match lower_view3d~resources~default_viewport:(0,0,16,16)(View3d(camera,sampled,None))with
+    | Ok value when value.samples=samples->()
+    | _->failwith"Scene3 sample count lost during lowering")[1;4;9;16];
+  (try ignore(Scene3.create~samples:2[node]);failwith"unsupported Scene3 sample count accepted"
+   with Invalid_argument _->());
   let authored=Array.map(fun(v:Raster2.Scene3_consumer.vertex)->v.color)prepared.draws.(0).vertices in
   if authored<>[|packed_color Color.red;packed_color Color.green;packed_color Color.blue|]then failwith"Scene3 vertex colors lost during lowering";
   (match Mesh.Private.create_owned~normals:[|Vec3.unit_z;Vec3.unit_z;Vec3.unit_z|]~colors:[|Color.red|](Array.of_list positions)with Error _->()|Ok _->failwith"malformed color cardinality accepted");

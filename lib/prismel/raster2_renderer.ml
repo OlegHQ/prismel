@@ -193,8 +193,12 @@ let render_scene3 value callbacks node =
       ~default_viewport:(0, 0, value.drawable_width, value.drawable_height) node with
   | Error error -> Error (Scene3 error)
   | Ok prepared ->
+      let multisample = if prepared.samples=1 then Ok None else
+        Result.map Option.some(Raster2.Multisample.create~width:value.drawable_width
+          ~height:value.drawable_height~samples:prepared.samples()) in
+      begin match multisample with Error _->Error(Scene3_render Raster2.Scene3_consumer.Invalid_target)|Ok multisample->
       let target : Raster2.Scene3_consumer.target = {
-        color = value.color3; depth = Some value.depth3; multisample = None;
+        color = value.color3; depth = Some value.depth3; multisample;
       } in
       begin match Raster2.Scene3_consumer.render ~target ~clear:0x00000000l
           ~clear_depth:prepared.clear_depth ~clear_stencil:prepared.clear_stencil
@@ -213,6 +217,7 @@ let render_scene3 value callbacks node =
               identity = Image_identity (Int64.of_int value.generation);
               value = Raster2.Consumer.Image value.color3;
             }|]
+      end
       end
 
 let render value callbacks scene =
@@ -297,6 +302,16 @@ let self_test () =
   let expected = draw () in
   List.iter (fun _ -> if draw () <> expected then failwith "frame drift")
     [2; 60; 600];
+  let sampled samples =
+    let value=Scene3.create~samples[Scene3.mesh
+      ~material:(Material.unlit Color.red)~cull:Scene3.Cull_none mesh]in
+    [Scene_description.Clear Color.black;Scene_description.View3d(camera,value,None)]in
+  let sampled_pixels=List.map(fun samples->
+    let first=(ok(render renderer callbacks(sampled samples))).rgba in
+    List.iter(fun _frame->if(ok(render renderer callbacks(sampled samples))).rgba<>first then
+      failwith"sampled renderer frame drift")[1;2;60;600];first)[1;4;9;16]in
+  if List.nth sampled_pixels 1=List.nth sampled_pixels 2 then
+    failwith"sample count did not change edge resolve";
   fail := true;
   if draw () <> expected then failwith "failed reload identity";
   ok (resize renderer ~logical_width:9 ~logical_height:7
@@ -304,6 +319,9 @@ let self_test () =
   let resized = ok (render renderer callbacks scene) in
   if resized.generation <> 2 || resized.drawable_width <> 18 then
     failwith "resize generation";
+  let resized_sampled=ok(render renderer callbacks(sampled 16))in
+  if resized_sampled.drawable_width<>18||resized_sampled.drawable_height<>14 then
+    failwith"sampled resize capture dimensions";
   ok (destroy renderer);
   let baseline = Raster2.Offscreen.counters () in
   for _ = 1 to 100_000 do

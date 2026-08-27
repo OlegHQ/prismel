@@ -29,6 +29,26 @@ let matrix =
 let depth_stencil =
   { Depth_stencil.depth_compare = Less; depth_write = true; stencil = None }
 
+let render_samples samples =
+  let color = ok (Surface.create ~width:2 ~height:2 ()) in
+  let multisample = ok (Multisample.create ~width:2 ~height:2 ~samples ()) in
+  let vertex x y : Scene3_program.vertex =
+    { clip_x=x;clip_y=y;clip_z=0.;clip_w=1.;
+      world={x=0.;y=0.;z=0.};normal={x=0.;y=0.;z=1.};color=0xffffffffl;
+      tex_coord={x=0.;y=0.};varyings=[||] } in
+  let program : Scene3_program.program =
+    { primitives=[|Triangle(vertex(-1.)(-1.),vertex 1.(-1.),vertex(-1.)1.)|];
+      varying_count=0;fragment=(fun input->Some{color=input.color;depth=None}) } in
+  let draw : Scene3_consumer.draw =
+    { matrix;viewport={x=0.;y=0.;width=2.;height=2.;min_depth=0.;max_depth=1.};
+      scissor={x=0;y=0;width=2;height=2};topology=Scene3.Triangle_list;
+      vertices=[||];indices=[||];lighting;shadows=[||];shading=Smooth;texture=None;
+      cull=Triangle.Cull_none;blend=Composite.Copy;depth_stencil;mode=Faces;
+      line_width=1.;point_size=1.;program=Some program } in
+  ok(Scene3_consumer.render~target:{color;depth=None;multisample=Some multisample}
+       ~clear:0x000000ffl~clear_depth:1.~clear_stencil:0~draws:[|draw|]);
+  Array.init 4(fun index->ok(Surface.get_rgba color~x:(index mod 2)~y:(index/2)))
+
 let render ~topology ~indices ~cull mode ~line_width ~point_size =
   let color = ok (Surface.create ~width:16 ~height:12 ()) in
   let depth = ok (Depth_stencil.create ~width:16 ~height:12 ()) in
@@ -285,4 +305,14 @@ let () =
        ~target:{ color = target; depth = None; multisample = None }
        ~clear:0x01020304l ~clear_depth:1. ~clear_stencil:0 ~draws:[||]);
   if Surface.bytes target = before then failwith "empty clear missing";
-  print_endline "Raster2 deterministic Scene3 strip/fan polygon modes passed"
+  let expected=[1,[|0x000000ffl;0x000000ffl;0xffffffffl;0x000000ffl|];
+    4,[|0x808080ffl;0x000000ffl;0xffffffffl;0x808080ffl|];
+    9,[|0x555555ffl;0x000000ffl;0xffffffffl;0x555555ffl|];
+    16,[|0x606060ffl;0x000000ffl;0xffffffffl;0x606060ffl|]]in
+  List.iter(fun(samples,pixels)->
+    List.iter(fun _frame->if render_samples samples<>pixels then
+      failwith"multisample frame/edge drift")[1;2;60;600];
+    let workers=Array.init 4(fun _->Domain.spawn(fun()->render_samples samples))in
+    Array.iter(fun worker->if Domain.join worker<>pixels then
+      failwith"multisample domain drift")workers)expected;
+  print_endline "Raster2 deterministic Scene3 strip/fan and 1/4/9/16 sample resolve passed"
