@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 5122,
+    "bound": 5128,
     "scope-excluded": 37,
-    "unreviewed": 126
+    "unreviewed": 120
   },
-  "classification_source_sha256": "c02a3585a7602fb6d32efd94014fa0c65cce49033969329a4aa447c108a35dd2",
+  "classification_source_sha256": "ea068d53504403ed848a1694e0f03544ad9ebb12e1722172fa0ef9b4f26a0974",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -1808,7 +1808,7 @@
           "line": 127
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLStageInputOutputDescriptor.h",
       "id": "class:MTLAttributeDescriptor",
       "kind": "class",
@@ -1816,7 +1816,7 @@
       "macos_introduced": "10.12",
       "name": "MTLAttributeDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by the safe StageInputOutput and ComputePass descriptor graphs, including checked child arrays, retained resources, exact defaults, and native conformance.",
       "signature": ""
     },
     {
@@ -1830,7 +1830,7 @@
           "line": 134
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLStageInputOutputDescriptor.h",
       "id": "class:MTLAttributeDescriptorArray",
       "kind": "class",
@@ -1838,7 +1838,7 @@
       "macos_introduced": "10.12",
       "name": "MTLAttributeDescriptorArray",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by the safe StageInputOutput and ComputePass descriptor graphs, including checked child arrays, retained resources, exact defaults, and native conformance.",
       "signature": ""
     },
     {
@@ -2094,7 +2094,7 @@
           "line": 66
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePass.h",
       "id": "class:MTLComputePassDescriptor",
       "kind": "class",
@@ -2102,7 +2102,7 @@
       "macos_introduced": "11.0",
       "name": "MTLComputePassDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by the safe StageInputOutput and ComputePass descriptor graphs, including checked child arrays, retained resources, exact defaults, and native conformance.",
       "signature": ""
     },
     {
@@ -2116,7 +2116,7 @@
           "line": 20
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePass.h",
       "id": "class:MTLComputePassSampleBufferAttachmentDescriptor",
       "kind": "class",
@@ -2124,7 +2124,7 @@
       "macos_introduced": "11.0",
       "name": "MTLComputePassSampleBufferAttachmentDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by the safe StageInputOutput and ComputePass descriptor graphs, including checked child arrays, retained resources, exact defaults, and native conformance.",
       "signature": ""
     },
     {
@@ -2138,7 +2138,7 @@
           "line": 52
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLComputePass.h",
       "id": "class:MTLComputePassSampleBufferAttachmentDescriptorArray",
       "kind": "class",
@@ -2146,7 +2146,7 @@
       "macos_introduced": "11.0",
       "name": "MTLComputePassSampleBufferAttachmentDescriptorArray",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by the safe StageInputOutput and ComputePass descriptor graphs, including checked child arrays, retained resources, exact defaults, and native conformance.",
       "signature": ""
     },
     {
@@ -3361,7 +3361,7 @@
           "line": 143
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLStageInputOutputDescriptor.h",
       "id": "class:MTLStageInputOutputDescriptor",
       "kind": "class",
@@ -3369,7 +3369,7 @@
       "macos_introduced": "10.12",
       "name": "MTLStageInputOutputDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by the safe StageInputOutput and ComputePass descriptor graphs, including checked child arrays, retained resources, exact defaults, and native conformance.",
       "signature": ""
     },
     {
