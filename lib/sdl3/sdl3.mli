@@ -450,6 +450,20 @@ module Surface : sig
   val destroy : t -> (unit, error) result
 end
 
+module Rgba_presenter : sig
+  type t
+
+  val create : Window.t -> (t, error) result
+  val destroyed : t -> bool
+  val texture_size : t -> (int * int, error) result
+  val present : t -> width:int -> height:int -> pitch:int -> bytes ->
+    (unit, error) result
+  (* A tightly packed snapshot of the exact bytes last accepted for
+     presentation, independent of renderer back-buffer persistence. *)
+  val copy_rgba : t -> (bytes, error) result
+  val destroy : t -> (unit, error) result
+end
+
 module Metal_view : sig
   type t
   type layer

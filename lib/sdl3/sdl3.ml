@@ -87,6 +87,7 @@ end
 type release_token =
   | Surface_token of nativeint
   | Metal_view_token of nativeint
+  | Rgba_presenter_token of nativeint
   | Window_token of nativeint
 
 module Release_queue = struct
@@ -94,12 +95,15 @@ module Release_queue = struct
   let mutex = Mutex.create ()
   let surfaces = Queue.create ()
   let metal_views = Queue.create ()
+  let rgba_presenters = Queue.create ()
   let windows = Queue.create ()
   let dropped = Atomic.make 0
 
   let enqueue queue token =
     Mutex.lock mutex;
-    if Queue.length surfaces + Queue.length metal_views + Queue.length windows
+    if
+      Queue.length surfaces + Queue.length metal_views
+      + Queue.length rgba_presenters + Queue.length windows
         >= capacity then
       Atomic.incr dropped
     else Queue.add token queue;
@@ -107,25 +111,37 @@ module Release_queue = struct
 
   let surface raw = enqueue surfaces (Surface_token raw)
   let metal_view raw = enqueue metal_views (Metal_view_token raw)
+  let rgba_presenter raw =
+    enqueue rgba_presenters (Rgba_presenter_token raw)
   let window raw = enqueue windows (Window_token raw)
 
   let drain () =
     Mutex.lock mutex;
     let pending_surfaces = Queue.create () in
-    let views = Queue.create () and pending_windows = Queue.create () in
+    let views = Queue.create ()
+    and presenters = Queue.create ()
+    and pending_windows = Queue.create () in
     Queue.transfer surfaces pending_surfaces;
     Queue.transfer metal_views views;
+    Queue.transfer rgba_presenters presenters;
     Queue.transfer windows pending_windows;
     Mutex.unlock mutex;
     Queue.iter (function
       | Surface_token raw -> Private_raw.destroy_surface raw
-      | Metal_view_token _ | Window_token _ -> assert false) pending_surfaces;
+      | Metal_view_token _ | Rgba_presenter_token _ | Window_token _ ->
+          assert false) pending_surfaces;
     Queue.iter (function
       | Metal_view_token raw -> Private_raw.destroy_metal_view raw
-      | Surface_token _ | Window_token _ -> assert false) views;
+      | Surface_token _ | Rgba_presenter_token _ | Window_token _ ->
+          assert false) views;
+    Queue.iter (function
+      | Rgba_presenter_token raw -> Private_raw.destroy_rgba_presenter raw
+      | Surface_token _ | Metal_view_token _ | Window_token _ -> assert false)
+      presenters;
     Queue.iter (function
       | Window_token raw -> Private_raw.destroy_window raw
-      | Surface_token _ | Metal_view_token _ -> assert false) pending_windows
+      | Surface_token _ | Metal_view_token _ | Rgba_presenter_token _ ->
+          assert false) pending_windows
 end
 
 let dropped_release_tokens () = Atomic.get Release_queue.dropped
@@ -240,6 +256,7 @@ module rec Window : sig
     generation : int;
     mutable destroyed : bool;
     metal_views : int Atomic.t;
+    presenters : int Atomic.t;
   }
   val create : title:string -> width:int -> height:int -> ?flags:flag list -> unit ->
     (t, error) result
@@ -272,6 +289,7 @@ end = struct
     generation : int;
     mutable destroyed : bool;
     metal_views : int Atomic.t;
+    presenters : int Atomic.t;
   }
 
   let next_generation = Atomic.make 1
@@ -311,6 +329,7 @@ end = struct
         let value = {
           raw; generation = Atomic.fetch_and_add next_generation 1;
           destroyed = false; metal_views = Atomic.make 0;
+          presenters = Atomic.make 0;
         } in
         Gc.finalise (fun value ->
           if not value.destroyed then begin
@@ -396,6 +415,10 @@ end = struct
       error "SDL3.Window.destroy" Parent_has_dependents
         (Printf.sprintf "window still owns %d Metal view(s)"
           (Atomic.get value.metal_views))
+    else if Atomic.get value.presenters <> 0 then
+      error "SDL3.Window.destroy" Parent_has_dependents
+        (Printf.sprintf "window still owns %d RGBA presenter(s)"
+          (Atomic.get value.presenters))
     else begin
       value.destroyed <- true;
       Private_raw.destroy_window value.raw;
@@ -403,7 +426,85 @@ end = struct
     end)
 end
 
-and Metal_view : sig
+
+module Rgba_presenter = struct
+  type t = {
+    raw : nativeint;
+    window : Window.t;
+    mutable destroyed : bool;
+  }
+
+  let destroyed value = value.destroyed
+
+  let live operation value callback = on_main operation (fun () ->
+    if value.destroyed then error operation Destroyed "presenter is destroyed"
+    else if value.window.Window.destroyed then
+      error operation Destroyed "parent window is destroyed"
+    else callback value.raw)
+
+  let create window = on_main "SDL3.Rgba_presenter.create" (fun () ->
+    if window.Window.destroyed then
+      error "SDL3.Rgba_presenter.create" Destroyed "parent window is destroyed"
+    else begin
+      Private_raw.clear_error ();
+      let raw = Private_raw.create_rgba_presenter window.raw in
+      if raw = Nativeint.zero then sdl_error "SDL3.Rgba_presenter.create"
+      else begin
+        Atomic.incr window.presenters;
+        let value = { raw; window; destroyed = false } in
+        Gc.finalise
+          (fun value ->
+            if not value.destroyed then begin
+              value.destroyed <- true;
+              Atomic.decr value.window.presenters;
+              Release_queue.rgba_presenter value.raw
+            end)
+          value;
+        Ok value
+      end
+    end)
+
+  let checked_layout operation ~width ~height ~pitch ~length =
+    if width <= 0 || height <= 0 then
+      error operation Invalid_argument "frame dimensions must be positive"
+    else if width > max_int / 4 then
+      error operation Invalid_argument "RGBA row size overflows"
+    else if pitch < width * 4 then
+      error operation Invalid_argument "pitch is smaller than one RGBA row"
+    else if height > max_int / pitch || length < pitch * height then
+      error operation Invalid_argument "frame storage is too short"
+    else Ok ()
+
+  let present value ~width ~height ~pitch pixels =
+    let operation = "SDL3.Rgba_presenter.present" in
+    match checked_layout operation ~width ~height ~pitch
+        ~length:(Bytes.length pixels) with
+    | Error _ as failure -> failure
+    | Ok () -> live operation value (fun raw ->
+        Private_raw.clear_error ();
+        if Private_raw.present_rgba raw pixels pitch width height then Ok ()
+        else sdl_error operation)
+
+  let texture_size value = live "SDL3.Rgba_presenter.texture_size" value
+      (fun raw -> Ok (Private_raw.presenter_texture_size raw))
+
+  let copy_rgba value = live "SDL3.Rgba_presenter.copy_rgba" value (fun raw ->
+    Private_raw.clear_error ();
+    match Private_raw.presenter_copy_rgba raw with
+    | Some pixels -> Ok pixels
+    | None -> sdl_error "SDL3.Rgba_presenter.copy_rgba")
+
+  let destroy value = on_main "SDL3.Rgba_presenter.destroy" (fun () ->
+    if value.destroyed then Ok ()
+    else begin
+      value.destroyed <- true;
+      Private_raw.destroy_rgba_presenter value.raw;
+      Atomic.decr value.window.presenters;
+      Ok ()
+    end)
+end
+
+module Metal_view : sig
   type layer
   type t
   val create : Window.t -> (t, error) result

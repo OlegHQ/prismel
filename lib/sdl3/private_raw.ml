@@ -63,6 +63,17 @@ external destroy_metal_view : nativeint -> unit = "caml_sdl3_destroy_metal_view"
 external metal_layer_is_nonnull : nativeint -> bool
   = "caml_sdl3_metal_layer_is_nonnull"
 
+external create_rgba_presenter : nativeint -> nativeint
+  = "caml_sdl3_create_rgba_presenter"
+external destroy_rgba_presenter : nativeint -> unit
+  = "caml_sdl3_destroy_rgba_presenter"
+external present_rgba : nativeint -> bytes -> int -> int -> int -> bool
+  = "caml_sdl3_present_rgba"
+external presenter_copy_rgba : nativeint -> bytes option
+  = "caml_sdl3_presenter_copy_rgba"
+external presenter_texture_size : nativeint -> int * int
+  = "caml_sdl3_presenter_texture_size"
+
 (* The SDL_Event union never crosses this module boundary.  The C stub copies
    only the active member into one of these constructors while SDL still owns
    any pointer payloads. *)
