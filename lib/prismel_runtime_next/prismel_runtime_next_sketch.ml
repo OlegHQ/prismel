@@ -126,10 +126,16 @@ let run_state ~configuration ~init ~update ~view ~prepare ?regions ?after_frame
           in
           Fun.protect
             ~finally:(fun () ->
+              let stop_error =
+                try
+                  Option.iter
+                    (fun stop -> Option.iter stop !model)
+                    on_stop;
+                  None
+                with error -> Some error
+              in
               ignore (Orchestrator.destroy runtime);
-              Option.iter
-                (fun stop -> Option.iter stop !model)
-                on_stop)
+              Option.iter raise stop_error)
             run
 
 let run_selected ~logical_width ~logical_height ~drawable_width
