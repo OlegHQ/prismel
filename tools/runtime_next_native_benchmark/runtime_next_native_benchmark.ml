@@ -110,23 +110,24 @@ let run_public selected warmup samples sample_seconds visibility =
   |Shattered->assert false in
   for _=1 to warmup do ignore(Result.get_ok(render()))done;
   let before=Result.get_ok(stats())in Gc.full_major();let gc0=Gc.quick_stat()and allocated0=Gc.allocated_bytes()and cpu0=Unix.times()in
+  let measured_wall=ref None in
   let measure count seconds=match seconds with
   |None->Array.init count(fun _->let started=Unix.gettimeofday()in ignore(Result.get_ok(render()));Unix.gettimeofday()-.started)
   |Some duration->
       let count=max 1(int_of_float(Float.round(duration*.60.)))in
-      let epoch=Unix.gettimeofday()and values=Array.make count 0. in
+      let epoch=Unix.gettimeofday()and previous=ref(Unix.gettimeofday())and values=Array.make count 0. in
       for index=0 to count-1 do
-        let started=Unix.gettimeofday()in
         ignore(Result.get_ok(render()));
-        values.(index)<-Unix.gettimeofday()-.started;
         let remaining=epoch+.(float(index+1)/.60.)-.Unix.gettimeofday()in
-        if remaining>0. then Unix.sleepf remaining
+        if remaining>0. then Unix.sleepf remaining;
+        let completed=Unix.gettimeofday()in values.(index)<-completed-. !previous;previous:=completed
       done;
+      measured_wall:=Some(Unix.gettimeofday()-.epoch);
       values in
   let walls=measure samples sample_seconds in let measured=Array.length walls in
   let after=Result.get_ok(stats())and gc1=Gc.quick_stat()and cpu1=Unix.times()and allocated=Gc.allocated_bytes()-.allocated0 in
   let framebuffer=Result.get_ok(capture())and rss=rss_kib()in ignore(Result.get_ok(destroy()));
-  let total=Array.fold_left(+.) 0. walls and cpu=cpu1.tms_utime+.cpu1.tms_stime-.cpu0.tms_utime-.cpu0.tms_stime in
+  let total=Option.value!measured_wall~default:(Array.fold_left(+.)0. walls)and cpu=cpu1.tms_utime+.cpu1.tms_stime-.cpu0.tms_utime-.cpu0.tms_stime in
   let promoted=(gc1.promoted_words-.gc0.promoted_words)*.float(Sys.word_size/8)in
   let delta x y=Int64.to_int(Int64.sub x y)in
   let json=`Assoc["schema",`Int 1;"scenario",`String(scenario_name selected);"backend",`String"real-m1-runtime-next-metal";"profile",`String"release";

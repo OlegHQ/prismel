@@ -82,6 +82,9 @@ let width = integer_environment "PRISMEL_RENDERER_BENCH_WIDTH" 640
 let height = integer_environment "PRISMEL_RENDERER_BENCH_HEIGHT" 480
 let warmup_seconds = float_environment "PRISMEL_RENDERER_BENCH_WARMUP" 3.
 let measure_seconds = float_environment "PRISMEL_RENDERER_BENCH_SECONDS" 30.
+let scheduled_frame_rate = 60.
+let measured_frames = max 1 (int_of_float (Float.round
+    (measure_seconds *. scheduled_frame_rate)))
 let domains = integer_environment "PRISMEL_BENCH_DOMAINS" 1
 
 let scenario =
@@ -322,22 +325,26 @@ let update model (frame : Frame.t) =
   let now = Unix.gettimeofday () in
   if not model.measuring && now -. model.launched_at >= warmup_seconds then begin
     Gc.full_major ();
-    let rss = resident_kib () in
+    let rss = resident_kib () and started_times=Unix.times()
+    and started_gc=gc_snapshot()in
+    (match model.resources with Canvas_resources resources->update_canvas resources frame|_->());
+    model.frame_times.(0)<-1./.scheduled_frame_rate;
     {
       model with
       measuring = true;
       started_at = now;
-      started_times = Some (Unix.times ());
-      started_gc = Some (gc_snapshot ());
+      started_times = Some started_times;
+      started_gc = Some started_gc;
       started_rss_kib = rss;
       sampled_peak_rss_kib = rss;
       next_rss_sample_at = now +. 1.;
       last_frame_at = now;
-      frame_count = 0;
+      frame_count = 1;
     }
-  end else if model.measuring && now -. model.started_at >= measure_seconds then
-    finish model now
+  end else if model.measuring && model.frame_count >= measured_frames then
+    let deadline=model.started_at+.measure_seconds in let remaining=deadline-.Unix.gettimeofday()in if remaining>0. then Unix.sleepf remaining;finish model(Unix.gettimeofday())
   else begin
+    let now=if model.measuring then(let deadline=model.started_at+.(float model.frame_count/.scheduled_frame_rate)in let remaining=deadline-.Unix.gettimeofday()in if remaining>0. then Unix.sleepf remaining;Unix.gettimeofday())else now in
     (match model.resources with
      | Canvas_resources resources -> update_canvas resources frame
      | Basic_resources _ | Pxui_resources _ | Scene3_resources _ -> ());
