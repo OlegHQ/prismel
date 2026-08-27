@@ -1,9 +1,10 @@
 type blend=Replace|Alpha|Add|Multiply
 type primitive={points:(int*int)list;closed:bool;fill:Color.t option;stroke:Color.t option}
 type text_node={x:int;y:int;value:string;color:Color.t;size:int;wrap:int option;align:Font.alignment;provided_font:Font.t option;mutable owned_font:Font.t option;mutable rendered:Image.t option}
+and debug_text_node={x:int;y:int;value:string;color:Color.t}
 and view3d_node={viewport:(int*int*int*int)option;camera:Camera.t;scene:Scene3.t;mutable rendered3d:Image.t option}
 and image_node={image:Image.t;x:int;y:int;scale:float;angle:float;center:(int*int)option;flip_x:bool}
-and node=Group of t|Clear of Color.t|Primitive of primitive|Geometry of Raster2.Render_ir.geometry|Text of text_node|Image of image_node
+and node=Group of t|Clear of Color.t|Primitive of primitive|Geometry of Raster2.Render_ir.geometry|Text of text_node|Debug_text of debug_text_node|Image of image_node
  |View3d of view3d_node|Region of int*int*int*int*bool
  |Translate of int*int*t|Rotate of float*t|Scale of float*float*t|Clip of int*int*int*int*t|Blend of blend*t
 and t=node list
@@ -64,7 +65,7 @@ let bezier points ?(steps=20)?(color=default_color)()=
       ignore rest;stroke_path color(Raster2.Path.of_commands commands)
 let path ?(steps=20)?(fill_rule=Path.Non_zero)?fill?stroke value=ignore fill_rule;Primitive{points=Path.points~steps value;closed=Path.is_closed value;fill;stroke}
 let text ~at:(x,y) ?(color=default_color) ?(size=16) value=Text{x;y;value;color;size;wrap=None;align=Font.Left;provided_font=None;owned_font=None;rendered=None}
-let debug_text ~at ?color value=text~at?color~size:8 value
+let debug_text ~at:(x,y) ?(color=default_color) value=Debug_text{x;y;value;color}
 let font_text font ~at:(x,y) ?(color=default_color) ?wrap ?(align=Font.Left) value=Text{x;y;value;color;size=Font.get_size font;wrap;align;provided_font=Some font;owned_font=None;rendered=None}
 let image image ~at:(x,y) ?(scale=1.) ?(angle=0.) ?center ?(flip_x=false)()=
   if not(Float.is_finite scale&&Float.is_finite angle)||scale<=0. then invalid_arg"Scene.image: invalid transform";
@@ -79,6 +80,7 @@ let geometry p=let vertices=Array.of_list(List.concat_map(fun(x,y)->[float x;flo
 module Private=struct
  let renderer=ref(fun(_ : t)->())let install_renderer value=renderer:=value
  let rec commands acc=function []->acc|Clear c::xs->commands(Raster2.Render_ir.Clear(rgba c)::acc)xs|Primitive p::xs->commands(geometry p::acc)xs|Geometry g::xs->commands(Raster2.Render_ir.Geometry g::acc)xs|Group g::xs->commands(commands acc g)xs
+  |Debug_text node::xs->commands(Raster2.Render_ir.Debug_text{x=float node.x;y=float node.y;text=node.value;color=rgba node.color}::acc)xs
   |Translate(x,y,g)::xs->commands(Raster2.Render_ir.Pop_transform::commands(Raster2.Render_ir.Push_transform{xx=1.;xy=0.;yx=0.;yy=1.;tx=float x;ty=float y}::acc)g)xs
   |Scale(x,y,g)::xs->commands(Raster2.Render_ir.Pop_transform::commands(Raster2.Render_ir.Push_transform{xx=x;xy=0.;yx=0.;yy=y;tx=0.;ty=0.}::acc)g)xs
   |Rotate(a,g)::xs->let c=cos a and s=sin a in commands(Raster2.Render_ir.Pop_transform::commands(Raster2.Render_ir.Push_transform{xx=c;xy=s;yx=(-.s);yy=c;tx=0.;ty=0.}::acc)g)xs
@@ -197,7 +199,7 @@ module Private=struct
        | Group nodes | Translate (_, _, nodes) | Rotate (_, nodes)
        | Scale (_, _, nodes) | Clip (_, _, _, _, nodes) | Blend (_, nodes) ->
            release nodes
-       | Clear _ | Primitive _ | Geometry _ | Image _ | Region _ -> ())
+       | Clear _ | Primitive _ | Geometry _ | Debug_text _ | Image _ | Region _ -> ())
      scene
 end
 let render scene=(!Private.renderer) scene

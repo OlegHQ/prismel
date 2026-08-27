@@ -42,6 +42,7 @@ let () =
         | Geometry _ -> "geometry"
         | Image _ -> "image"
         | Glyphs _ -> "glyphs"
+        | Debug_text _ -> "debug-text"
       in
       failwith
         ("text/View3d ordering or state scope: "
@@ -59,6 +60,23 @@ let () =
         (resource_ids resources = resource_ids first_resources)
         (Printf.sprintf "frame %d must not re-upload" frame))
     [ 2; 60; 600 ];
+  let diagnostic=Scene.[debug_text~at:(5,7)~color:(Color.rgba 1 2 3 4)"fixed"]in
+  let diagnostic_encoding=ref None in
+  List.iter(fun frame->
+    let ir,resources=Result.get_ok(Scene.Private.stage~width:32~height:24 diagnostic)in
+    require(resources=[]) (Printf.sprintf"debug text frame %d allocated resource"frame);
+    let encoding=Raster2.Render_ir.serialize ir in
+    (match!diagnostic_encoding with None->diagnostic_encoding:=Some encoding
+      |Some expected->require(encoding=expected)(Printf.sprintf"debug text frame %d drift"frame));
+    match Array.to_list(Raster2.Render_ir.commands ir)with
+    |[Debug_text{x;y;text;color}]->
+        require(x=5.&&y=7.&&text="fixed"&&color=0x01020304l)
+          (Printf.sprintf"debug text frame %d semantics"frame)
+    |_->failwith"debug text did not lower directly")[1;2;60;600];
+  Scene.Private.release diagnostic;
+  let after_ir,after_release=Result.get_ok(Scene.Private.stage~width:32~height:24 diagnostic)in
+  require(after_release=[])"debug text release acquired ownership";
+  require(Some(Raster2.Render_ir.serialize after_ir)= !diagnostic_encoding)"debug text release changed IR";
   Scene.Private.release scene;
   List.iter
     (function
