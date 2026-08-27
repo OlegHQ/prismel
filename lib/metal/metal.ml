@@ -17421,6 +17421,16 @@ module Render_encoder = struct
                                pass.pass_stencil;
                              Option.iter (retain_command_buffer_buffer command_buffer)
                                pass.pass_visibility;
+                             Option.iter (retain_command_buffer_texture command_buffer)
+                               pass.pass_resolve;
+                             Array.iter (Option.iter (fun state ->
+                               if not (List.exists ((==) state.sample_buffer_lifetime)
+                                         !(command_buffer.presentation_events)) then begin
+                                 attach state.sample_buffer_lifetime;
+                                 command_buffer.presentation_events :=
+                                   state.sample_buffer_lifetime ::
+                                   !(command_buffer.presentation_events)
+                               end)) pass.pass_samples;
                              attach_finalizer value value.lifetime
                                command_buffer.lifetime;
                              Ok value))))

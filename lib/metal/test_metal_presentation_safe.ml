@@ -131,6 +131,23 @@ let () =
           (function None->false|Some (attachment:Render_pass_descriptor.sample_attachment)->attachment.has_sample_buffer)
           sample_attachments
   then fail "default sample-buffer attachment graph drift";
+  let render_counter_graph=
+    match get(Counters.sets device)with
+    | []->None
+    | set::_->
+        let descriptor=get(Counters.Descriptor.create device~set_name:set.name
+          ~label:"render-pass24"~sample_count:4L~storage:Buffer.Shared())in
+        let samples=get(Counters.Descriptor.create_buffer descriptor)in
+        get(Counters.set_render_pass_attachment encoded_pass~index:0 samples
+          ~start_vertex:0L~end_vertex:1L~start_fragment:2L~end_fragment:3L);
+        let configured=get(Render_pass_descriptor.sample_attachments encoded_pass)in
+        (match configured.(0)with
+         | Some attachment when attachment.has_sample_buffer
+             &&attachment.start_vertex=0L&&attachment.end_vertex=1L
+             &&attachment.start_fragment=2L&&attachment.end_fragment=3L->()
+         | _->fail "configured render sample attachment drift");
+        Some(descriptor,samples)
+  in
   let rate_map=get(Rasterization_rate_map.create_uniform device ~width:16L ~height:8L) in
   get(Render_pass_descriptor.set_rasterization_rate_map encoded_pass(Some rate_map));
   (match Render_pass_descriptor.rasterization_rate_map encoded_pass with
@@ -150,6 +167,7 @@ let () =
   let parallel=get(Command_buffer.create_parallel_render_encoder_with_descriptor commands encoded_pass) in
   get(Parallel_render_encoder.end_encoding parallel);
   get (Render_pass_descriptor.destroy encoded_pass);
+  Option.iter(fun(_,samples)->expect Parent_has_dependents(Resource100.Sample_buffer.destroy samples))render_counter_graph;
   expect Invalid_argument
     (Command_buffer.present commands drawable ~at:(Command_buffer.At_time nan) ());
   expect Invalid_argument
@@ -169,6 +187,7 @@ let () =
   get (Command_buffer.commit commands);
   expect Parent_has_dependents (Command_buffer.destroy commands);
   get (Command_buffer.wait_until_completed commands);
+  Option.iter(fun(descriptor,samples)->get(Resource100.Sample_buffer.destroy samples);get(Counters.Descriptor.destroy descriptor))render_counter_graph;
   if Atomic.get scheduled <> 1 || Atomic.get completed <> 1 then
     fail "command callback cardinality drift";
   let deadline=Sys.time()+.5.0 in
