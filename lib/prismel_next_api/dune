@@ -5,9 +5,10 @@
   node3 path parallel texture shader3 compute3 input event frame time image
   canvas font audio assets mesh camera easy_camera transform_feedback3 shadow3
   scene3 scene3_raster2_lowering scene3_raster2_resources framebuffer3 render3
-  scene preview sketch easy_camera2 render2)
+  scene preview sketch easy_camera2 render2 low)
  (libraries domainslib prismel_next_resources runtime_next_input raster2 unix
-  prismel_next_execution runtime_next_compat))
+  prismel_next_execution runtime_next_compat prismel_next_low
+  runtime_next_orchestrator))
 
 (test
  (name test_prismel_next_api)
@@ -44,3 +45,15 @@
  (name test_prismel_next_api_batch_f)
  (modules test_prismel_next_api_batch_f)
  (libraries prismel_next_api))
+
+(test
+ (name test_prismel_next_api_low)
+ (modules test_prismel_next_api_low)
+ (libraries prismel_next_api)
+ (deps low.mli ../prismel/app.mli ../prismel/backend.mli
+  ../prismel/graphics.mli ../prismel/window.mli)
+ (action
+  (setenv PRISMEL_RENDER_TARGET headless
+   (run %{test} %{dep:low.mli} %{dep:../prismel/app.mli}
+    %{dep:../prismel/backend.mli} %{dep:../prismel/graphics.mli}
+    %{dep:../prismel/window.mli}))))
