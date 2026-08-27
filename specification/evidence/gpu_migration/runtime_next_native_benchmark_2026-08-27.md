@@ -21,22 +21,23 @@ the SHA-256 of each raw result file.
 
 ## Full shattered-cube result
 
-After `57a0ffd`, the exact 18,278-piece/278,368-triangle native workload
-completes without destroying resources referenced by the current submission.
-Three measured frames produced:
+After the lifetime fix in `57a0ffd`, `6353a8e` deterministically coalesces
+compatible consecutive meshes, rebases their packed indices, and caches the
+combined upload. Three measured frames produced:
 
 | Median | p95 / p99 | FPS | CPU | Allocated | RSS | Upload after warmup | Draws / passes / backend calls |
 |---:|---:|---:|---:|---:|---:|---:|---:|
-| 3473.148 ms | 3482.676 / 3482.676 ms | 0.289 | 99.94% | 999.82 MB | 290,864 KiB | 21,207,384 B | 54,834 / 3 / 3 |
+| 49.115 ms | 51.866 / 51.866 ms | 20.30 | 98.68% | 288.22 MB | 157,456 KiB | 0 B | 3 / 3 / 3 |
 
-The persistent cache remains deliberately bounded at 64 entries. Current-frame
-resources are retained separately until command completion/presentation, so
-eviction is safe, but this all-unique 18,278-piece stream cannot remain warm in
-that cache: all measured draws are observed misses and re-upload 7,069,128 bytes
-per frame. Smaller stable workloads at or below the cache capacity retain the
-zero replacement-upload result above. This is correctness and diagnostic
-throughput evidence, not an R11 performance pass: CPU preparation, allocation,
-and re-upload remain far too expensive for the production target.
+The 18,278 source pieces become one 7,069,128-byte cached packed batch and one
+indexed draw per frame. The persistent cache remains bounded at 64 entries and
+256 MiB; current-frame resources remain retained through completion/present.
+All measured frames hit the combined cache and perform zero replacement upload.
+Median latency improved by about 70.7x versus the non-coalesced correctness
+checkpoint, while RSS fell from 290,864 to 157,456 KiB. This closes the specific
+buffer/encoder-call structural defect, but remains diagnostic rather than a
+full R11 pass: CPU use and OCaml preparation allocation are still material, and
+the frozen longer benchmark/legacy comparison protocol is not represented.
 
 ## Reproduction and limits
 
