@@ -2020,6 +2020,8 @@ external metal4_ml_descriptor_input : handle -> int64 -> int64 array option -> (
 external metal4_ml_descriptor_inputs : handle -> int64 -> int64 array option array -> (unit,string) result = "caml_prismel_metal4_ml_descriptor_inputs"
 external metal4_ml_descriptor_reset : handle -> (unit,string) result = "caml_prismel_metal4_ml_descriptor_reset"
 external metal4_ml_compile : handle -> handle -> ((handle * (string option * int64 * int64 * pipeline_binding_info array)),string) result = "caml_prismel_metal4_ml_compile"
+external metal4_ml_compile_async : handle -> handle -> (handle,string) result = "caml_prismel_metal4_ml_compile_async"
+external metal4_ml_task_take : handle -> ((((handle * (string option * int64 * int64 * pipeline_binding_info array)),string) result option,string) result) = "caml_prismel_metal4_ml_task_take"
 external metal4_ml_encoder_create : handle -> (handle,string) result = "caml_prismel_metal4_ml_encoder_create"
 external metal4_ml_encoder_pipeline : handle -> handle -> handle -> (unit,string) result = "caml_prismel_metal4_ml_encoder_pipeline"
 external metal4_ml_encoder_table : handle -> handle -> handle option -> (unit,string) result = "caml_prismel_metal4_ml_encoder_table"

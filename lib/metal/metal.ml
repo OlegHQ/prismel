@@ -13065,6 +13065,17 @@ module Machine_learning = struct
   end
   module Pipeline = struct
     type t=machine_learning_pipeline
+    let make (compiler:Compiler.t) (raw,(label,registry,heap,bindings)) =
+      if registry<>compiler.device.registry_id then begin
+        ignore(Metal_raw.destroy raw);
+        failwith "ML pipeline returned another device"
+      end else
+        let value:t={raw;lifetime=lifetime();device=compiler.device;
+          ml_pipeline_label=label;intermediates_heap_size=heap;
+          ml_bindings=Array.to_list(Array.map Binding.of_raw bindings)}in
+        attach compiler.device.lifetime;
+        attach_finalizer value value.lifetime compiler.device.lifetime;
+        value
     let compile (compiler:Compiler.t) (descriptor:Descriptor.t)=
       let operation="Metal.Machine_learning.Pipeline.compile"in
       on_main operation(fun()->
@@ -13084,6 +13095,16 @@ module Machine_learning = struct
                     attach compiler.device.lifetime;
                     attach_finalizer value value.lifetime compiler.device.lifetime;
                     Ok value))))
+    let compile_async (compiler:Compiler.t) (descriptor:Descriptor.t)=
+      let operation="Metal.Machine_learning.Pipeline.compile_async"in
+      on_main operation(fun()->
+        Result.bind(ensure_live operation compiler.lifetime)(fun()->
+          Result.bind(ensure_live operation descriptor.lifetime)(fun()->
+            Result.bind(ensure_same_device operation compiler.device descriptor.library.device)(fun()->
+              match Metal_raw.metal4_ml_compile_async compiler.raw descriptor.raw with
+              |Error m->native_error operation m
+              |Ok raw->Ok(Compiler_task.make compiler Metal_raw.metal4_ml_task_take
+                (make compiler) raw)))))
     let label(value:t)=value.ml_pipeline_label
     let intermediates_heap_size(value:t)=value.intermediates_heap_size
     let bindings(value:t)=value.ml_bindings

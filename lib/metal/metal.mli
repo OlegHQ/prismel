@@ -2623,6 +2623,7 @@ module Machine_learning : sig
   module Pipeline : sig
     type t
     val compile : Compiler.t -> Descriptor.t -> (t,error) result
+    val compile_async : Compiler.t -> Descriptor.t -> (t Compiler_task.t,error) result
     val label : t -> string option
     val intermediates_heap_size : t -> int64
     val bindings : t -> Binding.t list

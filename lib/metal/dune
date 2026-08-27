@@ -241,6 +241,7 @@
   ../../tools/metal/metal_device_residual_io2_bridge.inc
   ../../tools/metal/metal_device_residual_final4_bridge.inc
   ../../tools/metal/metal_device_architecture5_bridge.inc
+  ../../tools/metal/metal4_ml_compiler_async_bridge.inc
   ../../tools/metal/metal_rasterization_rate_callable_bridge.inc
   ../../tools/metal/metal_function_stitching_callable_bridge.inc
   ../../tools/metal/metal_library42_callable_bridge.inc
