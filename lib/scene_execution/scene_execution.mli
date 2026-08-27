@@ -46,6 +46,11 @@ val create_with_pipeline_variants : Ogpu.Backend.driver -> Ogpu.Surface.configur
   (Ogpu.Backend.device -> pipeline_family -> Ogpu.Pipeline.blend ->
     (Ogpu.Pipeline.t, Ogpu.Error.t) result) ->
   (t, Ogpu.Error.t) result
+val create_with_sampled_pipeline_variants : Ogpu.Backend.driver -> Ogpu.Surface.configuration ->
+  ?before_device_destroy:(unit -> (unit, Ogpu.Error.t) result) ->
+  (Ogpu.Backend.device -> pipeline_family -> Ogpu.Pipeline.blend -> int ->
+    (Ogpu.Pipeline.t, Ogpu.Error.t) result) ->
+  (t, Ogpu.Error.t) result
 val render : ?clear:(float * float * float * float) -> t -> draw list ->
   (bool, Ogpu.Error.t) result
 val render_blended : ?clear:(float * float * float * float) -> t ->
@@ -59,6 +64,10 @@ val render_textured : ?clear:(float * float * float * float) -> t ->
 val render_resources : ?clear:(float * float * float * float) -> t ->
   (pipeline_family * Ogpu.Pipeline.blend * sampled_texture option *
     auxiliary_resource option * draw) list ->
+  (bool, Ogpu.Error.t) result
+val render_sampled_resources : ?clear:(float * float * float * float) -> t ->
+  (pipeline_family * Ogpu.Pipeline.blend * sampled_texture option *
+    auxiliary_resource option * int * draw) list ->
   (bool, Ogpu.Error.t) result
 val resize : t -> Ogpu.Surface.configuration -> (unit, Ogpu.Error.t) result
 val upload_bytes : t -> int64
