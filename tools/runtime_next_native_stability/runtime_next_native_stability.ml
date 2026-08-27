@@ -9,8 +9,8 @@ let mesh frame =
   {Scene_execution.key=Printf.sprintf"churn-%02d"(frame mod 80);vertices;vertex_count=3;indices;index_count=3}
 let draw frame width height=let inset=frame mod 3 in{Scene_execution.mesh=mesh frame;state={viewport=(0,0,width,height);scissor=(inset,inset,width-inset,height-inset)}}
 let () =
-  let minutes=ref 30. and report=ref None in
-  Arg.parse["--minutes",Arg.Set_float minutes,"duration";"--report",Arg.String(fun value->report:=Some value),"JSON report"](fun value->raise(Arg.Bad value))"runtime_next_native_stability";
+  let minutes=ref 30. and report=ref None and changing_payload=ref true and resizing=ref true and capturing=ref true in
+  Arg.parse["--minutes",Arg.Set_float minutes,"duration";"--report",Arg.String(fun value->report:=Some value),"JSON report";"--stable-payload",Arg.Clear changing_payload,"reuse one mesh payload";"--no-resize",Arg.Clear resizing,"disable resize churn";"--no-capture",Arg.Clear capturing,"disable readback churn"](fun value->raise(Arg.Bad value))"runtime_next_native_stability";
   if not(Float.is_finite !minutes)|| !minutes<=0. then invalid_arg"minutes";
   let before=metal(Metal.Release_queue.stats())and started=Unix.gettimeofday()in
   let width=ref 64 and height=ref 48 and frame=ref 0 and rolling=ref 0L in
@@ -18,19 +18,17 @@ let () =
   let samples=Array.make 256 None and observations=ref 0 and last_sample=ref(started-.1.)in
   while Unix.gettimeofday()-.started < !minutes*.60. do
     incr frame;
-    if !frame mod 300=0 then begin width:=if !width=64 then 80 else 64;height:=if !height=48 then 60 else 48;get(Runtime_next.resize runtime~width:!width~height:!height)end;
-    ignore(get(Runtime_next.render~clear:(0.,0.,0.,1.)runtime[draw !frame !width !height]));
+    if !resizing&& !frame mod 300=0 then begin width:=if !width=64 then 80 else 64;height:=if !height=48 then 60 else 48;get(Runtime_next.resize runtime~width:!width~height:!height)end;
+    ignore(get(Runtime_next.render~clear:(0.,0.,0.,1.)runtime[draw(if !changing_payload then !frame else 0)!width !height]));
     if !frame mod 600=0 then begin
-      let facts=Runtime_next.frame_facts runtime in
-      let pixels=get(Runtime_next.read_pixels runtime~bytes_per_row:(facts.drawable_width*4))in
-      rolling:=Int64.logxor(Int64.mul !rolling 1099511628211L)(Int64.of_int(Hashtbl.hash pixels));
+      if !capturing then begin let facts=Runtime_next.frame_facts runtime in let pixels=get(Runtime_next.read_pixels runtime~bytes_per_row:(facts.drawable_width*4))in rolling:=Int64.logxor(Int64.mul !rolling 1099511628211L)(Int64.of_int(Hashtbl.hash pixels))end;
       let now=Unix.gettimeofday()in
       if now-. !last_sample>=1. then begin
         last_sample:=now;
         Gc.full_major();
         ignore(metal(Metal.Release_queue.drain()));
-        let stats=Runtime_next.stats runtime and handles=metal(Metal.Release_queue.stats())in
-        samples.(!observations mod 256)<-Some(`Assoc["elapsed",`Float(now-.started);"frame",`Int !frame;"rss_kib",`Int(rss_kib());"mesh_cache",`Int stats.mesh_cache_entries;"pipeline_cache",`Int stats.pipeline_cache_entries;"metal_live",`Int handles.live_handles;"metal_pending",`Int handles.pending]);incr observations
+        let stats=Runtime_next.stats runtime and handles=metal(Metal.Release_queue.stats())and gc=Gc.quick_stat()in
+        samples.(!observations mod 256)<-Some(`Assoc["elapsed",`Float(now-.started);"frame",`Int !frame;"rss_kib",`Int(rss_kib());"heap_words",`Int gc.heap_words;"live_words",`Int gc.live_words;"mesh_cache",`Int stats.mesh_cache_entries;"pipeline_cache",`Int stats.pipeline_cache_entries;"metal_live",`Int handles.live_handles;"metal_pending",`Int handles.pending;"metal_created",`Intlit(Int64.to_string handles.total_created);"metal_released",`Intlit(Int64.to_string handles.total_released);"resident_bytes",`Intlit(Int64.to_string handles.resident_bytes)]);incr observations
       end
     end
   done;
@@ -46,5 +44,5 @@ let () =
   let first_high=maximum first_half and second_high=maximum second_half in
   let plateau_slack_kib=8192 in
   if length=256&&second_high>first_high+plateau_slack_kib then failwith(Printf.sprintf"native settled RSS high-water grew: %d -> %d KiB"first_high second_high);
-  let json=`Assoc["schema",`Int 2;"minutes",`Float !minutes;"frames",`Int !frame;"hash",`String(Printf.sprintf"%016Lx" !rolling);"observations",`Int !observations;"retained",`Int length;"samples",`List retained;"settled_rss_first_half_high_kib",`Int first_high;"settled_rss_second_half_high_kib",`Int second_high;"settled_rss_plateau_slack_kib",`Int plateau_slack_kib;"live_mesh_cache_peak_bound",`Int 64;"pipeline_cache_live_expected",`Int 18;"live_mesh_cache_final",`Int dead.mesh_cache_entries;"pipeline_cache_final",`Int dead.pipeline_cache_entries;"metal_live_before",`Int before.live_handles;"metal_live_after",`Int after.live_handles]in
+  let json=`Assoc["schema",`Int 3;"minutes",`Float !minutes;"changing_payload",`Bool !changing_payload;"resizing",`Bool !resizing;"capturing",`Bool !capturing;"frames",`Int !frame;"hash",`String(Printf.sprintf"%016Lx" !rolling);"observations",`Int !observations;"retained",`Int length;"samples",`List retained;"settled_rss_first_half_high_kib",`Int first_high;"settled_rss_second_half_high_kib",`Int second_high;"settled_rss_plateau_slack_kib",`Int plateau_slack_kib;"live_mesh_cache_peak_bound",`Int 64;"pipeline_cache_live_expected",`Int 18;"live_mesh_cache_final",`Int dead.mesh_cache_entries;"pipeline_cache_final",`Int dead.pipeline_cache_entries;"metal_live_before",`Int before.live_handles;"metal_live_after",`Int after.live_handles]in
   let text=Yojson.Safe.pretty_to_string json^"\n"in match !report with None->print_string text|Some path->let channel=open_out_bin path in output_string channel text;close_out channel
