@@ -15,11 +15,21 @@ let present value frame=if value.destroyed then Error Destroyed else match valid
   Wap.publish_frame value.server~drawable_width:frame.drawable_width~drawable_height:frame.drawable_height~logical_width:frame.logical_width~logical_height:frame.logical_height packed;Ok()
 let stats value=Wap.stats value.server
 let port value=Wap.port value.server
+let url value=Wap.url value.server
+let client_count value=Wap.client_count value.server
 let set_text_input_regions value regions=if value.destroyed then Error Destroyed else
   try Wap.set_text_input_regions value.server regions;value.regions<-regions;Ok()with Invalid_argument message->Error(Invalid_frame message)
 let text_input_regions value=value.regions
 let register_bytes value ?content_type bytes =
   if value.destroyed then None else Wap.register_bytes value.server ?content_type bytes
 let remove_asset value id = if not value.destroyed then Wap.remove_asset value.server id
+let remove_asset_checked value id =
+  not value.destroyed && Wap.remove_asset_checked value.server id
 let drain_events value = if value.destroyed then [] else Wap.drain_events value.server
+let send_audio value command =
+  if value.destroyed then Error"presenter is destroyed"
+  else Wap.send_audio value.server command
+let download_frame value ~filename =
+  if value.destroyed then Error"presenter is destroyed"
+  else Wap.download_frame value.server ~filename
 let destroy value=if not value.destroyed then(value.destroyed<-true;Wap.stop value.server)

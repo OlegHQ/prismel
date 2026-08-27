@@ -52,6 +52,12 @@ let () =
       (Web.create ~wap_config ~logical_width:4 ~logical_height:4
          ~drawable_width:4 ~drawable_height:4 ())
   in
+  if get(Web.client_count runtime)<>0
+     ||not(String.starts_with~prefix:"http://127.0.0.1:"(get(Web.url runtime)))then
+    failwith"web URL/client facts drift";
+  (match Web.download_frame runtime~filename:"capture.png"with
+   |Error{kind=Ogpu.Error.Invalid_state;_}->()
+   |Ok()|Error _->failwith"download without a browser was accepted");
   let text_regions : Wap.text_input_region list =
     [ { x = 1; y = 2; width = 3; height = 4; focused = false };
       { x = 8; y = 9; width = 10; height = 11; focused = true } ]
@@ -60,7 +66,7 @@ let () =
     get (Web.set_text_input_regions runtime text_regions);
     ignore (get (Web.render runtime [ draw 4 ]));
     if List.mem frame [ 1; 2; 60; 600 ] then begin
-      let stats = Web.stats runtime in
+      let stats = get(Web.target_stats runtime) in
       if stats.frames_submitted <> frame then failwith "frame codec order drift";
       if stats.source_bytes_submitted <> Int64.of_int (frame * 64) then
         failwith "frame codec byte count drift";
@@ -72,14 +78,14 @@ let () =
     (Web.resize runtime ~logical_width:4 ~logical_height:4 ~drawable_width:8
        ~drawable_height:8);
   ignore (get (Web.render runtime [ draw 8 ]));
-  let after_resize = Web.stats runtime in
+  let after_resize = get(Web.target_stats runtime) in
   if after_resize.frames_submitted <> 601
      || after_resize.source_bytes_submitted <> 38_656L
   then failwith "post-resize codec bytes drift";
   for _cycle = 1 to 100_000 do
     ignore (get (Web.render runtime [ draw 8 ]))
   done;
-  let stats = Web.stats runtime in
+  let stats = get(Web.target_stats runtime) in
   if stats.frames_submitted <> 100_601 || stats.frames_suppressed < 100_598 then
     failwith "slow-client stale-frame storage is not bounded";
   if Web.backend_live_counts runtime <> (2, 3, 6, 1, 1) then

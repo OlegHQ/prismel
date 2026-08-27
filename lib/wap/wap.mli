@@ -123,9 +123,14 @@ val broadcast_audio : t -> audio_command -> unit
 (** Encode and broadcast one browser-audio operation. Wap owns the browser
     protocol; callers provide only typed audio facts. *)
 
+val send_audio : t -> audio_command -> (unit, string) result
+(** Validate and enqueue an audio operation. This is the typed boundary for
+    runtimes that need explicit failure reporting. *)
+
 val register_file : t -> ?content_type:string -> string -> string option
 val register_bytes : t -> ?content_type:string -> bytes -> string option
 val remove_asset : t -> string -> unit
+val remove_asset_checked : t -> string -> bool
 (** Register token-protected browser assets. Returned identifiers are opaque;
     registered byte strings are copied into immutable transport ownership. *)
 

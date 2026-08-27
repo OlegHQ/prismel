@@ -50,6 +50,12 @@ let websocket_payload socket =
     for index = 0 to 7 do value := (!value lsl 8) lor Char.code (Bytes.get bytes index) done; !value in
   first land 0xf, first land 0x80 <> 0, read_exact socket length
 
+let expect_text socket expected =
+  let opcode,fin,payload=websocket_payload socket in
+  let actual=Bytes.to_string payload in
+  if opcode<>1||not fin||actual<>expected then
+    fail(Printf.sprintf"command drift: %S <> %S"actual expected)
+
 let masked payload =
   if Bytes.length payload > 125 then invalid_arg "payload";
   let mask = Bytes.of_string "\x12\x34\x56\x78" in
@@ -109,7 +115,7 @@ let draw extent = {Scene_execution.mesh=mesh extent;
 let wait_events runtime expected =
   let deadline = Unix.gettimeofday () +. 3. in
   let rec loop acc =
-    let acc = acc @ Runtime_next_web.drain_events runtime in
+    let acc = acc @ get(Runtime_next_web.drain_events_ordered runtime) in
     if List.length acc >= expected then acc else if Unix.gettimeofday () > deadline then fail "event timeout"
     else (Thread.delay 0.002; loop acc) in loop []
 
@@ -123,20 +129,45 @@ let () =
   Fun.protect ~finally:(fun()->ignore(Runtime_next_web.destroy runtime))(fun()->
     let port=Runtime_next_web.port runtime in
     let token,slow=open_browser port in
+    if get(Runtime_next_web.url runtime)<>Printf.sprintf"http://127.0.0.1:%d/"port
+       ||get(Runtime_next_web.client_count runtime)<>1 then fail"web authority facts";
     let unauthorized=connect port in request unauthorized port "/asset/missing?token=bad" "";
     let denied=read_until unauthorized "\r\n\r\n"in Unix.close unauthorized;
     if not(String.starts_with~prefix:"HTTP/1.1 404"denied)then fail"asset auth";
-    let asset=match Runtime_next_web.register_bytes runtime~content_type:"text/plain"(Bytes.of_string"owned-upload")with Some x->x|None->fail"asset"in
+    let asset=get(Runtime_next_web.register_asset_bytes runtime~content_type:"text/plain"(Bytes.of_string"owned-upload"))in
     let fetch=connect port in request fetch port("/asset/"^asset^"?token="^token)"";
     let served=read_until fetch "owned-upload"in Unix.close fetch;
     if not(String.starts_with~prefix:"HTTP/1.1 200"served)then fail"asset delivery";
+    (match Runtime_next_web.send_audio runtime(Wap.Audio_master_volume nan)with
+     |Error{kind=Ogpu.Error.Invalid_argument;_}->()|_->fail"invalid audio command");
+    let commands=[
+      Wap.Audio_master_volume 0.5,{|{"op":"master_volume","volume":0.5}|};
+      Audio_stop_all,{|{"op":"stop_all"}|};
+      Audio_sample_play{asset;channel=7;loops=2;volume=1.},
+        Printf.sprintf{|{"op":"sample_play","id":"%s","channel":7,"loops":2,"volume":1}|}asset;
+      Audio_sample_volume{asset;volume=0.5},
+        Printf.sprintf{|{"op":"sample_volume","id":"%s","volume":0.5}|}asset;
+      Audio_sample_pause 7,{|{"op":"sample_pause","channel":7}|};
+      Audio_sample_resume 7,{|{"op":"sample_resume","channel":7}|};
+      Audio_sample_stop 7,{|{"op":"sample_stop","channel":7}|};
+      Audio_music_play{asset;loops=(-1);fade_ms=12},
+        Printf.sprintf{|{"op":"music_play","id":"%s","loops":-1,"fade":12}|}asset;
+      Audio_music_volume 0.5,{|{"op":"music_volume","volume":0.5}|};
+      Audio_music_pause,{|{"op":"music_pause"}|};
+      Audio_music_resume,{|{"op":"music_resume"}|};
+      Audio_music_stop 34,{|{"op":"music_stop","fade":34}|};
+      Audio_asset_remove asset,Printf.sprintf{|{"op":"asset_remove","id":"%s"}|}asset]in
+    List.iter(fun(command,wire)->get(Runtime_next_web.send_audio runtime command);
+      expect_text slow wire)commands;
+    get(Runtime_next_web.download_frame runtime~filename:"../capture bad?.jpg");
+    expect_text slow {|{"op":"download_frame","filename":"capture bad_.jpg.png"}|};
     let regions=[{Wap.x=1;y=1;width=2;height=2;focused=true}]in
     get(Runtime_next_web.set_text_input_regions runtime regions);
     let opcode,fin,command=websocket_payload slow in
     if opcode<>1||not fin||not(String.contains(Bytes.to_string command)'1')then fail"text focus wire";
     List.iter(fun frame->for _=1 to frame-(if frame=1 then 0 else 1)do
       ignore(get(Runtime_next_web.render runtime[draw 4]))done)[1;2;60;600];
-    let stats=Runtime_next_web.stats runtime in
+    let stats=get(Runtime_next_web.target_stats runtime)in
     if stats.frames_submitted<>660||stats.frames_suppressed<659 then fail"slow client bound";
     Unix.close slow;
     let _,socket=open_browser port in
@@ -151,11 +182,16 @@ let () =
       when Bytes.to_string contents="upload"->()|_->fail"upload lifetime");
     get(Runtime_next_web.resize runtime~logical_width:8~logical_height:6~drawable_width:16~drawable_height:12);
     ignore(get(Runtime_next_web.render runtime[draw 12]));
-    Runtime_next_web.remove_asset runtime asset;
+    if not(get(Runtime_next_web.remove_asset_checked runtime asset))
+       ||get(Runtime_next_web.remove_asset_checked runtime asset)then fail"asset removal status";
     Unix.close socket;
     if Runtime_next_web.backend_trace_stats runtime|>fst>256 then fail"trace bound";
     let buffers,textures,pipelines,queues,surfaces=Runtime_next_web.backend_live_counts runtime in
     if (buffers,textures,pipelines,queues,surfaces)<>(2,3,6,1,1)then
       fail(Printf.sprintf"live bound %d,%d,%d,%d,%d"buffers textures pipelines queues surfaces));
   if Runtime_next_web.backend_live_counts runtime<>(0,0,0,0,0)then fail"teardown";
+  (match Runtime_next_web.url runtime with Error{kind=Ogpu.Error.Stale_handle;_}->()|_->fail"dead URL");
+  (match Runtime_next_web.drain_events_ordered runtime with Error{kind=Ogpu.Error.Stale_handle;_}->()|_->fail"dead event drain");
+  (match Runtime_next_web.target_stats runtime with Error{kind=Ogpu.Error.Stale_handle;_}->()|_->fail"dead target stats");
+  (match Runtime_next_web.send_audio runtime Wap.Audio_stop_all with Error{kind=Ogpu.Error.Stale_handle;_}->()|_->fail"dead audio command");
   print_endline"runtime-next web network: auth/frame/slow/33-event/reconnect passed"

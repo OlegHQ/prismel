@@ -131,7 +131,19 @@ let resize value ~logical_width ~logical_height ~drawable_width
             Ok ()
 
 let stats value = Presenter.stats value.presenter
+let target_stats value =
+  match ensure_live "Runtime_next_web.target_stats" value with
+  | Error _ as failure -> failure
+  | Ok () -> Ok (Presenter.stats value.presenter)
 let port value = Presenter.port value.presenter
+let url value =
+  match ensure_live "Runtime_next_web.url" value with
+  | Error _ as failure -> failure
+  | Ok () -> Ok (Presenter.url value.presenter)
+let client_count value =
+  match ensure_live "Runtime_next_web.client_count" value with
+  | Error _ as failure -> failure
+  | Ok () -> Ok (Presenter.client_count value.presenter)
 let set_text_input_regions value regions =
   let operation = "Runtime_next_web.set_text_input_regions" in
   match ensure_live operation value with
@@ -144,6 +156,40 @@ let register_bytes value ?content_type bytes =
   if value.dead then None else Presenter.register_bytes value.presenter ?content_type bytes
 let remove_asset value id = if not value.dead then Presenter.remove_asset value.presenter id
 let drain_events value = if value.dead then [] else Presenter.drain_events value.presenter
+let register_asset_bytes value ?content_type bytes =
+  let operation = "Runtime_next_web.register_asset_bytes" in
+  match ensure_live operation value with
+  | Error _ as failure -> failure
+  | Ok () ->
+      (match Presenter.register_bytes value.presenter ?content_type bytes with
+       | Some id -> Ok id
+       | None -> error operation Ogpu.Error.Invalid_argument
+           "asset content type or payload is invalid")
+let remove_asset_checked value id =
+  let operation = "Runtime_next_web.remove_asset_checked" in
+  match ensure_live operation value with
+  | Error _ as failure -> failure
+  | Ok () -> Ok (Presenter.remove_asset_checked value.presenter id)
+let drain_events_ordered value =
+  match ensure_live "Runtime_next_web.drain_events_ordered" value with
+  | Error _ as failure -> failure
+  | Ok () -> Ok (Presenter.drain_events value.presenter)
+let send_audio value command =
+  let operation = "Runtime_next_web.send_audio" in
+  match ensure_live operation value with
+  | Error _ as failure -> failure
+  | Ok () ->
+      Result.map_error
+        (fun message -> Ogpu.Error.make operation Ogpu.Error.Invalid_argument message)
+        (Presenter.send_audio value.presenter command)
+let download_frame value ~filename =
+  let operation = "Runtime_next_web.download_frame" in
+  match ensure_live operation value with
+  | Error _ as failure -> failure
+  | Ok () ->
+      Result.map_error
+        (fun message -> Ogpu.Error.make operation Ogpu.Error.Invalid_state message)
+        (Presenter.download_frame value.presenter ~filename)
 let read_pixels value ~bytes_per_row =
   match ensure_live "Runtime_next_web.read_pixels" value with
   | Error _ as error_value -> error_value

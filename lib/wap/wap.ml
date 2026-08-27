@@ -552,6 +552,26 @@ let audio_command_text = function
 let broadcast_audio server command =
   broadcast_text server (audio_command_text command)
 
+let send_audio server command =
+  let finite_volume value = Float.is_finite value && value >= 0. && value <= 1. in
+  let valid = match command with
+    | Audio_master_volume volume | Audio_music_volume volume -> finite_volume volume
+    | Audio_sample_play { asset; channel; loops; volume } ->
+        asset <> "" && channel >= 0 && loops >= -1 && finite_volume volume
+    | Audio_sample_volume { asset; volume } -> asset <> "" && finite_volume volume
+    | Audio_sample_stop channel | Audio_sample_pause channel
+    | Audio_sample_resume channel -> channel >= 0
+    | Audio_music_play { asset; loops; fade_ms } ->
+        asset <> "" && loops >= -1 && fade_ms >= 0
+    | Audio_music_stop fade_ms -> fade_ms >= 0
+    | Audio_asset_remove asset -> asset <> ""
+    | Audio_stop_all | Audio_music_pause | Audio_music_resume -> true
+  in
+  if not valid then Error "invalid browser audio command"
+  else if not (with_mutex server.mutex (fun () -> server.running)) then
+    Error "Wap server is stopped"
+  else (broadcast_audio server command; Ok ())
+
 let default_content_type path =
   match String.lowercase_ascii (Filename.extension path) with
   | ".wav" -> "audio/wav"
@@ -593,6 +613,12 @@ let register_bytes server ?(content_type = "application/octet-stream") bytes =
 
 let remove_asset server id =
   with_mutex server.mutex (fun () -> Hashtbl.remove server.assets id)
+
+let remove_asset_checked server id =
+  with_mutex server.mutex (fun () ->
+    let existed = Hashtbl.mem server.assets id in
+    Hashtbl.remove server.assets id;
+    existed)
 
 let drain_events server =
   with_mutex server.mutex (fun () ->
