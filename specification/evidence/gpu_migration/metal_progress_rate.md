@@ -350,3 +350,9 @@ capability conformance.
 
 Rates describe completed commits, not forecasts. Hardware-only gates and
 complex ownership features will vary materially from pure-value batches.
+
+The `1eb2ab1` interval closes the final three MTLDevice object constructors:
+reflected buffer-binding argument encoders, synchronous compute pipelines with
+binding reflection, and shared events imported from exported handles. All
+three retain checked same-device parents, propagate native failures, and pass
+the real owned-lifetime fixture.
