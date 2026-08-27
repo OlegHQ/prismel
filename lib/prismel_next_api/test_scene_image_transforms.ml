@@ -38,8 +38,8 @@ let () =
     let lookup id =
       match List.assoc_opt id resources with
       | Some (Prismel_next_execution.Image value) ->
-          let width, height = Image.get_size value in
-          let pixels = Result.get_ok (Image.Private.pixels value) in
+          let width, height = Result.get_ok (Prismel_next_resources.Image.size value) in
+          let pixels = Result.get_ok (Prismel_next_resources.Image.pixels value) in
           let surface = Result.get_ok (Raster2.Surface.of_bytes ~width ~height ~pitch:(width * 4) pixels) in
           owned := surface :: !owned;
           Some (Raster2.Consumer.Image surface)
@@ -56,5 +56,5 @@ let () =
   List.iter
     (fun frame -> require (pixels = render ()) (Printf.sprintf "frame %d pixels" frame))
     [ 2; 60; 600 ];
-  Prismel_next_resources.Image.destroy image |> Result.get_ok;
+  Image.destroy image;
   print_endline "Scene image scale/angle/center/flip/order/clip parity passed"
