@@ -56,7 +56,9 @@ let software_vertices ~width ~height matrix points =
   bytes
 
 let native_vertices matrix points =
-  let bytes = Bytes.create (Array.length points * 68) in
+  (* The native layout contains padding and optional normal/UV lanes. Make
+     those bytes deterministic instead of hashing allocator contents. *)
+  let bytes = Bytes.make (Array.length points * 68) '\000' in
   Array.iteri
     (fun index point ->
       let x, y, z, w =
