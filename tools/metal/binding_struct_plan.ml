@@ -76,8 +76,7 @@ let expected_promoted_device_residual_struct_ids =
 
 let expected_promoted_small_header_struct_ids =
   [ "method:-[MTLDepthStencilState gpuResourceID]"
-  ; "property:MTLDepthStencilState:gpuResourceID"
-  ; "method:-[MTLVisibleFunctionTable setFunctions:withRange:]" ]
+  ; "property:MTLDepthStencilState:gpuResourceID" ]
 
 let fail format =
   Printf.ksprintf (fun message -> invalid_arg ("Metal struct plan: " ^ message)) format
