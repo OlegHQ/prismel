@@ -51,6 +51,14 @@ module Graphics : sig
   val triangle : t -> p1:int*int -> p2:int*int -> p3:int*int -> ?filled:bool -> ?color:color -> unit -> (unit,error) result
   val polygon : t -> points:(int*int) list -> ?filled:bool -> ?color:color -> unit -> (unit,error) result
   val polyline : t -> points:(int*int) list -> ?color:color -> unit -> (unit,error) result
+  val ellipse : t -> center:int*int -> rx:int -> ry:int -> ?filled:bool -> ?color:color -> unit -> (unit,error) result
+  val rounded_rect : t -> pos:int*int -> w:int -> h:int -> radius:int -> ?filled:bool -> ?color:color -> unit -> (unit,error) result
+  val thick_line : t -> x1:int -> y1:int -> x2:int -> y2:int -> width:int -> ?color:color -> unit -> (unit,error) result
+  val arc : t -> center:int*int -> radius:int -> start_angle:float -> end_angle:float -> ?color:color -> unit -> (unit,error) result
+  val pie : t -> center:int*int -> radius:int -> start_angle:float -> end_angle:float -> ?filled:bool -> ?color:color -> unit -> (unit,error) result
+  val bezier : t -> points:(int*int) list -> steps:int -> ?color:color -> unit -> (unit,error) result
+  val fill_contours : t -> (int*int) list list -> rule:Raster2.Path.fill_rule -> color:color -> (unit,error) result
+  val stroke_path : t -> Raster2.Path.command array -> width:float -> cap:Raster2.Path.cap -> join:Raster2.Path.join -> ?color:color -> unit -> (unit,error) result
   val push_matrix : t -> (unit,error) result
   val pop_matrix : t -> (unit,error) result
   val translate : t -> dx:int -> dy:int -> unit
@@ -60,6 +68,8 @@ module Graphics : sig
   val get_clip : t -> (int*int*int*int) option
   val set_clip : t -> (int*int*int*int) option -> (unit,error) result
   val draw_image : t -> Prismel_next_resources.Image.t -> pos:int*int -> (unit,error) result
+  val draw_sub_image : t -> Prismel_next_resources.Image.t -> src_rect:int*int*int*int -> dst_rect:int*int*int*int -> (unit,error) result
+  val draw_image_ex : t -> Prismel_next_resources.Image.t -> pos:int*int -> ?scale:float -> ?angle:float -> ?center:int*int -> ?flip:bool -> unit -> (unit,error) result
   val draw_text : t -> Prismel_next_resources.Font.t -> pos:int*int -> text:string -> ?color:color -> unit -> (unit,error) result
   val set_gfx_font_rotation : t -> int -> (unit,error) result
   val draw_gfx_text : t -> pos:int*int -> text:string -> ?color:color -> unit -> (unit,error) result

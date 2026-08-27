@@ -8,7 +8,9 @@ module Window = struct
     fullscreen:bool; x:int option; y:int option; vsync:bool; highdpi:bool;
     multisampling:int option }
   type t = { target:Runtime_next_orchestrator.t; config:config;
-    mutable width:int; mutable height:int; mutable destroyed:bool }
+    execution:Prismel_next_execution.t; mutable title:string;
+    mutable fullscreen:bool; mutable width:int; mutable height:int;
+    mutable destroyed:bool }
   let default_config = { width=800; height=600; title="Prismel";
     resizable=true; fullscreen=false; x=None; y=None; vsync=true; highdpi=true;
     multisampling=None }
@@ -16,8 +18,9 @@ module Window = struct
     if config.width <= 0 || config.height <= 0 then
       Error (Invalid_argument "Window.create: dimensions must be positive")
     else
-      let selected_target = match Runtime_next_orchestrator.selected () with
-        | Ok value -> value | Error message -> raise (Failure message) in
+      match Runtime_next_orchestrator.selected () with
+      | Error message -> Error (Invalid_argument ("Window.create: " ^ message))
+      | Ok selected_target ->
       let configuration = Runtime_next_orchestrator.{ target=selected_target;
         logical_width=config.width; logical_height=config.height;
         drawable_width=config.width; drawable_height=config.height;
@@ -25,8 +28,19 @@ module Window = struct
       match Runtime_next_orchestrator.create configuration with
       | Error value -> Error (backend "Window.create" value)
       | Ok target ->
-          Ok { target; config; width=config.width; height=config.height;
-            destroyed=false }
+          let execution_config = Prismel_next_execution.{ default_configuration
+            with target=(match selected_target with Native->Native|Headless->Headless|Web->Web);
+            logical_width=config.width; logical_height=config.height;
+            drawable_width=config.width; drawable_height=config.height;
+            title=config.title } in
+          match Prismel_next_execution.create execution_config with
+          | Error error ->
+              ignore (Runtime_next_orchestrator.destroy target);
+              Error (Backend (Format.asprintf "Window.create: %a"
+                Prismel_next_execution.pp_error error))
+          | Ok execution -> Ok { target; execution; config; title=config.title;
+              fullscreen=config.fullscreen; width=config.width;
+              height=config.height; destroyed=false }
   let width value = value.width
   let height value = value.height
   let size value = value.width, value.height
@@ -35,45 +49,56 @@ module Window = struct
     | Error _ -> value.width, value.height
   let pixel_scale value = let dw,dh = drawable_size value in
     float dw /. float value.width, float dh /. float value.height
-  let title value = value.config.title
+  let title value = value.title
   let is_resizable value = value.config.resizable
-  let is_fullscreen value = value.config.fullscreen
+  let is_fullscreen value = value.fullscreen
   let call name value f = if value.destroyed then Error (Unavailable (name ^ ": destroyed"))
     else match f value.target with Ok () -> Ok () | Error e -> Error (backend name e)
-  let set_title value title = call "Window.set_title" value (fun t -> Runtime_next_orchestrator.set_title t title)
+  let set_title value title = match call "Window.set_title" value
+      (fun t -> Runtime_next_orchestrator.set_title t title) with
+    | Error _ as error -> error | Ok () -> value.title <- title; Ok ()
   let set_size value width height =
     if width <= 0 || height <= 0 then Error (Invalid_argument "Window.set_size") else
     match call "Window.set_size" value (fun t -> Runtime_next_orchestrator.resize t
       ~logical_width:width ~logical_height:height ~drawable_width:width ~drawable_height:height) with
-    | Error _ as error -> error | Ok () -> value.width <- width; value.height <- height; Ok ()
+    | Error _ as error -> error
+    | Ok () -> begin match Prismel_next_execution.resize value.execution
+        ~logical_width:width ~logical_height:height ~drawable_width:width
+        ~drawable_height:height with
+      | Error e -> Error (Backend (Format.asprintf "Window.set_size: %a"
+          Prismel_next_execution.pp_error e))
+      | Ok () -> value.width <- width; value.height <- height; Ok ()
+      end
   let set_position value x y = call "Window.set_position" value (fun t -> Runtime_next_orchestrator.set_position t ~x ~y)
   let center value = call "Window.center" value Runtime_next_orchestrator.center
-  let set_fullscreen value enabled = call "Window.set_fullscreen" value (fun t -> Runtime_next_orchestrator.set_fullscreen t enabled)
+  let set_fullscreen value enabled = match call "Window.set_fullscreen" value
+      (fun t -> Runtime_next_orchestrator.set_fullscreen t enabled) with
+    | Error _ as error -> error | Ok () -> value.fullscreen <- enabled; Ok ()
   let show value = call "Window.show" value Runtime_next_orchestrator.show
   let hide value = call "Window.hide" value Runtime_next_orchestrator.hide
   let minimize value = call "Window.minimize" value Runtime_next_orchestrator.minimize
   let maximize value = call "Window.maximize" value Runtime_next_orchestrator.maximize
   let restore value = call "Window.restore" value Runtime_next_orchestrator.restore
   let capture value = if value.destroyed then Error (Unavailable "Window.capture: destroyed") else
-    match Runtime_next_orchestrator.capture value.target ~bytes_per_row:(value.width*4) with
-    | Ok bytes -> Ok bytes | Error e -> Error (backend "Window.capture" e)
+    match Prismel_next_execution.capture value.execution with
+    | Ok bytes -> Ok bytes
+    | Error e -> Error (Backend (Format.asprintf "Window.capture: %a"
+        Prismel_next_execution.pp_error e))
   let present value ir =
     if value.destroyed then Error (Unavailable "Window.present: destroyed") else
     match Prismel_next_execution.scene2_ir ir with
     | Error e -> Error (Backend (Format.asprintf "%a" Prismel_next_execution.pp_error e))
-    | Ok draws -> match Prismel_next_execution.create Prismel_next_execution.{
-        default_configuration with target=(match Runtime_next_orchestrator.target value.target with Native->Native|Headless->Headless|Web->Web);
-        logical_width=value.width; logical_height=value.height;
-        drawable_width=value.width; drawable_height=value.height } with
-      | Error e -> Error (Backend (Format.asprintf "%a" Prismel_next_execution.pp_error e))
-      | Ok execution ->
-          let result = match Prismel_next_execution.step execution draws with
-            | Ok _ -> Ok true | Error e -> Error (Backend (Format.asprintf "%a" Prismel_next_execution.pp_error e)) in
-          ignore (Prismel_next_execution.destroy execution); result
+    | Ok draws -> match Prismel_next_execution.step value.execution draws with
+      | Ok _ -> Ok true
+      | Error e -> Error (Backend (Format.asprintf "%a"
+          Prismel_next_execution.pp_error e))
   let destroy value = if value.destroyed then Ok () else
-    match Runtime_next_orchestrator.destroy value.target with
-    | Error e -> Error (backend "Window.destroy" e)
-    | Ok () -> value.destroyed <- true; Ok ()
+    match Prismel_next_execution.destroy value.execution with
+    | Error e -> Error (Backend (Format.asprintf "Window.destroy: %a"
+        Prismel_next_execution.pp_error e))
+    | Ok () -> match Runtime_next_orchestrator.destroy value.target with
+      | Error e -> Error (backend "Window.destroy" e)
+      | Ok () -> value.destroyed <- true; Ok ()
   let exists value = not value.destroyed
 end
 
@@ -120,6 +145,96 @@ module Graphics = struct
   let polyline t ~points ?color () = polygon t ~points ~filled:false ?color ()
   let triangle t ~p1 ~p2 ~p3 ?(filled=true) ?color () = polygon t ~points:[p1;p2;p3] ~filled ?color ()
   let circle t ~center:(cx,cy) ~radius ?(filled=true) ?color () = if radius<0 then Error (Invalid_argument "Graphics.circle") else let n=max 12 (radius*2) in let points=List.init n (fun i->let a=2.*.Float.pi*.float i/.float n in cx+int_of_float(float radius*.cos a),cy+int_of_float(float radius*.sin a)) in polygon t ~points ~filled ?color ()
+  let ellipse_points ~center:(cx,cy) ~rx ~ry ~from_ ~to_ ~steps =
+    List.init (steps + 1) (fun index ->
+      let amount = float index /. float steps in
+      let angle = from_ +. ((to_ -. from_) *. amount) in
+      cx + int_of_float (cos angle *. float rx),
+      cy + int_of_float (sin angle *. float ry))
+  let ellipse t ~center ~rx ~ry ?(filled=true) ?color () =
+    if rx < 0 || ry < 0 then Error (Invalid_argument "Graphics.ellipse")
+    else
+      let steps = max 24 (min 128 (max rx ry * 2)) in
+      polygon t ~points:(ellipse_points ~center ~rx ~ry ~from_:0.
+        ~to_:(2. *. Float.pi) ~steps) ~filled ?color ()
+  let rounded_rect t ~pos:(x,y) ~w ~h ~radius ?(filled=true) ?color () =
+    if w < 0 || h < 0 || radius < 0 then
+      Error (Invalid_argument "Graphics.rounded_rect")
+    else
+      let radius = min radius (min (w / 2) (h / 2)) in
+      if radius = 0 then rect t ~pos:(x,y) ~w ~h ~filled ?color ()
+      else
+        let steps = max 4 (min 32 ((radius + 1) / 2)) in
+        let quarter center from_ to_ = ellipse_points ~center ~rx:radius
+            ~ry:radius ~from_ ~to_ ~steps in
+        polygon t ~filled ?color ~points:(
+          quarter (x+radius,y+radius) Float.pi (1.5*.Float.pi)
+          @ quarter (x+w-radius,y+radius) (1.5*.Float.pi) (2.*.Float.pi)
+          @ quarter (x+w-radius,y+h-radius) 0. (0.5*.Float.pi)
+          @ quarter (x+radius,y+h-radius) (0.5*.Float.pi) Float.pi) ()
+  let thick_line t ~x1 ~y1 ~x2 ~y2 ~width ?color () =
+    if width <= 0 then Error (Invalid_argument "Graphics.thick_line")
+    else
+      let dx=float(x2-x1) and dy=float(y2-y1) in
+      let length=Float.hypot dx dy in
+      if length=0. then circle t ~center:(x1,y1) ~radius:(width/2)
+          ~filled:true ?color ()
+      else
+        let ox=(-.dy/.length*.float width/.2.) and oy=(dx/.length*.float width/.2.) in
+        let p x y = int_of_float x,int_of_float y in
+        polygon t ~filled:true ?color ~points:[p(float x1+.ox)(float y1+.oy);
+          p(float x2+.ox)(float y2+.oy);p(float x2-.ox)(float y2-.oy);
+          p(float x1-.ox)(float y1-.oy)] ()
+  let arc t ~center ~radius ~start_angle ~end_angle ?color () =
+    if radius < 0 || not (Float.is_finite start_angle && Float.is_finite end_angle)
+    then Error (Invalid_argument "Graphics.arc")
+    else let span=abs_float(end_angle-.start_angle) in
+      polyline t ?color ~points:(ellipse_points ~center ~rx:radius ~ry:radius
+        ~from_:start_angle ~to_:end_angle
+        ~steps:(max 8 (int_of_float(span*.float radius/.4.)))) ()
+  let pie t ~center:(cx,cy) ~radius ~start_angle ~end_angle ?(filled=true)
+      ?color () =
+    if radius < 0 then Error (Invalid_argument "Graphics.pie")
+    else let span=abs_float(end_angle-.start_angle) in
+      polygon t ~filled ?color ~points:((cx,cy)::ellipse_points ~center:(cx,cy)
+        ~rx:radius ~ry:radius ~from_:start_angle ~to_:end_angle
+        ~steps:(max 8 (int_of_float(span*.float radius/.2.)))) ()
+  let bezier t ~points ~steps ?color () =
+    if steps <= 0 then Error (Invalid_argument "Graphics.bezier") else
+    match points with
+    | [] -> Ok ()
+    | _ ->
+        let source=Array.of_list points and count=List.length points in
+        let choose n k =
+          let result=ref 1. in for i=1 to k do
+            result:=!result*.float(n-k+i)/.float i done; !result in
+        let sampled=List.init(steps+1)(fun step ->
+          let u=float step/.float steps in let x=ref 0. and y=ref 0. in
+          Array.iteri(fun i(px,py)->let weight=choose(count-1)i*.
+            ((1.-.u)**float(count-1-i))*.(u**float i) in
+            x:=!x+.weight*.float px;y:=!y+.weight*.float py)source;
+          int_of_float !x,int_of_float !y) in
+        polyline t ~points:sampled ?color ()
+  let path_geometry t ?color mesh =
+    let vertices=Array.make(Array.length mesh.Raster2.Path.vertices*2)0. in
+    Array.iteri(fun i point -> let x,y=transform t
+      (int_of_float point.Raster2.Path.x,int_of_float point.y) in
+      vertices.(2*i)<-x;vertices.(2*i+1)<-y)mesh.vertices;
+    geometry t ?color vertices mesh.indices
+  let fill_contours t contours ~rule ~color =
+    let commands = List.concat_map (function []->[]|first::rest ->
+      Raster2.Path.Move_to {x=float(fst first);y=float(snd first)} ::
+      List.map(fun(x,y)->Raster2.Path.Line_to{x=float x;y=float y})rest @
+      [Raster2.Path.Close]) contours |> Array.of_list in
+    match Raster2.Path.tessellate ~tolerance:0.25 ~fill_rule:rule
+      (Raster2.Path.of_commands commands) with
+    | Ok mesh -> path_geometry t ~color mesh
+    | Error _ -> Error (Invalid_argument "Graphics.fill_contours")
+  let stroke_path t commands ~width ~cap ~join ?color () =
+    match Raster2.Path.stroke ~tolerance:0.25 ~width ~cap ~join
+      ~miter_limit:4. (Raster2.Path.of_commands commands) with
+    | Ok mesh -> path_geometry t ?color mesh
+    | Error _ -> Error (Invalid_argument "Graphics.stroke_path")
   let push_matrix t = t.stack<-t.matrix::t.stack; add t (Push_transform {xx=t.matrix.xx;xy=t.matrix.xy;yx=t.matrix.yx;yy=t.matrix.yy;tx=t.matrix.tx;ty=t.matrix.ty})
   let pop_matrix t = match t.stack with []->Error (Invalid_argument "Graphics.pop_matrix")|m::rest->t.matrix<-m;t.stack<-rest;add t Pop_transform
   let translate t ~dx ~dy = t.matrix <- {t.matrix with tx=t.matrix.tx+.float dx;ty=t.matrix.ty+.float dy}
@@ -137,6 +252,30 @@ module Graphics = struct
     t.clip <- value;
     match command with None -> Ok () | Some command -> add t command
   let draw_image t image ~pos:(x,y) = match Prismel_next_resources.Image.size image with Error _->Error(Unavailable "Graphics.draw_image")|Ok(w,h)->add t(Image{resource_id=Prismel_next_resources.Image.identity image;source={x=0.;y=0.;width=float w;height=float h};destination={x=float x;y=float y;width=float w;height=float h}})
+  let draw_sub_image t image ~src_rect:(sx,sy,sw,sh)
+      ~dst_rect:(dx,dy,dw,dh) =
+    add t (Image {resource_id=Prismel_next_resources.Image.identity image;
+      source={x=float sx;y=float sy;width=float sw;height=float sh};
+      destination={x=float dx;y=float dy;width=float dw;height=float dh}})
+  let draw_image_ex t image ~pos:(x,y) ?(scale=1.) ?(angle=0.) ?center
+      ?(flip=false) () =
+    if not(Float.is_finite scale&&Float.is_finite angle)||scale<=0. then
+      Error(Invalid_argument "Graphics.draw_image_ex")
+    else match Prismel_next_resources.Image.size image with
+    | Error _ -> Error(Unavailable "Graphics.draw_image_ex")
+    | Ok(w,h) ->
+        let cx,cy=Option.value center ~default:(w/2,h/2) in
+        let cosine=cos angle*.scale and sine=sin angle*.scale in
+        let xx=if flip then -.cosine else cosine
+        and yx=if flip then -.sine else sine in
+        let transform=Raster2.Render_ir.{xx;xy=(-.sine);yx;yy=cosine;
+          tx=float x -. (float cx *. xx) -. (float cy *. (-. sine));
+          ty=float y -. (float cx *. yx) -. (float cy *. cosine)} in
+        bind (add t (Push_transform transform)) (fun () ->
+        bind (add t (Image{resource_id=Prismel_next_resources.Image.identity image;
+          source={x=0.;y=0.;width=float w;height=float h};
+          destination={x=0.;y=0.;width=float w;height=float h}})) (fun () ->
+        add t Pop_transform))
   let draw_text t font ~pos:(x,y) ~text ?color () = if text="" then Ok() else let glyphs=Array.init(String.length text)(fun i->{Raster2.Render_ir.glyph_id=Char.code text.[i];x=float(x+i*8);y=float y}) in add t(Glyphs{resource_id=Prismel_next_resources.Font.generation font;color=get_color t ?color ();glyphs})
   let set_gfx_font_rotation t value = if value<0||value>3 then Error(Invalid_argument "Graphics.set_gfx_font_rotation") else (t.rotation<-value;Ok())
   let draw_gfx_text t ~pos:(x,y) ~text ?color () = let glyphs=Array.init(String.length text)(fun i->{Raster2.Render_ir.glyph_id=Char.code text.[i];x=float(x+i*8);y=float y}) in add t(Glyphs{resource_id=1+t.rotation;color=get_color t ?color ();glyphs})
