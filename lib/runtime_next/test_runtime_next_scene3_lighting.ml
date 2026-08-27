@@ -1,11 +1,11 @@
 let get=function Ok value->value|Error error->failwith(Ogpu.Error.to_string error)
 let uniform ~ambient ~diffuse ~global ~light =
-  let values=Array.make 844 0. in
+  let values=Array.make 1364 0. in
   for matrix=0 to 2 do for diagonal=0 to 3 do values.(matrix*16+diagonal*5)<-1. done done;values.(50)<-1.;
   let color offset(r,g,b,a)=values.(offset)<-r;values.(offset+1)<-g;values.(offset+2)<-b;values.(offset+3)<-a in
   color 52 ambient;color 56 diffuse;color 60(0.,0.,0.,1.);color 64(0.,0.,0.,1.);values.(68)<-16.;color 69 global;
-  (match light with None->()|Some(direction,color_value,intensity)->values.(73)<-1.;values.(77)<-direction.(0);values.(78)<-direction.(1);values.(79)<-direction.(2);color 80 color_value;values.(84)<-intensity);
-  let bytes=Bytes.create 3376 in Array.iteri(fun index value->Bytes.set_int32_le bytes(index*4)(Int32.bits_of_float value))values;bytes
+  (match light with None->()|Some(direction,color_value,intensity)->values.(73)<-1.;values.(85)<-direction.(0);values.(86)<-direction.(1);values.(87)<-direction.(2);color 88 color_value;values.(92)<-intensity);
+  let bytes=Bytes.create 5456 in Array.iteri(fun index value->Bytes.set_int32_le bytes(index*4)(Int32.bits_of_float value))values;bytes
 let ()=match Runtime_next.create~width:4~height:4 with Error _->print_endline"runtime_next Scene3 lighting: skipped"|Ok runtime->
   let indices=Bytes.make 12 '\000'and vertices=Bytes.make(68*3)'\000'in Bytes.set_int32_le indices 4 1l;Bytes.set_int32_le indices 8 2l;
   List.iteri(fun index(x,y)->let offset=index*68 in Bytes.set_int64_le vertices offset(Int64.bits_of_float x);Bytes.set_int64_le vertices(offset+8)(Int64.bits_of_float y);Bytes.set_int64_le vertices(offset+40)(Int64.bits_of_float 1.);Bytes.set_int32_le vertices(offset+48)0xffffffffl)[-1.,-1.;3.,-1.;-1.,3.];

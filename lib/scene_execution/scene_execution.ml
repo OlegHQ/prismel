@@ -86,7 +86,7 @@ let trim_cache cache =
   loop 0 0 [] [] cache
 let prepare value ~defer ~trusted_key ~reserved ~uniforms (mesh:mesh)=
   let uniform_bytes=Option.value uniforms~default:Bytes.empty in
-  let valid_uniforms=Option.fold~none:true~some:(fun bytes->(Bytes.length bytes=208||Bytes.length bytes=3376)&&let valid=ref true in for index=0 to Bytes.length bytes/4-1 do if not(Float.is_finite(Int32.float_of_bits(Bytes.get_int32_le bytes(index*4))))then valid:=false done;let lights=if Bytes.length bytes=3376 then Int32.float_of_bits(Bytes.get_int32_le bytes(73*4))else 0. in !valid&&lights>=0.&&lights<=64.&&Float.is_integer lights)uniforms in
+  let valid_uniforms=Option.fold~none:true~some:(fun bytes->(Bytes.length bytes=208||Bytes.length bytes=5456)&&let valid=ref true in for index=0 to Bytes.length bytes/4-1 do if not(Float.is_finite(Int32.float_of_bits(Bytes.get_int32_le bytes(index*4))))then valid:=false done;let lights=if Bytes.length bytes=5456 then Int32.float_of_bits(Bytes.get_int32_le bytes(73*4))else 0. in !valid&&lights>=0.&&lights<=64.&&Float.is_integer lights)uniforms in
   let key=mesh.key^(if Bytes.length uniform_bytes=0 then""else":"^Digest.to_hex(Digest.bytes uniform_bytes))in
   let trusted=if trusted_key then List.find_opt(fun(x:cached)->x.key=key)value.cache else None in
   match trusted with Some item->Ok item|None->
