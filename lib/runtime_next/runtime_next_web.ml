@@ -75,7 +75,7 @@ let create ?wap_config ~logical_width ~logical_height ~drawable_width
     | Ok presenter ->
         let driver, control = Ogpu_raster2.create () in
         match
-          Scene_execution.create driver
+          Scene_execution.create_variants driver
             (configuration ~logical_width ~logical_height ~drawable_width
                ~drawable_height)
         with
@@ -108,12 +108,11 @@ let ensure_live operation value =
   if value.dead then error operation Ogpu.Error.Stale_handle "runtime is destroyed"
   else Ok ()
 
-let render value draws =
-  let operation = "Runtime_next_web.render" in
+let render_result operation value submit =
   match ensure_live operation value with
   | Error _ as error_value -> error_value
   | Ok () ->
-      match Scene_execution.render value.renderer draws with
+      match submit value.renderer with
       | Error _ as error_value -> error_value
       | Ok false -> Ok false
       | Ok true ->
@@ -134,6 +133,13 @@ let render value draws =
               Result.map_error (presenter_error operation)
                 (Presenter.present value.presenter frame)
               |> Result.map (fun () -> true)
+
+let render value draws = render_result "Runtime_next_web.render" value
+  (fun renderer -> Scene_execution.render renderer draws)
+
+let render_sampled_resources value draws =
+  render_result "Runtime_next_web.render_sampled_resources" value
+    (fun renderer -> Scene_execution.render_sampled_resources renderer draws)
 
 let resize value ~logical_width ~logical_height ~drawable_width
     ~drawable_height =

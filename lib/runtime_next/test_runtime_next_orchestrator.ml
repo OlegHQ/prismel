@@ -43,8 +43,13 @@ let configuration ?web_configuration target extent =
     drawable_width = extent; drawable_height = extent; web_configuration }
 
 let exercise runtime extent =
+  let prepared family = { Orchestrator.family; blend=Orchestrator.Replace;
+    texture=None; auxiliary=None; samples=1; draw=draw extent } in
+  let combined=List.map prepared[Orchestrator.Scene2;Scene3;Scene3_textured;
+    Scene3_shadow;Scene3_stencil;Scene3_textured_stencil;Scene3_shadow_stencil]in
   for frame = 1 to 600 do
-    ignore (get (Orchestrator.render runtime [ draw extent ]));
+    ignore(get(if List.mem frame[1;2;60;600]then Orchestrator.render_prepared runtime combined
+      else Orchestrator.render runtime[draw extent]));
     if List.mem frame [ 1; 2; 60; 600 ] then begin
       let pixels =
         get (Orchestrator.capture runtime ~bytes_per_row:(extent * 4))

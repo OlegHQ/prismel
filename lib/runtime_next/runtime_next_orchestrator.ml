@@ -11,6 +11,11 @@ type facts = { title:string;logical_width:int;logical_height:int;drawable_width:
   drawable_height:int;position:(int*int)option;pixel_density:float;display_scale:float;
   refresh_rate:float option;vsync:bool }
 type pacing = {frames:int64;presented:int64;last_presented:bool}
+type family=Scene2|Scene3|Scene3_textured|Scene3_shadow|Scene3_stencil
+  |Scene3_textured_stencil|Scene3_shadow_stencil
+type blend=Replace|Alpha|Add|Multiply|Screen|Subtract
+type prepared={family:family;blend:blend;texture:Scene_execution.sampled_texture option;
+  auxiliary:Scene_execution.auxiliary_resource option;samples:int;draw:Scene_execution.draw}
 type text_input_region=Runtime_next_web.text_input_region={x:int;y:int;width:int;height:int;focused:bool}
 type mouse_button=Runtime_next_web.mouse_button=Left|Middle|Right|X1|X2
 type web_event=Runtime_next_web.web_event=Pointer_moved of int*int|Pointer_pressed of mouse_button*int*int
@@ -71,12 +76,25 @@ let is_web value=value.target=Web
 let is_displayless value=value.target<>Native
 let facts value=Result.map(fun()->value.facts)(ensure"Runtime_next_orchestrator.facts"value)
 let pacing value=Result.map(fun()->value.pacing)(ensure"Runtime_next_orchestrator.pacing"value)
-let render value draws=match ensure"Runtime_next_orchestrator.render"value with Error _ as e->e|Ok()->
-  let result=match value.implementation with Native_runtime x->Runtime_next.render x draws
-    |Headless_runtime x->Runtime_next_headless.render x draws|Web_runtime x->Runtime_next_web.render x draws in
+let account value result =
   (match result with Ok presented->value.pacing<-{frames=Int64.succ value.pacing.frames;
     presented=(if presented then Int64.succ value.pacing.presented else value.pacing.presented);
     last_presented=presented}|Error _->());result
+let render value draws=match ensure"Runtime_next_orchestrator.render"value with Error _ as e->e|Ok()->
+  account value(match value.implementation with Native_runtime x->Runtime_next.render x draws
+    |Headless_runtime x->Runtime_next_headless.render x draws|Web_runtime x->Runtime_next_web.render x draws)
+let scene_family=function Scene2->Scene_execution.Scene2|Scene3->Scene3
+  |Scene3_textured->Scene3_textured|Scene3_shadow->Scene3_shadow
+  |Scene3_stencil->Scene3_stencil|Scene3_textured_stencil->Scene3_textured_stencil
+  |Scene3_shadow_stencil->Scene3_shadow_stencil
+let pipeline_blend=function Replace->Ogpu.Pipeline.Replace|Alpha->Alpha|Add->Add
+  |Multiply->Multiply|Screen->Screen|Subtract->Subtract
+let render_prepared value draws=match ensure"Runtime_next_orchestrator.render_prepared"value with Error _ as e->e|Ok()->
+  let draws=List.map(fun x->scene_family x.family,pipeline_blend x.blend,x.texture,x.auxiliary,x.samples,x.draw)draws in
+  account value(match value.implementation with
+    |Native_runtime x->Runtime_next.render_sampled_resources x draws
+    |Headless_runtime x->Runtime_next_headless.render_sampled_resources x draws
+    |Web_runtime x->Runtime_next_web.render_sampled_resources x draws)
 let resize value~logical_width~logical_height~drawable_width~drawable_height=
   match ensure"Runtime_next_orchestrator.resize"value with Error _ as e->e|Ok()->let result=
     match value.implementation with Native_runtime x->Runtime_next.resize x~width:logical_width~height:logical_height

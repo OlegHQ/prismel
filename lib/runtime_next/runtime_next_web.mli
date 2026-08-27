@@ -29,6 +29,10 @@ val create_configured : ?configuration:web_configuration ->
   drawable_height:int -> unit -> (t,Ogpu.Error.t) result
 
 val render : t -> Scene_execution.draw list -> (bool, Ogpu.Error.t) result
+val render_sampled_resources : t ->
+  (Scene_execution.pipeline_family * Ogpu.Pipeline.blend *
+   Scene_execution.sampled_texture option * Scene_execution.auxiliary_resource option *
+   int * Scene_execution.draw) list -> (bool, Ogpu.Error.t) result
 
 val resize :
   t ->

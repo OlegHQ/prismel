@@ -32,7 +32,7 @@ let create ~logical_width ~logical_height ~drawable_width ~drawable_height =
   |Ok window->match sdl operation(Sdl3.Rgba_presenter.create window)with
     |Error e->ignore(Sdl3.Window.destroy window);ignore(Sdl3.Init.quit_subsystems[Video]);Error e
     |Ok presenter->let driver,control=Ogpu_raster2.create()in
-      match Scene_execution.create driver(configuration~logical_width~logical_height
+      match Scene_execution.create_variants driver(configuration~logical_width~logical_height
           ~drawable_width~drawable_height)with
       |Error e->ignore(Sdl3.Rgba_presenter.destroy presenter);ignore(Sdl3.Window.destroy window);
         ignore(Sdl3.Init.quit_subsystems[Video]);Error e
@@ -42,14 +42,19 @@ let create ~logical_width ~logical_height ~drawable_width ~drawable_height =
 let ensure_live operation value =
   if value.dead then error operation Stale_handle"runtime is destroyed"else Ok()
 
-let render value draws =
-  let operation="Runtime_next_headless.render"in
+let render_result operation value submit =
   match ensure_live operation value with Error _ as e->e|Ok()->
-  match Scene_execution.render value.renderer draws with Error _ as e->e|Ok false->Ok false|Ok true->
+  match submit value.renderer with Error _ as e->e|Ok false->Ok false|Ok true->
   let pitch=value.drawable_width*4 in
   match Scene_execution.read_pixels value.renderer~bytes_per_row:pitch with Error _ as e->e|Ok pixels->
   match sdl operation(Sdl3.Rgba_presenter.present value.presenter~width:value.drawable_width
       ~height:value.drawable_height~pitch pixels)with Error _ as e->e|Ok()->Ok true
+
+let render value draws = render_result "Runtime_next_headless.render" value
+  (fun renderer->Scene_execution.render renderer draws)
+let render_sampled_resources value draws =
+  render_result "Runtime_next_headless.render_sampled_resources" value
+    (fun renderer->Scene_execution.render_sampled_resources renderer draws)
 
 let resize value ~logical_width ~logical_height ~drawable_width ~drawable_height =
   let operation="Runtime_next_headless.resize"in

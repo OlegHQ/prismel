@@ -11,6 +11,17 @@ type facts = { title:string; logical_width:int; logical_height:int;
   drawable_width:int; drawable_height:int; position:(int*int) option;
   pixel_density:float; display_scale:float; refresh_rate:float option; vsync:bool }
 type pacing = { frames:int64; presented:int64; last_presented:bool }
+type family = Scene2 | Scene3 | Scene3_textured | Scene3_shadow |
+  Scene3_stencil | Scene3_textured_stencil | Scene3_shadow_stencil
+type blend = Replace | Alpha | Add | Multiply | Screen | Subtract
+type prepared = {
+  family : family;
+  blend : blend;
+  texture : Scene_execution.sampled_texture option;
+  auxiliary : Scene_execution.auxiliary_resource option;
+  samples : int;
+  draw : Scene_execution.draw;
+}
 type text_input_region = Runtime_next_web.text_input_region = { x:int; y:int; width:int; height:int; focused:bool }
 type mouse_button = Runtime_next_web.mouse_button = Left | Middle | Right | X1 | X2
 type web_event = Runtime_next_web.web_event = Pointer_moved of int*int | Pointer_pressed of mouse_button*int*int
@@ -37,6 +48,7 @@ val is_displayless : t -> bool
 val facts : t -> (facts,Ogpu.Error.t) result
 val pacing : t -> (pacing,Ogpu.Error.t) result
 val render : t -> Scene_execution.draw list -> (bool,Ogpu.Error.t) result
+val render_prepared : t -> prepared list -> (bool,Ogpu.Error.t) result
 val resize : t -> logical_width:int -> logical_height:int -> drawable_width:int ->
   drawable_height:int -> (unit,Ogpu.Error.t) result
 val capture : t -> bytes_per_row:int -> (bytes,Ogpu.Error.t) result
