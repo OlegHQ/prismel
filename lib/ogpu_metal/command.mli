@@ -5,7 +5,11 @@ val copy_buffer : t -> source:Buffer.t -> source_offset:int64 ->
   (unit,Ogpu.Error.t) result
 val compute : t -> source:string -> entry:string -> buffer:Buffer.t ->
   threads:int -> (unit,Ogpu.Error.t) result
+val dispatch : t -> pipeline:Pipeline.t -> buffer:Buffer.t -> threads:int ->
+  (unit,Ogpu.Error.t) result
 val clear : t -> Texture.t -> color:float*float*float*float -> (unit,Ogpu.Error.t) result
+val draw_triangle : t -> pipeline:Pipeline.t -> target:Texture.t ->
+  (unit,Ogpu.Error.t) result
 val end_ : t -> (unit,Ogpu.Error.t) result
 val descriptions : t -> Ogpu.Command.description array
 
@@ -13,7 +17,9 @@ module Private : sig
   type operation =
     | Copy of Buffer.t*int64*Buffer.t*int64*int64
     | Compute of string*string*Buffer.t*int
+    | Dispatch of Pipeline.t*Buffer.t*int
     | Clear of Texture.t*(float*float*float*float)
+    | Draw_triangle of Pipeline.t*Texture.t
   val portable : t -> Ogpu.Command.t
   val operations : t -> operation list
 end

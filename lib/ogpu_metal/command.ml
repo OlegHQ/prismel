@@ -1,7 +1,9 @@
 type operation=
   | Copy of Buffer.t*int64*Buffer.t*int64*int64
   | Compute of string*string*Buffer.t*int
+  | Dispatch of Pipeline.t*Buffer.t*int
   | Clear of Texture.t*(float*float*float*float)
+  | Draw_triangle of Pipeline.t*Texture.t
 type t={portable:Ogpu.Command.t;mutable operations:operation list;mutable ended:bool}
 let create()={portable=Ogpu.Command.begin_encoder();operations=[];ended=false}
 let error op message=Error(Ogpu.Error.make op Ogpu.Error.Invalid_state message)
@@ -17,11 +19,15 @@ let copy_buffer value~source~source_offset~destination~destination_offset~length
 let compute value~source~entry~buffer~threads=
   if threads<=0||source=""||entry="" then Error(Ogpu.Error.make"Ogpu_metal.Command.compute"Ogpu.Error.Invalid_argument"compute payload is invalid")else
   add value Ogpu.Command.Compute (Compute(source,entry,buffer,threads))[Buffer.id buffer,Ogpu.Command.Read_write,[Ogpu.Command.Compute_stage]]
+let dispatch value~pipeline~buffer~threads=
+  if threads<=0 then Error(Ogpu.Error.make"Ogpu_metal.Command.dispatch"Ogpu.Error.Invalid_argument"thread count is invalid")else
+  add value Ogpu.Command.Compute(Dispatch(pipeline,buffer,threads))[Buffer.id buffer,Ogpu.Command.Read_write,[Ogpu.Command.Compute_stage]]
 let clear value texture~color=add value Ogpu.Command.Render(Clear(texture,color))[Texture.id texture,Ogpu.Command.Write,[Ogpu.Command.Fragment]]
+let draw_triangle value~pipeline~target=add value Ogpu.Command.Render(Draw_triangle(pipeline,target))[Texture.id target,Ogpu.Command.Write,[Ogpu.Command.Fragment]]
 let end_ value=if value.ended then error"Ogpu_metal.Command.end""command already ended"else match Ogpu.Command.end_encoder value.portable with Error _ as e->e|Ok()->value.ended<-true;Ok()
 let descriptions value=Ogpu.Command.descriptions value.portable
 module Private=struct
-  type nonrec operation=operation=Copy of Buffer.t*int64*Buffer.t*int64*int64|Compute of string*string*Buffer.t*int|Clear of Texture.t*(float*float*float*float)
+  type nonrec operation=operation=Copy of Buffer.t*int64*Buffer.t*int64*int64|Compute of string*string*Buffer.t*int|Dispatch of Pipeline.t*Buffer.t*int|Clear of Texture.t*(float*float*float*float)|Draw_triangle of Pipeline.t*Texture.t
   let portable value=value.portable
   let operations value=List.rev value.operations
 end
