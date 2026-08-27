@@ -127,10 +127,19 @@ let depth_target_lifecycle () =
   if List.length creations<>expected then failwith"depth target count did not match provisioned sample variants";
   Ogpu.Backend_mock.clear_trace control;
   ignore(get(Scene_execution.render_family renderer[Scene2,Ogpu.Pipeline.Replace,draw]));
-  if not(List.exists(String.starts_with~prefix:"render:nodepth:")(Ogpu.Backend_mock.trace control))then failwith"Scene2 acquired a depth attachment";
+  if not(List.exists(String.starts_with~prefix:"render:nodepth:none:always:false:")(Ogpu.Backend_mock.trace control))then failwith"Scene2 acquired depth or raster state";
   Ogpu.Backend_mock.clear_trace control;
   ignore(get(Scene_execution.render_family renderer[Scene3,Ogpu.Pipeline.Replace,draw]));
   if not(List.exists(String.starts_with~prefix:"render:depth:")(Ogpu.Backend_mock.trace control))then failwith"Scene3 omitted its depth attachment";
+  Ogpu.Backend_mock.clear_trace control;
+  let raster={state with cull=Ogpu.Render_pass.Cull_front;depth_compare=Greater_equal;depth_write=true;depth_load=Clear;depth_clear=0.25}in
+  ignore(get(Scene_execution.render_family renderer[Scene3,Ogpu.Pipeline.Replace,{draw with state=raster}]));
+  let traces=Ogpu.Backend_mock.trace control in
+  if not(List.exists(fun value->match String.split_on_char ':' value with "render"::"depth"::_::"clear"::"0.25"::"front"::"ge"::"true"::_->true|_->false)traces)then failwith"Scene3 raster state was not forwarded";
+  let malformed=Bytes.make 208 '\000'in Bytes.set_int32_le malformed 0(Int32.bits_of_float nan);
+  let before_upload=Scene_execution.upload_bytes renderer and before_live=Ogpu.Backend_mock.live_counts control in
+  begin match Scene_execution.render_family renderer[Scene3,Ogpu.Pipeline.Replace,{draw with state={raster with transform_uniforms=Some malformed}}]with Error e when e.Ogpu.Error.kind=Invalid_argument->()|_->failwith"malformed transform uniforms were not rejected"end;
+  if Scene_execution.upload_bytes renderer<>before_upload||Ogpu.Backend_mock.live_counts control<>before_live then failwith"malformed transform rejection was not atomic";
   let before=Ogpu.Backend_mock.live_counts control in
   Ogpu.Backend_mock.fail_depth_allocation_after control 0;
   begin match Scene_execution.resize renderer{configuration with physical_width=16;physical_height=12}with Error _->()|Ok()->failwith"depth allocation failure did not roll back resize"end;

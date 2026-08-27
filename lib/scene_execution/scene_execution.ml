@@ -86,12 +86,13 @@ let trim_cache cache =
   loop 0 0 [] [] cache
 let prepare value ~defer ~trusted_key ~reserved ~uniforms (mesh:mesh)=
   let uniform_bytes=Option.value uniforms~default:Bytes.empty in
+  let valid_uniforms=Option.fold~none:true~some:(fun bytes->Bytes.length bytes=208&&let valid=ref true in for index=0 to 51 do if not(Float.is_finite(Int32.float_of_bits(Bytes.get_int32_le bytes(index*4))))then valid:=false done;!valid)uniforms in
   let key=mesh.key^(if Bytes.length uniform_bytes=0 then""else":"^Digest.to_hex(Digest.bytes uniform_bytes))in
   let trusted=if trusted_key then List.find_opt(fun(x:cached)->x.key=key)value.cache else None in
   match trusted with Some item->Ok item|None->
   let payload_hash=Digest.to_hex(Digest.string(Bytes.to_string mesh.vertices^Bytes.to_string mesh.indices^Bytes.to_string uniform_bytes))in match List.find_opt(fun(x:cached)->x.key=key&&x.payload_hash=payload_hash)value.cache with Some item->Ok item|None->
   let total=Bytes.length mesh.vertices+Bytes.length mesh.indices+Bytes.length uniform_bytes in
-  if mesh.key=""||mesh.vertex_count<=0||mesh.index_count<=0||total=0||Option.fold~none:false~some:(fun bytes->Bytes.length bytes<>208)uniforms then error"Scene_execution.prepare"Ogpu.Error.Invalid_argument"mesh payload or transform uniforms are malformed"else
+  if mesh.key=""||mesh.vertex_count<=0||mesh.index_count<=0||total=0||not valid_uniforms then error"Scene_execution.prepare"Ogpu.Error.Invalid_argument"mesh payload or transform uniforms are malformed"else
   let at_capacity=List.length value.cache>=64 in
   match List.find_opt(fun(x:cached)->x.bytes=total&&not(List.exists((==)x)reserved)&&(x.key=key||at_capacity))value.cache with
   |Some item->

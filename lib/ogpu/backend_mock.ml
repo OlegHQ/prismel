@@ -3,8 +3,10 @@ let error op kind text=Error(Error.make op kind text)
 let add c text=c.trace<-text::c.trace
 let token c=let value=c.next in c.next<-Int64.succ value;value
 let render_trace submission =
-  let depth=match (Render_pass.descriptor(Render_pass.submission_pass submission)).Render_pass.depth with None->"nodepth"|Some attachment->Printf.sprintf"depth:%Ld"attachment.texture.id in
-  depth^":"^(Render_pass.submission_draws submission
+  let depth=match (Render_pass.descriptor(Render_pass.submission_pass submission)).Render_pass.depth with None->"nodepth"|Some attachment->Printf.sprintf"depth:%Ld:%s:%g"attachment.texture.id(match attachment.load with Clear->"clear"|Load->"load"|Dont_care->"discard")attachment.clear in
+  let raster=Render_pass.raster_state(Render_pass.submission_pass submission)in
+  let cull=match raster.cull with Cull_none->"none"|Cull_front->"front"|Cull_back->"back"and comparison=match raster.depth_compare with Never->"never"|Less->"less"|Equal->"equal"|Less_equal->"le"|Greater->"greater"|Not_equal->"ne"|Greater_equal->"ge"|Always->"always"in
+  Printf.sprintf"%s:%s:%s:%b:"depth cull comparison raster.depth_write^(Render_pass.submission_draws submission
   |> List.map (fun (draw : Render_pass.draw) ->
          let index =
            match draw.index with
