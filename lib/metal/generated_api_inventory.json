@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 5174,
+    "bound": 5178,
     "scope-excluded": 37,
-    "unreviewed": 74
+    "unreviewed": 70
   },
-  "classification_source_sha256": "6543a44ed0e9e8385c334b4824be212a4b88c3b9aba9340e6d35d1300aefd70b",
+  "classification_source_sha256": "14ff0227149bc46ae1d68764452280bd92e7afa58e71d83ad7884f0290adcc47",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -55117,7 +55117,7 @@
           "line": 1526
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice functionHandleWithBinaryFunction:]",
       "kind": "method",
@@ -55125,7 +55125,7 @@
       "macos_introduced": "26.0",
       "name": "functionHandleWithBinaryFunction:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by exact Device function-handle, argument-encoder, and synchronous render-pipeline constructors with typed descriptors, same-device ownership, native-first failure handling, and real public conformance.",
       "signature": "instance (id<MTL4BinaryFunction>  _Nonnull __strong) -> id<MTLFunctionHandle> _Nullable"
     },
     {
@@ -55142,7 +55142,7 @@
           "line": 1351
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice functionHandleWithFunction:]",
       "kind": "method",
@@ -55150,7 +55150,7 @@
       "macos_introduced": "26.0",
       "name": "functionHandleWithFunction:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by exact Device function-handle, argument-encoder, and synchronous render-pipeline constructors with typed descriptors, same-device ownership, native-first failure handling, and real public conformance.",
       "signature": "instance (id<MTLFunction>  _Nonnull __strong) -> id<MTLFunctionHandle> _Nullable"
     },
     {
@@ -55765,7 +55765,7 @@
           "line": 968
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newArgumentEncoderWithArguments:]",
       "kind": "method",
@@ -55773,7 +55773,7 @@
       "macos_introduced": "10.13",
       "name": "newArgumentEncoderWithArguments:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by exact Device function-handle, argument-encoder, and synchronous render-pipeline constructors with typed descriptors, same-device ownership, native-first failure handling, and real public conformance.",
       "signature": "instance (NSArray<MTLArgumentDescriptor *> * _Nonnull __strong) -> id<MTLArgumentEncoder> _Nullable"
     },
     {
@@ -56975,7 +56975,7 @@
           "line": 459
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newRenderPipelineStateWithDescriptor:error:]",
       "kind": "method",
@@ -56983,7 +56983,7 @@
       "macos_introduced": "10.11",
       "name": "newRenderPipelineStateWithDescriptor:error:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by exact Device function-handle, argument-encoder, and synchronous render-pipeline constructors with typed descriptors, same-device ownership, native-first failure handling, and real public conformance.",
       "signature": "instance (MTLRenderPipelineDescriptor * _Nonnull __strong, NSError *__autoreleasing  _Nullable * _Nullable) -> id<MTLRenderPipelineState> _Nullable"
     },
     {

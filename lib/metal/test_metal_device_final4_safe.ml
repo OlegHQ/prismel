@@ -27,9 +27,9 @@ let () =
        | Error error when error.kind = Unsupported -> ()
        | Error error -> fail error);
       let descriptor = get (Shader_argument_encoder.descriptor
-        ~data_type:Data_type.uint ~index:0L ~array_length:1L
+        ~data_type:Data_type.mtl_data_type_u_int ~index:0L ~array_length:1L
         ~access:Shader_argument_encoder.Read_only
-        ~texture_kind:Texture.Type_2d ~constant_block_alignment:0L ()) in
+        ~texture_kind:Texture.Texture_2d ~constant_block_alignment:0L ()) in
       let encoder = get (Shader_argument_encoder.create device [descriptor]) in
       if Shader_argument_encoder.encoded_length encoder <= 0L then
         failwith "argument encoder has empty layout";

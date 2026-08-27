@@ -149,6 +149,7 @@
   binding_device_library5_safe_package
   binding_device_queues3_safe_package
   binding_device_remaining6_safe_package
+  binding_device_final4_safe_package
   binding_availability
   binding_availability_ast
   binding_receiver_catalog
@@ -1074,6 +1075,11 @@
 (test
  (name test_binding_device_library5_safe_package)
  (modules test_binding_device_library5_safe_package)
+ (libraries metal_inventory_classification))
+
+(test
+ (name test_binding_device_final4_safe_package)
+ (modules test_binding_device_final4_safe_package)
  (libraries metal_inventory_classification))
 
 (test

@@ -1519,3 +1519,8 @@
  (name test_metal_device_value25_safe)
  (modules test_metal_device_value25_safe)
  (libraries metal))
+
+(executable
+ (name test_metal_device_final4_safe)
+ (modules test_metal_device_final4_safe)
+ (libraries metal))
