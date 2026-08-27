@@ -576,6 +576,7 @@ let validate_direct_method inventory
   let expected_classification =
     if Binding_direct_plan.is_safe_device_identifier entry.sdk_id
        || Binding_direct_plan.is_capability13_identifier entry.sdk_id
+       || Binding_direct_plan.is_spatial_timestamp6_identifier entry.sdk_id
        || List.mem entry.sdk_id Binding_resource_safe_reachability.promotable_ids
        || List.mem entry.sdk_id Binding_pipeline_state_safe_reachability.promotable_ids
        || List.mem entry.sdk_id Binding_shader_safe_reachability.promotable_ids
@@ -640,6 +641,7 @@ let validate_direct_property inventory
   let expected_classification =
     if Binding_direct_plan.is_safe_device_identifier property.sdk_id
        || Binding_direct_plan.is_capability13_identifier property.sdk_id
+       || Binding_direct_plan.is_spatial_timestamp6_identifier property.sdk_id
        || List.mem property.sdk_id Binding_resource_safe_reachability.promotable_ids
        || List.mem property.sdk_id Binding_pipeline_state_safe_reachability.promotable_ids
        || List.mem property.sdk_id Binding_shader_safe_reachability.promotable_ids

@@ -136,6 +136,9 @@ can change the denominator explicitly rather than being hidden.
 | `1a13948` | 2026-08-27 10:55:08 +02:00 | 5,213 | 5,249 | 99.3142% | 3 | 0.011 | 284.2 | 5.41 |
 | `076b45c` | 2026-08-27 10:56:24 +02:00 | 5,226 | 5,249 | 99.5618% | 13 | 0.021 | 615.8 | 11.73 |
 | `142d0b4` | 2026-08-27 11:03:23 +02:00 | 5,239 | 5,249 | 99.8095% | 13 | 0.116 | 111.7 | 2.13 |
+| `1eb2ab1` | 2026-08-27 11:04:59 +02:00 | 5,242 | 5,249 | 99.8666% | 3 | 0.027 | 112.5 | 2.14 |
+| `28cc615` | 2026-08-27 11:08:50 +02:00 | 5,242 | 5,249 | 99.8666% | 0 | 0.064 | 0.0 | 0.00 |
+| `48079ec` | 2026-08-27 11:11:13 +02:00 | 5,248 | 5,249 | 99.9810% | 6 | 0.040 | 151.0 | 2.88 |
 
 ## Current measured rate
 
@@ -356,3 +359,8 @@ reflected buffer-binding argument encoders, synchronous compute pipelines with
 binding reflection, and shared events imported from exported handles. All
 three retain checked same-device parents, propagate native failures, and pass
 the real owned-lifetime fixture.
+
+The `48079ec` interval closes the exact six Device spatial/timestamp selectors.
+The checked public API validates sparse-region arrays and tile cardinality,
+copies default sample positions, samples paired CPU/GPU timestamps, and
+capability-gates the macOS 26 timestamp-frequency and counter-entry queries.

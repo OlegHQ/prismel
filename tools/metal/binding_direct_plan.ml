@@ -43,6 +43,15 @@ let expected_capability13_identifiers =
 let is_capability13_identifier identifier =
   List.mem identifier capability13_identifiers
 
+let spatial_timestamp6_identifiers =
+  inventory_ids
+  |> List.filter(fun id->List.mem id Binding_device_spatial_timestamp6_safe_closure.callable_ids)
+  |> List.sort_uniq String.compare
+let expected_spatial_timestamp6_identifiers =
+  [ "method:-[MTLDevice queryTimestampFrequency]"
+  ; "method:-[MTLDevice sizeOfCounterHeapEntry:]" ]
+let is_spatial_timestamp6_identifier identifier=List.mem identifier spatial_timestamp6_identifiers
+
 let expected_method_count = 59
 let expected_property_count = 40
 let expected_declaration_count = 99
@@ -92,6 +101,10 @@ let validate () =
     fail "promoted Device capability13 direct intersection drift: expected [%s], got [%s]"
       (String.concat "; " expected_capability13_identifiers)
       (String.concat "; " capability13_identifiers);
+  if spatial_timestamp6_identifiers <> expected_spatial_timestamp6_identifiers then
+    fail "promoted Device spatial/timestamp direct intersection drift: expected [%s], got [%s]"
+      (String.concat "; " expected_spatial_timestamp6_identifiers)
+      (String.concat "; " spatial_timestamp6_identifiers);
   reject_duplicates "inventory identifier" inventory_ids;
   let presentation_promotable =
     Binding_presentation_public_audit.safe_reachable

@@ -10,6 +10,7 @@ val is_safe_device_identifier : string -> bool
 val capability13_identifiers : string list
 val expected_capability13_identifiers : string list
 val is_capability13_identifier : string -> bool
+val is_spatial_timestamp6_identifier : string -> bool
 
 val expected_method_count : int
 val expected_property_count : int

@@ -72,7 +72,9 @@ let expected_promoted_render_encoder33_struct_ids =
   ]
 
 let expected_promoted_device_residual_struct_ids =
-  [ "method:-[MTLDevice heapAccelerationStructureSizeAndAlignWithSize:]" ]
+  [ "method:-[MTLDevice heapAccelerationStructureSizeAndAlignWithSize:]"
+  ; "method:-[MTLDevice maxThreadsPerThreadgroup]"
+  ; "property:MTLDevice:maxThreadsPerThreadgroup" ]
 
 let expected_promoted_small_header_struct_ids =
   [ "method:-[MTLDepthStencilState gpuResourceID]"
