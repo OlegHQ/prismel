@@ -824,7 +824,12 @@ and render_pass_descriptor =
   ; mutable pass_depth : texture option
   ; mutable pass_stencil : texture option
   ; mutable pass_visibility : buffer option
-  ; mutable pass_rate_map : rasterization_rate_map option }
+  ; mutable pass_rate_map : rasterization_rate_map option
+  ; mutable pass_resolve : texture option
+  ; pass_samples : render_pass_sample_state option array }
+
+and render_pass_sample_state =
+  { sample_buffer_lifetime : lifetime; sample_buffer_device : device }
 
 and command4_render_pass_descriptor =
   { raw : Metal_raw.handle; lifetime : lifetime; device : device
@@ -6622,7 +6627,8 @@ module Render_pass_descriptor = struct
                    ; pass_height = height; pass_array_length = array_length
                    ; pass_sample_count = sample_count; pass_color = None
                    ; pass_depth = None; pass_stencil = None
-                   ; pass_visibility = None; pass_rate_map=None }))
+                   ; pass_visibility = None; pass_rate_map=None
+                   ; pass_resolve=None; pass_samples=Array.make 4 None }))
 
   let size (value : t) = value.pass_width, value.pass_height
   let array_length (value : t) = value.pass_array_length
@@ -6692,6 +6698,47 @@ module Render_pass_descriptor = struct
               let result=Result.map (fun items->Array.of_list(List.rev items)) (loop 0 []) in
               close array_raw;
               result)
+  let set_sample_attachment (value:t) ~index (sample:counter_sample_buffer option)
+      ~start_vertex ~end_vertex ~start_fragment ~end_fragment =
+    let operation="Metal.Render_pass_descriptor.set_sample_attachment" in
+    on_main operation(fun()->
+      match ensure_live operation value.lifetime with
+      | Error _ as failure->failure
+      | Ok() when index<0||index>=4->error operation Invalid_argument "sample attachment index must be in [0,4)"
+      | Ok()->match sample with
+        | None->
+            (match Metal_raw.render_pass_sample_set value.raw(Int64.of_int index)None(-1L)(-1L)(-1L)(-1L)with
+             | Error message->native_error operation message
+             | Ok()->Option.iter(fun state->detach state.sample_buffer_lifetime)value.pass_samples.(index);value.pass_samples.(index)<-None;Ok())
+        | Some buffer when is_destroyed buffer.lifetime->error operation Destroyed "counter sample buffer is destroyed"
+        | Some buffer when option_exists(fun(texture:texture)->not(same_device texture.device buffer.device))value.pass_color->error operation Device_mismatch "counter sample buffer belongs to another device"
+        | Some buffer when List.exists(fun x->x<0L||x>=buffer.sample_count)[start_vertex;end_vertex;start_fragment;end_fragment]||start_vertex>end_vertex||start_fragment>end_fragment->error operation Invalid_argument "counter sample indices are outside the buffer or reversed"
+        | Some buffer->
+            (match Metal_raw.render_pass_sample_set value.raw(Int64.of_int index)(Some buffer.raw)start_vertex end_vertex start_fragment end_fragment with
+             | Error message->native_error operation message
+             | Ok()->attach buffer.lifetime;Option.iter(fun state->detach state.sample_buffer_lifetime)value.pass_samples.(index);value.pass_samples.(index)<-Some{sample_buffer_lifetime=buffer.lifetime;sample_buffer_device=buffer.device};Ok()))
+  let resolve_texture(value:t)=value.pass_resolve
+  let set_resolve_texture(value:t)(next:texture option)=
+    let operation="Metal.Render_pass_descriptor.set_resolve_texture" in
+    on_main operation(fun()->match ensure_live operation value.lifetime with
+    | Error _ as failure->failure
+    | Ok()->match next with
+      | Some texture when is_destroyed texture.lifetime->error operation Destroyed "resolve texture is destroyed"
+      | Some _ when value.pass_sample_count<=1->error operation Invalid_argument "resolve texture requires a multisample render pass"
+      | Some texture when texture.descriptor.width<>value.pass_width||texture.descriptor.height<>value.pass_height||texture.descriptor.sample_count<>1||not(List.mem Render_target texture.descriptor.usage)->error operation Invalid_argument "resolve texture dimensions, samples, or usage are incompatible"
+      | Some texture when option_exists(fun(color:texture)->not(same_device color.device texture.device))value.pass_color->error operation Device_mismatch "resolve texture belongs to another device"
+      | _->match Metal_raw.render_pass_resolve_texture value.raw(Option.map(fun(texture:texture)->texture.raw)next)true with
+        | Error message->native_error operation message
+        | Ok actual->
+            Option.iter(fun raw->ignore(Metal_raw.destroy raw))actual;
+            if Option.is_some actual<>Option.is_some next then
+              error operation Native_error "resolve texture round-trip changed nullability"
+            else begin
+              Option.iter(fun(texture:texture)->attach texture.lifetime)next;
+              Option.iter(fun(texture:texture)->detach texture.lifetime)value.pass_resolve;
+              value.pass_resolve<-next;
+              Ok()
+            end)
   let rasterization_rate_map(value:t)=value.pass_rate_map
   let set_rasterization_rate_map(value:t)(next:Rasterization_rate_map.t option)=
     let operation="Metal.Render_pass_descriptor.set_rasterization_rate_map" in
@@ -6750,6 +6797,8 @@ module Render_pass_descriptor = struct
                     not (same_device device texture.device)) textures then
                  error operation Device_mismatch
                    "render pass attachments belong to different devices"
+               else if option_exists(fun(texture:texture)->not(same_device device texture.device))value.pass_resolve||Array.exists(fun state->match state with None->false|Some state->not(same_device device state.sample_buffer_device))value.pass_samples then
+                 error operation Device_mismatch "retained resolve/counter attachments belong to another device"
                else
                  (match visibility_result with
                   | Some buffer when is_destroyed buffer.lifetime ->
@@ -6831,7 +6880,9 @@ module Render_pass_descriptor = struct
         detach_option (fun (texture : texture) -> texture.lifetime) value.pass_depth;
         detach_option (fun (texture : texture) -> texture.lifetime) value.pass_stencil;
         detach_option (fun (buffer : buffer) -> buffer.lifetime) value.pass_visibility;
-        detach_option (fun (map:rasterization_rate_map)->map.lifetime) value.pass_rate_map)
+        detach_option (fun (map:rasterization_rate_map)->map.lifetime) value.pass_rate_map;
+        detach_option (fun (texture:texture)->texture.lifetime) value.pass_resolve;
+        Array.iter(Option.iter(fun state->detach state.sample_buffer_lifetime))value.pass_samples)
 end
 
 module Fence = struct
@@ -20189,6 +20240,8 @@ module Counters = struct
     let destroy(t:t)=destroy_parent "Metal.Counters.Descriptor.destroy" t.lifetime t.raw(fun()->detach t.device.lifetime)
   end
   let resolve(samples:counter_sample_buffer)~first~count=let operation="Metal.Counters.resolve"in on_main operation(fun()->match ensure_live operation samples.lifetime with Error _ as e->e|Ok()when first<0L||count<0L||first>samples.sample_count||count>Int64.sub samples.sample_count first->error operation Invalid_argument "counter range is out of bounds"|Ok()->match Metal_raw.counter_sample_resolve samples.raw first count with Error m->native_error operation m|Ok bytes->Ok bytes)
+  let set_render_pass_attachment pass ~index samples ~start_vertex ~end_vertex ~start_fragment ~end_fragment=Render_pass_descriptor.set_sample_attachment pass~index(Some samples)~start_vertex~end_vertex~start_fragment~end_fragment
+  let clear_render_pass_attachment pass ~index=Render_pass_descriptor.set_sample_attachment pass~index None~start_vertex:(-1L)~end_vertex:(-1L)~start_fragment:(-1L)~end_fragment:(-1L)
 end
 
 module Acceleration_pass : sig

@@ -23,3 +23,50 @@ extern "C" CAMLprim value caml_prismel_metal_render_pass_reset_depth_stencil(val
 extern "C" CAMLprim value caml_prismel_metal_render_pass_sample_attachments(value raw){CAMLparam1(raw);CAMLlocal2(handle,result);@try{MTLRenderPassDescriptor*p=object_of_handle(raw,Handle_kind::Render_pass_descriptor);handle=allocate_handle(p.sampleBufferAttachments,Handle_kind::Render_sample_attachment_array);result=result_ok(handle);CAMLreturn(result);}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
 extern "C" CAMLprim value caml_prismel_metal_render_pass_set_rate_map(value raw,value map){CAMLparam2(raw,map);@try{MTLRenderPassDescriptor*p=object_of_handle(raw,Handle_kind::Render_pass_descriptor);p.rasterizationRateMap=Is_none(map)?nil:object_of_handle(Field(map,0),Handle_kind::Raster_rate_map);CAMLreturn(result_unit());}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
 extern "C" CAMLprim value caml_prismel_metal_render_pass_sizes(value raw){CAMLparam1(raw);CAMLlocal2(tuple,result);@try{MTLRenderPassDescriptor*p=object_of_handle(raw,Handle_kind::Render_pass_descriptor);tuple=caml_alloc_tuple(4);Store_field(tuple,0,caml_copy_int64(p.renderTargetWidth));Store_field(tuple,1,caml_copy_int64(p.renderTargetHeight));Store_field(tuple,2,caml_copy_int64(p.renderTargetArrayLength));Store_field(tuple,3,caml_copy_int64(p.defaultRasterSampleCount));result=result_ok(tuple);CAMLreturn(result);}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}
+
+extern "C" CAMLprim value caml_prismel_metal_render_pass_sample_set(
+    value raw,value raw_index,value raw_buffer,value raw_sv,value raw_ev,
+    value raw_sf,value raw_ef){
+  CAMLparam5(raw,raw_index,raw_buffer,raw_sv,raw_ev);CAMLxparam2(raw_sf,raw_ef);
+  int64_t index=Int64_val(raw_index);
+  if(index<0||index>=4)CAMLreturn(result_error_text("render sample attachment index is outside [0,4)"));
+  @try{
+    MTLRenderPassDescriptor*p=object_of_handle(raw,Handle_kind::Render_pass_descriptor);
+    MTLRenderPassSampleBufferAttachmentDescriptor*source=nil;
+    if(!Is_none(raw_buffer)){
+      source=[MTLRenderPassSampleBufferAttachmentDescriptor new];
+      source.sampleBuffer=object_of_handle(Field(raw_buffer,0),Handle_kind::Counter_sample_buffer);
+      source.startOfVertexSampleIndex=(NSUInteger)Int64_val(raw_sv);
+      source.endOfVertexSampleIndex=(NSUInteger)Int64_val(raw_ev);
+      source.startOfFragmentSampleIndex=(NSUInteger)Int64_val(raw_sf);
+      source.endOfFragmentSampleIndex=(NSUInteger)Int64_val(raw_ef);
+    }
+    [p.sampleBufferAttachments setObject:source atIndexedSubscript:(NSUInteger)index];
+    MTLRenderPassSampleBufferAttachmentDescriptor*stored=
+      [p.sampleBufferAttachments objectAtIndexedSubscript:(NSUInteger)index];
+    if(stored==nil||stored==source)CAMLreturn(result_error_text("Metal changed render sample attachment copy/reset semantics"));
+    if(source!=nil&&(stored.sampleBuffer!=source.sampleBuffer||
+       stored.startOfVertexSampleIndex!=source.startOfVertexSampleIndex||
+       stored.endOfVertexSampleIndex!=source.endOfVertexSampleIndex||
+       stored.startOfFragmentSampleIndex!=source.startOfFragmentSampleIndex||
+       stored.endOfFragmentSampleIndex!=source.endOfFragmentSampleIndex))
+      CAMLreturn(result_error_text("Metal changed render sample attachment values"));
+    if(source==nil&&stored.sampleBuffer!=nil)
+      CAMLreturn(result_error_text("Metal failed to reset render sample attachment"));
+    CAMLreturn(result_unit());
+  }@catch(NSException*x){CAMLreturn(result_error(x.reason));}
+}
+extern "C" CAMLprim value caml_prismel_metal_render_pass_sample_set_bytecode(value*argv,int argc){(void)argc;return caml_prismel_metal_render_pass_sample_set(argv[0],argv[1],argv[2],argv[3],argv[4],argv[5],argv[6]);}
+
+extern "C" CAMLprim value caml_prismel_metal_render_pass_resolve_texture(
+    value raw,value replacement,value set_raw){
+  CAMLparam3(raw,replacement,set_raw);CAMLlocal3(handle,option,result);
+  @try{
+    MTLRenderPassDescriptor*p=object_of_handle(raw,Handle_kind::Render_pass_descriptor);
+    MTLRenderPassColorAttachmentDescriptor*color=p.colorAttachments[0];
+    if(Bool_val(set_raw))color.resolveTexture=Is_none(replacement)?nil:object_of_handle(Field(replacement,0),Handle_kind::Texture);
+    id<MTLTexture>texture=color.resolveTexture;
+    if(texture==nil)option=Val_none;else{handle=allocate_handle(texture,Handle_kind::Texture);option=caml_alloc(1,0);Store_field(option,0,handle);}
+    result=result_ok(option);CAMLreturn(result);
+  }@catch(NSException*x){CAMLreturn(result_error(x.reason));}
+}

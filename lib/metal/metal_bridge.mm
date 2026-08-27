@@ -14113,16 +14113,22 @@ extern "C" CAMLprim value caml_prismel_metal_render_pass_descriptor_set_attachme
     id<MTLTexture> depth=optional_object(rd,Handle_kind::Texture);
     id<MTLTexture> stencil=optional_object(rs,Handle_kind::Texture);
     id<MTLBuffer> visibility=optional_object(rv,Handle_kind::Buffer);
-    p.colorAttachments[0].texture=color;
-    p.colorAttachments[0].loadAction=MTLLoadActionClear;
-    p.colorAttachments[0].storeAction=MTLStoreActionStore;
-    p.colorAttachments[0].clearColor=MTLClearColorMake(Double_val(Field(rclear,0)),Double_val(Field(rclear,1)),Double_val(Field(rclear,2)),Double_val(Field(rclear,3)));
+    MTLRenderPassColorAttachmentDescriptor *source=
+        [MTLRenderPassColorAttachmentDescriptor new];
+    source.texture=color;
+    source.loadAction=MTLLoadActionClear;
+    source.storeAction=MTLStoreActionStore;
+    source.clearColor=MTLClearColorMake(Double_val(Field(rclear,0)),Double_val(Field(rclear,1)),Double_val(Field(rclear,2)),Double_val(Field(rclear,3)));
+    [p.colorAttachments setObject:source atIndexedSubscript:0];
+    MTLRenderPassColorAttachmentDescriptor *stored=
+        [p.colorAttachments objectAtIndexedSubscript:0];
+    if(stored==nil||stored==source){restore();CAMLreturn(result_error_text("Metal changed render color attachment copy semantics"));}
     p.depthAttachment.texture=depth;
     if(depth){p.depthAttachment.loadAction=MTLLoadActionClear;p.depthAttachment.storeAction=MTLStoreActionStore;p.depthAttachment.clearDepth=1.0;}
     p.stencilAttachment.texture=stencil;
     if(stencil){p.stencilAttachment.loadAction=MTLLoadActionClear;p.stencilAttachment.storeAction=MTLStoreActionStore;p.stencilAttachment.clearStencil=0;}
     p.visibilityResultBuffer=visibility;
-    if(p.colorAttachments[0].texture!=color || p.depthAttachment.texture!=depth ||
+    if(stored.texture!=color || p.depthAttachment.texture!=depth ||
        p.stencilAttachment.texture!=stencil || p.visibilityResultBuffer!=visibility){
       restore();
       CAMLreturn(result_error_text("render pass attachment round-trip mismatch"));

@@ -65,6 +65,12 @@ let expected_promoted_indirect_command_buffer_struct_ids =
   ; "property:MTLIndirectCommandBuffer:gpuResourceID"
   ]
 
+let expected_promoted_render_encoder33_struct_ids =
+  [ "method:-[MTLRenderCommandEncoder dispatchThreadsPerTile:]"
+  ; "method:-[MTLRenderCommandEncoder drawMeshThreadgroups:threadsPerObjectThreadgroup:threadsPerMeshThreadgroup:]"
+  ; "method:-[MTLRenderCommandEncoder drawMeshThreads:threadsPerObjectThreadgroup:threadsPerMeshThreadgroup:]"
+  ]
+
 let fail format =
   Printf.ksprintf (fun message -> invalid_arg ("Metal struct plan: " ^ message)) format
 
@@ -115,7 +121,9 @@ let relevant declaration =
              && List.mem declaration.id expected_promoted_argument_table_struct_ids
           || String.equal declaration.classification "bound"
              && List.mem declaration.id
-                  expected_promoted_indirect_command_buffer_struct_ids))
+                  expected_promoted_indirect_command_buffer_struct_ids
+          || String.equal declaration.classification "bound"
+             && List.mem declaration.id expected_promoted_render_encoder33_struct_ids))
   && (String.equal declaration.kind "method"
       || String.equal declaration.kind "property")
   && Binding_struct_spec.mechanically_safe_signature declaration.signature
@@ -124,6 +132,22 @@ let relevant declaration =
        Binding_struct_spec.objc_types
 
 let select declarations =
+  let promoted_render_encoder33_struct_ids =
+    declarations
+    |> List.filter (fun declaration ->
+         String.equal declaration.classification "bound"
+         && List.mem declaration.id expected_promoted_render_encoder33_struct_ids
+         && (String.equal declaration.kind "method" || String.equal declaration.kind "property")
+         && Binding_struct_spec.mechanically_safe_signature declaration.signature
+         && List.exists (Binding_struct_spec.contains_type declaration.signature)
+              Binding_struct_spec.objc_types)
+    |> List.map (fun declaration -> declaration.id)
+    |> List.sort_uniq String.compare
+  in
+  if promoted_render_encoder33_struct_ids <> expected_promoted_render_encoder33_struct_ids then
+    fail "promoted RenderEncoder33 struct intersection drift: expected [%s], found [%s]"
+      (String.concat "; " expected_promoted_render_encoder33_struct_ids)
+      (String.concat "; " promoted_render_encoder33_struct_ids);
   let promoted_indirect_command_buffer_struct_ids =
     declarations
     |> List.filter (fun declaration ->

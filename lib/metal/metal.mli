@@ -975,6 +975,8 @@ module Render_pass_descriptor : sig
   val advanced : t -> (advanced,error) result
   val set_advanced : t -> advanced -> (unit,error) result
   val sample_attachments : t -> (sample_attachment option array,error) result
+  val resolve_texture : t -> Texture.t option
+  val set_resolve_texture : t -> Texture.t option -> (unit,error) result
   val rasterization_rate_map : t -> Rasterization_rate_map.t option
   val set_rasterization_rate_map :
     t -> Rasterization_rate_map.t option -> (unit,error) result
@@ -3831,6 +3833,12 @@ module Counters : sig
     val destroy : t -> (unit,error) result
   end
   val resolve : counter_sample_buffer -> first:int64 -> count:int64 -> (bytes,error) result
+  val set_render_pass_attachment :
+    Render_pass_descriptor.t -> index:int -> counter_sample_buffer ->
+    start_vertex:int64 -> end_vertex:int64 -> start_fragment:int64 ->
+    end_fragment:int64 -> (unit,error) result
+  val clear_render_pass_attachment :
+    Render_pass_descriptor.t -> index:int -> (unit,error) result
 end
 
 module Acceleration_pass : sig
