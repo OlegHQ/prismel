@@ -76,16 +76,39 @@ let create () =
               Option.iter(fun(d:Ogpu.Render_pass.depth)->if d.load=Clear then ignore(Raster2.Depth_stencil.clear depth~depth:d.clear~stencil:0))descriptor.depth;
               let clip={Raster2.Triangle.x=descriptor.scissor.x;y=descriptor.scissor.y;width=descriptor.scissor.width;height=descriptor.scissor.height}
               and depth_state={Raster2.Depth_stencil.depth_compare=Always;depth_write=false;stencil=None}in
-              let vertex textured bytes offset index = let stride=if textured then 68 else 16 in let base=Int64.to_int offset+index*stride in
-                {Raster2.Triangle.x=Int64.float_of_bits(Bytes.get_int64_le bytes base);y=Int64.float_of_bits(Bytes.get_int64_le bytes(base+8));depth=(if textured then Int64.float_of_bits(Bytes.get_int64_le bytes(base+16))else 0.);color=(if textured then Bytes.get_int32_le bytes(base+48)else 0x4080BFFFl);u=(if textured then Int64.float_of_bits(Bytes.get_int64_le bytes(base+52))else 0.);v=(if textured then Int64.float_of_bits(Bytes.get_int64_le bytes(base+60))else 0.)}in
               let draw(d:Ogpu.Render_pass.draw)=match List.find_opt(fun(b:Ogpu.Render_pass.buffer_binding)->b.stage=Ogpu.Command.Vertex&&b.index=0)d.buffers with
                 |None->error"Ogpu_raster2.render"Invalid_argument"vertex buffer zero is absent"
                 |Some binding->match find binding.buffer_id with
                   |Some(Buffer vertices)->(let sampled=Option.bind(sampled_pairs d)(function pair::_->Some pair|[]->None)in let texture=match sampled with None->Ok None|Some(binding,sampler)->match find binding.texture_id with Some(Texture({levels;_},_))->let first=match sampler.sampler.mip_filter with No_mip->0|Nearest_mip|Linear_mip->min(Array.length levels-1)(int_of_float(floor sampler.sampler.lod_min))in let sampled_levels=Array.sub levels first(Array.length levels-first)in let capacity=Array.fold_left(fun n surface->n+Bytes.length(Raster2.Surface.bytes surface))0 sampled_levels in(match Raster2.Texture.create_levels~color_space:Raster2.Texture.Linear~hard_capacity:capacity sampled_levels with Ok texture->let filter=match sampler.sampler.mip_filter,sampler.sampler.min_filter with Linear_mip,_->Raster2.Texture.Trilinear|_,Linear->Bilinear|_,Nearest->Nearest and address=function Ogpu.Types.Clamp_to_edge->Raster2.Texture.Clamp|Repeat->Repeat|Mirror_repeat->Mirror in Ok(Some{Raster2.Triangle.texture;filter;address_u=address sampler.sampler.address_u;address_v=address sampler.sampler.address_v})|Error _->error"Ogpu_raster2.render"Invalid_argument"fragment texture is invalid")|_->error"Ogpu_raster2.render"Invalid_argument"fragment texture is absent"in match texture with Error _ as e->e|Ok texture->let textured=Option.is_some texture in let indices=match d.index with
-                    |None->Array.init d.vertex_count(fun i->d.vertex_start+i)
-                    |Some(kind,id,offset,count)->match find id with Some(Buffer bytes)->let stride=match kind with Uint16->2|Uint32->4 in Array.init count(fun i->if stride=2 then Bytes.get_uint16_le bytes(Int64.to_int offset+i*stride)else Int32.to_int(Bytes.get_int32_le bytes(Int64.to_int offset+i*stride)))|_->[||]in
-                    let triangle a b c=Raster2.Triangle.draw~color~depth:(Option.map(fun _->depth)descriptor.depth)~depth_state~blend:Raster2.Composite.Copy~cull:Cull_none~clip~texture(vertex textured vertices binding.offset a)(vertex textured vertices binding.offset b)(vertex textured vertices binding.offset c)in
-                    (match d.primitive with Triangle_list->for i=0 to Array.length indices/3-1 do triangle indices.(i*3)indices.(i*3+1)indices.(i*3+2)done|Triangle_strip->for i=0 to Array.length indices-3 do if i land 1=0 then triangle indices.(i)indices.(i+1)indices.(i+2)else triangle indices.(i+1)indices.(i)indices.(i+2)done);Ok())
+                    |None->if d.vertex_count<0||d.vertex_start<0 then None else Some(Array.init d.vertex_count(fun i->d.vertex_start+i))
+                    |Some(kind,id,offset,count)->match find id with
+                      |Some(Buffer bytes)->let width=match kind with Uint16->2|Uint32->4 in
+                          if count<0||count>max_int/width||not(valid_range bytes offset(count*width))then None
+                          else Some(Array.init count(fun i->if width=2 then Bytes.get_uint16_le bytes(Int64.to_int offset+i*width)else Int32.to_int(Bytes.get_int32_le bytes(Int64.to_int offset+i*width))))
+                      |_->None in
+                    match indices with None->error"Ogpu_raster2.render"Invalid_argument"index range is invalid"|Some indices->
+                    let maximum=Array.fold_left max(-1)indices and stride=if textured then 68 else 16 in
+                    if maximum<0||Array.exists(fun index->index<0)indices||maximum>(max_int/stride)-1
+                       ||not(valid_range vertices binding.offset((maximum+1)*stride))
+                    then error"Ogpu_raster2.render"Invalid_argument"vertex or index range is invalid"
+                    else
+                      let base=Int64.to_int binding.offset in
+                      let decoded=Array.init(maximum+1)(fun index->
+                        let offset=base+index*stride in
+                        {Raster2.Triangle.x=Int64.float_of_bits(Bytes.get_int64_le vertices offset);
+                          y=Int64.float_of_bits(Bytes.get_int64_le vertices(offset+8));
+                          depth=(if textured then Int64.float_of_bits(Bytes.get_int64_le vertices(offset+16))else 0.);
+                          color=(if textured then Bytes.get_int32_le vertices(offset+48)else 0x4080BFFFl);
+                          u=(if textured then Int64.float_of_bits(Bytes.get_int64_le vertices(offset+52))else 0.);
+                          v=(if textured then Int64.float_of_bits(Bytes.get_int64_le vertices(offset+60))else 0.)})in
+                      let depth=Option.map(fun _->depth)descriptor.depth in
+                      let triangle a b c=Raster2.Triangle.draw~color~depth~depth_state
+                          ~blend:Raster2.Composite.Copy~cull:Cull_none~clip~texture
+                          decoded.(a)decoded.(b)decoded.(c)in
+                      (match d.primitive with
+                       |Triangle_list->for i=0 to Array.length indices/3-1 do triangle indices.(i*3)indices.(i*3+1)indices.(i*3+2)done
+                       |Triangle_strip->for i=0 to Array.length indices-3 do if i land 1=0 then triangle indices.(i)indices.(i+1)indices.(i+2)else triangle indices.(i+1)indices.(i)indices.(i+2)done);
+                      Ok())
                   |_->error"Ogpu_raster2.render"Invalid_argument"vertex buffer is absent"in
               let resolve()=
                 Array.iter

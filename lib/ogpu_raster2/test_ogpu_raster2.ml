@@ -17,6 +17,25 @@ let run frames =
     ignore(get(Scene_execution.render renderer(if frame=2 then [draw;draw2] else [draw])));
     if List.mem frame [1;2;60;600] then let bytes=get(Scene_execution.read_pixels renderer~bytes_per_row:16)in if Bytes.get_int32_be bytes 0<>0x4080BFFFl then failwith"software exact pixel"else if frame=2&&Bytes.get_int32_be bytes 60<>0x4080BFFFl then failwith"software second indexed draw"else if frame<>2&&Bytes.get_int32_be bytes 60<>0l then failwith"software off-triangle pixel"
   done;
+  (* A densely indexed mesh deliberately reuses three degenerate vertices.
+     The software adapter must decode those vertices once, not construct three
+     boxed records for every triangle. *)
+  let triangle_count=4096 in
+  let shared_indices=Bytes.create(triangle_count*3*4)in
+  for triangle=0 to triangle_count-1 do
+    Bytes.set_int32_le shared_indices((triangle*3+1)*4)1l;
+    Bytes.set_int32_le shared_indices((triangle*3+2)*4)2l
+  done;
+  let shared_mesh:Scene_execution.mesh={mesh with key="shared-index-allocation";
+    indices=shared_indices;index_count=triangle_count*3}in
+  let shared_draw={Scene_execution.mesh=shared_mesh;state}in
+  ignore(get(Scene_execution.render renderer[shared_draw]));
+  Gc.compact();
+  let before=Gc.allocated_bytes()in
+  ignore(get(Scene_execution.render renderer[shared_draw]));
+  let allocated=Gc.allocated_bytes()-.before in
+  if allocated>750_000. then
+    failwith(Printf.sprintf"shared-index render allocated %.0f bytes"allocated);
   get(Scene_execution.resize renderer {config with physical_width=8;physical_height=8});
   ignore(get(Scene_execution.render renderer [{draw with state={state with viewport=(0,0,8,8);scissor=(0,0,8,8)}}]));
   Ogpu_raster2.inject_device_loss control;
