@@ -229,32 +229,35 @@ let stats value=match ensure"Prismel_next_execution.stats"value with Error _ as 
 let snapshot value ~density source =
   let operation="Prismel_next_execution.lower_scene2"in
   if density<=0 then fail operation Invalid_argument"density must be positive"else
-  let finish key generation width height pixels =
+  let finish ?(copy=true) key generation width height pixels =
     match List.find_opt(fun(k,g,d,_)->k=key&&g=generation&&d=density)value.snapshots with
     |Some(_,_,_,texture)->Ok(width,height,texture)
     |None->
         let sampler:Ogpu.Types.sampler_descriptor={label=Some key;min_filter=Linear;mag_filter=Linear;
           mip_filter=No_mip;address_u=Clamp_to_edge;address_v=Clamp_to_edge;lod_min=0.;lod_max=0.;max_anisotropy=1}in
+        let bytes=if copy then Bytes.copy pixels else pixels in
         let texture:Scene_execution.sampled_texture={key=key^":"^string_of_int density;
-          levels=[|{width;height;bytes=Bytes.copy pixels}|];sampler}in
+          levels=[|{width;height;bytes}|];sampler}in
         let others=List.filter(fun(k,_,d,_)->k<>key||d<>density)value.snapshots in
         value.snapshots<-(key,generation,density,texture)::others;
         if List.length value.snapshots>256 then value.snapshots<-List.rev(List.tl(List.rev value.snapshots));
         Ok(width,height,texture)in
   match source with
-  |Image image->(match Prismel_next_resources.Image.size image,Prismel_next_resources.Image.pixels image with
-      |Ok(width,height),Ok pixels->finish("image:"^string_of_int(Prismel_next_resources.Image.identity image))(Prismel_next_resources.Image.generation image)width height pixels
-      |Error e,_|_,Error e->resource operation e)
+  |Image image->(match Prismel_next_resources.Image.snapshot image with
+      |Ok(width,height,generation,pixels)->finish~copy:false
+          ("image:"^string_of_int(Prismel_next_resources.Image.identity image))
+          generation width height pixels
+      |Error e->resource operation e)
   |Text text->(match Prismel_next_resources.Text.size text,Prismel_next_resources.Text.pixels text with
       |Ok(width,height),Ok pixels->finish("text:"^Digest.to_hex(Digest.bytes pixels))(Prismel_next_resources.Text.generation text)width height pixels
       |Error e,_|_,Error e->resource operation e)
-  |Canvas canvas->(match Prismel_next_resources.Canvas.capture canvas with Error e->resource operation e|Ok image->
+  |Canvas canvas->
       let key=match List.find_opt(fun(source,_)->source==canvas)value.canvas_keys with Some(_,key)->key|None->
         let key="canvas:"^string_of_int value.next_canvas_key in value.next_canvas_key<-value.next_canvas_key+1;
         value.canvas_keys<-(canvas,key)::value.canvas_keys;if List.length value.canvas_keys>256 then value.canvas_keys<-List.rev(List.tl(List.rev value.canvas_keys));key in
-      let result=match Prismel_next_resources.Image.size image,Prismel_next_resources.Image.pixels image with
-        |Ok(width,height),Ok pixels->finish key(Prismel_next_resources.Canvas.generation canvas)width height pixels
-        |Error e,_|_,Error e->resource operation e in ignore(Prismel_next_resources.Image.destroy image);result)
+      (match Prismel_next_resources.Canvas.snapshot canvas with
+       |Ok(width,height,generation,pixels)->finish~copy:false key generation width height pixels
+       |Error e->resource operation e)
 let lower_scene2 value ~density ~resource:resolve ir =
   match ensure"Prismel_next_execution.lower_scene2"value with Error _ as e->e|Ok()->
   let identity={Raster2.Render_ir.xx=1.;xy=0.;yx=0.;yy=1.;tx=0.;ty=0.}in

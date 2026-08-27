@@ -14,6 +14,7 @@ module Image : sig
   val destroyed : t -> bool
   val size : t -> ((int*int),error) result
   val pixels : t -> (bytes,error) result
+  val snapshot : t -> ((int * int * int * bytes),error) result
   val replace : t -> width:int -> height:int -> rgba:bytes -> (unit,error) result
   (* Atomically transfer the source's owned pixel storage.  On success the
      source is destroyed and the target retains its identity. *)
@@ -36,6 +37,7 @@ module Canvas : sig
   (* Atomically replace [image] with the current canvas pixels while retaining
      the image identity. Equal extents reuse the image's owned storage. *)
   val copy_to_image : t -> Image.t -> (unit,error) result
+  val snapshot : t -> ((int * int * int * bytes),error) result
   (* Execute directly against the canvas's authoritative surface. Consumer
      execution is transactional, so rejection leaves pixels/generation unchanged. *)
   val render_ir : t -> lookup:(int -> Raster2.Consumer.resource option) ->

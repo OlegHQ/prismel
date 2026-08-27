@@ -34,6 +34,8 @@ module Image=struct
       (fun()->of_surface"Image.load_bytes"surface))
   let size x=live"Image.size"x(fun()->Ok(x.width,x.height))
   let pixels x=live"Image.pixels"x(fun()->Ok(Bytes.copy x.rgba))
+  let snapshot x=live"Image.snapshot"x(fun()->
+    Ok(x.width,x.height,x.generation,Bytes.copy x.rgba))
   let replace x ~width ~height ~rgba=live"Image.replace"x(fun()->
     if not(valid_storage width height rgba)then error"Image.replace"Invalid_argument"invalid RGBA replacement"
     else(x.width<-width;x.height<-height;x.rgba<-Bytes.copy rgba;x.generation<-x.generation+1;Ok()))
@@ -97,6 +99,9 @@ module Canvas=struct
         let replacement=Bytes.copy source in
         image.width<-width;image.height<-height;image.rgba<-replacement;
         image.generation<-image.generation+1;Ok())
+  let snapshot x=live"Canvas.snapshot"x(fun()->
+    Ok(Raster2.Surface.width x.surface,Raster2.Surface.height x.surface,
+      x.generation,Bytes.copy(Raster2.Surface.bytes x.surface)))
   let render_ir x ~lookup ir=live"Canvas.render_ir"x(fun()->
     match Raster2.Consumer.execute~lookup~target:x.surface ir with
     |Error _->error"Canvas.render_ir"Invalid_argument"invalid render command stream"

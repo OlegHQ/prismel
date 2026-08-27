@@ -21,6 +21,9 @@ let ()=
   get(Canvas.copy_to_image canvas stable);
   if Image.identity stable<>stable_identity||Image.generation stable<>stable_generation+1
      ||get(Image.pixels stable)<>replacement then failwith"canvas stable image copy";
+  let sw,sh,sg,snapshot=get(Canvas.snapshot canvas)in
+  if(sw,sh,sg,snapshot)<>(4,4,Canvas.generation canvas,replacement)then
+    failwith"canvas atomic snapshot";
   let moved=get(Image.create~width:4~height:4~rgba:(Bytes.make 64 '\x42'))in
   let moved_generation=Image.generation stable in
   get(Image.replace_owned stable moved);
