@@ -1,0 +1,33 @@
+(rule
+ (alias runtest)
+ (deps
+  ../../lib/metal/test_metal_presentation_safe.exe
+  ../../lib/metal/test_metal_presentation_10k.exe
+  ../../lib/metal/test_metal_resource100_safe.exe
+  ../../lib/metal/test_presentation_lifecycle_native.exe
+  ../metal/test_binding_presentation_adapter.exe
+  ../metal/test_binding_presentation_complete.exe
+  ../../lib/metal/test_metal.exe
+  ../../lib/metal/test_metal_stress.exe)
+ (action
+  (progn
+   (run ../metal/test_binding_presentation_adapter.exe)
+   (run ../metal/test_binding_presentation_complete.exe)
+   (run ../../lib/metal/test_metal_presentation_safe.exe)
+   (setenv PRISMEL_METAL_PRESENTATION_CYCLES 10000
+    (run ../../lib/metal/test_metal_presentation_10k.exe))
+   (run ../../lib/metal/test_metal_resource100_safe.exe)
+   (run ../../lib/metal/test_presentation_lifecycle_native.exe)
+   (run ../../lib/metal/test_metal.exe)
+   (run /usr/bin/leaks --quiet --atExit -- ../../lib/metal/test_metal_stress.exe --lane buffers)
+   (run /usr/bin/leaks --quiet --atExit -- ../../lib/metal/test_metal_stress.exe --lane textures-samplers)
+   (run /usr/bin/leaks --quiet --atExit -- ../../lib/metal/test_metal_stress.exe --lane texture-views)
+   (run /usr/bin/leaks --quiet --atExit -- ../../lib/metal/test_metal_stress.exe --lane heaps-resources)
+   (run /usr/bin/leaks --quiet --atExit -- ../../lib/metal/test_metal_stress.exe --lane sparse-heaps-textures)
+   (run /usr/bin/leaks --quiet --atExit -- ../../lib/metal/test_metal_stress.exe --lane sparse-depth-stencil)
+   (run /usr/bin/leaks --quiet --atExit -- ../../lib/metal/test_metal_stress.exe --lane placement-sparse-resources)
+   (run /usr/bin/leaks --quiet --atExit -- ../../lib/metal/test_metal_stress.exe --lane residency-sets-resources)
+   (run /usr/bin/leaks --quiet --atExit -- ../../lib/metal/test_metal_stress.exe --lane buffer-backed-textures)
+   (run /usr/bin/leaks --quiet --atExit -- ../../lib/metal/test_metal_stress.exe --lane shared-textures)
+   (run /usr/bin/leaks --quiet --atExit -- ../../lib/metal/test_metal_stress.exe --lane io-surfaces)
+   (run /usr/bin/leaks --quiet --atExit -- ../../lib/metal/test_metal_stress.exe --lane external-buffers))))
