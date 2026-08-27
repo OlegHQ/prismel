@@ -11,3 +11,10 @@
  (libraries prismel_next_execution raster2)
  (action
   (setenv SDL_VIDEODRIVER dummy (run %{test}))))
+
+(test
+ (name test_prismel_next_execution_debug_text)
+ (modules test_prismel_next_execution_debug_text)
+ (libraries prismel_next_execution raster2)
+ (action
+  (setenv SDL_VIDEODRIVER dummy (run %{test}))))

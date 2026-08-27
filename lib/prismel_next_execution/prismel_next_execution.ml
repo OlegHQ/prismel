@@ -64,6 +64,47 @@ let mesh_of_geometry number transform clip (geometry:Raster2.Render_ir.geometry)
   { family=Scene2;blend=Replace;texture=None;auxiliary=None;samples=1; value={Scene_execution.mesh={key=Printf.sprintf "ir-%Ld-%d" 0L number;
       vertices;vertex_count=count;indices;index_count=Array.length geometry.indices};
       state=default_state (x,y,width,height) (x,y,width,height)} }
+let debug_text_geometry transform (debug:Raster2.Render_ir.debug_text) =
+  let stop = match String.index_opt debug.text '\000' with
+    | Some index -> index | None -> String.length debug.text in
+  let pixels = ref 0 in
+  for character = 0 to stop - 1 do
+    for row = 0 to Raster2.Debug_font.height - 1 do
+      let bits = Raster2.Debug_font.glyph_row debug.text.[character] row in
+      for column = 0 to Raster2.Debug_font.width - 1 do
+        if bits land (0x80 lsr column) <> 0 then incr pixels
+      done
+    done
+  done;
+  let vertices = Array.make (!pixels * 8) 0.
+  and indices = Array.make (!pixels * 6) 0 in
+  let anchor_x = transform.Raster2.Render_ir.xx *. debug.x
+    +. transform.yx *. debug.y +. transform.tx
+  and anchor_y = transform.xy *. debug.x
+    +. transform.yy *. debug.y +. transform.ty in
+  let pixel = ref 0 in
+  for character = 0 to stop - 1 do
+    for row = 0 to Raster2.Debug_font.height - 1 do
+      let bits = Raster2.Debug_font.glyph_row debug.text.[character] row in
+      for column = 0 to Raster2.Debug_font.width - 1 do
+        if bits land (0x80 lsr column) <> 0 then begin
+          let x = anchor_x +. float (character * Raster2.Debug_font.width + column)
+          and y = anchor_y +. float row in
+          let vertex = !pixel * 8 and index = !pixel * 6
+          and base = !pixel * 4 in
+          vertices.(vertex) <- x; vertices.(vertex + 1) <- y;
+          vertices.(vertex + 2) <- x +. 1.; vertices.(vertex + 3) <- y;
+          vertices.(vertex + 4) <- x +. 1.; vertices.(vertex + 5) <- y +. 1.;
+          vertices.(vertex + 6) <- x; vertices.(vertex + 7) <- y +. 1.;
+          indices.(index) <- base; indices.(index + 1) <- base + 1;
+          indices.(index + 2) <- base + 2; indices.(index + 3) <- base;
+          indices.(index + 4) <- base + 2; indices.(index + 5) <- base + 3;
+          incr pixel
+        end
+      done
+    done
+  done;
+  { Raster2.Render_ir.vertices; indices; color=debug.color }
 let compose (a:Raster2.Render_ir.transform) (b:Raster2.Render_ir.transform) = { Raster2.Render_ir.xx=a.Raster2.Render_ir.xx*.b.xx+.a.yx*.b.xy;
   xy=a.xy*.b.xx+.a.yy*.b.xy; yx=a.xx*.b.yx+.a.yx*.b.yy;
   yy=a.xy*.b.yx+.a.yy*.b.yy; tx=a.xx*.b.tx+.a.yx*.b.ty+.a.tx;
@@ -83,6 +124,12 @@ let scene2_ir ir =
           clips:=(x,y,w,h)::!clips
     |Pop_clip->(match !clips with _::(_::_ as rest)->clips:=rest|_->())
     |Geometry geometry->draws:=mesh_of_geometry !number(List.hd!transforms)(List.hd!clips)geometry::!draws;incr number
+    |Debug_text debug->
+        let geometry=debug_text_geometry(List.hd!transforms)debug in
+        if Array.length geometry.indices>0 then begin
+          draws:=mesh_of_geometry !number identity(List.hd!clips)geometry::!draws;
+          incr number
+        end
     |Image _|Glyphs _->failure:=Some"image/glyph resource binding is not available")
     (Raster2.Render_ir.commands ir);
   match !failure with Some message->fail"Prismel_next_execution.scene2_ir"Unsupported message
@@ -191,6 +238,12 @@ let lower_scene2 value ~density ~resource:resolve ir =
       clips:=(x,y,max 0(right-x),max 0(bottom-y))::!clips
     |Pop_clip->(match!clips with _::(_::_ as rest)->clips:=rest|_->())
     |Geometry geometry->if clip_live()then(draws:=mesh_of_geometry!number(List.hd!transforms)(List.hd!clips)geometry::!draws;incr number)
+    |Debug_text debug->if clip_live()then
+        let geometry=debug_text_geometry(List.hd!transforms)debug in
+        if Array.length geometry.indices>0 then begin
+          draws:=mesh_of_geometry!number identity(List.hd!clips)geometry::!draws;
+          incr number
+        end
     |Image command->if clip_live()then image command
     |Glyphs glyphs->if clip_live()&&Array.length glyphs.glyphs>0 then match resolve glyphs.resource_id with None->failure:=Some"glyph resource id is unbound"|Some source->
         match snapshot value~density source with Error e->failure:=Some(Format.asprintf"%a"pp_error e)|Ok(width,height,texture)->
