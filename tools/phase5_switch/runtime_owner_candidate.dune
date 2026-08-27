@@ -1,0 +1,7 @@
+; Validated B5 candidate only. The atomic switch generates Runtime as the
+; narrow public alias of Runtime_next_compat after deleting lib/runtime.
+(library
+ (name runtime)
+ (public_name prismel.runtime)
+ (modules runtime)
+ (libraries runtime_next_compat))
