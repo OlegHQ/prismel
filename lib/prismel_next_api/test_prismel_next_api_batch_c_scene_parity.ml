@@ -21,6 +21,7 @@ let () =
     Result.get_ok (Scene.Private.stage ~width:32 ~height:24 scene)
   in
   let first_commands = Raster2.Render_ir.commands first_ir in
+  let automatic_text_id=ref None in
   require (Array.length first_commands = 7) "complete ordered lowering";
   (match Array.to_list first_commands with
   | [ Raster2.Render_ir.Clear _;
@@ -30,6 +31,7 @@ let () =
       Image view;
       Pop_clip;
       Geometry _ ] ->
+      automatic_text_id:=Some text.resource_id;
       require (text.resource_id <> view.resource_id) "distinct staged resources"
   | commands ->
       let tag = function
@@ -80,9 +82,16 @@ let () =
   Scene.Private.release scene;
   List.iter
     (function
+      | identity, Prismel_next_execution.Image image when Some identity= !automatic_text_id ->
+          require (Result.is_ok (Prismel_next_resources.Image.pixels image)) "released automatic cache image"
       | _, Prismel_next_execution.Image image ->
-          require (Result.is_error (Prismel_next_resources.Image.pixels image)) "released staged image"
+          require (Result.is_error (Prismel_next_resources.Image.pixels image)) "released owned staged image"
       | _, Prismel_next_execution.Text _ | _, Prismel_next_execution.Canvas _ ->
           failwith "unexpected staged resource")
     first_resources;
+  Font.shutdown();
+  List.iter(function
+    |identity,Prismel_next_execution.Image image when Some identity= !automatic_text_id->
+      require(Result.is_error(Prismel_next_resources.Image.pixels image))"automatic image survived shutdown"
+    |_->())first_resources;
   print_endline "Prismel_next_api Scene text/View3d parity passed"

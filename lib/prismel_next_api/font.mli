@@ -10,7 +10,14 @@ val load_dpi : string -> int -> int -> int -> (t,[`Msg of string]) result
 val resize : t -> int -> (t,[`Msg of string]) result
 val render_text:t->string->render_mode->(Image.t,[`Msg of string])result
 val cached_text : ?wrap:int -> ?align:alignment -> t -> string -> render_mode -> (Image.t,[`Msg of string]) result
-module Private : sig val cached_text : ?wrap:int -> ?align:alignment -> t -> string -> render_mode -> (Image.t,[`Msg of string]) result end
+module Private : sig
+  type automatic
+  val cached_text : ?wrap:int -> ?align:alignment -> t -> string -> render_mode -> (Image.t,[`Msg of string]) result
+  val borrow_automatic : ?wrap:int -> ?align:alignment -> size:int -> string -> render_mode -> (automatic,[`Msg of string]) result
+  val automatic_image : automatic -> Image.t
+  val release_automatic : automatic -> unit
+  val automatic_counts : unit -> int * int * int
+end
 val cache_count:t->int
 val clear_cache:t->unit
 val release_renderer : Image.Private.renderer -> unit

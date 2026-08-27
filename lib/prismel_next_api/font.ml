@@ -49,10 +49,60 @@ let get_hinting font=font.hinting
 let set_kerning font value=match Prismel_next_resources.Font.set_kerning font.resource value with Ok()->clear_cache font;font.kerning<-value|Error _->()
 let get_kerning font=font.kerning
 let get_size font=font.size
-let destroy font=clear_cache font;ignore(Prismel_next_resources.Font.destroy font.resource)
-module Private=struct let cached_text=cached_text end
-let release_renderer _renderer=List.iter clear_cache!fonts
-let shutdown()=List.iter destroy!fonts;fonts:=[]
+let destroy font=
+  fonts:=List.filter(fun candidate->candidate!=font)!fonts;
+  clear_cache font;ignore(Prismel_next_resources.Font.destroy font.resource)
+module Private=struct
+ let cached_text=cached_text
+ type automatic_entry={image:Image.t;mutable references:int;mutable stamp:int;mutable cached:bool}
+ type automatic={entry:automatic_entry;mutable released:bool}
+ let capacity=256 and font_capacity=32
+ let automatic_cache:(string,automatic_entry)Hashtbl.t=Hashtbl.create capacity
+ let automatic_fonts:(int,t*int)Hashtbl.t=Hashtbl.create font_capacity
+ let clock=ref 0
+ let next_stamp()=incr clock;!clock
+ let automatic_key ?wrap ?(align=Left) ~size text mode=
+   Marshal.to_string(size,text,wrap,align,rgba mode)[]
+ let evict_entry()=
+   let oldest=ref None in
+   Hashtbl.iter(fun key entry->if entry.references=0 then match!oldest with
+    |None->oldest:=Some(key,entry)|Some(_,candidate)when entry.stamp<candidate.stamp->oldest:=Some(key,entry)|Some _->())automatic_cache;
+   match!oldest with None->false|Some(key,entry)->Hashtbl.remove automatic_cache key;entry.cached<-false;Image.destroy entry.image;true
+ let font size=
+   match Hashtbl.find_opt automatic_fonts size with
+   |Some(value,_)->Hashtbl.replace automatic_fonts size(value,next_stamp());Ok value
+   |None->
+     if Hashtbl.length automatic_fonts>=font_capacity then begin
+      let oldest=ref None in Hashtbl.iter(fun key(value,stamp)->match!oldest with None->oldest:=Some(key,value,stamp)|Some(_,_,candidate)when stamp<candidate->oldest:=Some(key,value,stamp)|Some _->())automatic_fonts;
+      Option.iter(fun(key,value,_)->Hashtbl.remove automatic_fonts key;destroy value)!oldest
+     end;
+     match system~size()with Error _ as error->error|Ok value->Hashtbl.add automatic_fonts size(value,next_stamp());Ok value
+ let borrow_automatic ?wrap ?(align=Left) ~size text mode=
+   let key=automatic_key?wrap~align~size text mode in
+   match Hashtbl.find_opt automatic_cache key with
+   |Some entry->entry.references<-entry.references+1;entry.stamp<-next_stamp();Ok{entry;released=false}
+   |None->match font size with Error _ as error->error|Ok font->
+     match render_text font text mode with Error _ as error->error|Ok image->
+      let can_cache=Hashtbl.length automatic_cache<capacity||evict_entry()in
+      let entry={image;references=1;stamp=next_stamp();cached=can_cache}in
+      if can_cache then Hashtbl.add automatic_cache key entry;
+      Ok{entry;released=false}
+ let automatic_image handle=handle.entry.image
+ let release_automatic handle=if not handle.released then begin
+   handle.released<-true;handle.entry.references<-handle.entry.references-1;
+   if handle.entry.references=0&&not handle.entry.cached then Image.destroy handle.entry.image
+  end
+ let clear_automatic()=
+  Hashtbl.iter(fun _ entry->entry.cached<-false;if entry.references=0 then Image.destroy entry.image)automatic_cache;
+  Hashtbl.clear automatic_cache;
+  let owned=Hashtbl.fold(fun _ (font,_) acc->font::acc)automatic_fonts[]in
+  Hashtbl.clear automatic_fonts;List.iter destroy owned
+ let automatic_counts()=
+  let references=Hashtbl.fold(fun _ entry count->count+entry.references)automatic_cache 0 in
+  Hashtbl.length automatic_cache,Hashtbl.length automatic_fonts,references
+end
+let release_renderer _renderer=List.iter clear_cache!fonts;Private.clear_automatic()
+let shutdown()=Private.clear_automatic();let owned= !fonts in fonts:=[];List.iter destroy owned
 let text_size font text=match render_text font text(Blended Color.white)with Error _ as e->e|Ok image->let size=Image.get_size image in Image.destroy image;Ok size
 let render_wrapped font text mode width=
   let words=String.split_on_char ' ' text in

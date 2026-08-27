@@ -1,6 +1,6 @@
 type blend=Replace|Alpha|Add|Multiply
 type primitive={points:(int*int)list;closed:bool;fill:Color.t option;stroke:Color.t option}
-type text_node={x:int;y:int;value:string;color:Color.t;size:int;wrap:int option;align:Font.alignment;provided_font:Font.t option;mutable owned_font:Font.t option;mutable rendered:Image.t option}
+type text_node={x:int;y:int;value:string;color:Color.t;size:int;wrap:int option;align:Font.alignment;provided_font:Font.t option;mutable automatic:Font.Private.automatic option;mutable rendered:Image.t option}
 and debug_text_node={x:int;y:int;value:string;color:Color.t}
 and view3d_node={viewport:(int*int*int*int)option;camera:Camera.t;scene:Scene3.t;mutable rendered3d:Image.t option}
 and image_node={image:Image.t;x:int;y:int;scale:float;angle:float;center:(int*int)option;flip_x:bool}
@@ -64,9 +64,9 @@ let bezier points ?(steps=20)?(color=default_color)()=
       let commands=Array.of_list(Raster2.Path.Move_to(point2 first)::List.map(fun p->Raster2.Path.Line_to p)(List.tl sampled))in
       ignore rest;stroke_path color(Raster2.Path.of_commands commands)
 let path ?(steps=20)?(fill_rule=Path.Non_zero)?fill?stroke value=ignore fill_rule;Primitive{points=Path.points~steps value;closed=Path.is_closed value;fill;stroke}
-let text ~at:(x,y) ?(color=default_color) ?(size=16) value=Text{x;y;value;color;size;wrap=None;align=Font.Left;provided_font=None;owned_font=None;rendered=None}
+let text ~at:(x,y) ?(color=default_color) ?(size=16) value=Text{x;y;value;color;size;wrap=None;align=Font.Left;provided_font=None;automatic=None;rendered=None}
 let debug_text ~at:(x,y) ?(color=default_color) value=Debug_text{x;y;value;color}
-let font_text font ~at:(x,y) ?(color=default_color) ?wrap ?(align=Font.Left) value=Text{x;y;value;color;size=Font.get_size font;wrap;align;provided_font=Some font;owned_font=None;rendered=None}
+let font_text font ~at:(x,y) ?(color=default_color) ?wrap ?(align=Font.Left) value=Text{x;y;value;color;size=Font.get_size font;wrap;align;provided_font=Some font;automatic=None;rendered=None}
 let image image ~at:(x,y) ?(scale=1.) ?(angle=0.) ?center ?(flip_x=false)()=
   if not(Float.is_finite scale&&Float.is_finite angle)||scale<=0. then invalid_arg"Scene.image: invalid transform";
   Image{image;x;y;scale;angle;center;flip_x}
@@ -105,20 +105,10 @@ module Private=struct
    match node.rendered with
    | Some image -> image
    | None ->
-       let font =
-         match node.provided_font, node.owned_font with
-         | Some font, _ -> font
-         | None, Some font -> font
-         | None, None ->
-             let font = Result.get_ok (Font.system ~size:node.size ()) in
-             node.owned_font <- Some font;
-             font
-       in
-       let image =
-         Result.get_ok
-           (Font.cached_text ?wrap:node.wrap ~align:node.align font node.value
-              (Font.Solid node.color))
-       in
+       let image=match node.provided_font with
+       |Some font->Result.get_ok(Font.cached_text?wrap:node.wrap~align:node.align font node.value(Font.Solid node.color))
+       |None->let automatic=Result.get_ok(Font.Private.borrow_automatic?wrap:node.wrap~align:node.align~size:node.size node.value(Font.Solid node.color))in
+         node.automatic<-Some automatic;Font.Private.automatic_image automatic in
        node.rendered <- Some image;
        image
 
@@ -188,10 +178,8 @@ module Private=struct
    List.iter
      (function
        | Text node ->
-           (match node.owned_font with
-           | Some font -> Font.destroy font
-           | None -> ());
-           node.owned_font <- None;
+           Option.iter Font.Private.release_automatic node.automatic;
+           node.automatic <- None;
            node.rendered <- None
        | View3d node ->
            Option.iter Image.destroy node.rendered3d;
