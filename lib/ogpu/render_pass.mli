@@ -11,6 +11,9 @@ type descriptor = { colors:color option array; depth:depth option; stencil:stenc
 type cull = Cull_none | Cull_front | Cull_back
 type comparison = Never | Less | Equal | Less_equal | Greater | Not_equal | Greater_equal | Always
 type raster_state = { cull:cull; depth_compare:comparison; depth_write:bool }
+type stencil_operation = Keep | Zero | Replace | Increment_clamp | Decrement_clamp | Invert | Increment_wrap | Decrement_wrap
+type stencil_face = { compare:comparison; stencil_fail:stencil_operation; depth_fail:stencil_operation; pass:stencil_operation; read_mask:int32; write_mask:int32 }
+type stencil_state = { front:stencil_face; back:stencil_face; front_reference:int32; back_reference:int32 }
 type t
 type primitive = Triangle_list | Triangle_strip
 type index_type = Uint16 | Uint32
@@ -20,9 +23,12 @@ type sampler_binding = { stage:Command.stage; index:int; sampler:Types.sampler_d
 type draw = { pipeline_key:string; buffers:buffer_binding list; textures:texture_binding list; samplers:sampler_binding list; primitive:primitive; vertex_start:int; vertex_count:int; index:(index_type*int64*int64*int) option }
 type submission
 val default_raster_state : raster_state
-val create : ?raster_state:raster_state -> Handle.device -> descriptor -> (t,Error.t) result
+val default_stencil_face : stencil_face
+val default_stencil_state : stencil_state
+val create : ?raster_state:raster_state -> ?stencil_state:stencil_state -> Handle.device -> descriptor -> (t,Error.t) result
 val descriptor : t -> descriptor
 val raster_state : t -> raster_state
+val stencil_state : t -> stencil_state option
 val encode : t -> Command.t -> (unit,Error.t) result
 val submit : t -> draw list -> (submission,Error.t) result
 val submission_pass : submission -> t
