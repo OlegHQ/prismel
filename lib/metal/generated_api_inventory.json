@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 5083,
+    "bound": 5088,
     "scope-excluded": 37,
-    "unreviewed": 165
+    "unreviewed": 160
   },
-  "classification_source_sha256": "4084b5999ca458e1fc4f098d4594d33ff40a430049e1e40a3b60739607cc6d5a",
+  "classification_source_sha256": "2810afd5432c67b52cc0a680bb35ff512c2db470de341733401d66e24d54d2cc",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -56313,7 +56313,7 @@
           "line": 759
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newDefaultLibraryWithBundle:error:]",
       "kind": "method",
@@ -56321,7 +56321,7 @@
       "macos_introduced": "10.12",
       "name": "newDefaultLibraryWithBundle:error:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by exact synchronous Device library constructors with copied byte input, checked absolute paths and bundle/descriptor graphs, owned device retention, and execute-or-error conformance.",
       "signature": "instance (NSBundle * _Nonnull __strong, NSError *__autoreleasing  _Nullable * _Nullable) -> id<MTLLibrary> _Nullable"
     },
     {
@@ -56334,7 +56334,7 @@
           "line": 459
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newDefaultLibrary]",
       "kind": "method",
@@ -56342,7 +56342,7 @@
       "macos_introduced": "10.11",
       "name": "newDefaultLibrary",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by exact synchronous Device library constructors with copied byte input, checked absolute paths and bundle/descriptor graphs, owned device retention, and execute-or-error conformance.",
       "signature": "instance () -> id<MTLLibrary> _Nullable"
     },
     {
@@ -56662,7 +56662,7 @@
           "line": 459
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newLibraryWithData:error:]",
       "kind": "method",
@@ -56670,7 +56670,7 @@
       "macos_introduced": "10.11",
       "name": "newLibraryWithData:error:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by exact synchronous Device library constructors with copied byte input, checked absolute paths and bundle/descriptor graphs, owned device retention, and execute-or-error conformance.",
       "signature": "instance (dispatch_data_t  _Nonnull __strong, NSError *__autoreleasing  _Nullable * _Nullable) -> id<MTLLibrary> _Nullable"
     },
     {
@@ -56688,7 +56688,7 @@
           "line": 766
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newLibraryWithFile:error:]",
       "kind": "method",
@@ -56696,7 +56696,7 @@
       "macos_introduced": "10.11",
       "name": "newLibraryWithFile:error:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by exact synchronous Device library constructors with copied byte input, checked absolute paths and bundle/descriptor graphs, owned device retention, and execute-or-error conformance.",
       "signature": "instance (NSString * _Nonnull __strong, NSError *__autoreleasing  _Nullable * _Nullable) -> id<MTLLibrary> _Nullable"
     },
     {
@@ -56779,7 +56779,7 @@
           "line": 798
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLDevice.h",
       "id": "method:-[MTLDevice newLibraryWithStitchedDescriptor:error:]",
       "kind": "method",
@@ -56787,7 +56787,7 @@
       "macos_introduced": "12.0",
       "name": "newLibraryWithStitchedDescriptor:error:",
       "owner": "MTLDevice",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by exact synchronous Device library constructors with copied byte input, checked absolute paths and bundle/descriptor graphs, owned device retention, and execute-or-error conformance.",
       "signature": "instance (MTLStitchedLibraryDescriptor * _Nonnull __strong, NSError *__autoreleasing  _Nullable * _Nullable) -> id<MTLLibrary> _Nullable"
     },
     {
