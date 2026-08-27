@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 4998,
+    "bound": 5000,
     "scope-excluded": 37,
-    "unreviewed": 250
+    "unreviewed": 248
   },
-  "classification_source_sha256": "9bf8aeaa2007cfb0dd6b290c3273ded59e249ab7ebf69b869bd6997ba0a3c16e",
+  "classification_source_sha256": "a16fb629e6f823905daa9887da4aca753a6a3a49fceaa98bf6e30cd9ed632968",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -105148,7 +105148,7 @@
           "line": 30
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionLog.h",
       "id": "protocol:MTLFunctionLog",
       "kind": "protocol",
@@ -105156,7 +105156,7 @@
       "macos_introduced": "11.0",
       "name": "MTLFunctionLog",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by immutable Function_log diagnostic snapshots copied from guarded typed enumeration of a real command-owned MTLLogContainer, including nullable function, location, URL, name, and encoder-label fields.",
       "signature": ""
     },
     {
@@ -105169,7 +105169,7 @@
           "line": 22
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLFunctionLog.h",
       "id": "protocol:MTLFunctionLogDebugLocation",
       "kind": "protocol",
@@ -105177,7 +105177,7 @@
       "macos_introduced": "11.0",
       "name": "MTLFunctionLogDebugLocation",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Represented by immutable Function_log diagnostic snapshots copied from guarded typed enumeration of a real command-owned MTLLogContainer, including nullable function, location, URL, name, and encoder-label fields.",
       "signature": ""
     },
     {

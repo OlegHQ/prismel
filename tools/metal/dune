@@ -102,6 +102,7 @@
   binding_capture_manager_tail_handoff
   binding_compute_pass_tail_handoff
   binding_function_log_tail_handoff
+  binding_function_log2_protocol_safe_closure
   binding_command_encoder_tail_handoff
   binding_command_encoder9_closure
   binding_pipeline4_buffer_descriptor_safe_closure
@@ -742,6 +743,11 @@
 (test
  (name test_binding_function_log_safe_package)
  (modules test_binding_function_log_safe_package binding_function_log_safe_package)
+ (libraries metal_inventory_classification))
+
+(test
+ (name test_binding_function_log2_protocol_safe_closure)
+ (modules test_binding_function_log2_protocol_safe_closure)
  (libraries metal_inventory_classification))
 
 (test
