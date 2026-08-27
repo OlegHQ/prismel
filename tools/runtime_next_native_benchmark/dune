@@ -7,3 +7,8 @@
  (name shattered_acceptance_cook)
  (modules shattered_acceptance_cook shattered_acceptance)
  (libraries unix prismel pdk procedural sop_catalog sketch_support))
+
+(executable
+ (name runtime_next_native_r11_protocol)
+ (modules runtime_next_native_r11_protocol)
+ (libraries unix))
