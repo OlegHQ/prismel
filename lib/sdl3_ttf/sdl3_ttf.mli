@@ -47,6 +47,12 @@ module Font : sig
     descent : int;
     line_skip : int;
   }
+  type style = Normal | Bold | Italic | Underline | Strikethrough
+  type hinting = Normal_hinting | Light_hinting | Mono_hinting
+    | None_hinting | Light_subpixel_hinting
+  type glyph_metrics = {
+    min_x : int; max_x : int; min_y : int; max_y : int; advance : int;
+  }
 
   val open_file : path:string -> size:float -> (t, error) result
 
@@ -62,13 +68,28 @@ module Font : sig
   val set_size_dpi :
     t -> size:float -> horizontal:int -> vertical:int -> (unit, error) result
   val dpi : t -> ((int * int), error) result
+  val set_style : t -> style list -> (unit, error) result
+  val style : t -> (style list, error) result
+  val set_outline : t -> int -> (unit, error) result
+  val outline : t -> (int, error) result
+  val set_hinting : t -> hinting -> (unit, error) result
+  val hinting : t -> (hinting, error) result
+  val set_kerning : t -> bool -> (unit, error) result
+  val kerning : t -> (bool, error) result
+  val has_glyph : t -> int -> (bool, error) result
+  val glyph_metrics : t -> int -> (glyph_metrics, error) result
   val size_text : t -> string -> (int * int, error) result
+  val size_text_wrapped : t -> wrap_width:int -> string ->
+    (int * int, error) result
 
   (** Render UTF-8 to a CPU RGBA8 surface. Empty text is [Ok None], preserving
       the high-level no-op contract instead of asking SDL_ttf for a 0-width
       surface. Color channels are straight RGBA values in [0,255]. *)
   val render_blended :
     t -> color:int * int * int * int -> string ->
+    (Sdl3.Surface.t option, error) result
+  val render_blended_wrapped :
+    t -> color:int * int * int * int -> wrap_width:int -> string ->
     (Sdl3.Surface.t option, error) result
 
   val destroy : t -> (unit, error) result

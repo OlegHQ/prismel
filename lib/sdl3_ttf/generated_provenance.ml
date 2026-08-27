@@ -8,4 +8,4 @@ let header_sha256 = "4cfa5c13c68e87de6d513b1ae297055c8877432aa140d49dbcb29252b87
 let clang_version = "Apple clang version 21.0.0 (clang-2100.1.1.101)"
 let target_triple = "arm64-apple-darwin25.4.0"
 let function_count = 117
-let safe_function_count = 17
+let safe_function_count = 29

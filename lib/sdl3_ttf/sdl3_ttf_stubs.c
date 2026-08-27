@@ -228,6 +228,78 @@ CAMLprim value caml_sdl3_ttf_font_dpi(value raw)
   CAMLreturn(result);
 }
 
+CAMLprim value caml_sdl3_ttf_set_font_style(value raw, value style)
+{
+  TTF_SetFontStyle(font_of_value(raw), (TTF_FontStyleFlags)Int_val(style));
+  return Val_unit;
+}
+
+CAMLprim value caml_sdl3_ttf_get_font_style(value raw)
+{
+  return Val_int((int)TTF_GetFontStyle(font_of_value(raw)));
+}
+
+CAMLprim value caml_sdl3_ttf_set_font_outline(value raw, value outline)
+{
+  CAMLparam2(raw, outline);
+  if (!TTF_SetFontOutline(font_of_value(raw), Int_val(outline))) {
+    CAMLreturn(string_error());
+  }
+  CAMLreturn(unit_success());
+}
+
+CAMLprim value caml_sdl3_ttf_get_font_outline(value raw)
+{
+  return Val_int(TTF_GetFontOutline(font_of_value(raw)));
+}
+
+CAMLprim value caml_sdl3_ttf_set_font_hinting(value raw, value hinting)
+{
+  TTF_SetFontHinting(font_of_value(raw), (TTF_HintingFlags)Int_val(hinting));
+  return Val_unit;
+}
+
+CAMLprim value caml_sdl3_ttf_get_font_hinting(value raw)
+{
+  return Val_int((int)TTF_GetFontHinting(font_of_value(raw)));
+}
+
+CAMLprim value caml_sdl3_ttf_set_font_kerning(value raw, value enabled)
+{
+  TTF_SetFontKerning(font_of_value(raw), Bool_val(enabled));
+  return Val_unit;
+}
+
+CAMLprim value caml_sdl3_ttf_get_font_kerning(value raw)
+{
+  return Val_bool(TTF_GetFontKerning(font_of_value(raw)));
+}
+
+CAMLprim value caml_sdl3_ttf_font_has_glyph(value raw, value codepoint)
+{
+  return Val_bool(TTF_FontHasGlyph(font_of_value(raw), (Uint32)Int_val(codepoint)));
+}
+
+CAMLprim value caml_sdl3_ttf_glyph_metrics(value raw, value codepoint)
+{
+  int minx, maxx, miny, maxy, advance;
+  CAMLparam2(raw, codepoint);
+  CAMLlocal2(metrics, result);
+  if (!TTF_GetGlyphMetrics(font_of_value(raw), (Uint32)Int_val(codepoint),
+      &minx, &maxx, &miny, &maxy, &advance)) {
+    CAMLreturn(string_error());
+  }
+  metrics = caml_alloc_tuple(5);
+  Store_field(metrics, 0, Val_int(minx));
+  Store_field(metrics, 1, Val_int(maxx));
+  Store_field(metrics, 2, Val_int(miny));
+  Store_field(metrics, 3, Val_int(maxy));
+  Store_field(metrics, 4, Val_int(advance));
+  result = caml_alloc(1, 0);
+  Store_field(result, 0, metrics);
+  CAMLreturn(result);
+}
+
 CAMLprim value caml_sdl3_ttf_size_text(value raw, value text)
 {
   int width = 0;
@@ -236,6 +308,26 @@ CAMLprim value caml_sdl3_ttf_size_text(value raw, value text)
   CAMLlocal3(pair, result, failure);
   if (!TTF_GetStringSize(font_of_value(raw), String_val(text),
       caml_string_length(text), &width, &height)) {
+    failure = string_error();
+    CAMLreturn(failure);
+  }
+  pair = caml_alloc_tuple(2);
+  Store_field(pair, 0, Val_int(width));
+  Store_field(pair, 1, Val_int(height));
+  result = caml_alloc(1, 0);
+  Store_field(result, 0, pair);
+  CAMLreturn(result);
+}
+
+CAMLprim value caml_sdl3_ttf_size_text_wrapped(
+    value raw, value text, value wrap_width)
+{
+  int width = 0;
+  int height = 0;
+  CAMLparam3(raw, text, wrap_width);
+  CAMLlocal3(pair, result, failure);
+  if (!TTF_GetStringSizeWrapped(font_of_value(raw), String_val(text),
+      caml_string_length(text), Int_val(wrap_width), &width, &height)) {
     failure = string_error();
     CAMLreturn(failure);
   }
@@ -268,4 +360,29 @@ CAMLprim value caml_sdl3_ttf_render_blended_bytecode(value *arguments, int count
   (void)count;
   return caml_sdl3_ttf_render_blended(arguments[0], arguments[1], arguments[2],
       arguments[3], arguments[4], arguments[5]);
+}
+
+CAMLprim value caml_sdl3_ttf_render_blended_wrapped(
+    value raw, value text, value red, value green, value blue, value alpha,
+    value wrap_width)
+{
+  SDL_Color color;
+  SDL_Surface *surface;
+  CAMLparam5(raw, text, red, green, blue);
+  CAMLxparam2(alpha, wrap_width);
+  color.r = Int_val(red);
+  color.g = Int_val(green);
+  color.b = Int_val(blue);
+  color.a = Int_val(alpha);
+  surface = TTF_RenderText_Blended_Wrapped(font_of_value(raw), String_val(text),
+      caml_string_length(text), color, Int_val(wrap_width));
+  CAMLreturn(decoded_surface(surface));
+}
+
+CAMLprim value caml_sdl3_ttf_render_blended_wrapped_bytecode(
+    value *arguments, int count)
+{
+  (void)count;
+  return caml_sdl3_ttf_render_blended_wrapped(arguments[0], arguments[1],
+      arguments[2], arguments[3], arguments[4], arguments[5], arguments[6]);
 }

@@ -72,7 +72,7 @@ let () =
   let compiled = Version.compiled and linked = Version.linked () in
   if compiled <> { Version.major = 3; minor = 2; patch = 2 }
       || linked <> compiled || not Version.stable_headers
-      || Version.function_count < 100 || Version.safe_function_count <> 17 then
+      || Version.function_count < 100 || Version.safe_function_count <> 29 then
     fail "generated or linked SDL3_ttf provenance changed";
   (match Font.open_file ~path:font_path ~size:18. with
    | Error { kind = Not_initialized; _ } -> ()
@@ -116,6 +116,9 @@ let () =
   (match Font.size_text font "bad\x00text" with
    | Error { kind = Invalid_argument; _ } -> ()
    | Ok _ | Error _ -> fail "NUL text metrics were accepted");
+  (match Font.size_text font "bad\xc0\xaf" with
+   | Error { kind = Invalid_argument; _ } -> ()
+   | Ok _ | Error _ -> fail "malformed UTF-8 text metrics were accepted");
   (match Font.render_blended font ~color:(256, 0, 0, 255) "bad" with
    | Error { kind = Invalid_argument; _ } -> ()
    | Ok _ | Error _ -> fail "out-of-range text color was accepted");
@@ -149,6 +152,56 @@ let () =
   in
   if cached_first != cached_again || List.length cache.entries <> 1 then
     fail "font cache duplicated a borrowed CPU raster";
+
+  get_ttf (Font.set_style font [Font.Bold; Font.Italic; Font.Underline]);
+  if get_ttf (Font.style font) <> [Font.Bold; Font.Italic; Font.Underline] then
+    fail "font style flags did not round-trip";
+  get_ttf (Font.set_style font [Font.Normal]);
+  if get_ttf (Font.style font) <> [Font.Normal] then
+    fail "normal font style did not reset flags";
+  get_ttf (Font.set_outline font 2);
+  if get_ttf (Font.outline font) <> 2 then fail "font outline did not round-trip";
+  (match Font.set_outline font (-1) with
+   | Error { kind = Invalid_argument; _ } -> ()
+   | Ok () | Error _ -> fail "negative font outline was accepted");
+  get_ttf (Font.set_hinting font Font.Mono_hinting);
+  if get_ttf (Font.hinting font) <> Font.Mono_hinting then
+    fail "font hinting did not round-trip";
+  get_ttf (Font.set_kerning font false);
+  if get_ttf (Font.kerning font) then fail "font kerning disable did not stick";
+  get_ttf (Font.set_kerning font true);
+  if not (get_ttf (Font.kerning font)) then fail "font kerning enable did not stick";
+  if not (get_ttf (Font.has_glyph font (Char.code 'A'))) then
+    fail "system font does not report its ASCII glyph";
+  let glyph = get_ttf (Font.glyph_metrics font (Char.code 'A')) in
+  if glyph.advance <= 0 || glyph.max_x < glyph.min_x || glyph.max_y < glyph.min_y then
+    fail "ASCII glyph metrics are invalid";
+  List.iter (fun codepoint ->
+    match Font.has_glyph font codepoint with
+    | Error { kind = Invalid_argument; _ } -> ()
+    | Ok _ | Error _ -> fail "invalid Unicode scalar was accepted")
+    [-1; 0xd800; 0x110000];
+  let wrapped_width, wrapped_height =
+    get_ttf (Font.size_text_wrapped font ~wrap_width:80
+      "a deterministic wrapped line with several words")
+  in
+  if wrapped_width > 80 || wrapped_height <= metrics.line_skip then
+    fail "wrapped text metrics did not produce multiple bounded lines";
+  let wrapped = match get_ttf (Font.render_blended_wrapped font
+      ~color:(200, 180, 160, 255) ~wrap_width:80
+      "a deterministic wrapped line with several words") with
+    | Some surface -> surface
+    | None -> fail "wrapped non-empty text did not rasterize"
+  in
+  let wrapped_rgba = get_sdl (Surface.copy_rgba wrapped) in
+  if wrapped_rgba.width <> wrapped_width || wrapped_rgba.height <> wrapped_height
+      || not (has_visible_alpha wrapped_rgba.pixels) then
+    fail "wrapped raster disagrees with wrapped metrics";
+  get_sdl (Surface.destroy wrapped);
+  (match Font.render_blended_wrapped font ~color:(0, 0, 0, 255)
+      ~wrap_width:80 "bad\xed\xa0\x80" with
+   | Error { kind = Invalid_argument; _ } -> ()
+   | Ok _ | Error _ -> fail "malformed wrapped UTF-8 was accepted");
 
   clear_cache cache;
   get_ttf (Font.set_size font 36.);
@@ -217,6 +270,12 @@ let () =
   (match Font.metrics font with
    | Error { kind = Destroyed; _ } -> ()
    | Ok _ | Error _ -> fail "stale font access was not rejected");
+  for _ = 1 to 10_000 do
+    let transient = get_ttf (Font.open_file ~path:font_path ~size:8.) in
+    get_ttf (Font.destroy transient)
+  done;
+  if dropped_release_tokens () <> 0 then
+    fail "explicit 10k font lifecycle overflowed the release queue";
   get_ttf (Init.quit ());
   get_ttf (Init.quit ());
   Printf.printf "SDL3_ttf %d.%d.%d CPU font conformance passed\n%!"

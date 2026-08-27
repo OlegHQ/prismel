@@ -2,8 +2,8 @@
   "classification_counts": {
     "not-applicable": 0,
     "platform-excluded": 0,
-    "raw-only": 166,
-    "safe": 17,
+    "raw-only": 154,
+    "safe": 29,
     "unreviewed": 0
   },
   "compiler": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
@@ -195,11 +195,11 @@
       "thread": "raw-only-not-reviewed"
     },
     {
-      "classification": "raw-only",
+      "classification": "safe",
       "header": "SDL3_ttf/<clang-elided-source>",
       "name": "TTF_FontHasGlyph",
       "signature": "bool (TTF_Font *, Uint32)",
-      "thread": "raw-only-not-reviewed"
+      "thread": "font-owner-thread"
     },
     {
       "classification": "raw-only",
@@ -265,18 +265,18 @@
       "thread": "font-owner-thread"
     },
     {
-      "classification": "raw-only",
+      "classification": "safe",
       "header": "SDL3_ttf/<clang-elided-source>",
       "name": "TTF_GetFontHinting",
       "signature": "TTF_HintingFlags (const TTF_Font *)",
-      "thread": "raw-only-not-reviewed"
+      "thread": "font-owner-thread"
     },
     {
-      "classification": "raw-only",
+      "classification": "safe",
       "header": "SDL3_ttf/<clang-elided-source>",
       "name": "TTF_GetFontKerning",
       "signature": "bool (const TTF_Font *)",
-      "thread": "raw-only-not-reviewed"
+      "thread": "font-owner-thread"
     },
     {
       "classification": "safe",
@@ -286,11 +286,11 @@
       "thread": "font-owner-thread"
     },
     {
-      "classification": "raw-only",
+      "classification": "safe",
       "header": "SDL3_ttf/<clang-elided-source>",
       "name": "TTF_GetFontOutline",
       "signature": "int (const TTF_Font *)",
-      "thread": "raw-only-not-reviewed"
+      "thread": "font-owner-thread"
     },
     {
       "classification": "raw-only",
@@ -321,11 +321,11 @@
       "thread": "raw-only-not-reviewed"
     },
     {
-      "classification": "raw-only",
+      "classification": "safe",
       "header": "SDL3_ttf/<clang-elided-source>",
       "name": "TTF_GetFontStyle",
       "signature": "TTF_FontStyleFlags (const TTF_Font *)",
-      "thread": "raw-only-not-reviewed"
+      "thread": "font-owner-thread"
     },
     {
       "classification": "safe",
@@ -391,11 +391,11 @@
       "thread": "raw-only-not-reviewed"
     },
     {
-      "classification": "raw-only",
+      "classification": "safe",
       "header": "SDL3_ttf/<clang-elided-source>",
       "name": "TTF_GetGlyphMetrics",
       "signature": "bool (TTF_Font *, Uint32, int *, int *, int *, int *, int *)",
-      "thread": "raw-only-not-reviewed"
+      "thread": "font-owner-thread"
     },
     {
       "classification": "raw-only",
@@ -440,11 +440,11 @@
       "thread": "font-owner-thread"
     },
     {
-      "classification": "raw-only",
+      "classification": "safe",
       "header": "SDL3_ttf/<clang-elided-source>",
       "name": "TTF_GetStringSizeWrapped",
       "signature": "bool (TTF_Font *, const char *, size_t, int, int *, int *)",
-      "thread": "raw-only-not-reviewed"
+      "thread": "font-owner-thread"
     },
     {
       "classification": "raw-only",
@@ -636,11 +636,11 @@
       "thread": "font-owner-thread-owned-result"
     },
     {
-      "classification": "raw-only",
+      "classification": "safe",
       "header": "SDL3_ttf/<clang-elided-source>",
       "name": "TTF_RenderText_Blended_Wrapped",
       "signature": "SDL_Surface *(TTF_Font *, const char *, size_t, SDL_Color, int)",
-      "thread": "raw-only-not-reviewed"
+      "thread": "font-owner-thread-owned-result"
     },
     {
       "classification": "raw-only",
@@ -692,18 +692,18 @@
       "thread": "raw-only-not-reviewed"
     },
     {
-      "classification": "raw-only",
+      "classification": "safe",
       "header": "SDL3_ttf/<clang-elided-source>",
       "name": "TTF_SetFontHinting",
       "signature": "void (TTF_Font *, TTF_HintingFlags)",
-      "thread": "raw-only-not-reviewed"
+      "thread": "font-owner-thread"
     },
     {
-      "classification": "raw-only",
+      "classification": "safe",
       "header": "SDL3_ttf/<clang-elided-source>",
       "name": "TTF_SetFontKerning",
       "signature": "void (TTF_Font *, bool)",
-      "thread": "raw-only-not-reviewed"
+      "thread": "font-owner-thread"
     },
     {
       "classification": "raw-only",
@@ -720,11 +720,11 @@
       "thread": "raw-only-not-reviewed"
     },
     {
-      "classification": "raw-only",
+      "classification": "safe",
       "header": "SDL3_ttf/<clang-elided-source>",
       "name": "TTF_SetFontOutline",
       "signature": "bool (TTF_Font *, int)",
-      "thread": "raw-only-not-reviewed"
+      "thread": "font-owner-thread"
     },
     {
       "classification": "raw-only",
@@ -755,11 +755,11 @@
       "thread": "font-owner-thread"
     },
     {
-      "classification": "raw-only",
+      "classification": "safe",
       "header": "SDL3_ttf/<clang-elided-source>",
       "name": "TTF_SetFontStyle",
       "signature": "void (TTF_Font *, TTF_FontStyleFlags)",
-      "thread": "raw-only-not-reviewed"
+      "thread": "font-owner-thread"
     },
     {
       "classification": "raw-only",

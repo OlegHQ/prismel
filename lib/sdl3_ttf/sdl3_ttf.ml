@@ -46,11 +46,37 @@ external raw_set_font_size_dpi :
   = "caml_sdl3_ttf_set_font_size_dpi"
 external raw_font_dpi : nativeint -> ((int * int), string) result
   = "caml_sdl3_ttf_font_dpi"
+external raw_set_font_style : nativeint -> int -> unit
+  = "caml_sdl3_ttf_set_font_style"
+external raw_get_font_style : nativeint -> int = "caml_sdl3_ttf_get_font_style"
+external raw_set_font_outline : nativeint -> int -> (unit, string) result
+  = "caml_sdl3_ttf_set_font_outline"
+external raw_get_font_outline : nativeint -> int = "caml_sdl3_ttf_get_font_outline"
+external raw_set_font_hinting : nativeint -> int -> unit
+  = "caml_sdl3_ttf_set_font_hinting"
+external raw_get_font_hinting : nativeint -> int
+  = "caml_sdl3_ttf_get_font_hinting"
+external raw_set_font_kerning : nativeint -> bool -> unit
+  = "caml_sdl3_ttf_set_font_kerning"
+external raw_get_font_kerning : nativeint -> bool
+  = "caml_sdl3_ttf_get_font_kerning"
+external raw_font_has_glyph : nativeint -> int -> bool
+  = "caml_sdl3_ttf_font_has_glyph"
+external raw_glyph_metrics : nativeint -> int ->
+  ((int * int * int * int * int), string) result
+  = "caml_sdl3_ttf_glyph_metrics"
 external raw_size_text : nativeint -> string -> ((int * int), string) result
   = "caml_sdl3_ttf_size_text"
+external raw_size_text_wrapped : nativeint -> string -> int ->
+  ((int * int), string) result = "caml_sdl3_ttf_size_text_wrapped"
 external raw_render_blended :
   nativeint -> string -> int -> int -> int -> int -> (decoded, string) result
   = "caml_sdl3_ttf_render_blended_bytecode" "caml_sdl3_ttf_render_blended"
+external raw_render_blended_wrapped :
+  nativeint -> string -> int -> int -> int -> int -> int ->
+  (decoded, string) result
+  = "caml_sdl3_ttf_render_blended_wrapped_bytecode"
+    "caml_sdl3_ttf_render_blended_wrapped"
 
 module Version = struct
   type t = { major : int; minor : int; patch : int }
@@ -179,6 +205,13 @@ module Font = struct
     line_skip : int;
   }
 
+  type style = Normal | Bold | Italic | Underline | Strikethrough
+  type hinting = Normal_hinting | Light_hinting | Mono_hinting
+    | None_hinting | Light_subpixel_hinting
+  type glyph_metrics = {
+    min_x : int; max_x : int; min_y : int; max_y : int; advance : int;
+  }
+
   let next_generation = Atomic.make 1
   let generation value = value.generation
   let destroyed value = value.destroyed
@@ -187,6 +220,40 @@ module Font = struct
     try ignore (String.index value '\x00'); true with Not_found -> false
 
   let valid_size value = Float.is_finite value && value > 0.
+
+  let valid_utf8 value =
+    let length = String.length value in
+    let continuation index =
+      index < length && let byte = Char.code value.[index] in
+      byte land 0xc0 = 0x80
+    in
+    let rec loop index =
+      if index = length then true
+      else
+        let byte = Char.code value.[index] in
+        if byte < 0x80 then loop (index + 1)
+        else if byte >= 0xc2 && byte <= 0xdf && continuation (index + 1) then
+          loop (index + 2)
+        else if byte >= 0xe0 && byte <= 0xef && continuation (index + 1)
+            && continuation (index + 2) then
+          let second = Char.code value.[index + 1] in
+          if (byte = 0xe0 && second < 0xa0) || (byte = 0xed && second >= 0xa0)
+          then false else loop (index + 3)
+        else if byte >= 0xf0 && byte <= 0xf4 && continuation (index + 1)
+            && continuation (index + 2) && continuation (index + 3) then
+          let second = Char.code value.[index + 1] in
+          if (byte = 0xf0 && second < 0x90) || (byte = 0xf4 && second >= 0x90)
+          then false else loop (index + 4)
+        else false
+    in
+    loop 0
+
+  let validate_text operation text =
+    if contains_nul text then
+      error operation Invalid_argument "text contains a NUL byte"
+    else if not (valid_utf8 text) then
+      error operation Invalid_argument "text is not valid UTF-8"
+    else Ok ()
 
   let system_font_candidates () =
     let fixed =
@@ -244,6 +311,13 @@ module Font = struct
       | Ok false -> error operation Not_initialized "SDL3_ttf is not initialized"
       | Ok true -> callback value.raw)
 
+  let mutate value operation callback = live operation value (fun raw ->
+    match callback raw with
+    | Error _ as failure -> failure
+    | Ok () ->
+        value.generation <- Atomic.fetch_and_add next_generation 1;
+        Ok ())
+
   let open_file ~path ~size =
     let operation = "SDL3_ttf.Font.open_file" in
     if path = "" || contains_nul path then
@@ -297,13 +371,91 @@ module Font = struct
   let dpi value = live "SDL3_ttf.Font.dpi" value (fun raw ->
     ttf_result "SDL3_ttf.Font.dpi" (raw_font_dpi raw))
 
+  let style_bit = function
+    | Normal -> 0 | Bold -> 1 | Italic -> 2 | Underline -> 4
+    | Strikethrough -> 8
+
+  let set_style value styles =
+    let operation = "SDL3_ttf.Font.set_style" in
+    let bits = List.fold_left (fun bits style -> bits lor style_bit style) 0 styles in
+    mutate value operation (fun raw -> raw_set_font_style raw bits; Ok ())
+
+  let style value = live "SDL3_ttf.Font.style" value (fun raw ->
+    let bits = raw_get_font_style raw in
+    let styles =
+      [ 1, Bold; 2, Italic; 4, Underline; 8, Strikethrough ]
+      |> List.filter_map (fun (bit, style) ->
+        if bits land bit <> 0 then Some style else None)
+    in
+    Ok (if styles = [] then [Normal] else styles))
+
+  let set_outline value outline =
+    let operation = "SDL3_ttf.Font.set_outline" in
+    if outline < 0 then error operation Invalid_argument "outline must be non-negative"
+    else mutate value operation (fun raw ->
+      ttf_result operation (raw_set_font_outline raw outline))
+
+  let outline value = live "SDL3_ttf.Font.outline" value (fun raw ->
+    Ok (raw_get_font_outline raw))
+
+  let hinting_code = function
+    | Normal_hinting -> 0 | Light_hinting -> 1 | Mono_hinting -> 2
+    | None_hinting -> 3 | Light_subpixel_hinting -> 4
+
+  let hinting_of_code = function
+    | 0 -> Ok Normal_hinting | 1 -> Ok Light_hinting | 2 -> Ok Mono_hinting
+    | 3 -> Ok None_hinting | 4 -> Ok Light_subpixel_hinting
+    | _ -> error "SDL3_ttf.Font.hinting" Ttf_error "SDL3_ttf returned invalid hinting"
+
+  let set_hinting value hinting =
+    let operation = "SDL3_ttf.Font.set_hinting" in
+    mutate value operation (fun raw ->
+      raw_set_font_hinting raw (hinting_code hinting); Ok ())
+
+  let hinting value = live "SDL3_ttf.Font.hinting" value (fun raw ->
+    hinting_of_code (raw_get_font_hinting raw))
+
+  let set_kerning value enabled =
+    let operation = "SDL3_ttf.Font.set_kerning" in
+    mutate value operation (fun raw -> raw_set_font_kerning raw enabled; Ok ())
+
+  let kerning value = live "SDL3_ttf.Font.kerning" value (fun raw ->
+    Ok (raw_get_font_kerning raw))
+
+  let valid_codepoint value = value >= 0 && value <= 0x10ffff
+    && not (value >= 0xd800 && value <= 0xdfff)
+
+  let has_glyph value codepoint =
+    let operation = "SDL3_ttf.Font.has_glyph" in
+    if not (valid_codepoint codepoint) then
+      error operation Invalid_argument "codepoint is not a Unicode scalar value"
+    else live operation value (fun raw -> Ok (raw_font_has_glyph raw codepoint))
+
+  let glyph_metrics value codepoint =
+    let operation = "SDL3_ttf.Font.glyph_metrics" in
+    if not (valid_codepoint codepoint) then
+      error operation Invalid_argument "codepoint is not a Unicode scalar value"
+    else live operation value (fun raw ->
+      match ttf_result operation (raw_glyph_metrics raw codepoint) with
+      | Error _ as failure -> failure
+      | Ok (min_x, max_x, min_y, max_y, advance) ->
+          Ok { min_x; max_x; min_y; max_y; advance })
+
   let size_text value text =
     let operation = "SDL3_ttf.Font.size_text" in
-    if contains_nul text then
-      error operation Invalid_argument "text contains a NUL byte"
-    else if text = "" then live operation value (fun _ -> Ok (0, 0))
-    else live operation value (fun raw ->
-      ttf_result operation (raw_size_text raw text))
+    match validate_text operation text with
+    | Error _ as failure -> failure
+    | Ok () when text = "" -> live operation value (fun _ -> Ok (0, 0))
+    | Ok () -> live operation value (fun raw -> ttf_result operation (raw_size_text raw text))
+
+  let size_text_wrapped value ~wrap_width text =
+    let operation = "SDL3_ttf.Font.size_text_wrapped" in
+    if wrap_width < 0 then error operation Invalid_argument "wrap width must be non-negative"
+    else match validate_text operation text with
+    | Error _ as failure -> failure
+    | Ok () when text = "" -> live operation value (fun _ -> Ok (0, 0))
+    | Ok () -> live operation value (fun raw ->
+        ttf_result operation (raw_size_text_wrapped raw text wrap_width))
 
   let valid_channel value = value >= 0 && value <= 255
 
@@ -312,12 +464,34 @@ module Font = struct
     if not (valid_channel red && valid_channel green && valid_channel blue
         && valid_channel alpha) then
       error operation Invalid_argument "RGBA channels must be in 0..255"
-    else if contains_nul text then
-      error operation Invalid_argument "text contains a NUL byte"
-    else if text = "" then live operation value (fun _ -> Ok None)
-    else live operation value (fun raw ->
+    else match validate_text operation text with
+    | Error _ as failure -> failure
+    | Ok () when text = "" -> live operation value (fun _ -> Ok None)
+    | Ok () -> live operation value (fun raw ->
       match ttf_result operation
           (raw_render_blended raw text red green blue alpha) with
+      | Error _ as failure -> failure
+      | Ok decoded ->
+          (match Sdl3.Surface.of_rgba ~width:decoded.width
+              ~height:decoded.height decoded.pixels with
+           | Ok surface -> Ok (Some surface)
+           | Error surface_error ->
+               error operation (Surface_error surface_error)
+                 (Format.asprintf "%a" Sdl3.pp_error surface_error)))
+
+  let render_blended_wrapped value ~color:(red, green, blue, alpha)
+      ~wrap_width text =
+    let operation = "SDL3_ttf.Font.render_blended_wrapped" in
+    if wrap_width < 0 then error operation Invalid_argument "wrap width must be non-negative"
+    else if not (valid_channel red && valid_channel green && valid_channel blue
+        && valid_channel alpha) then
+      error operation Invalid_argument "RGBA channels must be in 0..255"
+    else match validate_text operation text with
+    | Error _ as failure -> failure
+    | Ok () when text = "" -> live operation value (fun _ -> Ok None)
+    | Ok () -> live operation value (fun raw ->
+      match ttf_result operation
+          (raw_render_blended_wrapped raw text red green blue alpha wrap_width) with
       | Error _ as failure -> failure
       | Ok decoded ->
           (match Sdl3.Surface.of_rgba ~width:decoded.width
