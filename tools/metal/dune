@@ -92,6 +92,8 @@
   binding_metal4_counters2_safe_package
   binding_metal4_argument_table_safe_package
   binding_render_encoder33_native_closure
+  binding_render_encoder33_safe_package
+  binding_render_pass24_safe_closure
   binding_render_pipeline93_native_closure
   binding_acceleration_command32_native_closure
   binding_argument_encoder_handoff
@@ -584,6 +586,16 @@
 (test
  (name test_binding_render_encoder33_native_closure)
  (modules test_binding_render_encoder33_native_closure)
+ (libraries metal_inventory_classification))
+
+(test
+ (name test_binding_render_encoder33_safe_package)
+ (modules test_binding_render_encoder33_safe_package)
+ (libraries metal_inventory_classification))
+
+(test
+ (name test_binding_render_pass24_safe_closure)
+ (modules test_binding_render_pass24_safe_closure)
  (libraries metal_inventory_classification))
 
 (test

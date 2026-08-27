@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 5000,
+    "bound": 5058,
     "scope-excluded": 37,
-    "unreviewed": 248
+    "unreviewed": 190
   },
-  "classification_source_sha256": "a16fb629e6f823905daa9887da4aca753a6a3a49fceaa98bf6e30cd9ed632968",
+  "classification_source_sha256": "54d7e00d77edd5815cbc822805be0b74a6d0cd87eaeb0fed4de6fc46f6749164",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -2966,7 +2966,7 @@
           "line": 299
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "class:MTLRenderPassDescriptor",
       "kind": "class",
@@ -2974,7 +2974,7 @@
       "macos_introduced": "10.11",
       "name": "MTLRenderPassDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic RenderPass24 graph with copied color/sample descriptors, nullable resolve texture and counter buffers, checked device/range/default reset semantics, completion retention, and real render/resolve conformance.",
       "signature": ""
     },
     {
@@ -2988,7 +2988,7 @@
           "line": 235
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "class:MTLRenderPassSampleBufferAttachmentDescriptor",
       "kind": "class",
@@ -2996,7 +2996,7 @@
       "macos_introduced": "11.0",
       "name": "MTLRenderPassSampleBufferAttachmentDescriptor",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic RenderPass24 graph with copied color/sample descriptors, nullable resolve texture and counter buffers, checked device/range/default reset semantics, completion retention, and real render/resolve conformance.",
       "signature": ""
     },
     {
@@ -3010,7 +3010,7 @@
           "line": 285
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "class:MTLRenderPassSampleBufferAttachmentDescriptorArray",
       "kind": "class",
@@ -3018,7 +3018,7 @@
       "macos_introduced": "11.0",
       "name": "MTLRenderPassSampleBufferAttachmentDescriptorArray",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic RenderPass24 graph with copied color/sample descriptors, nullable resolve texture and counter buffers, checked device/range/default reset semantics, completion retention, and real render/resolve conformance.",
       "signature": ""
     },
     {
@@ -34107,7 +34107,7 @@
           "line": 37
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4CommandEncoder.h",
       "id": "method:-[MTL4CommandEncoder waitForFence:beforeEncoderStages:]",
       "kind": "method",
@@ -34115,7 +34115,7 @@
       "macos_introduced": "26.0",
       "name": "waitForFence:beforeEncoderStages:",
       "owner": "MTL4CommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the active Metal 4 encoder path with live same-device fence and nonempty known-stage validation, native-first command retention, and real producer/consumer conformance.",
       "signature": "instance (id<MTLFence>  _Nonnull __strong, MTLStages) -> void"
     },
     {
@@ -67866,7 +67866,7 @@
           "line": 936
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder dispatchThreadsPerTile:]",
       "kind": "method",
@@ -67874,7 +67874,7 @@
       "macos_introduced": "11.0",
       "name": "dispatchThreadsPerTile:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned render-command encoder surface with checked buffer/sampler arrays and offsets, retained resources and counter samples, validated patch/mesh/tile/indirect draw layouts, command-state rejection, and real framebuffer conformance.",
       "signature": "instance (MTLSize) -> void"
     },
     {
@@ -67891,7 +67891,7 @@
           "line": 823
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder drawIndexedPatches:patchIndexBuffer:patchIndexBufferOffset:controlPointIndexBuffer:controlPointIndexBufferOffset:indirectBuffer:indirectBufferOffset:]",
       "kind": "method",
@@ -67899,7 +67899,7 @@
       "macos_introduced": "10.12",
       "name": "drawIndexedPatches:patchIndexBuffer:patchIndexBufferOffset:controlPointIndexBuffer:controlPointIndexBufferOffset:indirectBuffer:indirectBufferOffset:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned render-command encoder surface with checked buffer/sampler arrays and offsets, retained resources and counter samples, validated patch/mesh/tile/indirect draw layouts, command-state rejection, and real framebuffer conformance.",
       "signature": "instance (NSUInteger, id<MTLBuffer>  _Nullable __strong, NSUInteger, id<MTLBuffer>  _Nonnull __strong, NSUInteger, id<MTLBuffer>  _Nonnull __strong, NSUInteger) -> void"
     },
     {
@@ -67916,7 +67916,7 @@
           "line": 821
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder drawIndexedPatches:patchStart:patchCount:patchIndexBuffer:patchIndexBufferOffset:controlPointIndexBuffer:controlPointIndexBufferOffset:instanceCount:baseInstance:]",
       "kind": "method",
@@ -67924,7 +67924,7 @@
       "macos_introduced": "10.12",
       "name": "drawIndexedPatches:patchStart:patchCount:patchIndexBuffer:patchIndexBufferOffset:controlPointIndexBuffer:controlPointIndexBufferOffset:instanceCount:baseInstance:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned render-command encoder surface with checked buffer/sampler arrays and offsets, retained resources and counter samples, validated patch/mesh/tile/indirect draw layouts, command-state rejection, and real framebuffer conformance.",
       "signature": "instance (NSUInteger, NSUInteger, NSUInteger, id<MTLBuffer>  _Nullable __strong, NSUInteger, id<MTLBuffer>  _Nonnull __strong, NSUInteger, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -68029,7 +68029,7 @@
           "line": 669
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder drawMeshThreadgroups:threadsPerObjectThreadgroup:threadsPerMeshThreadgroup:]",
       "kind": "method",
@@ -68037,7 +68037,7 @@
       "macos_introduced": "13.0",
       "name": "drawMeshThreadgroups:threadsPerObjectThreadgroup:threadsPerMeshThreadgroup:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned render-command encoder surface with checked buffer/sampler arrays and offsets, retained resources and counter samples, validated patch/mesh/tile/indirect draw layouts, command-state rejection, and real framebuffer conformance.",
       "signature": "instance (MTLSize, MTLSize, MTLSize) -> void"
     },
     {
@@ -68054,7 +68054,7 @@
           "line": 699
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder drawMeshThreadgroupsWithIndirectBuffer:indirectBufferOffset:threadsPerObjectThreadgroup:threadsPerMeshThreadgroup:]",
       "kind": "method",
@@ -68062,7 +68062,7 @@
       "macos_introduced": "13.0",
       "name": "drawMeshThreadgroupsWithIndirectBuffer:indirectBufferOffset:threadsPerObjectThreadgroup:threadsPerMeshThreadgroup:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned render-command encoder surface with checked buffer/sampler arrays and offsets, retained resources and counter samples, validated patch/mesh/tile/indirect draw layouts, command-state rejection, and real framebuffer conformance.",
       "signature": "instance (id<MTLBuffer>  _Nonnull __strong, NSUInteger, MTLSize, MTLSize) -> void"
     },
     {
@@ -68079,7 +68079,7 @@
           "line": 684
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder drawMeshThreads:threadsPerObjectThreadgroup:threadsPerMeshThreadgroup:]",
       "kind": "method",
@@ -68087,7 +68087,7 @@
       "macos_introduced": "13.0",
       "name": "drawMeshThreads:threadsPerObjectThreadgroup:threadsPerMeshThreadgroup:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned render-command encoder surface with checked buffer/sampler arrays and offsets, retained resources and counter samples, validated patch/mesh/tile/indirect draw layouts, command-state rejection, and real framebuffer conformance.",
       "signature": "instance (MTLSize, MTLSize, MTLSize) -> void"
     },
     {
@@ -68173,7 +68173,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder drawPrimitives:vertexStart:vertexCount:]",
       "kind": "method",
@@ -68181,7 +68181,7 @@
       "macos_introduced": "10.11",
       "name": "drawPrimitives:vertexStart:vertexCount:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned render-command encoder surface with checked buffer/sampler arrays and offsets, retained resources and counter samples, validated patch/mesh/tile/indirect draw layouts, command-state rejection, and real framebuffer conformance.",
       "signature": "instance (MTLPrimitiveType, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -68217,7 +68217,7 @@
           "line": 754
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder drawPrimitives:vertexStart:vertexCount:instanceCount:baseInstance:]",
       "kind": "method",
@@ -68225,7 +68225,7 @@
       "macos_introduced": "10.11",
       "name": "drawPrimitives:vertexStart:vertexCount:instanceCount:baseInstance:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned render-command encoder surface with checked buffer/sampler arrays and offsets, retained resources and counter samples, validated patch/mesh/tile/indirect draw layouts, command-state rejection, and real framebuffer conformance.",
       "signature": "instance (MTLPrimitiveType, NSUInteger, NSUInteger, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -68342,7 +68342,7 @@
           "line": 1064
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder sampleCountersInBuffer:atSampleIndex:withBarrier:]",
       "kind": "method",
@@ -68350,7 +68350,7 @@
       "macos_introduced": "10.15",
       "name": "sampleCountersInBuffer:atSampleIndex:withBarrier:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned render-command encoder surface with checked buffer/sampler arrays and offsets, retained resources and counter samples, validated patch/mesh/tile/indirect draw layouts, command-state rejection, and real framebuffer conformance.",
       "signature": "instance (id<MTLCounterSampleBuffer>  _Nonnull __strong, NSUInteger, BOOL) -> void"
     },
     {
@@ -68386,7 +68386,7 @@
           "line": 1077
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setColorAttachmentMap:]",
       "kind": "method",
@@ -68394,7 +68394,7 @@
       "macos_introduced": "26.0",
       "name": "setColorAttachmentMap:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned render-command encoder surface with checked buffer/sampler arrays and offsets, retained resources and counter samples, validated patch/mesh/tile/indirect draw layouts, command-state rejection, and real framebuffer conformance.",
       "signature": "instance (MTLLogicalToPhysicalColorAttachmentMap * _Nullable __strong) -> void"
     },
     {
@@ -68662,7 +68662,7 @@
           "line": 371
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setFragmentBufferOffset:atIndex:]",
       "kind": "method",
@@ -68670,7 +68670,7 @@
       "macos_introduced": "10.11",
       "name": "setFragmentBufferOffset:atIndex:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned render-command encoder surface with checked buffer/sampler arrays and offsets, retained resources and counter samples, validated patch/mesh/tile/indirect draw layouts, command-state rejection, and real framebuffer conformance.",
       "signature": "instance (NSUInteger, NSUInteger) -> void"
     },
     {
@@ -68681,7 +68681,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setFragmentBuffers:offsets:withRange:]",
       "kind": "method",
@@ -68689,7 +68689,7 @@
       "macos_introduced": "10.11",
       "name": "setFragmentBuffers:offsets:withRange:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned render-command encoder surface with checked buffer/sampler arrays and offsets, retained resources and counter samples, validated patch/mesh/tile/indirect draw layouts, command-state rejection, and real framebuffer conformance.",
       "signature": "instance (id<MTLBuffer>  _Nullable const __unsafe_unretained * _Nonnull, const NSUInteger * _Nonnull, NSRange) -> void"
     },
     {
@@ -68813,7 +68813,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setFragmentSamplerStates:lodMinClamps:lodMaxClamps:withRange:]",
       "kind": "method",
@@ -68821,7 +68821,7 @@
       "macos_introduced": "10.11",
       "name": "setFragmentSamplerStates:lodMinClamps:lodMaxClamps:withRange:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned render-command encoder surface with checked buffer/sampler arrays and offsets, retained resources and counter samples, validated patch/mesh/tile/indirect draw layouts, command-state rejection, and real framebuffer conformance.",
       "signature": "instance (id<MTLSamplerState>  _Nullable const __unsafe_unretained * _Nonnull, const float * _Nonnull, const float * _Nonnull, NSRange) -> void"
     },
     {
@@ -68989,7 +68989,7 @@
           "line": 611
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setMeshBufferOffset:atIndex:]",
       "kind": "method",
@@ -68997,7 +68997,7 @@
       "macos_introduced": "13.0",
       "name": "setMeshBufferOffset:atIndex:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned render-command encoder surface with checked buffer/sampler arrays and offsets, retained resources and counter samples, validated patch/mesh/tile/indirect draw layouts, command-state rejection, and real framebuffer conformance.",
       "signature": "instance (NSUInteger, NSUInteger) -> void"
     },
     {
@@ -69014,7 +69014,7 @@
           "line": 617
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setMeshBuffers:offsets:withRange:]",
       "kind": "method",
@@ -69022,7 +69022,7 @@
       "macos_introduced": "13.0",
       "name": "setMeshBuffers:offsets:withRange:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned render-command encoder surface with checked buffer/sampler arrays and offsets, retained resources and counter samples, validated patch/mesh/tile/indirect draw layouts, command-state rejection, and real framebuffer conformance.",
       "signature": "instance (id<MTLBuffer>  _Nullable const __unsafe_unretained * _Nonnull, const NSUInteger * _Nonnull, NSRange) -> void"
     },
     {
@@ -69114,7 +69114,7 @@
           "line": 654
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setMeshSamplerStates:lodMinClamps:lodMaxClamps:withRange:]",
       "kind": "method",
@@ -69122,7 +69122,7 @@
       "macos_introduced": "13.0",
       "name": "setMeshSamplerStates:lodMinClamps:lodMaxClamps:withRange:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned render-command encoder surface with checked buffer/sampler arrays and offsets, retained resources and counter samples, validated patch/mesh/tile/indirect draw layouts, command-state rejection, and real framebuffer conformance.",
       "signature": "instance (id<MTLSamplerState>  _Nullable const __unsafe_unretained * _Nonnull, const float * _Nonnull, const float * _Nonnull, NSRange) -> void"
     },
     {
@@ -69239,7 +69239,7 @@
           "line": 542
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setObjectBufferOffset:atIndex:]",
       "kind": "method",
@@ -69247,7 +69247,7 @@
       "macos_introduced": "13.0",
       "name": "setObjectBufferOffset:atIndex:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned render-command encoder surface with checked buffer/sampler arrays and offsets, retained resources and counter samples, validated patch/mesh/tile/indirect draw layouts, command-state rejection, and real framebuffer conformance.",
       "signature": "instance (NSUInteger, NSUInteger) -> void"
     },
     {
@@ -69264,7 +69264,7 @@
           "line": 548
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setObjectBuffers:offsets:withRange:]",
       "kind": "method",
@@ -69272,7 +69272,7 @@
       "macos_introduced": "13.0",
       "name": "setObjectBuffers:offsets:withRange:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned render-command encoder surface with checked buffer/sampler arrays and offsets, retained resources and counter samples, validated patch/mesh/tile/indirect draw layouts, command-state rejection, and real framebuffer conformance.",
       "signature": "instance (id<MTLBuffer>  _Nullable const __unsafe_unretained * _Nonnull, const NSUInteger * _Nonnull, NSRange) -> void"
     },
     {
@@ -69364,7 +69364,7 @@
           "line": 585
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setObjectSamplerStates:lodMinClamps:lodMaxClamps:withRange:]",
       "kind": "method",
@@ -69372,7 +69372,7 @@
       "macos_introduced": "13.0",
       "name": "setObjectSamplerStates:lodMinClamps:lodMaxClamps:withRange:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned render-command encoder surface with checked buffer/sampler arrays and offsets, retained resources and counter samples, validated patch/mesh/tile/indirect draw layouts, command-state rejection, and real framebuffer conformance.",
       "signature": "instance (id<MTLSamplerState>  _Nullable const __unsafe_unretained * _Nonnull, const float * _Nonnull, const float * _Nonnull, NSRange) -> void"
     },
     {
@@ -69464,7 +69464,7 @@
           "line": 591
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setObjectThreadgroupMemoryLength:atIndex:]",
       "kind": "method",
@@ -69472,7 +69472,7 @@
       "macos_introduced": "13.0",
       "name": "setObjectThreadgroupMemoryLength:atIndex:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned render-command encoder surface with checked buffer/sampler arrays and offsets, retained resources and counter samples, validated patch/mesh/tile/indirect draw layouts, command-state rejection, and real framebuffer conformance.",
       "signature": "instance (NSUInteger, NSUInteger) -> void"
     },
     {
@@ -69696,7 +69696,7 @@
           "line": 942
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setThreadgroupMemoryLength:offset:atIndex:]",
       "kind": "method",
@@ -69704,7 +69704,7 @@
       "macos_introduced": "11.0",
       "name": "setThreadgroupMemoryLength:offset:atIndex:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned render-command encoder surface with checked buffer/sampler arrays and offsets, retained resources and counter samples, validated patch/mesh/tile/indirect draw layouts, command-state rejection, and real framebuffer conformance.",
       "signature": "instance (NSUInteger, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -69771,7 +69771,7 @@
           "line": 856
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setTileBufferOffset:atIndex:]",
       "kind": "method",
@@ -69779,7 +69779,7 @@
       "macos_introduced": "11.0",
       "name": "setTileBufferOffset:atIndex:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned render-command encoder surface with checked buffer/sampler arrays and offsets, retained resources and counter samples, validated patch/mesh/tile/indirect draw layouts, command-state rejection, and real framebuffer conformance.",
       "signature": "instance (NSUInteger, NSUInteger) -> void"
     },
     {
@@ -69796,7 +69796,7 @@
           "line": 862
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setTileBuffers:offsets:withRange:]",
       "kind": "method",
@@ -69804,7 +69804,7 @@
       "macos_introduced": "11.0",
       "name": "setTileBuffers:offsets:withRange:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned render-command encoder surface with checked buffer/sampler arrays and offsets, retained resources and counter samples, validated patch/mesh/tile/indirect draw layouts, command-state rejection, and real framebuffer conformance.",
       "signature": "instance (id<MTLBuffer>  _Nullable const __unsafe_unretained * _Nonnull, const NSUInteger * _Nonnull, NSRange) -> void"
     },
     {
@@ -69946,7 +69946,7 @@
           "line": 899
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setTileSamplerStates:lodMinClamps:lodMaxClamps:withRange:]",
       "kind": "method",
@@ -69954,7 +69954,7 @@
       "macos_introduced": "11.0",
       "name": "setTileSamplerStates:lodMinClamps:lodMaxClamps:withRange:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned render-command encoder surface with checked buffer/sampler arrays and offsets, retained resources and counter samples, validated patch/mesh/tile/indirect draw layouts, command-state rejection, and real framebuffer conformance.",
       "signature": "instance (id<MTLSamplerState>  _Nullable const __unsafe_unretained * _Nonnull, const float * _Nonnull, const float * _Nonnull, NSRange) -> void"
     },
     {
@@ -70209,7 +70209,7 @@
           "line": 159
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setVertexBufferOffset:atIndex:]",
       "kind": "method",
@@ -70217,7 +70217,7 @@
       "macos_introduced": "10.11",
       "name": "setVertexBufferOffset:atIndex:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned render-command encoder surface with checked buffer/sampler arrays and offsets, retained resources and counter samples, validated patch/mesh/tile/indirect draw layouts, command-state rejection, and real framebuffer conformance.",
       "signature": "instance (NSUInteger, NSUInteger) -> void"
     },
     {
@@ -70234,7 +70234,7 @@
           "line": 199
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setVertexBufferOffset:attributeStride:atIndex:]",
       "kind": "method",
@@ -70242,7 +70242,7 @@
       "macos_introduced": "14.0",
       "name": "setVertexBufferOffset:attributeStride:atIndex:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned render-command encoder surface with checked buffer/sampler arrays and offsets, retained resources and counter samples, validated patch/mesh/tile/indirect draw layouts, command-state rejection, and real framebuffer conformance.",
       "signature": "instance (NSUInteger, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -70259,7 +70259,7 @@
           "line": 190
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setVertexBuffers:offsets:attributeStrides:withRange:]",
       "kind": "method",
@@ -70267,7 +70267,7 @@
       "macos_introduced": "14.0",
       "name": "setVertexBuffers:offsets:attributeStrides:withRange:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned render-command encoder surface with checked buffer/sampler arrays and offsets, retained resources and counter samples, validated patch/mesh/tile/indirect draw layouts, command-state rejection, and real framebuffer conformance.",
       "signature": "instance (id<MTLBuffer>  _Nullable const __unsafe_unretained * _Nonnull, const NSUInteger * _Nonnull, const NSUInteger * _Nonnull, NSRange) -> void"
     },
     {
@@ -70278,7 +70278,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setVertexBuffers:offsets:withRange:]",
       "kind": "method",
@@ -70286,7 +70286,7 @@
       "macos_introduced": "10.11",
       "name": "setVertexBuffers:offsets:withRange:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned render-command encoder surface with checked buffer/sampler arrays and offsets, retained resources and counter samples, validated patch/mesh/tile/indirect draw layouts, command-state rejection, and real framebuffer conformance.",
       "signature": "instance (id<MTLBuffer>  _Nullable const __unsafe_unretained * _Nonnull, const NSUInteger * _Nonnull, NSRange) -> void"
     },
     {
@@ -70328,7 +70328,7 @@
           "line": 209
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setVertexBytes:length:attributeStride:atIndex:]",
       "kind": "method",
@@ -70336,7 +70336,7 @@
       "macos_introduced": "14.0",
       "name": "setVertexBytes:length:attributeStride:atIndex:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned render-command encoder surface with checked buffer/sampler arrays and offsets, retained resources and counter samples, validated patch/mesh/tile/indirect draw layouts, command-state rejection, and real framebuffer conformance.",
       "signature": "instance (const void * _Nonnull, NSUInteger, NSUInteger, NSUInteger) -> void"
     },
     {
@@ -70435,7 +70435,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "method:-[MTLRenderCommandEncoder setVertexSamplerStates:lodMinClamps:lodMaxClamps:withRange:]",
       "kind": "method",
@@ -70443,7 +70443,7 @@
       "macos_introduced": "10.11",
       "name": "setVertexSamplerStates:lodMinClamps:lodMaxClamps:withRange:",
       "owner": "MTLRenderCommandEncoder",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned render-command encoder surface with checked buffer/sampler arrays and offsets, retained resources and counter samples, validated patch/mesh/tile/indirect draw layouts, command-state rejection, and real framebuffer conformance.",
       "signature": "instance (id<MTLSamplerState>  _Nullable const __unsafe_unretained * _Nonnull, const float * _Nonnull, const float * _Nonnull, NSRange) -> void"
     },
     {
@@ -71063,7 +71063,7 @@
           "line": 69
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassAttachmentDescriptor resolveTexture]",
       "kind": "method",
@@ -71071,7 +71071,7 @@
       "macos_introduced": "10.11",
       "name": "resolveTexture",
       "owner": "MTLRenderPassAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic RenderPass24 graph with copied color/sample descriptors, nullable resolve texture and counter buffers, checked device/range/default reset semantics, completion retention, and real render/resolve conformance.",
       "signature": "instance () -> id<MTLTexture> _Nullable"
     },
     {
@@ -71196,7 +71196,7 @@
           "line": 69
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassAttachmentDescriptor setResolveTexture:]",
       "kind": "method",
@@ -71204,7 +71204,7 @@
       "macos_introduced": "10.11",
       "name": "setResolveTexture:",
       "owner": "MTLRenderPassAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic RenderPass24 graph with copied color/sample descriptors, nullable resolve texture and counter buffers, checked device/range/default reset semantics, completion retention, and real render/resolve conformance.",
       "signature": "instance (id<MTLTexture> _Nullable) -> void"
     },
     {
@@ -71436,7 +71436,7 @@
           "line": 225
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassColorAttachmentDescriptorArray setObject:atIndexedSubscript:]",
       "kind": "method",
@@ -71444,7 +71444,7 @@
       "macos_introduced": "10.11",
       "name": "setObject:atIndexedSubscript:",
       "owner": "MTLRenderPassColorAttachmentDescriptorArray",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic RenderPass24 graph with copied color/sample descriptors, nullable resolve texture and counter buffers, checked device/range/default reset semantics, completion retention, and real render/resolve conformance.",
       "signature": "instance (MTLRenderPassColorAttachmentDescriptor * _Nullable __strong, NSUInteger) -> void"
     },
     {
@@ -72307,7 +72307,7 @@
           "line": 282
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassSampleBufferAttachmentDescriptor endOfFragmentSampleIndex]",
       "kind": "method",
@@ -72315,7 +72315,7 @@
       "macos_introduced": "11.0",
       "name": "endOfFragmentSampleIndex",
       "owner": "MTLRenderPassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic RenderPass24 graph with copied color/sample descriptors, nullable resolve texture and counter buffers, checked device/range/default reset semantics, completion retention, and real render/resolve conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -72332,7 +72332,7 @@
           "line": 264
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassSampleBufferAttachmentDescriptor endOfVertexSampleIndex]",
       "kind": "method",
@@ -72340,7 +72340,7 @@
       "macos_introduced": "11.0",
       "name": "endOfVertexSampleIndex",
       "owner": "MTLRenderPassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic RenderPass24 graph with copied color/sample descriptors, nullable resolve texture and counter buffers, checked device/range/default reset semantics, completion retention, and real render/resolve conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -72357,7 +72357,7 @@
           "line": 245
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassSampleBufferAttachmentDescriptor sampleBuffer]",
       "kind": "method",
@@ -72365,7 +72365,7 @@
       "macos_introduced": "11.0",
       "name": "sampleBuffer",
       "owner": "MTLRenderPassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic RenderPass24 graph with copied color/sample descriptors, nullable resolve texture and counter buffers, checked device/range/default reset semantics, completion retention, and real render/resolve conformance.",
       "signature": "instance () -> id<MTLCounterSampleBuffer> _Nullable"
     },
     {
@@ -72382,7 +72382,7 @@
           "line": 282
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassSampleBufferAttachmentDescriptor setEndOfFragmentSampleIndex:]",
       "kind": "method",
@@ -72390,7 +72390,7 @@
       "macos_introduced": "11.0",
       "name": "setEndOfFragmentSampleIndex:",
       "owner": "MTLRenderPassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic RenderPass24 graph with copied color/sample descriptors, nullable resolve texture and counter buffers, checked device/range/default reset semantics, completion retention, and real render/resolve conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -72407,7 +72407,7 @@
           "line": 264
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassSampleBufferAttachmentDescriptor setEndOfVertexSampleIndex:]",
       "kind": "method",
@@ -72415,7 +72415,7 @@
       "macos_introduced": "11.0",
       "name": "setEndOfVertexSampleIndex:",
       "owner": "MTLRenderPassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic RenderPass24 graph with copied color/sample descriptors, nullable resolve texture and counter buffers, checked device/range/default reset semantics, completion retention, and real render/resolve conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -72432,7 +72432,7 @@
           "line": 245
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassSampleBufferAttachmentDescriptor setSampleBuffer:]",
       "kind": "method",
@@ -72440,7 +72440,7 @@
       "macos_introduced": "11.0",
       "name": "setSampleBuffer:",
       "owner": "MTLRenderPassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic RenderPass24 graph with copied color/sample descriptors, nullable resolve texture and counter buffers, checked device/range/default reset semantics, completion retention, and real render/resolve conformance.",
       "signature": "instance (id<MTLCounterSampleBuffer> _Nullable) -> void"
     },
     {
@@ -72457,7 +72457,7 @@
           "line": 273
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassSampleBufferAttachmentDescriptor setStartOfFragmentSampleIndex:]",
       "kind": "method",
@@ -72465,7 +72465,7 @@
       "macos_introduced": "11.0",
       "name": "setStartOfFragmentSampleIndex:",
       "owner": "MTLRenderPassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic RenderPass24 graph with copied color/sample descriptors, nullable resolve texture and counter buffers, checked device/range/default reset semantics, completion retention, and real render/resolve conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -72482,7 +72482,7 @@
           "line": 255
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassSampleBufferAttachmentDescriptor setStartOfVertexSampleIndex:]",
       "kind": "method",
@@ -72490,7 +72490,7 @@
       "macos_introduced": "11.0",
       "name": "setStartOfVertexSampleIndex:",
       "owner": "MTLRenderPassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic RenderPass24 graph with copied color/sample descriptors, nullable resolve texture and counter buffers, checked device/range/default reset semantics, completion retention, and real render/resolve conformance.",
       "signature": "instance (NSUInteger) -> void"
     },
     {
@@ -72507,7 +72507,7 @@
           "line": 273
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassSampleBufferAttachmentDescriptor startOfFragmentSampleIndex]",
       "kind": "method",
@@ -72515,7 +72515,7 @@
       "macos_introduced": "11.0",
       "name": "startOfFragmentSampleIndex",
       "owner": "MTLRenderPassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic RenderPass24 graph with copied color/sample descriptors, nullable resolve texture and counter buffers, checked device/range/default reset semantics, completion retention, and real render/resolve conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -72532,7 +72532,7 @@
           "line": 255
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassSampleBufferAttachmentDescriptor startOfVertexSampleIndex]",
       "kind": "method",
@@ -72540,7 +72540,7 @@
       "macos_introduced": "11.0",
       "name": "startOfVertexSampleIndex",
       "owner": "MTLRenderPassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic RenderPass24 graph with copied color/sample descriptors, nullable resolve texture and counter buffers, checked device/range/default reset semantics, completion retention, and real render/resolve conformance.",
       "signature": "instance () -> NSUInteger"
     },
     {
@@ -72551,7 +72551,7 @@
           "line": 285
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassSampleBufferAttachmentDescriptorArray objectAtIndexedSubscript:]",
       "kind": "method",
@@ -72559,7 +72559,7 @@
       "macos_introduced": "11.0",
       "name": "objectAtIndexedSubscript:",
       "owner": "MTLRenderPassSampleBufferAttachmentDescriptorArray",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic RenderPass24 graph with copied color/sample descriptors, nullable resolve texture and counter buffers, checked device/range/default reset semantics, completion retention, and real render/resolve conformance.",
       "signature": "instance (NSUInteger) -> MTLRenderPassSampleBufferAttachmentDescriptor * _Nonnull"
     },
     {
@@ -72570,7 +72570,7 @@
           "line": 285
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "method:-[MTLRenderPassSampleBufferAttachmentDescriptorArray setObject:atIndexedSubscript:]",
       "kind": "method",
@@ -72578,7 +72578,7 @@
       "macos_introduced": "11.0",
       "name": "setObject:atIndexedSubscript:",
       "owner": "MTLRenderPassSampleBufferAttachmentDescriptorArray",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic RenderPass24 graph with copied color/sample descriptors, nullable resolve texture and counter buffers, checked device/range/default reset semantics, completion retention, and real render/resolve conformance.",
       "signature": "instance (MTLRenderPassSampleBufferAttachmentDescriptor * _Nullable __strong, NSUInteger) -> void"
     },
     {
@@ -98011,7 +98011,7 @@
           "line": 69
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "property:MTLRenderPassAttachmentDescriptor:resolveTexture",
       "kind": "property",
@@ -98019,7 +98019,7 @@
       "macos_introduced": "10.11",
       "name": "resolveTexture",
       "owner": "MTLRenderPassAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic RenderPass24 graph with copied color/sample descriptors, nullable resolve texture and counter buffers, checked device/range/default reset semantics, completion retention, and real render/resolve conformance.",
       "signature": "id<MTLTexture> _Nullable"
     },
     {
@@ -98557,7 +98557,7 @@
           "line": 282
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "property:MTLRenderPassSampleBufferAttachmentDescriptor:endOfFragmentSampleIndex",
       "kind": "property",
@@ -98565,7 +98565,7 @@
       "macos_introduced": "11.0",
       "name": "endOfFragmentSampleIndex",
       "owner": "MTLRenderPassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic RenderPass24 graph with copied color/sample descriptors, nullable resolve texture and counter buffers, checked device/range/default reset semantics, completion retention, and real render/resolve conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -98582,7 +98582,7 @@
           "line": 264
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "property:MTLRenderPassSampleBufferAttachmentDescriptor:endOfVertexSampleIndex",
       "kind": "property",
@@ -98590,7 +98590,7 @@
       "macos_introduced": "11.0",
       "name": "endOfVertexSampleIndex",
       "owner": "MTLRenderPassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic RenderPass24 graph with copied color/sample descriptors, nullable resolve texture and counter buffers, checked device/range/default reset semantics, completion retention, and real render/resolve conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -98607,7 +98607,7 @@
           "line": 245
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "property:MTLRenderPassSampleBufferAttachmentDescriptor:sampleBuffer",
       "kind": "property",
@@ -98615,7 +98615,7 @@
       "macos_introduced": "11.0",
       "name": "sampleBuffer",
       "owner": "MTLRenderPassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic RenderPass24 graph with copied color/sample descriptors, nullable resolve texture and counter buffers, checked device/range/default reset semantics, completion retention, and real render/resolve conformance.",
       "signature": "id<MTLCounterSampleBuffer> _Nullable"
     },
     {
@@ -98632,7 +98632,7 @@
           "line": 273
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "property:MTLRenderPassSampleBufferAttachmentDescriptor:startOfFragmentSampleIndex",
       "kind": "property",
@@ -98640,7 +98640,7 @@
       "macos_introduced": "11.0",
       "name": "startOfFragmentSampleIndex",
       "owner": "MTLRenderPassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic RenderPass24 graph with copied color/sample descriptors, nullable resolve texture and counter buffers, checked device/range/default reset semantics, completion retention, and real render/resolve conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -98657,7 +98657,7 @@
           "line": 255
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderPass.h",
       "id": "property:MTLRenderPassSampleBufferAttachmentDescriptor:startOfVertexSampleIndex",
       "kind": "property",
@@ -98665,7 +98665,7 @@
       "macos_introduced": "11.0",
       "name": "startOfVertexSampleIndex",
       "owner": "MTLRenderPassSampleBufferAttachmentDescriptor",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned classic RenderPass24 graph with copied color/sample descriptors, nullable resolve texture and counter buffers, checked device/range/default reset semantics, completion retention, and real render/resolve conformance.",
       "signature": "NSUInteger"
     },
     {
@@ -105598,7 +105598,7 @@
           "line": 131
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "protocol:MTLRenderCommandEncoder",
       "kind": "protocol",
@@ -105606,7 +105606,7 @@
       "macos_introduced": "10.11",
       "name": "MTLRenderCommandEncoder",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned render-command encoder surface with checked buffer/sampler arrays and offsets, retained resources and counter samples, validated patch/mesh/tile/indirect draw layouts, command-state rejection, and real framebuffer conformance.",
       "signature": ""
     },
     {
@@ -108195,7 +108195,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "typedef:MTLDrawIndexedPrimitivesIndirectArguments",
       "kind": "typedef",
@@ -108203,7 +108203,7 @@
       "macos_introduced": null,
       "name": "MTLDrawIndexedPrimitivesIndirectArguments",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned render-command encoder surface with checked buffer/sampler arrays and offsets, retained resources and counter samples, validated patch/mesh/tile/indirect draw layouts, command-state rejection, and real framebuffer conformance.",
       "signature": "struct MTLDrawIndexedPrimitivesIndirectArguments"
     },
     {
@@ -108223,7 +108223,7 @@
     {
       "attributes": [],
       "availability_sources": [],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLRenderCommandEncoder.h",
       "id": "typedef:MTLDrawPrimitivesIndirectArguments",
       "kind": "typedef",
@@ -108231,7 +108231,7 @@
       "macos_introduced": null,
       "name": "MTLDrawPrimitivesIndirectArguments",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the owned render-command encoder surface with checked buffer/sampler arrays and offsets, retained resources and counter samples, validated patch/mesh/tile/indirect draw layouts, command-state rejection, and real framebuffer conformance.",
       "signature": "struct MTLDrawPrimitivesIndirectArguments"
     },
     {
