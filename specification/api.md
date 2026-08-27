@@ -143,6 +143,13 @@ exact values regardless of domain count or work-stealing order.
 - non-visual `text_input_region` metadata for browser/mobile text entry;
 - nested translate, rotate, scale, and general groups.
 
+The installed `runtime_next`, OGPU, and Raster2 libraries do not add a second
+public Scene vocabulary. Their lowering, resource snapshots, and target
+orchestration remain private qualification machinery behind the same immutable
+`Scene`/`Scene3` values. Until the atomic migration gate passes, the documented
+public/default renderer and the legacy comparison path remain unchanged; an
+installed runtime-next package is not a public target-selection switch.
+
 `Scene.text_input_region` is pure scene data. At the render boundary its
 transformed, clipped logical bounds are advertised to the web client. A mobile
 keyboard is requested only when a pointer press lands in one of these regions;

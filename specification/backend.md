@@ -92,6 +92,16 @@ boundaries:
 - `raster2` has no SDL3, Metal, OGPU, Runtime, Prismel, or PXUI dependency;
 - Wap imports no platform or renderer library.
 
+The side-by-side packages are installed from the single `prismel.opam` package
+as `prismel.sdl3`, `prismel.sdl3_image`, `prismel.sdl3_ttf`,
+`prismel.sdl3_mixer`, `prismel.metal`, `prismel.ogpu`,
+`prismel.ogpu_metal`, `prismel.raster2`, `prismel.ogpu_raster2`,
+`prismel.scene_execution`, and the four `prismel.runtime_next*` libraries.
+These install names are qualification surfaces, not separate opam projects and
+not a claim that the public/default renderer has switched. The four
+`packaging/conf-sdl3*` packages are ordinary system-dependency probes used by
+the one root package; they do not own Prismel libraries or source code.
+
 The replacement bindings' ownership, callback, blocking-call, and per-operation
 thread classes are recorded in [`sdl3.md`](sdl3.md) and
 [`metal.md`](metal.md).
