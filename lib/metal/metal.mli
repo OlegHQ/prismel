@@ -875,6 +875,11 @@ module Metal_layer : sig
   val size : t -> int * int
   val config : t -> config
   val checked_config : t -> (config,error) result
+  val preferred_device : t -> (Device.t option,error) result
+  val developer_hud_properties : t -> ((string * string) list,error) result
+  val set_developer_hud_properties :
+    t -> (string * string) list -> (unit,error) result
+  val has_residency_set : t -> (bool,error) result
   val wants_extended_range : t -> bool
   val set_wants_extended_range : t -> bool -> (unit,error) result
   val colorspace : t -> (string option,error) result
