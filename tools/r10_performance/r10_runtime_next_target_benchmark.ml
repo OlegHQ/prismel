@@ -92,22 +92,29 @@ let () =
         (fun () -> Runtime_next_web.read_pixels runtime ~bytes_per_row:(!width * 4)),
         (fun () -> Runtime_next_web.destroy runtime) in
   let run_for duration collect =
-    let count = max 1 (int_of_float (Float.round (duration *. !frame_rate))) in
-    let epoch = Unix.gettimeofday () and values = Array.make count 0. in
+    let requested=max 1(int_of_float(Float.round(duration*. !frame_rate)))in
+    let count=if collect then requested else max 5 requested in
+    let paced_duration=max duration(float count/. !frame_rate)in
+    let epoch = Unix.gettimeofday () and previous = ref (Unix.gettimeofday ())
+    and values = Array.make count 0. in
     for index = 0 to count - 1 do
-      let render_started = Unix.gettimeofday () in ignore (ok (render ()));
-      if collect then values.(index) <- Unix.gettimeofday () -. render_started;
-      let deadline = epoch +. (float (index + 1) /. !frame_rate) in
+      let deadline = epoch +. (float index /. !frame_rate) in
       let remaining = deadline -. Unix.gettimeofday () in
-      if remaining > 0. then Unix.sleepf remaining
+      if remaining > 0. then Unix.sleepf remaining;
+      ignore (ok (render ()));
+      let completed=Unix.gettimeofday()in
+      if collect then values.(index)<-completed-. !previous;
+      previous:=completed
     done;
-    if collect then values else [||] in
-  ignore (run_for !warmup false); Gc.full_major ();
+    let remaining=epoch+.paced_duration-.Unix.gettimeofday()in
+    if remaining>0. then Unix.sleepf remaining;
+    (if collect then values else [||]),Unix.gettimeofday()-.epoch in
+  let warmup_frames,warmup_wall=let _,wall=run_for !warmup false in max 5(int_of_float(Float.round(!warmup*. !frame_rate))),wall in Gc.full_major ();
   let rss0 = rss_kib () in
   let gc0 = Gc.quick_stat () and allocated0 = Gc.allocated_bytes ()
-  and cpu0 = Unix.times () and started = Unix.gettimeofday () in
-  let frames = run_for !seconds true in
-  let wall = Unix.gettimeofday () -. started and cpu1 = Unix.times () and gc1 = Gc.quick_stat () in
+  and cpu0 = Unix.times () in
+  let frames,wall = run_for !seconds true in
+  let cpu1 = Unix.times () and gc1 = Gc.quick_stat () in
   let allocated = Gc.allocated_bytes () -. allocated0
   and promoted = (gc1.promoted_words -. gc0.promoted_words) *. float (Sys.word_size / 8) in
   let rss1 = rss_kib () and framebuffer = ok (capture ()) in
@@ -120,6 +127,7 @@ let () =
     "profile", `String !profile; "width", `Int !width; "height", `Int !height;
     "drawable_width", `Int !width; "drawable_height", `Int !height; "pixel_scale", `Float 1.;
     "warmup_seconds", `Float !warmup; "requested_measure_seconds", `Float !seconds;
+    "warmup_frames",`Int warmup_frames;"warmup_elapsed_seconds",`Float warmup_wall;
     "scheduling", `String "fixed-rate"; "scheduled_frame_rate", `Float !frame_rate;
     "frames", `Int count; "wall_seconds", `Float wall;
     "user_seconds", `Float (cpu1.tms_utime -. cpu0.tms_utime);
