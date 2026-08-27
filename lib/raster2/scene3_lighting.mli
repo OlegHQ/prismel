@@ -12,9 +12,10 @@ type descriptor = { ambient : color; lights : light array; material : material; 
   separate_specular : bool; two_sided : bool }
 type prepared
 type error = Non_finite | Invalid_color | Invalid_direction | Invalid_attenuation |
-  Invalid_spot | Invalid_shininess | Invalid_fog | Too_many_lights
+  Invalid_spot | Invalid_shininess | Invalid_fog | Invalid_shadow | Too_many_lights
 
 val prepare : descriptor -> (prepared, error) result
+val prepare_with_shadows : descriptor -> Shadow_map.prepared option array -> (prepared, error) result
 (* Reverses authored normals when winding extraction reverses a source facet. *)
 val orient_normal : reversed_winding:bool -> vec3 -> vec3
 (* Returns straight-alpha 0xRRGGBBAA. The hot evaluator allocates no containers. *)

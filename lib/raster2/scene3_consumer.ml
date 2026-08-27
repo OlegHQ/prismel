@@ -1,6 +1,6 @@
 type vertex={position:Scene3_lighting.vec3;normal:Scene3_lighting.vec3;color:int32;u:float;v:float}
 type shading=Flat|Smooth
-type draw={matrix:float array;viewport:Scene3.viewport;scissor:Triangle.clip;topology:Scene3.topology;vertices:vertex array;indices:int array;lighting:Scene3_lighting.descriptor;shading:shading;texture:Triangle.texture option;cull:Triangle.cull;blend:Composite.blend}
+type draw={matrix:float array;viewport:Scene3.viewport;scissor:Triangle.clip;topology:Scene3.topology;vertices:vertex array;indices:int array;lighting:Scene3_lighting.descriptor;shadows:Shadow_map.prepared option array;shading:shading;texture:Triangle.texture option;cull:Triangle.cull;blend:Composite.blend}
 type target={color:Surface.t;depth:Depth_stencil.t option;multisample:Multisample.t option}
 type error=Invalid_target|Invalid_vertex|Lighting_error of Scene3_lighting.error|Geometry_error of Scene3.error
 type prepared={geometry:Scene3.prepared;texture:Triangle.texture option;cull:Triangle.cull;blend:Composite.blend}
@@ -11,7 +11,7 @@ let render ~target ~clear ~clear_depth ~draws=
  let valid_msaa=match target.multisample with None->true|Some m->Multisample.width m=width&&Multisample.height m=height in
  if not valid_depth||not valid_msaa||not(finite clear_depth)||clear_depth<0.||clear_depth>1. then Error Invalid_target else
  let failure=ref None and prepared=ref[]in let fail e=if !failure=None then failure:=Some e in
- Array.iter(fun draw->match Scene3_lighting.prepare draw.lighting with Error e->fail(Lighting_error e)|Ok lighting->
+ Array.iter(fun draw->match Scene3_lighting.prepare_with_shadows draw.lighting draw.shadows with Error e->fail(Lighting_error e)|Ok lighting->
   if Array.exists(fun v->let p=v.position and n=v.normal in not(finite p.x&&finite p.y&&finite p.z&&finite n.x&&finite n.y&&finite n.z&&finite v.u&&finite v.v))draw.vertices then fail Invalid_vertex else
   let flat_normal ia ib ic=let a=draw.vertices.(ia).position and b=draw.vertices.(ib).position and c=draw.vertices.(ic).position in let ux=b.x-.a.x and uy=b.y-.a.y and uz=b.z-.a.z and vx=c.x-.a.x and vy=c.y-.a.y and vz=c.z-.a.z in let x=uy*.vz-.uz*.vy and y=uz*.vx-.ux*.vz and z=ux*.vy-.uy*.vx in let length=sqrt(x*.x+.y*.y+.z*.z)in if length=0. then {Scene3_lighting.x=0.;y=0.;z=1.}else{x=x/.length;y=y/.length;z=z/.length}in
   let normals=Array.map(fun v->v.normal)draw.vertices in(match draw.shading with Flat->let count=match draw.topology with Scene3.Triangle_list->Array.length draw.indices/3|Triangle_strip|Triangle_fan->max 0(Array.length draw.indices-2)in for i=0 to count-1 do let a,b,c=match draw.topology with Triangle_list->draw.indices.(3*i),draw.indices.(3*i+1),draw.indices.(3*i+2)|Triangle_strip->draw.indices.(i),draw.indices.(i+1),draw.indices.(i+2)|Triangle_fan->draw.indices.(0),draw.indices.(i+1),draw.indices.(i+2)in if a>=0&&b>=0&&c>=0&&a<Array.length normals&&b<Array.length normals&&c<Array.length normals then let n=flat_normal a b c in normals.(a)<-n;normals.(b)<-n;normals.(c)<-n done|Smooth->());

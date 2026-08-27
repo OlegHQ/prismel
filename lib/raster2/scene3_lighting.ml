@@ -10,9 +10,9 @@ type material = { ambient : color; diffuse : color; specular : color; emissive :
 type fog = No_fog | Linear of { color : color; near : float; far : float }
 type descriptor = { ambient : color; lights : light array; material : material; fog : fog;
   separate_specular : bool; two_sided : bool }
-type prepared = descriptor
+type prepared = { descriptor : descriptor; shadows : Shadow_map.prepared option array }
 type error = Non_finite | Invalid_color | Invalid_direction | Invalid_attenuation |
-  Invalid_spot | Invalid_shininess | Invalid_fog | Too_many_lights
+  Invalid_spot | Invalid_shininess | Invalid_fog | Invalid_shadow | Too_many_lights
 
 let finite = Float.is_finite
 let valid_color c = finite c.r && finite c.g && finite c.b && finite c.a &&
@@ -24,7 +24,7 @@ let valid_attenuation a = finite a.constant && finite a.linear && finite a.quadr
   a.constant >= 0. && a.linear >= 0. && a.quadratic >= 0. &&
   (a.constant > 0. || a.linear > 0. || a.quadratic > 0.)
 
-let prepare descriptor =
+let validate descriptor =
   let material = descriptor.material in
   if Array.length descriptor.lights > 64 then Error Too_many_lights
   else if not (valid_color descriptor.ambient && valid_color material.ambient &&
@@ -52,8 +52,24 @@ let prepare descriptor =
     match !error with Some e -> Error e | None ->
       match descriptor.fog with
       | Linear f when not (valid_color f.color && finite f.near && finite f.far && f.near >= 0. && f.far > f.near) -> Error Invalid_fog
-      | _ -> Ok descriptor
+      | _ -> Ok ()
   end
+
+let prepare descriptor = match validate descriptor with
+  | Error _ as error -> error
+  | Ok () -> Ok { descriptor; shadows = [||] }
+let prepare_with_shadows descriptor shadows =
+  match validate descriptor with
+  | Error _ as error -> error
+  | Ok () ->
+      if Array.length shadows <> Array.length descriptor.lights then Error Invalid_shadow
+      else begin
+        let invalid = ref false in
+        for i = 0 to Array.length shadows - 1 do
+          match descriptor.lights.(i), shadows.(i) with Point _, Some _ -> invalid := true | _ -> ()
+        done;
+        if !invalid then Error Invalid_shadow else Ok { descriptor; shadows = Array.copy shadows }
+      end
 
 let orient_normal ~reversed_winding normal =
   if reversed_winding then { x = -.normal.x; y = -.normal.y; z = -.normal.z } else normal
@@ -65,8 +81,9 @@ let pack r g b a =
   let c x = Int32.of_int (int_of_float ((clamp x *. 255.) +. 0.5)) in
   Int32.(logor (shift_left (c r) 24) (logor (shift_left (c g) 16) (logor (shift_left (c b) 8) (c a))))
 
-let shade descriptor ~position ~normal ~view ~front_facing ~texture ~fog_distance =
+let shade prepared ~position ~normal ~view ~front_facing ~texture ~fog_distance =
   if not (valid_direction normal && valid_direction view && valid_vec position && finite fog_distance) then 0l else
+  let descriptor = prepared.descriptor in
   let nx, ny, nz = normalize normal in
   let nx, ny, nz = if descriptor.two_sided && not front_facing then (-.nx, -.ny, -.nz) else (nx, ny, nz) in
   let vx, vy, vz = normalize view in
@@ -92,7 +109,13 @@ let shade descriptor ~position ~normal ~view ~front_facing ~texture ~fog_distanc
           let cone = if cosine <= l.outer_cos then 0. else if cosine >= l.inner_cos then 1. else (cosine -. l.outer_cos) /. (l.inner_cos -. l.outer_cos) in
           let a=l.attenuation in (lx,ly,lz,cone*.l.intensity /. (a.constant +. a.linear*.distance +. a.quadratic*.distance*.distance),l.color)
     in
-    let diffuse = max 0. (dot nx ny nz lx ly lz) *. strength in
+    let normal_dot_light = max 0. (dot nx ny nz lx ly lz) in
+    let visibility = if i >= Array.length prepared.shadows then 1. else match prepared.shadows.(i) with
+      | None -> 1.
+      | Some shadow -> Shadow_map.visibility shadow ~position:{Shadow_map.x=position.x;y=position.y;z=position.z} ~normal_dot_light
+    in
+    let strength = strength *. visibility in
+    let diffuse = normal_dot_light *. strength in
     primary_r := !primary_r +. material.diffuse.r *. color.r *. diffuse;
     primary_g := !primary_g +. material.diffuse.g *. color.g *. diffuse;
     primary_b := !primary_b +. material.diffuse.b *. color.b *. diffuse;
