@@ -1,8 +1,10 @@
 (library
  (name prismel_runtime_next_sketch)
  (wrapped false)
- (modules prismel_runtime_next_sketch prismel_runtime_next_parity_test
-  prismel_runtime_next_resources prismel_runtime_next_canvas)
  (private_modules prismel_runtime_next_sketch prismel_runtime_next_parity_test
-  prismel_runtime_next_resources prismel_runtime_next_canvas)
+  prismel_runtime_next_resources prismel_runtime_next_canvas
+  prismel_runtime_next_image_text)
+ (modules prismel_runtime_next_sketch prismel_runtime_next_parity_test
+  prismel_runtime_next_resources prismel_runtime_next_canvas
+  prismel_runtime_next_image_text)
  (libraries prismel runtime_next_orchestrator scene_execution wap raster2))
