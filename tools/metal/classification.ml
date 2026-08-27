@@ -1884,6 +1884,7 @@ let metal4_compute_pipeline_reset_safe1 =
 let metal4_command_encoder_wait_safe1 =
   Binding_metal4_command_encoder_safe_package.callable_ids
 let device_residual_safe11 = Binding_device_residual_safe_package.already_safe_ids
+let device_library_safe5 = Binding_device_library5_safe_package.ids
 
 let classify ~unavailable ~identifier ~header ~kind ~signature =
   if unavailable then
@@ -1910,6 +1911,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier device_residual_safe11 then
     Bound,
       "Implemented by existing owned Device constructor/query paths with exact selector evidence, same-device retention, capability rejection, and focused native/public conformance."
+  else if List.mem identifier device_library_safe5 then
+    Bound,
+      "Implemented by exact synchronous Device library constructors with copied byte input, checked absolute paths and bundle/descriptor graphs, owned device retention, and execute-or-error conformance."
   else if acceleration_scalar_identifier ~header ~kind ~signature identifier then
     Bound,
       "Implemented by generated immutable acceleration-structure descriptor values with native execute-or-capability-reject conformance."
