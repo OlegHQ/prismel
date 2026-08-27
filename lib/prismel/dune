@@ -7,4 +7,4 @@
   Canvas_raster2_snapshot_test Raster2_renderer
   Scene_ogpu_renderer)
  (libraries unix domainslib ctypes ctypes.foreign tsdl tsdl-image tsdl-ttf
-  tsdl-mixer tsdl_gfx runtime raster2 ogpu))
+  tsdl-mixer tsdl_gfx runtime raster2 ogpu scene_execution))

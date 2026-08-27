@@ -1,5 +1,6 @@
 (library
  (name scene_execution)
+ (public_name prismel.scene_execution)
  (modules scene_execution)
  (libraries raster2 ogpu))
 

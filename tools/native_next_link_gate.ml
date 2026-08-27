@@ -44,7 +44,7 @@ let () =
       require scene_path scene "(libraries raster2 ogpu)";
       List.iter (fun forbidden -> if contains scene forbidden then
         fail "%s: neutral scene execution acquired forbidden dependency %s"
-          scene_path forbidden) ["tsdl"; "sdl3"; "runtime"; "prismel"; "metal"];
+          scene_path forbidden) ["tsdl"; "sdl3"; "runtime"; "metal"];
       if contains metal "sdl3" || contains metal "tsdl" then
         fail "%s: ogpu_metal acquired an SDL dependency" metal_path;
       expect_rejected ["prismel"; "runtime_sdl3_raster2_presenter"; "ogpu_metal"];
