@@ -24,6 +24,20 @@ let stroke_path ?(width=1.) color path=geometry_of_mesh color(path_error"Scene p
 let styled_path ?fill ?stroke path=
   let fill=match fill,stroke with None,None->Some default_color|_->fill in
   Group(Option.to_list(Option.map(fun color->fill_path color path)fill)@Option.to_list(Option.map(fun color->stroke_path color path)stroke))
+type rounded_cache={table:((int*int*int*int32 option*int32 option),t)Hashtbl.t;mutable order:(int*int*int*int32 option*int32 option)list}
+let rounded_cache_capacity=256
+let rounded_caches=Domain.DLS.new_key(fun()->{table=Hashtbl.create rounded_cache_capacity;order=[]})
+let rounded_cached key make=
+  let cache=Domain.DLS.get rounded_caches in
+  match Hashtbl.find_opt cache.table key with
+  |Some value->value
+  |None->
+      let value=make()in
+      (if Hashtbl.length cache.table>=rounded_cache_capacity then
+        match List.rev cache.order with
+        |[]->()
+        |oldest::rest->Hashtbl.remove cache.table oldest;cache.order<-List.rev rest);
+      Hashtbl.replace cache.table key value;cache.order<-key::cache.order;value
 let point ~at ?(color=default_color)()=Primitive{points=[at];closed=false;fill=None;stroke=Some color}
 let line ~from_ ~to_ ?(color=default_color)?(width=1)()=
   stroke_path~width:(float(max 1 width))color(Raster2.Path.of_commands[|Raster2.Path.Move_to(point2 from_);Raster2.Path.Line_to(point2 to_)|])
@@ -32,16 +46,20 @@ let polyline points ?(color=default_color)()=Primitive{points;closed=false;fill=
 let rect ~at:(x,y)~w~h ?fill ?stroke()=polygon[x,y;x+w,y;x+w,y+h;x,y+h]?fill?stroke()
 let square ~at ~size ?fill ?stroke()=rect~at~w:size~h:size?fill?stroke()
 let rounded_rect ~at:(x,y) ~w ~h ~radius ?fill ?stroke()=
-  let r=float(max 0(min radius(min(abs w)(abs h)/2)))and x=float x and y=float y and w=float w and h=float h in
-  let k=0.5522847498307936*.r in
-  let p x y={Raster2.Path.x;y}in
-  let path=Raster2.Path.of_commands[|
-    Raster2.Path.Move_to(p(x+.r)y);Line_to(p(x+.w-.r)y);
-    Cubic_to(p(x+.w-.r+.k)y,p(x+.w)(y+.r-.k),p(x+.w)(y+.r));
-    Line_to(p(x+.w)(y+.h-.r));Cubic_to(p(x+.w)(y+.h-.r+.k),p(x+.w-.r+.k)(y+.h),p(x+.w-.r)(y+.h));
-    Line_to(p(x+.r)(y+.h));Cubic_to(p(x+.r-.k)(y+.h),p x(y+.h-.r+.k),p x(y+.h-.r));
-    Line_to(p x(y+.r));Cubic_to(p x(y+.r-.k),p(x+.r-.k)y,p(x+.r)y);Close|]in
-  styled_path?fill?stroke path
+  let radius=max 0(min radius(min(abs w)(abs h)/2))in
+  let key=w,h,radius,Option.map rgba fill,Option.map rgba stroke in
+  let geometry=rounded_cached key(fun()->
+    let r=float radius and w=float w and h=float h in
+    let k=0.5522847498307936*.r in
+    let p x y={Raster2.Path.x;y}in
+    let path=Raster2.Path.of_commands[|
+      Raster2.Path.Move_to(p r 0.);Line_to(p(w-.r)0.);
+      Cubic_to(p(w-.r+.k)0.,p w(r-.k),p w r);
+      Line_to(p w(h-.r));Cubic_to(p w(h-.r+.k),p(w-.r+.k)h,p(w-.r)h);
+      Line_to(p r h);Cubic_to(p(r-.k)h,p 0.(h-.r+.k),p 0.(h-.r));
+      Line_to(p 0. r);Cubic_to(p 0.(r-.k),p(r-.k)0.,p r 0.);Close|]in
+    [styled_path?fill?stroke path])in
+  Translate(x,y,geometry)
 let ellipse_points (cx,cy) rx ry=List.init 32(fun i->let a=(2.*.Float.pi)*.float i/.32. in cx+int_of_float(float rx*.cos a),cy+int_of_float(float ry*.sin a))
 let ellipse ~at ~rx ~ry ?fill ?stroke()=polygon(ellipse_points at rx ry)?fill?stroke()
 let circle ~at ~radius ?fill ?stroke()=ellipse~at~rx:radius~ry:radius?fill?stroke()

@@ -57,6 +57,11 @@
  (libraries prismel_next_api prismel_next_resources raster2))
 
 (test
+ (name test_scene_rounded_cache)
+ (modules test_scene_rounded_cache)
+ (libraries prismel_next_api raster2))
+
+(test
  (name test_automatic_text_cache)
  (modules test_automatic_text_cache)
  (libraries prismel_next_api prismel_next_resources))
