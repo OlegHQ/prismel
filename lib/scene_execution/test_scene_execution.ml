@@ -122,9 +122,11 @@ let depth_target_lifecycle () =
   let driver,control=Ogpu.Backend_mock.create()in
   let renderer=get(Scene_execution.create_variants driver configuration)in
   let creations=Ogpu.Backend_mock.trace control|>List.filter(String.starts_with~prefix:"create-depth-texture:")in
+  let stencil_creations=Ogpu.Backend_mock.trace control|>List.filter(String.starts_with~prefix:"create-stencil-texture:")in
   let max_samples=Ogpu.Capabilities.minimum_m1.Ogpu.Capabilities.limits.max_sample_count in
   let expected=List.filter(fun samples->samples<=max_samples)[1;4;9;16]|>List.length in
   if List.length creations<>expected then failwith"depth target count did not match provisioned sample variants";
+  if List.length stencil_creations<>expected then failwith"stencil target count did not match provisioned sample variants";
   Ogpu.Backend_mock.clear_trace control;
   ignore(get(Scene_execution.render_family renderer[Scene2,Ogpu.Pipeline.Replace,draw]));
   if not(List.exists(String.starts_with~prefix:"render:nodepth:none:always:false:")(Ogpu.Backend_mock.trace control))then failwith"Scene2 acquired depth or raster state";
