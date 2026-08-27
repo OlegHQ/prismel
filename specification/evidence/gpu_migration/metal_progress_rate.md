@@ -122,6 +122,7 @@ can change the denominator explicitly rather than being hidden.
 | `cccf729` | 2026-08-27 10:22:53 +02:00 | 5,105 | 5,249 | 97.2566% | 10 | 0.017 | 590.2 | 11.24 |
 | `0dfc9ce` | 2026-08-27 10:24:40 +02:00 | 5,108 | 5,249 | 97.3138% | 3 | 0.030 | 100.9 | 1.92 |
 | `813e1da` | 2026-08-27 10:25:05 +02:00 | 5,115 | 5,249 | 97.4471% | 7 | 0.007 | 1,008.0 | 19.20 |
+| `544c2c2` | 2026-08-27 10:25:50 +02:00 | 5,120 | 5,249 | 97.5424% | 5 | 0.013 | 400.0 | 7.62 |
 
 ## Current measured rate
 
@@ -249,6 +250,13 @@ and protocol declarations. Public input, function-node, graph, inline-attribute,
 and stitched-descriptor values retain their owned graph, reject invalid names,
 indices, cycles, membership, devices, and lifetimes, and are proven by a real
 `[[stitchable]]` library compile fixture with explicit capability rejection.
+
+The `544c2c2` interval closes the five residual RasterizationRate type
+declarations: four public descriptor/array classes and the rate-map protocol.
+They map to the existing owned layer, descriptor, sample-array snapshot, and
+map abstractions; a real Metal fixture proves both one- and two-layer graph
+construction, device identity, physical-size queries, and explicit capability
+rejection.
 
 Rates describe completed commits, not forecasts. Hardware-only gates and
 complex ownership features will vary materially from pure-value batches.
