@@ -87,7 +87,19 @@ let create () =
                     let triangle a b c=Raster2.Triangle.draw~color~depth:(Option.map(fun _->depth)descriptor.depth)~depth_state~blend:Raster2.Composite.Copy~cull:Cull_none~clip~texture(vertex textured vertices binding.offset a)(vertex textured vertices binding.offset b)(vertex textured vertices binding.offset c)in
                     (match d.primitive with Triangle_list->for i=0 to Array.length indices/3-1 do triangle indices.(i*3)indices.(i*3+1)indices.(i*3+2)done|Triangle_strip->for i=0 to Array.length indices-3 do if i land 1=0 then triangle indices.(i)indices.(i+1)indices.(i+2)else triangle indices.(i+1)indices.(i)indices.(i+2)done);Ok())
                   |_->error"Ogpu_raster2.render"Invalid_argument"vertex buffer is absent"in
-              let rec all=function []->Ok()|x::xs->match draw x with Error _ as e->e|Ok()->all xs in all draws
+              let resolve()=
+                Array.iter
+                  (function
+                    |Some(c:Ogpu.Render_pass.color)->
+                        Option.iter(fun texture->match find texture.Ogpu.Render_pass.id with
+                          |Some(Texture({levels;_},_))->
+                              Bytes.blit(Raster2.Surface.bytes color)0
+                                (Raster2.Surface.bytes levels.(0))0
+                                (Bytes.length(Raster2.Surface.bytes color))
+                          |_->())c.resolve
+                    |None->())descriptor.colors
+              in
+              let rec all=function []->resolve();Ok()|x::xs->match draw x with Error _ as e->e|Ok()->all xs in all draws
           |_->error"Ogpu_raster2.render"Invalid_argument"color attachment is absent"in
         let transfer operations =
           let snapshots=List.filter_map(fun(_,token)->match Hashtbl.find_opt control.objects token with Some(Buffer bytes)->Some(token,[|Bytes.copy bytes|])|Some(Texture({levels;_},_))->Some(token,Array.map(fun surface->Bytes.copy(Raster2.Surface.bytes surface))levels)|None->None)resources in

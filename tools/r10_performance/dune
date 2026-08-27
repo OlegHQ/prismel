@@ -34,3 +34,9 @@
  (modules test_r10_scene3_equivalence_bridge r10_scene3_equivalence_bridge
   r10_scene3_legacy_equivalent)
  (libraries prismel_next_api scene_execution ogpu))
+
+(test
+ (name test_r10_scene3_candidate_capture)
+ (modules test_r10_scene3_candidate_capture r10_scene3_equivalence_bridge
+  r10_scene3_legacy_equivalent)
+ (libraries runtime_next_headless prismel_next_api scene_execution ogpu))
