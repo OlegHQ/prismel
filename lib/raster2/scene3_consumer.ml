@@ -8,6 +8,23 @@ type fixed={geometry:Scene3.prepared;texture:Triangle.texture option;cull:Triang
 type prepared=Fixed of fixed|Program of draw*Scene3_program.program
 let finite x=Float.is_finite x
 let modulate a b=let channel value shift=Int32.(to_int(logand(shift_right_logical value shift)0xffl))in let part shift=Int32.shift_left(Int32.of_int((channel a shift*channel b shift+127)/255))shift in Int32.logor(part 24)(Int32.logor(part 16)(Int32.logor(part 8)(part 0)))
+let world_position matrix (value:Scene3_lighting.vec3)=
+  let x=matrix.(0)*.value.x+.matrix.(1)*.value.y+.matrix.(2)*.value.z+.matrix.(3)
+  and y=matrix.(4)*.value.x+.matrix.(5)*.value.y+.matrix.(6)*.value.z+.matrix.(7)
+  and z=matrix.(8)*.value.x+.matrix.(9)*.value.y+.matrix.(10)*.value.z+.matrix.(11)
+  and w=matrix.(12)*.value.x+.matrix.(13)*.value.y+.matrix.(14)*.value.z+.matrix.(15)in
+  if abs_float w<=1e-18 then{Scene3_lighting.x=x;y;z}
+  else{Scene3_lighting.x=x/.w;y=y/.w;z=z/.w}
+let world_normal matrix (value:Scene3_lighting.vec3)=
+  let a=matrix.(0)and b=matrix.(1)and c=matrix.(2)
+  and d=matrix.(4)and e=matrix.(5)and f=matrix.(6)
+  and g=matrix.(8)and h=matrix.(9)and i=matrix.(10)in
+  let determinant=a*.(e*.i-.f*.h)-.b*.(d*.i-.f*.g)+.c*.(d*.h-.e*.g)in
+  if abs_float determinant<=1e-18 then value else
+  let inverse=1./.determinant in
+  {Scene3_lighting.x=((e*.i-.f*.h)*.value.x+.(f*.g-.d*.i)*.value.y+.(d*.h-.e*.g)*.value.z)*.inverse;
+   y=((c*.h-.b*.i)*.value.x+.(a*.i-.c*.g)*.value.y+.(b*.g-.a*.h)*.value.z)*.inverse;
+   z=((b*.f-.c*.e)*.value.x+.(c*.d-.a*.f)*.value.y+.(a*.e-.b*.d)*.value.z)*.inverse}
 let rec render_offset ~sample_offset ~target ~clear ~clear_depth ~clear_stencil ~draws=
  let width=Surface.width target.color and height=Surface.height target.color in
  let valid_depth=match target.depth with None->true|Some d->Depth_stencil.width d=width&&Depth_stencil.height d=height in
@@ -59,7 +76,16 @@ let rec render_offset ~sample_offset ~target ~clear ~clear_depth ~clear_stencil 
     for i=0 to count-1 do let a,b,c=match topology with Triangle_list->draw.indices.(3*i),draw.indices.(3*i+1),draw.indices.(3*i+2)|Triangle_strip->if i land 1=0 then draw.indices.(i),draw.indices.(i+1),draw.indices.(i+2)else draw.indices.(i+1),draw.indices.(i),draw.indices.(i+2)|Triangle_fan->draw.indices.(0),draw.indices.(i+1),draw.indices.(i+2)|_->assert false in let normal=flat_normal a b c in vertices.(3*i)<-{draw.vertices.(a)with normal};vertices.(3*i+1)<-{draw.vertices.(b)with normal};vertices.(3*i+2)<-{draw.vertices.(c)with normal}done;
     vertices,Array.init(count*3)(fun i->i),Scene3.Triangle_list
   | _->draw.vertices,draw.indices,draw.topology in
-  let vertices=Array.map(fun v->let color=Scene3_lighting.shade lighting~position:v.position~normal:v.normal~view:{Scene3_lighting.x=0.;y=0.;z=1.}~front_facing:true~texture:None~fog_distance:(abs_float v.position.z)|>fun shaded->modulate shaded v.color in{Scene3.x=v.position.x;y=v.position.y;z=v.position.z;color;u=v.u;v=v.v})source_vertices in
+  let vertices=Array.map(fun v->
+    let position=world_position draw.model_matrix v.position
+    and normal=world_normal draw.model_matrix v.normal in
+    let view={Scene3_lighting.x=draw.camera_position.x-.position.x;
+      y=draw.camera_position.y-.position.y;z=draw.camera_position.z-.position.z}in
+    let fog_distance=sqrt(view.x*.view.x+.view.y*.view.y+.view.z*.view.z)in
+    let color=Scene3_lighting.shade lighting~position~normal~view
+      ~front_facing:true~texture:None~fog_distance
+      |>fun shaded->modulate shaded v.color in
+    {Scene3.x=v.position.x;y=v.position.y;z=v.position.z;color;u=v.u;v=v.v})source_vertices in
   let offset_x,offset_y=sample_offset in
   let viewport={draw.viewport with Scene3.x=draw.viewport.x+.offset_x;y=draw.viewport.y+.offset_y}in
   match Scene3.prepare~matrix:draw.matrix~viewport~scissor:draw.scissor~topology:source_topology~vertices~indices:source_indices with Error e->fail(Geometry_error e)|Ok geometry->prepared:=Fixed{geometry;texture=draw.texture;cull=draw.cull;blend=draw.blend;depth_stencil=draw.depth_stencil;mode=draw.mode;line_width=draw.line_width;point_size=draw.point_size}::!prepared)draws;

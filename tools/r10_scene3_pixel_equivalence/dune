@@ -12,7 +12,7 @@
  (name r10_scene3_candidate_capture)
  (modules r10_scene3_candidate_capture r10_scene3_semantics
   r10_scene3_legacy_equivalent r10_scene3_equivalence_bridge)
- (libraries runtime_next_headless prismel_next_api scene_execution ogpu yojson))
+ (libraries prismel_next_api scene_execution ogpu yojson))
 
 (test
  (name r10_scene3_compare)
