@@ -125,6 +125,7 @@ can change the denominator explicitly rather than being hidden.
 | `544c2c2` | 2026-08-27 10:25:50 +02:00 | 5,120 | 5,249 | 97.5424% | 5 | 0.013 | 400.0 | 7.62 |
 | `ea48261` | 2026-08-27 10:28:05 +02:00 | 5,122 | 5,249 | 97.5805% | 2 | 0.038 | 53.3 | 1.02 |
 | `6ef8001` | 2026-08-27 10:30:12 +02:00 | 5,128 | 5,249 | 97.6948% | 6 | 0.035 | 170.1 | 3.24 |
+| `ef44024` | 2026-08-27 10:31:03 +02:00 | 5,142 | 5,249 | 97.9615% | 14 | 0.014 | 988.2 | 18.83 |
 
 ## Current measured rate
 
@@ -264,6 +265,14 @@ The `ea48261` interval closes the two exact legacy Device IO constructors.
 The `6ef8001` interval then promotes the six residual StageInputOutput and
 ComputePass descriptor/array classes already represented by their checked,
 owned safe descriptor graphs and native conformance fixtures.
+
+The `ef44024` interval closes fourteen Metal 4 declarations across the
+machine-learning pipeline, compute encoder, and machine-learning encoder
+headers. Existing public ownership APIs validate command state, device
+identity, acceleration scratch ranges, tensor ranks/cardinality, argument
+tables, heaps, and completion retention. The exact closure, safe callable
+fixture, and typed native macOS 26 availability fixture prove five, five, and
+four declarations respectively without claiming unavailable execution.
 
 Rates describe completed commits, not forecasts. Hardware-only gates and
 complex ownership features will vary materially from pure-value batches.
