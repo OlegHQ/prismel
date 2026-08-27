@@ -2077,6 +2077,9 @@ let classify ~unavailable ~identifier ~header ~kind ~signature =
   else if List.mem identifier Binding_binary_archive3_safe_closure.promotable_ids then
     Bound,
       "Implemented by typed stitched-library, mesh-render, and tile-render archive descriptor additions with preflight kind/device/lifetime checks, native NSError propagation, retained successful graphs, and archive serialize/reopen conformance."
+  else if List.mem identifier Binding_metal4_compiler2_safe_closure.ids then
+    Bound,
+      "Implemented by the bounded asynchronous Metal 4 machine-learning compiler task with live/same-device descriptor validation, native one-shot completion storage, copied result metadata, cancellation-safe task ownership, and capability-gated native conformance."
   else if List.mem identifier log_state_safe7 then
     Bound,
       "Implemented by the LogState safe7 descriptor and persistent handler API with checked snapshots, rooted multi-shot callbacks, draining cancellation, and owned cleanup."

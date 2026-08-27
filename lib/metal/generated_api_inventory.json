@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 5205,
+    "bound": 5207,
     "scope-excluded": 37,
-    "unreviewed": 43
+    "unreviewed": 41
   },
-  "classification_source_sha256": "f69e65d4f86f26c28a077b7632abc8852b0afa05020c8b726011905efd74840b",
+  "classification_source_sha256": "779b09783131f7e7e590af79b8b07a523b290f1b7acd02e65c72abae45000658",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -34874,7 +34874,7 @@
           "line": 89
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4Compiler.h",
       "id": "method:-[MTL4Compiler newMachineLearningPipelineStateWithDescriptor:completionHandler:]",
       "kind": "method",
@@ -34882,7 +34882,7 @@
       "macos_introduced": "26.0",
       "name": "newMachineLearningPipelineStateWithDescriptor:completionHandler:",
       "owner": "MTL4Compiler",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the bounded asynchronous Metal 4 machine-learning compiler task with live/same-device descriptor validation, native one-shot completion storage, copied result metadata, cancellation-safe task ownership, and capability-gated native conformance.",
       "signature": "instance (MTL4MachineLearningPipelineDescriptor * _Nonnull __strong, MTL4NewMachineLearningPipelineStateCompletionHandler  _Nonnull __strong) -> id<MTL4CompilerTask> _Nonnull"
     },
     {
@@ -106927,7 +106927,7 @@
           "line": 86
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTL4Compiler.h",
       "id": "typedef:MTL4NewMachineLearningPipelineStateCompletionHandler",
       "kind": "typedef",
@@ -106935,7 +106935,7 @@
       "macos_introduced": "26.0",
       "name": "MTL4NewMachineLearningPipelineStateCompletionHandler",
       "owner": null,
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by the bounded asynchronous Metal 4 machine-learning compiler task with live/same-device descriptor validation, native one-shot completion storage, copied result metadata, cancellation-safe task ownership, and capability-gated native conformance.",
       "signature": "void (^)(id<MTL4MachineLearningPipelineState>  _Nullable __strong, NSError * _Nullable __strong)"
     },
     {
