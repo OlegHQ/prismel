@@ -3,6 +3,19 @@
  (wrapped false)
  (modules r10_scene2_legacy_equivalent))
 
+(library
+ (name r10_scene2_candidate_lib)
+ (wrapped false)
+ (modules r10_scene2_candidate)
+ (libraries prismel_next_api pxui_next prismel_next_execution
+  r10_workload_descriptor))
+
+(library
+ (name r10_scene3_candidate_lib)
+ (wrapped false)
+ (modules r10_scene3_legacy_equivalent r10_scene3_equivalence_bridge)
+ (libraries prismel_next_api scene_execution ogpu))
+
 (executable
  (name r10_performance_protocol)
  (modules r10_performance_protocol)
@@ -15,10 +28,10 @@
 
 (executable
  (name r10_runtime_next_target_benchmark)
- (modules r10_runtime_next_target_benchmark r10_scene2_candidate
-  r10_scene3_legacy_equivalent r10_scene3_equivalence_bridge)
+ (modules r10_runtime_next_target_benchmark)
  (libraries runtime_next_headless runtime_next_web prismel_next_api
-  pxui_next r10_workload_descriptor scene_execution ogpu wap unix yojson))
+  pxui_next r10_scene2_candidate_lib r10_scene3_candidate_lib
+  r10_workload_descriptor scene_execution ogpu wap unix yojson))
 
 (test
  (name test_r10_scene2_legacy_equivalent)
@@ -34,17 +47,15 @@
 
 (test
  (name test_r10_scene3_legacy_equivalent)
- (modules test_r10_scene3_legacy_equivalent r10_scene3_legacy_equivalent)
- (libraries prismel_next_api scene_execution ogpu))
+ (modules test_r10_scene3_legacy_equivalent)
+ (libraries r10_scene3_candidate_lib prismel_next_api scene_execution ogpu))
 
 (test
  (name test_r10_scene3_equivalence_bridge)
- (modules test_r10_scene3_equivalence_bridge r10_scene3_equivalence_bridge
-  r10_scene3_legacy_equivalent)
- (libraries prismel_next_api scene_execution ogpu))
+ (modules test_r10_scene3_equivalence_bridge)
+ (libraries r10_scene3_candidate_lib prismel_next_api scene_execution ogpu))
 
 (test
  (name test_r10_scene3_candidate_capture)
- (modules test_r10_scene3_candidate_capture r10_scene3_equivalence_bridge
-  r10_scene3_legacy_equivalent)
- (libraries runtime_next_headless prismel_next_api scene_execution ogpu))
+ (modules test_r10_scene3_candidate_capture)
+ (libraries r10_scene3_candidate_lib runtime_next_headless prismel_next_api scene_execution ogpu))

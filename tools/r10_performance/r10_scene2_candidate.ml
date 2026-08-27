@@ -5,7 +5,7 @@ type t={execution:Prismel_next_execution.t;scenario:R10_scene2_legacy_equivalent
   descriptor:R10_scene2_legacy_equivalent.descriptor;mutable frame:int;
   mutable image:Image.t option;canvas:Canvas.t option;ui:Pxui_next.t option;
   mutable last_scene:Scene.t option}
-let target=function `Headless->Prismel_next_execution.Headless|`Web->Web
+let target=function `Native->Prismel_next_execution.Native|`Headless->Headless|`Web->Web
 let generated_image()=let canvas=Canvas.create_exn~width:96~height:96 in
   Canvas.render canvas Scene.[clear(Color.hex_exn"#0f172a");rounded_rect~at:(4,4)~w:88~h:88~radius:14~fill:(Color.hex_exn"#155e75")~stroke:(Color.hex_exn"#67e8f9")();circle~at:(48,48)~radius:30~fill:(Color.rgba 251 146 60 220)();line~from_:(18,74)~to_:(78,22)~width:5~color:Color.white()];
   let image=Result.get_ok(Canvas.to_image canvas)in Canvas.destroy canvas;image
@@ -40,5 +40,6 @@ let render value ~width ~height =value.frame<-value.frame+1;
   let draws=Prismel_next_execution.lower_scene2 value.execution~density:1~resource:(fun id->List.assoc_opt id resources)ir|>Result.get_ok in
   ignore(execution_ok(Prismel_next_execution.step value.execution draws))
 let capture value=execution_ok(Prismel_next_execution.capture value.execution)
+let stats value=execution_ok(Prismel_next_execution.stats value.execution)
 let destroy value=Option.iter Scene.Private.release value.last_scene;Option.iter Image.destroy value.image;
   Option.iter Canvas.destroy value.canvas;execution_ok(Prismel_next_execution.destroy value.execution)

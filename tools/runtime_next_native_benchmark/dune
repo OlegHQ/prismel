@@ -1,7 +1,9 @@
 (executable
  (name runtime_next_native_benchmark)
  (modules runtime_next_native_benchmark)
- (libraries unix yojson sdl3 metal ogpu ogpu_metal scene_execution))
+ (libraries unix yojson sdl3 metal ogpu ogpu_metal scene_execution
+  prismel_next_execution prismel_next_api r10_scene2_candidate_lib
+  r10_scene3_candidate_lib r10_workload_descriptor))
 
 (executable
  (name shattered_acceptance_cook)
