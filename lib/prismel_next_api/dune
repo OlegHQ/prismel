@@ -2,12 +2,18 @@
  (name prismel_next_api)
  (public_name prismel.prismel_next_api)
  (modules vec2 vec3 color math mat3 mat4 quat rand noise fog3 light material
-  node3))
+  node3 path parallel texture shader3 compute3)
+ (libraries domainslib prismel_next_resources))
 
 (test
  (name test_prismel_next_api)
  (modules test_prismel_next_api)
  (libraries prismel_next_api))
+
+(test
+ (name test_prismel_next_api_batch_d)
+ (modules test_prismel_next_api_batch_d)
+ (libraries prismel_next_api prismel_next_resources))
 
 (test
  (name test_prismel_next_api_batch_a)
