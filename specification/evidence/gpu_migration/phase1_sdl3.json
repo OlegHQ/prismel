@@ -187,8 +187,8 @@
       "classification_counts": {
         "not-applicable": 0,
         "platform-excluded": 0,
-        "raw-only": 3345,
-        "safe": 58,
+        "raw-only": 3330,
+        "safe": 73,
         "unreviewed": 0
       },
       "function_count": 1246,
@@ -221,8 +221,8 @@
       "classification_counts": {
         "not-applicable": 0,
         "platform-excluded": 0,
-        "raw-only": 166,
-        "safe": 17,
+        "raw-only": 154,
+        "safe": 29,
         "unreviewed": 0
       },
       "function_count": 117,
@@ -323,7 +323,7 @@
     },
     {
       "path": "lib/sdl3/generated_inventory.json",
-      "sha256": "2f0a3386171209a39b0836d8a4a4712fc20e68fbd7e8f74978f3b23f5ebe6627"
+      "sha256": "7ad63b84112e70077876249b4f1eb9e0011f98b22c9bad811c4be8c44b07898e"
     },
     {
       "path": "lib/sdl3/generated_layout.json",
@@ -335,7 +335,7 @@
     },
     {
       "path": "lib/sdl3/generated_provenance.ml",
-      "sha256": "5fbfd0d2d2756103368f427b9a5b1ebc1596ee905f5f4f2dc148600b811b30e6"
+      "sha256": "0bc00939f5239978ce6ad293119db7c12f806b0748e53417ea69f16f4481e1a1"
     },
     {
       "path": "lib/sdl3_image/generated_inventory.json",
@@ -351,7 +351,7 @@
     },
     {
       "path": "lib/sdl3_ttf/generated_inventory.json",
-      "sha256": "0487a9d95b0383f19255deae4aa016325abe04c335eb4854a982d2983fd4a4a6"
+      "sha256": "334d626356b66d448655071309cd0df207abf5cdd32dfe71147195c3cab5a29b"
     },
     {
       "path": "lib/sdl3_ttf/generated_abi.h",
@@ -359,7 +359,7 @@
     },
     {
       "path": "lib/sdl3_ttf/generated_provenance.ml",
-      "sha256": "9ac2d3b520d5c1a8963f3ec337338bcddd91244c16091c4d2732f0d1d48d9e8e"
+      "sha256": "1f6a3f5629861b08d0b79399bbb25b5eaf65414083ba4aa7ffcd76b6061c998e"
     },
     {
       "path": "lib/sdl3_mixer/generated_inventory.json",

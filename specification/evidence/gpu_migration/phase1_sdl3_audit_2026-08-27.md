@@ -48,3 +48,27 @@ Image, TTF, and mixer inventory hashes are `83c7844f…151c6`,
 
 This rerun does not renew the historical sanitizer, Instruments, external
 display, fresh-switch, or alternate-OS evidence described above.
+
+## Current S1/S2 regeneration
+
+At implementation checkpoint `0e5d366`, all four authoritative OCaml generators reproduced their
+committed inventories and provenance exactly:
+
+```text
+for extension in core image ttf mixer; do
+  opam exec -- _build/default/tools/sdl3/generate.exe \
+    --root . --extension "$extension" --check
+done
+```
+
+The earlier evidence hash was stale, not the generated source. Core commit
+`920cb6c` deliberately promoted 15 window/pointer/display functions from
+raw-only to safe (73 safe, 3,330 raw-only). TTF commit `f6cbb7a` deliberately
+promoted 12 font/text functions (29 safe, 154 raw-only). Function counts and
+SDK versions remain unchanged, and every inventory still reports zero
+unreviewed functions. The current core and TTF inventory hashes are
+`7ad63b84…07898e` and `334d6263…5a29b`; their provenance hashes are
+`0bc00939…e1a1` and `1f6a3f56…98e`. Image and mixer artifacts are unchanged.
+
+This is current-tree S1/S2 evidence only. It does not renew the historical
+S3/S6/S8 sanitizer, display-hardware, or clean-bootstrap qualifications.
