@@ -29,3 +29,12 @@
  (link_flags -linkall)
  (action
   (setenv PRISMEL_TEST_RUNTIME_NEXT_IMAGE_TEXT 1 (run %{test}))))
+
+(test
+ (name test_runtime_next_audio)
+ (modules test_runtime_next_audio)
+ (libraries prismel_runtime_next_sketch)
+ (link_flags -linkall)
+ (action
+  (setenv SDL_AUDIODRIVER dummy
+   (setenv PRISMEL_TEST_RUNTIME_NEXT_AUDIO 1 (run %{test})))))

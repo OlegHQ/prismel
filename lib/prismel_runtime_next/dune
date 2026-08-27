@@ -3,8 +3,9 @@
  (wrapped false)
  (private_modules prismel_runtime_next_sketch prismel_runtime_next_parity_test
   prismel_runtime_next_resources prismel_runtime_next_canvas
-  prismel_runtime_next_image_text)
+  prismel_runtime_next_image_text prismel_runtime_next_audio)
  (modules prismel_runtime_next_sketch prismel_runtime_next_parity_test
   prismel_runtime_next_resources prismel_runtime_next_canvas
-  prismel_runtime_next_image_text)
- (libraries prismel runtime_next_orchestrator scene_execution wap raster2))
+  prismel_runtime_next_image_text prismel_runtime_next_audio)
+ (libraries prismel runtime_next_orchestrator scene_execution wap raster2
+  sdl3_mixer))
