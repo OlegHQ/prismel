@@ -1,4 +1,4 @@
-type config = { minutes : float; frames : int option; sample_every : int; report : string option }
+type config = { minutes : float; frames : int option; sample_every : int; sample_period_seconds : float; report : string option }
 
 let get = function Ok value -> value | Error _ -> failwith "stability harness operation failed"
 
@@ -40,7 +40,10 @@ let run config =
     max_frame_pool_bytes = 2 * 1024 * 1024 } in
   let presenter = get (Runtime_wap_raster2_presenter.Wap_raster2_presenter.create ~config:wap_config ()) in
   let started = Unix.gettimeofday () and frame = ref 0 and generation = ref 0L in
-  let samples = ref [] and rolling = ref 0L and last_sample = ref (Unix.gettimeofday () -. 1.) in
+  let sample_capacity = 256 in
+  let samples = Array.make sample_capacity None and sample_count = ref 0 in
+  let first_sample = ref None and rss_min = ref max_int and rss_max = ref 0 in
+  let rolling = ref 0L and last_sample = ref (Unix.gettimeofday () -. 1.) in
   let should_continue () = match config.frames with
     | Some limit -> !frame < limit
     | None -> Unix.gettimeofday () -. started < config.minutes *. 60.
@@ -75,13 +78,18 @@ let run config =
     if !frame mod config.sample_every = 0 then begin
       Ogpu.Backend_mock.clear_trace control;
       let now = Unix.gettimeofday () in
-      if now -. !last_sample >= 1. then begin
+      if now -. !last_sample >= config.sample_period_seconds then begin
         last_sample := now;
         let gc = Gc.quick_stat () and counters = Raster2.Offscreen.counters () in
-        samples := (`Assoc [ "frame", `Int !frame; "elapsed_seconds", `Float (now -. started);
+        let sample = `Assoc [ "frame", `Int !frame; "elapsed_seconds", `Float (now -. started);
           "rss_kib", `Int (rss_kib ()); "heap_words", `Int gc.heap_words;
           "live_targets", `Int counters.targets; "live_views", `Int counters.views;
-          "cache_entries", `Int (Raster2.Resource_cache.length cache) ]) :: !samples
+          "cache_entries", `Int (Raster2.Resource_cache.length cache) ] in
+        let rss = match sample with `Assoc fields -> (match List.assoc "rss_kib" fields with `Int value -> value | _ -> assert false) | _ -> assert false in
+        if !first_sample = None then first_sample := Some sample;
+        rss_min := min !rss_min rss; rss_max := max !rss_max rss;
+        samples.(!sample_count mod sample_capacity) <- Some sample;
+        incr sample_count
       end
     end
   done;
@@ -95,12 +103,20 @@ let run config =
   if live <> (0, 0, 0, 0, 0) then failwith "scene execution leaked backend objects";
   let counters = Raster2.Offscreen.counters () in
   if counters.targets <> 0 || counters.views <> 0 then failwith "offscreen objects leaked";
+  let retained =
+    let length = min !sample_count sample_capacity in
+    let start = if !sample_count <= sample_capacity then 0 else !sample_count mod sample_capacity in
+    List.init length (fun offset -> match samples.((start + offset) mod sample_capacity) with Some sample -> sample | None -> assert false)
+  in
   let json = `Assoc [ "schema", `Int 1; "frames", `Int !frame;
     "deterministic_hash", `String (Printf.sprintf "%016Lx" !rolling);
     "image_generation", `String (Int64.to_string !generation);
     "scene_upload_bytes", `String (Int64.to_string scene_upload_bytes);
     "wap_frames_submitted", `Int wap_stats.frames_submitted;
-    "samples", `List (List.rev !samples); "final_live_targets", `Int counters.targets;
+    "sample_observations", `Int !sample_count; "sample_capacity", `Int sample_capacity;
+    "first_sample", (match !first_sample with Some sample -> sample | None -> `Null);
+    "rss_min_kib", `Int (if !rss_min = max_int then 0 else !rss_min); "rss_max_kib", `Int !rss_max;
+    "samples", `List retained; "final_live_targets", `Int counters.targets;
     "final_live_views", `Int counters.views ] in
   let output = Yojson.Safe.pretty_to_string json ^ "\n" in
   (match config.report with None -> print_string output | Some path -> let channel = open_out_bin path in output_string channel output; close_out channel);

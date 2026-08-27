@@ -7,4 +7,5 @@ let () =
     "--report", Arg.String (fun value -> report := Some value), "JSON output path" ]
     (fun value -> raise (Arg.Bad ("unexpected argument: " ^ value))) "gpu_migration_stability";
   ignore (Gpu_migration_stability_support.run
-    { minutes = !minutes; frames = !frames; sample_every = !sample_every; report = !report })
+    { minutes = !minutes; frames = !frames; sample_every = !sample_every;
+      sample_period_seconds = 1.; report = !report })
