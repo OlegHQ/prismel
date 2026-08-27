@@ -115,8 +115,19 @@ let execute ?depth ~lookup ~target ir =
                   draw (fun () -> match Image.blit_affine_blend ~blend:!active_blend ~src:source ~src_rect:(convert image.source)
                     ~dst:working ~dst_rect:(convert image.destination) ~xx:transform.xx ~xy:transform.xy ~yx:transform.yx ~yy:transform.yy ~tx:transform.tx ~ty:transform.ty ~filter:Image.Bilinear with
                     | Ok () -> () | Error _ -> fail Surface_error)
+              | Debug_text text ->
+                  let x, y = point (Stack.top transforms) text.x text.y in
+                  draw (fun () ->
+                    match Debug_font.draw ~target:working ~blend:!active_blend
+                      ~x ~y ~color:text.color text.text with
+                    | Ok () -> ()
+                    | Error Debug_font.Text_too_long -> fail Surface_error)
               | Glyphs glyphs ->
-                  let atlas = match Hashtbl.find resources glyphs.resource_id with Glyph_atlas value -> value | _ -> assert false in
+                  let atlas =
+                    (match Hashtbl.find resources glyphs.resource_id with
+                    | Glyph_atlas value -> value
+                    | _ -> assert false)
+                  in
                   let columns = atlas.width / atlas.cell_width in
                   Array.iter
                     (fun (glyph : Render_ir.glyph) ->
@@ -129,10 +140,13 @@ let execute ?depth ~lookup ~target ir =
                           Bytes.blit atlas.bytes (((row * atlas.cell_height) + y) * atlas.pitch + (column * atlas.cell_width))
                             mask (y * atlas.cell_width) atlas.cell_width
                         done;
-                        draw (fun () -> match Image.alpha_mask_blend ~dst:working
-                          ~dst_x:(int_of_float glyph.x) ~dst_y:(int_of_float glyph.y)
-                          ~width:atlas.cell_width ~height:atlas.cell_height ~pitch:atlas.cell_width
-                          mask ~blend:!active_blend ~color:glyphs.color with Ok () -> () | Error _ -> fail Surface_error))
+                        draw (fun () ->
+                          (match Image.alpha_mask_blend ~dst:working
+                            ~dst_x:(int_of_float glyph.x) ~dst_y:(int_of_float glyph.y)
+                            ~width:atlas.cell_width ~height:atlas.cell_height ~pitch:atlas.cell_width
+                            mask ~blend:!active_blend ~color:glyphs.color with
+                          | Ok () -> ()
+                          | Error _ -> fail Surface_error)))
                     glyphs.glyphs)
             commands;
           match !failure with
