@@ -114,6 +114,39 @@ let domain_coalescing () =
   let expected=coalesced_signature()in
   let workers=Array.init 4(fun _->Domain.spawn coalesced_signature)in
   Array.iter(fun worker->if Domain.join worker<>expected then failwith"coalesced payload changed across domains")workers
+let depth_target_lifecycle () =
+  let configuration:Ogpu.Surface.configuration={logical_width=8;logical_height=8;physical_width=8;physical_height=8;format=Rgba8_unorm;present_mode=Fifo;max_acquired=2}in
+  let mesh:Scene_execution.mesh={key="depth-lifecycle";vertices=Bytes.make 48 '\000';vertex_count=3;indices=Bytes.make 12 '\000';index_count=3}in
+  let state:Scene_execution.state={viewport=(0,0,8,8);scissor=(0,0,8,8)}in
+  let draw={Scene_execution.mesh;state}in
+  let driver,control=Ogpu.Backend_mock.create()in
+  let renderer=get(Scene_execution.create_variants driver configuration)in
+  let creations=Ogpu.Backend_mock.trace control|>List.filter(String.starts_with~prefix:"create-depth-texture:")in
+  let max_samples=Ogpu.Capabilities.minimum_m1.Ogpu.Capabilities.limits.max_sample_count in
+  let expected=List.filter(fun samples->samples<=max_samples)[1;4;9;16]|>List.length in
+  if List.length creations<>expected then failwith"depth target count did not match provisioned sample variants";
+  Ogpu.Backend_mock.clear_trace control;
+  ignore(get(Scene_execution.render_family renderer[Scene2,Ogpu.Pipeline.Replace,draw]));
+  if not(List.exists(String.starts_with~prefix:"render:nodepth:")(Ogpu.Backend_mock.trace control))then failwith"Scene2 acquired a depth attachment";
+  Ogpu.Backend_mock.clear_trace control;
+  ignore(get(Scene_execution.render_family renderer[Scene3,Ogpu.Pipeline.Replace,draw]));
+  if not(List.exists(String.starts_with~prefix:"render:depth:")(Ogpu.Backend_mock.trace control))then failwith"Scene3 omitted its depth attachment";
+  let before=Ogpu.Backend_mock.live_counts control in
+  Ogpu.Backend_mock.fail_depth_allocation_after control 0;
+  begin match Scene_execution.resize renderer{configuration with physical_width=16;physical_height=12}with Error _->()|Ok()->failwith"depth allocation failure did not roll back resize"end;
+  if Ogpu.Backend_mock.live_counts control<>before then failwith"failed depth resize changed live targets";
+  Ogpu.Backend_mock.fail_next_configure control;
+  begin match Scene_execution.resize renderer{configuration with physical_width=16;physical_height=12}with Error _->()|Ok()->failwith"configure failure did not roll back resize"end;
+  if Ogpu.Backend_mock.live_counts control<>before then failwith"configure rollback changed live targets";
+  ignore(get(Scene_execution.render_family renderer[Scene3,Ogpu.Pipeline.Replace,draw]));
+  Ogpu.Backend_mock.inject_device_loss control;
+  begin match Scene_execution.render_family renderer[Scene3,Ogpu.Pipeline.Replace,draw]with Error e when e.Ogpu.Error.kind=Device_lost->()|_->failwith"depth renderer device loss was not reported"end;
+  get(Scene_execution.destroy renderer);
+  if Ogpu.Backend_mock.live_counts control<>(0,0,0,0,0)then failwith"depth targets survived device-loss destruction";
+  let driver,control=Ogpu.Backend_mock.create()in
+  Ogpu.Backend_mock.fail_depth_allocation_after control 1;
+  begin match Scene_execution.create_variants driver configuration with Error _->()|Ok renderer->ignore(Scene_execution.destroy renderer);failwith"partial depth allocation unexpectedly succeeded"end;
+  if Ogpu.Backend_mock.live_counts control<>(0,0,0,0,0)then failwith"partial depth allocation leaked objects"
 let ()=let driver,control=Ogpu.Backend_mock.create()in let configuration:Ogpu.Surface.configuration={logical_width=8;logical_height=8;physical_width=8;physical_height=8;format=Rgba8_unorm;present_mode=Fifo;max_acquired=2}in let renderer=get(Scene_execution.create driver configuration)in let mesh:Scene_execution.mesh={key="triangle";vertices=Bytes.make 48 '\000';vertex_count=3;indices=Bytes.make 12 '\000';index_count=3}and state:Scene_execution.state={viewport=(0,0,8,8);scissor=(0,0,8,8)}in for _=1 to 1000 do ignore(get(Scene_execution.render renderer[{mesh;state}]))done;
   shadow_payload();
   List.iter(fun blend->List.iter(fun _frame->ignore(get(Scene_execution.render_blended renderer[blend,{mesh;state}])))[1;2;60;600])
@@ -125,4 +158,5 @@ let ()=let driver,control=Ogpu.Backend_mock.create()in let configuration:Ogpu.Su
   oversized_frame();
   replacement_reuse();
   domain_coalescing();
+  depth_target_lifecycle();
   get(Scene_execution.destroy renderer);if Ogpu.Backend_mock.live_counts control<>(0,0,0,0,0)then failwith"scene execution leaked";print_endline"scene execution: neutral cache/upload/pass, auxiliary resources, blend variants, 1000 frames, zero delta"
