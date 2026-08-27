@@ -81,6 +81,7 @@
   binding_mtl4_tail14_safe_closure
   binding_tensor_safe_handoff
   binding_tensor3_safe_closure
+  binding_binary_archive3_safe_closure
   binding_function_stitching_handoff
   binding_library_header_handoff
   binding_library42_native_closure
@@ -1096,6 +1097,11 @@
 (test
  (name test_binding_binary_archive_safe_package)
  (modules test_binding_binary_archive_safe_package binding_binary_archive_safe_package))
+
+(test
+ (name test_binding_binary_archive3_safe_closure)
+ (modules test_binding_binary_archive3_safe_closure)
+ (libraries metal_inventory_classification))
 
 (test
  (name test_binding_function_descriptor4_safe_package)

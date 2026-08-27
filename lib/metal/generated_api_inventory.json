@@ -3,11 +3,11 @@
   "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "classification_counts": {
     "availability-gated": 1,
-    "bound": 5202,
+    "bound": 5205,
     "scope-excluded": 37,
-    "unreviewed": 46
+    "unreviewed": 43
   },
-  "classification_source_sha256": "ff186c1685f3bbca760f5f6eebcd9e59babc1e358a65d60dd03eab2948d65ac5",
+  "classification_source_sha256": "f69e65d4f86f26c28a077b7632abc8852b0afa05020c8b726011905efd74840b",
   "deployment_target": "14.0",
   "generator": "tools/metal/generate_inventory.exe",
   "generator_source_sha256": "31d399a3344002d89b78a33ddce75e7a38ddc89f960fd572d54dc7513e533c41",
@@ -47502,7 +47502,7 @@
           "line": 119
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBinaryArchive.h",
       "id": "method:-[MTLBinaryArchive addLibraryWithDescriptor:error:]",
       "kind": "method",
@@ -47510,7 +47510,7 @@
       "macos_introduced": "15.0",
       "name": "addLibraryWithDescriptor:error:",
       "owner": "MTLBinaryArchive",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by typed stitched-library, mesh-render, and tile-render archive descriptor additions with preflight kind/device/lifetime checks, native NSError propagation, retained successful graphs, and archive serialize/reopen conformance.",
       "signature": "instance (MTLStitchedLibraryDescriptor * _Nonnull __strong, NSError *__autoreleasing  _Nullable * _Nullable) -> BOOL"
     },
     {
@@ -47527,7 +47527,7 @@
           "line": 109
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBinaryArchive.h",
       "id": "method:-[MTLBinaryArchive addMeshRenderPipelineFunctionsWithDescriptor:error:]",
       "kind": "method",
@@ -47535,7 +47535,7 @@
       "macos_introduced": "15.0",
       "name": "addMeshRenderPipelineFunctionsWithDescriptor:error:",
       "owner": "MTLBinaryArchive",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by typed stitched-library, mesh-render, and tile-render archive descriptor additions with preflight kind/device/lifetime checks, native NSError propagation, retained successful graphs, and archive serialize/reopen conformance.",
       "signature": "instance (MTLMeshRenderPipelineDescriptor * _Nonnull __strong, NSError *__autoreleasing  _Nullable * _Nullable) -> BOOL"
     },
     {
@@ -47571,7 +47571,7 @@
           "line": 100
         }
       ],
-      "classification": "unreviewed",
+      "classification": "bound",
       "header": "Metal/MTLBinaryArchive.h",
       "id": "method:-[MTLBinaryArchive addTileRenderPipelineFunctionsWithDescriptor:error:]",
       "kind": "method",
@@ -47579,7 +47579,7 @@
       "macos_introduced": "11.0",
       "name": "addTileRenderPipelineFunctionsWithDescriptor:error:",
       "owner": "MTLBinaryArchive",
-      "reason": "Binding classification pending during Phase 2.",
+      "reason": "Implemented by typed stitched-library, mesh-render, and tile-render archive descriptor additions with preflight kind/device/lifetime checks, native NSError propagation, retained successful graphs, and archive serialize/reopen conformance.",
       "signature": "instance (MTLTileRenderPipelineDescriptor * _Nonnull __strong, NSError *__autoreleasing  _Nullable * _Nullable) -> BOOL"
     },
     {
