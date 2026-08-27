@@ -74,6 +74,12 @@ let machine_facts () = `Assoc [
   "ocaml_version", `String Sys.ocaml_version ]
 
 let metric raw names = number_or_null (first names raw)
+let numeric_float = function
+  | Some (`Float value) -> Some value
+  | Some (`Int value) -> Some (float value)
+  | Some (`Intlit value) -> (try Some (float_of_string value) with Failure _ -> None)
+  | _ -> None
+let numeric_int value = Option.map int_of_float (numeric_float value)
 let seconds_metric raw seconds_names millisecond_names =
   match first seconds_names raw with
   | Some value -> number_or_null (Some value)
@@ -83,11 +89,27 @@ let seconds_metric raw seconds_names millisecond_names =
       | _ -> `Null)
 let normalize ~protocol ~case ~sample_index raw =
   let get_string key = case |> member key |> to_string in
-  let width = case |> member "width" |> to_int
-  and height = case |> member "height" |> to_int in
+  let case_profile = get_string "profile" in
+  (match first ["profile"] raw with
+   | Some (`String child_profile) when child_profile <> case_profile ->
+       fail "%s/%s child profile %s does not match manifest profile %s"
+         (get_string "target") (get_string "scenario") child_profile case_profile
+   | _ -> ());
   let raw_window = match member "window" raw with `Assoc _ as value -> value | _ -> `Null in
   let direct_or_window name = match first [name] raw with
     | Some value -> Some value | None -> member_opt name raw_window in
+  let measured_logical dimension drawable =
+    match numeric_int (first [dimension] raw) with
+    | Some value -> value
+    | None -> (match numeric_int (direct_or_window drawable),
+                    numeric_float (direct_or_window "pixel_density") with
+        | Some pixels, Some density when density > 0. ->
+            int_of_float (Float.round (float pixels /. density))
+        | _ -> fail "%s/%s child did not report a measurable logical %s"
+            (get_string "target") (get_string "scenario") dimension)
+  in
+  let measured_width = measured_logical "width" "drawable_width"
+  and measured_height = measured_logical "height" "drawable_height" in
   let user = first ["user_seconds"] raw and system = first ["system_seconds"] raw in
   let cpu_seconds = match user, system with
     | Some (`Float u), Some (`Float s) -> `Float (u +. s)
@@ -97,8 +119,8 @@ let normalize ~protocol ~case ~sample_index raw =
     "schema", `String "prismel-r10-performance/v1";
     "protocol", protocol; "sample_index", `Int sample_index;
     "engine", `String (get_string "engine"); "target", `String (get_string "target");
-    "scenario", `String (get_string "scenario"); "profile", `String (get_string "profile");
-    "resolution", `Assoc ["logical_width", `Int width; "logical_height", `Int height;
+    "scenario", `String (get_string "scenario"); "profile", `String case_profile;
+    "resolution", `Assoc ["logical_width", `Int measured_width; "logical_height", `Int measured_height;
       "drawable_width", int_or_null (direct_or_window "drawable_width");
       "drawable_height", int_or_null (direct_or_window "drawable_height");
       "pixel_scale", (match first ["pixel_scale"] raw with

@@ -5,7 +5,7 @@ results, if produced, are plumbing checks and are not performance evidence.
 
 ## Matrix and process isolation
 
-Measure `basic`, `pxui`, `canvas`, and `scene3` at one fixed 640×480 logical
+Measure `basic`, `pxui`, `canvas`, and `scene3` at one fixed 64×64 logical
 resolution on runtime-next native, headless, web, and the legacy executable.
 Every matrix cell has five independent, warmed, 30-second samples. Each sample
 is a new child process. The manifest must point each cell at an already-linked
@@ -35,8 +35,10 @@ pixel scale, and the manifest's display facts. GPU duration/utilization/counters
 and thermal/power state are explicit JSON `null` when trustworthy typed sources
 are unavailable; absence is never encoded as zero.
 
-The validator rejects missing target/scenario baselines, sample counts other
-than the declared count, mixed profiles, mixed logical resolutions, or missing
+The validator derives measured logical size from the child's explicit size or
+its drawable-size/density facts; it does not trust the manifest's claim. It
+rejects missing target/scenario baselines, sample counts other than the declared
+count, mixed profiles, mixed logical resolutions, or missing
 wall/median/p95/p99 timing. Raw tools may expose additional counters; these stay
 in `raw` so evidence is lossless.
 
