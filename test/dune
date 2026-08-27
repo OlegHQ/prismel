@@ -139,6 +139,15 @@
   (setenv PRISMEL_TEST_RASTER2_RENDERER 1 (run %{test}))))
 
 (test
+ (name raster2_sdl3_comparison)
+ (modules raster2_sdl3_comparison)
+ (libraries prismel)
+ (link_flags -linkall)
+ (action
+  (setenv SDL_VIDEODRIVER dummy
+   (setenv PRISMEL_RASTER2_SDL3_COMPARISON 1 (run %{test})))))
+
+(test
  (name sdl3_platform_harness)
  (modules sdl3_platform_harness)
  (libraries prismel prismel.sdl3))

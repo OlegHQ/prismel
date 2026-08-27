@@ -28,6 +28,12 @@ type t = {
   mutable destroyed : bool;
 }
 
+type session = {
+  window : Sdl3.Window.t;
+  presenter : t;
+  mutable destroyed_session : bool;
+}
+
 let invalid message = Error (Invalid_frame message)
 
 let create window =
@@ -95,3 +101,56 @@ let destroy value =
     match Sdl3.Rgba_presenter.destroy value.presenter with
     | Error error -> Error (Sdl error)
     | Ok () -> value.destroyed <- true; value.texture_size <- None; Ok ()
+
+let create_session ~logical_width ~logical_height =
+  if logical_width <= 0 || logical_height <= 0 then
+    invalid "session dimensions must be positive"
+  else
+    match Sdl3.Init.init ~release:false [Video] with
+    | Error error -> Error (Sdl error)
+    | Ok () ->
+        match Sdl3.Window.create ~title:"Prismel Raster2 comparison"
+            ~width:logical_width ~height:logical_height ~flags:[Hidden] () with
+        | Error error ->
+            ignore (Sdl3.Init.quit_subsystems [Video]);
+            Error (Sdl error)
+        | Ok window ->
+            match create window with
+            | Ok presenter -> Ok { window; presenter; destroyed_session = false }
+            | Error _ as failure ->
+                ignore (Sdl3.Window.destroy window);
+                ignore (Sdl3.Init.quit_subsystems [Video]);
+                failure
+
+let resize_session value ~logical_width ~logical_height =
+  if value.destroyed_session then Error Destroyed
+  else if logical_width <= 0 || logical_height <= 0 then
+    invalid "session dimensions must be positive"
+  else
+    match Sdl3.Window.set_size value.window ~width:logical_width
+        ~height:logical_height with
+    | Error error -> Error (Sdl error)
+    | Ok () -> Result.map_error (fun error -> Sdl error)
+        (Sdl3.Window.sync value.window)
+
+let present_session value frame =
+  if value.destroyed_session then Error Destroyed
+  else present value.presenter frame
+
+let copy_session_rgba value =
+  if value.destroyed_session then Error Destroyed
+  else copy_rgba value.presenter
+
+let destroy_session value =
+  if value.destroyed_session then Ok ()
+  else
+    match destroy value.presenter with
+    | Error _ as failure -> failure
+    | Ok () ->
+        begin match Sdl3.Window.destroy value.window with
+        | Error error -> Error (Sdl error)
+        | Ok () ->
+            value.destroyed_session <- true;
+            Result.map_error (fun error -> Sdl error)
+              (Sdl3.Init.quit_subsystems [Video])
+        end

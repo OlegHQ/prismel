@@ -1,4 +1,5 @@
 type t
+type session
 
 type error =
   | Invalid_frame of string
@@ -26,3 +27,11 @@ val present : t -> frame -> (unit, error) result
 val copy_rgba : t -> (bytes, error) result
 val stats : t -> stats
 val destroy : t -> (unit, error) result
+
+val create_session : logical_width:int -> logical_height:int ->
+  (session, error) result
+val resize_session : session -> logical_width:int -> logical_height:int ->
+  (unit, error) result
+val present_session : session -> frame -> (unit, error) result
+val copy_session_rgba : session -> (bytes, error) result
+val destroy_session : session -> (unit, error) result

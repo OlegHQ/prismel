@@ -19,6 +19,7 @@
 
 (library
  (name runtime_sdl3_raster2_presenter)
+ (public_name prismel.runtime.sdl3_raster2_presenter)
  (modules sdl3_raster2_presenter)
  (libraries sdl3))
 
