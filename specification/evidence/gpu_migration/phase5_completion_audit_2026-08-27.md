@@ -1,7 +1,7 @@
 # Phase 5 completion audit — 2026-08-27
 
-Captured at `2026-08-27T17:53:10Z` on commit
-`8827af925567622ec1aedb0856d44c687a6229fa`. This is a mechanical readiness
+Captured at `2026-08-27T19:37:24Z` on commit
+`2c32b7ee5affe8dd635dba2ad77f8c0fda0b60ef`. This is a mechanical readiness
 ledger, not deletion authorization. `NEW_GPU_STUFF.md` remains the authority.
 
 Status has one strict meaning:
@@ -24,9 +24,9 @@ view (never as release completion), locally closed coverage is
 
 The wall-clock rate is reproducible rather than an estimate of human effort.
 The Phase-0 baseline commit `4622091a65bc9a8816a1f10bcc83c1a625ca7522`
-is dated `2026-08-22T12:34:54Z`; this capture is 125.30 hours later. Eleven
-strict gates over that interval are **0.0878 gates/hour**, or **4.48 percentage
-points/day** of the 47-gate denominator. The interval contains 1,304 commits
+is dated `2026-08-22T12:34:54Z`; this capture is 127.04 hours later. Eleven
+strict gates over that interval are **0.0866 gates/hour**, or **4.42 percentage
+points/day** of the 47-gate denominator. The interval contains 1,344 commits
 and parallel work, so it must not be extrapolated as an ETA.
 
 ## S1–S8: SDL3
@@ -53,11 +53,11 @@ Evidence authority: `phase2_metal_gate_matrix_2026-08-27.md`,
 | Gate | Status | Exact evidence or blocker |
 | --- | --- | --- |
 | M1 inventory | Proven | 5,286 declarations: 5,248 bound, 37 scoped exclusions, one availability gate, zero unreviewed. |
-| M2 ownership | Pending | ARC/stale/destroy/stress coverage exists; final current-commit Metal Leaks and sanitizer reports remain. |
-| M3 resources | Pending | Broad real-M1 coverage exists; one requirement-indexed supported-device matrix is absent. |
+| M2 ownership | Pending | `2e013c0` passes twelve current-M1 10k ownership lanes with zero Leaks, but the complete conformance process still reports 2,976 bytes in 22 AGX/dispatch/OCaml roots and the external sanitizer matrix remains. |
+| M3 resources | Pending | `2e013c0` adds a requirement-indexed supported-M1 resource matrix and atomic rejection, but alternate supported-device/OS coverage remains incomplete. |
 | M4 pipelines/shaders | External | Full-Xcode offline metallib build and runtime/offline image parity require unavailable tools. |
-| M5 commands/sync | Pending | Three-frames-in-flight resize/occlusion/error injection matrix remains. |
-| M6 presentation | Pending | 10,000-frame zero-handle fixture is green; minimize/restore and presentation RSS qualification remain. |
+| M5 commands/sync | Pending | `2e013c0` covers three drawable slots, resize-invalidated snapshots, occlusion/timeout/loss, injected failures and real-M1 completion retention; the full frozen device/toolchain matrix remains. |
+| M6 presentation | Pending | `2e013c0` proves 10,000-frame zero-handle presentation and settled local RSS, but complete minimize/restore/window-server and external diagnostics remain. |
 | M7 ray tracing | External | Deterministic M1 compute query is green; missing-RT rollback and M3+ render lane remain. |
 | M8 Metal4/MetalFX | External | M1 typed rejection is covered; M3+ and weak-linked MetalFX presence/absence matrix remains. |
 | M9 FFI performance | Pending | Tooling/baseline exists; final ABI release rerun against the frozen threshold remains. |
@@ -70,35 +70,36 @@ Evidence authority: `phase3_ogpu_progress_2026-08-27.md`.
 | Gate | Status | Exact evidence or blocker |
 | --- | --- | --- |
 | O1 backend independence | Proven | Dependency gate proves generic OGPU has no framework edge and rejects injected reverse edges. |
-| O2 handle/state safety | Pending | Local generational/linear/deferred-release suites are green; final renderer integration remains. |
+| O2 handle/state safety | Pending | `0e5d366` integrates generational/linear/deferred-release rejection through mock, Raster2 and the final facade; it explicitly omits native GPU/driver qualification. |
 | O3 descriptor validation | Proven | Exhaustive 1,920 format/storage/sample/usage combinations and pre-allocation validation. |
 | O4 capability truthfulness | External | Software profiles and M1 agree; M3+ execution remains unavailable. |
-| O5 synchronization | Pending | Portable and typed Metal fixtures exist; final render integration remains. |
+| O5 synchronization | Pending | `0e5d366` adds final-facade render integration for portable fences/deferred release; native driver synchronization remains. |
 | O6 lifetime/bounds | Pending | 100,000-cycle plateaus exist; integrated external-duration RSS qualification remains. |
-| O7 surface contract | Pending | Portable outcomes and real M1 frames exist; final selected Runtime integration remains. |
+| O7 surface contract | Pending | Resize invalidation, timeout and loss reach final-facade headless/web paths in `0e5d366`; native selected-Runtime matrix remains. |
 | O8 native extension | External | Pointer-free boundary and M1 compute pass; RT-capable acceleration composition remains. |
-| O9 determinism | Pending | Canonical one/four-domain capture is exact; final renderer work-stealing integration remains. |
+| O9 determinism | Pending | `0e5d366` proves exact one/four-domain mock/Raster2/facade ordering; native renderer work-stealing integration remains. |
 
 ## R1–R12: renderer prerequisites
 
 Evidence authority: `phase4_raster2_audit_2026-08-27.md`,
 `runtime_next_native_m1_qualification_2026-08-27.md`,
-`runtime_next_target_stability_2026-08-27.md`, and the R10/R11/R12 reports.
+`runtime_next_target_stability_2026-08-27.md`, `phase5_final_facade`, and the
+R10/R11/R12 reports and protocols through `2c32b7e`.
 
 | Gate | Status | Exact evidence or blocker |
 | --- | --- | --- |
-| R1 stable API | Pending | B0 freeze `bf30654` pins API/plan/examples and a narrow future private-Low allowlist; final selected commit rerun remains. |
-| R2 Scene2/PXUI | Pending | Private exact frames 1/2/60/600 exist; public/default acceptance matrix remains. |
+| R1 stable API | Pending | The exact 40-module map, installed consumer and typed Low delta are green through `0d4a868`; the facade is still staged and the atomic selected-commit freeze rerun remains. |
+| R2 Scene2/PXUI | Pending | `d31dba3` proves public headless/web Basic/PXUI-like exact 1/2/60/600 hashes; native and unchanged selected-example acceptance remain. |
 | R3 Scene3 | Pending | Topology/state/shading/multi-shadow private native parity is green through `20e03d0`; final selected/hardware matrix remains. |
-| R4 resources | Pending | Watched Image, density Text, Canvas, Assets and Audio lifecycle fixtures exist; final selected cross-target examples remain. |
-| R5 targets | Pending | Native/headless/web compositions exist privately; public/default Runtime is not switched. |
+| R4 resources | Pending | Public watched Image, density Text, Canvas, Assets and Audio fixtures plus headless/web facade lowering exist; final selected native/cross-target example lifecycle remains. |
+| R5 targets | Pending | Public headless/web facade compositions are exact and native staging exists; public/default Runtime is not switched. |
 | R6 coordinates/DPI | Pending | Typed logical/drawable/Retina fixtures exist; final real browser/mobile and selected-native capture remain. |
 | R7 deterministic pixels | Pending | Software exactness and M1 tolerance evidence exist; final required hardware matrix remains. |
-| R8 multi-frame | Pending | Broad frames 1/2/60/600 fixtures exist; unchanged selected example/sketch matrix remains. |
+| R8 multi-frame | Pending | Public final-facade 1/2/60/600 fixtures are green; unchanged selected native example/sketch matrix remains. |
 | R9 upload/batching | Pending | Stable portable counters exist; final native Metal upload/encoder/FFI evidence remains. |
-| R10 performance | Pending | Protocol/tooling exists; five interleaved warmed 30-second legacy/candidate samples per scenario have not passed. |
-| R11 shattered cube | Pending | Actual artifact correctness and structural batching are recorded; accepted visible/hidden native protocol remains. |
-| R12 stability | Pending | Headless/web fixed-ring 30-minute evidence passes; the recorded native lane failed RSS and must pass after fixes. |
+| R10 performance | Pending | Full `db9a6f5` execution completed, but its cross-target totals compared non-equivalent synthetic workloads and unpaced web frame counts, so its regression conclusions are invalid rather than a pass or actionable failure. `3d8c8b0` normalizes pacing/per-frame metrics and `2f70461`/`b351826` define canonical Scene3 equivalence; the complete superseding five-round run remains. |
+| R11 shattered cube | Pending | `bf61858` passes five visible and five hidden 30-second real-M1 runs with exact artifact/cook identity, one upload and bounded cache, but GPU counters are null, process cleanliness was not captured, and R10's common envelope is not yet valid. |
+| R12 stability | Pending | Earlier native and headless/web 30-minute component lanes pass. `2c32b7e` adds the public-facade three-target, four-scenario fixed-ring protocol, but only its 600-frame headless/web smoke has run; native/headless/web 30-minute final-facade reports remain. |
 
 ## D1–D8: deletion/release
 
@@ -138,7 +139,7 @@ rollback inputs, not these post-switch outcomes.
 | Evidence contains no failure/waiver/skip/TODO | Pending | Honest failed native/R10 precursors and external lanes remain. |
 | API and unchanged acceptance sources pass | Pending | B0 pins them; final switch rerun remains. |
 | Deterministic/tolerance fixtures pass hardware matrix | External | Required alternate hardware/OS lanes remain. |
-| Performance and one-upload shattered proof | Pending | Final interleaved R10/R11 qualification remains. |
+| Performance and one-upload shattered proof | Pending | R11 one-upload evidence passes its local protocol; a workload-equivalent superseding R10 and its required counters remain. |
 | Packaging/Xcode/sanitizers/leaks/stability/RT pass | External | Several host/tool/hardware lanes are unavailable. |
 | Legacy absent from source/deps/binaries | Pending | D1 has intentionally not begun. |
 | Final architecture/API/backend/package/license docs | Pending | Must describe the post-switch tree, not the side-by-side tree. |
@@ -156,8 +157,19 @@ opam exec -- dune exec test/gpu_dependency_direction.exe -- lib
 Only a future audit on the atomic final commit may move Pending/External rows to
 Proven or call Phase 5 complete.
 
-At capture, the B0 verifier and dependency-direction gate passed. The API
-checker correctly reported the checked manifest stale after the newly committed
-private runtime-compatibility facade (`d490e22`, `868da7a`); this audit does not
-regenerate or approve that delta. That is why R1 remains Pending rather than
-being promoted from the older byte-pinned B0 baseline.
+At capture, committed evidence records green B0, dependency-direction, exact
+40-module API-map, and installed-consumer checks. This evidence-only refresh did
+not rerun them in the shared dirty worktree. R1 remains Pending because those
+checks qualify the staged facade, not the unswitched final selected tree.
+
+## Explicit next blockers
+
+1. Run the canonical workload-equivalent, fixed-rate five-round R10 matrix and
+   capture the frozen CPU/frame/allocation/RSS plus GPU/display/power facts.
+2. Run all three `2c32b7e` public-facade R12 lanes for 30 minutes and validate
+   the final-window RSS, bounded caches/queues and teardown report.
+3. Complete the atomic default Runtime/Prismel switch, then rerun unchanged
+   examples/sketches, API freeze, R1–R9 integration, clean install and twice-clean
+   full-suite gates on that one commit.
+4. Obtain the external M3+/Xcode, RT/MetalFX, sanitizer/diagnostics, packaging,
+   OS/GPU and independent license lanes; no local precursor substitutes for them.
