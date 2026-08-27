@@ -31,6 +31,7 @@
 #import <IOSurface/IOSurfaceObjC.h>
 #import <Metal/Metal.h>
 #import <QuartzCore/CAMetalLayer.h>
+#include "../native_layer_token/native_layer_token.h"
 
 @interface PrismelMetalExternalMemory : NSObject
 @property(nonatomic, readonly) void *bytes;
@@ -14044,6 +14045,7 @@ extern "C" CAMLprim value caml_prismel_metal_layer_create(value raw_device) {
     raw=allocate_handle(layer,Handle_kind::Metal_layer);
   } @catch(NSException*x){CAMLreturn(result_error(x.reason));} } CAMLreturn(result_ok(raw));
 }
+extern "C" CAMLprim value caml_prismel_metal_layer_adopt_borrowed(value raw_device,value token,value owner,value generation){CAMLparam4(raw_device,token,owner,generation);CAMLlocal1(raw);@autoreleasepool{@try{void*pointer=prismel_native_layer_token_borrow(token,Int64_val(owner),Int64_val(generation));if(pointer==nullptr)CAMLreturn(result_error_text("native layer token is stale or belongs to another owner"));id object=(__bridge id)pointer;if(![object isKindOfClass:[CAMetalLayer class]])CAMLreturn(result_error_text("native layer token does not contain CAMetalLayer"));CAMetalLayer*layer=(CAMetalLayer*)object;id<MTLDevice>device=object_of_handle(raw_device,Handle_kind::Device);if(layer.device!=nil&&layer.device.registryID!=device.registryID)CAMLreturn(result_error_text("CAMetalLayer belongs to another Metal device"));layer.device=device;raw=allocate_handle(layer,Handle_kind::Metal_layer);CAMLreturn(result_ok(raw));}@catch(NSException*x){CAMLreturn(result_error(x.reason));}}}
 extern "C" CAMLprim value caml_prismel_metal_layer_configure(value rl,value rw,value rh,value rf,value rflags){
   CAMLparam5(rl,rw,rh,rf,rflags); @try { CAMetalLayer*l=object_of_handle(rl,Handle_kind::Metal_layer);
     intnat w=Long_val(rw),h=Long_val(rh),format=Long_val(rf),maximum=Long_val(Field(rflags,1)); if(w<=0||h<=0||maximum<2||maximum>3||(format!=80&&format!=81&&format!=115))CAMLreturn(result_error_text("invalid Metal layer configuration"));

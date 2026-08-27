@@ -46,6 +46,7 @@
  (deps
   generated_api_inventory.json
   metal_bridge.mm
+  ../native_layer_token/native_layer_token.h
   metal.ml
   metal_raw.ml
   metal_raw.mli
@@ -316,7 +317,7 @@
   Metal_global_generated
   Metal_descriptor_generated
   Generated_provenance)
- (libraries threads)
+ (libraries threads native_layer_token)
  (foreign_archives metal_bridge_stubs)
  (c_library_flags (:include c_library_flags.sexp)))
 

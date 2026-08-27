@@ -910,6 +910,7 @@ module Metal_layer : sig
     ; presents_with_transaction:bool }
   val default : width:int -> height:int -> config
   val create : Device.t -> config -> (t,error) result
+  val adopt_borrowed : Device.t -> Native_layer_token.t -> config -> (t,error) result
   val configure : t -> config -> (unit,error) result
   val device : t -> Device.t
   val size : t -> int * int

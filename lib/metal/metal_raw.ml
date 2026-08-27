@@ -1422,6 +1422,7 @@ external fence_snapshot : handle -> (int64 * string option,string) result =
 external fence_set_label : handle -> string option -> (unit,string) result =
   "caml_prismel_metal_fence_set_label"
 external layer_create : handle -> (handle,string) result = "caml_prismel_metal_layer_create"
+external layer_adopt_borrowed : handle -> Native_layer_token.t -> int64 -> int64 -> (handle,string) result = "caml_prismel_metal_layer_adopt_borrowed"
 external layer_configure : handle -> int -> int -> int -> (bool*int*bool*bool*bool) -> (unit,string) result = "caml_prismel_metal_layer_configure"
 external layer_next_drawable : handle -> (handle option,string) result = "caml_prismel_metal_layer_next_drawable"
 external layer10_snapshot : handle -> ((int64 option * (string * string) list * bool),string) result = "caml_prismel_metal_layer10_snapshot"
