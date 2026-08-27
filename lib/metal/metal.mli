@@ -7,6 +7,7 @@ module Enum : module type of Metal_enum_generated
 
 (** Typed Metal data-type values, including packed formats and resource kinds. *)
 module Data_type : module type of Metal_enum_generated.Mtl_data_type
+module Feature_set : module type of Metal_enum_generated.Mtl_feature_set
 
 (** Generated, handle-free, fixed-layout SDK value records. *)
 module Value : module type of Metal_value_record_generated
@@ -94,6 +95,7 @@ module Release_queue : sig
   val stats : unit -> (stats, error) result
 end
 
+type device
 module Event : sig
   type t
   val device_registry_id:t->int64
@@ -133,6 +135,7 @@ module Shared_event : sig
   val signaled_value:t->(int64,error)result
   val set_signaled_value:t->int64->(unit,error)result
   val export_handle:t->(Shared_event_handle.t,error)result
+  val import_handle:device->Shared_event_handle.t->(t,error)result
   val notify:t->listener:Shared_event_listener.t->at_value:int64->
     (int64->unit)->(Notification.t,error)result
   val destroyed:t->bool
@@ -157,7 +160,14 @@ module Architecture : sig
 end
 
 module Device : sig
-  type t
+  type t = device
+  type counter_sampling_point=Stage_boundary|Draw_boundary|Dispatch_boundary|Blit_boundary
+  type capability_snapshot={barycentric_coordinates:bool;max_threads:(int64*int64*int64);maximize_concurrent_compilation:bool;bc_texture_compression:bool;counter_set_count:int}
+  val capability_snapshot:t->(capability_snapshot,error)result
+  val set_maximize_concurrent_compilation:t->bool->(unit,error)result
+  val supports_counter_sampling:t->counter_sampling_point->(bool,error)result
+  val supports_feature_set:t->Feature_set.t->(bool,error)result
+  val supports_rasterization_rate_layers:t->int64->(bool,error)result
   val architecture : t -> (Architecture.t,error) result
   type io_compression_method = Io_zlib | Io_lzfse | Io_lz4 | Io_lzma | Io_lz_bitmap
 
@@ -1538,6 +1548,7 @@ and Shader_argument_encoder : sig
     | Render_pipeline of render_pipeline
     | Compute_pipeline of compute_pipeline | Depth_stencil of depth_stencil
   val create : Device.t -> descriptor list -> (t,error) result
+  val of_buffer_binding : Device.t -> Function.t -> index:int64 -> (t,error) result
   val snapshot : t -> string option * int64 * int64 * Device.t
   val label : t -> string option
   val set_label : t -> string option -> (unit,error) result
@@ -4217,6 +4228,7 @@ module Device_async : sig
   val stitched_library : Device.t -> Stitched_library_descriptor.t -> (Library.t,error) result
   val compute_function : ?variant:variant -> Device.t -> Function.t -> (Compute_pipeline.t,error) result
   val compute_descriptor : Pipeline_descriptor.Compute.t -> (Compute_pipeline.t,error) result
+  val compute_reflection : Device.t -> Function.t -> (Compute_pipeline.t,error) result
   val render_descriptor : ?variant:variant -> Pipeline_descriptor.Render.t -> (Render_pipeline.t,error) result
   val mesh : Render_pipeline.Mesh_tile.mesh_descriptor -> (Render_pipeline.t,error) result
   val tile : Render_pipeline.Mesh_tile.tile_descriptor -> (Render_pipeline.t,error) result

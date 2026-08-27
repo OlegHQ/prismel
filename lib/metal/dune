@@ -243,9 +243,11 @@
   ../../tools/metal/metal_device_async_compute3_bridge.inc
   ../../tools/metal/metal_device_async_library2_bridge.inc
   ../../tools/metal/metal_device_async_render4_bridge.inc
+  ../../tools/metal/metal_device_final_constructors3_bridge.inc
   ../../tools/metal/metal_device_architecture5_bridge.inc
   ../../tools/metal/metal4_ml_compiler_async_bridge.inc
   ../../tools/metal/metal_device_metadata7_observer_bridge.inc
+  ../../tools/metal/metal_device_capability13_bridge.inc
   ../../tools/metal/metal_rasterization_rate_callable_bridge.inc
   ../../tools/metal/metal_function_stitching_callable_bridge.inc
   ../../tools/metal/metal_library42_callable_bridge.inc
@@ -1531,6 +1533,11 @@
  (libraries metal))
 
 (executable
+ (name test_metal_device_capability13_safe)
+ (modules test_metal_device_capability13_safe)
+ (libraries metal))
+
+(executable
  (name test_metal_device_final4_safe)
  (modules test_metal_device_final4_safe)
  (libraries metal))
@@ -1538,4 +1545,9 @@
 (executable
  (name test_metal_device_async9_safe)
  (modules test_metal_device_async9_safe)
+ (libraries metal))
+
+(executable
+ (name test_metal_device_final_constructors3_safe)
+ (modules test_metal_device_final_constructors3_safe)
  (libraries metal))

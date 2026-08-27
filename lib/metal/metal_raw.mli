@@ -1932,6 +1932,12 @@ external device_async_mesh_pipeline : handle -> handle -> int64 -> (handle,strin
   "caml_prismel_metal_device_async_mesh_pipeline"
 external device_async_tile_pipeline : handle -> handle -> int64 -> (handle,string) result =
   "caml_prismel_metal_device_async_tile_pipeline"
+external device_compute_reflection_pipeline : handle -> handle -> (handle,string) result =
+  "caml_prismel_metal_device_compute_reflection_pipeline"
+external device_argument_encoder_binding : handle -> handle -> int64 -> ((handle*int64*int64*int64),string) result =
+  "caml_prismel_metal_device_argument_encoder_binding"
+external device_shared_event_handle : handle -> handle -> ((handle*int64),string) result =
+  "caml_prismel_metal_device_shared_event_handle"
 
 (** Exact callable subset of the prepared authoritative Metal4 shards. *)
 external metal4_command_buffer_begin :
@@ -2865,3 +2871,8 @@ external device_architecture_name : handle -> (string,string) result =
   "caml_prismel_metal_device_architecture_name"
 external device_observer_create : (handle * string option -> unit) -> ((handle array * nativeint),string) result = "caml_prismel_metal_device_observer_create"
 external device_observer_cancel : nativeint -> (unit,string) result = "caml_prismel_metal_device_observer_cancel"
+external device_capability_snapshot : handle -> ((bool*int64*int64*int64*bool*bool*int),string) result = "caml_prismel_metal_device_capability_snapshot"
+external device_set_maximize_compilation : handle -> bool -> (unit,string) result = "caml_prismel_metal_device_set_maximize_compilation"
+external device_supports_counter_sampling_exact : handle -> int64 -> (bool,string) result = "caml_prismel_metal_device_supports_counter_sampling_exact"
+external device_supports_feature_set_exact : handle -> int64 -> (bool,string) result = "caml_prismel_metal_device_supports_feature_set_exact"
+external device_supports_rate_layers : handle -> int64 -> (bool,string) result = "caml_prismel_metal_device_supports_rate_layers"
