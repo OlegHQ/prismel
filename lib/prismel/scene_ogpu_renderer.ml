@@ -378,13 +378,18 @@ let submit_draws value resources draws =
     (fun command->Result.bind(backend(Ogpu.Backend.submit value.queue command
       ~resources~pipelines:[value.pipeline]))(fun receipt->
         backend(Ogpu.Backend.complete_through value.queue receipt.epoch)))in
+  let rec compatible state collected = function
+    | (next_state,draw)::rest when next_state=state->
+        compatible state(draw::collected)rest
+    | rest->List.rev collected,rest in
   let rec loop first = function
     | []when first->Result.bind(render_pass value(full_state value)Ogpu.Render_pass.Clear)
         (fun pass->submit pass[])
     | []->Ok()
     | (state,draw)::rest->
+        let batch,rest=compatible state[draw]rest in
         Result.bind(render_pass value state(if first then Ogpu.Render_pass.Clear else Load))
-          (fun pass->Result.bind(submit pass[draw])(fun()->loop false rest))in
+          (fun pass->Result.bind(submit pass batch)(fun()->loop false rest))in
   loop true draws
 
 let render_with_scene3 value scene3_resources scene =
@@ -541,6 +546,43 @@ let self_test () =
   let workers = Array.init 4 (fun _ -> Domain.spawn run) in
   Array.iter (fun worker -> if Domain.join worker <> expected then
     failwith "OGPU renderer domain drift") workers;
+  let stress_driver,stress_control=Ogpu.Backend_mock.create()in
+  let stress_renderer=get(create stress_driver configuration)in
+  let stress_style:Scene_description.style={fill=Some Color.white;stroke=None}in
+  let stress_scene=List.init 1000(fun index->
+    let x=index mod 100 and y=index/100 in
+    Scene_description.Triangle((x,y),(x+1,y),(x,y+1),stress_style))in
+  ignore(get(render stress_renderer stress_scene));
+  let first_stress_upload=upload_bytes stress_renderer in
+  let render_lines()=Ogpu.Backend_mock.trace stress_control|>List.filter
+    (String.starts_with~prefix:"render:")in
+  begin match List.rev(render_lines())with
+  | line::_->
+      let payload=String.sub line 7(String.length line-7)in
+      if List.length (String.split_on_char ';' payload) <> 1000 then
+        failwith"1000-draw batch order/cardinality"
+  | []->failwith"1000-draw batch missing"
+  end;
+  for _frame=2 to 600 do ignore(get(render stress_renderer stress_scene))done;
+  if upload_bytes stress_renderer<>first_stress_upload then
+    failwith"1000-draw stable frame reuploaded";
+  if List.length(render_lines())<>600 then
+    failwith"1000-draw command count did not scale with batches";
+  get(destroy stress_renderer);
+  if Ogpu.Backend_mock.live_counts stress_control<>(0,0,0,0,0)then
+    failwith"1000-draw stress leaked";
+  let stress_once()=
+    let driver,control=Ogpu.Backend_mock.create()in
+    let renderer=get(create driver configuration)in
+    ignore(get(render renderer stress_scene));
+    let payload=Ogpu.Backend_mock.trace control|>List.find
+      (String.starts_with~prefix:"render:")in
+    let result=payload,upload_bytes renderer in
+    get(destroy renderer);result in
+  let stress_expected=stress_once()in
+  let stress_workers=Array.init 4(fun _->Domain.spawn stress_once)in
+  Array.iter(fun worker->if Domain.join worker<>stress_expected then
+    failwith"1000-draw domain drift")stress_workers;
   let driver, control = Ogpu.Backend_mock.create () in
   let renderer = get (create driver configuration) in
   Ogpu.Backend_mock.inject_device_loss control;
