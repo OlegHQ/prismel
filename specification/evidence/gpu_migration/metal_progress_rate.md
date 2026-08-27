@@ -119,6 +119,7 @@ can change the denominator explicitly rather than being hidden.
 | `75f55a1` | 2026-08-27 10:16:49 +02:00 | 5,083 | 5,249 | 96.8375% | 14 | 0.091 | 153.2 | 2.92 |
 | `be44eaf` | 2026-08-27 10:20:55 +02:00 | 5,088 | 5,249 | 96.9327% | 5 | 0.068 | 73.2 | 1.39 |
 | `7ca877f` | 2026-08-27 10:21:52 +02:00 | 5,095 | 5,249 | 97.0661% | 7 | 0.016 | 442.1 | 8.42 |
+| `cccf729` | 2026-08-27 10:22:53 +02:00 | 5,105 | 5,249 | 97.2566% | 10 | 0.017 | 590.2 | 11.24 |
 
 ## Current measured rate
 
@@ -232,6 +233,14 @@ capacity, offsets, device identity, and live ownership before replacement;
 opaque triangle and curve signatures share an exact range-checked capability
 path. The public function-table lifecycle fixture and typed native ray-table
 fixture prove retention, reset, and execute-or-capability-reject behavior.
+
+The `cccf729` interval closes the exact CAMetalLayer10 residual: seven callable
+method/property declarations, the public layer class and drawable protocol,
+and the deliberately incomplete private layer ABI record. The safe surface
+keeps device identity and layer configuration on the main domain, copies and
+round-trips developer-HUD string properties, capability-gates residency state,
+and proves real NSWindow-attached layer configuration without exposing private
+storage.
 
 Rates describe completed commits, not forecasts. Hardware-only gates and
 complex ownership features will vary materially from pure-value batches.
