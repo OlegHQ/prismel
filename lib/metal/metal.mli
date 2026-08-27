@@ -270,6 +270,18 @@ module Device : sig
   val destroy : t -> (unit, error) result
 end
 
+module Device_observer : sig
+  type t
+  type notification = Added | Removal_requested | Other of string
+  (** Starts a multi-shot device observer and returns the initial owned device
+      list. Devices delivered to the callback are owned and must be destroyed
+      by the callback or transferred to another explicit owner. *)
+  val create : (Device.t -> notification -> unit) ->
+    ((t * Device.t list),error) result
+  val active : t -> bool
+  val cancel : t -> (unit,error) result
+end
+
 module Buffer : sig
   type t
 

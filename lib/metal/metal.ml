@@ -2978,6 +2978,38 @@ module Device = struct
     destroy_parent "Metal.Device.destroy" value.lifetime value.raw (fun () -> ())
 end
 
+module Device_observer = struct
+  type notification = Added | Removal_requested | Other of string
+  type t = { token:nativeint; mutable active:bool }
+  let notification = function
+    | Some "MTLDeviceWasAddedNotification" -> Added
+    | Some "MTLDeviceRemovalRequestedNotification" -> Removal_requested
+    | Some name -> Other name | None -> Other ""
+  let create callback =
+    let operation="Metal.Device_observer.create" in
+    on_main operation(fun()->
+      let invoke(raw,name)=
+        let device=make_device raw in
+        try callback device(notification name) with _->ignore(Device.destroy device)
+      in
+      match Metal_raw.device_observer_create invoke with
+      |Error message->native_error operation message
+      |Ok(raw_devices,token)->
+          let value={token;active=true}in
+          Gc.finalise(fun value->if value.active then begin
+            value.active<-false;ignore(Metal_raw.device_observer_cancel value.token)
+          end)value;
+          Ok(value,Array.to_list(Array.map make_device raw_devices)))
+  let active value=value.active
+  let cancel value=
+    let operation="Metal.Device_observer.cancel"in
+    on_main operation(fun()->if not value.active then
+      error operation Invalid_state "device observer is already cancelled"
+    else match Metal_raw.device_observer_cancel value.token with
+      |Error message->native_error operation message
+      |Ok()->value.active<-false;Ok())
+end
+
 module Buffer = struct
   type t = buffer
   type storage_mode = buffer_storage_mode = Shared | Managed | Private

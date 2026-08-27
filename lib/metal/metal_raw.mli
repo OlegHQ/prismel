@@ -2863,3 +2863,5 @@ external metal4_ml_pipeline5_label :
 
 external device_architecture_name : handle -> (string,string) result =
   "caml_prismel_metal_device_architecture_name"
+external device_observer_create : (handle * string option -> unit) -> ((handle array * nativeint),string) result = "caml_prismel_metal_device_observer_create"
+external device_observer_cancel : nativeint -> (unit,string) result = "caml_prismel_metal_device_observer_cancel"

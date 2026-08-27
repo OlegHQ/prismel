@@ -245,6 +245,7 @@
   ../../tools/metal/metal_device_async_render4_bridge.inc
   ../../tools/metal/metal_device_architecture5_bridge.inc
   ../../tools/metal/metal4_ml_compiler_async_bridge.inc
+  ../../tools/metal/metal_device_metadata7_observer_bridge.inc
   ../../tools/metal/metal_rasterization_rate_callable_bridge.inc
   ../../tools/metal/metal_function_stitching_callable_bridge.inc
   ../../tools/metal/metal_library42_callable_bridge.inc
@@ -1522,6 +1523,11 @@
 (executable
  (name test_metal_device_value25_safe)
  (modules test_metal_device_value25_safe)
+ (libraries metal))
+
+(executable
+ (name test_metal_device_metadata7_safe)
+ (modules test_metal_device_metadata7_safe)
  (libraries metal))
 
 (executable
