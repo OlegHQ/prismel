@@ -42,7 +42,7 @@ let create_batch ?(owned_samplers=[]) device pass ~attachments draws =
   let op="Ogpu_metal.Render_pass.create_batch" in
   let count=List.length draws in
   if count=0 then error op Ogpu.Error.Invalid_argument "render batch is empty"
-  else if count>4096 then error op Ogpu.Error.Invalid_argument "render batch exceeds 4096 draws"
+  else if count>65_536 then error op Ogpu.Error.Invalid_argument "render batch exceeds 65536 draws"
   else
     let rec validate first rev=function
       |[]->(match first with None->assert false|Some value->Ok{value with draws=List.rev rev;owned_samplers})
