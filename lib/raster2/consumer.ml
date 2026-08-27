@@ -52,6 +52,9 @@ let execute ?depth ~lookup ~target ir =
           Stack.push identity transforms;
           let active_clip = ref None in
           let active_blend = ref Composite.Source_over in
+          let default_depth_state =
+            { Depth_stencil.depth_compare=Always; depth_write=false; stencil=None }
+          in
           let compose (a : Render_ir.transform) (b : Render_ir.transform) =
             { Render_ir.xx=(a.xx *. b.xx) +. (a.xy *. b.yx);
               xy=(a.xx *. b.xy) +. (a.xy *. b.yy);
@@ -98,12 +101,34 @@ let execute ?depth ~lookup ~target ir =
               | Pop_transform -> ignore (Stack.pop transforms)
               | Geometry geometry ->
                   let transform = Stack.top transforms in
+                  let vertex_count = Array.length geometry.vertices / 2 in
+                  (* Transform each referenced vertex once.  Tessellated paths share
+                     vertices heavily; rebuilding three records (and rounding twice)
+                     per triangle made the command consumer allocate in proportion to
+                     index count rather than vertex count. *)
+                  let transformed =
+                    Array.init vertex_count (fun index ->
+                      let x, y = point transform geometry.vertices.(index * 2)
+                          geometry.vertices.((index * 2) + 1) in
+                      { Triangle.x=float x; y=float y;
+                        depth=(match depth with None->0. | Some d->d.value);
+                        color=geometry.color; u=0.; v=0. })
+                  in
+                  let clip =
+                    match !active_clip with
+                    | None -> { Triangle.x=0; y=0; width=Surface.width working;
+                                height=Surface.height working }
+                    | Some r -> { Triangle.x=int_of_float r.x; y=int_of_float r.y;
+                                  width=int_of_float r.width; height=int_of_float r.height }
+                  in
+                  let depth_attachment = Option.map snd depth_copy in
+                  let depth_state = match depth with None -> default_depth_state | Some d -> d.state in
                   for triangle = 0 to (Array.length geometry.indices / 3) - 1 do
-                    let vertex corner = geometry.indices.((triangle * 3) + corner) * 2 in
+                    let vertex corner = geometry.indices.((triangle * 3) + corner) in
                     let a = vertex 0 and b = vertex 1 and c = vertex 2 in
-                    let make index=let x,y=point transform geometry.vertices.(index)geometry.vertices.(index+1)in {Triangle.x=float x;y=float y;depth=(match depth with None->0.|Some d->d.value);color=geometry.color;u=0.;v=0.}in
-                    let clip=match !active_clip with None->{Triangle.x=0;y=0;width=Surface.width working;height=Surface.height working}|Some r->{Triangle.x=int_of_float r.x;y=int_of_float r.y;width=int_of_float r.width;height=int_of_float r.height}in
-                    Triangle.draw~color:working~depth:(Option.map snd depth_copy)~depth_state:(match depth with None->{Depth_stencil.depth_compare=Always;depth_write=false;stencil=None}|Some d->d.state)~blend:!active_blend~cull:Triangle.Cull_none~clip~texture:None(make a)(make b)(make c)
+                    Triangle.draw ~color:working ~depth:depth_attachment ~depth_state
+                      ~blend:!active_blend ~cull:Triangle.Cull_none ~clip ~texture:None
+                      transformed.(a) transformed.(b) transformed.(c)
                   done
               | Image image ->
                   let source = match Hashtbl.find resources image.resource_id with Image value -> value | _ -> assert false in

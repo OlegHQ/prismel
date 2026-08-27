@@ -41,4 +41,24 @@ let () =
   (match Consumer.execute ~lookup:(fun _ -> None) ~target missing with
   | Error (Consumer.Missing_resource 99) -> () | _ -> failwith "missing resource accepted");
   assert (Surface.bytes target = before);
+  let shared_vertices = Array.init 160 (fun index ->
+    let vertex = index / 2 in
+    if index land 1 = 0 then float (vertex mod 8) else float (vertex / 8)) in
+  let shared_indices = Array.init (63 * 6) (fun index ->
+    let cell = index / 6 and corner = index mod 6 in
+    let x = cell mod 7 and y = cell / 7 and row = 8 in
+    match corner with 0 -> y*row+x | 1 -> y*row+x+1 | 2 -> (y+1)*row+x+1
+      | 3 -> y*row+x | 4 -> (y+1)*row+x+1 | _ -> (y+1)*row+x) in
+  let shared = ok (Render_ir.create [|Geometry {
+    vertices=shared_vertices; indices=shared_indices; color=0xabcdef80l }|]) in
+  let allocation_target = ok (Surface.create ~width:8 ~height:9 ()) in
+  for _ = 1 to 10 do ok (Consumer.execute ~lookup:(fun _ -> None) ~target:allocation_target shared) done;
+  Gc.compact ();
+  let allocated_before = Gc.allocated_bytes () in
+  for _ = 1 to 100 do ok (Consumer.execute ~lookup:(fun _ -> None) ~target:allocation_target shared) done;
+  let allocated_per_render = (Gc.allocated_bytes () -. allocated_before) /. 100. in
+  if allocated_per_render >= 100_000. then
+    failwith (Printf.sprintf "shared geometry allocation %.0f bytes/render" allocated_per_render);
+  Printf.printf "Raster2 Consumer shared-geometry allocation: %.0f bytes/render\n"
+    allocated_per_render;
   print_endline "Raster2 deterministic render IR consumer passed"
