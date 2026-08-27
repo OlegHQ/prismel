@@ -51,6 +51,21 @@
  (name bench_sdl3)
  (libraries prismel.sdl3 prismel.sdl3_mixer unix yojson))
 
+(executable
+ (name resource_probe_legacy)
+ (modules resource_probe_legacy)
+ (libraries prismel unix yojson))
+
+(executable
+ (name resource_probe_next)
+ (modules resource_probe_next)
+ (libraries prismel_next_resources unix yojson))
+
+(executable
+ (name compare_resource_probes)
+ (modules compare_resource_probes)
+ (libraries yojson))
+
 (rule
  (targets bench_metal_ffi_bridge.o libbench_metal_ffi_stubs.a
   dllbench_metal_ffi_stubs.so)

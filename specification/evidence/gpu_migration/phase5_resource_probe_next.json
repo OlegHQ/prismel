@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "stack": "next",
+  "image": {
+    "file_bytes_equal": true,
+    "created_hash": "4bcd779a6d1cb005a4731d447682d40b",
+    "generation": 2,
+    "failed_reload_retained": true
+  },
+  "canvas": {
+    "capture_hash": "315d215881be2ab90fba456c9ff6cfdb",
+    "resized": [ 4, 3 ]
+  },
+  "font": { "glyph_advance": 10, "empty_noop": true, "wrapped": [ 30, 51 ] },
+  "audio": {
+    "encoded_hash": "9a5543614c7638a8c645cc560836ca89",
+    "mixed_bytes": 16,
+    "lifecycle": true
+  }
+}
