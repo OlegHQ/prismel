@@ -36,6 +36,11 @@
  (libraries runtime_next scene_execution metal))
 
 (test
+ (name test_runtime_next_scene3_lighting)
+ (modules test_runtime_next_scene3_lighting)
+ (libraries runtime_next scene_execution metal ogpu))
+
+(test
  (name test_runtime_next_headless)
  (modules test_runtime_next_headless)
  (libraries runtime_next_headless scene_execution ogpu)
