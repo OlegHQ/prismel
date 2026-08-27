@@ -54,7 +54,9 @@ type facts = {
 
 type text_region = { x:int; y:int; width:int; height:int; focused:bool }
 type audio_intent = Prismel_next_resources.Audio.intent
-type family = Scene2 | Scene3 | Scene3_textured | Scene3_shadow
+type family = Scene2 | Scene3 | Scene3_textured | Scene3_shadow |
+  Scene3_stencil | Scene3_textured_stencil | Scene3_shadow_stencil
+type blend = Replace | Alpha | Add | Multiply | Screen | Subtract
 type draw
 
 (** Lower target-neutral geometry commands. Image and glyph commands require
@@ -63,7 +65,10 @@ val scene2_ir : Raster2.Render_ir.t -> (draw list, error) result
 
 (** Adopt an already prepared draw without exposing it again. Scene3 values are
     retained as a distinct family and never misrouted through a Scene2 pipeline. *)
-val prepared_draw : family:family -> Scene_execution.draw -> draw
+val prepared_draw : family:family -> ?blend:blend ->
+  ?texture:Scene_execution.sampled_texture ->
+  ?auxiliary:Scene_execution.auxiliary_resource -> ?samples:int ->
+  Scene_execution.draw -> draw
 
 type t
 val create : configuration -> (t,error) result

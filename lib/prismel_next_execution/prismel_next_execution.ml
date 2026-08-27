@@ -32,9 +32,13 @@ type facts = { frame:int64; time:float; dt:float; logical_width:int; logical_hei
   dropped_events:int }
 type text_region = {x:int;y:int;width:int;height:int;focused:bool}
 type audio_intent = Prismel_next_resources.Audio.intent
-type family = Scene2 | Scene3 | Scene3_textured | Scene3_shadow
-type draw = { family:family; value:Scene_execution.draw }
-let prepared_draw ~family value = {family;value}
+type family = Scene2 | Scene3 | Scene3_textured | Scene3_shadow |
+  Scene3_stencil | Scene3_textured_stencil | Scene3_shadow_stencil
+type blend = Replace | Alpha | Add | Multiply | Screen | Subtract
+type draw = { family:family; blend:blend; texture:Scene_execution.sampled_texture option;
+  auxiliary:Scene_execution.auxiliary_resource option;samples:int;value:Scene_execution.draw }
+let prepared_draw ~family ?(blend=Replace) ?texture ?auxiliary ?(samples=1) value =
+  {family;blend;texture;auxiliary;samples;value}
 
 let default_state viewport scissor = { Scene_execution.viewport; scissor;
   cull=Ogpu.Render_pass.Cull_none; depth_compare=Ogpu.Render_pass.Always;
@@ -55,7 +59,7 @@ let mesh_of_geometry number transform clip (geometry:Raster2.Render_ir.geometry)
   let indices=Bytes.create(Array.length geometry.indices*4) in
   Array.iteri(fun index value->Bytes.set_int32_le indices(index*4)(Int32.of_int value))geometry.indices;
   let x,y,width,height=clip in
-  { family=Scene2; value={Scene_execution.mesh={key=Printf.sprintf "ir-%Ld-%d" 0L number;
+  { family=Scene2;blend=Replace;texture=None;auxiliary=None;samples=1; value={Scene_execution.mesh={key=Printf.sprintf "ir-%Ld-%d" 0L number;
       vertices;vertex_count=count;indices;index_count=Array.length geometry.indices};
       state=default_state (x,y,width,height) (x,y,width,height)} }
 let compose (a:Raster2.Render_ir.transform) (b:Raster2.Render_ir.transform) = { Raster2.Render_ir.xx=a.Raster2.Render_ir.xx*.b.xx+.a.yx*.b.xy;
@@ -160,13 +164,18 @@ let push_web value =
 let step value draws=match ensure"Prismel_next_execution.step"value with Error _ as e->e|Ok()->
   Runtime_next_input.begin_frame value.input;
   match push_web value with Error _ as e->e|Ok()->
-  if List.exists(fun draw->draw.family<>Scene2)draws then fail"Prismel_next_execution.step"Unsupported"family-aware submission is not exposed by Runtime_next_orchestrator"
-  else match Runtime_next_orchestrator.facts value.runtime with Error e->backend"Prismel_next_execution.step"e|Ok f->
+  match Runtime_next_orchestrator.facts value.runtime with Error e->backend"Prismel_next_execution.step"e|Ok f->
+    let family=function Scene2->Runtime_next_orchestrator.Scene2|Scene3->Scene3
+      |Scene3_textured->Scene3_textured|Scene3_shadow->Scene3_shadow|Scene3_stencil->Scene3_stencil
+      |Scene3_textured_stencil->Scene3_textured_stencil|Scene3_shadow_stencil->Scene3_shadow_stencil in
+    let blend=function Replace->Runtime_next_orchestrator.Replace|Alpha->Alpha|Add->Add
+      |Multiply->Multiply|Screen->Screen|Subtract->Subtract in
     let draws=List.map(fun x->let draw=x.value in let state=draw.Scene_execution.state in
       let viewport=match state.viewport with _,_,w,h when w<0||h<0->0,0,f.logical_width,f.logical_height|x->x in
       let scissor=match state.scissor with _,_,w,h when w<0||h<0->0,0,f.logical_width,f.logical_height|x->x in
-      {draw with Scene_execution.state={state with viewport;scissor}})draws in
-    match Runtime_next_orchestrator.render value.runtime draws with Error e->backend"Prismel_next_execution.step"e|Ok _->
+      {Runtime_next_orchestrator.family=family x.family;blend=blend x.blend;texture=x.texture;
+        auxiliary=x.auxiliary;samples=x.samples;draw={draw with Scene_execution.state={state with viewport;scissor}}})draws in
+    match Runtime_next_orchestrator.render_prepared value.runtime draws with Error e->backend"Prismel_next_execution.step"e|Ok _->
       let now=Unix.gettimeofday()in let dt=match value.timing with Fixed dt->dt|Variable->max 0.(now-.value.last_clock)in
       value.last_clock<-now;value.elapsed<-value.elapsed+.dt;value.frame<-Int64.succ value.frame;
       let events=List.map event_of_input(Runtime_next_input.drain value.input)and input=Runtime_next_input.snapshot value.input in
