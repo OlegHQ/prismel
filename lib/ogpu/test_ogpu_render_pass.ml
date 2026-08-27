@@ -20,6 +20,13 @@ let ()=
   let stencil_state:Ogpu.Render_pass.stencil_state={front=face;back={face with compare=Less;pass=Decrement_wrap};front_reference=7l;back_reference=11l}in
   let stencil_pass=ok(Ogpu.Render_pass.create~stencil_state device{descriptor with stencil=Some stencil_attachment})in
   if Ogpu.Render_pass.stencil_state stencil_pass<>Some stencil_state then fail"typed stencil state changed";
+  let comparisons=Ogpu.Render_pass.[Never;Less;Equal;Less_equal;Greater;Not_equal;Greater_equal;Always]
+  and operations=Ogpu.Render_pass.[Keep;Zero;Replace;Increment_clamp;Decrement_clamp;Invert;Increment_wrap;Decrement_wrap]in
+  List.iteri(fun ci compare->List.iteri(fun oi operation->
+    let tested_face:Ogpu.Render_pass.stencil_face={compare;stencil_fail=operation;depth_fail=operation;pass=operation;read_mask=Int32.of_int(1 lsl ci);write_mask=Int32.of_int(1 lsl oi)}in
+    let tested:Ogpu.Render_pass.stencil_state={front=tested_face;back=tested_face;front_reference=Int32.of_int ci;back_reference=Int32.of_int oi}in
+    let tested_pass=ok(Ogpu.Render_pass.create~stencil_state:tested device{descriptor with stencil=Some stencil_attachment})in
+    if Ogpu.Render_pass.stencil_state tested_pass<>Some tested then fail"stencil comparison/operation table changed")operations)comparisons;
   (match Array.to_list descriptions with
   |[Ogpu.Command.Begin_encoder;Begin_pass Render;Declare_resource{resource_id=1L;_};Declare_resource{resource_id=2L;_};End_pass Render;End_encoder]->()
   |_->fail"render declaration sequence changed");
