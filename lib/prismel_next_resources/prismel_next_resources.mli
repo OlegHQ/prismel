@@ -15,6 +15,9 @@ module Image : sig
   val size : t -> ((int*int),error) result
   val pixels : t -> (bytes,error) result
   val replace : t -> width:int -> height:int -> rgba:bytes -> (unit,error) result
+  (* Atomically transfer the source's owned pixel storage.  On success the
+     source is destroyed and the target retains its identity. *)
+  val replace_owned : t -> t -> (unit,error) result
   (* Stable-identity watched replacement. Decode failure retains the previous
       valid generation and pixels. *)
   val reload_file : t -> string -> (unit,error) result

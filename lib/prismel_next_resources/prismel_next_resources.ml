@@ -37,6 +37,22 @@ module Image=struct
   let replace x ~width ~height ~rgba=live"Image.replace"x(fun()->
     if not(valid_storage width height rgba)then error"Image.replace"Invalid_argument"invalid RGBA replacement"
     else(x.width<-width;x.height<-height;x.rgba<-Bytes.copy rgba;x.generation<-x.generation+1;Ok()))
+  let replace_owned target source=main"Image.replace_owned"(fun()->
+    if target.dead then error"Image.replace_owned"Destroyed"target image is destroyed"
+    else if source.dead then error"Image.replace_owned"Destroyed"source image is destroyed"
+    else if target==source then error"Image.replace_owned"Invalid_argument"source and target images must differ"
+    else begin
+      (* Both values and the complete replacement have been validated before
+         mutation.  Moving the byte storage makes replacement transactional
+         without another full-frame copy. *)
+      target.width<-source.width;
+      target.height<-source.height;
+      target.rgba<-source.rgba;
+      target.generation<-target.generation+1;
+      source.rgba<-Bytes.empty;
+      source.dead<-true;
+      Ok()
+    end)
   let rec reload_file x path=live"Image.reload_file"x(fun()->match load_file path with
     |Error _ as failure->failure
     |Ok replacement->let result=replace x~width:replacement.width~height:replacement.height~rgba:replacement.rgba in

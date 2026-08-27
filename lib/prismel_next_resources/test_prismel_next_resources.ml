@@ -21,6 +21,32 @@ let ()=
   get(Canvas.copy_to_image canvas stable);
   if Image.identity stable<>stable_identity||Image.generation stable<>stable_generation+1
      ||get(Image.pixels stable)<>replacement then failwith"canvas stable image copy";
+  let moved=get(Image.create~width:4~height:4~rgba:(Bytes.make 64 '\x42'))in
+  let moved_generation=Image.generation stable in
+  get(Image.replace_owned stable moved);
+  if not(Image.destroyed moved)||Image.identity stable<>stable_identity
+     ||Image.generation stable<>moved_generation+1
+     ||get(Image.pixels stable)<>Bytes.make 64 '\x42'
+  then failwith"owned image replacement";
+  let rejected=get(Image.create~width:1~height:1~rgba:(Bytes.make 4 '\x31'))in
+  let rejected_pixels=get(Image.pixels rejected)and stable_pixels=get(Image.pixels stable)
+  and stable_generation=Image.generation stable in
+  (match Image.replace_owned stable stable with
+   |Error{kind=Invalid_argument;_}->()
+   |_->failwith"self owned replacement accepted");
+  if Image.destroyed rejected||get(Image.pixels rejected)<>rejected_pixels
+     ||Image.generation stable<>stable_generation||get(Image.pixels stable)<>stable_pixels
+  then failwith"owned replacement rejection mutated images";
+  get(Image.destroy rejected);
+  let allocation=ref 0. in
+  for _=1 to 32 do
+    let source=get(Image.create~width:640~height:480~rgba:(Bytes.make(640*480*4)'\x5a'))in
+    let before=Gc.allocated_bytes()in
+    get(Image.replace_owned stable source);
+    allocation:=!allocation+.(Gc.allocated_bytes()-.before)
+  done;
+  if !allocation/.32.>2048. then
+    failwith(Printf.sprintf"owned replacement allocated %.0f bytes/copy"(!allocation/.32.));
   get(Image.destroy stable);
   let before=get(Canvas.capture canvas)in
   let before_pixels=get(Image.pixels before)and before_generation=Canvas.generation canvas in

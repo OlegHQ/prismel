@@ -26,9 +26,10 @@ module Private=struct
   let get_texture image=image
   let from_texture image _width _height=image
   let load_memory contents=map"Image.Private.load_memory"(Prismel_next_resources.Image.load_bytes(Bytes.of_string contents))
-  let replace target source=match Prismel_next_resources.Image.size source,Prismel_next_resources.Image.pixels source with
-    |Ok(width,height),Ok rgba->begin match Prismel_next_resources.Image.replace target ~width ~height ~rgba with Ok()->destroy source|Error error->failwith(message"Image.Private.replace"error)end
-    |Error error,_->failwith(message"Image.Private.replace"error)|_,Error error->failwith(message"Image.Private.replace"error)
+  let replace target source=
+    match Prismel_next_resources.Image.replace_owned target source with
+    |Ok()->()
+    |Error error->failwith(message"Image.Private.replace"error)
   let identity=Prismel_next_resources.Image.identity
   let generation=Prismel_next_resources.Image.generation
   let reload value path=map"Image.reload"(Prismel_next_resources.Image.reload_file value path)

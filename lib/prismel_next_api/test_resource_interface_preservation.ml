@@ -8,5 +8,5 @@ let ()=
   require(Result.is_ok(Audio.init()))"audio init";
   let sample=Result.get_ok(Audio.Sample.synth~waveform:Sine~frequency:440.~duration:0.01())in
   let channel=Result.get_ok(Audio.Sample.play sample)in require(Audio.Sample.is_playing channel)"sample playing";Audio.Sample.stop channel;require(not(Audio.Sample.is_playing channel))"sample stopped";Audio.Sample.destroy sample;Audio.shutdown();
-  let image=Image.create~width:2~height:3()in require(Image.get_size image=(2,3))"image dimensions";let replacement=Image.create~width:1~height:1~color:Color.red()in Image.Private.replace image replacement;require(Image.get_size image=(1,1))"stable replacement";Image.destroy image;
+  let image=Image.create~width:2~height:3()in require(Image.get_size image=(2,3))"image dimensions";let identity=Image.Private.identity image in let replacement=Image.create~width:1~height:1~color:Color.red()in Image.Private.replace image replacement;require(Image.get_size image=(1,1)&&Image.Private.identity image=identity)"stable replacement";Image.destroy image;
   print_endline"resource-interface-preservation: ok"
