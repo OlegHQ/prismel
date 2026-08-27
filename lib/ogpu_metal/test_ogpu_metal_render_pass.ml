@@ -55,6 +55,7 @@ let ()=match Device.system_default()with Error _->print_endline"ogpu_metal rende
     for frame=1 to 600 do
       let pass=get(Ogpu.Render_pass.create~stencil_state(Device.Private.handle device){colors=[|Some{texture=color_texture;resolve=None;load=Clear;store=Store;clear=(1.,0.,0.,1.)}|];depth=None;stencil=Some stencil_attachment;viewport={x=0;y=0;width=4;height=4};scissor={x=0;y=0;width=4;height=4}})in
       let encoded=get(Render_pass.create device pass~attachments:[target;stencil_texture]stencil_draw)in
+      if frame=1 then(Queue.inject_next_error queue;expect Ogpu.Error.Device_lost(Queue.submit_render_pass queue encoded));
       let receipt=get(Queue.submit_render_pass queue encoded)in
       get(Queue.wait_through queue receipt.epoch);
       if List.mem frame[1;2;60;600]then let pixels=get(Texture.read_bytes device target~mip_level:0~bytes_per_row:16)in if byte pixels 0 0 1<>255 then failwith"Command4 stencil pass pixel mismatch"
