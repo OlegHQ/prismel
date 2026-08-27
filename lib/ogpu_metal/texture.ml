@@ -80,3 +80,5 @@ let write_bytes device value ~mip_level ~bytes_per_row bytes =
 let destroy value =
   let operation="Ogpu_metal.Texture.destroy"in if destroyed value then Ok()else if value.live_views<>0 then error operation Ogpu.Error.Invalid_state "texture still owns live views"else
   match Metal.Texture.destroy value.metal with Error e->Error(Adapter.error~operation e)|Ok()->Ogpu.Handle.destroy value.handle;Option.iter(fun parent->parent.live_views<-parent.live_views-1)value.parent;Device.Private.detach_resource value.device;Ok()
+
+module Private=struct let metal value=value.metal end

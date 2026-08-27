@@ -18,3 +18,7 @@ val read_bytes : Device.t -> t -> mip_level:int -> bytes_per_row:int ->
 val write_bytes : Device.t -> t -> mip_level:int -> bytes_per_row:int -> bytes ->
   (unit, Ogpu.Error.t) result
 val destroy : t -> (unit, Ogpu.Error.t) result
+
+module Private : sig
+  val metal : t -> Metal.Texture.t
+end

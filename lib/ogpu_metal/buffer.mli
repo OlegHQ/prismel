@@ -9,4 +9,10 @@ val device_id : t -> int64
 val descriptor : Device.t -> t -> (Ogpu.Types.buffer_descriptor, Ogpu.Error.t) result
 val memory : Device.t -> t -> (memory, Ogpu.Error.t) result
 val destroyed : t -> bool
+val write_bytes : Device.t -> t -> dst_offset:int64 -> bytes -> (unit,Ogpu.Error.t) result
+val read_bytes : Device.t -> t -> offset:int64 -> length:int -> (bytes,Ogpu.Error.t) result
 val destroy : t -> (unit, Ogpu.Error.t) result
+
+module Private : sig
+  val metal : t -> Metal.Buffer.t
+end

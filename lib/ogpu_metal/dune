@@ -1,7 +1,7 @@
 (library
  (name ogpu_metal)
  (public_name prismel.ogpu_metal)
- (modules Adapter Device Buffer Texture Sampler)
+ (modules Adapter Device Buffer Texture Sampler Command Queue)
  (libraries ogpu metal))
 
 (test
@@ -12,4 +12,9 @@
 (test
  (name test_ogpu_metal_texture)
  (modules test_ogpu_metal_texture)
+ (libraries ogpu_metal metal))
+
+(test
+ (name test_ogpu_metal_submission)
+ (modules test_ogpu_metal_submission)
  (libraries ogpu_metal metal))
