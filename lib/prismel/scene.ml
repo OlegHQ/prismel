@@ -1,6 +1,7 @@
 include Scene_description
 
 let _lower_raster2_private = Scene_raster2_lowering.lower
+let _lower_raster2_view3d_private = Scene3_raster2_lowering.lower_view3d
 
 let empty = []
 let one node = [node]
