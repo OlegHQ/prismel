@@ -1,0 +1,7 @@
+(executable
+ (name phase5_api_signature_gate)
+ (libraries compiler-libs.common yojson unix))
+
+(rule
+ (alias runtest)
+ (action (run %{exe:phase5_api_signature_gate.exe} --root %{workspace_root})))
