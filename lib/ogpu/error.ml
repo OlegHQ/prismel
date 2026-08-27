@@ -1,4 +1,4 @@
-type kind = Invalid_argument | Invalid_state | Capacity | Device_lost | Stale_handle | Cross_device
+type kind = Invalid_argument | Invalid_state | Unsupported | Capacity | Device_lost | Stale_handle | Cross_device
 type t = { operation : string; kind : kind; message : string }
 let make operation kind message = { operation; kind; message }
 let to_string value = Printf.sprintf "%s: %s" value.operation value.message
