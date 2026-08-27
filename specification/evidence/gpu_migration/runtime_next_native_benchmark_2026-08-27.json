@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "commit": "a7d1c01",
+  "machine": {"model":"Macmini9,1","cpu":"Apple M1","memory_bytes":17179869184,"macos":"26.4.1 (25E253)","ocaml":"5.3.0"},
+  "profile": "release",
+  "protocol": {"ordinary_warmup_frames":3,"ordinary_sample_frames":20,"presentation_mode":"fifo","extent":"64x64"},
+  "results": [
+    {"scenario":"basic","pieces":1,"triangles":128,"median_ms":8.088827133178711,"p95_ms":9.40704345703125,"p99_ms":9.431123733520508,"fps":120.16410350438908,"cpu_percent":2.3762451467993024,"allocated_bytes":373984.0,"rss_kib":81392,"prepared_upload_bytes":"1584","measurement_upload_bytes":"0","draws":20,"passes":20,"backend_calls":20,"cache_entries":1,"cache_hits_inferred":20,"cache_misses_observed":0,"raw_json_sha256":"dbebdf18dab1cbc1c3f23f752bd1905ca26819f68e4ea9c20b44cc7826f250dd"},
+    {"scenario":"pxui-like","pieces":64,"triangles":128,"median_ms":8.223056793212891,"p95_ms":9.545087814331055,"p99_ms":9.649991989135742,"fps":120.32526202699233,"cpu_percent":5.536165305861914,"allocated_bytes":6182624.0,"rss_kib":83056,"prepared_upload_bytes":"4608","measurement_upload_bytes":"0","draws":1280,"passes":20,"backend_calls":20,"cache_entries":64,"cache_hits_inferred":1280,"cache_misses_observed":0,"raw_json_sha256":"9b503f94b7eb9eac3b4ef6208086bdb517f905d0ddcd01d06ae5f3de2290212e"},
+    {"scenario":"canvas-like","pieces":8,"triangles":256,"median_ms":8.201122283935547,"p95_ms":9.187936782836914,"p99_ms":9.624004364013672,"fps":120.14121441532792,"cpu_percent":2.870173612382185,"allocated_bytes":1078304.0,"rss_kib":81952,"prepared_upload_bytes":"3456","measurement_upload_bytes":"0","draws":160,"passes":20,"backend_calls":20,"cache_entries":8,"cache_hits_inferred":160,"cache_misses_observed":0,"raw_json_sha256":"30872e48ccf46e150cf22766eb16a7602c962339f0ba2ac4f9b2fcb35dc98359"},
+    {"scenario":"scene3-double68","pieces":12,"triangles":110592,"median_ms":8.319854736328125,"p95_ms":9.297847747802734,"p99_ms":9.508132934570312,"fps":120.12882696716746,"cpu_percent":38.279651357222725,"allocated_bytes":54479904.0,"rss_kib":92224,"prepared_upload_bytes":"1329552","measurement_upload_bytes":"0","draws":240,"passes":20,"backend_calls":20,"cache_entries":12,"cache_hits_inferred":240,"cache_misses_observed":0,"raw_json_sha256":"6171bd8c11342c9f50d74340def87236e21f8941336ad0bd19de6380cff25f20"}
+  ],
+  "shattered_cube": {"pieces":18278,"triangles":278368,"result":"blocked","error":"Backend.submit: submitted graph contains a destroyed object","cause":"Scene_execution prepares all 18,278 resources while its cache capacity is 64; early prepared buffers are evicted before the single submission validates them."},
+  "native_gpu_counters": null
+}
