@@ -28,7 +28,7 @@ let ()=match Device.system_default()with Error _->print_endline"ogpu_metal rende
   let texture_descriptor : Ogpu.Types.texture_descriptor={label=Some"target";width=4;height=4;depth=1;mip_levels=1;sample_count=1;usage=[Render_attachment;Texture_copy_src]}in
   let target=get(Texture.create device~memory:Texture.Shared~format:Texture.Rgba8_unorm texture_descriptor)in
   let queue=get(Queue.create device)in
-  let draw primitive index={Render_pass.pipeline;buffers=[];textures=[];primitive;vertex_start=0;vertex_count=3;index}in
+  let draw primitive index={Render_pass.pipeline;buffers=[];textures=[];samplers=[];primitive;vertex_start=0;vertex_count=3;index}in
   let run primitive index=let pass=portable_pass device target~clear:(1.,0.,0.,1.)in let encoded=get(Render_pass.create device pass~attachments:[target](draw primitive index))in let receipt=get(Queue.submit_render_pass queue encoded)in get(Queue.wait_through queue receipt.epoch);verify(get(Texture.read_bytes device target~mip_level:0~bytes_per_row:16))in
   run Render_pass.Triangle_list None;
   let indices=get(Buffer.create device~memory:Buffer.Shared{label=Some"indices";size=6L;usage=[Index;Copy_dst]})in let bytes=Bytes.make 6 '\000'in Bytes.set_int16_le bytes 0 0;Bytes.set_int16_le bytes 2 1;Bytes.set_int16_le bytes 4 2;get(Buffer.write_bytes device indices~dst_offset:0L bytes);

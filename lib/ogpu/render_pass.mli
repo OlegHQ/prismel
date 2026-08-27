@@ -13,7 +13,8 @@ type primitive = Triangle_list | Triangle_strip
 type index_type = Uint16 | Uint32
 type buffer_binding = { stage:Command.stage; index:int; buffer_id:int64; offset:int64 }
 type texture_binding = { stage:Command.stage; index:int; texture_id:int64 }
-type draw = { pipeline_key:string; buffers:buffer_binding list; textures:texture_binding list; primitive:primitive; vertex_start:int; vertex_count:int; index:(index_type*int64*int64*int) option }
+type sampler_binding = { stage:Command.stage; index:int; sampler:Types.sampler_descriptor }
+type draw = { pipeline_key:string; buffers:buffer_binding list; textures:texture_binding list; samplers:sampler_binding list; primitive:primitive; vertex_start:int; vertex_count:int; index:(index_type*int64*int64*int) option }
 type submission
 val create : Handle.device -> descriptor -> (t,Error.t) result
 val descriptor : t -> descriptor

@@ -13,7 +13,8 @@ type primitive=Triangle_list|Triangle_strip
 type index_type=Uint16|Uint32
 type buffer_binding={stage:Command.stage;index:int;buffer_id:int64;offset:int64}
 type texture_binding={stage:Command.stage;index:int;texture_id:int64}
-type draw={pipeline_key:string;buffers:buffer_binding list;textures:texture_binding list;primitive:primitive;vertex_start:int;vertex_count:int;index:(index_type*int64*int64*int)option}
+type sampler_binding={stage:Command.stage;index:int;sampler:Types.sampler_descriptor}
+type draw={pipeline_key:string;buffers:buffer_binding list;textures:texture_binding list;samplers:sampler_binding list;primitive:primitive;vertex_start:int;vertex_count:int;index:(index_type*int64*int64*int)option}
 type submission={pass:t;draws:draw list}
 let invalid text=Error(Error.make"Ogpu.Render_pass.create"Error.Invalid_argument text)
 let color_format=function Rgba8|Bgra8->true|_->false
@@ -36,7 +37,7 @@ let submit pass draws =
   in
   if draws = [] then invalid "render submission has no draws"
   else
-    let seen = Hashtbl.create 16 in
+    let seen_buffers=Hashtbl.create 16 and seen_textures=Hashtbl.create 16 and seen_samplers=Hashtbl.create 16 in
     let valid_stage = function Command.Vertex | Fragment -> true | _ -> false in
     let rec bindings = function
       | [] -> Ok ()
@@ -48,18 +49,21 @@ let submit pass draws =
         when (not (valid_stage t.stage)) || t.index < 0 || t.index > 30
              || t.texture_id <= 0L ->
           invalid "texture binding is invalid"
+      | `Sampler (s : sampler_binding) :: _ when(not(valid_stage s.stage))||s.index<0||s.index>30->invalid "sampler binding is invalid"
       | `Buffer b :: xs ->
           let key = (b.stage, b.index) in
-          if Hashtbl.mem seen key then invalid "binding stage/index is duplicated"
+          if Hashtbl.mem seen_buffers key then invalid "buffer stage/index is duplicated"
           else (
-            Hashtbl.add seen key ();
+            Hashtbl.add seen_buffers key ();
             bindings xs)
       | `Texture t :: xs ->
           let key = (t.stage, t.index) in
-          if Hashtbl.mem seen key then invalid "binding stage/index is duplicated"
+          if Hashtbl.mem seen_textures key then invalid "texture stage/index is duplicated"
           else (
-            Hashtbl.add seen key ();
+            Hashtbl.add seen_textures key ();
             bindings xs)
+      | `Sampler s :: xs ->
+          let key=(s.stage,s.index)in(match Types.validate_sampler s.sampler with Error _ as e->e|Ok()->if Hashtbl.mem seen_samplers key then invalid "sampler stage/index is duplicated"else(Hashtbl.add seen_samplers key();bindings xs))
     in
     let rec loop = function
       | [] -> Ok { pass; draws }
@@ -72,11 +76,12 @@ let submit pass draws =
       | d :: _ when d.primitive = Triangle_strip && d.vertex_count < 3 ->
           invalid "triangle strip requires three vertices"
       | d :: ds ->
-          Hashtbl.clear seen;
+          Hashtbl.clear seen_buffers;Hashtbl.clear seen_textures;Hashtbl.clear seen_samplers;
           (match
              bindings
                (List.map (fun x -> `Buffer x) d.buffers
-               @ List.map (fun x -> `Texture x) d.textures)
+               @ List.map (fun x -> `Texture x) d.textures
+               @ List.map (fun x -> `Sampler x) d.samplers)
            with
           | Error _ as e -> e
           | Ok () -> (
