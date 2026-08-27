@@ -295,5 +295,11 @@ five MTLArchitecture/MTLDevice declarations map to a copied immutable
 architecture-name snapshot. The real owned encoder fixture and ARC/Werror SDK
 round-trip prove construction, validation, copying, and lifetime behavior.
 
+The `ec543d9` interval closes the final four synchronous MTLDevice constructor
+selectors from the earlier residual-six partition, moving bound coverage from
+5,174 to 5,178. Typed function handles, immutable argument descriptors, and
+the direct render-pipeline constructor retain their source/device graphs and
+pass exact-package plus real public Metal conformance.
+
 Rates describe completed commits, not forecasts. Hardware-only gates and
 complex ownership features will vary materially from pure-value batches.
