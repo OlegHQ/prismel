@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "timestamp_utc": "2026-08-27T11:00:56Z",
+  "git_commit_benchmark": "b0b6adf",
+  "profile": "release",
+  "machine": {
+    "cpu": "Apple M1",
+    "memory_bytes": 17179869184,
+    "kernel": "Darwin 25.4.0 arm64",
+    "ocaml": "5.3.0",
+    "word_size": 64
+  },
+  "configuration": { "width": 320, "height": 180, "warmup": 2, "samples": 5, "frames_per_sample": 60, "domains": [1, 4] },
+  "build_command": "opam exec -- dune build --profile release tools/bench_raster2_renderer.exe",
+  "run_command": "_build/default/tools/bench_raster2_renderer.exe SCENARIO --warmup 2 --samples 5 --frames 60 --domains DOMAINS --check",
+  "results": [
+    {"scenario":"basic2d","domains":1,"wall_seconds":[0.234205961,0.234311104,0.234166145,0.234323025,0.234328032],"median_wall_seconds":0.234311104,"median_cpu_seconds":0.234307000,"promoted_words":[1943,1940,1955,1955,1946],"major_words":[1730060,1730057,1730072,1730075,1730063],"live_words":[116633,116660,116678,116642,116660],"output_hash":"df2ec64127736b80"},
+    {"scenario":"path","domains":1,"wall_seconds":[0.246021032,0.252296925,0.245974779,0.246023178,0.245736122],"median_wall_seconds":0.246021032,"median_cpu_seconds":0.246012000,"promoted_words":[63341,63536,63496,64491,62058],"major_words":[1809779,1809974,1809934,1810929,1808496],"live_words":[121930,179353,150419,151513,150455],"output_hash":"79306ba0b301f2fe"},
+    {"scenario":"text","domains":1,"wall_seconds":[0.134957075,0.134608030,0.135062933,0.134821892,0.134727001],"median_wall_seconds":0.134821892,"median_cpu_seconds":0.134822000,"promoted_words":[10673,10673,10673,10499,10673],"major_words":[3960353,3960353,3960353,3960176,3960353],"live_words":[182756,191086,191121,191090,162286],"output_hash":"e0b07070cd197ce4"},
+    {"scenario":"scene3","domains":1,"wall_seconds":[0.588207006,0.592162848,0.587936878,0.588083029,0.587486982],"median_wall_seconds":0.588083029,"median_cpu_seconds":0.588055000,"promoted_words":[11709,11699,11703,11700,11739],"major_words":[10380186,10380176,10380180,10380177,10380216],"live_words":[347119,347336,347352,347370,347218],"output_hash":"a8bcb319a95e4000"},
+    {"scenario":"offscreen","domains":1,"wall_seconds":[0.357483864,0.357585907,0.356564045,0.357120991,0.357012987],"median_wall_seconds":0.357120991,"median_cpu_seconds":0.357113000,"promoted_words":[12645,12660,12660,12652,12660],"major_words":[12109245,12109260,12109260,12109252,12109260],"live_words":[375936,318356,318412,375996,289606],"output_hash":"9fd38a70cf1aa370"},
+    {"scenario":"basic2d","domains":4,"wall_seconds":[0.237021208,0.235553980,0.234591007,0.234452009,0.238235950],"median_wall_seconds":0.235553980,"median_cpu_seconds":0.235533000,"promoted_words":[1943,1940,1955,1955,1946],"major_words":[1730060,1730057,1730072,1730075,1730063],"live_words":[116633,116660,116678,116642,116660],"output_hash":"df2ec64127736b80"},
+    {"scenario":"path","domains":4,"wall_seconds":[0.246601105,0.246700048,0.246412992,0.246818066,0.246646881],"median_wall_seconds":0.246646881,"median_cpu_seconds":0.246623000,"promoted_words":[63341,63536,63496,64491,62058],"major_words":[1809779,1809974,1809934,1810929,1808496],"live_words":[121930,179353,150419,151513,150455],"output_hash":"79306ba0b301f2fe"},
+    {"scenario":"text","domains":4,"wall_seconds":[0.139024973,0.134820938,0.137029886,0.134804964,0.135200977],"median_wall_seconds":0.135200977,"median_cpu_seconds":0.135188000,"promoted_words":[10673,10673,10673,10499,10673],"major_words":[3960353,3960353,3960353,3960176,3960353],"live_words":[182756,191086,191121,191090,162286],"output_hash":"e0b07070cd197ce4"},
+    {"scenario":"scene3","domains":4,"wall_seconds":[0.587748051,0.587485075,0.587707043,0.589018106,0.587723017],"median_wall_seconds":0.587723017,"median_cpu_seconds":0.587719000,"promoted_words":[11709,11699,11703,11700,11739],"major_words":[10380186,10380176,10380180,10380177,10380216],"live_words":[347119,347336,347352,347370,347218],"output_hash":"a8bcb319a95e4000"},
+    {"scenario":"offscreen","domains":4,"wall_seconds":[0.358249903,0.359652042,0.357509851,0.359024048,0.361561060],"median_wall_seconds":0.359024048,"median_cpu_seconds":0.359023000,"promoted_words":[12645,12660,12660,12652,12660],"major_words":[12109245,12109260,12109260,12109252,12109260],"live_words":[375936,318356,318412,375996,289606],"output_hash":"9fd38a70cf1aa370"}
+  ],
+  "determinism": "Each scenario produced one identical hash across all five samples and the same hash at domain metadata values 1 and 4."
+}
